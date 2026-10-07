@@ -192,3 +192,14 @@ describe('AppShell 桌面侧栏折叠', () => {
     resetShellSidebar()
   })
 })
+
+
+test('sidebar follows daily readiness without changing its URL', async () => {
+  i18n.global.locale.value = 'zh'
+  const wrapper = mountShell(makeRouter())
+  await wrapper.setProps({layout: {...minimalLayout(), dailyRanking: true}})
+  expect(wrapper.findAll('a[href="/?sort=popular"]').map(item => item.text())).toContain('今日热榜')
+  await wrapper.setProps({layout: {...minimalLayout(), dailyRanking: false}})
+  expect(wrapper.findAll('a[href="/?sort=popular"]').map(item => item.text())).toContain('流行')
+  wrapper.unmount()
+})

@@ -31,6 +31,8 @@ Chosen: reuse the existing task queue for bounded HTTP notification delivery ret
   the rendered safe body, event, channel, timestamp, dedupe key, expiry and a non-secret endpoint
   locator. URL-only endpoint locators are SHA-256 digests. The task never stores a callback URL or
   secret.
+- Each HTTP attempt uses a fresh signing timestamp and the current channel secret. The saved event
+  timestamp and approval card remain tied to the original event.
 - The existing task worker provides bounded attempts. Each attempt reloads the current notification
   configuration and stops if the global switch, endpoint, subscription, or 24-hour delivery window
   no longer permits delivery. Successful delivery keeps the same endpoint-and-approval dedupe claim;

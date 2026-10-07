@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { observeFeedRows } from "@/runtime/feed-telemetry"
+import { GooseClientError } from "@gooseforum/client"
 import { useContentUpdates } from '@/runtime/content-updates'
 import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -55,6 +57,13 @@ let refreshPollTimer: number | undefined
 let refreshPollingActive = false
 let refreshViewportQuery: MediaQueryList | undefined
 let feedRevision = 0
+let stopFeedObserver: (() => void) | undefined
+const feedRoot = ref<HTMLElement | null>(null)
+function observeFeed() { stopFeedObserver?.(); if (feedRoot.value) stopFeedObserver = observeFeedRows(feedRoot.value, () => topics.value) }
+onActivated(() => void nextTick(observeFeed))
+onMounted(() => void nextTick(observeFeed))
+onDeactivated(() => { stopFeedObserver?.(); stopFeedObserver = undefined })
+onBeforeUnmount(() => stopFeedObserver?.())
 
 const hasTopics = computed(() => topics.value.length > 0)
 const pendingFeedSort = computed(() => {
@@ -224,13 +233,14 @@ function currentFirstPageUrl() {
 }
 
 async function checkForNewTopics() {
+  if (page.props.sort === 'for_you' || page.props.actualSort === 'for_you') return
   // 仅供本地设计预览：固定待刷新数量，避免 45 秒探测覆盖 mock 状态。
   if (mockNewTopicCount > 0) return
   if (pendingHomeFeedUrl.value || failedHomeFeedUrl.value || checkingForNew.value || refreshing.value || loadingMore.value || document.hidden) return
   const revision = feedRevision
   checkingForNew.value = true
   try {
-    const payload = (await fetchPage(currentFirstPageUrl())) as PagePayload<HomeProps>
+    const payload = (await fetchPage(currentFirstPageUrl(), true)) as PagePayload<HomeProps>
     if (revision !== feedRevision || feedSwitchInProgress.value) return
     newTopicCount.value = countNewTopics(topics.value, payload.props.topics)
   } catch {
@@ -252,7 +262,7 @@ async function refreshFirstPage(mode: 'prepend' | 'replace') {
     const payload = (await fetchPage(currentFirstPageUrl())) as PagePayload<HomeProps>
     if (revision !== feedRevision || feedSwitchInProgress.value) return
     // Following refreshes replace retained rows so unfollowed authors disappear.
-    topics.value = mode === 'prepend' && page.props.sort !== 'following'
+    topics.value = mode === 'prepend' && page.props.sort !== 'following' && page.props.sort !== 'for_you'
       ? prependTopics(topics.value, payload.props.topics)
       : [...payload.props.topics]
     pagination.value = payload.props.pagination
@@ -347,9 +357,14 @@ async function loadMore() {
   try {
     const payload = (await fetchPage(new URL(pagination.value.nextUrl, window.location.origin))) as PagePayload<HomeProps>
     if (revision !== feedRevision || feedSwitchInProgress.value) return
-    topics.value = mergeTopics(topics.value, payload.props.topics)
+    if ((payload.props.actualSort ?? payload.props.sort) !== (page.props.actualSort ?? page.props.sort)) {
+      topics.value = payload.props.topics
+      await router.replace('/?sort=latest')
+      return
+    } else topics.value = mergeTopics(topics.value, payload.props.topics)
     pagination.value = payload.props.pagination
   } catch (error) {
+    if (error instanceof GooseClientError && error.status === 409) { loadingMore.value = false; await refreshFirstPage('replace'); return }
     if (revision === feedRevision && !feedSwitchInProgress.value) loadError.value = error instanceof Error ? error.message : t('common.loadFailed')
   } finally {
     if (revision === feedRevision) loadingMore.value = false
@@ -363,9 +378,10 @@ function mergeTopics(current: TopicPayload[], incoming: TopicPayload[]) {
 
 function sortTabLabel(key: string, fallback?: string) {
   if (key === 'latest') return t('topicList.tabs.latest')
+  if (key === 'for_you') return t('topicList.tabs.forYou')
   if (key === 'following') return t('topicList.tabs.following')
   if (key === 'hot') return t('topicList.tabs.hot')
-  if (key === 'popular') return t('topicList.tabs.popular')
+  if (key === 'popular') return page.layout.dailyRanking ? t('topicList.tabs.daily') : t('topicList.tabs.popular')
   return fallback || key
 }
 
@@ -679,7 +695,7 @@ onBeforeUnmount(() => {
         </div>
       </aside>
 
-      <section :class="feedMode === 'card' ? '' : 'gf-card overflow-hidden'">
+      <section ref="feedRoot" :class="feedMode === 'card' ? '' : 'gf-card overflow-hidden'">
         <div
           class="gf-home-topic-toolbar"
           :class="feedMode === 'card' ? 'gf-home-topic-toolbar-card' : ''"

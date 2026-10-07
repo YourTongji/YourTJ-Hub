@@ -22,6 +22,7 @@ LayoutPayload _$LayoutPayloadFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$LayoutPayload {
   SitePayload get site => throw _privateConstructorUsedError;
+  bool get dailyRanking => throw _privateConstructorUsedError;
   ViewerPayload get viewer => throw _privateConstructorUsedError;
   List<NavItemPayload>? get header => throw _privateConstructorUsedError;
   SidebarPayload get sidebar => throw _privateConstructorUsedError;
@@ -49,6 +50,7 @@ abstract class $LayoutPayloadCopyWith<$Res> {
   @useResult
   $Res call({
     SitePayload site,
+    bool dailyRanking,
     ViewerPayload viewer,
     List<NavItemPayload>? header,
     SidebarPayload sidebar,
@@ -83,6 +85,7 @@ class _$LayoutPayloadCopyWithImpl<$Res, $Val extends LayoutPayload>
   @override
   $Res call({
     Object? site = null,
+    Object? dailyRanking = null,
     Object? viewer = null,
     Object? header = freezed,
     Object? sidebar = null,
@@ -97,6 +100,10 @@ class _$LayoutPayloadCopyWithImpl<$Res, $Val extends LayoutPayload>
                 ? _value.site
                 : site // ignore: cast_nullable_to_non_nullable
                       as SitePayload,
+            dailyRanking: null == dailyRanking
+                ? _value.dailyRanking
+                : dailyRanking // ignore: cast_nullable_to_non_nullable
+                      as bool,
             viewer: null == viewer
                 ? _value.viewer
                 : viewer // ignore: cast_nullable_to_non_nullable
@@ -216,6 +223,7 @@ abstract class _$$LayoutPayloadImplCopyWith<$Res>
   @useResult
   $Res call({
     SitePayload site,
+    bool dailyRanking,
     ViewerPayload viewer,
     List<NavItemPayload>? header,
     SidebarPayload sidebar,
@@ -256,6 +264,7 @@ class __$$LayoutPayloadImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? site = null,
+    Object? dailyRanking = null,
     Object? viewer = null,
     Object? header = freezed,
     Object? sidebar = null,
@@ -270,6 +279,10 @@ class __$$LayoutPayloadImplCopyWithImpl<$Res>
             ? _value.site
             : site // ignore: cast_nullable_to_non_nullable
                   as SitePayload,
+        dailyRanking: null == dailyRanking
+            ? _value.dailyRanking
+            : dailyRanking // ignore: cast_nullable_to_non_nullable
+                  as bool,
         viewer: null == viewer
             ? _value.viewer
             : viewer // ignore: cast_nullable_to_non_nullable
@@ -308,6 +321,7 @@ class __$$LayoutPayloadImplCopyWithImpl<$Res>
 class _$LayoutPayloadImpl implements _LayoutPayload {
   const _$LayoutPayloadImpl({
     required this.site,
+    this.dailyRanking = false,
     required this.viewer,
     final List<NavItemPayload>? header,
     required this.sidebar,
@@ -322,6 +336,9 @@ class _$LayoutPayloadImpl implements _LayoutPayload {
 
   @override
   final SitePayload site;
+  @override
+  @JsonKey()
+  final bool dailyRanking;
   @override
   final ViewerPayload viewer;
   final List<NavItemPayload>? _header;
@@ -347,7 +364,7 @@ class _$LayoutPayloadImpl implements _LayoutPayload {
 
   @override
   String toString() {
-    return 'LayoutPayload(site: $site, viewer: $viewer, header: $header, sidebar: $sidebar, footer: $footer, unread: $unread, theme: $theme, posting: $posting)';
+    return 'LayoutPayload(site: $site, dailyRanking: $dailyRanking, viewer: $viewer, header: $header, sidebar: $sidebar, footer: $footer, unread: $unread, theme: $theme, posting: $posting)';
   }
 
   @override
@@ -356,6 +373,8 @@ class _$LayoutPayloadImpl implements _LayoutPayload {
         (other.runtimeType == runtimeType &&
             other is _$LayoutPayloadImpl &&
             (identical(other.site, site) || other.site == site) &&
+            (identical(other.dailyRanking, dailyRanking) ||
+                other.dailyRanking == dailyRanking) &&
             (identical(other.viewer, viewer) || other.viewer == viewer) &&
             const DeepCollectionEquality().equals(other._header, _header) &&
             (identical(other.sidebar, sidebar) || other.sidebar == sidebar) &&
@@ -370,6 +389,7 @@ class _$LayoutPayloadImpl implements _LayoutPayload {
   int get hashCode => Object.hash(
     runtimeType,
     site,
+    dailyRanking,
     viewer,
     const DeepCollectionEquality().hash(_header),
     sidebar,
@@ -396,6 +416,7 @@ class _$LayoutPayloadImpl implements _LayoutPayload {
 abstract class _LayoutPayload implements LayoutPayload {
   const factory _LayoutPayload({
     required final SitePayload site,
+    final bool dailyRanking,
     required final ViewerPayload viewer,
     final List<NavItemPayload>? header,
     required final SidebarPayload sidebar,
@@ -410,6 +431,8 @@ abstract class _LayoutPayload implements LayoutPayload {
 
   @override
   SitePayload get site;
+  @override
+  bool get dailyRanking;
   @override
   ViewerPayload get viewer;
   @override

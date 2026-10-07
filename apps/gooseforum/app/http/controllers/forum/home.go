@@ -9,13 +9,14 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/transform"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/feedservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/homefeedservice"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cast"
 )
 
 func Home(c *gin.Context) {
-	sort := c.Query("sort")
+	sort := personalizeDefault(c, c.Query("sort"))
 	if sort == "" {
 		sort = "latest"
 	}
@@ -24,14 +25,30 @@ func Home(c *gin.Context) {
 		page = 1
 	}
 
+	if reason, ok := c.Get("feed.degradeReason"); ok && reason == "disabled" {
+		forYouHome(c, 1)
+		return
+	}
+	if sort == "for_you" {
+		forYouHome(c, page)
+		return
+	}
 	if sort == "following" {
 		followingHome(c, page)
 		return
 	}
 	topicPage := hotdataserve.GetLatestTopicsSimpleVoPaginated(page, sort)
+	props := buildHomeProps(c, page, sort, withOwnPendingTopics(topicPage.Topics, component.LoginUserId(c), page), topicPage.HasNext)
+	items := []feedservice.Candidate{}
+	for _, t := range topicPage.Topics {
+		if len(items) < 20 {
+			items = append(items, feedservice.Candidate{ID: t.Id, Author: t.AuthorId})
+		}
+	}
+	decorateFeedProps(c, &props, items, "")
 	payload := PagePayload{
 		Component: PageComponentHome,
-		Props:     buildHomeProps(c, page, sort, withOwnPendingTopics(topicPage.Topics, component.LoginUserId(c), page), topicPage.HasNext),
+		Props:     props,
 		Meta:      buildHomeMeta(c, page, sort, topicPage.HasNext),
 		Layout:    buildLayout(c, activeKeyForHome(sort)),
 		URL:       buildPageURL(c),
@@ -83,6 +100,11 @@ func followingHome(c *gin.Context, page int) {
 		next.RawQuery = query.Encode()
 		props.Pagination.NextURL = next.String()
 	}
+	items := []feedservice.Candidate{}
+	for _, r := range result.Topics {
+		items = append(items, feedservice.Candidate{ID: r.Id, Author: r.UserId})
+	}
+	decorateFeedProps(c, &props, items, "")
 	meta := buildHomeMeta(c, page, "following", false)
 	meta.Robots = "noindex, nofollow"
 	meta.Canonical = ""

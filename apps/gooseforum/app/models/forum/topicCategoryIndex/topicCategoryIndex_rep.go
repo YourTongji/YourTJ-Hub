@@ -3,6 +3,7 @@ package topicCategoryIndex
 import (
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 )
@@ -60,5 +61,5 @@ func ReplaceTopicCategoriesTx(tx *gorm.DB, topicId uint64, categoryIDs []uint64)
 			return err
 		}
 	}
-	return nil
+	return feed.MarkTx(tx, topicId)
 }

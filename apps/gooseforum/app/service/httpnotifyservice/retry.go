@@ -89,7 +89,7 @@ func RunDeliveryRetryTask(_ context.Context, task *taskQueue.Entity) error {
 			return nil
 		}
 	}
-	if !deliver(endpoint, channelFor(endpoint), payload.Event, payload.Timestamp, payload.Body) {
+	if !deliver(endpoint, channelFor(endpoint), payload.Event, time.Now().Unix(), payload.Body) {
 		if dedupeKey != "" {
 			recentDeliveries.release(dedupeKey, claimAt)
 		}

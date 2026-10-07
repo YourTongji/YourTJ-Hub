@@ -708,3 +708,6 @@ export function getSearchMaintenance(): Promise<SearchMaintenanceStatus> {
 export function createSearchMaintenance(request: SearchMaintenanceRequest): Promise<SearchMaintenanceSubmission> {
   return postJson('/api/admin/search/maintenance', request, adminText('k004q'))
 }
+
+export type FeedSummary = import('@gooseforum/client').components['schemas']['FeedSummary']
+export function getFeedSummary(): Promise<FeedSummary> {return getJson<FeedSummary>('/api/admin/feed/summary', t('common.loadFailed'))}

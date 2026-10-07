@@ -144,3 +144,13 @@ test('话题流切换挂起/失败期间，在途刷新的结果不合并进当�
   expect(wrapper.text()).not.toContain('已刷新到最新内容')
   wrapper.unmount()
 })
+
+
+test('daily ranking labels track server readiness and retain the legacy rollback label', async () => {
+  const wrapper = mountHome()
+  await wrapper.setProps({ layout: { ...layoutFixture(), dailyRanking: true }, props: { ...homeProps(), tabs: [{key: 'popular', label: '今日热榜', url: '/?sort=popular', active: true}] } })
+  expect(wrapper.get('a[href="/?sort=popular"]').text()).toBe('今日热榜')
+  await wrapper.setProps({ layout: { ...layoutFixture(), dailyRanking: false } })
+  expect(wrapper.get('a[href="/?sort=popular"]').text()).toBe('流行')
+  wrapper.unmount()
+})

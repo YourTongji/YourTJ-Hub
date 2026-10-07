@@ -139,7 +139,7 @@ func renderInternalErrorWithStatus(c *gin.Context, status int) {
 }
 func renderPageWithStatus(c *gin.Context, status int, templateName string, payload PagePayload) {
 	c.Status(status)
-	c.Header("Vary", "X-Goose-Page, Accept")
+	c.Header("Vary", "X-Goose-Page, X-Goose-Feed-Version, Accept")
 	if c.Writer.Header().Get("Cache-Control") == "" {
 		c.Header("Cache-Control", "no-store")
 	}

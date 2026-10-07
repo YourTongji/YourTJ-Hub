@@ -70,7 +70,24 @@ func feishuBody(endpoint pageConfig.HttpNotifyEndpoint, card map[string]any, now
 	return json.Marshal(body)
 }
 
-func (feishuChannel) buildRequest(endpoint pageConfig.HttpNotifyEndpoint, _ string, _ string, _ int64, body []byte) (*http.Request, error) {
+func (feishuChannel) buildRequest(endpoint pageConfig.HttpNotifyEndpoint, _ string, _ string, timestamp int64, body []byte) (*http.Request, error) {
+	// Retry bodies may outlive Feishu's one-hour signing window or a secret
+	// rotation. Sign each HTTP attempt with its current endpoint configuration.
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, err
+	}
+	delete(payload, "timestamp")
+	delete(payload, "sign")
+	if endpoint.Secret != "" {
+		value := strconv.FormatInt(timestamp, 10)
+		payload["timestamp"], _ = json.Marshal(value)
+		payload["sign"], _ = json.Marshal(feishuSign(value, endpoint.Secret))
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
 	return newJSONPost(endpoint, body)
 }
 
