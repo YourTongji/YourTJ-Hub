@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 )
 
@@ -57,5 +58,61 @@ func TestStemName(t *testing.T) {
 		if got := StemName(input); got != want {
 			t.Fatalf("StemName(%q) = %q, want %q", input, got, want)
 		}
+	}
+}
+
+func TestStickerCacheAndInvalidation(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&sticker.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	InvalidateCache()
+
+	item := sticker.Entity{
+		Name:       "cache_test",
+		FileName:   "stickers/cache_test.png",
+		IsOfficial: true,
+		IsEnabled:  true,
+		SortOrder:  1,
+	}
+	if err := conn.Create(&item).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = conn.Where("name = ?", "cache_test").Delete(&sticker.Entity{}).Error
+		InvalidateCache()
+	})
+
+	// 1. First resolve should hit DB and populate cache
+	urls, err := ResolveURLs([]string{"cache_test"})
+	if err != nil {
+		t.Fatalf("ResolveURLs failed: %v", err)
+	}
+	if len(urls) != 1 || urls["cache_test"] == "" {
+		t.Fatalf("expected resolved url, got %v", urls)
+	}
+
+	// 2. Modify DB row directly behind the cache's back (disable it via raw table without model hooks)
+	if err := conn.Table("stickers").Where("id = ?", item.Id).Update("is_enabled", false).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	// 3. ResolveURLs should still return cached URL because cache is valid
+	cachedURLs, err := ResolveURLs([]string{"cache_test"})
+	if err != nil {
+		t.Fatalf("ResolveURLs failed: %v", err)
+	}
+	if cachedURLs["cache_test"] != urls["cache_test"] {
+		t.Fatalf("expected cache hit with url %q, got %q", urls["cache_test"], cachedURLs["cache_test"])
+	}
+
+	// 4. Invalidate cache - next resolve must see the DB update (disabled)
+	InvalidateCache()
+	updatedURLs, err := ResolveURLs([]string{"cache_test"})
+	if err != nil {
+		t.Fatalf("ResolveURLs failed: %v", err)
+	}
+	if _, ok := updatedURLs["cache_test"]; ok {
+		t.Fatalf("expected disabled sticker to not be in resolved urls after invalidation, got %v", updatedURLs)
 	}
 }

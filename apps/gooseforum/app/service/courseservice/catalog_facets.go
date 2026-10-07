@@ -16,6 +16,11 @@ type CatalogFacets struct {
 
 var catalogFacetsCache = &localcache.Cache[CatalogFacets]{MaxEntries: 1}
 
+// InvalidateCatalogFacetsCache clears the cached catalog facet options.
+func InvalidateCatalogFacetsCache() {
+	catalogFacetsCache.Clear()
+}
+
 // Public filter dictionaries tolerate a short stale interval. They contain no
 // user state, and request cancellation reaches each query on a cache miss.
 func GetCatalogFacets(ctx context.Context) (CatalogFacets, error) {

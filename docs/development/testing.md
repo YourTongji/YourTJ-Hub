@@ -38,6 +38,10 @@ export YOURTJ_TEST_PG_URL="host=127.0.0.1 port=5432 user=postgres password=postg
 export TEST_PG_DSN="$YOURTJ_TEST_PG_URL"
 go test -p 1 -parallel 1 ./app/... -run 'PostgreSQL|Postgres' -count=1 -v
 
+# Release archive licenses (from repository root): shipping config with a tiny executable fixture.
+# Install GoReleaser on PATH or set YOURTJ_GORELEASER to its executable path; absent tooling skips this test.
+python3 -m unittest discover -s scripts/release -p test_archive_licenses.py -v
+
 # Full
 make test
 

@@ -8,7 +8,6 @@
     <a href="https://github.com/avelino/awesome-go"><img src="https://awesome.re/mentioned-badge-flat.svg" alt="Mentioned in Awesome Go"></a>
     <a href="https://golang.org"><img src="https://img.shields.io/badge/Go-1.26+-blue.svg" alt="Go version"></a>
     <a href="https://tailwindcss.com"><img src="https://img.shields.io/badge/TailwindCSS-4-blue.svg" alt="TailwindCSS"></a>
-    <a href="LICENSE"><img src="https://img.shields.io/github/license/YourTongji/YourTJ-Hub.svg" alt="License"></a>
     <a href="https://github.com/YourTongji/YourTJ-Hub/stargazers"><img src="https://img.shields.io/github/stars/YourTongji/YourTJ-Hub.svg?style=social" alt="GitHub stars"></a>
   </p>
 
@@ -153,4 +152,5 @@ CMD ["./yourtj-hub", "serve"]
 
 ## 许可证
 
-MIT License，见 [LICENSE](LICENSE)。
+GooseForum 上游内容保留 [MIT License](LICENSE)。YourTJ 原创改动和模块采用
+[GPL-3.0-only](LICENSES.md)。上游内容原有的 MIT 授权仍然有效。

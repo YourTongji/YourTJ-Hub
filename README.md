@@ -223,8 +223,9 @@ git diff --check
 
 ## 许可与致谢
 
-`apps/gooseforum` 基于 GooseForum 修改并保留其
-[MIT License](./apps/gooseforum/LICENSE)。感谢 GooseForum 作者和所有上游贡献者提供的坚实基础。
+`apps/gooseforum` 保留 GooseForum 上游代码的 [MIT License](./apps/gooseforum/LICENSE)；YourTJ 原创改动和模块采用 GPL-3.0-only。
+感谢 GooseForum 作者和所有上游贡献者提供的坚实基础。
 
-本 monorepo 目前尚未提供覆盖全部目录的根级许可证。在维护者明确整体授权方式前，不应假定
-`apps/gooseforum` 之外的内容自动适用 MIT 许可。
+本仓库按来源与内容类型分层许可：YourTJ 原创软件和仓库文档采用 GPL-3.0-only；Wiki 与课程评价数据采用
+CC BY-NC-SA 4.0；第三方组件保留各自许可。完整范围、历史生效日、署名与分发要求见
+[许可说明](./docs/development/licensing.md)和根目录[软件许可证](./LICENSE)。

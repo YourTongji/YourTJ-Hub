@@ -32,6 +32,7 @@ func setupCatalogTest(t *testing.T) *gorm.DB {
 			t.Fatalf("clean catalog table: %v", err)
 		}
 	}
+	InvalidateCatalogFacetsCache()
 	return conn
 }
 
@@ -147,5 +148,51 @@ func TestListDepartments(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("ListDepartments = %v, want %v", got, want)
 		}
+	}
+}
+
+// TestCatalogFacetsCacheAndInvalidation verifies that facet listings use caching and update on invalidation.
+func TestCatalogFacetsCacheAndInvalidation(t *testing.T) {
+	conn := setupCatalogTest(t)
+	createCatalogCourse(t, conn, "CS101", "Computer Science")
+
+	depts, err := ListDepartments()
+	if err != nil {
+		t.Fatalf("ListDepartments failed: %v", err)
+	}
+	if len(depts) != 1 || depts[0] != "Computer Science" {
+		t.Fatalf("unexpected departments: %v", depts)
+	}
+
+	// Mutating the returned slice should not corrupt cached data (defensive copy)
+	depts[0] = "Tampered"
+	deptsAgain, err := ListDepartments()
+	if err != nil {
+		t.Fatalf("ListDepartments again failed: %v", err)
+	}
+	if len(deptsAgain) != 1 || deptsAgain[0] != "Computer Science" {
+		t.Fatalf("cached slice was mutated: %v", deptsAgain)
+	}
+
+	// Insert another course directly into DB without invalidating cache
+	createCatalogCourse(t, conn, "MATH101", "Mathematics")
+
+	// Calling ListDepartments should still return cached result
+	deptsCached, err := ListDepartments()
+	if err != nil {
+		t.Fatalf("ListDepartments cached call failed: %v", err)
+	}
+	if len(deptsCached) != 1 || deptsCached[0] != "Computer Science" {
+		t.Fatalf("expected cached single department, got: %v", deptsCached)
+	}
+
+	// Invalidate cache and call again; should reflect new department
+	InvalidateCatalogFacetsCache()
+	deptsUpdated, err := ListDepartments()
+	if err != nil {
+		t.Fatalf("ListDepartments updated call failed: %v", err)
+	}
+	if len(deptsUpdated) != 2 || deptsUpdated[0] != "Computer Science" || deptsUpdated[1] != "Mathematics" {
+		t.Fatalf("expected updated departments [Computer Science, Mathematics], got: %v", deptsUpdated)
 	}
 }
