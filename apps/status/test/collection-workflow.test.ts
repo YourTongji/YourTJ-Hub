@@ -10,6 +10,42 @@ const workflow = parse(readFileSync('../../.github/workflows/collect-status.yml'
 const allowed = (job: { if: string }, event: string, ref: string, enabled = 'true', repo = 'YourTongji/YourTJ-Hub', scheduler = '') =>
   runInNewContext(job.if, { github: { event_name: event, ref, repository: repo }, vars: { STATUS_COLLECTION_ENABLED: enabled, STATUS_SCHEDULER_ENABLED: scheduler } })
 
+// Evaluate the expressions in the real YAML; this checks the queue policy, not
+// GitHub's hosted-runner scheduler. Run IDs/SHAs must not split a kind's queue.
+function group(job: { concurrency: { group: string } }, kind: string, runId = 1) {
+  return job.concurrency.group.replace(/\$\{\{(.*?)\}\}/g, (_, expression: string) => String(runInNewContext(expression, {
+    inputs: { kind },
+    github: { workflow: workflow.name, ref: 'refs/heads/main', run_id: runId, sha: `commit-${runId}`, event: { schedule: kind === 'devices' ? '7 * * * *' : '2,17,32,47 * * * *' } },
+  })))
+}
+
+it('does not reserve a shared workflow queue before skipped jobs are filtered', () => {
+  // A queued runner used to hold this group indefinitely, blocking both kinds
+  // and even the disabled default-branch timer despite the job execution timeout.
+  expect(workflow.concurrency).toBeUndefined()
+})
+
+it('supersedes a stuck collector only with a newer collection of the same kind', () => {
+  const job = workflow.jobs.collect
+  expect(job.concurrency?.['cancel-in-progress']).toBe(true)
+  for (const kind of ['public', 'devices']) {
+    expect(group(job, kind, 1)).toBe(group(job, kind, 2))
+  }
+  expect(group(job, 'public')).not.toBe(group(job, 'devices'))
+})
+
+it('isolates fallback timers from their main collectors and from the other kind', () => {
+  const job = workflow.jobs.dispatch
+  expect(job.concurrency?.['cancel-in-progress']).toBe(true)
+  for (const kind of ['public', 'devices']) {
+    expect(group(job, kind, 1)).toBe(group(job, kind, 2))
+    for (const collectedKind of ['public', 'devices']) {
+      expect(group(job, kind)).not.toBe(group(workflow.jobs.collect, collectedKind))
+    }
+  }
+  expect(group(job, 'public')).not.toBe(group(job, 'devices'))
+})
+
 it('disables the delayed GitHub timer when Cloudflare owns scheduling, while keeping main dispatch usable', () => {
   expect(allowed(workflow.jobs.dispatch, 'schedule', 'refs/heads/dev', 'true', 'YourTongji/YourTJ-Hub', 'true')).toBe(false)
   expect(allowed(workflow.jobs.collect, 'workflow_dispatch', 'refs/heads/main', 'true', 'YourTongji/YourTJ-Hub', 'true')).toBe(true)

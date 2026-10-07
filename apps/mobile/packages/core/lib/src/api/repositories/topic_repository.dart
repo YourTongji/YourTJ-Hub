@@ -1,6 +1,7 @@
 import '../../gen/search.dart';
 import '../../gen/topic.dart';
 import '../gf_api_client.dart';
+import '../feed_telemetry.dart';
 import 'post_repository.dart';
 
 import 'package:dio/dio.dart';
@@ -155,10 +156,20 @@ class TopicRepository {
   }
 
   /// action: 1 点赞, 2 取消点赞。
-  Future<bool> likeTopic({required int topicId, required int action}) async {
+  Future<bool> likeTopic({
+    required int topicId,
+    required int action,
+    TopicPayload? feedTopic,
+  }) async {
     await _client.post<Object?>(
       '/api/forum/topics/like',
       body: {'topicId': topicId, 'action': action},
+      headers: feedTopic == null
+          ? null
+          : FeedTelemetry.instance.headers(
+              '/api/forum/topics/like',
+              topic: feedTopic,
+            ),
     );
     return true;
   }
@@ -167,10 +178,17 @@ class TopicRepository {
   Future<bool> bookmarkTopic({
     required int topicId,
     required int action,
+    TopicPayload? feedTopic,
   }) async {
     await _client.post<Object?>(
       '/api/forum/topics/bookmark',
       body: {'topicId': topicId, 'action': action},
+      headers: feedTopic == null
+          ? null
+          : FeedTelemetry.instance.headers(
+              '/api/forum/topics/bookmark',
+              topic: feedTopic,
+            ),
     );
     return true;
   }

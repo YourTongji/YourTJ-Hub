@@ -204,6 +204,10 @@ paths:
     $ref: ./paths/user-account.yaml#/unbindOAuth
   /api/forum/unread-status:
     $ref: ./paths/forum-notifications.yaml#/getUnreadStatus
+  /api/forum/feed/events:
+    $ref: ./paths/feed.yaml#/captureFeedEvents
+  /api/admin/feed/summary:
+    $ref: ./paths/feed.yaml#/getFeedSummary
   /api/forum/events:
     $ref: ./paths/forum-events.yaml#/streamForumEvents
   /api/forum/notifications:

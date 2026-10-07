@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/feedconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
@@ -146,6 +147,7 @@ type ResetPasswordPageProps struct {
 }
 
 type LayoutPayload struct {
+	DailyRanking bool                `json:"dailyRanking,omitempty"`
 	Site         SitePayload         `json:"site"`
 	Viewer       ViewerPayload       `json:"viewer"`
 	Header       []NavItemPayload    `json:"header,omitempty"`
@@ -258,11 +260,14 @@ type FooterPayload struct {
 }
 
 type HomeProps struct {
-	Sort         string              `json:"sort"`
-	Tabs         []TabPayload        `json:"tabs"`
-	Topics       []TopicPayload      `json:"topics"`
-	Pagination   PaginationPayload   `json:"pagination"`
-	Announcement AnnouncementPayload `json:"announcement"`
+	ActualSort    string              `json:"actualSort,omitempty"`
+	DegradeReason string              `json:"degradeReason,omitempty"`
+	FeedTrace     string              `json:"feedTrace,omitempty"`
+	Sort          string              `json:"sort"`
+	Tabs          []TabPayload        `json:"tabs"`
+	Topics        []TopicPayload      `json:"topics"`
+	Pagination    PaginationPayload   `json:"pagination"`
+	Announcement  AnnouncementPayload `json:"announcement"`
 }
 
 type TabPayload struct {
@@ -293,6 +298,9 @@ type AnnouncementItemPayload struct {
 }
 
 type TopicPayload struct {
+	FeedTrace      string                   `json:"feedTrace,omitempty"`
+	FeedPosition   *int                     `json:"feedPosition,omitempty"`
+	FeedReason     string                   `json:"feedReason,omitempty"`
 	ID             uint64                   `json:"id"`
 	Title          string                   `json:"title"`
 	Description    string                   `json:"description"`
@@ -764,8 +772,9 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 			BrandText:     brandText,
 			BrandImage:    brandImage,
 		},
-		Viewer: viewer,
-		Header: buildChromeNavItems(chrome.Header),
+		Viewer:       viewer,
+		DailyRanking: feedconfig.RankReady(),
+		Header:       buildChromeNavItems(chrome.Header),
 		Sidebar: buildSidebarPayload(
 			hotdataserve.GetCategory(),
 			activeKey,
@@ -1056,7 +1065,7 @@ func buildHomeTabs(sort string, userID uint64, lang string) []TabPayload {
 	}
 	return append(tabs,
 		TabPayload{Key: "hot", URL: "/?sort=hot", Active: sort == "hot"},
-		TabPayload{Key: "popular", URL: "/?sort=popular", Active: sort == "popular"},
+		TabPayload{Key: "popular", Label: dailyTabLabel(lang), URL: "/?sort=popular", Active: sort == "popular"},
 	)
 }
 
@@ -3300,4 +3309,11 @@ func parsePositiveInt(value string, fallback int) int {
 // 其他非版主读者仍看不到。被拒（封禁）的楼层不在此列。
 func ownPendingPost(item *posts.Entity, currentUserID uint64) bool {
 	return item != nil && currentUserID != 0 && item.UserId == currentUserID && item.ProcessStatus == posts.ProcessStatusPending
+}
+
+func dailyTabLabel(lang string) string {
+	if feedconfig.RankReady() {
+		return i18n.T(lang, "dailyFeed")
+	}
+	return ""
 }

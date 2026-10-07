@@ -84,10 +84,14 @@ func MarkVisited(userID, topicID, lastSeenPostID uint64, now time.Time) error {
 		if exists {
 			currentPostID, ok := decodeVisit(current)
 			if ok && lastSeenPostID <= currentPostID {
-				return kvstore.UpdateSet, current, nil
+				lastSeenPostID = currentPostID
 			}
 		}
-		return kvstore.UpdateSet, encodeVisit(lastSeenPostID), nil
+		value := make([]byte, 17)
+		value[0] = 2
+		binary.BigEndian.PutUint64(value[1:9], lastSeenPostID)
+		binary.BigEndian.PutUint64(value[9:17], encodeTime(now))
+		return kvstore.UpdateSet, value, nil
 	})
 	return errors.Join(trackingErr, visitErr)
 }
@@ -177,7 +181,9 @@ func encodeVisit(lastSeenPostID uint64) []byte {
 }
 
 func decodeVisit(value []byte) (uint64, bool) {
-	if len(value) != visitValueSize || value[0] != valueVersion {
+	validCurrent := len(value) == visitValueSize && value[0] == valueVersion
+	validLegacy := len(value) == 17 && value[0] == 2
+	if !validCurrent && !validLegacy {
 		return 0, false
 	}
 	return binary.BigEndian.Uint64(value[1:9]), true
@@ -195,4 +201,30 @@ func decodeTime(value uint64) time.Time {
 		return time.Time{}
 	}
 	return time.UnixMilli(int64(value)).UTC()
+}
+
+// Visited reads successful detail timestamps without touching activity or TTL.
+func Visited(userID uint64, topicIDs []uint64) (map[uint64]time.Time, error) {
+	result := map[uint64]time.Time{}
+	if userID == 0 || len(topicIDs) == 0 {
+		return result, nil
+	}
+	if len(topicIDs) > 300 {
+		return nil, fmt.Errorf("visit batch exceeds feed bound")
+	}
+	keys := make([]string, len(topicIDs))
+	for i, id := range topicIDs {
+		keys[i] = visitKey(userID, id)
+	}
+	values, err := kvstore.GetManyBytes(keys)
+	if err != nil {
+		return nil, err
+	}
+	for i, key := range keys {
+		v := values[key]
+		if len(v) == 17 && v[0] == 2 {
+			result[topicIDs[i]] = decodeTime(binary.BigEndian.Uint64(v[9:17]))
+		}
+	}
+	return result, nil
 }

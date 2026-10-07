@@ -1018,6 +1018,9 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get sortForYou => '为你推荐';
+
+  @override
   String get sortLatest => '最新';
 
   @override
@@ -3317,4 +3320,19 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get notificationReviewRejectedDetail =>
       '它不会公开显示，请前往内容管理自查修改后重新提交。如有疑问，请联系管理员。';
+
+  @override
+  String get feedReasonFollowing => '来自你关注的人';
+
+  @override
+  String get feedReasonCategory => '你参与过的分类';
+
+  @override
+  String get feedReasonNewReply => '有新的回复';
+
+  @override
+  String get feedReasonRecent => '近期发布';
+
+  @override
+  String get sortDaily => '今日热榜';
 }

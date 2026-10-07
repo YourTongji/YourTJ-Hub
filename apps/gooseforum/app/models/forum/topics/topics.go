@@ -10,10 +10,22 @@ const tableName = "topics"
 
 type Entity struct {
 	AgentRepliesDisabled bool       `gorm:"column:agent_replies_disabled;not null;default:false" json:"agentRepliesDisabled"`
-	Id                   uint64     `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_topics_list_default,priority:5,sort:desc;index:idx_topics_list_hot,priority:4,sort:desc;index:idx_topics_list_popular,priority:4,sort:desc;index:idx_topics_list_new,priority:4,sort:desc;index:idx_topics_admin_list,priority:3,sort:desc;index:idx_topics_admin_user_list,priority:4,sort:desc;" json:"id"`
+	LastPublicReplyAt    *time.Time `gorm:"index" json:"-"`
+	RankDueAt            *time.Time `gorm:"index" json:"-"`
+	RankScore            int64      `gorm:"not null;default:0;index:idx_topics_rank,priority:2,sort:desc" json:"-"`
+	DailyScore           int64      `gorm:"not null;default:0;index:idx_topics_daily,priority:2,sort:desc" json:"-"`
+	RankEngaged          uint32     `gorm:"not null;default:0" json:"-"`
+	RankComponents       string     `gorm:"type:text" json:"-"`
+	RankSource           string     `gorm:"size:32;not null;default:''"`
+	RankReady            bool       `gorm:"not null;default:false" json:"-"`
+	RankParamsHash       string     `gorm:"size:32;index:idx_topics_rank,priority:1;index:idx_topics_daily,priority:1" json:"-"`
+	RankScoredAt         *time.Time `gorm:"index" json:"-"`
+	FirstPublicAt        *time.Time `gorm:"index:idx_topics_first_public,priority:1,sort:desc" json:"-"`
+	FirstPublicEstimated bool       `gorm:"not null;default:false" json:"-"`
+	Id                   uint64     `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_topics_list_default,priority:5,sort:desc;index:idx_topics_list_hot,priority:4,sort:desc;index:idx_topics_list_popular,priority:4,sort:desc;index:idx_topics_list_new,priority:4,sort:desc;index:idx_topics_rank,priority:3,sort:desc;index:idx_topics_daily,priority:3,sort:desc;index:idx_topics_first_public,priority:2,sort:desc;index:idx_topics_actor,priority:2;index:idx_topics_admin_list,priority:3,sort:desc;index:idx_topics_admin_user_list,priority:4,sort:desc;" json:"id"`
 	Title                string     `gorm:"column:title;type:varchar(512);not null;default:'';" json:"title"`
 	CategoryIds          []uint64   `gorm:"column:category_id;type:varchar(255);not null;default:'[]';serializer:json" json:"categoryIds"`
-	UserId               uint64     `gorm:"column:user_id;not null;default:0;index:idx_topics_user_status,priority:1;index:idx_topics_admin_user_list,priority:1;" json:"userId"`
+	UserId               uint64     `gorm:"column:user_id;not null;default:0;index:idx_topics_actor,priority:1;index:idx_topics_user_status,priority:1;index:idx_topics_admin_user_list,priority:1;" json:"userId"`
 	Status               int8       `gorm:"column:status;not null;default:0;index:idx_topics_user_status,priority:2;index:idx_topics_list_default,priority:1;index:idx_topics_list_hot,priority:1;index:idx_topics_list_popular,priority:1;index:idx_topics_list_new,priority:1;" json:"status"`
 	ProcessStatus        int8       `gorm:"column:process_status;not null;default:0;index:idx_topics_user_status,priority:3;index:idx_topics_list_default,priority:2;index:idx_topics_list_hot,priority:2;index:idx_topics_list_popular,priority:2;index:idx_topics_list_new,priority:2;" json:"processStatus"`
 	TopicType            int8       `gorm:"column:topic_type;not null;default:0;index:idx_topics_type_status,priority:1;" json:"topicType"`

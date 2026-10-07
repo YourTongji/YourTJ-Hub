@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"math/rand"
 	"strings"
 	"time"
@@ -132,7 +133,15 @@ func Save(entity *EntityComplete) error {
 // must be used for request-scoped edits so a stale EntityComplete cannot
 // overwrite a concurrent password change or token-version increment.
 func UpdateFields(userID uint64, fields map[string]any) error {
-	return builder().Where(queryopt.Eq(pid, userID)).Updates(fields).Error
+	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&EntityComplete{}).Where("id = ?", userID).Updates(fields).Error; err != nil {
+			return err
+		}
+		if _, changes := fields["is_frozen"]; changes {
+			return feed.MarkActorTx(tx, userID)
+		}
+		return nil
+	})
 }
 
 func UpdateWornBadgeCode(userID uint64, badgeCode string) error {
@@ -166,6 +175,9 @@ func CloseAccount(userID uint64) error {
 // CloseAccountTx lets the owning service coordinate account deletion and other
 // required private-state cleanup in one primary-database transaction.
 func CloseAccountTx(tx *gorm.DB, userID uint64) error {
+	if err := feed.MarkActorTx(tx, userID); err != nil {
+		return err
+	}
 	if err := tx.Unscoped().Model(&EntityComplete{}).Where("id = ?", userID).Updates(map[string]any{
 		"deleted_at": time.Now(), "worn_badge_code": "",
 	}).Error; err != nil {

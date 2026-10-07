@@ -8,8 +8,10 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"text/template"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
@@ -21,7 +23,27 @@ import (
 )
 
 // Viper 库实例
-var v *viper.Viper
+var current atomic.Pointer[viper.Viper]
+var configWriteMu sync.Mutex
+var revision atomic.Uint64
+var validators []func(map[string]any) error
+
+func Revision() uint64 { return revision.Load() }
+func AddValidator(v func(map[string]any) error) {
+	configWriteMu.Lock()
+	defer configWriteMu.Unlock()
+	validators = append(validators, v)
+}
+func validate(next *viper.Viper) error {
+	for _, v := range validators {
+		if err := v(next.AllSettings()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var configPath string
 
 //go:embed config.templ.toml
 var configTempl []byte
@@ -70,7 +92,7 @@ func init() {
 			slog.Error("preferences.init", "err", err)
 		}
 	}
-	v = viper.New()
+	v := viper.New()
 	v.SetConfigType("toml")
 	v.AddConfigPath(filepath.Dir(cfgPath))
 	configFlag := flag.String("config", cfgPath, "path to config file")
@@ -78,9 +100,13 @@ func init() {
 	if err := v.ReadInConfig(); err != nil {
 		slog.Warn("ReadInConfig", "err", err)
 	}
+	configPath = *configFlag
+	current.Store(v)
+	revision.Add(1)
 }
 
 func internalGet(path string, defaultValue ...any) any {
+	v := current.Load()
 	// conf 或者环境变量不存在的情况
 	if !v.IsSet(path) || v.Get(path) == nil {
 		if len(defaultValue) > 0 {
@@ -88,10 +114,11 @@ func internalGet(path string, defaultValue ...any) any {
 		}
 		return nil
 	}
-	return v.Get(path)
+	return cloneValue(v.Get(path))
 }
 
 func IsSet(path string) bool {
+	v := current.Load()
 	return v.IsSet(path) && v.Get(path) != nil
 }
 
@@ -102,7 +129,17 @@ func GetRaw(path string) any {
 }
 
 func Set(path string, value any) {
-	v.Set(path, value)
+	configWriteMu.Lock()
+	defer configWriteMu.Unlock()
+	next := viper.New()
+	_ = next.MergeConfigMap(All())
+	next.Set(path, cloneValue(value))
+	if err := validate(next); err != nil {
+		slog.Warn("configuration rejected", "err", err)
+		return
+	}
+	current.Store(next)
+	revision.Add(1)
 }
 
 var watchConfigOnce sync.Once
@@ -110,8 +147,32 @@ var watchConfigOnce sync.Once
 // OpenConfigChangeEvent 开启监控配置文件⌚️
 func OpenConfigChangeEvent() {
 	watchConfigOnce.Do(func() {
-		v.OnConfigChange(runEvent)
-		v.WatchConfig()
+		// The watcher is never published: Viper mutates it while reading the file.
+		watcher := viper.New()
+		watcher.SetConfigFile(configPath)
+		watcher.SetConfigType("toml")
+		_ = watcher.ReadInConfig()
+		watcher.OnConfigChange(func(e fsnotify.Event) {
+			configWriteMu.Lock()
+			next := viper.New()
+			next.SetConfigFile(configPath)
+			next.SetConfigType("toml")
+			err := next.ReadInConfig()
+			if err == nil {
+				err = validate(next)
+			}
+			if err == nil {
+				current.Store(next)
+				revision.Add(1)
+			}
+			configWriteMu.Unlock()
+			if err != nil {
+				slog.Warn("configuration reload rejected", "err", err)
+				return
+			}
+			runEvent(e)
+		})
+		watcher.WatchConfig()
 	})
 }
 
@@ -175,22 +236,22 @@ func GetBool(path string, defaultValue ...any) bool {
 
 // GetStringMapString returns a string map setting.
 func GetStringMapString(path string) map[string]string {
-	return v.GetStringMapString(path)
+	return cast.ToStringMapString(internalGet(path))
 }
 
 // GetStringSlice returns a string slice setting.
 func GetStringSlice(path string) []string {
-	return v.GetStringSlice(path)
+	return cast.ToStringSlice(internalGet(path))
 }
 
 // GetIntSlice returns an int slice setting.
 func GetIntSlice(path string) []int {
-	return v.GetIntSlice(path)
+	return cast.ToIntSlice(internalGet(path))
 }
 
 // All returns all loaded settings.
 func All() map[string]any {
-	return v.AllSettings()
+	return cloneValue(current.Load().AllSettings()).(map[string]any)
 }
 
 func IsTestMode() bool {
@@ -224,4 +285,44 @@ func findConfigDirTest(start string, maxDepth int) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("preferences: test mode cannot find go.mod within %d levels from %s", maxDepth, start)
+}
+
+// Copy composite settings at the public boundary; callers cannot mutate a published snapshot.
+func cloneValue(value any) any {
+	if value == nil {
+		return nil
+	}
+	return cloneReflect(reflect.ValueOf(value)).Interface()
+}
+func cloneReflect(v reflect.Value) reflect.Value {
+	switch v.Kind() {
+	case reflect.Interface:
+		if v.IsNil() {
+			return v
+		}
+		out := reflect.New(v.Type()).Elem()
+		out.Set(cloneReflect(v.Elem()))
+		return out
+	case reflect.Map:
+		if v.IsNil() {
+			return v
+		}
+		out := reflect.MakeMapWithSize(v.Type(), v.Len())
+		iter := v.MapRange()
+		for iter.Next() {
+			out.SetMapIndex(iter.Key(), cloneReflect(iter.Value()))
+		}
+		return out
+	case reflect.Slice:
+		if v.IsNil() {
+			return v
+		}
+		out := reflect.MakeSlice(v.Type(), v.Len(), v.Len())
+		for i := 0; i < v.Len(); i++ {
+			out.Index(i).Set(cloneReflect(v.Index(i)))
+		}
+		return out
+	default:
+		return v
+	}
 }

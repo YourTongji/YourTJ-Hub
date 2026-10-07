@@ -1,3 +1,5 @@
+import { feedFetch, feedTopicHeaders } from './feed-telemetry'
+import type { TopicPayload } from '@gooseforum/client'
 // CourseSummaryPayload 以别名导入：本文件 1663 行另有一个同名但形状不同的
 // CourseSummaryPayload（AI 总结：consensus/keywords/pros/cons），二者同名异物。
 // 这里导入的是课程卡片（id/name/ratingAvg/...），故别名为 CourseCatalogItem 避免混淆。
@@ -50,7 +52,7 @@ function responseMessage(data: ApiResponse<unknown>, fallback: string) {
 }
 
 export async function resolveLinkPreviews(urls: readonly string[], signal?: AbortSignal): Promise<LinkPreview[]> {
-  const response = await fetch('/api/link-previews/resolve', {
+  const response = await feedFetch('/api/link-previews/resolve', {
     method: 'POST',
     headers: {
       Accept: 'application/json',
@@ -186,7 +188,7 @@ export async function getPostRevisions(postId: number, beforeVersion = 0, limit 
     limit: String(limit),
   })
   if (beforeVersion > 0) params.set('beforeVersion', String(beforeVersion))
-  const response = await fetch(`/api/forum/posts/revisions?${params.toString()}`, {
+  const response = await feedFetch(`/api/forum/posts/revisions?${params.toString()}`, {
     headers: {
       Accept: 'application/json',
     },
@@ -196,7 +198,7 @@ export async function getPostRevisions(postId: number, beforeVersion = 0, limit 
 
 
 export async function updatePost(postId: number, content: string): Promise<UpdatePostResult> {
-  const response = await fetch('/api/forum/posts/update', {
+  const response = await feedFetch('/api/forum/posts/update', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -215,7 +217,7 @@ export interface DeletePostResult {
 }
 
 export async function deletePost(postId: number): Promise<DeletePostResult> {
-  const response = await fetch('/api/forum/posts/delete', {
+  const response = await feedFetch('/api/forum/posts/delete', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -228,7 +230,7 @@ export async function deletePost(postId: number): Promise<DeletePostResult> {
 }
 
 export async function deleteTopic(topicId: number): Promise<boolean> {
-  const response = await fetch('/api/forum/topics/delete', {
+  const response = await feedFetch('/api/forum/topics/delete', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -270,7 +272,7 @@ export async function getDeletedContent(contentType: DeletedContentType, cursorI
   })
   if (cursorId > 0) params.set('cursorId', String(cursorId))
 
-  const response = await fetch(`/api/forum/user/deleted-content?${params.toString()}`, {
+  const response = await feedFetch(`/api/forum/user/deleted-content?${params.toString()}`, {
     headers: {
       Accept: 'application/json',
     },
@@ -279,7 +281,7 @@ export async function getDeletedContent(contentType: DeletedContentType, cursorI
 }
 
 export async function restoreDeletedContent(contentType: DeletedContentType, contentId: number): Promise<boolean> {
-  const response = await fetch('/api/forum/user/content-restore', {
+  const response = await feedFetch('/api/forum/user/content-restore', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -293,7 +295,7 @@ export async function restoreDeletedContent(contentType: DeletedContentType, con
 }
 
 export async function purgeDeletedContent(contentType: DeletedContentType, contentId: number): Promise<boolean> {
-  const response = await fetch('/api/forum/user/content-purge', {
+  const response = await feedFetch('/api/forum/user/content-purge', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -309,7 +311,7 @@ export async function purgeDeletedContent(contentType: DeletedContentType, conte
 
 /** 删除生命周期埋点（PRD R14）：前端点击/确认类事件上报。 */
 export async function reportContentEvent(eventType: 'content_delete_clicked' | 'content_delete_confirmed', contentType: DeletedContentType, contentId: number): Promise<boolean> {
-  const response = await fetch('/api/forum/user/content-event', {
+  const response = await feedFetch('/api/forum/user/content-event', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -349,7 +351,7 @@ export interface MyContentListResult {
 export async function getMyContent(contentType: DeletedContentType, cursorId = 0, limit = 20): Promise<MyContentListResult> {
   const params = new URLSearchParams({ contentType, limit: String(limit) })
   if (cursorId > 0) params.set('cursorId', String(cursorId))
-  const response = await fetch(`/api/forum/user/my-content?${params.toString()}`, {
+  const response = await feedFetch(`/api/forum/user/my-content?${params.toString()}`, {
     headers: { Accept: 'application/json' },
   })
   return readApiResponse<MyContentListResult>(response, t('api.deletedContentLoadFailed'))
@@ -375,7 +377,7 @@ export async function batchDeleteContent(
   force = false,
   password = '',
 ): Promise<BatchDeleteContentResult> {
-  const response = await fetch('/api/forum/user/content-batch-delete', {
+  const response = await feedFetch('/api/forum/user/content-batch-delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ contentType, contentIds, force, password }),
@@ -386,7 +388,7 @@ export async function batchDeleteContent(
 /** 注销账号（PRD R10）：mode=anonymize 保留内容匿名化；mode=delete 先删除全部内容再注销。
  * 注销不可逆，后端强制校验当前密码。 */
 export async function closeAccount(mode: 'anonymize' | 'delete', password: string): Promise<boolean> {
-  const response = await fetch('/api/forum/user/account-close', {
+  const response = await feedFetch('/api/forum/user/account-close', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mode, password }),
@@ -397,7 +399,7 @@ export async function closeAccount(mode: 'anonymize' | 'delete', password: strin
 /** 退出登录并吊销当前会话。 */
 export async function logout(): Promise<boolean> {
   window.dispatchEvent(new Event('goose:session-cleared'))
-  const response = await fetch('/api/logout', { method: 'POST' })
+  const response = await feedFetch('/api/logout', { method: 'POST' })
   return readApiResponse<boolean>(response, t('api.operationFailed'))
 }
 
@@ -420,7 +422,7 @@ export async function getPostWindow(input: PostWindowInput): Promise<PostWindowP
   if (input.afterPostNo) params.set('afterPostNo', String(input.afterPostNo))
   if (input.limit) params.set('limit', String(input.limit))
 
-  const response = await fetch(`/api/forum/posts/window?${params.toString()}`, {
+  const response = await feedFetch(`/api/forum/posts/window?${params.toString()}`, {
     headers: {
       Accept: 'application/json',
     },
@@ -431,7 +433,7 @@ export async function getPostWindow(input: PostWindowInput): Promise<PostWindowP
 /** 用户搜索（@mention 候选，issue #564）：复用公开聚合搜索 users scope，支持 AbortSignal 丢弃过期请求。 */
 export async function searchForumUsers(query: string, signal?: AbortSignal): Promise<UserSearchPayload[]> {
   const params = new URLSearchParams({ q: query, scope: 'users', page: '1' })
-  const response = await fetch(`/api/forum/search?${params.toString()}`, {
+  const response = await feedFetch(`/api/forum/search?${params.toString()}`, {
     headers: {
       Accept: 'application/json',
     },
@@ -443,7 +445,7 @@ export async function searchForumUsers(query: string, signal?: AbortSignal): Pro
 
 /** 启用表情包列表（编辑器选择面板，MADR 0030）：公开只读，仅启用项、按 sortOrder 排序。 */
 export async function getForumStickers(): Promise<StickerItem[]> {
-  const response = await fetch('/api/forum/stickers', {
+  const response = await feedFetch('/api/forum/stickers', {
     headers: {
       Accept: 'application/json',
     },
@@ -454,7 +456,7 @@ export async function getForumStickers(): Promise<StickerItem[]> {
 
 /** Resolve shared tokens without enumerating anyone's private sticker library. */
 export async function resolveForumStickers(names: string[]): Promise<StickerItem[]> {
-  const response = await fetch('/api/forum/stickers/resolve', {
+  const response = await feedFetch('/api/forum/stickers/resolve', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ names }),
@@ -463,11 +465,12 @@ export async function resolveForumStickers(names: string[]): Promise<StickerItem
   return Array.isArray(items) ? items : []
 }
 
-export async function likeTopic(id: number, action: 1 | 2): Promise<boolean> {
-  const response = await fetch('/api/forum/topics/like', {
+export async function likeTopic(id: number, action: 1 | 2, topic?: TopicPayload): Promise<boolean> {
+  const response = await feedFetch('/api/forum/topics/like', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(topic ? feedTopicHeaders(topic) : {}),
     },
     body: JSON.stringify({
       topicId: id,
@@ -477,11 +480,12 @@ export async function likeTopic(id: number, action: 1 | 2): Promise<boolean> {
   return readApiResponse<boolean>(response, t('api.likeFailed'))
 }
 
-export async function bookmarkTopic(id: number, action: 1 | 2): Promise<boolean> {
-  const response = await fetch('/api/forum/topics/bookmark', {
+export async function bookmarkTopic(id: number, action: 1 | 2, topic?: TopicPayload): Promise<boolean> {
+  const response = await feedFetch('/api/forum/topics/bookmark', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(topic ? feedTopicHeaders(topic) : {}),
     },
     body: JSON.stringify({
       topicId: id,
@@ -492,7 +496,7 @@ export async function bookmarkTopic(id: number, action: 1 | 2): Promise<boolean>
 }
 
 export async function bookmarkCourse(courseId: number, action: 1 | 2): Promise<boolean> {
-  const response = await fetch('/api/forum/courses/bookmark', {
+  const response = await feedFetch('/api/forum/courses/bookmark', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -506,7 +510,7 @@ export async function bookmarkCourse(courseId: number, action: 1 | 2): Promise<b
 }
 
 export async function watchTopic(id: number, action: 1 | 2): Promise<boolean> {
-  const response = await fetch('/api/forum/topics/watch', {
+  const response = await feedFetch('/api/forum/topics/watch', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -520,7 +524,7 @@ export async function watchTopic(id: number, action: 1 | 2): Promise<boolean> {
 }
 
 export async function likePost(postId: number, action: 1 | 2): Promise<boolean> {
-  const response = await fetch('/api/forum/posts/like', {
+  const response = await feedFetch('/api/forum/posts/like', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -534,7 +538,7 @@ export async function likePost(postId: number, action: 1 | 2): Promise<boolean> 
 }
 
 export async function bookmarkPost(postId: number, action: 1 | 2): Promise<boolean> {
-  const response = await fetch('/api/forum/posts/bookmark', {
+  const response = await feedFetch('/api/forum/posts/bookmark', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -557,7 +561,7 @@ export async function updateTopicAgentReplies(topicId: number, agentRepliesDisab
 }
 
 export async function updateTopicStatus(id: number, topicStatus: 0 | 1): Promise<boolean> {
-  const response = await fetch('/api/forum/topics/status', {
+  const response = await feedFetch('/api/forum/topics/status', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -571,7 +575,7 @@ export async function updateTopicStatus(id: number, topicStatus: 0 | 1): Promise
 }
 
 export async function updateModerationTopicStatus(id: number, action: 'ban' | 'unban'): Promise<boolean> {
-  const response = await fetch('/api/forum/moderation/topic-status', {
+  const response = await feedFetch('/api/forum/moderation/topic-status', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -582,7 +586,7 @@ export async function updateModerationTopicStatus(id: number, action: 'ban' | 'u
 }
 
 export async function submitReport(targetType: 'topic' | 'post', targetId: number, reason: string, note: string): Promise<boolean> {
-  const response = await fetch('/api/forum/report', {
+  const response = await feedFetch('/api/forum/report', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -593,7 +597,7 @@ export async function submitReport(targetType: 'topic' | 'post', targetId: numbe
 }
 
 export async function updateModerationPostStatus(id: number, action: 'ban' | 'unban'): Promise<boolean> {
-  const response = await fetch('/api/forum/moderation/post-status', {
+  const response = await feedFetch('/api/forum/moderation/post-status', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -604,7 +608,7 @@ export async function updateModerationPostStatus(id: number, action: 'ban' | 'un
 }
 
 export async function fetchModerationReports(cursor = 0, pageSize = 20, status = 'open'): Promise<ModerationReportListResponse> {
-  const response = await fetch('/api/forum/moderation/reports', {
+  const response = await feedFetch('/api/forum/moderation/reports', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -623,7 +627,7 @@ export interface ModerationReviewQueueResult {
 }
 
 export async function fetchModerationReviewQueue(kind: 'topic' | 'post', page = 1, pageSize = 20): Promise<ModerationReviewQueueResult> {
-  const response = await fetch('/api/forum/moderation/review-queue', {
+  const response = await feedFetch('/api/forum/moderation/review-queue', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ kind, page, pageSize }),
@@ -632,7 +636,7 @@ export async function fetchModerationReviewQueue(kind: 'topic' | 'post', page = 
 }
 
 export async function moderationReviewAction(kind: 'topic' | 'post', id: number, approve: boolean, revisionId = 0): Promise<unknown> {
-  const response = await fetch('/api/forum/moderation/review-action', {
+  const response = await feedFetch('/api/forum/moderation/review-action', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ kind, id, approve, revisionId }),
@@ -641,7 +645,7 @@ export async function moderationReviewAction(kind: 'topic' | 'post', id: number,
 }
 
 export async function updateModerationReportStatus(id: number, action: 'ban' | 'resolve' | 'reject'): Promise<boolean> {
-  const response = await fetch('/api/forum/moderation/report-status', {
+  const response = await feedFetch('/api/forum/moderation/report-status', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -673,7 +677,7 @@ async function postModerationApprovalAction(url: string, token: string): Promise
 }
 
 export async function fetchModerationLogs(cursor = 0, pageSize = 20): Promise<ModerationLogListResponse> {
-  const response = await fetch('/api/forum/moderation/logs', {
+  const response = await feedFetch('/api/forum/moderation/logs', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -685,7 +689,7 @@ export async function fetchModerationLogs(cursor = 0, pageSize = 20): Promise<Mo
 
 /** 版主查看已删除内容原文（PRD R7）：必须提供理由，每次查看都会记审计日志。 */
 export async function viewDeletedContent(contentType: 'topic' | 'post', contentId: number, reason: string): Promise<ModerationDeletedContentView> {
-  const response = await fetch('/api/forum/moderation/view-deleted-content', {
+  const response = await feedFetch('/api/forum/moderation/view-deleted-content', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -696,7 +700,7 @@ export async function viewDeletedContent(contentType: 'topic' | 'post', contentI
 }
 
 export async function markAllNotificationsRead(): Promise<boolean> {
-  const response = await fetch('/api/forum/notification/mark-all-read', {
+  const response = await feedFetch('/api/forum/notification/mark-all-read', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -706,7 +710,7 @@ export async function markAllNotificationsRead(): Promise<boolean> {
 }
 
 export async function markNotificationRead(notificationId: number): Promise<boolean> {
-  const response = await fetch('/api/forum/notification/mark-read', {
+  const response = await feedFetch('/api/forum/notification/mark-read', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -723,7 +727,7 @@ export async function fetchNotifications(filter: NotificationFilter, cursor = 0,
     cursor: String(cursor),
     limit: String(limit),
   })
-  const response = await fetch(`/api/forum/notifications?${params.toString()}`, {
+  const response = await feedFetch(`/api/forum/notifications?${params.toString()}`, {
     headers: {
       Accept: 'application/json',
     },
@@ -732,7 +736,7 @@ export async function fetchNotifications(filter: NotificationFilter, cursor = 0,
 }
 
 export async function getUserCard(userId: number): Promise<UserCardPayload> {
-  const response = await fetch(`/api/user-card?userId=${encodeURIComponent(String(userId))}`, {
+  const response = await feedFetch(`/api/user-card?userId=${encodeURIComponent(String(userId))}`, {
     headers: {
       Accept: 'application/json',
     },
@@ -754,7 +758,7 @@ export async function getUserCard(userId: number): Promise<UserCardPayload> {
 }
 
 export async function followUser(userId: number, isFollowing: boolean): Promise<boolean> {
-  const response = await fetch('/api/forum/follow-user', {
+  const response = await feedFetch('/api/forum/follow-user', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -802,7 +806,7 @@ export interface SubmitTopicResult {
 export async function submitTopicResult(topic: SubmitTopicInput): Promise<SubmitTopicResult> {
   let response: Response
   try {
-    response = await fetch('/api/forum/topics/write', {
+    response = await feedFetch('/api/forum/topics/write', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -825,7 +829,7 @@ export async function submitTopicResult(topic: SubmitTopicInput): Promise<Submit
 }
 
 export async function createPost(topicId: number, content: string, replyToPostId = 0, extra?: { captchaId?: string, captchaCode?: string, website?: string, isAnonymous?: boolean }): Promise<CreatePostResult | number | boolean> {
-  const response = await fetch('/api/forum/posts/create', {
+  const response = await feedFetch('/api/forum/posts/create', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -846,7 +850,7 @@ export async function createPost(topicId: number, content: string, replyToPostId
 }
 
 export async function uploadImage(file: File): Promise<string> {
-  const initResponse = await fetch('/file/img-upload/init', {
+  const initResponse = await feedFetch('/file/img-upload/init', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ filename: file.name, contentType: file.type, size: file.size }),
@@ -863,7 +867,7 @@ export async function uploadImage(file: File): Promise<string> {
   formData.append('file', file, file.name)
   let uploadResponse: Response
   try {
-    uploadResponse = await fetch(init.upload.url, { method: 'POST', body: formData })
+    uploadResponse = await feedFetch(init.upload.url, { method: 'POST', body: formData })
   } catch (uploadError) {
     try {
       return await completeDirectImageUpload(init.name)
@@ -899,7 +903,7 @@ interface ImageUploadInitResult {
 async function uploadImageThroughServer(file: File): Promise<string> {
   const formData = new FormData()
   formData.append('file', file)
-  const response = await fetch('/file/img-upload', {
+  const response = await feedFetch('/file/img-upload', {
     method: 'POST',
     body: formData,
   })
@@ -913,7 +917,7 @@ async function uploadImageThroughServer(file: File): Promise<string> {
 // completeDirectImageUpload 在浏览器直传对象后发布图片；瞬时错误重试一次。
 async function completeDirectImageUpload(name: string): Promise<string> {
   const complete = async () => {
-    const response = await fetch('/file/img-upload/complete', {
+    const response = await feedFetch('/file/img-upload/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
@@ -939,7 +943,7 @@ function isTransientUploadError(error: unknown) {
 // abortDirectImageUpload 取消未完成的直传对象；失败可忽略（服务端清理任务兜底）。
 async function abortDirectImageUpload(name: string) {
   try {
-    await fetch('/file/img-upload/abort', {
+    await feedFetch('/file/img-upload/abort', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
@@ -976,7 +980,7 @@ export interface ChatMessagesInput {
 }
 
 export async function getChatMessages(input: ChatMessagesInput): Promise<ChatMessagesResponse> {
-  const response = await fetch('/api/forum/chat/messages', {
+  const response = await feedFetch('/api/forum/chat/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1007,7 +1011,7 @@ export async function getChatMessages(input: ChatMessagesInput): Promise<ChatMes
 }
 
 export async function sendChatMessage(peerId: number, content: string): Promise<number> {
-  const response = await fetch('/api/forum/chat/send', {
+  const response = await feedFetch('/api/forum/chat/send', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1024,7 +1028,7 @@ export async function sendChatMessage(peerId: number, content: string): Promise<
 }
 
 export async function markChatRead(convId: number): Promise<boolean> {
-  const response = await fetch('/api/forum/chat/mark-read', {
+  const response = await feedFetch('/api/forum/chat/mark-read', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1051,7 +1055,7 @@ export interface SaveUserInfoInput {
 }
 
 export async function saveUserInfo(input: SaveUserInfoInput): Promise<boolean> {
-  const response = await fetch('/api/set-user-info', {
+  const response = await feedFetch('/api/set-user-info', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1063,7 +1067,7 @@ export async function saveUserInfo(input: SaveUserInfoInput): Promise<boolean> {
 }
 
 export async function saveUserProfileCover(profileCoverUrl: string): Promise<boolean> {
-  const response = await fetch('/api/set-user-profile-cover', {
+  const response = await feedFetch('/api/set-user-profile-cover', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1075,7 +1079,7 @@ export async function saveUserProfileCover(profileCoverUrl: string): Promise<boo
 }
 
 export async function savePresetAvatar(avatarUrl: string): Promise<string> {
-  const response = await fetch('/api/set-preset-avatar', {
+  const response = await feedFetch('/api/set-preset-avatar', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1088,7 +1092,7 @@ export async function savePresetAvatar(avatarUrl: string): Promise<string> {
 }
 
 export async function displayBadges(badgeCodes: string[]): Promise<boolean> {
-  const response = await fetch('/api/display-badges', {
+  const response = await feedFetch('/api/display-badges', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ badgeCodes }),
   })
@@ -1097,7 +1101,7 @@ export async function displayBadges(badgeCodes: string[]): Promise<boolean> {
 }
 
 export async function wearBadge(badgeCode: string): Promise<boolean> {
-  const response = await fetch('/api/wear-badge', {
+  const response = await feedFetch('/api/wear-badge', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1109,7 +1113,7 @@ export async function wearBadge(badgeCode: string): Promise<boolean> {
 }
 
 export async function saveUserEmail(email: string, password: string): Promise<boolean> {
-  const response = await fetch('/api/set-user-email', {
+  const response = await feedFetch('/api/set-user-email', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1121,7 +1125,7 @@ export async function saveUserEmail(email: string, password: string): Promise<bo
 }
 
 export async function resendActivationEmail(): Promise<string> {
-  const response = await fetch('/api/resend-activation-email', {
+  const response = await feedFetch('/api/resend-activation-email', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1131,7 +1135,7 @@ export async function resendActivationEmail(): Promise<string> {
 }
 
 export async function saveUserName(username: string): Promise<boolean> {
-  const response = await fetch('/api/set-user-name', {
+  const response = await feedFetch('/api/set-user-name', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1143,7 +1147,7 @@ export async function saveUserName(username: string): Promise<boolean> {
 }
 
 export async function changePassword(oldPassword: string, newPassword: string): Promise<boolean> {
-  const response = await fetch('/api/change-password', {
+  const response = await feedFetch('/api/change-password', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1157,7 +1161,7 @@ export async function changePassword(oldPassword: string, newPassword: string): 
 // setPassword 为无邮箱 OAuth 绑定账号首次设置密码（issue #530，免旧密码）。
 // 成功即全端会话吊销，调用方必须引导重新登录。
 export async function setPassword(newPassword: string): Promise<boolean> {
-  const response = await fetch('/api/set-password', {
+  const response = await feedFetch('/api/set-password', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1176,7 +1180,7 @@ export async function uploadAvatar(avatar: Blob | Blob[]): Promise<string> {
   avatars.slice(0, 2).forEach((item, index) => {
     formData.append(fields[index], item, item instanceof File ? item.name : filenames[index])
   })
-  const response = await fetch('/api/upload-avatar', {
+  const response = await feedFetch('/api/upload-avatar', {
     method: 'POST',
     body: formData,
   })
@@ -1192,7 +1196,7 @@ export async function uploadAvatar(avatar: Blob | Blob[]): Promise<string> {
 export async function uploadImageFile(file: Blob, filename: string): Promise<string> {
   const formData = new FormData()
   formData.append('file', file, filename)
-  const response = await fetch('/file/img-upload', {
+  const response = await feedFetch('/file/img-upload', {
     method: 'POST',
     body: formData,
   })
@@ -1213,7 +1217,7 @@ export interface OAuthBindingPayload {
 export type OAuthBindingsPayload = Record<string, OAuthBindingPayload>
 
 export async function getOAuthBindings(): Promise<OAuthBindingsPayload> {
-  const response = await fetch('/api/oauth/bindings', {
+  const response = await feedFetch('/api/oauth/bindings', {
     headers: {
       Accept: 'application/json',
     },
@@ -1222,7 +1226,7 @@ export async function getOAuthBindings(): Promise<OAuthBindingsPayload> {
 }
 
 export async function unbindOAuth(provider: string): Promise<boolean> {
-  const response = await fetch(`/api/auth/${encodeURIComponent(provider)}/unbind`, {
+  const response = await feedFetch(`/api/auth/${encodeURIComponent(provider)}/unbind`, {
     method: 'POST',
   })
   await readApiResponse<unknown>(response, t('api.unbindFailed'))
@@ -1239,7 +1243,7 @@ export interface UserSessionPayload {
 }
 
 export async function listSessions(): Promise<UserSessionPayload[]> {
-  const response = await fetch('/api/user/sessions', {
+  const response = await feedFetch('/api/user/sessions', {
     headers: {
       Accept: 'application/json',
     },
@@ -1248,7 +1252,7 @@ export async function listSessions(): Promise<UserSessionPayload[]> {
 }
 
 export async function revokeSession(id: number): Promise<boolean> {
-  const response = await fetch('/api/user/sessions/revoke', {
+  const response = await feedFetch('/api/user/sessions/revoke', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1260,7 +1264,7 @@ export async function revokeSession(id: number): Promise<boolean> {
 }
 
 export async function revokeAllSessions(): Promise<boolean> {
-  const response = await fetch('/api/user/sessions/revoke-all', {
+  const response = await feedFetch('/api/user/sessions/revoke-all', {
     method: 'POST',
   })
   await readApiResponse<unknown>(response, t('api.sessionRevokeAllFailed'))
@@ -1277,7 +1281,7 @@ export interface TotpEnablePayload {
 }
 
 export async function getTotpSetup(password: string): Promise<TotpSetupPayload> {
-  const response = await fetch('/api/user/totp/setup', {
+  const response = await feedFetch('/api/user/totp/setup', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1288,7 +1292,7 @@ export async function getTotpSetup(password: string): Promise<TotpSetupPayload> 
 }
 
 export async function enableTotp(code: string): Promise<TotpEnablePayload> {
-  const response = await fetch('/api/user/totp/enable', {
+  const response = await feedFetch('/api/user/totp/enable', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1299,7 +1303,7 @@ export async function enableTotp(code: string): Promise<TotpEnablePayload> {
 }
 
 export async function disableTotp(code: string): Promise<boolean> {
-  const response = await fetch('/api/user/totp/disable', {
+  const response = await feedFetch('/api/user/totp/disable', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1311,7 +1315,7 @@ export async function disableTotp(code: string): Promise<boolean> {
 }
 
 export async function verifyTotp(code: string): Promise<boolean> {
-  const response = await fetch('/api/auth/totp/verify', {
+  const response = await feedFetch('/api/auth/totp/verify', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1327,7 +1331,7 @@ export interface TotpStatusPayload {
 }
 
 export async function getTotpStatus(): Promise<TotpStatusPayload> {
-  const response = await fetch('/api/user/totp/status', {
+  const response = await feedFetch('/api/user/totp/status', {
     headers: {
       Accept: 'application/json',
     },
@@ -1350,7 +1354,7 @@ const loginInvalidRequestCode = 'auth.login.invalidRequest'
 let publicKeyPromise: Promise<LoginPublicKeyPayload> | undefined
 
 export async function getCaptcha(): Promise<CaptchaPayload> {
-  const response = await fetch('/api/get-captcha', {
+  const response = await feedFetch('/api/get-captcha', {
     headers: {
       Accept: 'application/json',
     },
@@ -1378,7 +1382,7 @@ export async function login(username: string, password: string, captchaId: strin
 
 async function submitLogin(username: string, password: string, captchaId: string, captchaCode: string, refreshKey = false): Promise<LoginResult> {
   const encryptedPassword = await encryptLoginPassword(password, refreshKey)
-  const response = await fetch('/api/login', {
+  const response = await feedFetch('/api/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1404,7 +1408,7 @@ export async function register(
   locale?: string,
   website = '',
 ): Promise<string> {
-  const response = await fetch('/api/register', {
+  const response = await feedFetch('/api/register', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1423,7 +1427,7 @@ export async function register(
 }
 
 export async function forgotPassword(email: string, captchaId: string, captchaCode: string, website = ''): Promise<string> {
-  const response = await fetch('/api/forgot-password', {
+  const response = await feedFetch('/api/forgot-password', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1440,7 +1444,7 @@ export async function forgotPassword(email: string, captchaId: string, captchaCo
 
 
 export async function resetPassword(token: string, newPassword: string): Promise<string> {
-  const response = await fetch('/api/reset-password', {
+  const response = await feedFetch('/api/reset-password', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1650,7 +1654,7 @@ export interface CourseRelatedResult {
 }
 
 export async function getCourseRelated(courseId: number): Promise<CourseRelatedResult> {
-  const response = await fetch(`/api/forum/courses/${courseId}/related`, {
+  const response = await feedFetch(`/api/forum/courses/${courseId}/related`, {
     headers: {
       Accept: 'application/json',
     },
@@ -1695,7 +1699,7 @@ export async function listCourses(input: ListCoursesInput = {}): Promise<CourseC
   if (input.sortBy) params.set('sortBy', input.sortBy)
   params.set('page', String(input.page ?? 1))
   params.set('size', String(input.size ?? 20))
-  const response = await fetch(`/api/forum/courses?${params.toString()}`, {
+  const response = await feedFetch(`/api/forum/courses?${params.toString()}`, {
     headers: {
       Accept: 'application/json',
     },
@@ -1716,7 +1720,7 @@ export async function listCourseReviews(courseId: number, offeringId = 0, cursor
   if (cursor) params.set('cursor', cursor)
   params.set('pageSize', String(pageSize))
   const query = params.toString()
-  const response = await fetch(`/api/forum/courses/${courseId}/reviews${query ? `?${query}` : ''}`, {
+  const response = await feedFetch(`/api/forum/courses/${courseId}/reviews${query ? `?${query}` : ''}`, {
     headers: {
       Accept: 'application/json',
     },
@@ -1725,7 +1729,7 @@ export async function listCourseReviews(courseId: number, offeringId = 0, cursor
 }
 
 export async function createCourseReview(input: CreateCourseReviewInput): Promise<ReviewPayload> {
-  const response = await fetch('/api/forum/course-reviews', {
+  const response = await feedFetch('/api/forum/course-reviews', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1736,7 +1740,7 @@ export async function createCourseReview(input: CreateCourseReviewInput): Promis
 }
 
 export async function updateCourseReview(reviewId: number, input: UpdateCourseReviewInput): Promise<ReviewPayload> {
-  const response = await fetch(`/api/forum/course-reviews/${reviewId}`, {
+  const response = await feedFetch(`/api/forum/course-reviews/${reviewId}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
@@ -1747,28 +1751,28 @@ export async function updateCourseReview(reviewId: number, input: UpdateCourseRe
 }
 
 export async function deleteCourseReview(reviewId: number): Promise<boolean> {
-  const response = await fetch(`/api/forum/course-reviews/${reviewId}`, {
+  const response = await feedFetch(`/api/forum/course-reviews/${reviewId}`, {
     method: 'DELETE',
   })
   return readApiResponse<boolean>(response, t('api.reviewDeleteFailed'))
 }
 
 export async function setReviewHelpful(reviewId: number, helpful: boolean): Promise<boolean> {
-  const response = await fetch(`/api/forum/course-reviews/${reviewId}/helpful`, {
+  const response = await feedFetch(`/api/forum/course-reviews/${reviewId}/helpful`, {
     method: helpful ? 'PUT' : 'DELETE',
   })
   return readApiResponse<boolean>(response, t('api.reviewHelpfulFailed'))
 }
 
 export async function setReviewDislike(reviewId: number, dislike: boolean): Promise<boolean> {
-  const response = await fetch(`/api/forum/course-reviews/${reviewId}/dislike`, {
+  const response = await feedFetch(`/api/forum/course-reviews/${reviewId}/dislike`, {
     method: dislike ? 'PUT' : 'DELETE',
   })
   return readApiResponse<boolean>(response, t('api.reviewDislikeFailed'))
 }
 
 export async function reportCourseReview(reviewId: number, reason: string, note: string): Promise<boolean> {
-  const response = await fetch(`/api/forum/course-reviews/${reviewId}/reports`, {
+  const response = await feedFetch(`/api/forum/course-reviews/${reviewId}/reports`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1779,7 +1783,7 @@ export async function reportCourseReview(reviewId: number, reason: string, note:
 }
 
 export async function moderationCourseReviewStatus(reviewId: number, action: 'hide' | 'show'): Promise<boolean> {
-  const response = await fetch('/api/forum/moderation/course-review-status', {
+  const response = await feedFetch('/api/forum/moderation/course-review-status', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1794,7 +1798,7 @@ export async function fetchModerationCourseReviewReports(
   cursor = 0,
   pageSize = 20,
 ): Promise<ModerationCourseReviewReportListResponse> {
-  const response = await fetch('/api/forum/moderation/course-review-reports', {
+  const response = await feedFetch('/api/forum/moderation/course-review-reports', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1805,7 +1809,7 @@ export async function fetchModerationCourseReviewReports(
 }
 
 export async function revealCourseReviewAuthor(reviewId: number, reason: string): Promise<CourseReviewAuthorRevealPayload> {
-  const response = await fetch('/api/forum/moderation/course-review-reveal', {
+  const response = await feedFetch('/api/forum/moderation/course-review-reveal', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1885,7 +1889,7 @@ export interface AdminReviewUpdateInput {
 }
 
 export async function fetchAdminCourses(keyword = '', department = '', page = 1, pageSize = 20): Promise<AdminCourseListResult> {
-  const response = await fetch('/api/forum/moderation/course-list', {
+  const response = await feedFetch('/api/forum/moderation/course-list', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ keyword, department, page, pageSize }),
@@ -1894,7 +1898,7 @@ export async function fetchAdminCourses(keyword = '', department = '', page = 1,
 }
 
 export async function createAdminCourse(input: AdminCourseCreateInput): Promise<AdminCourseItem> {
-  const response = await fetch('/api/forum/moderation/course-create', {
+  const response = await feedFetch('/api/forum/moderation/course-create', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -1903,7 +1907,7 @@ export async function createAdminCourse(input: AdminCourseCreateInput): Promise<
 }
 
 export async function updateAdminCourse(courseId: number, input: AdminCourseUpdateInput): Promise<AdminCourseItem> {
-  const response = await fetch('/api/forum/moderation/course-update', {
+  const response = await feedFetch('/api/forum/moderation/course-update', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ courseId, ...input }),
@@ -1912,7 +1916,7 @@ export async function updateAdminCourse(courseId: number, input: AdminCourseUpda
 }
 
 export async function deleteAdminCourse(courseId: number): Promise<boolean> {
-  const response = await fetch('/api/forum/moderation/course-delete', {
+  const response = await feedFetch('/api/forum/moderation/course-delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ courseId }),
@@ -1921,7 +1925,7 @@ export async function deleteAdminCourse(courseId: number): Promise<boolean> {
 }
 
 export async function fetchAdminReviews(keyword = '', status = -1, cursor = 0, pageSize = 20): Promise<AdminReviewListResult> {
-  const response = await fetch('/api/forum/moderation/course-review-list', {
+  const response = await feedFetch('/api/forum/moderation/course-review-list', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ keyword, status, cursor, pageSize }),
@@ -1930,7 +1934,7 @@ export async function fetchAdminReviews(keyword = '', status = -1, cursor = 0, p
 }
 
 export async function updateAdminReview(reviewId: number, input: AdminReviewUpdateInput): Promise<ReviewPayload> {
-  const response = await fetch('/api/forum/moderation/course-review-edit', {
+  const response = await feedFetch('/api/forum/moderation/course-review-edit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reviewId, ...input }),
@@ -1939,7 +1943,7 @@ export async function updateAdminReview(reviewId: number, input: AdminReviewUpda
 }
 
 export async function deleteAdminReview(reviewId: number): Promise<boolean> {
-  const response = await fetch('/api/forum/moderation/course-review-delete', {
+  const response = await feedFetch('/api/forum/moderation/course-review-delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reviewId }),
@@ -1948,7 +1952,7 @@ export async function deleteAdminReview(reviewId: number): Promise<boolean> {
 }
 
 export async function rebuildCourseStats(): Promise<boolean> {
-  const response = await fetch('/api/forum/moderation/course-stats-rebuild', {
+  const response = await feedFetch('/api/forum/moderation/course-stats-rebuild', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
   })
@@ -2027,7 +2031,7 @@ export async function fetchCourseRelations(status = '', relationType = '', page 
   const payload: Record<string, unknown> = { page, pageSize }
   if (status) payload.status = status
   if (relationType) payload.relationType = relationType
-  const response = await fetch('/api/forum/moderation/course-relation-list', {
+  const response = await feedFetch('/api/forum/moderation/course-relation-list', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -2036,7 +2040,7 @@ export async function fetchCourseRelations(status = '', relationType = '', page 
 }
 
 export async function approveCourseRelation(relationId: number): Promise<CourseRelationItem> {
-  const response = await fetch('/api/forum/moderation/course-relation-approve', {
+  const response = await feedFetch('/api/forum/moderation/course-relation-approve', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ relationId }),
@@ -2045,7 +2049,7 @@ export async function approveCourseRelation(relationId: number): Promise<CourseR
 }
 
 export async function ignoreCourseRelation(relationId: number): Promise<CourseRelationItem> {
-  const response = await fetch('/api/forum/moderation/course-relation-ignore', {
+  const response = await feedFetch('/api/forum/moderation/course-relation-ignore', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ relationId }),
@@ -2054,7 +2058,7 @@ export async function ignoreCourseRelation(relationId: number): Promise<CourseRe
 }
 
 export async function resetCourseRelation(relationId: number): Promise<CourseRelationItem> {
-  const response = await fetch('/api/forum/moderation/course-relation-reset', {
+  const response = await feedFetch('/api/forum/moderation/course-relation-reset', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ relationId }),
@@ -2063,7 +2067,7 @@ export async function resetCourseRelation(relationId: number): Promise<CourseRel
 }
 
 export async function createCourseRelation(input: CourseRelationCreateInput): Promise<CourseRelationItem> {
-  const response = await fetch('/api/forum/moderation/course-relation-create', {
+  const response = await feedFetch('/api/forum/moderation/course-relation-create', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -2072,7 +2076,7 @@ export async function createCourseRelation(input: CourseRelationCreateInput): Pr
 }
 
 export async function mergeCourseRelation(relationId: number): Promise<CourseMergeResult> {
-  const response = await fetch('/api/forum/moderation/course-merge', {
+  const response = await feedFetch('/api/forum/moderation/course-merge', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ relationId }),
@@ -2081,7 +2085,7 @@ export async function mergeCourseRelation(relationId: number): Promise<CourseMer
 }
 
 export async function undoMergeCourseRelation(relationId: number): Promise<CourseMergeResult> {
-  const response = await fetch('/api/forum/moderation/course-merge-undo', {
+  const response = await feedFetch('/api/forum/moderation/course-merge-undo', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ relationId }),
@@ -2091,7 +2095,7 @@ export async function undoMergeCourseRelation(relationId: number): Promise<Cours
 
 // 管理端编辑弹窗预填 reviewScope/teamKey 用；隐藏课程详情不可读时由调用方降级。
 export async function getCourseDetail(courseId: number): Promise<AdminCourseDetailItem> {
-  const response = await fetch(`/api/forum/courses/${courseId}`, {
+  const response = await feedFetch(`/api/forum/courses/${courseId}`, {
     headers: { Accept: 'application/json' },
   })
   return readApiResponse<AdminCourseDetailItem>(response, t('api.courseDetailLoadFailed'))
@@ -2134,7 +2138,7 @@ export async function getCourseSummary(courseId: number, refresh = false, check 
   if (refresh) params.set('refresh', 'true')
   if (check) params.set('check', 'true')
   const query = params.toString()
-  const response = await fetch(`/api/forum/courses/${courseId}/summary${query ? `?${query}` : ''}`, {
+  const response = await feedFetch(`/api/forum/courses/${courseId}/summary${query ? `?${query}` : ''}`, {
     headers: { Accept: 'application/json' },
   })
   if (response.status === 429) {
@@ -2155,20 +2159,20 @@ export async function getCourseSummary(courseId: number, refresh = false, check 
 }
 
 export async function getPrivateNotes(): Promise<import('@gooseforum/client').PrivateNotesPayload> {
-  return readApiResponse(await fetch('/api/user-notes', { cache: 'no-store' }), t('api.operationFailed'))
+  return readApiResponse(await feedFetch('/api/user-notes', { cache: 'no-store' }), t('api.operationFailed'))
 }
 export async function setPrivateNote(targetUserId: number, note: string): Promise<boolean> {
-  return readApiResponse(await fetch('/api/user-note', {
+  return readApiResponse(await feedFetch('/api/user-note', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ targetUserId, note }),
   }), t('api.operationFailed'))
 }
 export interface TongjiRegistrationStatus { csrfToken: string; email: string; expiresAt: string }
 export async function getTongjiRegistration(): Promise<TongjiRegistrationStatus> {
-  return readApiResponse<TongjiRegistrationStatus>(await fetch('/api/auth/tongji/registration', { cache: 'no-store' }), t('tongjiRegistration.expired'))
+  return readApiResponse<TongjiRegistrationStatus>(await feedFetch('/api/auth/tongji/registration', { cache: 'no-store' }), t('tongjiRegistration.expired'))
 }
 export async function completeTongjiRegistration(username: string, password: string, csrfToken: string): Promise<{ redirect: string }> {
-  return readApiResponse<{ redirect: string }>(await fetch('/api/auth/tongji/registration', {
+  return readApiResponse<{ redirect: string }>(await feedFetch('/api/auth/tongji/registration', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, csrfToken }),
   }), t('auth.validation.registerFailed'))
 }

@@ -323,6 +323,7 @@
   "dateMonthDayTime": "{day}.{month} {time}",
   "dateYearMonthDayTime": "{day}.{month}.{year} {time}",
   "topicFloorSelected": "Zu Beitrag {floor} gesprungen",
+  "sortForYou": "Für dich",
   "sortLatest": "Neueste",
   "sortHot": "Trending",
   "sortPopular": "Beliebt",
@@ -1216,5 +1217,10 @@
   "contentReviewPending": "In Prüfung",
   "notificationReviewPending": "Dein Beitrag wartet auf manuelle Prüfung",
   "notificationReviewPendingDetail": "Wir prüfen ihn bald und informieren dich über das Ergebnis. Bis dahin kannst du ihn ansehen oder bearbeiten.",
-  "notificationReviewRejectedDetail": "Diese Einreichung wird nicht öffentlich angezeigt. Bitte prüfe, bearbeite und sende sie über die Inhaltsverwaltung erneut. Bei Fragen wende dich an die Administration."
+  "notificationReviewRejectedDetail": "Diese Einreichung wird nicht öffentlich angezeigt. Bitte prüfe, bearbeite und sende sie über die Inhaltsverwaltung erneut. Bei Fragen wende dich an die Administration.",
+  "feedReasonFollowing": "Von einer Person, der du folgst",
+  "feedReasonCategory": "Eine Kategorie, an der du teilnimmst",
+  "feedReasonNewReply": "Neue Antworten",
+  "feedReasonRecent": "Kürzlich veröffentlicht",
+  "sortDaily": "Top-Themen heute"
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/feedservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"log/slog"
 	"net"
@@ -276,6 +277,7 @@ func (r *serveRuntime) runStartup() (fatalErr error) {
 // writes the database (or depends on a migrated schema). It runs only after
 // migration succeeds or defers via a non-fatal sentinel.
 func startBusinessServices() {
+	feedservice.Start()
 	// 初始化OAuth配置
 	oauthservice.InitOAuth()
 	oidcservice.InitOIDC()

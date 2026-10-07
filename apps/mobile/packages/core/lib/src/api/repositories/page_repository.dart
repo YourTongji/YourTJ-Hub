@@ -1,5 +1,6 @@
 import '../../gen/page.dart';
 import '../gf_api_client.dart';
+import '../feed_telemetry.dart';
 
 import 'package:dio/dio.dart';
 
@@ -10,15 +11,24 @@ class PageRepository {
 
   final GfApiClient _client;
 
-  static const _headers = {GfApiClient.pageRequestHeader: 'true'};
+  static const _headers = {
+    GfApiClient.pageRequestHeader: 'true',
+    'X-Goose-Feed-Version': '2',
+  };
 
   Future<PagePayload> fetch(String path, {CancelToken? cancelToken}) async {
-    return _client.get<PagePayload>(
+    final payload = await _client.get<PagePayload>(
       path,
       cancelToken: cancelToken,
       headers: _headers,
       parser: (json) => PagePayload.fromJson(json as Map<String, dynamic>),
     );
+    FeedTelemetry.instance.bindAccount(payload.layout.viewer.id);
+    final match = RegExp(r'^/p/post/(\d+)').firstMatch(path);
+    if (match != null) {
+      FeedTelemetry.instance.beginDetail(int.parse(match.group(1)!));
+    }
+    return payload;
   }
 
   /// 首页。sort: hot | latest | ...(与 web 端一致)。

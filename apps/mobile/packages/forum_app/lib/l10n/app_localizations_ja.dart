@@ -1020,6 +1020,9 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get sortForYou => 'おすすめ';
+
+  @override
   String get sortLatest => '最新';
 
   @override
@@ -3356,4 +3359,19 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get notificationReviewRejectedDetail =>
       '今回の投稿は公開されません。コンテンツ管理で内容を確認・修正して再送信してください。ご不明な点は管理者にお問い合わせください。';
+
+  @override
+  String get feedReasonFollowing => 'フォロー中の人から';
+
+  @override
+  String get feedReasonCategory => '参加したカテゴリ';
+
+  @override
+  String get feedReasonNewReply => '新しい返信';
+
+  @override
+  String get feedReasonRecent => '最近の投稿';
+
+  @override
+  String get sortDaily => '今日の人気';
 }

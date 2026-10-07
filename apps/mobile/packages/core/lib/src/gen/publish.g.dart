@@ -160,6 +160,9 @@ Map<String, dynamic> _$$AnnouncementPayloadImplToJson(
 
 _$HomePropsImpl _$$HomePropsImplFromJson(Map<String, dynamic> json) =>
     _$HomePropsImpl(
+      actualSort: json['actualSort'] as String?,
+      degradeReason: json['degradeReason'] as String?,
+      feedTrace: json['feedTrace'] as String?,
       sort: json['sort'] as String,
       tabs: (json['tabs'] as List<dynamic>)
           .map((e) => TabItemPayload.fromJson(e as Map<String, dynamic>))
@@ -177,6 +180,9 @@ _$HomePropsImpl _$$HomePropsImplFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$$HomePropsImplToJson(_$HomePropsImpl instance) =>
     <String, dynamic>{
+      'actualSort': instance.actualSort,
+      'degradeReason': instance.degradeReason,
+      'feedTrace': instance.feedTrace,
       'sort': instance.sort,
       'tabs': instance.tabs,
       'topics': instance.topics,

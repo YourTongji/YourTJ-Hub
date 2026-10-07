@@ -6,6 +6,18 @@ export default {
     disabled: "投稿者がロボットの返信を禁止しています",
     help: "サイトの Agent アカウントからの返信を禁止します。既存の返信は残ります。",
   },
+  feed: {
+    truncated: "1,000行の上限に達しました。表示とエクスポートは一部の集計です。",
+    following: "フォロー中の投稿者",
+    category: "よく読むカテゴリ",
+    newreply: "新しい返信",
+    recent: "最近の話題",
+    statistics: "推薦統計",
+    capture: "収集状況",
+    export: "集計を出力",
+    refresh: "更新",
+  },
+
   planSync: {
     title: "プランの競合を解決",
     body: "別の端末でもこれらの項目が変更されました。残す値を選択してください。他の変更は自動的に統合されます。",
@@ -1027,6 +1039,8 @@ export default {
     refreshComplete: '最新の内容に更新しました',
     refreshFailed: '更新できませんでした。後でもう一度お試しください。',
     tabs: {
+      daily: "今日の人気",
+      forYou: 'おすすめ',
       following: 'フォロー中',
       latest: '最新',
       hot: '人気',
