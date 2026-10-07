@@ -74,14 +74,16 @@ html.gf-page-flip::view-transition-new(root) {
 
 /* 前向：首页 → wiki，纸页从右缘盖入 */
 html.gf-page-flip--next::view-transition-new(root) {
-  box-shadow: -20px 0 28px -12px rgb(15 23 42 / 0.35);
-  animation: gf-page-flip-cover-right 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  box-shadow: -24px 0 32px -16px rgb(15 23 42 / 0.4);
+  will-change: transform;
+  animation: gf-page-flip-cover-right 0.7s cubic-bezier(0.86, 0, 0.07, 1) both;
 }
 
 /* 后向：wiki → 首页，纸页从左缘盖入 */
 html.gf-page-flip--prev::view-transition-new(root) {
-  box-shadow: 20px 0 28px -12px rgb(15 23 42 / 0.35);
-  animation: gf-page-flip-cover-left 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  box-shadow: 24px 0 32px -16px rgb(15 23 42 / 0.4);
+  will-change: transform;
+  animation: gf-page-flip-cover-left 0.7s cubic-bezier(0.86, 0, 0.07, 1) both;
 }
 
 @keyframes gf-page-flip-cover-right {

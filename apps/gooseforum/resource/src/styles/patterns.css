@@ -56,15 +56,17 @@
 }
 
 .wiki-hit-flash {
+  contain: paint;
+  will-change: background-color;
   background: transparent;
   border-radius: 0.35rem;
-  animation: wiki-hit-flash 1.4s ease-out forwards;
+  animation: wiki-hit-flash 2.8s ease-out forwards;
 }
 @keyframes wiki-hit-flash {
   0% {
     background: var(--wiki-hit-bg-strong);
   }
-  20% {
+  18% {
     background: var(--wiki-hit-bg);
   }
   60% {

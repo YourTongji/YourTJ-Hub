@@ -807,7 +807,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .announcement-unread-bell {
-  /* 未读提醒：持续摇铃；独立合成层保证仅铃铛局部变换，避免重绘父容器与页面 */
+  /* 未读提醒：持续摇铃；CSS Containment 与独立合成层保证仅铃铛局部重绘，绝不重绘父容器与页面 */
+  contain: layout paint;
   will-change: transform;
   transform: translateZ(0);
   transform-origin: 50% 15%;

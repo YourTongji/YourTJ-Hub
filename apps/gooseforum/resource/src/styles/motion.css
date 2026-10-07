@@ -72,6 +72,12 @@
   position: relative;
 }
 
+.gf-flash-banner {
+  contain: layout paint;
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
+
 .gf-flash-enter-active {
   z-index: 1;
   transition:
@@ -367,6 +373,7 @@
 .share-printer-bar {
   position: relative;
   overflow: hidden;
+  contain: paint;
 }
 
 .share-printer-bar::after {
@@ -383,7 +390,8 @@
     transparent 100%
   );
   will-change: transform;
-  animation: gf-share-printer-sweep 2.2s ease-in-out 2 forwards;
+  transform: translateZ(0);
+  animation: gf-share-printer-sweep 2.2s ease-in-out infinite;
 }
 
 @keyframes gf-share-printer-sweep {
