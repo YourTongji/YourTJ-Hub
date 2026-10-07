@@ -807,10 +807,11 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .announcement-unread-bell {
-  /* 未读提醒：进入时摇铃 3 次提醒（避免无限重绘消耗资源）；独立合成层避免重绘整个按钮/页面 */
+  /* 未读提醒：持续摇铃；独立合成层保证仅铃铛局部变换，避免重绘父容器与页面 */
   will-change: transform;
+  transform: translateZ(0);
   transform-origin: 50% 15%;
-  animation: announcement-bell-ring 2s ease-in-out 3;
+  animation: announcement-bell-ring 2s ease-in-out infinite;
 }
 
 @keyframes announcement-bell-ring {
