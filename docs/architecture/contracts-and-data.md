@@ -665,7 +665,8 @@ OpenAPI、TypeScript 和 Dart 镜像同步维护，路由覆盖包含此操作�
 key and persist the exact ten-word sample. Owner-row write locks serialize quota and confirmation
 on PostgreSQL and SQLite. The account, persona and content writer checks share that lock for
 anonymous writes. `anonymous_reveal_audits` stores restricted reveal and governance facts. Bindings
-and audits survive closure; cleanup targets expired candidate batches only.
+and audits survive closure; cleanup removes expired candidate batches and old daily quotas while
+retaining the current quota and the seven-day cutoff window.
 
 `Current`: topics/posts keep their internal numeric owner plus an optional `persona_uid`. Public
 DTOs project the persona with numeric ID zero and a `/a/` URL. Public main-profile, Following and

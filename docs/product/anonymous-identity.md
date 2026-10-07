@@ -65,6 +65,8 @@ Missing persona data yields an anonymous placeholder rather than a main-account 
 post payloads, replies and quotes, participants, revisions, last editor, SSR, JSON-LD, public exports,
 Agent reads, notifications and webhooks follow this boundary. Avatar and attachment references contain
 no numeric uploader ID; ordinary administrative file listings omit uploader identity.
+Moderation approval summaries mark persona content anonymous and omit the private author, just as
+they do for legacy anonymous replies.
 
 `Current`: persona reply, mention and watched-topic notifications use the persona author and link.
 Anonymous content's likes carry counts without a public liker identity; public main-account like

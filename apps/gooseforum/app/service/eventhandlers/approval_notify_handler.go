@@ -169,7 +169,10 @@ func reportApproval(event *ReportCreatedEvent, now time.Time) (httpnotifyservice
 		if topic.Id > 0 {
 			approval.Title = topic.Title
 			approval.Excerpt = approvalText(topic.Excerpt, approvalExcerptRunes)
-			approval.Author = approvalAuthor(topic.UserId)
+			approval.Anonymous = topic.PersonaUID != ""
+			if !approval.Anonymous {
+				approval.Author = approvalAuthor(topic.UserId)
+			}
 			approval.Categories = approvalCategories(topic.CategoryIds)
 			approval.TargetURL = urlconfig.PostDetail(topic.Id)
 		}

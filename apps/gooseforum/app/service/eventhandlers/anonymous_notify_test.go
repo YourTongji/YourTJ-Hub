@@ -1,6 +1,7 @@
 package eventhandlers
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -9,7 +10,40 @@ import (
 	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/httpnotifyservice"
 )
+
+func TestPersonaTopicReportApprovalNeverDisclosesOwner(t *testing.T) {
+	withApprovalSigningKey(t)
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&topics.Entity{}, &users.EntityComplete{}); err != nil {
+		t.Fatal(err)
+	}
+	owner := users.EntityComplete{Id: 9894211, Username: "private-report-owner"}
+	topic := topics.Entity{Id: 9894212, UserId: owner.Id, PersonaUID: strings.Repeat("d", 32), Status: 1, Title: "Persona topic"}
+	for _, row := range []any{&owner, &topic} {
+		if err := conn.Create(row).Error; err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { conn.Unscoped().Delete(row) })
+	}
+	received := captureHttpNotify(t, httpnotifyservice.EventReportTopicCreated)
+	if err := handleHttpNotifyReportCreated(context.Background(), &ReportCreatedEvent{
+		ReportId: 9894213, TargetType: "topic", TargetId: topic.Id, TopicId: topic.Id, Reason: "spam",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	body := waitHttpNotify(t, received)
+	for _, secret := range []string{owner.Username, "9894211", "/u/9894211"} {
+		if strings.Contains(string(body), secret) {
+			t.Fatalf("persona report approval leaked %q: %s", secret, body)
+		}
+	}
+	approval := decodeApproval(t, body).Data.Approval
+	if !approval.Anonymous || approval.Author != nil {
+		t.Fatalf("persona report must use the anonymous approval projection: %+v", approval)
+	}
+}
 
 func TestAnonymousWebhookProjectionAndRetryNeverRestoreOwner(t *testing.T) {
 	conn := db.Connect()
