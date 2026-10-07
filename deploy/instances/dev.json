@@ -7,11 +7,11 @@
   "pg_dbname": "yourtj_dev",
   "search_maintenance_enabled": false,
   "feed": {
-    "ranking_enabled": false,
-    "for_you_enabled": false,
-    "metrics_enabled": false,
+    "ranking_enabled": true,
+    "for_you_enabled": true,
+    "metrics_enabled": true,
     "rollout_percent": 20,
-    "experiment_period": "dev-default-entry-v1",
-    "experiment_salt": "dev-default-entry-v1"
+    "experiment_period": "dev-for-you-v1",
+    "experiment_salt": "dev-for-you-v1"
   }
 }
