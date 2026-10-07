@@ -12,12 +12,17 @@
 
 `Current`: the role permission editor grants `anonymous.identity.reveal` (ID 7) explicitly. Ordinary
 Admin permission does not imply this grant. Assign it only to approved audit operators, review the
-grants on role changes, and remove it when audit responsibility ends. Content-scoped moderators use
-the post's governance control without receiving its owner; reveal is a separate action with a reason.
+grants on role changes, and remove it when audit responsibility ends. Admin → Anonymous identities
+requires this explicit grant together with user management (ID 1, or Admin's management wildcard).
+Operators enter a viewing reason before loading the list; every search, filter, refresh and page
+records its returned mappings in the private audit with action `admin.list` and a shared trace ID.
+An empty result still records the access action. Bans/restores require a separate action reason.
+Ordinary moderators retain content moderation without access to private mappings.
 The restricted audit stores action, operator, persona UID, owner ID, reason, trace ID and timestamp
-before returning a reveal or committing a governance restriction. There is no ordinary admin-list
-endpoint for these records. Database and backup credentials able to read them are restricted operator
-credentials and must not be distributed to content moderators.
+before returning a reveal or committing a governance restriction. The restricted list returns only
+persona display/status fields, numeric owner ID, username and closed/frozen flags. Audit records
+have no ordinary admin-list endpoint. Database and backup credentials able to read them are
+restricted operator credentials and must not be distributed to content moderators.
 
 `Current`: bindings and reveal/governance audits are retained indefinitely, including after account
 closure, under the approved product retention policy. Do not cascade account cleanup into these
@@ -60,12 +65,15 @@ pre-feature snapshot with its corresponding binary, with the usual loss of subse
 ## Cache and logging boundary
 
 `Current`: anonymous settings, candidate, confirmation, toggle, governance and reveal responses send
-`Cache-Control: private, no-store`. Reverse proxies must preserve it. Anonymous API and `/a/` access
-logs omit account and IP, use the route pattern and discard query values. Restricted evidence never
+`Cache-Control: private, no-store`, including the restricted admin list and governance responses.
+Reverse proxies must preserve it. Anonymous API and `/a/` access and panic logs omit account and IP,
+use the route pattern and discard query values. Restricted evidence never
 enters ordinary operation/moderation exports. Authenticated Web layouts disable analytics, replay
 and configured script injection; returning between tracking states reloads the whole page.
-Identity routes remain under `/api/forum/anonymous/` and public persona routes under `/a/`; extensions
-to either route namespace must preserve this logging boundary.
+Identity settings/legacy governance routes live under `/api/forum/anonymous/`, restricted admin
+operations under `/api/admin/anonymous-identities/`, and public personas under `/a/`. Extensions
+to these namespaces preserve this logging boundary. The admin page does not export mappings or
+persist them in browser storage; each revisit requires a new viewing reason.
 
 An avatar URL is immutable and publicly cacheable for one year. Public name/profile payloads must
 be refreshed after a rename; clients must not publish private settings state to a shared cache.

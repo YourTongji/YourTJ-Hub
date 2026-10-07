@@ -466,6 +466,9 @@ func apiRoute(ginApp *gin.Engine) {
 	adminApi := baseApi.Group("admin", middleware.CSRFProtection, middleware.JWTAuthCheck, middleware.CheckWritableAccount)
 
 	adminApi.GET("feed/summary", middleware.CheckPermission(permission.Admin), UpButterReq(api.FeedSummary))
+	anonymousAdmin := adminApi.Group("anonymous-identities", middleware.AnonymousPrivateResponse, middleware.NoUpdateUserActivity, middleware.CheckPermission(permission.UserManager), middleware.CheckPermission(permission.RevealAnonymousIdentity))
+	anonymousAdmin.POST("list", UpButterReq(api.AdminAnonymousList))
+	anonymousAdmin.POST("govern", UpButterReq(api.AdminAnonymousGovern))
 	adminApi.POST("traffic-overview", middleware.CheckPermission(permission.Admin), UpButterReq(api.GetTrafficOverview))
 
 	adminApi.

@@ -2,6 +2,7 @@
 import { adminText } from '@/admin/runtime/i18n-text'
 import {
   Calendar,
+  Activity,
   BookOpen,
   Award,
   Bot,
@@ -52,7 +53,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import type { LayoutPayload } from '@gooseforum/client'
 import type { LucideIcon } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
-import { AdminPermission, hasAdminPermission } from '@/admin/runtime/access'
+import { AdminPermission, canVisitAdminPath } from '@/admin/runtime/access'
 
 defineProps<{
   layout: LayoutPayload
@@ -84,7 +85,9 @@ const navGroups = computed<NavGroup[]>(() => {
     title: 'YourTJHub',
     items: [
       { title: adminText('k004c'), url: '/admin', icon: Monitor, permission: AdminPermission.Admin },
+      { title: t('feedAdmin.title'), url: '/admin/feed-statistics', icon: Activity, permission: AdminPermission.Admin },
       { title: adminText('k006i'), url: '/admin/users', icon: UserCog, permission: AdminPermission.UserManager },
+      { title: t('anonymousAdmin.title'), url: '/admin/anonymous-identities', icon: Shield, permission: AdminPermission.RevealAnonymousIdentity },
       { title: adminText('k00k7'), url: '/admin/agents', icon: Bot, permission: AdminPermission.Admin },
       { title: adminText('k00wh3'), url: '/admin/agent-comment-policy', icon: MessageSquare, permission: AdminPermission.Admin },
       { title: adminText('k007f'), url: '/admin/roles', icon: ShieldCheck, permission: AdminPermission.RoleManager },
@@ -126,7 +129,7 @@ const navGroups = computed<NavGroup[]>(() => {
   },
   ].map(group => ({
     ...group,
-    items: group.items.filter(item => item.permission === undefined || hasAdminPermission(item.permission)),
+    items: group.items.filter(item => item.permission === undefined || canVisitAdminPath(item.url)),
   })).filter(group => group.items.length > 0)
 })
 

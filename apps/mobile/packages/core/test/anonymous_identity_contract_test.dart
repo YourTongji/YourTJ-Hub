@@ -12,6 +12,27 @@ void main() {
               )
               as Map<String, dynamic>)['result']
           as Map<String, dynamic>;
+  test('restricted admin mirror matches the controlled fixture', () {
+    final result = AdminAnonymousList.fromJson(
+      fixture('admin-anonymous-list-success'),
+    );
+    expect(result.items.single.owner.userId, 1);
+    expect(result.items.single.persona.name, '躲进云里的猫');
+    expect(result.items.single.owner.closed, false);
+    expect(result.pageSize, 10);
+    expect(
+      const AdminAnonymousListRequest(reason: 'audit').toJson()['status'],
+      'all',
+    );
+    expect(
+      const AdminAnonymousGovernRequest(
+        publicUid: 'uid',
+        disabled: false,
+        reason: 'restore',
+      ).toJson()['disabled'],
+      false,
+    );
+  });
   test(
     'anonymous settings and candidate mirrors preserve the controlled contract',
     () {

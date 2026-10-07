@@ -2482,6 +2482,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/anonymous-identities/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List restricted anonymous identity mappings
+         * @description Requires user management permission plus an explicit anonymous.identity.reveal grant; Admin wildcard never implies reveal. Nonempty reason is required. Permissions are checked against the current role inside the audit transaction. Private no-store response; audit failure or permission revocation fails closed. Every returned mapping is privately audited. Search matches persona name/UID, owner username or exact ID. Closed owners are retained. Status filters apply to persona state; account freezes remain separate.
+         */
+        post: operations["listAdminAnonymousIdentities"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/anonymous-identities/govern": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ban or restore an anonymous identity
+         * @description Requires user management permission plus an explicit anonymous.identity.reveal grant; Admin wildcard never implies reveal. Nonempty reason is required. Permissions are checked against the current role inside the audit transaction. Private no-store response; audit failure or permission revocation fails closed. No post is required. Restricts the persona and owner publishing atomically with a private audit. Restore preserves independent account freezes and self-disabled status. Returns only a boolean.
+         */
+        post: operations["governAdminAnonymousIdentity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/feed/summary": {
         parameters: {
             query?: never;
@@ -13658,6 +13698,52 @@ export interface components {
             message?: string;
             messageCode?: string;
         };
+        AdminAnonymousListRequest: {
+            page: number;
+            pageSize: number;
+            search?: string;
+            /** @enum {string} */
+            status: "all" | "active" | "disabled" | "banned";
+            reason: string;
+        };
+        AdminAnonymousOwner: {
+            userId: number;
+            username: string;
+            closed: boolean;
+            frozen: boolean;
+        };
+        /** @description Restricted private mapping. Never persist in client caches or expose in public projections or exports. */
+        AdminAnonymousIdentity: {
+            /** @constant */
+            kind: "persona";
+            publicUid: string;
+            name: string;
+            avatarUrl: string;
+            profileUrl: string;
+            owner: components["schemas"]["AdminAnonymousOwner"];
+            disabled: boolean;
+            governanceDisabled: boolean;
+            /** Format: date-time */
+            selectedAt: string;
+        };
+        AdminAnonymousList: {
+            items: components["schemas"]["AdminAnonymousIdentity"][];
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        AdminAnonymousListResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["AdminAnonymousList"];
+            message?: string;
+            messageCode?: string;
+        };
+        AdminAnonymousGovernRequest: {
+            publicUid: string;
+            disabled: boolean;
+            reason: string;
+        };
         FeedMetricRow: {
             day: string;
             feed: string;
@@ -18780,6 +18866,90 @@ export interface operations {
             429: {
                 headers: {
                     "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listAdminAnonymousIdentities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAnonymousListRequest"];
+            };
+        };
+        responses: {
+            /** @description Audited result or business failure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAnonymousListResponse"] | components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Permission denied, frozen account or CSRF failure */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    governAdminAnonymousIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAnonymousGovernRequest"];
+            };
+        };
+        responses: {
+            /** @description Audited result or business failure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["governAnonymousIdentityResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Permission denied, frozen account or CSRF failure */
+            403: {
+                headers: {
                     [name: string]: unknown;
                 };
                 content: {

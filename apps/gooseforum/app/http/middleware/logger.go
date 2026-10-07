@@ -27,7 +27,7 @@ func AccessLog(c *gin.Context) {
 	latency := time.Since(startTime)
 	statusCode := c.Writer.Status()
 
-	anonymousSurface := strings.HasPrefix(c.Request.URL.Path, "/api/forum/anonymous/") || strings.HasPrefix(c.Request.URL.Path, "/a/")
+	anonymousSurface := isAnonymousIdentityPath(c.Request.URL.Path)
 	logUserID := c.GetUint64("userId")
 	if anonymousSurface {
 		logUserID = 0
@@ -80,11 +80,14 @@ func logQuery(u *url.URL) string {
 	return u.RawQuery
 }
 
-// ShouldRedactQuery reports whether a URL's query contains authentication
-// callback state and must be omitted from request logs.
+// ShouldRedactQuery identifies authentication and identity surfaces whose query
+// values must be omitted from both ordinary and panic request logs.
 func ShouldRedactQuery(u *url.URL) bool {
 	if u == nil {
 		return false
+	}
+	if isAnonymousIdentityPath(u.Path) {
+		return true
 	}
 	if isAuthenticationCallback(u.Path) || isSignedActionPage(u.Path) {
 		return true
@@ -106,6 +109,10 @@ func ShouldRedactQuery(u *url.URL) bool {
 		return err != nil || isAuthenticationCallback(redirect.Path) || isSignedActionPage(redirect.Path)
 	}
 	return false
+}
+
+func isAnonymousIdentityPath(path string) bool {
+	return strings.HasPrefix(path, "/api/forum/anonymous/") || strings.HasPrefix(path, "/api/admin/anonymous-identities/") || strings.HasPrefix(path, "/a/")
 }
 
 func logReferer(raw string) string {

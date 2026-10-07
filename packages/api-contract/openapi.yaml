@@ -246,6 +246,10 @@ paths:
     $ref: ./paths/forum-notifications.yaml#/getUnreadStatus
   /api/forum/feed/events:
     $ref: ./paths/feed.yaml#/captureFeedEvents
+  /api/admin/anonymous-identities/list:
+    $ref: ./paths/admin-anonymous-identity.yaml#/listAdminAnonymousIdentities
+  /api/admin/anonymous-identities/govern:
+    $ref: ./paths/admin-anonymous-identity.yaml#/governAdminAnonymousIdentity
   /api/admin/feed/summary:
     $ref: ./paths/feed.yaml#/getFeedSummary
   /api/forum/events:

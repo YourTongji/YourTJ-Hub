@@ -23,7 +23,6 @@ export interface PostStreamTopicActions {
 </script>
 
 <script setup lang="ts">
-import AnonymousModeration from '@/site/components/AnonymousModeration.vue'
 import { authorURL, authorKey } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, Teleport, useSlots, watch } from 'vue'
@@ -2259,7 +2258,6 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                   <Flag class="h-3.5 w-3.5" />
                   <span class="sr-only">{{ t('topic.report') }}</span>
                 </button>
-                <AnonymousModeration v-if="post.canModerate && post.author.publicUid" :key="`${viewer.id}:${post.id}`" :post-id="post.id" :public-uid="post.author.publicUid" :can-reveal="viewer.adminPermissions.includes(7)" />
                 <button
                   v-if="post.canModerate && post.processStatus === 0"
                   type="button"

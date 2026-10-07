@@ -1,0 +1,62 @@
+AdminAnonymousListRequest:
+  type: object
+  required: [page, pageSize, status, reason]
+  properties:
+    page: { type: integer, minimum: 1, maximum: 100000 }
+    pageSize: { type: integer, minimum: 1, maximum: 50 }
+    search: { type: string, maxLength: 128 }
+    status: { type: string, enum: [all, active, disabled, banned] }
+    reason: { type: string, minLength: 1, maxLength: 512 }
+  additionalProperties: false
+AdminAnonymousOwner:
+  type: object
+  required: [userId, username, closed, frozen]
+  properties:
+    userId: { type: integer, minimum: 1 }
+    username: { type: string }
+    closed: { type: boolean }
+    frozen: { type: boolean }
+  additionalProperties: false
+AdminAnonymousIdentity:
+  type: object
+  description: Restricted private mapping. Never persist in client caches or expose in public projections or exports.
+  required: [kind, publicUid, name, avatarUrl, profileUrl, owner, disabled, governanceDisabled, selectedAt]
+  properties:
+    kind: { const: persona }
+    publicUid: { type: string, pattern: '^[0-9a-f]{32}$' }
+    name: { type: string }
+    avatarUrl: { type: string }
+    profileUrl: { type: string }
+    owner: { $ref: '#/AdminAnonymousOwner' }
+    disabled: { type: boolean }
+    governanceDisabled: { type: boolean }
+    selectedAt: { type: string, format: date-time }
+  additionalProperties: false
+AdminAnonymousList:
+  type: object
+  required: [items, total, page, pageSize]
+  properties:
+    items:
+      type: array
+      maxItems: 50
+      items: { $ref: '#/AdminAnonymousIdentity' }
+    total: { type: integer, minimum: 0 }
+    page: { type: integer, minimum: 1, maximum: 100000 }
+    pageSize: { type: integer, minimum: 1, maximum: 50 }
+  additionalProperties: false
+AdminAnonymousListResponse:
+  type: object
+  required: [code, result]
+  properties:
+    code: { type: integer, const: 0 }
+    result: { $ref: '#/AdminAnonymousList' }
+    message: { type: string }
+    messageCode: { type: string }
+AdminAnonymousGovernRequest:
+  type: object
+  required: [publicUid, disabled, reason]
+  properties:
+    publicUid: { type: string, pattern: '^[0-9a-f]{32}$' }
+    disabled: { type: boolean }
+    reason: { type: string, minLength: 1, maxLength: 512 }
+  additionalProperties: false

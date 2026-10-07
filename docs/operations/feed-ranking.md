@@ -53,8 +53,10 @@ TOML参数在 `ranking`、`ranking.hot`、`ranking.daily`、`feed.for_you`、`fe
 
 `feed-report` 输出同一匿名汇总与可用实验区间；`feed-explain TOPIC_ID` 输出当前公开话题的物化分数及规则重算分量，不输出参与者标识；`feed-replay SAMPLE_ID` 回放有限候选样本。新话题群指标 `new_topic_public`、`new_topic_visible_24h`、`new_topic_first_reply` 与 `first_reply_seconds` 按首次公开日记录，可计算首日曝光比例及已获回复群的平均等待；未回复数量与关闭/过期水位不能隐含为零等待。
 
-管理员统计页提供捕获开关、就绪状态、参数、排队字节/条数/最老年龄、丢弃和后台失败、上一epoch
-完整性标志。检查匿名指标的served/visible/open/read配对，并按能力版本、参数、默认入口组和权重组
+`Current`：后台「推荐统计」（`/admin/feed-statistics`，需 Admin 权限）提供捕获状态、就绪状态、
+可展开的参数项、排队字节/条数/最老年龄、丢弃和后台失败、上一 epoch 完整性标志。
+最近 7 天汇总按信息流筛选并分页；实验周期显示分组人数、时间和可用均值差区间。
+导出保持同一匿名汇总 JSON，页面不展示原始 JSON 文本。检查匿名指标的served/visible/open/read配对，并按能力版本、参数、默认入口组和权重组
 分开比较。分页409、回退、日志丢失不能写成推荐收益。物理清理每小时启动，每表每批最多500条，有积压时每秒继续；后台调度受
 上述额度约束；到期先退出读取，清理积压应作为运维故障处理。
 

@@ -678,7 +678,11 @@ results. Notification `private_actor_id` supports private eligibility; payload a
 `actorPersonaUid` support safe hydration and pushes. Public exports redact anonymous authors and
 editors and cannot reconstruct private ownership. Missing personas never resolve through users.
 
-The six private anonymous settings/governance operations live in the controlled OpenAPI contract;
+The private anonymous settings/governance and restricted admin list/governance operations live in
+the controlled OpenAPI contract. The admin list paginates at most 50 private mappings and commits
+one restricted `admin.list` audit per returned mapping (or one access audit for an empty page).
+Current-role user management and explicit reveal grants are checked inside the transaction.
+List and governance responses are no-store and excluded from ordinary access/panic logging context;
 Web generated types and Dart mirrors change together. `/a/` is a three-mode page and its SVG avatar
 is a static response, recorded as route-coverage exclusions. Product semantics live in
 [anonymous identity](../product/anonymous-identity.md); permissions, retention and consistent backup

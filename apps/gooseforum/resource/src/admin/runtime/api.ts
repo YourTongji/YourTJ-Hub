@@ -782,3 +782,14 @@ export function createSearchMaintenance(request: SearchMaintenanceRequest): Prom
 
 export type FeedSummary = import('@gooseforum/client').components['schemas']['FeedSummary']
 export function getFeedSummary(): Promise<FeedSummary> {return getJson<FeedSummary>('/api/admin/feed/summary', t('common.loadFailed'))}
+
+
+export type AdminAnonymousIdentity = import('@gooseforum/client').components['schemas']['AdminAnonymousIdentity']
+export type AdminAnonymousListRequest = import('@gooseforum/client').components['schemas']['AdminAnonymousListRequest']
+export type AdminAnonymousList = import('@gooseforum/client').components['schemas']['AdminAnonymousList']
+export function listAnonymousIdentities(request: AdminAnonymousListRequest): Promise<AdminAnonymousList> {
+  return postJson('/api/admin/anonymous-identities/list', request, t('common.loadFailed'))
+}
+export function governAnonymousIdentity(request: import('@gooseforum/client').components['schemas']['AdminAnonymousGovernRequest']): Promise<boolean> {
+  return postJson('/api/admin/anonymous-identities/govern', request, t('anonymousAdmin.saveFailed'))
+}

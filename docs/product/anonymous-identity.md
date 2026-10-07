@@ -136,12 +136,22 @@ and audit APIs return `private, no-store`; persona public views do not update ma
 
 ## Governance and retention
 
-`Current`: readers and ordinary moderators cannot obtain the owner binding. Moderators can restrict
-an anonymous author's account through a post in their category scope, with a required reason. The
-private transaction disables the persona and the owner's writing together and records a governance
-audit. Both member and persona topic/reply publishing are blocked. Restoration uses the same
-moderator action and preserves independent account freezes. Self-disable and self-enable
-retain the UID, name lock and occupied slot and cannot clear a governance restriction.
+`Current`: Web and native topic/reply surfaces do not expose a private identity-management
+control. Content moderation remains in its ordinary action area. Identity auditors use
+Admin → Anonymous identities, a dedicated paginated list of personas and their private owners.
+It supports search by name/UID, owner username or exact numeric ID, and persona-state filters.
+Desktop uses table rows; narrow screens use identity cards. User management and an explicit
+`anonymous.identity.reveal` grant are both required. Every page requires a nonempty viewing
+reason and commits a restricted audit for each returned mapping before releasing it. Audit
+failure or permission revocation returns no mapping; the client clears previous rows on failure.
+Bindings for closed owners remain visible to these authorized operators. No avatar seed is returned.
+
+`Current`: the restricted admin page bans/restores by persona UID without requiring an existing
+post, with a separate action reason. The private transaction restricts persona and owner publishing
+together and records a governance audit. Both member and persona topic/reply publishing are blocked.
+Restoration preserves independent account freezes and self-disabled status. The existing
+content-scoped governance API remains compatible but has no topic/reply UI entry.
+Self-disable and self-enable retain the UID, name lock and occupied slot and cannot clear governance.
 
 `Current`: reveal requires an explicit `anonymous.identity.reveal` permission (ID 7), a nonempty
 reason and a committed restricted audit. Admin is not a wildcard for this permission. Audit failure
@@ -164,4 +174,5 @@ anonymous display and legacy Wiki per-post anonymous replies remain separate and
 - [MADR 0074](../decisions/0074-six-character-persona-names.md) owns the current naming policy and carries forward the persona boundaries from [0066](../decisions/0066-persistent-anonymous-forum-persona.md).
 - [Issue 1068](https://github.com/YourTongji/YourTJ-Hub/issues/1068) owns research and acceptance evidence.
 - [Six-character name component source](../../apps/gooseforum/app/bundles/anonymousnames/README.md).
+- [MADR 0075](../decisions/0075-restricted-anonymous-administration.md) defines the central administration boundary.
 - [Contracts and data](../architecture/contracts-and-data.md#persistent-anonymous-personas).
