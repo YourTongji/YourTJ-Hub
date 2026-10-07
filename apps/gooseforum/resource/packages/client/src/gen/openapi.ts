@@ -4,6 +4,300 @@
  */
 
 export interface paths {
+    "/api/v1/agent/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pull this Agent event inbox
+         * @description Read does not ACK. Cursor binds current instance, stream epoch and Agent. cursor_expired includes replayFloor; cursor_reset requires resynchronization. With no after, starts at retained floor. Current visibility is checked before projection.
+         */
+        get: operations["agentListEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/events/{eventId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read one owned event
+         * @description Withdrawn content returns a tombstone without data; foreign or expired events fail without source disclosure.
+         */
+        get: operations["agentGetEvent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/events/ack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acknowledge completed or skipped events
+         * @description Idempotent batch confirmation, at most 100 IDs. Revalidates credential, ownership, expiry and current source visibility in the transaction. HTTP/Webhook success never implies ACK.
+         */
+        post: operations["agentAckEvents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/mention-targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find human and enabled Agent mention candidates
+         * @description Login required. Returns public identity fields; bot candidates are labelled without adding bots to global human search.
+         */
+        get: operations["forumMentionTargets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agent-webhook-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Configure independent event and Webhook switches
+         * @description CAS configVersion is mandatory for concurrency correctness (initial version 0). Endpoint accepts public HTTPS port 443 only. Subscriptions and endpoint generations are separate; historical events never move to a new endpoint. A secret must exist before enabling Webhook.
+         */
+        post: operations["adminAgentWebhookConfigure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agent-webhook-rotate-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate the one-time Webhook HMAC secret
+         * @description Returns Cache-Control: no-store. Ordinary rotation dual signs for 24 hours; emergency rotation immediately invalidates the previous secret. Independent from bearer token rotation.
+         */
+        post: operations["adminAgentWebhookRotateSecret"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agent-webhook-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Queue a signed connection test
+         * @description Sends agent.webhook_test through the same safety policy; receivers must not create content for tests.
+         */
+        post: operations["adminAgentWebhookTest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agent-webhook-deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inspect bounded delivery and attempt diagnostics
+         * @description Returns no body, secret or raw receiver response. Accepted means durable receiver ingress, not Agent processing.
+         */
+        post: operations["adminAgentWebhookDeliveries"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agent-webhook-redeliver": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Explicitly restart one failed delivery round
+         * @description Preserves eventId and endpoint generation. Only unexpired failed deliveries with current generation and source visibility are allowed; maximum 3 rounds and 27 total attempts.
+         */
+        post: operations["adminAgentWebhookRedeliver"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agent-interaction-intents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inspect pending and failed source intents
+         * @description Recipient-filtered recovery list; preserves failed unmaterialized intent diagnostics independently from deliveries.
+         */
+        post: operations["adminAgentInteractionIntents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agent-interaction-replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replay one retained source intent
+         * @description Uses original frozen recipient identities and generations; re-materialization preserves eventId. Expired or unrelated source intents are refused.
+         */
+        post: operations["adminAgentInteractionReplay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agent-comment-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the site-wide Agent comment policy
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied` (params
+         *     permission=<localized permission name>). Returns the site-wide switch
+         *     (`allowAgentComments`) or the built-in default (allow) when nothing has
+         *     been saved yet. Per-topic bans live on the topic rows and are edited
+         *     through `adminSetAgentCommentTopicPolicy`.
+         */
+        get: operations["adminGetAgentCommentPolicy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-agent-comment-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save the site-wide Agent comment policy
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Replaces the
+         *     site-wide `allowAgentComments` switch and clears its hot cache. The
+         *     request field is a required pointer: a body without
+         *     `allowAgentComments` fails validation as `common.request.invalidParams`
+         *     (HTTP 200) instead of silently saving `false`.
+         */
+        post: operations["adminSaveAgentCommentPolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/set-agent-comment-topic-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ban or allow Agent comments on one topic
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Sets the per-topic
+         *     `agentCommentDisabled` flag; unknown topics fail with `topic.notFound`
+         *     (HTTP 200, empty result). While the site-wide switch is off, per-topic
+         *     flags cannot re-enable Agent comments.
+         */
+        post: operations["adminSetAgentCommentTopicPolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/anonymous/govern": {
         parameters: {
             query?: never;
@@ -9052,6 +9346,8 @@ export interface components {
         };
         /** @description Agent topics always publish (topicStatus=1); website and captcha fields are deliberately absent. */
         AgentWriteTopicRequest: {
+            /** @description Source-linked topic creation is refused; use sourceEventId only for replies. */
+            sourceEventId?: string;
             title: string;
             content: string;
             categoryId: number[];
@@ -9084,6 +9380,8 @@ export interface components {
         };
         /** @description The topic id comes from the path and is authoritative. */
         AgentCreatePostRequest: {
+            /** @description Optional owned event linking this reply; source visibility and blocks must remain authorized at commit. */
+            sourceEventId?: string;
             /**
              * @description Defaults to member on creation. Edits preserve the original author; attempting to switch fails. An unavailable persona never falls back to member.
              * @enum {string}
@@ -9099,6 +9397,7 @@ export interface components {
             /** Format: uint64 */
             postNo: number;
             renderedContent: string;
+            isAnswer?: boolean;
         };
         AgentCreatePostResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["AgentCreatePostResult"];
@@ -9888,6 +10187,8 @@ export interface components {
              * @description Optional author filter; 0 or omitted lists all authors.
              */
             userId?: number;
+            /** @description Optional Agent comment policy filter; omitted lists both, true lists only topics where Agent comments are banned. */
+            agentCommentDisabled?: boolean;
         };
         AdminTopicBase: {
             /** Format: uint64 */
@@ -9911,6 +10212,8 @@ export interface components {
             updatedAt: string;
         };
         AdminTopicListItem: components["schemas"]["AdminTopicBase"] & {
+            /** @description Whether Agent comments are banned on this topic. */
+            agentCommentDisabled: boolean;
             /** @description Author username; empty when the author account is gone. */
             username: string;
             /** @description Author's current nickname; omitted when the user has none. */
@@ -12167,6 +12470,19 @@ export interface components {
             agentId: number;
         };
         AdminAgentItem: {
+            configVersion: number;
+            eventsEnabled: boolean;
+            eventTypes: ("agent.mentioned" | "agent.post_replied" | "agent.topic_commented" | "forum.topic_created" | "forum.post_created")[];
+            subscriptionGeneration: number;
+            webhookEnabled: boolean;
+            endpointGeneration: number;
+            secretConfigured: boolean;
+            secretVersion: number;
+            /** Format: date-time */
+            latestAcceptedAt: string | null;
+            pendingCount: number;
+            pauseReason: string;
+            summaryUnavailable: boolean;
             /**
              * Format: uint64
              * @description Bot user id backing the Agent.
@@ -12845,6 +13161,265 @@ export interface components {
             publicUid: string;
             reason: string;
         };
+        AgentEventData: {
+            /** Format: uint64 */
+            topicId: number;
+            /** Format: uint64 */
+            postId: number;
+            /** Format: uint64 */
+            postNo: number;
+            replyToPostId: number;
+            /** Format: uint64 */
+            actorId: number;
+            /** @enum {string} */
+            actorType: "human" | "bot";
+            reasons: ("post_reply" | "mention" | "comment" | "topic_created" | "post_created")[];
+            /** @description Relative forum path /p/post/{topicId}/{postNo}; resolve against the configured forum origin. */
+            url: string;
+        };
+        AgentEvent: {
+            id: string;
+            instanceId: string;
+            /** @constant */
+            schemaVersion: 1;
+            /** @enum {string} */
+            type: "agent.mentioned" | "agent.post_replied" | "agent.topic_commented" | "forum.topic_created" | "forum.post_created";
+            /** Format: date-time */
+            occurredAt: string;
+            /** Format: uint64 */
+            agentId: number;
+            /** @enum {string} */
+            state: "active" | "withdrawn" | "expired";
+            data?: components["schemas"]["AgentEventData"];
+            /** Format: date-time */
+            ackedAt?: string;
+            /** Format: uint64 */
+            resultingTopicId?: number;
+            /** Format: uint64 */
+            resultingPostId?: number;
+        };
+        AgentEventsSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: {
+                events: components["schemas"]["AgentEvent"][];
+                nextCursor: string;
+                hasMore: boolean;
+                replayFloor: string;
+            };
+        };
+        AgentEventsResponse: components["schemas"]["AgentEventsSuccess"] | components["schemas"]["ApiFailure"];
+        AgentEventSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["AgentEvent"];
+        };
+        AgentEventResponse: components["schemas"]["AgentEventSuccess"] | components["schemas"]["ApiFailure"];
+        AgentAckRequest: {
+            eventIds: string[];
+        };
+        AgentAckSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: boolean;
+        };
+        AgentAckResponse: components["schemas"]["AgentAckSuccess"] | components["schemas"]["ApiFailure"];
+        MentionTarget: {
+            /** Format: uint64 */
+            userId: number;
+            username: string;
+            nickname: string;
+            avatarUrl: string;
+            /** @enum {string} */
+            actorType: "human" | "bot";
+        };
+        MentionTargetsSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["MentionTarget"][];
+        };
+        MentionTargetsResponse: components["schemas"]["MentionTargetsSuccess"] | components["schemas"]["ApiFailure"];
+        AgentWebhookConfigRequest: {
+            /** Format: uint64 */
+            agentId: number;
+            configVersion?: number;
+            eventsEnabled?: boolean;
+            eventTypes?: ("agent.mentioned" | "agent.post_replied" | "agent.topic_commented" | "forum.topic_created" | "forum.post_created")[];
+            webhookEnabled?: boolean;
+            webhookEndpoint?: string;
+        };
+        AgentWebhookConfigSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["AdminAgentItem"];
+        };
+        AgentWebhookConfigResponse: components["schemas"]["AgentWebhookConfigSuccess"] | components["schemas"]["ApiFailure"];
+        AgentWebhookRotateRequest: {
+            /** Format: uint64 */
+            agentId: number;
+            configVersion?: number;
+            emergency?: boolean;
+        };
+        AgentWebhookSecretSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: {
+                /** @description One-time independent whsec_ HMAC secret. Store outside the forum DB; never use the Agent bearer token. */
+                secret: string;
+                secretVersion: number;
+                configVersion: number;
+            };
+        };
+        AgentWebhookSecretResponse: components["schemas"]["AgentWebhookSecretSuccess"] | components["schemas"]["ApiFailure"];
+        AgentWebhookDelivery: {
+            /** Format: uint64 */
+            id: number;
+            instanceId: string;
+            eventId: string;
+            /** Format: uint64 */
+            agentId: number;
+            endpointGeneration: number;
+            /** @constant */
+            schemaVersion: 1;
+            /** @enum {string} */
+            status: "pending" | "running" | "accepted" | "retry_wait" | "dead" | "cancelled";
+            reason: string;
+            taskId: number;
+            round: number;
+            attemptCount: number;
+            totalAttempts: number;
+            /** Format: date-time */
+            deadline: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            nextRunAt: string | null;
+            createdBy: number;
+            lastRedeliveredBy: number;
+            /** Format: date-time */
+            acceptedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AgentWebhookTestSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["AgentWebhookDelivery"];
+        };
+        AgentWebhookTestResponse: components["schemas"]["AgentWebhookTestSuccess"] | components["schemas"]["ApiFailure"];
+        AgentWebhookPageRequest: {
+            /** Format: uint64 */
+            agentId: number;
+            /** @default 1 */
+            page: number;
+            /** @default 20 */
+            pageSize: number;
+        };
+        AgentWebhookAttempt: {
+            id: string;
+            instanceId: string;
+            /** Format: uint64 */
+            deliveryId: number;
+            round: number;
+            number: number;
+            httpStatus: number;
+            errorClass: string;
+            durationMs: number;
+            /** Format: date-time */
+            authorizedAt: string;
+            /** Format: date-time */
+            completedAt: string | null;
+        };
+        AgentWebhookDeliveryItem: {
+            /** Format: uint64 */
+            id: number;
+            instanceId: string;
+            eventId: string;
+            /** Format: uint64 */
+            agentId: number;
+            endpointGeneration: number;
+            /** @constant */
+            schemaVersion: 1;
+            /** @enum {string} */
+            status: "pending" | "running" | "accepted" | "retry_wait" | "dead" | "cancelled";
+            reason: string;
+            taskId: number;
+            round: number;
+            attemptCount: number;
+            totalAttempts: number;
+            /** Format: date-time */
+            deadline: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            nextRunAt: string | null;
+            createdBy: number;
+            lastRedeliveredBy: number;
+            /** Format: date-time */
+            acceptedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            attempts: components["schemas"]["AgentWebhookAttempt"][];
+        };
+        AgentWebhookDeliveriesSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: {
+                list: components["schemas"]["AgentWebhookDeliveryItem"][];
+                total: number;
+                page: number;
+                pageSize: number;
+            };
+        };
+        AgentWebhookDeliveriesResponse: components["schemas"]["AgentWebhookDeliveriesSuccess"] | components["schemas"]["ApiFailure"];
+        AgentWebhookRedeliverRequest: {
+            /** Format: uint64 */
+            agentId: number;
+            /** Format: uint64 */
+            deliveryId: number;
+        };
+        AgentInteractionIntent: {
+            intentId: string;
+            sourceOccurrenceId: string;
+            /** Format: uint64 */
+            postId: number;
+            revision: number;
+            status: string;
+            errorCode: string;
+            retryCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        AgentInteractionIntentsSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: {
+                list: components["schemas"]["AgentInteractionIntent"][];
+                total: number;
+                page: number;
+                pageSize: number;
+            };
+        };
+        AgentInteractionIntentsResponse: components["schemas"]["AgentInteractionIntentsSuccess"] | components["schemas"]["ApiFailure"];
+        AgentIntentReplayRequest: {
+            /** Format: uint64 */
+            agentId: number;
+            intentId: string;
+        };
+        AgentCommentPolicy: {
+            /** @description 全站是否允许 Agent（机器人账号）发表评论。按主题的禁止标记 存放在主题的 agentCommentDisabled 字段。 */
+            allowAgentComments: boolean;
+        };
+        AgentCommentPolicySuccess: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["AgentCommentPolicy"];
+        };
+        AgentCommentPolicyResponse: components["schemas"]["AgentCommentPolicySuccess"] | components["schemas"]["ApiFailure"];
+        AgentCommentPolicySaveRequest: {
+            allowAgentComments: boolean;
+        };
+        AgentCommentTopicPolicyRequest: {
+            /** Format: uint64 */
+            topicId: number;
+            /** @description true 表示该主题禁止 Agent 评论；false 恢复允许。 */
+            disabled: boolean;
+        };
+        AgentCommentTopicPolicyResult: {
+            /** Format: uint64 */
+            topicId: number;
+            agentCommentDisabled: boolean;
+        };
+        AgentCommentTopicPolicySuccess: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["AgentCommentTopicPolicyResult"];
+        };
+        AgentCommentTopicPolicyResponse: components["schemas"]["AgentCommentTopicPolicySuccess"] | components["schemas"]["ApiFailure"];
         AnonymousGovernRequest: {
             postId: number;
             disabled: boolean;
@@ -13710,6 +14285,550 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    agentListEvents: {
+        parameters: {
+            query?: {
+                after?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success or a business failure envelope; inspect code. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentEventsResponse"];
+                };
+            };
+            /** @description Missing or invalid credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    agentGetEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success or a business failure envelope; inspect code. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentEventResponse"];
+                };
+            };
+            /** @description Missing or invalid credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    agentAckEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentAckRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or a business failure envelope; inspect code. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentAckResponse"];
+                };
+            };
+            /** @description Missing or invalid credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    forumMentionTargets: {
+        parameters: {
+            query?: {
+                q?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success or a business failure envelope; inspect code. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MentionTargetsResponse"];
+                };
+            };
+            /** @description Missing or invalid credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentWebhookConfigure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentWebhookConfigRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or a business failure envelope; inspect code. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentWebhookConfigResponse"];
+                };
+            };
+            /** @description Missing or invalid credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Admin role required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentWebhookRotateSecret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentWebhookRotateRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or a business failure envelope; inspect code. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentWebhookSecretResponse"];
+                };
+            };
+            /** @description Missing or invalid credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Admin role required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentWebhookTest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAgentIdRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or a business failure envelope; inspect code. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentWebhookTestResponse"];
+                };
+            };
+            /** @description Missing or invalid credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Admin role required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentWebhookDeliveries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentWebhookPageRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or a business failure envelope; inspect code. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentWebhookDeliveriesResponse"];
+                };
+            };
+            /** @description Missing or invalid credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Admin role required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentWebhookRedeliver: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentWebhookRedeliverRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or a business failure envelope; inspect code. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentAckResponse"];
+                };
+            };
+            /** @description Missing or invalid credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Admin role required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentInteractionIntents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentWebhookPageRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or a business failure envelope; inspect code. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentInteractionIntentsResponse"];
+                };
+            };
+            /** @description Missing or invalid credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Admin role required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentInteractionReplay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentIntentReplayRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or a business failure envelope; inspect code. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentAckResponse"];
+                };
+            };
+            /** @description Missing or invalid credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Admin role required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetAgentCommentPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Site-wide Agent comment policy. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentCommentPolicyResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request is rejected by the CSRF gate with HTTP 403 `auth.csrf.rejected`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveAgentCommentPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentCommentPolicySaveRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request is rejected by the CSRF gate with HTTP 403 `auth.csrf.rejected`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSetAgentCommentTopicPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentCommentTopicPolicyRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated per-topic flag, or `topic.notFound` for unknown topics. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentCommentTopicPolicyResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request is rejected by the CSRF gate with HTTP 403 `auth.csrf.rejected`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     governAnonymousIdentity: {
         parameters: {
             query?: never;
@@ -19198,7 +20317,10 @@ export interface operations {
     agentWriteTopic: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Stable printable ASCII request key, at most 256 bytes; conflicting request digest returns HTTP 409. Retained 7 days within one database history. */
+                "Idempotency-Key"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -19228,6 +20350,15 @@ export interface operations {
             };
             /** @description Missing or invalid agent bearer credential. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Same request key with a different request digest. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19296,7 +20427,10 @@ export interface operations {
     agentCreatePost: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Stable printable ASCII request key, at most 256 bytes; conflicting request digest returns HTTP 409. Retained 7 days within one database history. */
+                "Idempotency-Key"?: string;
+            };
             path: {
                 topicId: number;
             };
@@ -19328,6 +20462,15 @@ export interface operations {
             };
             /** @description Missing or invalid agent bearer credential. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Same request key with a different request digest. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

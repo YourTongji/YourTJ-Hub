@@ -1,0 +1,12 @@
+{
+  "result": {
+    "id": "evt_example",
+    "instanceId": "inst_example",
+    "schemaVersion": 1,
+    "type": "agent.mentioned",
+    "occurredAt": "2026-10-04T01:00:00Z",
+    "agentId": 123,
+    "state": "withdrawn"
+  },
+  "code": 0
+}

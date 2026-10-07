@@ -23,6 +23,8 @@ adminAgentList:
             examples:
               success:
                 externalValue: ../fixtures/admin-agent-list-success.json
+              broadcastSubscriptions:
+                externalValue: ../fixtures/admin-agent-list-broadcast-success.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:

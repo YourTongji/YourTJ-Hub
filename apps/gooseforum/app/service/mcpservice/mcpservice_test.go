@@ -13,6 +13,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
@@ -21,6 +22,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserStat"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
@@ -39,6 +41,8 @@ func setupMCPServiceTestDB(t *testing.T) *gorm.DB {
 		&users.EntityComplete{},
 		&userStatistics.Entity{},
 		&agents.Entity{},
+		&badges.Entity{},
+		&userBadges.Entity{},
 		&topics.Entity{},
 		&topicUserStat.Entity{},
 		&postRevisions.Entity{},
@@ -69,6 +73,8 @@ func cleanMCPServiceTables(conn *gorm.DB) {
 	conn.Where("1 = 1").Delete(&topics.Entity{})
 	conn.Where("1 = 1").Delete(&taskQueue.Entity{})
 	conn.Where("1 = 1").Delete(&category.Entity{})
+	conn.Where("1 = 1").Delete(&badges.Entity{})
+	conn.Where("1 = 1").Delete(&userBadges.Entity{})
 	conn.Where("1 = 1").Delete(&agents.Entity{})
 	conn.Where("1 = 1").Delete(&userStatistics.Entity{})
 	conn.Where("1 = 1").Delete(&users.EntityComplete{})
@@ -104,7 +110,7 @@ func connectMCPServer(t *testing.T, writes bool, agentID ...uint64) *mcp.ClientS
 	ctx := context.Background()
 	var svc *Service
 	if len(agentID) > 0 && agentID[0] != 0 {
-		svc = NewStdioService(agentID[0])
+		svc = NewStdioService(agentID[0], writes)
 	} else {
 		svc = NewService()
 	}
@@ -138,7 +144,7 @@ func toolNames(t *testing.T, cs *mcp.ClientSession) map[string]bool {
 func TestToolSetDefaultReadOnly(t *testing.T) {
 	cs := connectMCPServer(t, false)
 	names := toolNames(t, cs)
-	for _, want := range []string{"me", "list_topics", "get_posts", "search"} {
+	for _, want := range []string{"me", "list_topics", "get_posts", "search", "list_events", "get_event", "ack_events"} {
 		if !names[want] {
 			t.Errorf("read tool %q not registered", want)
 		}

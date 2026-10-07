@@ -595,6 +595,7 @@
   "mentionTagReplyTarget": "Antworte auf",
   "mentionTagTopicAuthor": "Themenersteller",
   "mentionTagParticipant": "Teilnehmer",
+  "mentionAgentLabel": "Bot",
   "@notificationMention": {
     "placeholders": {
       "actor": {

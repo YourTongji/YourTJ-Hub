@@ -15,6 +15,9 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentEvents"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentWebhook"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentWrites"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
 	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
@@ -118,6 +121,12 @@ func migrateSchema() error {
 	}
 	if err = upgradePkAudienceSchema(db); err != nil {
 		return fmt.Errorf("dbconnect pk audience schema upgrade failed: %w", err)
+	}
+	if err = upgradeTopicAgentCommentPolicy(db); err != nil {
+		return fmt.Errorf("dbconnect topic agent comment policy upgrade failed: %w", err)
+	}
+	if err = upgradePostAgentEventDepth(db); err != nil {
+		return err
 	}
 	if err = db.AutoMigrate(SchemaModels()...); err != nil {
 		// 迁移失败必须上层按非零码退出，否则服务会带着残缺 schema 继续启动，
@@ -358,6 +367,24 @@ func upgradeImportRunCompositeIndex(db *gorm.DB) error {
 		}
 		slog.Info("dbconnect course_import_run legacy unique index dropped, will be recreated as (kind, manifest_hash)")
 	}
+	return nil
+}
+
+// upgradeTopicAgentCommentPolicy 为存量库补 topics.agent_comment_disabled 列
+// （管理端「Agent 评论策略」按主题禁止 Agent 评论）。全新库由 AutoMigrate 建列；
+// SQLite 存量库依赖 AutoMigrate 补列会整表重建，必须显式 ALTER TABLE。
+// 默认 false（允许 Agent 评论），存量行语义不变。
+func upgradeTopicAgentCommentPolicy(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&topics.Entity{}) {
+		return nil
+	}
+	if db.Migrator().HasColumn(&topics.Entity{}, "agent_comment_disabled") {
+		return nil
+	}
+	if err := db.Exec("ALTER TABLE topics ADD COLUMN agent_comment_disabled BOOLEAN NOT NULL DEFAULT FALSE").Error; err != nil {
+		return fmt.Errorf("add topics.agent_comment_disabled column: %w", err)
+	}
+	slog.Info("dbconnect topics.agent_comment_disabled column added (default false)")
 	return nil
 }
 
@@ -694,6 +721,7 @@ func SchemaModels() []any {
 		&pointsRecord.Entity{},
 		&reports.Entity{},
 		&agents.Entity{},
+		&agentEvents.ReplayState{}, &agentEvents.Publication{}, &agentEvents.Intent{}, &agentEvents.Entity{}, &agentWrites.Entry{}, &agentWebhook.Delivery{}, &agentWebhook.Attempt{},
 		&topics.Entity{},
 		&posts.Entity{},
 		&postRevisions.Entity{},
@@ -930,4 +958,12 @@ func dedupeWikiRevisionNumbers(db *gorm.DB) error {
 	}
 	slog.Info("migration: wiki revision dedupe done", "groups", len(dups))
 	return nil
+}
+
+// Preserve legacy SQLite rows when adding immutable Agent causal metadata.
+func upgradePostAgentEventDepth(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&posts.Entity{}) || db.Migrator().HasColumn(&posts.Entity{}, "agent_event_depth") {
+		return nil
+	}
+	return db.Exec("ALTER TABLE posts ADD COLUMN agent_event_depth INTEGER NOT NULL DEFAULT 0").Error
 }

@@ -4,12 +4,12 @@ import { defineComponent, h, shallowRef } from 'vue'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { i18n } from '../src/runtime/i18n'
 import PostComposer from '../src/site/components/PostComposer.vue'
-import { searchForumUsers } from '../src/runtime/api'
+import { getMentionTargets } from '../src/runtime/api'
 import type { MentionUser } from '../src/runtime/mention'
 
 vi.mock('@/runtime/api', () => ({
   uploadImage: vi.fn(async () => ''),
-  searchForumUsers: vi.fn(),
+  getMentionTargets: vi.fn(),
 }))
 
 // Vditor 在 happy-dom 下无法真实初始化：用可控 stub 提供 getMentionContext/replaceMentionToken，
@@ -84,8 +84,8 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve }
 }
 
-function searchUser(id: number, username: string, nickname?: string) {
-  return { id, username, nickname: nickname ?? username, avatarUrl: `/a${id}.png`, bio: '' }
+function searchUser(id: number, username: string, nickname?: string, actorType: 'human' | 'bot' = 'human') {
+  return { userId: id, username, nickname: nickname ?? username, avatarUrl: `/a${id}.png`, actorType }
 }
 
 const searchPending = new Map<string, Deferred<ReturnType<typeof searchUser>[]>>()
@@ -134,7 +134,7 @@ beforeEach(() => {
   searchPending.clear()
   vi.useFakeTimers()
   vi.clearAllMocks()
-  vi.mocked(searchForumUsers).mockImplementation((query: string) => {
+  vi.mocked(getMentionTargets).mockImplementation((query: string) => {
     const d = deferred<ReturnType<typeof searchUser>[]>()
     searchPending.set(query, d)
     return d.promise
@@ -156,6 +156,16 @@ async function openMentionWithSearch(wrapper: VueWrapper, prefix: string, result
 }
 
 describe('PostComposer @mention 会话（issue #564）', () => {
+  test('labels a local participant using the duplicate server candidate bot identity', async () => {
+    const { wrapper } = mountComposer({
+      mentionUsers: [{ id: 8, username: 'helper', nickname: '迎新助手', avatarUrl: '', tag: 'participant' }],
+    })
+    await openMentionWithSearch(wrapper, '@help', [searchUser(8, 'helper', '迎新助手', 'bot')])
+    const panel = mentionPanel()!
+    expect(panel.textContent).toContain('机器人')
+    expect(panel.querySelector('[role="option"]')?.getAttribute('aria-label')).toContain('机器人')
+    wrapper.unmount()
+  })
   test('输入 @ 后打开候选列表，展示服务端搜索结果', async () => {
     const { wrapper } = mountComposer({})
     await openMentionWithSearch(wrapper, '@wa', [searchUser(21, 'wavery', '小薇')])
@@ -167,6 +177,26 @@ describe('PostComposer @mention 会话（issue #564）', () => {
     wrapper.unmount()
   })
 
+  test('专用候选结果映射 userId 并清楚标出 Agent', async () => {
+    const { wrapper } = mountComposer({})
+    typePrefix(wrapper, '@helper')
+    await vi.advanceTimersByTimeAsync(300)
+    searchPending.get('helper')!.resolve([{
+      userId: 34,
+      username: 'helper-bot',
+      nickname: '迎新助手',
+      avatarUrl: '/bot.png',
+      actorType: 'bot',
+    }])
+    await flushPromises()
+
+    const panel = mentionPanel()
+    expect(panel?.textContent).toContain('@helper-bot')
+    expect(panel?.textContent).toContain('机器人')
+    expect(getMentionTargets).toHaveBeenCalledWith('helper', expect.any(AbortSignal))
+    wrapper.unmount()
+  })
+
   test('仅输入 @：只展示本地上下文，不发起服务端请求', async () => {
     const mentionUsers: MentionUser[] = [
       { id: 1, username: 'target', nickname: '回复目标', avatarUrl: '/a1.png', tag: 'reply-target' },
@@ -175,7 +205,7 @@ describe('PostComposer @mention 会话（issue #564）', () => {
     const { wrapper } = mountComposer({ mentionUsers })
     typePrefix(wrapper, '@')
     await flushPromises()
-    expect(searchForumUsers).not.toHaveBeenCalled()
+    expect(getMentionTargets).not.toHaveBeenCalled()
     const panel = mentionPanel()
     expect(panel!.textContent).toContain('@target')
     expect(panel!.textContent).toContain('@author')
@@ -188,7 +218,7 @@ describe('PostComposer @mention 会话（issue #564）', () => {
     const { wrapper } = mountComposer({})
     typePrefix(wrapper, '@')
     await flushPromises()
-    expect(searchForumUsers).not.toHaveBeenCalled()
+    expect(getMentionTargets).not.toHaveBeenCalled()
     expect(mentionPanel()!.textContent).toContain('继续输入以搜索用户')
     wrapper.unmount()
   })
@@ -199,7 +229,7 @@ describe('PostComposer @mention 会话（issue #564）', () => {
     wrapper.findComponent({ name: 'VditorOfficialStub' }).vm.$emit('input')
     await flushPromises()
     expect(mentionPanel()).toBeNull()
-    expect(searchForumUsers).not.toHaveBeenCalled()
+    expect(getMentionTargets).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
@@ -340,7 +370,7 @@ test('closing mention clears editor ARIA references', async () => {
 test('search failures are visible and never leave stale selectable results',async()=>{
  const {wrapper}=mountComposer({})
  await openMentionWithSearch(wrapper,'@wa',[searchUser(21,'wavery')])
- vi.mocked(searchForumUsers).mockRejectedValueOnce(new Error('offline'))
+ vi.mocked(getMentionTargets).mockRejectedValueOnce(new Error('offline'))
  typePrefix(wrapper,'@different')
  await vi.advanceTimersByTimeAsync(300)
  await flushPromises()

@@ -126,6 +126,7 @@ const (
 
 const (
 	MessageTopicNotFound                    MessageCode = "topic.notFound"                    // 主题不存在。
+	MessageTopicAgentCommentDisabled        MessageCode = "topic.agentCommentDisabled"        // 该主题已禁止 Agent 评论（管理端 Agent 评论策略）。
 	MessageTopicOwnerMismatch               MessageCode = "topic.ownerMismatch"               // 不能修改或删除他人的主题。
 	MessageTopicOperationDenied             MessageCode = "topic.operationDenied"             // 当前主题不可操作。
 	MessageTopicAgentRepliesDisabled        MessageCode = "topic.agentRepliesDisabled"        // 作者禁止机器人回复。

@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：370
-- /api JSON 路由：301，已入契约：302（100%），已知未覆盖：0
+- 快照路由总数：384
+- /api JSON 路由：315，已入契约：316（100%），已知未覆盖：0
 - 非 API 排除路由：68
 
-## 已覆盖（302）
+## 已覆盖（316）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -17,6 +17,7 @@
 | DELETE | `/api/forum/course-reviews/:reviewId/helpful` | `unmarkReviewHelpful` |
 | DELETE | `/api/pk/plan-items` | `pkDeletePlanItem` |
 | DELETE | `/api/pk/plans` | `pkDeletePlans` |
+| GET | `/api/admin/agent-comment-policy` | `adminGetAgentCommentPolicy` |
 | GET | `/api/admin/ai-moderation-settings` | `adminGetAiModerationSettings` |
 | GET | `/api/admin/ai-summary-settings` | `adminGetAiSummarySettings` |
 | GET | `/api/admin/announcement` | `adminGetAnnouncement` |
@@ -70,6 +71,7 @@
 | GET | `/api/forum/courses/:courseId/summary` | `getCourseSummary` |
 | GET | `/api/forum/events` | `streamForumEvents` |
 | GET | `/api/forum/get-site-statistics` | `getSiteStatistics` |
+| GET | `/api/forum/mention-targets` | `forumMentionTargets` |
 | GET | `/api/forum/my-course-reviews` | `listOwnCourseReviews` |
 | GET | `/api/forum/my-stickers` | `myStickers` |
 | GET | `/api/forum/notifications` | `getNotifications` |
@@ -98,6 +100,8 @@
 | GET | `/api/user-notes` | `listPrivateNotes` |
 | GET | `/api/user/sessions` | `listSessions` |
 | GET | `/api/user/totp/status` | `getTotpStatus` |
+| GET | `/api/v1/agent/events` | `agentListEvents` |
+| GET | `/api/v1/agent/events/:eventId` | `agentGetEvent` |
 | GET | `/api/v1/agent/me` | `agentMe` |
 | GET | `/api/v1/agent/search` | `agentSearch` |
 | GET | `/api/v1/agent/topics` | `agentTopicList` |
@@ -109,9 +113,16 @@
 | PATCH | `/api/forum/course-reviews/:reviewId` | `updateCourseReview` |
 | POST | `/api/admin/agent-create` | `adminAgentCreate` |
 | POST | `/api/admin/agent-disable` | `adminAgentDisable` |
+| POST | `/api/admin/agent-interaction-intents` | `adminAgentInteractionIntents` |
+| POST | `/api/admin/agent-interaction-replay` | `adminAgentInteractionReplay` |
 | POST | `/api/admin/agent-list` | `adminAgentList` |
 | POST | `/api/admin/agent-rotate-token` | `adminAgentRotateToken` |
 | POST | `/api/admin/agent-update` | `adminAgentUpdate` |
+| POST | `/api/admin/agent-webhook-config` | `adminAgentWebhookConfigure` |
+| POST | `/api/admin/agent-webhook-deliveries` | `adminAgentWebhookDeliveries` |
+| POST | `/api/admin/agent-webhook-redeliver` | `adminAgentWebhookRedeliver` |
+| POST | `/api/admin/agent-webhook-rotate-secret` | `adminAgentWebhookRotateSecret` |
+| POST | `/api/admin/agent-webhook-test` | `adminAgentWebhookTest` |
 | POST | `/api/admin/ai-moderation/decisions` | `adminListAiModerationDecisions` |
 | POST | `/api/admin/ai-moderation/decisions/label` | `adminLabelAiModerationDecision` |
 | POST | `/api/admin/ai-moderation/replay` | `adminReplayAiModerationDecisions` |
@@ -147,6 +158,7 @@
 | POST | `/api/admin/role-delete` | `adminRoleDelete` |
 | POST | `/api/admin/role-list` | `adminRoleList` |
 | POST | `/api/admin/role-save` | `adminRoleSave` |
+| POST | `/api/admin/save-agent-comment-policy` | `adminSaveAgentCommentPolicy` |
 | POST | `/api/admin/save-ai-moderation-settings` | `adminSaveAiModerationSettings` |
 | POST | `/api/admin/save-ai-summary-settings` | `adminSaveAiSummarySettings` |
 | POST | `/api/admin/save-announcement` | `adminSaveAnnouncement` |
@@ -168,6 +180,7 @@
 | POST | `/api/admin/save-terms-of-service` | `adminSaveTermsOfService` |
 | POST | `/api/admin/save-user-badges` | `adminSaveUserBadges` |
 | POST | `/api/admin/search/maintenance` | `adminSearchMaintenance` |
+| POST | `/api/admin/set-agent-comment-topic-policy` | `adminSetAgentCommentTopicPolicy` |
 | POST | `/api/admin/sticker-delete` | `adminStickerDelete` |
 | POST | `/api/admin/sticker-import` | `adminStickerImport` |
 | POST | `/api/admin/sticker-save` | `adminStickerSave` |
@@ -303,6 +316,7 @@
 | POST | `/api/user/totp/disable` | `disableTotp` |
 | POST | `/api/user/totp/enable` | `enableTotp` |
 | POST | `/api/user/totp/setup` | `setupTotp` |
+| POST | `/api/v1/agent/events/ack` | `agentAckEvents` |
 | POST | `/api/v1/agent/topics` | `agentWriteTopic` |
 | POST | `/api/v1/agent/topics/:topicId/posts` | `agentCreatePost` |
 | POST | `/api/wear-badge` | `wearBadge` |

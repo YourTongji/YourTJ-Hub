@@ -61,6 +61,9 @@ const WikiWebhookSecretPurpose = "yourtj-wiki-webhook-secret"
 // MailSmtpPasswordPurpose 邮件 SMTP 密码的加密用途标签（issue #324 S2）。
 const MailSmtpPasswordPurpose = "yourtj-mail-smtp-password"
 
+// AgentWebhookSecretPurpose separates Agent Webhook HMAC keys from other stored secrets.
+const AgentWebhookSecretPurpose = "yourtj-agent-webhook-secret"
+
 // HttpNotifySecretPurpose HTTP 通知 webhook 验签密钥的加密用途标签（issue #324 S1）。
 const HttpNotifySecretPurpose = "yourtj-http-notify-secret"
 

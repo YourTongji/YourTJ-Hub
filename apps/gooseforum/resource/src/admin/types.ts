@@ -1,4 +1,4 @@
-import type { LayoutPayload } from '@gooseforum/client'
+import type { components, LayoutPayload } from '@gooseforum/client'
 
 export interface AdminPayload<TProps = unknown> {
   component: string
@@ -111,8 +111,19 @@ export interface AdminTopic {
   replyCount: number
   likeCount: number
   pinWeight: number
+  /** 该主题是否禁止 Agent 评论（Agent 评论策略面板）。 */
+  agentCommentDisabled: boolean
   createdAt: string
   updatedAt?: string
+}
+
+export interface AdminAgentCommentPolicy {
+  allowAgentComments: boolean
+}
+
+export interface AdminAgentCommentTopicPolicy {
+  topicId: number
+  agentCommentDisabled: boolean
 }
 
 export interface AdminOptRecord {
@@ -659,11 +670,81 @@ export interface AdminAgent {
   email: string
   tokenPrefix: string
   webhookEndpoint: string
+  configVersion: number
+  eventsEnabled: boolean
+  eventTypes: string[]
+  webhookEnabled: boolean
+  endpointGeneration: number
+  subscriptionGeneration: number
+  secretConfigured: boolean
+  secretVersion: number
+  latestAcceptedAt: string | null
+  pendingCount: number
+  pauseReason: string
+  summaryUnavailable: boolean
   enabled: number
   createdBy: number
   lastUsedAt?: number | null
   createdAt: number
   updatedAt: number
+}
+
+export interface AdminAgentWebhookSecretResult {
+  secret: string
+  secretVersion: number
+  configVersion: number
+}
+
+export interface AdminAgentWebhookAttempt {
+  id: string
+  deliveryId: number
+  round: number
+  number: number
+  httpStatus?: number | null
+  errorClass?: string | null
+  durationMs?: number | null
+  authorizedAt?: string | null
+  completedAt?: string | null
+}
+
+export interface AdminAgentWebhookDelivery {
+  id: number
+  instanceId: string
+  eventId: string
+  agentId: number
+  endpointGeneration: number
+  schemaVersion: number
+  status: string
+  reason?: string | null
+  taskId?: number | null
+  round: number
+  attemptCount: number
+  totalAttempts: number
+  deadline?: string | null
+  expiresAt?: string | null
+  nextRunAt?: string | null
+  createdBy?: number | null
+  lastRedeliveredBy?: number | null
+  acceptedAt?: string | null
+  createdAt: string
+  updatedAt: string
+  attempts: AdminAgentWebhookAttempt[]
+}
+
+export interface AdminAgentWebhookDeliveryPage {
+  list: AdminAgentWebhookDelivery[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export type AdminAgentInteractionIntent = components['schemas']['AgentInteractionIntent']
+
+export interface AdminAgentInteractionIntentPage {
+  list: AdminAgentInteractionIntent[]
+  total: number
+  page: number
+  pageSize: number
 }
 
 export interface AdminAgentCreateResult {

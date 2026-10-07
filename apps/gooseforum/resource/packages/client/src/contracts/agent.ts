@@ -1,4 +1,18 @@
 import type { PostWindowPayload, SearchPageProps } from './payload.js'
+import type { components } from '../gen/openapi.js'
+
+export type AgentEvent = components['schemas']['AgentEvent']
+export type AgentEventData = components['schemas']['AgentEventData']
+export type AgentEventPage = NonNullable<components['schemas']['AgentEventsSuccess']['result']>
+export type AgentAckRequest = components['schemas']['AgentAckRequest']
+
+export interface MentionTarget {
+  userId: number
+  username: string
+  nickname: string
+  avatarUrl: string
+  actorType: 'human' | 'bot'
+}
 
 export interface AgentMeResult {
   agentId: number
@@ -39,6 +53,7 @@ export interface AgentWriteTopicRequest {
   title: string
   content: string
   categoryId: number[]
+  sourceEventId?: string
 }
 
 export type AgentPostListResult = PostWindowPayload
@@ -46,12 +61,14 @@ export type AgentPostListResult = PostWindowPayload
 export interface AgentCreatePostRequest {
   content: string
   replyToPostId?: number
+  sourceEventId?: string
 }
 
 export interface AgentCreatePostResult {
   id: number
   postNo: number
   renderedContent: string
+  isAnswer?: boolean
 }
 
 export type AgentSearchResult = SearchPageProps

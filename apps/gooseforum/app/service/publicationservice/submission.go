@@ -17,6 +17,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicpolicyservice"
 	"gorm.io/gorm"
@@ -35,9 +36,19 @@ type Task struct {
 // together. An approved public version is never overwritten by a candidate.
 // topic contains proposed metadata for a first post, existing metadata for replies.
 func Submit(ctx context.Context, topic *topics.Entity, post *posts.Entity) error {
+	return SubmitWithHooks(ctx, topic, post, nil, nil)
+}
+
+// SubmitWithHooks keeps Agent credential/policy authorization, idempotency and
+// causal metadata in the same transaction as the pending revision and review
+// task. The before hook runs before any insertion; either hook can roll back all
+// submission effects. Model evaluation remains exclusively in the worker.
+func SubmitWithHooks(ctx context.Context, topic *topics.Entity, post *posts.Entity, before, after func(*gorm.DB) error) error {
 	return db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := identity.ValidateWriterTx(tx, post.UserId, post.PersonaUID); err != nil {
-			return err
+		if before != nil {
+			if err := before(tx); err != nil {
+				return err
+			}
 		}
 		if topic.Id == 0 {
 			topic.ProcessStatus = topics.ProcessStatusPending
@@ -58,6 +69,9 @@ func Submit(ctx context.Context, topic *topics.Entity, post *posts.Entity) error
 		}
 		var liveTopic topics.Entity
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&liveTopic, topic.Id).Error; err != nil {
+			return err
+		}
+		if err := identity.ValidateWriterTx(tx, post.UserId, post.PersonaUID); err != nil {
 			return err
 		}
 		if liveTopic.VisibilityStatus != topics.VisibilityActive {
@@ -99,6 +113,22 @@ func Submit(ctx context.Context, topic *topics.Entity, post *posts.Entity) error
 			live.LatestRevisionId = baseline.Id
 			if live.ProcessStatus == posts.ProcessStatusNormal && liveTopic.Status == 1 && liveTopic.ProcessStatus == topics.ProcessStatusNormal {
 				live.PublishedRevisionId = baseline.Id
+			}
+		}
+		// Establish a legacy event baseline while the previous projection is still
+		// provably public. A draft can have normal revisions but has never produced
+		// a public occurrence. Do not infer a baseline later from revision status.
+		if live.PublishedRevisionId != 0 {
+			if _, _, err := agenteventservice.PublicSourceTx(tx, live.Id); err == nil {
+				var published postRevisions.Entity
+				if err := tx.Where("id = ? AND post_id = ?", live.PublishedRevisionId, live.Id).Take(&published).Error; err != nil {
+					return err
+				}
+				if err := agenteventservice.BaselineTx(tx, live.Id, published.Version); err != nil {
+					return err
+				}
+			} else if !errors.Is(err, agenteventservice.ErrInaccessible) && !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
 			}
 		}
 		preserveLive := live.ProcessStatus == posts.ProcessStatusNormal && liveTopic.Status == 1 && liveTopic.ProcessStatus == topics.ProcessStatusNormal
@@ -145,6 +175,9 @@ func Submit(ctx context.Context, topic *topics.Entity, post *posts.Entity) error
 			if err := feed.EventTx(tx, post.UserId, topic.Id, post.Id, "intent", true); err != nil {
 				return err
 			}
+		}
+		if after != nil {
+			return after(tx)
 		}
 		return nil
 	})

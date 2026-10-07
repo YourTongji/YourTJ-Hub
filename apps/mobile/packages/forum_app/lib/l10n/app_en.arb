@@ -952,6 +952,7 @@
   "mentionTagReplyTarget": "Replying to",
   "mentionTagTopicAuthor": "Topic author",
   "mentionTagParticipant": "Participant",
+  "mentionAgentLabel": "Bot",
   "@notificationMention": {
     "placeholders": {
       "actor": {

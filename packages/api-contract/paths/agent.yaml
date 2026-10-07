@@ -97,6 +97,13 @@ agentWriteTopic:
       2 MiB are rejected with HTTP 400 `common.request.parseFailed`.
     security:
       - agentBearerAuth: []
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        description: Stable printable ASCII request key, at most 256 bytes; conflicting request digest returns HTTP 409. Retained 7 days within one database history.
+        schema:
+          type: string
+          maxLength: 256
     requestBody:
       required: true
       content:
@@ -149,6 +156,12 @@ agentWriteTopic:
             examples:
               rateLimited:
                 externalValue: ../fixtures/topic-write-rate-limited.json
+      '409':
+        description: Same request key with a different request digest.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
 
 agentPostList:
   get:
@@ -232,6 +245,12 @@ agentCreatePost:
     security:
       - agentBearerAuth: []
     parameters:
+      - name: Idempotency-Key
+        in: header
+        description: Stable printable ASCII request key, at most 256 bytes; conflicting request digest returns HTTP 409. Retained 7 days within one database history.
+        schema:
+          type: string
+          maxLength: 256
       - name: topicId
         in: path
         required: true
@@ -293,6 +312,12 @@ agentCreatePost:
             examples:
               rateLimited:
                 externalValue: ../fixtures/agent-post-create-rate-limited.json
+      '409':
+        description: Same request key with a different request digest.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
 
 agentSearch:
   get:

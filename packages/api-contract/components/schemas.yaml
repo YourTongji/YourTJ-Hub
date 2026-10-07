@@ -666,6 +666,10 @@ AgentWriteTopicRequest:
   type: object
   required: [title, content, categoryId]
   properties:
+    sourceEventId:
+      type: string
+      maxLength: 80
+      description: Source-linked topic creation is refused; use sourceEventId only for replies.
     title:
       type: string
       minLength: 1
@@ -734,6 +738,11 @@ AgentCreatePostRequest:
   type: object
   required: [content]
   properties:
+    sourceEventId:
+      type: string
+      maxLength: 80
+      description: Optional owned event linking this reply; source visibility and blocks
+        must remain authorized at commit.
     identity:
       type: string
       enum: [member, persona]
@@ -762,6 +771,8 @@ AgentCreatePostResult:
       minimum: 1
     renderedContent:
       type: string
+    isAnswer:
+      type: boolean
   additionalProperties: false
 
 AgentCreatePostResponse:
@@ -5981,6 +5992,10 @@ AdminTopicsListRequest:
       format: uint64
       minimum: 0
       description: Optional author filter; 0 or omitted lists all authors.
+    agentCommentDisabled:
+      type: boolean
+      description: Optional Agent comment policy filter; omitted lists both,
+        true lists only topics where Agent comments are banned.
   additionalProperties: false
 
 AdminTopicBase:
@@ -6024,8 +6039,11 @@ AdminTopicListItem:
   allOf:
     - $ref: '#/AdminTopicBase'
     - type: object
-      required: [username, userAvatarUrl, viewCount, replyCount, likeCount, pinWeight]
+      required: [username, userAvatarUrl, viewCount, replyCount, likeCount, pinWeight, agentCommentDisabled]
       properties:
+        agentCommentDisabled:
+          type: boolean
+          description: Whether Agent comments are banned on this topic.
         username:
           type: string
           description: Author username; empty when the author account is gone.
@@ -6243,8 +6261,48 @@ AdminOperationResponse:
 
 AdminAgentItem:
   type: object
-  required: [agentId, username, nickname, avatarUrl, email, tokenPrefix, webhookEndpoint, enabled, createdBy, lastUsedAt, createdAt, updatedAt]
+  required: [agentId, username, nickname, avatarUrl, email, tokenPrefix, webhookEndpoint, enabled, createdBy, lastUsedAt, createdAt, updatedAt, configVersion, eventsEnabled, eventTypes, subscriptionGeneration, webhookEnabled, endpointGeneration, secretConfigured, secretVersion, latestAcceptedAt, pendingCount, pauseReason, summaryUnavailable]
   properties:
+    configVersion:
+      type: integer
+      minimum: 0
+    eventsEnabled:
+      type: boolean
+    eventTypes:
+      type: array
+      items:
+        type: string
+        enum:
+        - agent.mentioned
+        - agent.post_replied
+        - agent.topic_commented
+        - forum.topic_created
+        - forum.post_created
+    subscriptionGeneration:
+      type: integer
+      minimum: 0
+    webhookEnabled:
+      type: boolean
+    endpointGeneration:
+      type: integer
+      minimum: 0
+    secretConfigured:
+      type: boolean
+    secretVersion:
+      type: integer
+      minimum: 0
+    latestAcceptedAt:
+      type:
+      - string
+      - 'null'
+      format: date-time
+    pendingCount:
+      type: integer
+      minimum: 0
+    pauseReason:
+      type: string
+    summaryUnavailable:
+      type: boolean
     agentId:
       type: integer
       format: uint64

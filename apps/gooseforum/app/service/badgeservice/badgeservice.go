@@ -2,6 +2,8 @@ package badgeservice
 
 import (
 	"cmp"
+	"errors"
+	"gorm.io/gorm"
 	"slices"
 	"time"
 
@@ -300,4 +302,16 @@ func fromEntity(entity *badges.Entity) Badge {
 		IsWearable:  entity.IsWearable,
 		SortOrder:   entity.SortOrder,
 	}
+}
+
+// GrantRobotTx reuses the effective system definition and owner repositories.
+func GrantRobotTx(tx *gorm.DB, userID, grantedBy uint64) error {
+	row, err := badges.GetByCodeTx(tx, CodeRobot)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	if err == nil && !row.IsEnabled {
+		return errors.New("robot badge disabled")
+	}
+	return userBadges.GrantTx(tx, userID, CodeRobot, grantedBy)
 }

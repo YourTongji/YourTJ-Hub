@@ -40,6 +40,8 @@ const (
 )
 
 type Entity struct {
+	// AgentEventDepth preserves causal bounds across approval and event redaction.
+	AgentEventDepth      int        `gorm:"not null;default:0" json:"-"`
 	PersonaUID           string     `gorm:"column:persona_uid;type:varchar(32);not null;default:'';index" json:"personaUid,omitempty"`
 	FirstPublicAt        *time.Time `gorm:"index;index:idx_posts_topic_public,priority:2" json:"-"`
 	FirstPublicEstimated bool       `gorm:"not null;default:false" json:"-"`
@@ -57,6 +59,7 @@ type Entity struct {
 	ProcessStatus       int8      `gorm:"column:process_status;not null;default:0;index:idx_posts_topic_process,priority:2;" json:"processStatus"`
 	CreatedAt           time.Time `gorm:"column:created_at;autoCreateTime;<-:create;index:idx_posts_topic_created,priority:2;" json:"createdAt"`
 	UpdatedAt           time.Time `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`
+
 	// 最后编辑者/时间（首楼与回复编辑均记录；未编辑过则为 0/NULL，
 	// 展示层据此渲染"最后编辑于 …"）
 	LastEditorId uint64     `gorm:"column:last_editor_id;not null;default:0;" json:"lastEditorId"`

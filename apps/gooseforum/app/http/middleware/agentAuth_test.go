@@ -7,20 +7,24 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
+	"github.com/gin-gonic/gin"
 )
 
 func setupAgentAuthTestDB(t *testing.T) {
 	t.Helper()
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&users.EntityComplete{}, &agents.Entity{}, &userStatistics.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &agents.Entity{}, &badges.Entity{}, &userBadges.Entity{}, &userStatistics.Entity{}); err != nil {
 		t.Fatalf("migrate agent auth tables: %v", err)
 	}
+	conn.Where("1 = 1").Delete(&badges.Entity{})
+	conn.Where("1 = 1").Delete(&userBadges.Entity{})
 	conn.Where("1 = 1").Delete(&agents.Entity{})
 	conn.Where("1 = 1").Delete(&userStatistics.Entity{})
 	conn.Where("1 = 1").Delete(&users.EntityComplete{})

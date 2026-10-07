@@ -339,7 +339,11 @@ func persistInteractions(conn *gorm.DB, notifications []*eventNotification.Entit
 		}
 		allowed := make(map[uint64]map[uint64]bool)
 		for actor, ids := range recipients {
-			filtered, err := users.FilterInteractionRecipientsTx(tx, actor, ids)
+			humanIDs, err := users.ExcludeBotRecipientsTx(tx, ids)
+			if err != nil {
+				return err
+			}
+			filtered, err := users.FilterInteractionRecipientsTx(tx, actor, humanIDs)
 			if err != nil {
 				return err
 			}

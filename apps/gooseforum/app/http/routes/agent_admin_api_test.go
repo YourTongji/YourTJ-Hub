@@ -10,29 +10,36 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentWebhook"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userSessions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 func setupAgentAdminTestDB(t *testing.T) {
 	t.Helper()
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&users.EntityComplete{}, &agents.Entity{}, &userStatistics.Entity{}, &userSessions.Entity{}, &rolePermissionRs.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &agents.Entity{}, &badges.Entity{}, &userBadges.Entity{}, &agentWebhook.Delivery{}, &agentWebhook.Attempt{}, &userStatistics.Entity{}, &userSessions.Entity{}, &rolePermissionRs.Entity{}); err != nil {
 		t.Fatalf("migrate agent tables: %v", err)
 	}
 	conn.Where("1 = 1").Delete(&userSessions.Entity{})
 	conn.Where("1 = 1").Delete(&rolePermissionRs.Entity{})
+	conn.Where("1 = 1").Delete(&badges.Entity{})
+	conn.Where("1 = 1").Delete(&userBadges.Entity{})
 	conn.Where("1 = 1").Delete(&agents.Entity{})
+	conn.Where("1 = 1").Delete(&agentWebhook.Delivery{})
+	conn.Where("1 = 1").Delete(&agentWebhook.Attempt{})
 	conn.Where("1 = 1").Delete(&userStatistics.Entity{})
 	conn.Unscoped().Where("1 = 1").Delete(&users.EntityComplete{})
 	if err := conn.Exec("DELETE FROM sqlite_sequence WHERE name = ?", "users").Error; err != nil {

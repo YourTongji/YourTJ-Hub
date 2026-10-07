@@ -1,0 +1,31 @@
+{
+  "result": {
+    "events": [
+      {
+        "id": "evt_example",
+        "instanceId": "inst_example",
+        "schemaVersion": 1,
+        "type": "agent.mentioned",
+        "occurredAt": "2026-10-04T01:00:00Z",
+        "agentId": 123,
+        "state": "active",
+        "data": {
+          "topicId": 456,
+          "postId": 789,
+          "postNo": 8,
+          "replyToPostId": 0,
+          "actorId": 234,
+          "actorType": "human",
+          "reasons": [
+            "mention"
+          ],
+          "url": "/p/post/456/8"
+        }
+      }
+    ],
+    "nextCursor": "opaque_cursor",
+    "hasMore": false,
+    "replayFloor": "opaque_floor"
+  },
+  "code": 0
+}

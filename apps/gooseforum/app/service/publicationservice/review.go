@@ -19,7 +19,10 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userActivities"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentcommentservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
@@ -125,20 +128,18 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 		if err := tx.First(&revision, revisionID).Error; err != nil {
 			return err
 		}
-		var authorPost posts.Entity
-		if err := tx.First(&authorPost, revision.PostId).Error; err != nil {
-			return err
-		}
-		if action == moderationDecision.ActionAllow {
-			if err := identity.ValidateWriterTx(tx, authorPost.UserId, authorPost.PersonaUID); err != nil {
-				return err
-			}
-		}
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&post, revision.PostId).Error; err != nil {
 			return err
 		}
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&topic, post.TopicId).Error; err != nil {
 			return err
+		}
+		// Source-linked Agent writes acquire content before participant rows.
+		// Persona governance must follow the same order, including delayed approval.
+		if action == moderationDecision.ActionAllow {
+			if err := identity.ValidateWriterTx(tx, post.UserId, post.PersonaUID); err != nil {
+				return err
+			}
 		}
 		oldCategories = append(oldCategories, topic.CategoryIds...)
 		// Re-read the revision after acquiring the post lock.
@@ -173,6 +174,29 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 		}
 		if action != moderationDecision.ActionAllow && action != moderationDecision.ActionBlock {
 			return errors.New("invalid review action")
+		}
+		var capturePlan *agenteventservice.WriteCapturePlan
+		// Submission may precede an operator ban. Recheck only first publication
+		// of bot replies; an existing public reply remains editable.
+		if action == moderationDecision.ActionAllow && post.PostNo > 1 && post.PublishedRevisionId == 0 && post.ProcessStatus != posts.ProcessStatusNormal {
+			author, err := users.GetInteractionUserTx(tx, post.UserId)
+			if err != nil {
+				return err
+			}
+			if author.IsBot() {
+				// Match Agent writes: content -> participants -> global policy.
+				// Holding policy before capture could deadlock a concurrent write
+				// on another topic that already holds this bot's participant rows.
+				capturePlan, err = agenteventservice.PrepareWriteCaptureTx(tx, post.UserId, topic.Id, "")
+				if err != nil {
+					return err
+				}
+				if err := agentcommentservice.CheckNewCommentTx(tx, topic.Id); errors.Is(err, agentcommentservice.ErrAgentCommentDisabled) {
+					action, reason = moderationDecision.ActionBlock, "该话题或站点已禁止机器人回复。"
+				} else if err != nil {
+					return err
+				}
+			}
 		}
 		// Newly submitted replies must still be allowed when they become public.
 		// Keep existing public replies editable; turn a revoked publication into
@@ -232,6 +256,11 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 				}
 			}
 			if err := fileusageservice.PublishRevisionImagesTx(tx, revision.Id, topic.Id, post.Id, post.PostNo == 1); err != nil {
+				return err
+			}
+			// The public projection and durable Agent intent commit together. Effects
+			// may run later or retry without losing or recapturing the publication.
+			if err := agenteventservice.CapturePublicTx(tx, &post, capturePlan); err != nil {
 				return err
 			}
 		} else if !wasPublic {

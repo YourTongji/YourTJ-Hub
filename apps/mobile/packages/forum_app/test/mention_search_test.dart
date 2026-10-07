@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/src/pages/topic/mention_search.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/app_config.dart';
 
 class _Tokens implements TokenStorage {
   @override
@@ -23,67 +24,53 @@ class _Topics extends TopicRepository {
           baseUrl: 'http://fake',
         ),
       );
-  SearchPageProps result;
+  List<MentionTarget> result;
   @override
-  Future<SearchPageProps> search({
+  Future<List<MentionTarget>> mentionTargets({
     required String query,
-    String scope = '',
-    int page = 1,
-    Object? cancelToken,
+    int limit = 20,
+    CancelToken? cancelToken,
   }) async {
     expect(query, 'au');
-    expect(scope, 'users');
+    expect(limit, 20);
     return result;
   }
 }
 
 void main() {
-  const result = SearchPageProps(
-    query: 'au',
-    scope: 'users',
-    topics: [],
-    users: [
-      UserSearchPayload(
-        id: 2,
-        username: 'author',
-        nickname: 'Author',
-        avatarUrl: '',
-        bio: '',
-      ),
-    ],
-    categories: [],
-    courses: [],
-    total: 1,
-    usersTotal: 1,
-    categoriesTotal: 0,
-    coursesTotal: 0,
-    totalPages: 1,
-    pagination: PaginationPayload(
-      page: 1,
-      nextPage: 0,
-      hasNext: false,
-      nextUrl: '',
+  const result = <MentionTarget>[
+    MentionTarget(
+      userId: 2,
+      username: 'author',
+      nickname: 'Author',
+      avatarUrl: '',
+      actorType: 'human',
     ),
-  );
+    MentionTarget(
+      userId: 3,
+      username: 'assistant',
+      nickname: 'Assistant',
+      avatarUrl: '/bot.png',
+      actorType: 'bot',
+    ),
+  ];
 
-  test(
-    'user search maps candidates and distinguishes unavailable scope from empty results',
-    () async {
-      final topics = _Topics(result);
-      final container = ProviderContainer(
-        overrides: [topicRepositoryProvider.overrideWithValue(topics)],
-      );
-      addTearDown(container.dispose);
-      final search = container.read(mentionUserSearchProvider);
-      expect((await search('au')).single.username, 'author');
-      topics.result = result.copyWith(searchUnavailable: true);
-      await expectLater(search('au'), throwsException);
-      topics.result = result.copyWith(failedScopes: ['users']);
-      await expectLater(search('au'), throwsException);
-      topics.result = result.copyWith(failedScopes: ['topics']);
-      expect((await search('au')).single.id, 2);
-      topics.result = result.copyWith(users: []);
-      expect(await search('au'), isEmpty);
-    },
-  );
+  test('mention target search maps public human and bot candidates', () async {
+    final topics = _Topics(result);
+    final container = ProviderContainer(
+      overrides: [topicRepositoryProvider.overrideWithValue(topics)],
+    );
+    addTearDown(container.dispose);
+    final search = container.read(mentionUserSearchProvider);
+    final candidates = await search('au');
+    expect(candidates.map((candidate) => candidate.id), [2, 3]);
+    expect(candidates.map((candidate) => candidate.actorType), [
+      'human',
+      'bot',
+    ]);
+    final baseUrl = AppConfig.apiBaseUrl.isEmpty
+        ? GfApiClient.defaultBaseUrl
+        : AppConfig.apiBaseUrl;
+    expect(candidates.last.avatarUrl, '$baseUrl/bot.png');
+  });
 }

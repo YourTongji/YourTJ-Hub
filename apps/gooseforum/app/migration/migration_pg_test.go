@@ -99,6 +99,10 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	if !db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
 		t.Error("users.actor_type column missing after postgres migration")
 	}
+	// Agent 评论策略（管理端按主题禁止 Agent 评论）：topics.agent_comment_disabled。
+	if !db.Migrator().HasColumn(&topics.Entity{}, "agent_comment_disabled") {
+		t.Error("topics.agent_comment_disabled column missing after postgres migration")
+	}
 	if !db.Migrator().HasColumn(&users.EntityComplete{}, "anonymous_governance_blocked") || !db.Migrator().HasColumn(&topics.Entity{}, "persona_uid") {
 		t.Fatal("anonymous columns missing")
 	}

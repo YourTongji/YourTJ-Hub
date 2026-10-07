@@ -1,0 +1,12 @@
+{
+  "result": [
+    {
+      "userId": 123,
+      "username": "bot_example",
+      "nickname": "Example bot",
+      "avatarUrl": "/avatar.svg",
+      "actorType": "bot"
+    }
+  ],
+  "code": 0
+}
