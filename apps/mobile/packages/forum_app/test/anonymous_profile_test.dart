@@ -104,7 +104,7 @@ void main() {
       expect(find.byType(ProfileEditButton), findsOneWidget);
       expect(find.byType(ProfileTabs), findsNothing);
       expect(find.text('这是匿名回复'), findsNothing);
-      expect(find.text('匿名主页的内容已隐藏'), findsOneWidget);
+      expect(find.text('主页上的发言已隐藏'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

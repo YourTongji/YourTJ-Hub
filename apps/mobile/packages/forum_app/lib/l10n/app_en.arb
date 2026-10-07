@@ -1,7 +1,6 @@
 {
-  "agentRepliesDisable": "Disable robot replies",
-  "agentRepliesDisabled": "The author has disabled robot replies",
-  "agentRepliesHelp": "Blocks replies from site Agent accounts. Existing replies remain.",
+  "agentRepliesDisabled": "The author has turned off bot replies",
+  "agentRepliesHelp": "When off, this site's bot accounts can't reply here. Existing replies stay.",
   "campusCourseReviews": "Course reviews",
   "myCourseReviewsTitle": "My course reviews",
   "myCourseReviewsEmpty": "No reviews yet. Explore the course catalog to get started.",
@@ -1666,19 +1665,13 @@
   "notificationReviewPending": "Your post is awaiting manual review",
   "notificationReviewPendingDetail": "We’ll review it soon and notify you of the result. You can view or edit it while you wait.",
   "notificationReviewRejectedDetail": "This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions.",
-  "anonymousLockDate": "Name available from: ",
-  "anonymousRemaining": "Batches remaining today: ",
   "anonymousIdentity": "Anonymous identity",
-  "anonymousBoundary": "One anonymous identity per account. A chosen name is locked for one year. The public and ordinary moderators cannot see your main account. Restricted administrators can reveal it with a reason and audit. Private bindings and audits remain after account closure.",
-  "anonymousRetry": "Reload",
-  "anonymousUnavailable": "Anonymous identity is unavailable",
-  "anonymousEnable": "Reactivate identity",
-  "anonymousDisable": "Deactivate identity",
-  "anonymousRandomize": "Draw 10 names",
-  "anonymousPublishAs": "Publish as",
-  "anonymousMember": "Main identity",
+  "anonymousBoundary": "Each account has one anonymous identity, and a confirmed name can't change for a year. It can't sign in, send messages or follow people. Likes and votes still count once per account, whichever identity you use.",
+  "anonymousRetry": "Try again",
+  "anonymousUnavailable": "Anonymous identity is unavailable right now",
+  "anonymousPublishAs": "Post as",
+  "anonymousMember": "Main account",
   "anonymousSetup": "Set up anonymous identity",
-  "anonymousConfirm": "Confirm name (locked for one year)",
   "anonymousCancel": "Cancel",
   "anonymousNext": "Next page",
   "anonymousPersonaLabel": "Anonymous identity",
@@ -1689,28 +1682,26 @@
   "anonymousReveal": "Reveal with audit",
   "sortForYou": "For you",
   "feedReasonFollowing": "From someone you follow",
-  "feedReasonCategory": "A category you participate in",
+  "feedReasonCategory": "A category you've posted in",
   "feedReasonNewReply": "New replies",
-  "feedReasonRecent": "Recently published",
+  "feedReasonRecent": "Recently posted",
   "sortDaily": "Today's top",
-  "anonymousPurpose": "Use a fixed alias for posts and replies, hiding your main-account association from the public.",
-  "anonymousSettingsHint": "Manage the alias and identity used for anonymous posts",
-  "anonymousIntroTitle": "Your anonymous identity has its own name and history",
-  "anonymousHistoryHint": "Posts from the same anonymous identity are linked. Their content may still reveal who you are.",
-  "anonymousConfirmHint": "One anonymous identity per account. Once confirmed, the name cannot change for one year.",
-  "anonymousPrivacySummary": "The public and ordinary moderators cannot see the main-account association. Specially authorized administrators can reveal it with a recorded reason and audit. Bindings and audit records remain after account closure.",
-  "anonymousRules": "About anonymous identities",
-  "anonymousChooseName": "Choose a name",
-  "anonymousRefreshNames": "Draw another batch",
+  "anonymousPurpose": "Post and reply under a fixed name. Others can't see your main account.",
+  "anonymousSettingsHint": "Post under a fixed name without showing your main account",
+  "anonymousIntroTitle": "Pick a name first",
+  "anonymousConfirmHint": "Each account has one anonymous identity. Once confirmed, the name can't be changed for a year.",
+  "anonymousPrivacySummary": "Other members and regular moderators can't see your main account. A few authorized admins can look it up when handling violations; each lookup needs a reason and is logged. The link is kept even after you close your account.",
+  "anonymousRules": "Read the full rules",
+  "anonymousChooseName": "Pick a name",
+  "anonymousRefreshNames": "New batch",
   "anonymousDrawsRemaining": "{remaining} batches left today",
   "anonymousBatchNumber": "Batch {number}",
-  "anonymousPreviousBatches": "Previously generated candidates",
+  "anonymousPreviousBatches": "Generated batches",
   "anonymousNamePreview": "Your chosen name",
-  "anonymousConfirmName": "Confirm name",
-  "anonymousInactive": "Inactive",
+  "anonymousConfirmName": "Use this name",
+  "anonymousInactive": "Turned off",
   "anonymousReady": "Available",
   "anonymousLockedUntil": "You can change the name after {date}",
-  "anonymousResetAt": "Draws reset at {date}",
   "@anonymousDrawsRemaining": {
     "placeholders": {
       "remaining": {
@@ -1732,15 +1723,47 @@
       }
     }
   },
-  "@anonymousResetAt": {
+  "anonymousNameLockHint": "You can't change the name for a year after confirming.",
+  "anonymousShowContent": "Show my posts on this profile",
+  "anonymousShowContentDescription": "When off, the profile shows only the name and avatar. Topics and replies still appear where you posted them.",
+  "anonymousProfileContentHidden": "This member's posts aren't shown on this page",
+  "agentRepliesAllow": "Allow bot replies",
+  "agentRepliesOff": "Bot replies off",
+  "anonymousTag": "Anonymous",
+  "anonymousTagOwn": "Your anonymous identity",
+  "anonymousIntroBody": "The name and avatar appear on your posts and replies instead of your main account.",
+  "anonymousGenerateNames": "Generate names",
+  "anonymousBatchOf": "Batch {number} of {total}",
+  "@anonymousBatchOf": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "anonymousPreviewCaption": "How others will see you",
+  "anonymousPreviewPlaceholder": "Pick a name below",
+  "anonymousRestricted": "Restricted",
+  "anonymousQuota": "No batches left today. More on {date}; you can still pick from earlier batches.",
+  "@anonymousQuota": {
     "placeholders": {
       "date": {
         "type": "String"
       }
     }
   },
-  "anonymousNameLockHint": "Name locked for one year.",
-  "anonymousShowContent": "Show anonymous profile content",
-  "anonymousShowContentDescription": "Show topics, replies and counts on the anonymous profile. When off, only the name and avatar remain; the original forum content stays accessible.",
-  "anonymousProfileContentHidden": "Content on this anonymous profile is hidden"
+  "anonymousProfileContentHiddenOwn": "Posts are hidden on this profile",
+  "anonymousProfileContentHiddenOwnDescription": "Nobody, including you, sees the post list here. Your topics and replies still appear where you posted them.",
+  "anonymousProfileOwnerHint": "This is your anonymous identity. Others see only its name, avatar and public posts — never your main account.",
+  "anonymousProfileMemberHint": "This member posts anonymously. Their main account isn't shown.",
+  "anonymousProfileGuestHint": "An anonymous identity of a forum member. The main account is kept private.",
+  "anonymousActiveLabel": "Use anonymous identity",
+  "anonymousDisabledHint": "While it's off you can't post with it. Existing posts stay as they are.",
+  "anonymousStatusRestricted": "Restricted by an admin — you can't post with it right now",
+  "anonymousStatusDisabled": "Turned off — you can't post with it right now",
+  "anonymousLinkabilityHint": "Everything you post with it is gathered on one profile, so people may connect it. The content itself can still reveal who you are.",
+  "anonymousViewProfile": "View anonymous profile"
 }

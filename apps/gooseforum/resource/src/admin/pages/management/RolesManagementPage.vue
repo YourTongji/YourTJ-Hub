@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import AdminSelect from '@/admin/components/AdminSelect.vue'
+import { Checkbox } from '@/admin/components/ui/checkbox'
 import { adminText } from '@/admin/runtime/i18n-text'
 
 import { computed, onMounted, reactive, ref } from 'vue'
@@ -188,11 +190,12 @@ onMounted(() => {
               </div>
               <Button type="submit">{{ adminText('k00al') }}</Button>
             </form>
-            <select v-model="effectiveFilter" class="h-10 rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" @change="page = 1">
-              <option value="">{{ adminText('k00am') }}</option>
-              <option value="1">{{ adminText('k007n') }}</option>
-              <option value="0">{{ adminText('k007o') }}</option>
-            </select>
+            <AdminSelect
+              v-model="effectiveFilter"
+              :options="[{ value: '', label: adminText('k00am') }, { value: '1', label: adminText('k007n') }, { value: '0', label: adminText('k007o') }]"
+              class="h-10"
+              @change="page = 1"
+            />
           </AdminToolbar>
         </template>
         <tr v-if="pagedRows.length === 0">
@@ -244,11 +247,9 @@ onMounted(() => {
               <div class="text-sm font-medium">{{ adminText('k00ap') }}</div>
               <div class="grid max-h-56 grid-cols-2 gap-3 overflow-y-auto rounded-md border p-4">
                 <label v-for="permission in permissionOptions" :key="permission.id" class="flex items-center gap-2 text-sm">
-                  <input
-                    class="size-4 rounded border"
-                    type="checkbox"
-                    :checked="form.permissions.includes(permission.id)"
-                    @change="togglePermission(permission.id, ($event.target as HTMLInputElement).checked)"
+                  <Checkbox
+                    :model-value="form.permissions.includes(permission.id)"
+                    @update:model-value="togglePermission(permission.id, $event === true)"
                   />
                   {{ permission.name }}
                 </label>

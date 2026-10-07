@@ -134,12 +134,12 @@
   "serverMessages.sticker.imageRequired": "Choose an image or GIF you uploaded, up to {maxSizeMb} MB.",
   "serverMessages.sticker.unavailable": "This sticker is unavailable.",
   "permission.revealAnonymousIdentity": "Reveal anonymous identity (restricted audit)",
-  "anonymous.profileContentHidden": "Content on this anonymous profile is hidden",
+  "anonymous.profileContentHidden": "This member's posts aren't shown on this page",
   "anonymous.identity": "Anonymous identity",
-  "anonymous.nameLocked": "This name is locked for one year.",
-  "anonymous.dailyLimit": "All 10 daily draws are used. You can still select an existing batch today.",
-  "anonymous.candidateExpired": "Candidates expired or are invalid. Reload today’s batches.",
-  "anonymous.unavailable": "Anonymous identity is unavailable",
+  "anonymous.nameLocked": "A confirmed name can't be changed for a year.",
+  "anonymous.dailyLimit": "All 10 batches for today are used. You can still pick from earlier batches.",
+  "anonymous.candidateExpired": "These names have expired. Reload and pick again.",
+  "anonymous.unavailable": "Anonymous identity is unavailable right now",
   "forYouFeed": "For You",
   "dailyFeed": "Today's top"
 }

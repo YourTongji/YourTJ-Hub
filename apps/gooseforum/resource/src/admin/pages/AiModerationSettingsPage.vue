@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminSelect from '@/admin/components/AdminSelect.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Eye, Gauge, KeyRound, Loader2, PlugZap, RefreshCw, Save, ScanEye, ShieldAlert, Trash2, Undo2, X, XCircle } from '@lucide/vue'
@@ -398,10 +399,7 @@ onMounted(() => {
             <label class="grid gap-2 text-sm font-medium">{{ text('timeoutMs') }}<Input v-model.number="form.jevTimeoutMs" type="number" min="1000" max="60000" step="500" /></label>
             <label class="grid gap-2 text-sm font-medium">
               {{ text('jevRetries') }}
-              <select v-model.number="form.jevRetries" class="h-9 rounded-md border bg-background px-2 text-sm">
-                <option :value="0">0</option>
-                <option :value="1">1</option>
-              </select>
+              <AdminSelect v-model="form.jevRetries" :options="[{ value: 0, label: '0' }, { value: 1, label: '1' }]" class="w-20" />
               <span class="text-xs font-normal text-muted-foreground">{{ text('jevRetriesHint') }}</span>
             </label>
           </div>
@@ -523,10 +521,12 @@ onMounted(() => {
                 <code class="text-xs text-muted-foreground">{{ rule.key }}</code>
                 <label class="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
                   {{ text('onBlockLine') }}
-                  <select v-model="rule.action" class="h-8 rounded-md border bg-background px-2 text-sm text-foreground" :disabled="!rule.enabled">
-                    <option value="block">{{ text('onBlockLineBlock') }}</option>
-                    <option value="review">{{ text('onBlockLineReview') }}</option>
-                  </select>
+                  <AdminSelect
+                    v-model="rule.action"
+                    size="sm"
+                    :disabled="!rule.enabled"
+                    :options="[{ value: 'block', label: text('onBlockLineBlock') }, { value: 'review', label: text('onBlockLineReview') }]"
+                  />
                 </label>
               </div>
               <div v-if="rule.enabled" class="grid gap-1.5">
@@ -580,10 +580,7 @@ onMounted(() => {
           <div class="grid gap-5 sm:grid-cols-2">
             <label class="grid gap-2 text-sm font-medium">
               {{ text('externalImageAction') }}
-              <select v-model="form.externalImageAction" class="h-9 rounded-md border bg-background px-2 text-sm">
-                <option value="review">{{ text('actionReview') }}</option>
-                <option value="block">{{ text('actionBlock') }}</option>
-              </select>
+              <AdminSelect v-model="form.externalImageAction" :options="[{ value: 'review', label: text('actionReview') }, { value: 'block', label: text('actionBlock') }]" />
               <span class="text-xs font-normal text-muted-foreground">{{ text('externalImageHint') }}</span>
             </label>
             <label class="grid gap-2 text-sm font-medium">{{ text('maxImages') }}<Input v-model.number="form.maxImagesPerDecision" type="number" min="1" max="20" /></label>
@@ -599,24 +596,27 @@ onMounted(() => {
           <div class="flex flex-wrap items-center justify-between gap-3 px-1 py-1">
             <div class="text-base font-medium">{{ text('decisionsTitle') }}</div>
             <div class="flex flex-wrap items-center gap-2">
-              <select v-model="filters.mode" class="h-8 rounded-md border bg-background px-2 text-xs" @change="applyFilters">
-                <option value="">{{ text('filterAllModes') }}</option>
-                <option value="shadow">{{ text('modeShadow') }}</option>
-                <option value="enforce">{{ text('modeEnforce') }}</option>
-                <option value="deferred">{{ text('modeDeferred') }}</option>
-              </select>
-              <select v-model="filters.finalAction" class="h-8 rounded-md border bg-background px-2 text-xs" @change="applyFilters">
-                <option value="">{{ text('filterAllActions') }}</option>
-                <option value="allow">{{ text('actionAllow') }}</option>
-                <option value="review">{{ text('actionReview') }}</option>
-                <option value="block">{{ text('actionBlock') }}</option>
-              </select>
-              <select v-model="filters.humanAction" class="h-8 rounded-md border bg-background px-2 text-xs" @change="applyFilters">
-                <option value="">{{ text('filterAllLabels') }}</option>
-                <option value="none">{{ text('labelNone') }}</option>
-                <option value="approved">{{ text('labelApproved') }}</option>
-                <option value="rejected">{{ text('labelRejected') }}</option>
-              </select>
+              <AdminSelect
+                v-model="filters.mode"
+                size="sm"
+                class="text-xs"
+                :options="[{ value: '', label: text('filterAllModes') }, { value: 'shadow', label: text('modeShadow') }, { value: 'enforce', label: text('modeEnforce') }, { value: 'deferred', label: text('modeDeferred') }]"
+                @change="applyFilters"
+              />
+              <AdminSelect
+                v-model="filters.finalAction"
+                size="sm"
+                class="text-xs"
+                :options="[{ value: '', label: text('filterAllActions') }, { value: 'allow', label: text('actionAllow') }, { value: 'review', label: text('actionReview') }, { value: 'block', label: text('actionBlock') }]"
+                @change="applyFilters"
+              />
+              <AdminSelect
+                v-model="filters.humanAction"
+                size="sm"
+                class="text-xs"
+                :options="[{ value: '', label: text('filterAllLabels') }, { value: 'none', label: text('labelNone') }, { value: 'approved', label: text('labelApproved') }, { value: 'rejected', label: text('labelRejected') }]"
+                @change="applyFilters"
+              />
               <Button variant="outline" size="icon" type="button" class="size-8" :disabled="decisionPage <= 1" @click="changeDecisionPage(decisionPage - 1)"><ChevronLeft class="size-4" /></Button>
               <span class="text-xs text-muted-foreground">{{ decisionPage }} / {{ decisionPages }}</span>
               <Button variant="outline" size="icon" type="button" class="size-8" :disabled="decisionPage >= decisionPages" @click="changeDecisionPage(decisionPage + 1)"><ChevronRight class="size-4" /></Button>

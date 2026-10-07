@@ -88,6 +88,7 @@ import AvatarImageEditor from '@/site/components/AvatarImageEditor.vue'
 import CoverImageEditor from '@/site/components/CoverImageEditor.vue'
 import SectionHeader from '@/site/components/SectionHeader.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
+import GfSwitch from '@/site/components/GfSwitch.vue'
 import {
   applyAppearanceSettings,
   loadAppearanceSettings,
@@ -1066,13 +1067,8 @@ async function toggleBrowserNotifications() {
 }
 
 /** 开关切换：开启 = 授权 + 订阅 + 后端持久化；关闭 = 后端解绑 + 浏览器退订。 */
-async function onWebPushToggle(event: Event) {
-  const target = event.target as HTMLInputElement
-  if (webPushBusy.value) {
-    target.checked = webPushEnabled.value
-    return
-  }
-  const enabling = target.checked
+async function onWebPushToggle(enabling: boolean) {
+  if (webPushBusy.value) return
   webPushBusy.value = true
   try {
     if (enabling) {
@@ -1085,7 +1081,6 @@ async function onWebPushToggle(event: Event) {
       showStatus(t('settings.privacy.webPushDisabled'))
     }
   } catch (err) {
-    target.checked = webPushEnabled.value
     const code = err instanceof PushError ? err.code : 'network'
     const message = code === 'permission-denied'
       ? t('settings.privacy.webPushPermissionDenied')
@@ -2167,21 +2162,21 @@ async function toggleBinding(provider: string) {
                   <span class="block text-sm font-semibold text-base-content">{{ t('settings.privacy.showTopics') }}</span>
                   <span class="text-sm text-base-content/55">{{ t('settings.privacy.showTopicsDescription') }}</span>
                 </span>
-                <input v-model="privacy.showTopics" type="checkbox" class="h-5 w-5 rounded border-line text-primary" @change="savePrivacy" />
+                <GfSwitch :model-value="privacy.showTopics" @update:model-value="privacy.showTopics = $event; savePrivacy()" />
               </label>
               <label class="flex items-center justify-between gap-4 py-4">
                 <span>
                   <span class="block text-sm font-semibold text-base-content">{{ t('settings.privacy.showFollowing') }}</span>
                   <span class="text-sm text-base-content/55">{{ t('settings.privacy.showFollowingDescription') }}</span>
                 </span>
-                <input v-model="privacy.showFollowing" type="checkbox" class="h-5 w-5 rounded border-line text-primary" @change="savePrivacy" />
+                <GfSwitch :model-value="privacy.showFollowing" @update:model-value="privacy.showFollowing = $event; savePrivacy()" />
               </label>
               <label class="flex items-center justify-between gap-4 py-4">
                 <span>
                   <span class="block text-sm font-semibold text-base-content">{{ t('settings.privacy.emailNotifications') }}</span>
                   <span class="text-sm text-base-content/55">{{ t('settings.privacy.emailNotificationsDescription') }}</span>
                 </span>
-                <input v-model="privacy.emailNotifications" type="checkbox" class="h-5 w-5 rounded border-line text-primary" @change="savePrivacy" />
+                <GfSwitch :model-value="privacy.emailNotifications" @update:model-value="privacy.emailNotifications = $event; savePrivacy()" />
               </label>
               <label v-if="webPushAvailable" class="flex items-center justify-between gap-4 py-4">
                 <span>
@@ -2191,13 +2186,7 @@ async function toggleBinding(provider: string) {
                 <span v-if="webPushBusy" class="flex items-center gap-2 text-xs text-base-content/55">
                   <Loader2 class="h-4 w-4 animate-spin" aria-hidden="true" />
                 </span>
-                <input
-                  v-else
-                  type="checkbox"
-                  class="h-5 w-5 rounded border-line text-primary"
-                  :checked="webPushEnabled"
-                  @change="onWebPushToggle"
-                />
+                <GfSwitch v-else :model-value="webPushEnabled" @update:model-value="onWebPushToggle" />
               </label>
               <label class="flex items-center justify-between gap-4 py-4">
                 <span>
@@ -2206,12 +2195,10 @@ async function toggleBinding(provider: string) {
                     {{ browserNotificationsSupported ? t('settings.privacy.browserNotificationsDescription') : t('settings.privacy.browserNotificationsUnsupported') }}
                   </span>
                 </span>
-                <input
-                  :checked="browserNotificationsEnabled"
-                  type="checkbox"
-                  class="h-5 w-5 rounded border-line text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                <GfSwitch
+                  :model-value="browserNotificationsEnabled"
                   :disabled="!browserNotificationsSupported || togglingBrowserNotifications"
-                  @change="toggleBrowserNotifications"
+                  @update:model-value="toggleBrowserNotifications"
                 />
               </label>
             </div>
@@ -2767,7 +2754,7 @@ async function toggleBinding(provider: string) {
                   <span class="block text-sm font-semibold text-base-content">{{ t('settings.general.clickAnimation') }}</span>
                   <span class="text-sm text-base-content/55">{{ t('settings.general.clickAnimationDescription') }}</span>
                 </span>
-                <input v-model="appearance.clickAnimation" type="checkbox" class="h-5 w-5 rounded border-line text-primary" @change="saveAppearance" />
+                <GfSwitch :model-value="appearance.clickAnimation" @update:model-value="appearance.clickAnimation = $event; saveAppearance()" />
               </label>
 
               <div class="flex items-center justify-between gap-4 py-4">

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import IdentityPicker from '@/site/components/IdentityPicker.vue'
+import GfSwitch from '@/site/components/GfSwitch.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import Draggable from 'vuedraggable'
-import { AlertTriangle, Bot, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, HelpCircle, Loader2, Plus, Sparkles, X } from '@lucide/vue'
+import { AlertTriangle, Bot, BotOff, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, HelpCircle, Loader2, Plus, Sparkles, X } from '@lucide/vue'
 import {
   DialogContent,
   DialogOverlay,
@@ -664,7 +665,6 @@ async function handleSubmit() {
         @keydown.meta.enter="handleSubmit"
         @keydown.ctrl.enter="handleSubmit"
       >
-        <IdentityPicker :key="props.layout.viewer.id" :viewer="props.layout.viewer" v-model="identity" :disabled="!!quickPublishEditPayload" class="px-4 py-2" />
         <!-- 弹层顶栏：类型徽章与关闭按钮（具有平滑悬停微交互） -->
         <div class="flex items-center justify-between px-4 sm:px-6 pt-3.5 sm:pt-4 pb-2 shrink-0 border-b border-line/40">
           <div class="flex items-center gap-2">
@@ -688,20 +688,31 @@ async function handleSubmit() {
               <PopoverTrigger as-child>
                 <button
                   type="button"
-                  class="rounded-full p-1.5 hover:bg-base-200 focus-visible:ring-2 focus-visible:ring-primary/40 outline-none"
-                  :class="agentRepliesDisabled ? 'text-primary' : 'text-base-content/40'"
-                  :aria-label="t('agentReplies.disable')"
-                  :title="t('agentReplies.disable')"
+                  class="rounded-full p-1.5 transition-colors duration-150 hover:bg-base-200 focus-visible:ring-2 focus-visible:ring-primary/40 outline-none"
+                  :class="agentRepliesDisabled ? 'text-warning' : 'text-base-content/45 hover:text-base-content/70'"
+                  :aria-label="t('agentReplies.allow')"
+                  :title="agentRepliesDisabled ? t('agentReplies.off') : t('agentReplies.allow')"
                 >
-                  <Bot class="h-5 w-5" />
+                  <BotOff v-if="agentRepliesDisabled" class="h-5 w-5" />
+                  <Bot v-else class="h-5 w-5" />
                 </button>
               </PopoverTrigger>
               <PopoverPortal>
-                <PopoverContent side="bottom" align="end" :side-offset="8" class="z-[100] w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-base-100 p-3 shadow-lg">
-                  <label class="flex items-start gap-2 text-sm">
-                    <input v-model="agentRepliesDisabled" type="checkbox" class="mt-1 shrink-0" :disabled="submitting || savingDraft" />
-                    <span>{{ t('agentReplies.disable') }}<small class="mt-1 block text-base-content/60">{{ t('agentReplies.help') }}</small></span>
-                  </label>
+                <PopoverContent side="bottom" align="end" :side-offset="8" :collision-padding="12" class="z-[100] w-72 max-w-[calc(100vw-1.5rem)] rounded-2xl bg-base-100 p-3.5 shadow-[0_12px_32px_-8px_oklch(0_0_0/0.25),0_0_0_1px_var(--gf-color-line)]">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <p id="quick-agent-replies-label" class="text-sm font-medium">{{ t('agentReplies.allow') }}</p>
+                      <p id="quick-agent-replies-help" class="mt-0.5 text-xs leading-5 text-base-content/55">{{ t('agentReplies.help') }}</p>
+                    </div>
+                    <GfSwitch
+                      class="mt-0.5"
+                      :model-value="!agentRepliesDisabled"
+                      :disabled="submitting || savingDraft"
+                      labelledby="quick-agent-replies-label"
+                      describedby="quick-agent-replies-help"
+                      @update:model-value="agentRepliesDisabled = !$event"
+                    />
+                  </div>
                 </PopoverContent>
               </PopoverPortal>
             </PopoverRoot>
@@ -993,23 +1004,18 @@ async function handleSubmit() {
         </div>
 
         <!-- 弹层底部操作栏：弱底色、圆角平滑过渡、主次操作分明 -->
-        <div class="px-4 sm:px-6 py-2.5 sm:py-3 border-t border-line/60 bg-base-200/20 flex items-center justify-between shrink-0">
-          <!-- 左侧：图片处理提示与快捷键提示 -->
-          <div class="text-xs text-base-content/50 flex items-center gap-2 min-w-0">
-            <span v-if="uploading" class="inline-flex items-center gap-1.5 text-primary font-medium animate-pulse">
+        <div class="px-4 sm:px-6 py-2 sm:py-2.5 border-t border-line/60 bg-base-200/20 flex items-center justify-between gap-3 shrink-0">
+          <!-- 左侧：发布身份（紧邻发布按钮）与图片处理提示 -->
+          <div class="text-xs text-base-content/50 flex items-center gap-2 min-w-0 -ms-1.5">
+            <IdentityPicker :key="props.layout.viewer.id" :viewer="props.layout.viewer" v-model="identity" :disabled="!!quickPublishEditPayload" class="min-w-0" />
+            <span v-if="uploading" class="inline-flex shrink-0 items-center gap-1.5 text-primary font-medium">
               <Loader2 class="h-3.5 w-3.5 animate-spin" />
-              {{ t('publish.processingImage') }}
+              <span class="hidden sm:inline">{{ t('publish.processingImage') }}</span>
             </span>
-            <kbd
-              v-else
-              class="hidden sm:inline-flex items-center gap-1 rounded-md border border-line/60 bg-base-200/60 px-1.5 py-0.5 text-[10px] font-mono text-base-content/50 select-none"
-            >
-              ⌘ + Enter / Ctrl + Enter
-            </kbd>
           </div>
 
           <!-- 右侧：取消 / 保存草稿（新建模式）/ 立即发布（严格遵循 active:scale-[0.96] 微反馈） -->
-          <div class="flex items-center gap-2">
+          <div class="flex shrink-0 items-center gap-2">
             <button
               type="button"
               class="gf-button gf-button-secondary rounded-xl text-xs px-3.5 py-1.5 sm:px-4 sm:py-2 transition-all duration-150 hover:bg-base-200/80 active:scale-[0.96]"
@@ -1031,6 +1037,7 @@ async function handleSubmit() {
               type="button"
               class="gf-button gf-button-primary rounded-xl text-xs px-4 py-1.5 sm:px-5 sm:py-2 inline-flex items-center gap-1.5 shadow-sm hover:shadow-md hover:brightness-105 active:scale-[0.96] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
               :disabled="submitting || uploading || savingDraft"
+              title="⌘ / Ctrl + Enter"
               @click="handleSubmit"
             >
               <Loader2 v-if="submitting || uploading" class="h-3.5 w-3.5 animate-spin" />

@@ -6,7 +6,7 @@ import { GooseClientError } from "@gooseforum/client"
 import { useContentUpdates } from '@/runtime/content-updates'
 import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Bell, ChevronDown, ChevronUp, LayoutGrid, List, Mail, RefreshCw, UsersRound } from '@lucide/vue'
+import { Bell, CheckCircle2, ChevronDown, ChevronUp, Info, LayoutGrid, List, Mail, RefreshCw, UsersRound } from '@lucide/vue'
 import { useRouter } from 'vue-router'
 import { fetchPage } from '@/runtime/router'
 import { useHomeFeedMode } from '@/runtime/home-feed-mode'
@@ -100,6 +100,7 @@ const sortTabs = computed(() =>
     isActive: pendingFeedSort.value ? tab.key === pendingFeedSort.value : Boolean(tab.active),
   })),
 )
+const latestTabUrl = computed(() => page.props.tabs.find((tab) => tab.key === 'latest')?.url ?? '/?sort=latest')
 const showPinnedLabels = computed(() => page.props.sort === '' || page.props.sort === 'latest')
 // 话题流切换挂起或失败期间，feedRevision 不会递增；
 // 在途的刷新/加载更多/新帖探测结果必须一并视为失效，不得写进当前列表。
@@ -874,16 +875,22 @@ onBeforeUnmount(() => {
           </button>
         </div>
         <template v-else>
-          <p v-if="isForYouFeed && seenConfirmationLost" class="px-4 py-3 text-sm text-base-content/65" role="status">{{ t('topicList.forYouSeenConfirmationLost') }}</p>
+          <p v-if="isForYouFeed && seenConfirmationLost" class="mx-3 my-2 flex items-start gap-2 rounded-box bg-base-200/70 px-3 py-2 text-xs leading-5 text-base-content/65" role="status">
+            <Info class="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />{{ t('topicList.forYouSeenConfirmationLost') }}
+          </p>
           <TopicList :topics="topics" :viewer-id="page.layout.viewer.id" home :show-pinned="showPinnedLabels" :feed-mode="feedMode">
             <template #empty>
-              <EmptyState v-if="!hasTopics && !forYouSessionLost" :icon="UsersRound" :title="t(isForYouFeed ? 'topicList.forYouEmptyTitle' : 'topicList.emptyTitle')" :description="t(isForYouFeed ? 'topicList.forYouEmptyDescription' : 'topicList.emptyDescription')" />
+              <EmptyState v-if="!hasTopics && !forYouSessionLost" :icon="isForYouFeed ? CheckCircle2 : UsersRound" :title="t(isForYouFeed ? 'topicList.forYouEmptyTitle' : 'topicList.emptyTitle')" :description="t(isForYouFeed ? 'topicList.forYouEmptyDescription' : 'topicList.emptyDescription')">
+                <a v-if="isForYouFeed && latestTabUrl" :href="latestTabUrl" class="gf-button gf-button-md gf-button-secondary">{{ t('topicList.forYouEmptyAction') }}</a>
+              </EmptyState>
             </template>
           </TopicList>
 
-          <div v-if="isForYouFeed && (cursorExpired || forYouSessionLost)" class="flex items-center justify-between gap-3 px-4 py-3 text-sm text-base-content/65" role="status">
-            <span>{{ t(forYouSessionLost ? 'topicList.forYouSessionLost' : 'topicList.forYouExpired') }}</span>
-            <button type="button" class="shrink-0 rounded-full border border-line px-3 py-1.5 font-semibold hover:bg-base-200" :disabled="refreshing" @click="refreshFirstPage('replace')">{{ t('common.refresh') }}</button>
+          <div v-if="isForYouFeed && (cursorExpired || forYouSessionLost)" class="mx-3 my-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-box bg-base-200/70 px-3.5 py-2.5 text-sm text-base-content/70" role="status">
+            <span class="min-w-0 flex-1 basis-60">{{ t(forYouSessionLost ? 'topicList.forYouSessionLost' : 'topicList.forYouExpired') }}</span>
+            <button type="button" class="gf-button gf-button-sm gf-button-primary shrink-0" :disabled="refreshing" @click="refreshFirstPage('replace')">
+              <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': refreshing }" aria-hidden="true" />{{ t('common.refresh') }}
+            </button>
           </div>
 
           <div v-else ref="loadMoreSentinel">

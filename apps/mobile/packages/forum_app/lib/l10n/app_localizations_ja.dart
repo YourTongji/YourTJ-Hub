@@ -9,13 +9,10 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
-  String get agentRepliesDisable => 'ロボットの返信を禁止';
+  String get agentRepliesDisabled => '投稿者がボットの返信をオフにしています';
 
   @override
-  String get agentRepliesDisabled => '投稿者がロボットの返信を禁止しています';
-
-  @override
-  String get agentRepliesHelp => 'サイトの Agent アカウントからの返信を禁止します。既存の返信は残ります。';
+  String get agentRepliesHelp => 'オフにすると、このサイトのボットアカウントはここに返信できません。既存の返信は残ります。';
 
   @override
   String get campusCourseReviews => '授業評価';
@@ -3361,44 +3358,26 @@ class AppLocalizationsJa extends AppLocalizations {
       '今回の投稿は公開されません。コンテンツ管理で内容を確認・修正して再送信してください。ご不明な点は管理者にお問い合わせください。';
 
   @override
-  String get anonymousLockDate => '名前変更可能日：';
-
-  @override
-  String get anonymousRemaining => '本日の残り回数：';
-
-  @override
-  String get anonymousIdentity => '匿名の身元';
+  String get anonymousIdentity => '匿名ID';
 
   @override
   String get anonymousBoundary =>
-      'アカウントごとに匿名の身元は1つです。名前は1年間変更できません。公開閲覧者と通常のモデレーターには本アカウントを非表示にします。専用権限を持つ管理者のみ、理由と監査記録を伴って開示できます。退会後も非公開の紐付けと監査を長期保存します。';
+      '匿名IDは1アカウントにつき1つで、確定した名前は1年間変更できません。ログイン、メッセージ送信、フォローはできません。いいねや投票は、どの ID を使ってもアカウントごとに1回です。';
 
   @override
-  String get anonymousRetry => '再読み込み';
+  String get anonymousRetry => '再試行';
 
   @override
-  String get anonymousUnavailable => '匿名の身元は利用できません';
+  String get anonymousUnavailable => '匿名IDは現在利用できません';
 
   @override
-  String get anonymousEnable => '再開';
+  String get anonymousPublishAs => '投稿者';
 
   @override
-  String get anonymousDisable => '停止';
+  String get anonymousMember => 'メインアカウント';
 
   @override
-  String get anonymousRandomize => '名前を10個抽選';
-
-  @override
-  String get anonymousPublishAs => '投稿する身元';
-
-  @override
-  String get anonymousMember => '本アカウント';
-
-  @override
-  String get anonymousSetup => '匿名の身元を設定';
-
-  @override
-  String get anonymousConfirm => '名前を確定（1年間固定）';
+  String get anonymousSetup => '匿名IDを設定';
 
   @override
   String get anonymousCancel => 'キャンセル';
@@ -3410,7 +3389,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get anonymousPersonaLabel => '匿名の身分';
 
   @override
-  String get anonymousManage => '匿名の身分を管理';
+  String get anonymousManage => '匿名IDを管理';
 
   @override
   String get anonymousReason => '理由（必須）';
@@ -3428,7 +3407,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get sortForYou => 'おすすめ';
 
   @override
-  String get feedReasonFollowing => 'フォロー中の人から';
+  String get feedReasonFollowing => 'フォロー中のユーザー';
 
   @override
   String get feedReasonCategory => '参加したカテゴリ';
@@ -3443,51 +3422,48 @@ class AppLocalizationsJa extends AppLocalizations {
   String get sortDaily => '今日の人気';
 
   @override
-  String get anonymousPurpose => '固定の名前で投稿・返信し、本アカウントとの関連を公開しません。';
+  String get anonymousPurpose => '固定の名前で投稿・返信できます。メインアカウントは他の人に表示されません。';
 
   @override
-  String get anonymousSettingsHint => '匿名投稿で使う名前と身元を管理';
+  String get anonymousSettingsHint => 'メインアカウントを出さずに固定の名前で投稿';
 
   @override
-  String get anonymousIntroTitle => '匿名の身元には専用の名前と投稿履歴があります';
+  String get anonymousIntroTitle => 'まず名前を選びましょう';
 
   @override
-  String get anonymousHistoryHint => '同じ匿名の身元の投稿は関連付けられます。内容から本人が推測される場合があります。';
-
-  @override
-  String get anonymousConfirmHint => 'アカウントごとに匿名の身元は1つです。確定後、名前は1年間変更できません。';
+  String get anonymousConfirmHint => '匿名IDは1アカウントにつき1つです。確定すると1年間名前を変更できません。';
 
   @override
   String get anonymousPrivacySummary =>
-      '一般の閲覧者と通常のモデレーターは本アカウントとの関連を確認できません。専用権限を持つ管理者は理由と監査記録を伴って開示できます。退会後も紐付けと監査記録を長期保存します。';
+      '他のユーザーや一般のモデレーターはメインアカウントを見られません。違反対応のため権限を持つ一部の管理者は確認できますが、毎回理由の入力と記録が必要です。アカウントを削除しても対応関係は保持されます。';
 
   @override
-  String get anonymousRules => '匿名のルール';
+  String get anonymousRules => 'ルールをすべて表示';
 
   @override
   String get anonymousChooseName => '名前を選ぶ';
 
   @override
-  String get anonymousRefreshNames => '別の候補を抽選';
+  String get anonymousRefreshNames => '別の候補';
 
   @override
   String anonymousDrawsRemaining(int remaining) {
-    return '本日はあと $remaining 回抽選できます';
+    return '今日はあと $remaining 回';
   }
 
   @override
   String anonymousBatchNumber(int number) {
-    return '候補 $number';
+    return '第$number回';
   }
 
   @override
-  String get anonymousPreviousBatches => '抽選済みの候補を見る';
+  String get anonymousPreviousBatches => '生成済みの候補';
 
   @override
   String get anonymousNamePreview => '使用する名前';
 
   @override
-  String get anonymousConfirmName => 'この名前で確定';
+  String get anonymousConfirmName => 'この名前を使う';
 
   @override
   String get anonymousInactive => '停止中';
@@ -3501,20 +3477,89 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String anonymousResetAt(String date) {
-    return '抽選回数は $date にリセットされます';
-  }
+  String get anonymousNameLockHint => '確定後 1 年間は変更できません。';
 
   @override
-  String get anonymousNameLockHint => '確定後、名前は1年間固定です。';
-
-  @override
-  String get anonymousShowContent => '匿名プロフィールの内容を表示';
+  String get anonymousShowContent => 'プロフィールに投稿を表示';
 
   @override
   String get anonymousShowContentDescription =>
-      '匿名プロフィールに投稿、返信、件数を表示します。オフにすると名前とアバターのみ表示され、フォーラムの元の内容は引き続き閲覧できます。';
+      'オフにすると、プロフィールには名前とアバターだけが表示されます。トピックや返信は元の場所に表示されます。';
 
   @override
-  String get anonymousProfileContentHidden => '匿名プロフィールの内容は非表示です';
+  String get anonymousProfileContentHidden => 'このメンバーの投稿はこのページに表示されません';
+
+  @override
+  String get agentRepliesAllow => 'ボットの返信を許可';
+
+  @override
+  String get agentRepliesOff => 'ボットの返信はオフ';
+
+  @override
+  String get anonymousTag => '匿名';
+
+  @override
+  String get anonymousTagOwn => 'あなたの匿名ID';
+
+  @override
+  String get anonymousIntroBody => '投稿や返信には、メインアカウントの代わりにこの名前とアバターが表示されます。';
+
+  @override
+  String get anonymousGenerateNames => '名前を生成';
+
+  @override
+  String anonymousBatchOf(int number, int total) {
+    return '第$number回（全$total回）';
+  }
+
+  @override
+  String get anonymousPreviewCaption => 'ほかの人からはこう見えます';
+
+  @override
+  String get anonymousPreviewPlaceholder => '下から名前を選んでください';
+
+  @override
+  String get anonymousRestricted => '制限中';
+
+  @override
+  String anonymousQuota(String date) {
+    return '本日の回数を使い切りました。$date に回復します。生成済みの名前は選べます。';
+  }
+
+  @override
+  String get anonymousProfileContentHiddenOwn => 'このプロフィールの投稿は非表示です';
+
+  @override
+  String get anonymousProfileContentHiddenOwnDescription =>
+      'あなたを含め、誰もここで投稿一覧を見ることはできません。トピックや返信は元の場所に通常どおり表示されます。';
+
+  @override
+  String get anonymousProfileOwnerHint =>
+      'これはあなたの匿名IDです。他の人に見えるのは名前・アバター・公開された投稿だけで、メインアカウントは表示されません。';
+
+  @override
+  String get anonymousProfileMemberHint =>
+      'このメンバーは匿名で投稿しています。メインアカウントは公開されていません。';
+
+  @override
+  String get anonymousProfileGuestHint => 'フォーラムメンバーの匿名IDです。メインアカウントは非公開です。';
+
+  @override
+  String get anonymousActiveLabel => '匿名IDを使う';
+
+  @override
+  String get anonymousDisabledHint => '停止中は投稿できません。公開済みの内容はそのままです。';
+
+  @override
+  String get anonymousStatusRestricted => '管理者により制限されているため、現在投稿できません';
+
+  @override
+  String get anonymousStatusDisabled => '停止中のため、現在この ID では投稿できません';
+
+  @override
+  String get anonymousLinkabilityHint =>
+      'この ID の投稿は 1 つのプロフィールにまとまるため、関連付けられる可能性があります。内容から本人が推測されることもあります。';
+
+  @override
+  String get anonymousViewProfile => '匿名プロフィールを見る';
 }

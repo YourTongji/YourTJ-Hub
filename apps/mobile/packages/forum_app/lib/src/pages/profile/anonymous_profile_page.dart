@@ -121,9 +121,11 @@ class _AnonymousProfilePageState extends ConsumerState<AnonymousProfilePage> {
       load();
     });
     final signedIn = ref.watch(currentUserProvider).valueOrNull != null;
-    final ownPersona = signedIn
-        ? ref.watch(anonymousIdentityProvider).valueOrNull?.persona
-        : null;
+    final ownState = signedIn ? ref.watch(anonymousIdentityProvider) : null;
+    final ownPersona = ownState?.valueOrNull?.persona;
+    // A signed-in viewer's line waits for the private ownership read, so the
+    // owner never briefly sees the wording meant for other members.
+    final ownResolved = !signedIn || ownState!.hasValue || ownState.hasError;
     final d = data;
     if (d == null) {
       return Scaffold(
@@ -205,11 +207,19 @@ class _AnonymousProfilePageState extends ConsumerState<AnonymousProfilePage> {
                       showUsername: false,
                       nameBadges: [
                         GfBadge(
-                          label: l.anonymousIdentity,
-                          variant: GfBadgeVariant.muted,
+                          label: isOwn ? l.anonymousTagOwn : l.anonymousTag,
+                          variant: isOwn
+                              ? GfBadgeVariant.info
+                              : GfBadgeVariant.muted,
                         ),
                       ],
-                      bio: l.anonymousHistoryHint,
+                      bio: !ownResolved
+                          ? null
+                          : isOwn
+                          ? l.anonymousProfileOwnerHint
+                          : signedIn
+                          ? l.anonymousProfileMemberHint
+                          : l.anonymousProfileGuestHint,
                       stats: showContent
                           ? [
                               (
@@ -296,9 +306,19 @@ class _AnonymousProfilePageState extends ConsumerState<AnonymousProfilePage> {
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 32),
-                        child: GfEmpty(
-                          message: l.anonymousProfileContentHidden,
-                        ),
+                        child: isOwn
+                            ? GfEmpty(
+                                key: const Key('anonymous-hidden-own'),
+                                message: l.anonymousProfileContentHiddenOwn,
+                                description: l
+                                    .anonymousProfileContentHiddenOwnDescription,
+                                action: GfButton(
+                                  label: l.anonymousManage,
+                                  variant: GfButtonVariant.secondary,
+                                  onPressed: manage,
+                                ),
+                              )
+                            : GfEmpty(message: l.anonymousProfileContentHidden),
                       ),
                     ),
                   SliverToBoxAdapter(

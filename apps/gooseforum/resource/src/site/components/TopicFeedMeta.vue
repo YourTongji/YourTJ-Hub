@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import PersonaTag from './PersonaTag.vue'
 import { authorURL } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
 import { BookOpen, Eye, HelpCircle, MessageSquare, Pin, Sparkles } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { formatNumber, timeAgo } from '@/runtime/format'
 import UserAvatar from '@/site/components/UserAvatar.vue'
+import { feedReasonKey } from '@/site/utils/feed-reason'
 import type { TopicPayload } from '@gooseforum/client'
 
 withDefaults(defineProps<{
@@ -23,12 +25,11 @@ withDefaults(defineProps<{
 })
 
 const { t } = useI18n()
-function feedReason(reason?: string) { switch(reason) {case 'following': return t('feed.following'); case 'category': return t('feed.category'); case 'newreply': return t('feed.newreply'); case 'recent': return t('feed.recent'); default:return ''} }
+const feedReason = (reason?: string | null) => { const key = feedReasonKey(reason); return key ? t(key) : '' }
 </script>
 
 <template>
   <div class="min-w-0">
- <p v-if="topic.feedReason" class="mb-1 text-xs text-base-content/55">{{ feedReason(topic.feedReason) }}</p>
     <div class="flex items-center gap-2.5">
       <UserAvatar
         :src="topic.author.avatarUrl"
@@ -40,7 +41,7 @@ function feedReason(reason?: string) { switch(reason) {case 'following': return 
         <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span class="inline-flex max-w-full min-w-0 items-center gap-1.5 text-sm font-semibold leading-5 text-base-content">
             <span class="min-w-0 truncate">{{ userDisplayName(topic.author.id, topic.author.username, topic.author.nickname) }}</span>
-            <span v-if="topic.author.publicUid" class="shrink-0 text-xs font-normal text-base-content/55">{{ t('anonymous.identity') }}</span>
+            <PersonaTag v-if="topic.author.publicUid" />
             <span
               v-if="!topic.title && !topic.description && topic.unseen"
               class="unread-meta-dot inline-block h-2 w-2 shrink-0 rounded-full bg-primary"
@@ -48,7 +49,8 @@ function feedReason(reason?: string) { switch(reason) {case 'following': return 
             />
           </span>
           <span class="text-xs leading-5 text-base-content/55">
-            {{ timeAgo(topic.lastUpdateTime) }}
+            {{ timeAgo(topic.lastUpdateTime) }}<template v-if="feedReason(topic.feedReason)"
+              ><span aria-hidden="true"> · </span><span class="font-medium text-base-content/70" data-test="feed-reason">{{ feedReason(topic.feedReason) }}</span></template>
           </span>
         </div>
         <div class="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">

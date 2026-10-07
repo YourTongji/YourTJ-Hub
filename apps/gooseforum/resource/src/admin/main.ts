@@ -7,6 +7,11 @@ import { readAdminPayload } from '@/admin/runtime/payload'
 import { adminRouter } from '@/admin/runtime/router'
 import { i18n } from '@/runtime/i18n'
 import { configureAdminAccess } from '@/admin/runtime/access'
+import { applyStoredTheme, initSystemThemeListener } from '@/runtime/site-theme'
+
+// Apply the shared appearance preference before mounting; `auto` follows the system live.
+applyStoredTheme()
+initSystemThemeListener()
 
 const payload = readAdminPayload()
 configureAdminAccess(payload.layout.viewer.adminPermissions)

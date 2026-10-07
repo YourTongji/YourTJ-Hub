@@ -9,13 +9,10 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
-  String get agentRepliesDisable => '禁止机器人回复';
+  String get agentRepliesDisabled => '作者已关闭机器人回复';
 
   @override
-  String get agentRepliesDisabled => '作者已禁止机器人回复';
-
-  @override
-  String get agentRepliesHelp => '阻止本站 Agent 账号回复，不影响已有回复。';
+  String get agentRepliesHelp => '关闭后，本站的机器人账号不能在这里回复，已有回复不受影响。';
 
   @override
   String get campusCourseReviews => '课程评价';
@@ -3322,44 +3319,26 @@ class AppLocalizationsZh extends AppLocalizations {
       '它不会公开显示，请前往内容管理自查修改后重新提交。如有疑问，请联系管理员。';
 
   @override
-  String get anonymousLockDate => '可改名时间：';
-
-  @override
-  String get anonymousRemaining => '今日剩余批次：';
-
-  @override
   String get anonymousIdentity => '匿名身份';
 
   @override
   String get anonymousBoundary =>
-      '每个账号仅有一个匿名身份，花名一年内不可更改。公众和普通版主无法查看主账号；仅获受限权限的管理员可填写理由并审计揭示。账号关闭后私有绑定和审计长期保留。';
+      '每个账号只有一个匿名身份，花名确认后一年内不能更改。匿名身份不能登录、私信或关注他人；点赞和投票仍按账号计算，切换身份不会多算一次。';
 
   @override
-  String get anonymousRetry => '重新加载';
+  String get anonymousRetry => '重试';
 
   @override
-  String get anonymousUnavailable => '匿名身份当前不可用';
-
-  @override
-  String get anonymousEnable => '恢复匿名身份';
-
-  @override
-  String get anonymousDisable => '停用匿名身份';
-
-  @override
-  String get anonymousRandomize => '随机 10 个花名';
+  String get anonymousUnavailable => '匿名身份暂时不可用';
 
   @override
   String get anonymousPublishAs => '发布身份';
 
   @override
-  String get anonymousMember => '主身份';
+  String get anonymousMember => '主账号';
 
   @override
   String get anonymousSetup => '设置匿名身份';
-
-  @override
-  String get anonymousConfirm => '确认花名（锁定一年）';
 
   @override
   String get anonymousCancel => '取消';
@@ -3395,45 +3374,42 @@ class AppLocalizationsZh extends AppLocalizations {
   String get feedReasonCategory => '你参与过的分类';
 
   @override
-  String get feedReasonNewReply => '有新的回复';
+  String get feedReasonNewReply => '有新回复';
 
   @override
-  String get feedReasonRecent => '近期发布';
+  String get feedReasonRecent => '最近发布';
 
   @override
   String get sortDaily => '今日热榜';
 
   @override
-  String get anonymousPurpose => '使用固定花名发帖和回复，对公众隐藏主账号关联。';
+  String get anonymousPurpose => '用一个固定的花名发帖和回复，别人看不到你的主账号。';
 
   @override
-  String get anonymousSettingsHint => '管理匿名发言使用的花名与身份';
+  String get anonymousSettingsHint => '用固定花名发言，不显示主账号';
 
   @override
-  String get anonymousIntroTitle => '匿名身份有自己的花名和发言记录';
+  String get anonymousIntroTitle => '先选一个花名';
 
   @override
-  String get anonymousHistoryHint => '同一匿名身份的历史内容可以互相关联。内容本身仍可能透露你的身份。';
-
-  @override
-  String get anonymousConfirmHint => '每个账号只有一个匿名身份；确认后，花名一年内不可更改。';
+  String get anonymousConfirmHint => '每个账号只有一个匿名身份。确认后一年内不能换花名。';
 
   @override
   String get anonymousPrivacySummary =>
-      '公众和普通版主无法查看主账号关联。获专门权限的管理员可填写理由并留痕揭示；账号关闭后，绑定与审计记录仍长期保留。';
+      '其他用户和普通版主看不到你的主账号。少数获授权的管理员处理违规时可以查看，每次都要填写理由并留下记录。注销账号后，这条对应关系仍会保留。';
 
   @override
-  String get anonymousRules => '了解匿名规则';
+  String get anonymousRules => '查看完整规则';
 
   @override
-  String get anonymousChooseName => '选择花名';
+  String get anonymousChooseName => '选一个花名';
 
   @override
   String get anonymousRefreshNames => '换一批';
 
   @override
   String anonymousDrawsRemaining(int remaining) {
-    return '今日还可抽取 $remaining 批';
+    return '今天还能换 $remaining 批';
   }
 
   @override
@@ -3442,40 +3418,108 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get anonymousPreviousBatches => '查看已生成的候选';
+  String get anonymousPreviousBatches => '已生成的批次';
 
   @override
   String get anonymousNamePreview => '你将使用的花名';
 
   @override
-  String get anonymousConfirmName => '确认使用此花名';
+  String get anonymousConfirmName => '使用这个花名';
 
   @override
   String get anonymousInactive => '已停用';
 
   @override
-  String get anonymousReady => '可使用';
+  String get anonymousReady => '可用';
 
   @override
   String anonymousLockedUntil(String date) {
-    return '$date 后可更改花名';
+    return '$date 后可以换花名';
   }
 
   @override
-  String anonymousResetAt(String date) {
-    return '$date 重置抽取次数';
-  }
+  String get anonymousNameLockHint => '确认后一年内不能换花名。';
 
   @override
-  String get anonymousNameLockHint => '确认后，花名一年内不可更改。';
-
-  @override
-  String get anonymousShowContent => '展示匿名主页内容';
+  String get anonymousShowContent => '在主页展示我的发言';
 
   @override
   String get anonymousShowContentDescription =>
-      '允许从匿名主页查看帖子、评论和数量。关闭后仅保留花名与头像，论坛中的原内容仍可正常访问。';
+      '关闭后，匿名主页只显示花名和头像。帖子和回复在原处照常显示。';
 
   @override
-  String get anonymousProfileContentHidden => '匿名主页的内容已隐藏';
+  String get anonymousProfileContentHidden => '这位成员的发言不在主页展示';
+
+  @override
+  String get agentRepliesAllow => '允许机器人回复';
+
+  @override
+  String get agentRepliesOff => '已关闭机器人回复';
+
+  @override
+  String get anonymousTag => '匿名';
+
+  @override
+  String get anonymousTagOwn => '你的匿名身份';
+
+  @override
+  String get anonymousIntroBody => '花名和头像会代替你的主账号，显示在帖子和回复上。';
+
+  @override
+  String get anonymousGenerateNames => '生成花名';
+
+  @override
+  String anonymousBatchOf(int number, int total) {
+    return '第 $number 批，共 $total 批';
+  }
+
+  @override
+  String get anonymousPreviewCaption => '别人会这样看到你';
+
+  @override
+  String get anonymousPreviewPlaceholder => '从下面挑一个花名';
+
+  @override
+  String get anonymousRestricted => '已被限制';
+
+  @override
+  String anonymousQuota(String date) {
+    return '今天的次数用完了，$date 恢复。已生成的花名仍可选择。';
+  }
+
+  @override
+  String get anonymousProfileContentHiddenOwn => '主页上的发言已隐藏';
+
+  @override
+  String get anonymousProfileContentHiddenOwnDescription =>
+      '包括你在内，所有人都看不到这里的发言列表。帖子和回复在原处照常显示。';
+
+  @override
+  String get anonymousProfileOwnerHint =>
+      '这是你的匿名身份。别人只能看到花名、头像和公开的发言，看不到你的主账号。';
+
+  @override
+  String get anonymousProfileMemberHint => '这位成员以匿名身份发言，主账号不公开。';
+
+  @override
+  String get anonymousProfileGuestHint => '本站成员的匿名身份，主账号不对外公开。';
+
+  @override
+  String get anonymousActiveLabel => '启用匿名身份';
+
+  @override
+  String get anonymousDisabledHint => '停用后不能用它发言，已发布的内容不受影响。';
+
+  @override
+  String get anonymousStatusRestricted => '已被管理员限制，暂时不能用它发言';
+
+  @override
+  String get anonymousStatusDisabled => '已停用，暂时不能用它发言';
+
+  @override
+  String get anonymousLinkabilityHint =>
+      '用这个身份发的内容会集中在它的主页上，别人可能把它们联系起来；内容本身也可能透露你是谁。';
+
+  @override
+  String get anonymousViewProfile => '查看匿名主页';
 }

@@ -54,6 +54,10 @@ An existing persona opens its public profile; an unconfigured persona opens setu
 persona page determines ownership only from the viewer's private state. Its owner sees the
 shared profile management button in the ordinary edit-action position, opening the shared
 setup/management dialog or sheet. Other viewers receive no private binding or management action.
+The profile introduction depends on the viewer: the owner is told what others can and cannot see,
+signed-in members and guests see neutral descriptions that never mention private state. On topic
+pages the owner's own topic and replies carry a "your anonymous identity" tag; everyone else, and
+every feed list, shows the plain anonymous tag.
 Web SVG avatars keep their original URL at comment, quote, list and profile sizes; no medium
 raster derivative is requested for the public persona SVG endpoint.
 
@@ -64,6 +68,8 @@ the profile's topics, replies, counts, tabs and pagination for all viewers, incl
 the public name/avatar and owner management action remain. The public page payload and crawler
 HTML omit the content, and native refresh/pagination cannot retain old streams. Original forum
 posts/replies keep their ordinary visibility and remain manageable through content management.
+The owner sees why the streams are hidden and a management action; other viewers only see that this
+member's posts are not shown on the page.
 The main profile's local display preference does not control the persona. Frozen or governance-
 restricted owners can change this privacy preference without restoring publishing; closed
 accounts cannot change it. Failed updates retain the last confirmed control value.
@@ -84,17 +90,22 @@ and closes the dialog. Cancelling or failed requests retain the draft and select
 A disabled persona can be managed but cannot be chosen for publishing.
 
 `Current`: the dialog introduces the persona before drawing names, shows one candidate batch at a
-time, and permits returning to previously generated same-day batches without spending quota. The
-one-year lock, restricted audited reveal and post-closure retention are visible before confirmation;
+time, and permits returning to previously generated same-day batches without spending quota. A
+preview stage shows how the chosen candidate will appear beside a post; candidates are drawn as
+slips, and earlier batches open from a "batch N of M" menu with a height-limited, scrollable list.
+The one-year lock, restricted audited reveal and post-closure retention are visible before confirmation;
 full rules can be expanded. Reset time appears when the daily draw quota is exhausted. Failed draw
 responses retain the request key, so retries recover the same batch.
 
 `Current`: native topic and reply composers open a shared bottom sheet from their identity menu,
 keeping the active writing route and draft mounted. Account settings reuses the same content on a
-page. Both show one batch at a time, permit returning to earlier same-day batches and preview a
-candidate before explicit confirmation. The one-year lock and confirmation button remain in the
-bottom action area while explanatory text scrolls. Successful setup selects the returned persona
-in the invoking composer; cancellation, failure and late responses after a session change do not.
+page. Both show one batch at a time, permit returning to earlier same-day batches from the same
+height-limited batch menu and preview a candidate on the same stage before explicit confirmation.
+The one-year lock and confirmation button remain in the bottom action area while explanatory text
+scrolls; on short sheets (large text or an open keyboard) only the button stays pinned and the lock
+note moves into the scrolling content. The native composer identity control opens a bottom-sheet
+menu; the topic composer places it with the bot-reply switch after the body. Successful setup
+selects the returned persona in the invoking composer; cancellation, failure and late responses after a session change do not.
 Self-disabled identities retain a reactivation action; governance restrictions remain unavailable.
 Opening the persona profile from the sheet leaves the writing field unfocused; returning through
 normal cancellation or successful confirmation restores its focus.

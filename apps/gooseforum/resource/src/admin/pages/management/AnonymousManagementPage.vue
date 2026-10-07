@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminSelect from '@/admin/components/AdminSelect.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -235,21 +236,14 @@ onBeforeUnmount(() => {
                   maxlength="128"
                 />
               </div>
-              <select
+              <AdminSelect
                 v-model="status"
-                class="h-9 flex-1 rounded-md border bg-background px-3 text-sm sm:flex-none"
                 :aria-label="t('anonymousAdmin.status')"
                 :disabled="loading"
+                :options="(['all', 'active', 'disabled', 'banned'] as const).map((value) => ({ value, label: t(`anonymousAdmin.${value}`) }))"
+                class="flex-1 sm:w-36 sm:flex-none"
                 @change="filter"
-              >
-                <option
-                  v-for="value in ['all', 'active', 'disabled', 'banned']"
-                  :key="value"
-                  :value="value"
-                >
-                  {{ t(`anonymousAdmin.${value}`) }}
-                </option>
-              </select>
+              />
               <Button type="submit" variant="outline" :disabled="loading">{{
                 t('common.search')
               }}</Button>
@@ -423,17 +417,13 @@ onBeforeUnmount(() => {
         >
           <span>{{ t('anonymousAdmin.total', { count: total }) }}</span>
           <div class="flex items-center gap-2">
-            <select
+            <AdminSelect
               v-model="pageSize"
               :disabled="loading"
               :aria-label="t('anonymousAdmin.pageSize')"
-              class="h-9 rounded-md border bg-background px-2"
+              :options="[10, 20, 50].map((size) => ({ value: size, label: `${size} / ${t('anonymousAdmin.page')}` }))"
               @change="changePage(1)"
-            >
-              <option v-for="size in [10, 20, 50]" :key="size" :value="size">
-                {{ size }} / {{ t('anonymousAdmin.page') }}
-              </option></select
-            ><Button
+            /><Button
               variant="outline"
               size="icon"
               :aria-label="t('common.previousPage')"

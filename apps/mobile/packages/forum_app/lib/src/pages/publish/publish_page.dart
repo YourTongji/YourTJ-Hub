@@ -1439,17 +1439,6 @@ class _PublishPageState extends ConsumerState<PublishPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    IdentityPicker(
-                      value: _identity,
-                      disabled: _submitting || _currentTopicId > 0,
-                      onChanged: (v) {
-                        setState(() {
-                          _identity = v;
-                          _markDirty();
-                        });
-                      },
-                    ),
-
                     if (_localStatus.isNotEmpty) ...[
                       Row(
                         children: [
@@ -1534,16 +1523,41 @@ class _PublishPageState extends ConsumerState<PublishPage>
                       ),
                     ],
                     const SizedBox(height: 16),
+                    // Publishing settings sit together after the content they apply to.
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        l10n.anonymousPublishAs,
+                        style: GfTheme.typographyOf(context).caption.copyWith(
+                          color: GfTheme.colorsOf(
+                            context,
+                          ).baseContent.withValues(alpha: .65),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: IdentityPicker(
+                        value: _identity,
+                        disabled: _submitting || _currentTopicId > 0,
+                        onChanged: (v) {
+                          setState(() {
+                            _identity = v;
+                            _markDirty();
+                          });
+                        },
+                      ),
+                    ),
                     if (_currentTopicId == 0)
                       IgnorePointer(
                         ignoring: _submitting,
                         child: GfSwitchRow(
                           key: const Key('publish-agent-replies'),
-                          title: l10n.agentRepliesDisable,
+                          title: l10n.agentRepliesAllow,
                           description: l10n.agentRepliesHelp,
-                          value: _agentRepliesDisabled,
+                          value: !_agentRepliesDisabled,
                           onChanged: (value) {
-                            setState(() => _agentRepliesDisabled = value);
+                            setState(() => _agentRepliesDisabled = !value);
                             _markDirty();
                           },
                         ),

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { EyeOff, FileText, MessageCircle } from '@lucide/vue'
+import { EyeOff, FileText, MessageCircle, Settings } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import type { AnonymousProfileProps, LayoutPayload } from '@gooseforum/client'
 import { getIdentityState, type IdentityState } from '@/runtime/anonymous-identity'
@@ -25,17 +25,32 @@ const activeTab = ref('topics')
 watch(() => page.props, () => {
   activeTab.value = new URLSearchParams(window.location.search).get('tab') === 'replies' ? 'replies' : 'topics'
 }, { immediate: true })
+// Ownership comes only from the viewer's private state; until it resolves a signed-in
+// viewer sees no perspective-specific text, so the owner never flashes the public wording.
+const ownResolved = ref(false)
 watch(() => [page.layout.viewer.isAuthenticated ? page.layout.viewer.id : 0, page.props.persona.publicUid], async () => {
   const request = ++generation
   ownState.value = undefined
+  ownResolved.value = !page.layout.viewer.isAuthenticated
   manageOpen.value = false
   if (!page.layout.viewer.isAuthenticated) return
   try {
     const state = await getIdentityState()
     if (request === generation) ownState.value = state
   } catch { /* Public viewing remains available if the private state cannot load. */ }
+  if (request === generation) ownResolved.value = true
 }, { immediate: true })
 const isOwnProfile = computed(() => ownState.value?.persona?.publicUid === page.props.persona.publicUid)
+const viewerHint = computed(() => {
+  if (!ownResolved.value) return ''
+  if (isOwnProfile.value) return t('anonymous.profileOwnerHint')
+  return t(page.layout.viewer.isAuthenticated ? 'anonymous.profileMemberHint' : 'anonymous.profileGuestHint')
+})
+const ownStatus = computed(() => {
+  if (!isOwnProfile.value) return ''
+  if (ownState.value?.governanceDisabled) return t('anonymous.statusRestricted')
+  return ownState.value?.disabled ? t('anonymous.statusDisabled') : ''
+})
 const showContent = computed(() => page.props.showContent && (!isOwnProfile.value || ownState.value?.showContent !== false))
 const persona = computed(() => isOwnProfile.value ? ownState.value!.persona! : page.props.persona)
 const tabs = computed(() => [
@@ -69,12 +84,13 @@ watch(manageOpen, (open) => {
         <template #identity>
           <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-y-2">
             <h1 class="break-words text-xl font-bold leading-tight tracking-tight text-base-content sm:text-2xl">{{ persona.name }}</h1>
-            <span class="gf-badge gf-badge-muted rounded text-[11px]">{{ t('anonymous.identity') }}</span>
+            <span class="gf-badge gf-badge-muted rounded text-[11px]">{{ t('anonymous.tag') }}</span>
           </div>
-          <p class="gf-profile-bio mt-2">{{ t('anonymous.historyHint') }}</p>
+          <p v-if="viewerHint" class="gf-profile-bio mt-2" data-test="anonymous-viewer-hint">{{ viewerHint }}</p>
+          <p v-if="ownStatus" class="mt-1.5 text-sm text-warning" data-test="anonymous-owner-status">{{ ownStatus }}</p>
         </template>
         <template #actions>
-          <ProfileManageButton v-if="isOwnProfile" :label="t('anonymous.manageShort')" @click="manage" />
+          <ProfileManageButton v-if="isOwnProfile" :label="t('anonymous.manage')" @click="manage" />
         </template>
       </ProfileHeader>
       <ProfileTabs v-if="showContent" :tabs="tabs" />
@@ -97,10 +113,16 @@ watch(manageOpen, (open) => {
           </template>
         </div>
       </div>
+      <EmptyState v-else-if="isOwnProfile" :icon="EyeOff" :title="t('anonymous.profileContentHiddenOwn')"
+        :description="t('anonymous.profileContentHiddenOwnDescription')" class="p-8">
+        <button type="button" class="gf-button gf-button-md gf-button-secondary" @click="manage">
+          <Settings class="h-4 w-4 shrink-0" />{{ t('anonymous.manage') }}
+        </button>
+      </EmptyState>
       <EmptyState v-else :icon="EyeOff" :title="t('anonymous.profileContentHidden')" class="p-8" />
       <nav v-if="showContent && (page.props.page > 1 || hasNext)" class="flex justify-between gap-3 border-t border-line p-4">
         <a v-if="page.props.page > 1" :href="pageUrl(page.props.page - 1)" class="gf-button gf-button-secondary">{{ t('common.previousPage') }}</a>
-        <a v-if="hasNext" :href="pageUrl(page.props.page + 1)" class="gf-button gf-button-secondary ml-auto">{{ t('anonymous.next') }}</a>
+        <a v-if="hasNext" :href="pageUrl(page.props.page + 1)" class="gf-button gf-button-secondary ms-auto">{{ t('anonymous.next') }}</a>
       </nav>
     </section>
     <AnonymousIdentityDialog v-model:open="manageOpen" :return-focus="returnFocus" @updated="updateState" />

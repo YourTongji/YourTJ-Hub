@@ -84,10 +84,10 @@ function sectionGrid(level: SponsorLevel) {
 
 function sectionBadgeClass(level: SponsorLevel) {
   const tone = levelMeta[level].tone
-  if (tone === 'diamond') return 'bg-blue-50 text-blue-700'
-  if (tone === 'gold') return 'bg-amber-50 text-amber-700'
-  if (tone === 'silver') return 'bg-gray-100 text-gray-600'
-  return 'bg-rose-50 text-rose-700'
+  if (tone === 'diamond') return 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
+  if (tone === 'gold') return 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+  if (tone === 'silver') return 'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300'
+  return 'bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300'
 }
 
 function sponsorCardClass(level: SponsorLevel) {

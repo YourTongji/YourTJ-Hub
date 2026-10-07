@@ -134,12 +134,12 @@
   "serverMessages.sticker.imageRequired": "自分がアップロードした {maxSizeMb} MB 以下の画像または GIF を選択してください。",
   "serverMessages.sticker.unavailable": "このスタンプは利用できません。",
   "permission.revealAnonymousIdentity": "匿名の身元開示（制限された監査）",
-  "anonymous.profileContentHidden": "匿名プロフィールの内容は非表示です",
+  "anonymous.profileContentHidden": "このメンバーの投稿はこのページに表示されません",
   "anonymous.identity": "匿名の身元",
-  "anonymous.nameLocked": "名前は1年間固定されています。",
-  "anonymous.dailyLimit": "本日10回の抽選上限です。既存の候補から選べます。",
-  "anonymous.candidateExpired": "候補が無効または期限切れです。本日の候補を再読み込みしてください。",
-  "anonymous.unavailable": "匿名の身元は利用できません",
+  "anonymous.nameLocked": "確定した名前は1年間変更できません。",
+  "anonymous.dailyLimit": "本日の10回を使い切りました。生成済みの候補から選べます。",
+  "anonymous.candidateExpired": "この候補は期限切れです。再読み込みしてから選んでください。",
+  "anonymous.unavailable": "匿名IDは現在利用できません",
   "forYouFeed": "おすすめ",
   "dailyFeed": "今日の人気"
 }
