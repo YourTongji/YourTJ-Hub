@@ -12472,7 +12472,7 @@ export interface components {
         AdminAgentItem: {
             configVersion: number;
             eventsEnabled: boolean;
-            eventTypes: ("agent.mentioned" | "agent.post_replied" | "agent.topic_commented")[];
+            eventTypes: ("agent.mentioned" | "agent.post_replied" | "agent.topic_commented" | "forum.topic_created" | "forum.post_created")[];
             subscriptionGeneration: number;
             webhookEnabled: boolean;
             endpointGeneration: number;
@@ -13174,6 +13174,7 @@ export interface components {
             /** @enum {string} */
             actorType: "human" | "bot";
             reasons: ("post_reply" | "mention" | "comment" | "topic_created" | "post_created")[];
+            /** @description Relative forum path /p/post/{topicId}/{postNo}; resolve against the configured forum origin. */
             url: string;
         };
         AgentEvent: {

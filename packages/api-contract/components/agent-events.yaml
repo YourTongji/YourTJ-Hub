@@ -28,6 +28,7 @@ AgentEventData:
         - post_created
     url:
       type: string
+      description: Relative forum path /p/post/{topicId}/{postNo}; resolve against the configured forum origin.
   required:
   - topicId
   - postId

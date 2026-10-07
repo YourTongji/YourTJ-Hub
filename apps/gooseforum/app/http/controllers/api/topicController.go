@@ -459,7 +459,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			if err := posts.SaveTx(tx, &firstPost); err != nil {
 				return err
 			}
-			if firstPost.ProcessStatus != posts.ProcessStatusNormal || firstPost.IsAnonymous {
+			if topic.Status != 1 || firstPost.ProcessStatus != posts.ProcessStatusNormal || firstPost.IsAnonymous {
 				if err := agenteventservice.WithdrawContentTx(tx, topic.Id, 0); err != nil {
 					return err
 				}

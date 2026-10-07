@@ -251,6 +251,11 @@ func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 		if post.UserId != userID {
 			return component.NewMessageError(component.MessageTopicOperationDenied, "不能删除他人的回复", nil)
 		}
+		// Content fences precede reward/user locks, matching event materialization.
+		// Holding the topic also keeps the child check consistent with new replies.
+		if _, err := topics.GetUnscopedTx(tx, post.TopicId); err != nil {
+			return err
+		}
 
 		hasChildren, err := posts.HasChildrenTx(tx, postID)
 		if err != nil {
@@ -338,6 +343,10 @@ func DeletePostAsModerator(moderatorID uint64, postID uint64, reason string) err
 			return nil
 		}
 
+		// Match materialization's post -> topic -> participant lock order.
+		if _, err := topics.GetUnscopedTx(tx, post.TopicId); err != nil {
+			return err
+		}
 		// Reward reversal and moderator deletion must commit or roll back together.
 		if err := pointservice.ReversePostRewardTx(tx, post.UserId, postID); err != nil {
 			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})

@@ -1,6 +1,7 @@
 package postservice
 
 import (
+	"errors"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/agentinstance"
@@ -69,8 +70,21 @@ func appendPostRevision(tx *gorm.DB, post *posts.Entity, editorID uint64, proces
 			return err
 		}
 		if next > 1 && !post.IsAnonymous && topic.Status == 1 && topic.ProcessStatus == topics.ProcessStatusNormal && topic.VisibilityStatus == topics.VisibilityActive && topic.TopicType == topics.TopicTypeForum && oldProcessStatus == posts.ProcessStatusNormal {
-			if err := agenteventservice.BaselineTx(tx, post.Id, next-1); err != nil {
+			// MAX(version) can name a private candidate. Use the public pointer;
+			// legacy rows without one must match the previously visible projection.
+			var published postRevisions.Entity
+			query := tx.Where("post_id = ?", post.Id)
+			if post.PublishedRevisionId != 0 {
+				query = query.Where("id = ?", post.PublishedRevisionId)
+			} else {
+				query = query.Where("content = ? AND process_status = ?", oldContent, oldProcessStatus).Order("version DESC")
+			}
+			if err := query.Take(&published).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 				return err
+			} else if err == nil {
+				if err := agenteventservice.BaselineTx(tx, post.Id, published.Version); err != nil {
+					return err
+				}
 			}
 		}
 

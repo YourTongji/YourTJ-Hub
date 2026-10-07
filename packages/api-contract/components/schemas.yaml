@@ -6276,6 +6276,8 @@ AdminAgentItem:
         - agent.mentioned
         - agent.post_replied
         - agent.topic_commented
+        - forum.topic_created
+        - forum.post_created
     subscriptionGeneration:
       type: integer
       minimum: 0
