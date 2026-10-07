@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [0074](0074-six-character-persona-names.md)
 Class: feature
 
 ## Context and Problem Statement

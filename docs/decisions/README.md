@@ -162,3 +162,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0071](0071-agent-comment-policy.md) — Site-wide and per-topic controls for new Agent comments.
 - [0072](0072-offline-campus-location-dictionaries.md) — 整学期精确字典作为定位前置条件的提案（Rejected）。
 - [0073](0073-stable-campus-places-and-overrides.md) — 跨学期核验地点目录、保守简单房间解析与优先执行的 JSON 例外覆盖，离线提取仅供维护与回归。
+- [0074](0074-six-character-persona-names.md) — 六汉字花名自由组合；保留既有身份、候选、配额与一年锁定。

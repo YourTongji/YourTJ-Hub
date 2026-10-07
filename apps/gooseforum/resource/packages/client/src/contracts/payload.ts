@@ -1270,6 +1270,7 @@ export interface ChatForwardBundle { version: number; messages: ChatForwardEntry
 export interface ForwardChatMessagesRequest { convId: number; peerId: number; messageIds: number[]; mode: 'individual' | 'merged'; clientForwardId: string }
 export interface ForwardChatMessagesResult { convId: number; messageIds: number[] }
 
+/** Public persona profile: topics/replies only; member identity and relationships are absent. */
 export interface AnonymousProfileProps {
  persona: {kind:'persona'; publicUid:string; name:string; avatarUrl:string; profileUrl:string}
  topics: TopicPayload[]

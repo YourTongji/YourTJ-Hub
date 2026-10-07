@@ -327,7 +327,7 @@ export interface paths {
         };
         /**
          * getAnonymousIdentityState
-         * @description Private, no-store response. One persona per numeric owner, shared across clients. State reads share the configurable interaction rate limit with persona writes. Names come from the complete embedded THUOCL pool without content filters. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. State reads share the configurable interaction rate limit with persona writes. New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
          */
         get: operations["getAnonymousIdentityState"];
         put?: never;
@@ -349,7 +349,7 @@ export interface paths {
         put?: never;
         /**
          * generateAnonymousNames
-         * @description Private, no-store response. One persona per numeric owner, shared across clients. Names come from the complete embedded THUOCL pool without content filters. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
          */
         post: operations["generateAnonymousNames"];
         delete?: never;
@@ -369,7 +369,7 @@ export interface paths {
         put?: never;
         /**
          * confirmAnonymousName
-         * @description Private, no-store response. One persona per numeric owner, shared across clients. Names come from the complete embedded THUOCL pool without content filters. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
          */
         post: operations["confirmAnonymousName"];
         delete?: never;
@@ -389,7 +389,7 @@ export interface paths {
         put?: never;
         /**
          * disableAnonymousIdentity
-         * @description Private, no-store response. One persona per numeric owner, shared across clients. Names come from the complete embedded THUOCL pool without content filters. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
          */
         post: operations["disableAnonymousIdentity"];
         delete?: never;
@@ -409,7 +409,7 @@ export interface paths {
         put?: never;
         /**
          * revealAnonymousIdentity
-         * @description Private, no-store response. One persona per numeric owner, shared across clients. Names come from the complete embedded THUOCL pool without content filters. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
          */
         post: operations["revealAnonymousIdentity"];
         delete?: never;
@@ -13111,7 +13111,7 @@ export interface components {
             /** @constant */
             kind: "persona";
             publicUid: string;
-            /** @description Unmodified full THUOCL entry; escaped as plain text. */
+            /** @description New names freely combine two-character action + two-character scene/object + 的 + one-character animal (six Han characters). Existing names remain unchanged; escaped as plain text. */
             name: string;
             avatarUrl: string;
             profileUrl: string;
@@ -13135,6 +13135,7 @@ export interface components {
             id: string;
             /** Format: date */
             day: string;
+            /** @description New draws use six Han characters in the phrase6-v1 form. Persisted earlier batches retain their exact words until expiry. */
             words: string[];
             /** Format: date-time */
             expiresAt: string;

@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import ProfileHeader from '@/site/components/ProfileHeader.vue'
+import ProfileManageButton from '@/site/components/ProfileManageButton.vue'
+import ProfileTabs from '@/site/components/ProfileTabs.vue'
+import ProfileStats from '@/site/components/ProfileStats.vue'
 import PrivateNoteEditor from '@/site/components/PrivateNoteEditor.vue'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import {
-  Award,
   ArrowLeft,
   Bird,
   Bookmark,
@@ -16,7 +19,6 @@ import {
   Feather,
   PenLine,
   Radio,
-  Settings,
   UserRound,
   UserPlus,
 } from '@lucide/vue'
@@ -88,18 +90,6 @@ const tabItems = computed(() => [
 const activityTabItems = computed(() => [
   ...page.props.activityTabs.map(tab => ({ ...tab, label: userActivityTabLabel(tab.key) })),
 ])
-const profileCoverStyle = computed(() => {
-  const activeCoverUrl = coverUrl.value.trim()
-  const defaultCover = 'linear-gradient(135deg, var(--gf-color-base-200) 0%, var(--gf-color-info-content) 52%, var(--gf-color-base-200) 100%)'
-  if (!activeCoverUrl) {
-    return {
-      backgroundImage: defaultCover,
-    }
-  }
-  return {
-    backgroundImage: `url(${JSON.stringify(activeCoverUrl)}), ${defaultCover}`,
-  }
-})
 const profileStats = computed(() => [
   { label: t('user.stats.reputation'), value: page.props.user.prestige, featured: true },
   { label: t('user.stats.topics'), value: page.props.user.topicCount },
@@ -421,19 +411,46 @@ function safeProfileUrl(value?: string) {
       </section>
 
       <section v-else class="gf-card overflow-hidden">
-        <!-- 封面仅展示；设置封面只在「编辑资料」页（Settings）出现 -->
-        <div class="relative">
-          <div class="h-36 border-b border-line bg-base-300 bg-cover bg-center sm:h-60" :style="profileCoverStyle" />
-          <!-- 移动端：操作按钮在封面图下方、头像右侧（不遮挡背景图）；桌面端回到信息栏右侧 -->
-          <div class="absolute right-4 top-full z-10 mt-2 flex flex-wrap items-center justify-end gap-2 sm:hidden">
-            <a
-              v-if="page.props.isOwnProfile"
-              :href="page.props.settingsUrl"
-              class="gf-button gf-button-md gf-button-secondary"
+        <ProfileHeader
+          :avatar-url="page.props.user.avatarUrl"
+          :avatar-alt="page.props.user.username"
+          :badge="page.props.user.wornBadge"
+          :cover-url="coverUrl"
+        >
+          <template #identity>
+            <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-y-2">
+              <h1 class="truncate text-xl font-bold leading-tight tracking-tight text-base-content sm:text-2xl">{{ displayName }}</h1>
+              <PrivateNoteEditor v-if="!page.props.user.isAccountClosed" :user-id="page.props.user.userId" :username="page.props.user.username" />
+              <span v-if="page.props.user.isAdmin" class="gf-badge gf-badge-warning rounded text-[11px]">Admin</span>
+              <span v-if="page.props.user.isOnline" class="gf-badge gf-badge-success rounded text-[11px]">
+                <Radio class="h-3 w-3" /> {{ t('user.online') }}
+              </span>
+            </div>
+            <p class="mt-0.5 text-[13px] font-medium text-base-content/50 sm:mt-1">@{{ page.props.user.username }}</p>
+            <p
+              class="gf-profile-bio mt-2"
+              :class="{ 'gf-profile-bio--empty': bioIsEmpty }"
             >
-              <Settings class="h-4 w-4" />
-              {{ t('user.editProfile') }}
-            </a>
+              {{ bioText }}
+            </p>
+            <aside v-if="showStandaloneSignature" class="gf-profile-signature" :aria-label="t('user.signatureLabel')">
+              <div class="gf-profile-signature__row">
+                <Feather class="gf-profile-signature__icon" aria-hidden="true" />
+                <p class="gf-profile-signature__text">{{ page.props.user.signature }}</p>
+              </div>
+              <svg class="gf-profile-signature__squiggle" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true">
+                <path
+                  d="M2 5 C 10 0, 18 8, 26 5 S 42 8, 50 5 S 66 8, 74 5 S 90 8, 98 5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </aside>
+          </template>
+          <template #actions>
+            <ProfileManageButton v-if="page.props.isOwnProfile" :href="page.props.settingsUrl" />
             <a
               v-else-if="page.props.canMessage"
               :href="page.props.messageUrl"
@@ -453,170 +470,73 @@ function safeProfileUrl(value?: string) {
               <UserPlus class="h-4 w-4" />
               {{ followLoading ? t('common.loading') : isFollowing ? t('user.following') : t('user.follow') }}
             </button>
-          </div>
-        </div>
-        <div class="relative z-0 px-4 pb-4 sm:px-5">
-          <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <!-- 移动端：头像盖封面单独一行，文字全宽在下方（避免长简介挤在头像右侧窄列）；
-                 桌面端：头像与文字并排（文字列 flex-1 舒展），与 Settings 信息栏一致 -->
-            <div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:gap-4 sm:flex-1">
-              <UserAvatar
-                :src="page.props.user.avatarUrl"
-                :alt="page.props.user.username"
-                :badge="page.props.user.wornBadge"
-                size="large"
-                img-class="rounded-full"
-                class="-mt-9 h-24 w-24 shrink-0 rounded-full border-2 border-base-100 bg-base-100 shadow-sm sm:-mt-10 sm:h-28 sm:w-28"
-              />
-              <div class="min-w-0 sm:flex-1 sm:pt-3">
-                <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-y-2">
-                  <h1 class="truncate text-xl font-bold leading-tight tracking-tight text-base-content sm:text-2xl">{{ displayName }}</h1>
-                  <PrivateNoteEditor v-if="!page.props.user.isAccountClosed" :user-id="page.props.user.userId" :username="page.props.user.username" />
-                  <span v-if="page.props.user.isAdmin" class="gf-badge gf-badge-warning rounded text-[11px]">Admin</span>
-                  <span v-if="page.props.user.isOnline" class="gf-badge gf-badge-success rounded text-[11px]">
-                    <Radio class="h-3 w-3" /> {{ t('user.online') }}
-                  </span>
+          </template>
+          <template #meta>
+            <p v-if="followError" class="mt-3 text-sm text-error">{{ followError }}</p>
+
+            <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-base-content/55">
+                <span class="inline-flex items-center gap-1.5"><CalendarDays class="h-3.5 w-3.5" /> {{ t('user.joinedAt', { date: formatDate(page.props.user.createdAt) }) }}</span>
+                <span v-if="page.props.user.lastActiveTime" class="inline-flex min-w-0 flex-wrap break-words leading-5">{{ t('user.lastActive', { time: timeAgo(page.props.user.lastActiveTime) }) }}</span>
+                <div class="flex basis-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:basis-auto sm:flex-nowrap">
+                  <a
+                    :href="`/u/${page.props.user.userId}/following`"
+                    class="inline-flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 rounded-md px-1.5 py-1 text-xs font-medium text-base-content/65 outline-none transition-colors hover:bg-base-200/70 hover:text-primary hover:underline hover:underline-offset-2 focus-visible:bg-base-200/70 focus-visible:text-primary focus-visible:ring-2 focus-visible:ring-primary/40"
+                  >
+                    <span>{{ t('user.tabs.following') }}</span>
+                    <span class="text-sm font-semibold tabular-nums text-base-content">{{ formatNumber(page.props.user.followingCount) }}</span>
+                  </a>
+                  <a
+                    :href="`/u/${page.props.user.userId}/followers`"
+                    class="inline-flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 rounded-md px-1.5 py-1 text-xs font-medium text-base-content/65 outline-none transition-colors hover:bg-base-200/70 hover:text-primary hover:underline hover:underline-offset-2 focus-visible:bg-base-200/70 focus-visible:text-primary focus-visible:ring-2 focus-visible:ring-primary/40"
+                  >
+                    <span>{{ t('user.tabs.followers') }}</span>
+                    <span class="text-sm font-semibold tabular-nums text-base-content">{{ formatNumber(page.props.user.followerCount) }}</span>
+                  </a>
                 </div>
-                <p class="mt-0.5 text-[13px] font-medium text-base-content/50 sm:mt-1">@{{ page.props.user.username }}</p>
-                <p
-                  class="gf-profile-bio mt-2"
-                  :class="{ 'gf-profile-bio--empty': bioIsEmpty }"
+              </div>
+
+              <div v-if="websiteUrl || socialProfileLinks.length" class="flex flex-wrap items-center gap-0.5 sm:justify-end">
+                <a
+                  v-if="websiteUrl"
+                  :href="websiteUrl"
+                  target="_blank"
+                  rel="noopener noreferrer ugc"
+                  class="group relative inline-flex h-8 w-8 items-center justify-center rounded-md text-icon-muted transition hover:bg-base-200 hover:text-primary"
+                  :title="page.props.user.websiteName || page.props.user.website"
+                  :aria-label="page.props.user.websiteName || page.props.user.website"
                 >
-                  {{ bioText }}
-                </p>
-                <aside v-if="showStandaloneSignature" class="gf-profile-signature" :aria-label="t('user.signatureLabel')">
-                  <div class="gf-profile-signature__row">
-                    <Feather class="gf-profile-signature__icon" aria-hidden="true" />
-                    <p class="gf-profile-signature__text">{{ page.props.user.signature }}</p>
-                  </div>
-                  <svg class="gf-profile-signature__squiggle" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true">
-                    <path
-                      d="M2 5 C 10 0, 18 8, 26 5 S 42 8, 50 5 S 66 8, 74 5 S 90 8, 98 5"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                    />
+                  <Bird class="h-5 w-5" />
+                  <span class="gf-tooltip pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 max-w-40 -translate-x-1/2 truncate opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                    {{ page.props.user.websiteName || page.props.user.website }}
+                  </span>
+                </a>
+                <a
+                  v-for="item in socialProfileLinks"
+                  :key="item.key"
+                  :href="item.href"
+                  target="_blank"
+                  rel="noopener noreferrer ugc"
+                  class="group relative inline-flex h-8 w-8 items-center justify-center rounded-md text-icon-muted transition hover:bg-base-200 hover:text-primary"
+                  :title="item.label"
+                  :aria-label="item.label"
+                >
+                  <svg class="h-4 w-4 fill-current" role="img" viewBox="0 0 24 24" aria-hidden="true">
+                    <path :d="item.icon.path" />
                   </svg>
-                </aside>
-              </div>
-            </div>
-
-            <div class="hidden shrink-0 flex-wrap items-center gap-2 sm:flex">
-              <a
-                v-if="page.props.isOwnProfile"
-                :href="page.props.settingsUrl"
-                class="gf-button gf-button-md gf-button-secondary"
-              >
-                <Settings class="h-4 w-4" />
-                {{ t('user.editProfile') }}
-              </a>
-              <a
-                v-else-if="page.props.canMessage"
-                :href="page.props.messageUrl"
-                class="gf-button gf-button-md gf-button-secondary"
-              >
-                <MessageSquare class="h-4 w-4" />
-                {{ t('shell.nav.messages') }}
-              </a>
-              <button
-                v-if="page.props.canFollow"
-                type="button"
-                class="gf-button gf-button-md"
-                :class="isFollowing ? 'bg-base-300 text-base-content hover:bg-base-300' : 'bg-primary text-primary-content hover:bg-primary'"
-                :disabled="followLoading"
-                @click="toggleFollow"
-              >
-                <UserPlus class="h-4 w-4" />
-                {{ followLoading ? t('common.loading') : isFollowing ? t('user.following') : t('user.follow') }}
-              </button>
-            </div>
-          </div>
-
-          <p v-if="followError" class="mt-3 text-sm text-error">{{ followError }}</p>
-
-          <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-base-content/55">
-              <span class="inline-flex items-center gap-1.5"><CalendarDays class="h-3.5 w-3.5" /> {{ t('user.joinedAt', { date: formatDate(page.props.user.createdAt) }) }}</span>
-              <span v-if="page.props.user.lastActiveTime" class="inline-flex min-w-0 flex-wrap break-words leading-5">{{ t('user.lastActive', { time: timeAgo(page.props.user.lastActiveTime) }) }}</span>
-              <div class="flex basis-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:basis-auto sm:flex-nowrap">
-                <a
-                  :href="`/u/${page.props.user.userId}/following`"
-                  class="inline-flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 rounded-md px-1.5 py-1 text-xs font-medium text-base-content/65 outline-none transition-colors hover:bg-base-200/70 hover:text-primary hover:underline hover:underline-offset-2 focus-visible:bg-base-200/70 focus-visible:text-primary focus-visible:ring-2 focus-visible:ring-primary/40"
-                >
-                  <span>{{ t('user.tabs.following') }}</span>
-                  <span class="text-sm font-semibold tabular-nums text-base-content">{{ formatNumber(page.props.user.followingCount) }}</span>
-                </a>
-                <a
-                  :href="`/u/${page.props.user.userId}/followers`"
-                  class="inline-flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 rounded-md px-1.5 py-1 text-xs font-medium text-base-content/65 outline-none transition-colors hover:bg-base-200/70 hover:text-primary hover:underline hover:underline-offset-2 focus-visible:bg-base-200/70 focus-visible:text-primary focus-visible:ring-2 focus-visible:ring-primary/40"
-                >
-                  <span>{{ t('user.tabs.followers') }}</span>
-                  <span class="text-sm font-semibold tabular-nums text-base-content">{{ formatNumber(page.props.user.followerCount) }}</span>
+                  <span class="gf-tooltip pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 max-w-40 -translate-x-1/2 truncate opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                    {{ item.label }}
+                  </span>
                 </a>
               </div>
             </div>
+          </template>
+        </ProfileHeader>
 
-            <div v-if="websiteUrl || socialProfileLinks.length" class="flex flex-wrap items-center gap-0.5 sm:justify-end">
-              <a
-                v-if="websiteUrl"
-                :href="websiteUrl"
-                target="_blank"
-                rel="noopener noreferrer ugc"
-                class="group relative inline-flex h-8 w-8 items-center justify-center rounded-md text-icon-muted transition hover:bg-base-200 hover:text-primary"
-                :title="page.props.user.websiteName || page.props.user.website"
-                :aria-label="page.props.user.websiteName || page.props.user.website"
-              >
-                <Bird class="h-5 w-5" />
-                <span class="gf-tooltip pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 max-w-40 -translate-x-1/2 truncate opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                  {{ page.props.user.websiteName || page.props.user.website }}
-                </span>
-              </a>
-              <a
-                v-for="item in socialProfileLinks"
-                :key="item.key"
-                :href="item.href"
-                target="_blank"
-                rel="noopener noreferrer ugc"
-                class="group relative inline-flex h-8 w-8 items-center justify-center rounded-md text-icon-muted transition hover:bg-base-200 hover:text-primary"
-                :title="item.label"
-                :aria-label="item.label"
-              >
-                <svg class="h-4 w-4 fill-current" role="img" viewBox="0 0 24 24" aria-hidden="true">
-                  <path :d="item.icon.path" />
-                </svg>
-                <span class="gf-tooltip pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 max-w-40 -translate-x-1/2 truncate opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                  {{ item.label }}
-                </span>
-              </a>
-            </div>
-          </div>
-
-        </div>
-
-        <div class="grid grid-cols-4 border-y border-line">
-          <a
-            v-for="tab in tabItems"
-            :key="tab.key"
-            :href="tab.url"
-            class="inline-flex h-11 min-w-0 items-center justify-center gap-2 px-2 text-sm font-semibold"
-            :class="tab.active ? 'text-primary shadow-[inset_0_-2px_0_var(--gf-color-primary)]' : 'text-base-content/55 hover:text-base-content'"
-          >
-            <UserRound v-if="tab.key === 'summary'" class="h-4 w-4 shrink-0" />
-            <List v-else-if="tab.key === 'activity'" class="h-4 w-4 shrink-0" />
-            <Bookmark v-else-if="tab.key === 'bookmarks'" class="h-4 w-4 shrink-0" />
-            <Award v-else class="h-4 w-4 shrink-0" />
-            {{ tab.label }}
-          </a>
-        </div>
+        <ProfileTabs :tabs="tabItems" />
 
         <div v-if="page.props.section === 'summary'" class="p-4">
-          <section class="grid grid-cols-3 gap-y-4 border-b border-line pb-4 sm:grid-cols-6">
-            <div v-for="item in profileStats" :key="item.label" class="min-w-0 text-center">
-              <div class="text-base font-bold tabular-nums lg:text-lg" :class="item.featured ? 'text-primary' : 'text-base-content'">{{ formatNumber(item.value) }}</div>
-              <div class="mt-0.5 truncate text-[11px] font-medium lg:text-xs" :class="item.featured ? 'text-primary/80' : 'text-base-content/55'">{{ item.label }}</div>
-            </div>
-          </section>
+          <ProfileStats :items="profileStats" />
 
           <div class="grid gap-5 pt-4 lg:grid-cols-[minmax(0,1fr)_300px]">
             <section class="min-w-0">

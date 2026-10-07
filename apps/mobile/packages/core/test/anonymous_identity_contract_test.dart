@@ -18,19 +18,28 @@ void main() {
       final state = AnonymousIdentityState.fromJson(
         fixture('anonymous-state-success'),
       );
-      expect(state.lexiconVersion, startsWith('THUOCL-'));
+      expect(state.lexiconVersion, 'phrase6-v1');
+      // Existing names/batches remain valid across generator versions.
+      expect(state.persona!.name, 'C++');
+      expect(state.batches.first.words.first, 'C++');
       expect(state.remaining, inInclusiveRange(0, 10));
       final batch = AnonymousNameBatch.fromJson(
         fixture('anonymous-batches-success'),
       );
       expect(batch.words, hasLength(10));
       expect(batch.words.toSet(), hasLength(10));
+      for (final name in batch.words) {
+        expect(name.runes, hasLength(6));
+        expect(name.runes.elementAt(4), '的'.runes.single);
+      }
       expect(batch.day, isNotEmpty);
       final persona = AnonymousPersona.fromJson(
         fixture('anonymous-confirm-success'),
       );
       expect(persona.kind, 'persona');
-      final reveal = AnonymousReveal.fromJson(fixture('anonymous-reveal-success'));
+      final reveal = AnonymousReveal.fromJson(
+        fixture('anonymous-reveal-success'),
+      );
       expect(reveal.publicUid, persona.publicUid);
       expect(reveal.userId, 123);
       expect(persona.publicUid, hasLength(32));

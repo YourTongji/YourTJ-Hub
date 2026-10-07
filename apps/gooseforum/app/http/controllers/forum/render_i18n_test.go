@@ -8,6 +8,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/anonymousidentityservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/wikiservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
 )
@@ -434,6 +435,32 @@ func TestUserTemplateRendersCrawlerProfileStructure(t *testing.T) {
 	}
 	if !strings.Contains(out, "Author") || !strings.Contains(out, "@author") || !strings.Contains(out, "Preview") {
 		t.Fatalf("user noscript missing profile content: %s", out)
+	}
+}
+
+func TestAnonymousTemplateRendersSharedCrawlerProfile(t *testing.T) {
+	reg, err := newRegistry(resource.GetTemplateFS())
+	if err != nil {
+		t.Fatal(err)
+	}
+	uid := strings.Repeat("a", 32)
+	payload := PagePayload{Props: AnonymousProfileProps{
+		Persona: anonymousidentityservice.PublicPersona{
+			Name: "躲进云里的猫", PublicUID: uid,
+			AvatarURL: "/a/" + uid + "/avatar.svg", ProfileURL: "/a/" + uid,
+		},
+		TopicCount: 1, ReplyCount: 1, Page: 1,
+		Topics:  []TopicPayload{{ID: 10, Title: "Topic title", URL: "/p/post/10"}},
+		Replies: []AnonymousProfileReply{{ID: 20, URL: "/p/post/10/2", Excerpt: "Reply excerpt"}},
+	}}
+	var buf bytes.Buffer
+	if err := reg.render(&buf, "anonymous.gohtml", templateData{Payload: payload, Lang: "en"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`class="gf-crawler-user-head"`, `class="gf-crawler-user-avatar"`, `class="gf-crawler-user-stats"`, "躲进云里的猫", "Topic title", "Reply excerpt"} {
+		if !strings.Contains(buf.String(), want) {
+			t.Fatalf("anonymous crawler profile missing %q", want)
+		}
 	}
 }
 

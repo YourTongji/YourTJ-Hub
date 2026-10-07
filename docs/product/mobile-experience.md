@@ -991,7 +991,15 @@ identity survive this layout change. The header keeps a small outer margin for i
 
 ## Persistent forum anonymous identity
 
-`Current`: native settings offer the same complete THUOCL candidates, ten words per batch and ten
+`Current`: persona profiles reuse the member profile's collapsing cover/avatar/navigation,
+user card, edit button, animated tabs and content components, with public topic/reply streams.
+The own-profile menu opens the persona profile when configured, or setup otherwise. Only the
+owner's private identity state enables the shared management action. No main-account cover,
+badges, relationships or profile fields are copied into the persona presentation. New candidate
+names freely combine action, scene/object and animal components into six Han characters;
+existing selected names and persisted batches remain valid under their original lock/expiry.
+
+`Current`: native settings offer the same six-character candidates, ten names per batch and ten
 batches per Shanghai day as Web. Account settings keeps a compact anonymous-identity entry;
 its page and the composer's contextual bottom sheet reuse the same setup content. One candidate
 batch appears at a time, and previously generated same-day batches remain selectable without a

@@ -27,6 +27,8 @@ const resolvedSrc = computed(() => {
 function avatarVariantUrl(src: string): string {
   try {
     const url = new URL(src, window.location.origin)
+    // SVG avatars scale without raster derivatives; persona URLs expose only this route.
+    if (/\.svg$/i.test(url.pathname)) return src
     const staticMatch = url.pathname.match(/^(\/static\/pic\/(?:(?:[1-9]|1[0-2])|default-avatar))\.webp$/)
     if (staticMatch) {
       url.pathname = `${staticMatch[1]}_medium.webp`

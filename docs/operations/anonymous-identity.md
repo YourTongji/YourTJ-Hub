@@ -37,8 +37,9 @@ draws and persisted batches consistent. Rate-limit settings apply to this read p
 
 `Current`: append-only AutoMigrate adds persona/binding/quota/batch/audit tables, the topic/post
 persona UID, notification private-actor fields and the independent account governance restriction.
-Existing numeric user IDs, OIDC subjects and legacy anonymous content remain unchanged. The fixed
-THUOCL data and MIT license are embedded in the same binary; no runtime download is required.
+Existing numeric user IDs, OIDC subjects and legacy anonymous content remain unchanged. The versioned
+phrase6-v1 name components are embedded in the same binary; no runtime download is required.
+A source update does not rewrite confirmed names or persisted candidate batches.
 
 Back up the complete main database with restricted access before upgrading. A complete database
 backup must preserve the five anonymous tables, content persona UIDs, notification actor projection
