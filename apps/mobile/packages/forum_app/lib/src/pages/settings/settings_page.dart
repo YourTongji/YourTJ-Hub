@@ -1141,6 +1141,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ],
         ),
       ),
+      if (_signedIn == true) ...[
+        const SizedBox(height: 24),
+        GfButton(
+          label: l10n.settingsLogout,
+          variant: GfButtonVariant.danger,
+          expanded: true,
+          onPressed: _logout,
+        ),
+      ],
     ],
   );
 
@@ -1601,14 +1610,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               );
             },
           ),
-        ),
-        const SizedBox(height: 12),
-        // 登出(web AppShell logout 语义):服务端失效 + 清本地 token + 回登录页。
-        GfButton(
-          label: l10n.settingsLogout,
-          variant: GfButtonVariant.danger,
-          expanded: true,
-          onPressed: _logout,
         ),
         const SizedBox(height: 24),
       ],
