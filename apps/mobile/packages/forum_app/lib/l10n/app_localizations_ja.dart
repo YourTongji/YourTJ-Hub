@@ -9,6 +9,15 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get agentRepliesDisable => 'ロボットの返信を禁止';
+
+  @override
+  String get agentRepliesDisabled => '投稿者がロボットの返信を禁止しています';
+
+  @override
+  String get agentRepliesHelp => 'サイトの Agent アカウントからの返信を禁止します。既存の返信は残ります。';
+
+  @override
   String get campusCourseReviews => '授業評価';
 
   @override

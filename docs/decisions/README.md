@@ -156,3 +156,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0065](0065-bounded-feed-ranking-and-measurement.md) — Bound materialized ranking, finite personalization and account-level measurement with 30-day raw retention.
 - [0066](0066-persistent-anonymous-forum-persona.md) — 持久匿名 persona、私有绑定和受限审计；全 THUOCL 候选与账号共享配额。
 - [0067](0067-bounded-http-notification-retries.md) — HTTP 通知失败复用持久任务队列做有限重试，并与举报结案保持原子一致。
+- [0068](0068-topic-agent-replies.md) — Author-controlled robot replies with immediate topic settings and transactional publication checks.

@@ -60,6 +60,25 @@ void main() {
     updatedAt: 1,
   );
   test(
+    'robot reply choice survives local recovery and old drafts default allowed',
+    () async {
+      final old = LocalDraft.fromJson(
+        draft.toJson()..remove('agentRepliesDisabled'),
+      );
+      expect(old.agentRepliesDisabled, isFalse);
+      final optedOut = LocalDraft.fromJson({
+        ...draft.toJson(),
+        'agentRepliesDisabled': true,
+      });
+      final store = WritingStore();
+      await store.save('site:1', optedOut);
+      expect(
+        (await store.drafts('site:1')).single.agentRepliesDisabled,
+        isTrue,
+      );
+    },
+  );
+  test(
     'undo restores all metadata only while the deleted identity is absent',
     () async {
       final store = WritingStore();

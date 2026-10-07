@@ -38,6 +38,7 @@ const {
   challengeFromError: challengeFromError,
 } = useCaptchaChallenge()
 
+const agentRepliesDisabled = ref(false)
 const title = ref(page.props.topic.title || '')
 const identity = ref<'member' | 'persona'>(page.props.topic.identity ?? 'member')
 const content = ref(page.props.topic.content || '')
@@ -224,6 +225,7 @@ watch(leavePromptOpen, (open) => {
 
 function editorSnapshot() {
   return JSON.stringify({
+    agentRepliesDisabled: agentRepliesDisabled.value,
     title: title.value.trim(),
     // content is kept in sync with the editor through the v-model/input
     // pipeline, so reading it directly avoids a full DOM→Markdown
@@ -403,6 +405,7 @@ async function save() {
       content: content.value.trim(),
       images: submissionImages.value,
       categoryId: categoryIds.value,
+      agentRepliesDisabled: agentRepliesDisabled.value,
       topicStatus: 1, identity: page.props.isEditing ? undefined : identity.value,
       website: website.value,
       captchaId: captchaId.value,
@@ -449,6 +452,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
       content: content.value.trim(),
       images: submissionImages.value,
       categoryId: categoryIds.value,
+      agentRepliesDisabled: agentRepliesDisabled.value,
       topicStatus: 0, identity: currentTopicId.value ? undefined : identity.value,
       website: website.value,
       captchaId: captchaId.value,
@@ -498,6 +502,10 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
       <!-- 单栏全宽：发布检查并入页脚，正文区吃满主列宽度 -->
       <section class="gf-card p-4 sm:p-5">
         <div class="space-y-5">
+          <label v-if="currentTopicId === 0" class="flex items-center gap-2 text-sm">
+            <input v-model="agentRepliesDisabled" type="checkbox" :disabled="submitting" />
+            <span>{{ t('agentReplies.disable') }}<small class="block text-base-content/60">{{ t('agentReplies.help') }}</small></span>
+          </label>
           <!-- 标题 + 分类同一行（better-layout：主输入吃满、元数据靠右共享边缘；可整体折叠给编辑区腾空间）。
                折叠动画：外层 grid-template-rows 0fr↔1fr + 内层 min-h-0/overflow-hidden 高度平滑塌陷 -->
           <!-- space-y 会给非最后子元素加 20px margin-bottom；原 v-show（display:none）折叠时该 margin 不渲染，

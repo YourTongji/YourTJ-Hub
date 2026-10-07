@@ -9,6 +9,15 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get agentRepliesDisable => '禁止机器人回复';
+
+  @override
+  String get agentRepliesDisabled => '作者已禁止机器人回复';
+
+  @override
+  String get agentRepliesHelp => '阻止本站 Agent 账号回复，不影响已有回复。';
+
+  @override
   String get campusCourseReviews => '课程评价';
 
   @override

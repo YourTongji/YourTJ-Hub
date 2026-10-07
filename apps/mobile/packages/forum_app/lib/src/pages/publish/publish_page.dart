@@ -113,6 +113,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
   final GlobalKey _pageScrollViewKey = GlobalKey();
   late StreamSubscription<DocChange> _documentChanges;
   late int _currentTopicId;
+  bool _agentRepliesDisabled = false;
 
   _ComposeMode _mode = _ComposeMode.edit;
   double? _editScrollOffset;
@@ -266,6 +267,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     }
     try {
       final draft = LocalDraft(
+        agentRepliesDisabled: _agentRepliesDisabled,
         identity: _identity,
         key: _draftKey,
         kind: _draftKind ?? DraftKind.newTopic,
@@ -331,6 +333,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     }
     if (matching.isEmpty) return;
     final draft = matching.first;
+    _agentRepliesDisabled = draft.agentRepliesDisabled;
     _draftKey = draft.key;
     _draftKind ??= draft.kind;
     _contentType = draft.contentType;
@@ -1122,6 +1125,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
             content: content,
             categoryIds: List<int>.of(_categoryIds),
             topicStatus: topicStatus,
+            agentRepliesDisabled: _agentRepliesDisabled,
             contentType: _contentType,
             images: _contentType == 3 ? null : List.of(_images),
           );
@@ -1530,6 +1534,20 @@ class _PublishPageState extends ConsumerState<PublishPage>
                       ),
                     ],
                     const SizedBox(height: 16),
+                    if (_currentTopicId == 0)
+                      IgnorePointer(
+                        ignoring: _submitting,
+                        child: GfSwitchRow(
+                          key: const Key('publish-agent-replies'),
+                          title: l10n.agentRepliesDisable,
+                          description: l10n.agentRepliesHelp,
+                          value: _agentRepliesDisabled,
+                          onChanged: (value) {
+                            setState(() => _agentRepliesDisabled = value);
+                            _markDirty();
+                          },
+                        ),
+                      ),
                     if (_captcha != null) ...[
                       if (_showPublishCaptchaExplanation)
                         Padding(

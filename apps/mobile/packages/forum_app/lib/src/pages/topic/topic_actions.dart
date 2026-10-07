@@ -33,6 +33,25 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
     final l10n = AppLocalizations.of(context);
     final epoch = ref.read(offlineCacheEpochProvider);
     final topic = widget.props.topic;
+    if (action == 'agent-replies') {
+      setState(() => _busy = true);
+      try {
+        await ref.read(topicRepositoryProvider).updateAgentReplies(
+          topicId: topic.id,
+          disabled: !topic.agentRepliesDisabled,
+        );
+        if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+          await widget.onChanged();
+        }
+      } catch (error) {
+        if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+          showGfToast(context, resolveErrorMessage(l10n, error), error: true);
+        }
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+      return;
+    }
     if (action == 'anonymous') {
       await showAnonymousModeration(
         context,
@@ -149,6 +168,12 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
       enabled: !_busy,
       onSelected: _action,
       itemBuilder: (_) => [
+        if (props.permissions.canManageAgentReplies && available)
+          CheckedPopupMenuItem(
+            value: 'agent-replies',
+            checked: props.topic.agentRepliesDisabled,
+            child: Text(l10n.agentRepliesDisable),
+          ),
         if (props.permissions.isOwnTopic && available)
           PopupMenuItem(value: 'edit', child: Text(l10n.commonEdit)),
         if (props.permissions.isOwnTopic && available)

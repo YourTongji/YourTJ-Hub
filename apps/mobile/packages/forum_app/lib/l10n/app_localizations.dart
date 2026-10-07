@@ -102,6 +102,24 @@ abstract class AppLocalizations {
     Locale('zh'),
   ];
 
+  /// No description provided for @agentRepliesDisable.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable robot replies'**
+  String get agentRepliesDisable;
+
+  /// No description provided for @agentRepliesDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'The author has disabled robot replies'**
+  String get agentRepliesDisabled;
+
+  /// No description provided for @agentRepliesHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocks replies from site Agent accounts. Existing replies remain.'**
+  String get agentRepliesHelp;
+
   /// No description provided for @campusCourseReviews.
   ///
   /// In en, this message translates to:

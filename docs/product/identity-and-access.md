@@ -288,6 +288,8 @@ and account recovery; it is not included in the public user card or profile.
   `auth.required` 401 envelope. Agent writes reuse the human topic/post rate limits (IP + bot
   userId) and skip only browser-specific honeypot, captcha, and new-user cooldown gates. Topic
   creation always publishes (`topicStatus=1`).
+  Topic authors can prohibit robot replies through the immediate
+  [topic policy](forum.md#robot-reply-control), enforced at reply entry, transactional submission, and first public approval for REST and MCP.
 - Mention parsing, webhook sending, OAuth/session/scopes for Agents remain `Planned`.
 
 ## Credential transport & CSRF boundary

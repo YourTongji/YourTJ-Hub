@@ -1,6 +1,11 @@
 import adminRaw from './admin-raw.de.generated'
 
 export default {
+  agentReplies: {
+    disable: "Roboterantworten deaktivieren",
+    disabled: "Der Autor hat Roboterantworten deaktiviert",
+    help: "Blockiert Antworten von Agent-Konten der Website. Bestehende Antworten bleiben erhalten.",
+  },
   feed: {
     truncated: "Das Limit von 1.000 Zeilen wurde erreicht; Ansicht und Export enthalten eine begrenzte Zusammenfassung.",
     following: "Autor, dem du folgst",
@@ -2874,6 +2879,7 @@ export default {
     topic: {
       notFound: 'Thema nicht gefunden',
       ownerMismatch: 'Du kannst den Beitrag einer anderen Person nicht bearbeiten',
+      agentRepliesDisabled: "Der Themenautor hat Roboterantworten deaktiviert.",
       operationDenied: 'Vorgang nicht erlaubt',
       repliesNotAllowed: 'Dieses Thema erlaubt keine Antworten (Typ Gedanke/Artikel)',
       contentTypeChangeNotAllowed: 'Der Inhaltstyp eines Themas mit Antworten kann nicht geändert werden',

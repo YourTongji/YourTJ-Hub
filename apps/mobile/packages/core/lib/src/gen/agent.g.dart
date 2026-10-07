@@ -32,6 +32,7 @@ Map<String, dynamic> _$$AgentMeResultImplToJson(_$AgentMeResultImpl instance) =>
 
 _$AgentTopicItemImpl _$$AgentTopicItemImplFromJson(Map<String, dynamic> json) =>
     _$AgentTopicItemImpl(
+      agentRepliesDisabled: json['agentRepliesDisabled'] as bool? ?? false,
       author: json['author'] == null
           ? null
           : UserBriefPayload.fromJson(json['author'] as Map<String, dynamic>),
@@ -55,6 +56,7 @@ _$AgentTopicItemImpl _$$AgentTopicItemImplFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$$AgentTopicItemImplToJson(
   _$AgentTopicItemImpl instance,
 ) => <String, dynamic>{
+  'agentRepliesDisabled': instance.agentRepliesDisabled,
   'author': instance.author,
   'id': instance.id,
   'title': instance.title,

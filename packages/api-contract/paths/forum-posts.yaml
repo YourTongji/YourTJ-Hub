@@ -4,7 +4,11 @@ createPost:
     summary: Create a reply post in a topic
     operationId: createPost
     description: |
-      Creates a reply (postNo 2 or higher) in a visible topic. JSON binding is lenient:
+      Creates a reply (postNo 2 or higher) in a visible topic. Bot identities are rejected
+      with `topic.agentRepliesDisabled` when the topic author has disabled robot replies,
+      regardless of transport or role. Pending new bot replies are rechecked at first
+      public approval; a disabled policy records a terminal rejection. Existing public
+      replies remain editable. JSON binding is lenient:
       a malformed body binds to zero values and the request then fails as
       `topic.notFound` (HTTP 200) rather than a 400. A populated `website` honeypot
       field silently succeeds with result true and creates nothing. New accounts may
@@ -47,6 +51,8 @@ createPost:
             examples:
               success:
                 externalValue: ../fixtures/post-create-success.json
+              agentRepliesDisabled:
+                externalValue: ../fixtures/topic-agent-replies-disabled.json
               topicNotFound:
                 externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
       '401':

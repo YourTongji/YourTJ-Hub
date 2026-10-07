@@ -218,6 +218,7 @@ PublishTopicPayload _$PublishTopicPayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$PublishTopicPayload {
+  bool get agentRepliesDisabled => throw _privateConstructorUsedError;
   String get identity => throw _privateConstructorUsedError;
   String get title => throw _privateConstructorUsedError;
   String get content => throw _privateConstructorUsedError;
@@ -244,6 +245,7 @@ abstract class $PublishTopicPayloadCopyWith<$Res> {
   ) = _$PublishTopicPayloadCopyWithImpl<$Res, PublishTopicPayload>;
   @useResult
   $Res call({
+    bool agentRepliesDisabled,
     String identity,
     String title,
     String content,
@@ -269,6 +271,7 @@ class _$PublishTopicPayloadCopyWithImpl<$Res, $Val extends PublishTopicPayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? agentRepliesDisabled = null,
     Object? identity = null,
     Object? title = null,
     Object? content = null,
@@ -279,6 +282,10 @@ class _$PublishTopicPayloadCopyWithImpl<$Res, $Val extends PublishTopicPayload>
   }) {
     return _then(
       _value.copyWith(
+            agentRepliesDisabled: null == agentRepliesDisabled
+                ? _value.agentRepliesDisabled
+                : agentRepliesDisabled // ignore: cast_nullable_to_non_nullable
+                      as bool,
             identity: null == identity
                 ? _value.identity
                 : identity // ignore: cast_nullable_to_non_nullable
@@ -323,6 +330,7 @@ abstract class _$$PublishTopicPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    bool agentRepliesDisabled,
     String identity,
     String title,
     String content,
@@ -347,6 +355,7 @@ class __$$PublishTopicPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? agentRepliesDisabled = null,
     Object? identity = null,
     Object? title = null,
     Object? content = null,
@@ -357,6 +366,10 @@ class __$$PublishTopicPayloadImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$PublishTopicPayloadImpl(
+        agentRepliesDisabled: null == agentRepliesDisabled
+            ? _value.agentRepliesDisabled
+            : agentRepliesDisabled // ignore: cast_nullable_to_non_nullable
+                  as bool,
         identity: null == identity
             ? _value.identity
             : identity // ignore: cast_nullable_to_non_nullable
@@ -394,6 +407,7 @@ class __$$PublishTopicPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
   const _$PublishTopicPayloadImpl({
+    this.agentRepliesDisabled = false,
     this.identity = "member",
     required this.title,
     required this.content,
@@ -407,6 +421,9 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
   factory _$PublishTopicPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$PublishTopicPayloadImplFromJson(json);
 
+  @override
+  @JsonKey()
+  final bool agentRepliesDisabled;
   @override
   @JsonKey()
   final String identity;
@@ -440,7 +457,7 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
 
   @override
   String toString() {
-    return 'PublishTopicPayload(identity: $identity, title: $title, content: $content, images: $images, categoryIds: $categoryIds, topicStatus: $topicStatus, contentType: $contentType)';
+    return 'PublishTopicPayload(agentRepliesDisabled: $agentRepliesDisabled, identity: $identity, title: $title, content: $content, images: $images, categoryIds: $categoryIds, topicStatus: $topicStatus, contentType: $contentType)';
   }
 
   @override
@@ -448,6 +465,8 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$PublishTopicPayloadImpl &&
+            (identical(other.agentRepliesDisabled, agentRepliesDisabled) ||
+                other.agentRepliesDisabled == agentRepliesDisabled) &&
             (identical(other.identity, identity) ||
                 other.identity == identity) &&
             (identical(other.title, title) || other.title == title) &&
@@ -467,6 +486,7 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    agentRepliesDisabled,
     identity,
     title,
     content,
@@ -495,6 +515,7 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
 
 abstract class _PublishTopicPayload implements PublishTopicPayload {
   const factory _PublishTopicPayload({
+    final bool agentRepliesDisabled,
     final String identity,
     required final String title,
     required final String content,
@@ -507,6 +528,8 @@ abstract class _PublishTopicPayload implements PublishTopicPayload {
   factory _PublishTopicPayload.fromJson(Map<String, dynamic> json) =
       _$PublishTopicPayloadImpl.fromJson;
 
+  @override
+  bool get agentRepliesDisabled;
   @override
   String get identity;
   @override

@@ -551,6 +551,15 @@ export async function bookmarkPost(postId: number, action: 1 | 2): Promise<boole
   return readApiResponse<boolean>(response, t('api.bookmarkFailed'))
 }
 
+export async function updateTopicAgentReplies(topicId: number, agentRepliesDisabled: boolean): Promise<boolean> {
+  const response = await fetch('/api/forum/topics/agent-replies', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topicId, agentRepliesDisabled }),
+  })
+  return readApiResponse<boolean>(response, t('publish.saveFailed'))
+}
+
 export async function updateTopicStatus(id: number, topicStatus: 0 | 1): Promise<boolean> {
   const response = await feedFetch('/api/forum/topics/status', {
     method: 'POST',
@@ -775,6 +784,7 @@ export interface SubmitTopicInput {
   content: string
   categoryId: number[]
   topicStatus: 0 | 1
+  agentRepliesDisabled?: boolean
   website?: string
   captchaId?: string
   captchaCode?: string

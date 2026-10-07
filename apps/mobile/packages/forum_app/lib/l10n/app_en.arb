@@ -1,4 +1,7 @@
 {
+  "agentRepliesDisable": "Disable robot replies",
+  "agentRepliesDisabled": "The author has disabled robot replies",
+  "agentRepliesHelp": "Blocks replies from site Agent accounts. Existing replies remain.",
   "campusCourseReviews": "Course reviews",
   "myCourseReviewsTitle": "My course reviews",
   "myCourseReviewsEmpty": "No reviews yet. Explore the course catalog to get started.",

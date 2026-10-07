@@ -26,6 +26,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicpolicyservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -172,6 +173,16 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 		}
 		if action != moderationDecision.ActionAllow && action != moderationDecision.ActionBlock {
 			return errors.New("invalid review action")
+		}
+		// Newly submitted replies must still be allowed when they become public.
+		// Keep existing public replies editable; turn a revoked publication into
+		// a recorded terminal rejection rather than an endlessly retried job.
+		if action == moderationDecision.ActionAllow && post.PostNo > 1 && post.PublishedRevisionId == 0 && post.ProcessStatus != posts.ProcessStatusNormal {
+			if err := topicpolicyservice.CheckReplyTx(tx, topic, post.UserId); errors.Is(err, topicpolicyservice.ErrAgentRepliesDisabled) {
+				action, reason = moderationDecision.ActionBlock, "话题作者已禁止机器人回复。"
+			} else if err != nil {
+				return err
+			}
 		}
 		status := posts.ProcessStatusBlocked
 		if action == moderationDecision.ActionAllow {

@@ -1,4 +1,7 @@
 {
+  "agentRepliesDisable": "ロボットの返信を禁止",
+  "agentRepliesDisabled": "投稿者がロボットの返信を禁止しています",
+  "agentRepliesHelp": "サイトの Agent アカウントからの返信を禁止します。既存の返信は残ります。",
   "campusCourseReviews": "授業評価",
   "myCourseReviewsTitle": "自分の授業評価",
   "myCourseReviewsEmpty": "まだ評価がありません。科目一覧から探してみましょう。",

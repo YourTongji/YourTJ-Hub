@@ -1257,6 +1257,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/topics/agent-replies"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/topics/bookmark"
   },
   {

@@ -1722,6 +1722,16 @@ class _TopicPageState extends ConsumerState<TopicPage>
                               ),
                             ),
                             const SliverToBoxAdapter(child: GfDivider()),
+                            if (props.topic.agentRepliesDisabled &&
+                                _topicAvailable)
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Text(
+                                    '${l10n.agentRepliesDisabled}\n${l10n.agentRepliesHelp}',
+                                  ),
+                                ),
+                              ),
                             SliverToBoxAdapter(
                               child: SizedBox(
                                 key: _discussionKey,

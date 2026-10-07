@@ -198,6 +198,7 @@ Map<String, dynamic> _$$TopicPayloadImplToJson(_$TopicPayloadImpl instance) =>
 _$TopicDetailPayloadImpl _$$TopicDetailPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$TopicDetailPayloadImpl(
+  agentRepliesDisabled: json['agentRepliesDisabled'] as bool? ?? false,
   id: (json['id'] as num).toInt(),
   title: json['title'] as String,
   description: json['description'] as String,
@@ -230,6 +231,7 @@ _$TopicDetailPayloadImpl _$$TopicDetailPayloadImplFromJson(
 Map<String, dynamic> _$$TopicDetailPayloadImplToJson(
   _$TopicDetailPayloadImpl instance,
 ) => <String, dynamic>{
+  'agentRepliesDisabled': instance.agentRepliesDisabled,
   'id': instance.id,
   'title': instance.title,
   'description': instance.description,
@@ -402,6 +404,7 @@ Map<String, dynamic> _$$TopicDetailPropsImplToJson(
 _$TopicDetailPermissionsImpl _$$TopicDetailPermissionsImplFromJson(
   Map<String, dynamic> json,
 ) => _$TopicDetailPermissionsImpl(
+  canManageAgentReplies: json['canManageAgentReplies'] as bool? ?? false,
   isOwnTopic: json['isOwnTopic'] as bool,
   canPost: json['canPost'] as bool,
   canModerateTopic: json['canModerateTopic'] as bool,
@@ -410,6 +413,7 @@ _$TopicDetailPermissionsImpl _$$TopicDetailPermissionsImplFromJson(
 Map<String, dynamic> _$$TopicDetailPermissionsImplToJson(
   _$TopicDetailPermissionsImpl instance,
 ) => <String, dynamic>{
+  'canManageAgentReplies': instance.canManageAgentReplies,
   'isOwnTopic': instance.isOwnTopic,
   'canPost': instance.canPost,
   'canModerateTopic': instance.canModerateTopic,
