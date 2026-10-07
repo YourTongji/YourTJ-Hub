@@ -55,6 +55,10 @@ type Entity struct {
 	RetentionStatus  string `gorm:"column:retention_status;type:varchar(32);not null;default:'NORMAL';index:idx_topics_visibility_retention,priority:2;" json:"-"`
 	DeletedBy        uint64 `gorm:"column:deleted_by;not null;default:0;" json:"-"`
 	DeleteReason     string `gorm:"column:delete_reason;type:varchar(512);not null;default:'';" json:"-"`
+
+	// AgentCommentDisabled 该主题禁止 Agent（机器人）发表评论，由管理端
+	// 「Agent 评论策略」面板维护；与全局开关共同决定 Agent 评论是否被拒。
+	AgentCommentDisabled bool `gorm:"column:agent_comment_disabled;not null;default:false;" json:"agentCommentDisabled"`
 }
 
 // 管理处理状态

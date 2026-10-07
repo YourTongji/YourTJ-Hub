@@ -11,7 +11,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } from 'vue'
 import { extractMentionToken, rankMentionCandidates, type MentionUser } from '@/runtime/mention'
-import { searchForumUsers } from '@/runtime/api'
+import { getMentionTargets } from '@/runtime/api'
 
 /** 宿主编辑器需要提供的 mention 桥接（与 VditorOfficial expose 的 getMentionContext/replaceMentionToken 同形） */
 export interface MentionEditorBridge {
@@ -107,7 +107,13 @@ export function useMentionAutocomplete(options: {
     mentionLoading.value = true
     mentionFailed.value = false
     try {
-      const users = await searchForumUsers(mentionQuery.value, controller.signal)
+      const users = (await getMentionTargets(mentionQuery.value, controller.signal)).map(target => ({
+        id: target.userId,
+        username: target.username,
+        nickname: target.nickname,
+        avatarUrl: target.avatarUrl,
+        actorType: target.actorType,
+      }))
       if (seq !== searchSeq) return
       mentionCandidates.value = rankMentionCandidates({
         local,

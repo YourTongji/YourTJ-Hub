@@ -27,10 +27,15 @@ copy_if_diff() {
 copy_if_diff "$SCRIPT_DIR/../docker-compose.yaml" "$ROOT/docker-compose.yaml"
 copy_if_diff "$SCRIPT_DIR/../config.toml.example" "$ROOT/config.toml.example"
 
-for f in "$SCRIPT_DIR"/*.sh; do
+for f in "$SCRIPT_DIR"/*.sh "$SCRIPT_DIR"/rotate-agent-epoch.py; do
   copy_if_diff "$f" "$ROOT/scripts/$(basename "$f")"
 done
 chmod +x "$ROOT/scripts/"*.sh
+for inst in main dev; do
+  if [ ! -f "$ROOT/$inst/storage/agent-state/state.json" ]; then
+    python3 "$ROOT/scripts/rotate-agent-epoch.py" "$ROOT/$inst/storage/agent-state"
+  fi
+ done
 # 4. 生成/补齐 .env:
 #    - 不存在时整文件生成
 #    - 已存在(存量服务器)时逐条追加缺失的 POSTGRES_* 变量, 保证已有部署

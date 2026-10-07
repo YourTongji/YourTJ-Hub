@@ -1820,6 +1820,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get mentionTagParticipant => '参加者';
 
   @override
+  String get mentionAgentLabel => 'ボット';
+
+  @override
   String notificationPostReply(String actor) {
     return '$actorがあなたに返信しました';
   }

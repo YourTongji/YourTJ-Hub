@@ -8,6 +8,8 @@ import (
 )
 
 // ValidateWriterTx holds the owner row until the content transaction commits.
+// Existing-content callers acquire post/topic locks first, matching Agent source
+// authorization's content-before-participant order.
 func ValidateWriterTx(tx *gorm.DB, owner uint64, uid string) error {
 	if uid == "" {
 		return nil

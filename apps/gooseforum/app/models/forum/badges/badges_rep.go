@@ -1,6 +1,9 @@
 package badges
 
-import "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
+import (
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
+	"gorm.io/gorm"
+)
 
 func All() (entities []*Entity) {
 	builder().
@@ -20,4 +23,11 @@ func Save(entity *Entity) error {
 
 func DeleteByCode(code string) error {
 	return builder().Where(queryopt.Eq("code", code)).Delete(&Entity{}).Error
+}
+
+// GetByCodeTx observes administrator overrides in the caller transaction.
+func GetByCodeTx(tx *gorm.DB, code string) (Entity, error) {
+	var row Entity
+	err := tx.Where("code = ?", code).First(&row).Error
+	return row, err
 }

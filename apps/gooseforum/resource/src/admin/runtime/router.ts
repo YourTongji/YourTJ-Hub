@@ -35,6 +35,10 @@ export const adminRouter = createRouter({
       component: () => import('@/admin/pages/management/AgentsManagementPage.vue'),
     },
     {
+      path: '/admin/agent-comment-policy',
+      component: () => import('@/admin/pages/management/AgentCommentPolicyPage.vue'),
+    },
+    {
       path: '/admin/roles',
       component: () => import('@/admin/pages/management/RolesManagementPage.vue'),
     },

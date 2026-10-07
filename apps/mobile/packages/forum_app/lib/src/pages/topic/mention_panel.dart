@@ -32,6 +32,7 @@ class MentionPanelMessages {
     required this.tagReplyTarget,
     required this.tagTopicAuthor,
     required this.tagParticipant,
+    required this.agentLabel,
   });
 
   final String listboxLabel;
@@ -42,6 +43,7 @@ class MentionPanelMessages {
   final String tagReplyTarget;
   final String tagTopicAuthor;
   final String tagParticipant;
+  final String agentLabel;
 
   String tagFor(MentionTag? tag) => switch (tag) {
     MentionTag.replyTarget => tagReplyTarget,
@@ -187,6 +189,7 @@ class _MentionCandidateListState extends State<_MentionCandidateList> {
           user: user,
           active: index == session.activeIndex,
           tagLabel: widget.messages.tagFor(user.tag),
+          agentLabel: user.actorType == 'bot' ? widget.messages.agentLabel : '',
           onTap: () {
             final token = session.token;
             if (token != null) widget.onSelect(token, user);
@@ -202,21 +205,24 @@ class _MentionCandidateRow extends StatelessWidget {
     required this.user,
     required this.active,
     required this.tagLabel,
+    required this.agentLabel,
     required this.onTap,
   });
 
   final MentionUser user;
   final bool active;
   final String tagLabel;
+  final String agentLabel;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
     // Semantics 至少包含昵称、@username 与上下文身份。
-    final semanticsLabel = tagLabel.isEmpty
+    final roleLabel = user.actorType == 'bot' ? agentLabel : tagLabel;
+    final semanticsLabel = roleLabel.isEmpty
         ? '${privateDisplayName(context, user.id, user.username, user.nickname)}，@${user.username}'
-        : '${privateDisplayName(context, user.id, user.username, user.nickname)}，@${user.username}，$tagLabel';
+        : '${privateDisplayName(context, user.id, user.username, user.nickname)}，@${user.username}，$roleLabel';
     return Semantics(
       selected: active,
       label: semanticsLabel,
@@ -261,7 +267,7 @@ class _MentionCandidateRow extends StatelessWidget {
                     ).caption.copyWith(color: colors.iconMuted),
                   ),
                 ),
-                if (tagLabel.isNotEmpty) ...[
+                if (roleLabel.isNotEmpty) ...[
                   const SizedBox(width: 8),
                   Flexible(
                     child: Container(
@@ -274,7 +280,7 @@ class _MentionCandidateRow extends StatelessWidget {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        tagLabel,
+                        roleLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GfTheme.typographyOf(

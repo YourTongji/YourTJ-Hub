@@ -1816,6 +1816,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mentionTagParticipant => '参与者';
 
   @override
+  String get mentionAgentLabel => '机器人';
+
+  @override
   String notificationPostReply(String actor) {
     return '$actor 回复了你';
   }

@@ -366,6 +366,8 @@ type AdminPageQuery struct {
 	Page, PageSize int
 	Search         string
 	UserId         uint64
+	// AgentCommentDisabled 非空时按「Agent 评论策略」标记过滤（管理面板用）。
+	AgentCommentDisabled *bool
 }
 
 type ModerationPageQuery struct {
@@ -449,6 +451,9 @@ func PageForAdmin(q AdminPageQuery) struct {
 	}
 	if q.UserId != 0 {
 		b.Where(queryopt.Eq("user_id", q.UserId)).Where("persona_uid = ?", "")
+	}
+	if q.AgentCommentDisabled != nil {
+		b.Where(queryopt.Eq("agent_comment_disabled", *q.AgentCommentDisabled))
 	}
 	b.Limit(queryLimit).Offset(q.PageSize * q.Page).Order(queryopt.Desc("pin_weight")).Order(queryopt.Desc("updated_at")).Order(queryopt.Desc("id")).Find(&list)
 	hasNext := len(list) > q.PageSize
@@ -602,6 +607,13 @@ func ResetPendingReview(id uint64) error {
 func UpdatePinWeight(id uint64, pinWeight int) error {
 	return builder().Where(queryopt.Eq("id", id)).Updates(map[string]any{
 		"pin_weight": pinWeight,
+	}).Error
+}
+
+// UpdateAgentCommentDisabled 管理端「Agent 评论策略」按主题启停 Agent 评论。
+func UpdateAgentCommentDisabled(id uint64, disabled bool) error {
+	return builder().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"agent_comment_disabled": disabled,
 	}).Error
 }
 
@@ -860,6 +872,26 @@ func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 
 // TopicTypePtr 返回话题类型指针，供 PageQuery.TopicType 显式过滤使用。
 func TopicTypePtr(t int8) *int8 { return &t }
+
+// GetUnscopedTx locks the topic until the enclosing source authorization or
+// lifecycle transaction commits. Missing/deleted content is never public.
+func GetUnscopedTx(tx *gorm.DB, id uint64) (Entity, error) {
+	var e Entity
+	err := tx.Unscoped().Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).Take(&e).Error
+	return e, err
+}
+
+// MarkDeletedTx commits deletion with dependent event-copy revocation.
+func MarkDeletedTx(tx *gorm.DB, id uint64, visibility string, deletedBy uint64, reason string) error {
+	result := tx.Unscoped().Model(&Entity{}).Where("id = ? AND retention_status <> ?", id, RetentionPurged).Updates(map[string]any{"deleted_at": time.Now(), "process_status": ProcessStatusNormal, "visibility_status": visibility, "retention_status": RetentionRecoverable, "deleted_by": deletedBy, "delete_reason": reason})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
 
 // PendingByAuthor is an owner-only overlay; never put it into a shared cache.
 func PendingByAuthor(userID uint64, limit int) (entities []*Entity) {

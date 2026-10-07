@@ -25,7 +25,7 @@ for (const [width, height, fontSize] of [[320, 640, 16], [320, 640, 32], [320, 5
         await stateReady
         await route.fulfill({ status: 503, json: { code: 1, messageCode: 'anonymous.unavailable' } })
       })
-      await page.route('**/api/forum/search?*', route => route.fulfill({ json: { code: 0, result: { users: Array.from({ length: 8 }, (_, i) => ({ id: i + 2, username: `tester${i}`, nickname: `测试用户${i}`, avatarUrl: '' })) } } }))
+      await page.route('**/api/forum/mention-targets?*', route => route.fulfill({ json: { code: 0, result: Array.from({ length: 8 }, (_, i) => ({ userId: i + 2, username: `tester${i}`, nickname: `测试用户${i}`, avatarUrl: '', actorType: 'human' })) } }))
       await page.goto(`${origin}/assets/test/fixtures/browser/quick-publish.html`)
       await page.evaluate(size => { document.documentElement.style.fontSize = `${size}px` }, fontSize)
       const replySetting = page.getByRole('button', { name: '禁止机器人回复', exact: true })

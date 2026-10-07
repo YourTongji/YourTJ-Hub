@@ -61,6 +61,8 @@ jobs:
           done
           bash deploy/scripts/pgdsn_test.sh
           python3 deploy/render_config_test.py
+          python3 -m unittest deploy/agent_snapshot_test.py
+          python3 -m unittest discover -s examples/agent-runtime -p 'test_*.py' -v
 
   # wiki 同步锁并发测试（#285 回归）必须通过竞态检测。PR #297 描述引用过
   # "ci-backend-race"，但此前该 job 不存在；此处落地为真实 job，与

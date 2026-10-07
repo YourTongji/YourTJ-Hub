@@ -27,7 +27,7 @@ func ResolvePostMentions(contents []string) [][]PostMention {
 			}
 		}
 	}
-	targets := users.GetMentionTargetIds(names)
+	targets := users.PublicMentionTargetIDs(names)
 	result := make([][]PostMention, len(contents))
 	for i, list := range tokens {
 		result[i] = make([]PostMention, 0, len(list))

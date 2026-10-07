@@ -5,7 +5,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { i18n } from '../src/runtime/i18n'
 import QuickPublishModal from '../src/site/components/QuickPublishModal.vue'
-import { searchForumUsers } from '../src/runtime/api'
+import { getMentionTargets } from '../src/runtime/api'
 import { useQuickPublish } from '../src/site/composables/useQuickPublish'
 import type { LayoutPayload } from '@gooseforum/client'
 
@@ -13,7 +13,7 @@ vi.mock('@/runtime/api', () => ({
   submitTopic: vi.fn(async () => 1),
   uploadImage: vi.fn(async () => ''),
   sensitiveWordsFromError: vi.fn(() => []),
-  searchForumUsers: vi.fn(),
+  getMentionTargets: vi.fn(),
 }))
 
 // Vditor 在 happy-dom 下无法真实初始化：用可控 stub 提供 getMentionContext/replaceMentionToken，
@@ -99,7 +99,7 @@ const mockLayout = {
 } as unknown as LayoutPayload
 
 function searchUser(id: number, username: string, nickname?: string) {
-  return { id, username, nickname: nickname ?? username, avatarUrl: `/a${id}.png`, bio: '' }
+  return { userId: id, username, nickname: nickname ?? username, avatarUrl: `/a${id}.png`, actorType: 'human' as const }
 }
 
 type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void }
@@ -146,7 +146,7 @@ beforeEach(() => {
   i18n.global.locale.value = 'zh'
   searchPending.clear()
   vi.clearAllMocks()
-  vi.mocked(searchForumUsers).mockImplementation((query: string) => {
+  vi.mocked(getMentionTargets).mockImplementation((query: string) => {
     const d = deferred<ReturnType<typeof searchUser>[]>()
     searchPending.set(query, d)
     return d.promise
@@ -176,7 +176,7 @@ describe('QuickPublishModal @mention 会话（issue #590）', () => {
     await flushPromises()
     typePrefix(wrapper, '@')
     await flushPromises()
-    expect(searchForumUsers).not.toHaveBeenCalled()
+    expect(getMentionTargets).not.toHaveBeenCalled()
     const panel = mentionPanel()
     expect(panel).not.toBeNull()
     expect(panel!.getAttribute('role')).toBe('listbox')
@@ -189,7 +189,7 @@ describe('QuickPublishModal @mention 会话（issue #590）', () => {
     await openMentionWithSearch(wrapper, '@wa', [searchUser(21, 'wavery', '小薇')])
     const panel = mentionPanel()
     expect(panel).not.toBeNull()
-    expect(searchForumUsers).toHaveBeenCalledWith('wa', expect.anything())
+    expect(getMentionTargets).toHaveBeenCalledWith('wa', expect.anything())
     expect(panel!.textContent).toContain('@wavery')
     expect(panel!.textContent).toContain('小薇')
     wrapper.unmount()

@@ -13,6 +13,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserStat"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pointservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicpolicyservice"
 	"gorm.io/gorm"
@@ -26,6 +27,12 @@ var topicSequenceLocks [topicSequenceLockShards]sync.Mutex
 var ErrPostNotFound = errors.New("post not found")
 
 func CreateTopicPost(entity *posts.Entity, topicEntity topics.Entity) error {
+	return CreateTopicPostWithHooks(entity, topicEntity, nil, nil)
+}
+
+// Hooks share the business transaction, including source authorization and the
+// idempotency ledger. An error rolls back the sequence and every derived write.
+func CreateTopicPostWithHooks(entity *posts.Entity, topicEntity topics.Entity, before, after func(*gorm.DB) error) error {
 	lock := &topicSequenceLocks[entity.TopicId%topicSequenceLockShards]
 	lock.Lock()
 	defer lock.Unlock()
@@ -33,8 +40,10 @@ func CreateTopicPost(entity *posts.Entity, topicEntity topics.Entity) error {
 	// Sequence reservation locks the topic before the post becomes visible. All
 	// derived writes share that transaction, so rebuilds see either side in full.
 	return db.Connect().Transaction(func(tx *gorm.DB) error {
-		if err := identity.ValidateWriterTx(tx, entity.UserId, entity.PersonaUID); err != nil {
-			return err
+		if before != nil {
+			if err := before(tx); err != nil {
+				return err
+			}
 		}
 		postNo, err := topics.ReservePostSequenceTx(tx, entity.TopicId)
 		if err != nil {
@@ -43,6 +52,9 @@ func CreateTopicPost(entity *posts.Entity, topicEntity topics.Entity) error {
 		entity.PostNo = postNo
 		liveTopic, err := topics.GetForUpdateTx(tx, entity.TopicId)
 		if err != nil {
+			return err
+		}
+		if err := identity.ValidateWriterTx(tx, entity.UserId, entity.PersonaUID); err != nil {
 			return err
 		}
 		if err := topicpolicyservice.CheckReplyTx(tx, liveTopic, entity.UserId); err != nil {
@@ -76,10 +88,33 @@ func CreateTopicPost(entity *posts.Entity, topicEntity topics.Entity) error {
 		if entity.ProcessStatus == posts.ProcessStatusNormal && entity.VisibilityStatus == posts.VisibilityActive {
 			// Fence already queued rank work before it can acknowledge a new
 			// reply's watermark using the old participant projection.
-			return feed.MarkProjectionTx(tx, entity.TopicId)
+			if err := feed.MarkProjectionTx(tx, entity.TopicId); err != nil {
+				return err
+			}
 		}
-		return nil
+		if after != nil {
+			// Agent finalization stamps causal metadata and captures publication
+			// using the participants frozen before credential authorization.
+			return after(tx)
+		}
+		return agenteventservice.CapturePublicTx(tx, entity)
 	})
+}
+
+// LockPersonaContentTx follows source authorization's post -> topic -> owner
+// order before model SaveTx rechecks persona governance. Member writes do not
+// take these additional locks. Creation/review paths already hold content locks.
+func LockPersonaContentTx(tx *gorm.DB, post *posts.Entity) error {
+	if post.PersonaUID == "" {
+		return nil
+	}
+	if post.Id != 0 {
+		if _, err := posts.GetUnscopedTx(tx, post.Id); err != nil {
+			return err
+		}
+	}
+	_, err := topics.GetForUpdateTx(tx, post.TopicId)
+	return err
 }
 
 func DeleteTopicPost(postID, userID uint64) (posts.Entity, error) {

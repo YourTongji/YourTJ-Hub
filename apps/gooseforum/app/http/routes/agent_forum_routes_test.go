@@ -11,11 +11,14 @@ import (
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentWebhook"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -39,9 +42,9 @@ func setupAgentForumTestDB(t *testing.T) *gorm.DB {
 	ratelimit.Default().ResetAll()
 	conn := db.Connect()
 	if err := conn.AutoMigrate(
-		&users.EntityComplete{},
+		&users.EntityComplete{}, &pageConfig.Entity{},
 		&userStatistics.Entity{},
-		&agents.Entity{},
+		&agents.Entity{}, &badges.Entity{}, &userBadges.Entity{}, &agentWebhook.Delivery{}, &agentWebhook.Attempt{},
 		&topics.Entity{},
 		&postRevisions.Entity{},
 		&posts.Entity{},
@@ -89,7 +92,11 @@ func cleanAgentForumTables(conn *gorm.DB) {
 	conn.Where("1 = 1").Delete(&moderators.Entity{})
 	conn.Where("1 = 1").Delete(&topics.Entity{})
 	conn.Where("1 = 1").Delete(&category.Entity{})
+	conn.Where("1 = 1").Delete(&badges.Entity{})
+	conn.Where("1 = 1").Delete(&userBadges.Entity{})
 	conn.Where("1 = 1").Delete(&agents.Entity{})
+	conn.Where("1 = 1").Delete(&agentWebhook.Delivery{})
+	conn.Where("1 = 1").Delete(&agentWebhook.Attempt{})
 	conn.Where("1 = 1").Delete(&userStatistics.Entity{})
 	conn.Where("1 = 1").Delete(&users.EntityComplete{})
 }

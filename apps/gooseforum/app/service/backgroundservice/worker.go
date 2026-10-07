@@ -7,6 +7,7 @@ package backgroundservice
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -83,6 +84,9 @@ func drainTasks(ctx context.Context, typePrefix string, handler TaskHandler) boo
 		}
 
 		tasks := taskQueue.GetPendingTasksByType(typePrefix, batchSize)
+		if typePrefix == "agent-webhook." {
+			tasks = taskQueue.PendingManagedGroups(typePrefix, batchSize)
+		}
 		if len(tasks) == 0 {
 			return true
 		}
@@ -125,6 +129,15 @@ func processTask(workerCtx context.Context, typePrefix string, task *taskQueue.E
 	// 尚无 token（空/旧值），传给它会导致所有进度写回 CAS 命中 0 行
 	// （review C1）。
 	handlerErr := handler(ctx, &running)
+
+	if typePrefix == "agent-interaction." || typePrefix == "agent-webhook." {
+		cancel()
+		<-heartbeatDone
+		if handlerErr != nil {
+			slog.Error("background: managed result persistence failed", "worker", typePrefix, "id", running.Id, "err", handlerErr)
+		}
+		return true
+	}
 
 	// 停止心跳并等待退出，再做一次最终续租拿到权威租约值；之后的所有
 	// 状态写入都以该值为 CAS 前置条件（fencing）。若心跳退出瞬间与最后
@@ -237,4 +250,33 @@ func StartLeaseHeartbeat(ctx context.Context, cancel context.CancelFunc, id uint
 		}
 	}()
 	return done
+}
+
+// RunManagedWorker is limited to Agent flows whose handlers atomically own
+// domain state and task completion/delay. Infrastructure failures receive a
+// persisted bounded retry; existing worker strategies remain unchanged.
+func RunManagedWorker(name, typePrefix string, handler TaskHandler) {
+	if typePrefix != "agent-interaction." && typePrefix != "agent-webhook." {
+		panic("unsupported managed task prefix")
+	}
+	workers := 1
+	if typePrefix == "agent-webhook." {
+		workers = 8
+	}
+	for i := range workers {
+		RunWorker(fmt.Sprintf("%s_%d", name, i), typePrefix, func(ctx context.Context, task *taskQueue.Entity) error {
+			err := handler(ctx, task)
+			// Webhook handlers atomically persist their delivery and task retry.
+			// On persistence failure retain the lease for crash recovery; a generic
+			// task-only terminal state would make the delivery impossible to replay.
+			if typePrefix == "agent-webhook." {
+				return err
+			}
+			if err != nil {
+				due := time.Now().Add(time.Duration(1<<min(task.RetryCount, 8)) * time.Minute)
+				return taskQueue.RetryOwned(task.Id, task.LeaseToken, due, "agent task infrastructure failure", 9)
+			}
+			return nil
+		})
+	}
 }

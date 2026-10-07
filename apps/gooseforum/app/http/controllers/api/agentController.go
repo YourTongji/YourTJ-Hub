@@ -1,15 +1,24 @@
 package api
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/anonymousidentityservice"
 	"log/slog"
 	"net/http"
+	"strings"
+	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/agentinstance"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentwebhookservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentwriteservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
 )
@@ -17,21 +26,42 @@ import (
 // AgentItem is the admin-facing view of one agent. The token hash never leaves
 // the server; only the non-secret prefix is exposed.
 type AgentItem struct {
-	AgentId         uint64 `json:"agentId"`
-	Username        string `json:"username"`
-	Nickname        string `json:"nickname"`
-	AvatarUrl       string `json:"avatarUrl"`
-	Email           string `json:"email"`
-	TokenPrefix     string `json:"tokenPrefix"`
-	WebhookEndpoint string `json:"webhookEndpoint"`
-	Enabled         int8   `json:"enabled"`
-	CreatedBy       uint64 `json:"createdBy"`
-	LastUsedAt      *int64 `json:"lastUsedAt"`
-	CreatedAt       int64  `json:"createdAt"`
-	UpdatedAt       int64  `json:"updatedAt"`
+	AgentId                uint64     `json:"agentId"`
+	Username               string     `json:"username"`
+	Nickname               string     `json:"nickname"`
+	AvatarUrl              string     `json:"avatarUrl"`
+	Email                  string     `json:"email"`
+	TokenPrefix            string     `json:"tokenPrefix"`
+	WebhookEndpoint        string     `json:"webhookEndpoint"`
+	Enabled                int8       `json:"enabled"`
+	CreatedBy              uint64     `json:"createdBy"`
+	LastUsedAt             *int64     `json:"lastUsedAt"`
+	CreatedAt              int64      `json:"createdAt"`
+	UpdatedAt              int64      `json:"updatedAt"`
+	ConfigVersion          uint64     `json:"configVersion"`
+	EventsEnabled          bool       `json:"eventsEnabled"`
+	EventTypes             []string   `json:"eventTypes"`
+	SubscriptionGeneration uint64     `json:"subscriptionGeneration"`
+	WebhookEnabled         bool       `json:"webhookEnabled"`
+	EndpointGeneration     uint64     `json:"endpointGeneration"`
+	SecretConfigured       bool       `json:"secretConfigured"`
+	SecretVersion          uint64     `json:"secretVersion"`
+	LatestAcceptedAt       *time.Time `json:"latestAcceptedAt"`
+	PendingCount           int64      `json:"pendingCount"`
+	PauseReason            string     `json:"pauseReason"`
+	SummaryUnavailable     bool       `json:"summaryUnavailable"`
 }
 
 func toAgentItem(view agentservice.AgentView) AgentItem {
+	eventTypes := []string{}
+	_ = json.Unmarshal([]byte(view.Agent.EventTypes), &eventTypes)
+	summary := agentwebhookservice.AgentSummary{}
+	summaryUnavailable := agentinstance.Current().ID == ""
+	if !summaryUnavailable {
+		var err error
+		summary, err = agentwebhookservice.Summary(view.Agent.UserId)
+		summaryUnavailable = err != nil
+	}
 	var lastUsedAt *int64
 	if view.Agent.LastUsedAt != nil {
 		value := view.Agent.LastUsedAt.UnixMilli()
@@ -50,6 +80,10 @@ func toAgentItem(view agentservice.AgentView) AgentItem {
 		LastUsedAt:      lastUsedAt,
 		CreatedAt:       view.Agent.CreatedAt.UnixMilli(),
 		UpdatedAt:       view.Agent.UpdatedAt.UnixMilli(),
+		ConfigVersion:   view.Agent.ConfigVersion, EventsEnabled: view.Agent.EventsEnabled, EventTypes: eventTypes,
+		SubscriptionGeneration: view.Agent.SubscriptionGeneration, WebhookEnabled: view.Agent.WebhookEnabled, EndpointGeneration: view.Agent.EndpointGeneration,
+		SecretConfigured: view.Agent.SecretCiphertext != "", SecretVersion: view.Agent.SecretVersion,
+		LatestAcceptedAt: summary.LatestAcceptedAt, PendingCount: summary.PendingCount, PauseReason: summary.PauseReason, SummaryUnavailable: summaryUnavailable,
 	}
 }
 
@@ -319,15 +353,25 @@ func toAgentTopicItem(entity topics.Entity) AgentTopicItem {
 // AgentWriteTopicReq is the Agent topic payload. Agent DTOs deliberately omit
 // the website/captcha fields of the human endpoint.
 type AgentWriteTopicReq struct {
-	Title      string   `json:"title" validate:"required"`
-	Content    string   `json:"content" validate:"required"`
-	CategoryId []uint64 `json:"categoryId" validate:"min=1,max=3"`
+	Title          string   `json:"title" validate:"required"`
+	Content        string   `json:"content" validate:"required"`
+	CategoryId     []uint64 `json:"categoryId" validate:"min=1,max=3"`
+	SourceEventID  string   `json:"sourceEventId,omitempty" validate:"max=80"`
+	IdempotencyKey string   `json:"-"`
 }
 
 // AgentWriteTopic creates a published topic (topicStatus=1) owned by the
 // authenticated Agent. The shared write core skips browser-only gates
 // (honeypot, captcha, new-user cooldown) while keeping every other rule.
 func AgentWriteTopic(req component.BetterRequest[AgentWriteTopicReq]) component.Response {
+	ctx, err := agentWriteContext(req, "topic", 0, req.Params.IdempotencyKey, req.Params.SourceEventID, struct {
+		Title, Content string
+		CategoryID     []uint64
+		SourceEventID  string
+	}{req.Params.Title, strings.TrimSpace(req.Params.Content), req.Params.CategoryId, req.Params.SourceEventID})
+	if err != nil {
+		return agentWriteFailure(err)
+	}
 	return writeTopic(component.BetterRequest[WriteTopicReq]{
 		Params: WriteTopicReq{
 			Title:       req.Params.Title,
@@ -337,6 +381,7 @@ func AgentWriteTopic(req component.BetterRequest[AgentWriteTopicReq]) component.
 		},
 		UserId:     req.UserId,
 		GinContext: req.GinContext,
+		Context:    ctx,
 	}, true)
 }
 
@@ -370,15 +415,25 @@ func AgentPostList(req component.BetterRequest[AgentPostListReq]) component.Resp
 // AgentCreatePostReq binds the path topicId and the reply payload. The topic
 // id in the path is authoritative.
 type AgentCreatePostReq struct {
-	TopicId       uint64 `uri:"topicId" json:"-"`
-	Content       string `json:"content"`
-	ReplyToPostId uint64 `json:"replyToPostId"`
+	TopicId        uint64 `uri:"topicId" json:"-"`
+	Content        string `json:"content"`
+	ReplyToPostId  uint64 `json:"replyToPostId"`
+	SourceEventID  string `json:"sourceEventId,omitempty" validate:"max=80"`
+	IdempotencyKey string `json:"-"`
 }
 
 // AgentCreatePost appends a post to the topic from the path. The shared write
 // core skips browser-only gates while keeping every other rule and side
 // effect.
 func AgentCreatePost(req component.BetterRequest[AgentCreatePostReq]) component.Response {
+	ctx, err := agentWriteContext(req, "post", req.Params.TopicId, req.Params.IdempotencyKey, req.Params.SourceEventID, struct {
+		Content       string
+		ReplyToPostID uint64
+		SourceEventID string
+	}{strings.TrimSpace(req.Params.Content), req.Params.ReplyToPostId, req.Params.SourceEventID})
+	if err != nil {
+		return agentWriteFailure(err)
+	}
 	return createPost(component.BetterRequest[CreatePostReq]{
 		Params: CreatePostReq{
 			TopicId:       req.Params.TopicId,
@@ -387,5 +442,35 @@ func AgentCreatePost(req component.BetterRequest[AgentCreatePostReq]) component.
 		},
 		UserId:     req.UserId,
 		GinContext: req.GinContext,
+		Context:    ctx,
 	}, true)
+}
+
+func agentWriteContext[T any](req component.BetterRequest[T], operation string, targetID uint64, key, sourceID string, digestInput any) (context.Context, error) {
+	ctx := betterRequestContext(req)
+	hash := agentCredentialHash(req)
+	if req.GinContext != nil {
+		key = req.GinContext.GetHeader("Idempotency-Key")
+	}
+	digest, err := agentwriteservice.RequestDigest(digestInput)
+	if err != nil {
+		return nil, err
+	}
+	o := agentwriteservice.Options{Key: key, SourceEventID: sourceID, Operation: operation, TargetID: targetID, Digest: digest, CredentialHash: hash}
+	if err := agentwriteservice.ValidateOptions(o); err != nil {
+		return nil, err
+	}
+	return agentwriteservice.WithOptions(ctx, o), nil
+}
+
+func agentCredentialHash[T any](req component.BetterRequest[T]) string {
+	hash, _ := betterRequestContext(req).Value(agentwriteservice.CredentialContextKey{}).(string)
+	if req.GinContext != nil {
+		_, token, ok := strings.Cut(req.GinContext.GetHeader("Authorization"), " ")
+		if ok {
+			digest := sha256.Sum256([]byte(strings.TrimSpace(token)))
+			hash = hex.EncodeToString(digest[:])
+		}
+	}
+	return hash
 }

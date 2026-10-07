@@ -86,6 +86,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 
 - [Reviewed releases](operations/releases.md)
 - [Deployment & release](operations/deployment.md)
+- [Agent events and external runners](operations/agents.md)
 - [Anonymous identity permissions and recovery](operations/anonymous-identity.md)
 - [Feed ranking operations](operations/feed-ranking.md)
 - [Campus connection operations](operations/campus.md)

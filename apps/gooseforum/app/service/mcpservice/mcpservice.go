@@ -18,6 +18,7 @@ package mcpservice
 import (
 	"bytes"
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,10 +29,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/agentinstance"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentwriteservice"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -39,10 +44,10 @@ import (
 // Service builds and serves the MCP server. A single instance is used for
 // both the streamable HTTP endpoint and the stdio subcommand.
 type Service struct {
-	// fixedUserID, when non-zero, short-circuits per-request authentication.
-	// It is used by the stdio subcommand, which resolves the agt_ token once
-	// at startup (a local CLI has a single identity for its lifetime).
-	fixedUserID uint64
+	// stdio pins an identity and credential generation. Every tool call checks
+	// both against current persisted state, including rotation and disablement.
+	fixedUserID         uint64
+	fixedCredentialHash string
 
 	// writesOverride, when non-nil, pins the write-tool availability for this
 	// service instead of reading the admin-panel mcp.writes setting. This lets
@@ -93,11 +98,26 @@ func NewService() *Service {
 // endpoint).
 func NewStdioService(agentUserID uint64, writes ...bool) *Service {
 	s := &Service{fixedUserID: agentUserID}
+	if view, err := agentservice.Get(agentUserID); err == nil {
+		s.fixedCredentialHash = view.Agent.TokenHash
+	}
 	if len(writes) > 0 {
 		w := writes[0]
 		s.writesOverride = &w
 	}
 	return s
+}
+
+// NewStdioServiceWithToken binds the exact verified credential, preventing a
+// rotation between startup resolution and session construction from rebinding it.
+func NewStdioServiceWithToken(token string, writes ...bool) (*Service, error) {
+	a, _, err := agentservice.ResolveByToken(token)
+	if err != nil {
+		return nil, err
+	}
+	s := NewStdioService(a.UserId, writes...)
+	s.fixedCredentialHash = a.TokenHash
+	return s, nil
 }
 
 // writesEnabled returns whether write tools should be registered for this
@@ -115,17 +135,34 @@ func (s *Service) writesEnabled() bool {
 // The stdio path uses the fixed identity; the streamable HTTP path reads the
 // TokenInfo the auth middleware attached to the request.
 func (s *Service) userID(req *mcp.CallToolRequest) (uint64, error) {
-	if s.fixedUserID != 0 {
-		return s.fixedUserID, nil
-	}
-	if req.Extra == nil || req.Extra.TokenInfo == nil || req.Extra.TokenInfo.UserID == "" {
+	if !agentinstance.Current().APIEnabled {
 		return 0, errors.New("mcpservice: unauthenticated request")
 	}
-	id, err := strconv.ParseUint(req.Extra.TokenInfo.UserID, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("mcpservice: invalid user id %q: %w", req.Extra.TokenInfo.UserID, err)
+	id, hash := s.fixedUserID, s.fixedCredentialHash
+	if id == 0 {
+		if req.Extra == nil || req.Extra.TokenInfo == nil || req.Extra.TokenInfo.UserID == "" {
+			return 0, errors.New("mcpservice: unauthenticated request")
+		}
+		var err error
+		id, err = strconv.ParseUint(req.Extra.TokenInfo.UserID, 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("mcpservice: invalid user id %q: %w", req.Extra.TokenInfo.UserID, err)
+		}
+		hash, _ = req.Extra.TokenInfo.Extra["credentialHash"].(string)
+	}
+	view, err := agentservice.Get(id)
+	if err != nil || hash == "" || view.Agent.Enabled != agents.StatusEnabled || !view.User.IsBot() || view.User.IsFrozen == users.StatusFrozen || subtle.ConstantTimeCompare([]byte(view.Agent.TokenHash), []byte(hash)) != 1 {
+		return 0, errors.New("mcpservice: unauthenticated request")
 	}
 	return id, nil
+}
+
+func (s *Service) credentialContext(ctx context.Context, req *mcp.CallToolRequest) context.Context {
+	hash := s.fixedCredentialHash
+	if s.fixedUserID == 0 && req.Extra != nil && req.Extra.TokenInfo != nil {
+		hash, _ = req.Extra.TokenInfo.Extra["credentialHash"].(string)
+	}
+	return context.WithValue(ctx, agentwriteservice.CredentialContextKey{}, hash)
 }
 
 // ClientIPContextKey is the context key the gin mounting layer uses to pass the
@@ -163,7 +200,8 @@ func (s *Service) verifier(ctx context.Context, token string, req *http.Request)
 		UserID:     strconv.FormatUint(agent.UserId, 10),
 		Expiration: time.Now().Add(100 * 365 * 24 * time.Hour),
 		Extra: map[string]any{
-			"clientIP": ip,
+			"clientIP":       ip,
+			"credentialHash": agent.TokenHash,
 		},
 	}, nil
 }
@@ -213,6 +251,7 @@ func (s *Service) buildServer(writes bool) *mcp.Server {
 	registerListTopics(server, s)
 	registerGetPosts(server, s)
 	registerSearch(server, s)
+	registerAgentEvents(server, s)
 	if writes {
 		registerCreateTopic(server, s)
 		registerCreatePost(server, s)

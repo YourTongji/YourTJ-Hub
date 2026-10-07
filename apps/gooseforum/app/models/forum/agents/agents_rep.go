@@ -3,8 +3,10 @@ package agents
 import (
 	"time"
 
+	"errors"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func builder() *gorm.DB {
@@ -86,10 +88,16 @@ func UpdateTokenCAS(userID uint64, oldPrefix, newPrefix, hash string) (int64, er
 // non-secret token prefix is retained as the unique index and the rotation
 // CAS anchor; a revoked credential can never validate again, and re-enabling
 // requires an explicit rotation first.
-func RevokeCredential(userID uint64) error {
-	return UpdateColumns(nil, userID, map[string]any{
-		fieldEnabled:   StatusDisabled,
-		fieldTokenHash: "",
+func RevokeCredential(userID uint64) error { return RevokeCredentialTx(nil, userID) }
+func RevokeCredentialTx(tx *gorm.DB, userID uint64) error {
+	return UpdateColumns(tx, userID, map[string]any{
+		fieldEnabled:              StatusDisabled,
+		fieldTokenHash:            "",
+		"webhook_enabled":         false,
+		"events_enabled":          false,
+		"endpoint_generation":     gorm.Expr("endpoint_generation + 1"),
+		"subscription_generation": gorm.Expr("subscription_generation + 1"),
+		"config_version":          gorm.Expr("config_version + 1"),
 	})
 }
 
@@ -105,4 +113,60 @@ func TouchLastUsedAt(userID uint64, lastUsedAt time.Time) error {
 	return builder().
 		Where(fieldUserId+" = ?", userID).
 		Update(fieldLastUsedAt, lastUsedAt).Error
+}
+
+// GetTx locks the configuration row before event sequence or send authorization.
+func GetTx(tx *gorm.DB, userID uint64, lock bool) (*Entity, error) {
+	var row Entity
+	q := tx.Where("user_id = ?", userID)
+	if lock {
+		q = q.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	err := q.First(&row).Error
+	return &row, err
+}
+func ReserveEventSeqTx(tx *gorm.DB, userID uint64) (uint64, error) {
+	row, err := GetTx(tx, userID, true)
+	if err != nil {
+		return 0, err
+	}
+	seq := row.EventSeq + 1
+	err = UpdateColumns(tx, userID, map[string]any{"event_seq": seq})
+	return seq, err
+}
+
+var ErrConfigConflict = errors.New("agent config conflict")
+
+func UpdateConfigTx(tx *gorm.DB, userID, version uint64, columns map[string]any) error {
+	columns["config_version"] = version + 1
+	r := tx.Model(&Entity{}).Where("user_id = ? AND config_version = ?", userID, version).Updates(columns)
+	if r.Error != nil {
+		return r.Error
+	}
+	if r.RowsAffected != 1 {
+		return ErrConfigConflict
+	}
+	return nil
+}
+func ListEnabledTx(tx *gorm.DB) ([]Entity, error) {
+	var rows []Entity
+	err := tx.Where("enabled = ? AND events_enabled = ?", StatusEnabled, true).Order("user_id asc").Find(&rows).Error
+	return rows, err
+}
+
+// IsolateSnapshot disables copied credentials before an instance can serve.
+func IsolateSnapshot(tx *gorm.DB) error {
+	return tx.Model(&Entity{}).Where("1 = 1").Updates(map[string]any{"enabled": StatusDisabled, "token_hash": "", "secret_ciphertext": "", "previous_secret_ciphertext": "", "previous_secret_expires_at": nil, "webhook_enabled": false, "events_enabled": false, "endpoint_generation": gorm.Expr("endpoint_generation + 1"), "subscription_generation": gorm.Expr("subscription_generation + 1"), "config_version": gorm.Expr("config_version + 1")}).Error
+}
+
+func EnabledIDsTx(tx *gorm.DB) ([]uint64, error) {
+	var ids []uint64
+	err := tx.Model(&Entity{}).Where("enabled = ?", StatusEnabled).Order("user_id asc").Pluck("user_id", &ids).Error
+	return ids, err
+}
+func LockTx(tx *gorm.DB, agentID uint64) (*Entity, error) { return GetTx(tx, agentID, true) }
+
+// Worker-owned endpoint diagnostics cannot pause a replacement endpoint.
+func UpdateWebhookGenerationTx(tx *gorm.DB, agentID, generation uint64, columns map[string]any) error {
+	return tx.Model(&Entity{}).Where("user_id = ? AND endpoint_generation = ?", agentID, generation).Updates(columns).Error
 }

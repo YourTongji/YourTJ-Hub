@@ -3,7 +3,10 @@ package safefetch
 import (
 	"compress/gzip"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -238,5 +241,132 @@ func TestFetchHonorsTotalTimeout(t *testing.T) {
 	_, err := client.Fetch(t.Context(), "http://slow.example/")
 	if !IsClass(err, ErrorTimeout) {
 		t.Fatalf("Fetch() error = %v, want timeout", err)
+	}
+}
+
+func TestWebhookRejectsUnsafeTargetsAndPrivateDNS(t *testing.T) {
+	for _, raw := range []string{"http://example.com/hook", "https://example.com:444/hook", "https://example.com/hook?token=x", "https://user:secret@example.com/hook", "https://example.com/hook#x", "https://[::ffff:8.8.8.8]/", "https://127.1/hook", "https://0177.0.0.1/hook"} {
+		if ValidateWebhookURL(raw) == nil {
+			t.Fatalf("accepted %q", raw)
+		}
+	}
+	var calls atomic.Int32
+	client := New(Config{Resolver: fakeResolver{"mixed.example": {publicAddr(), netip.MustParseAddr("127.0.0.1")}}, DialContext: func(context.Context, string, string) (net.Conn, error) {
+		calls.Add(1)
+		return nil, errors.New("must not dial")
+	}})
+	_, err := client.PostJSON(t.Context(), "https://mixed.example/hook", []byte(`{}`), nil)
+	if !IsClass(err, ErrorBlocked) || calls.Load() != 0 {
+		t.Fatalf("err=%v calls=%d", err, calls.Load())
+	}
+}
+
+func TestWebhookJSONTLSRedirectIsNotFollowedAndDNSRevalidated(t *testing.T) {
+	var received atomic.Int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received.Add(1)
+		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" || r.Header.Get("Authorization") != "" || r.Header.Get("Webhook-Delivery-Id") != "19" {
+			t.Error("invalid JSON POST or leaked ambient credential")
+		}
+		w.Header().Set("Location", "https://127.0.0.1/private")
+		w.Header().Set("Retry-After", "120")
+		w.WriteHeader(http.StatusTemporaryRedirect)
+	}))
+	defer server.Close()
+	certificate := server.Certificate()
+	host := certificate.DNSNames[0]
+	host = strings.Replace(host, "*.", "hook.", 1)
+	pool := x509.NewCertPool()
+	pool.AddCert(certificate)
+	var calls atomic.Int32
+	resolver := fakeResolver{host: {publicAddr()}}
+	client := New(Config{Resolver: resolver, DialContext: mappedDialer(server.Listener.Addr().String(), &calls)})
+	client.httpClient.Transport.(*http.Transport).TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+	headers := http.Header{"Authorization": []string{"never-forward-this"}, "Webhook-Id": []string{"evt_test"}, "Webhook-Delivery-Id": []string{"19"}}
+	result, err := client.PostJSON(t.Context(), "https://"+host+"/hook", []byte(`{"id":"evt_test"}`), headers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.StatusCode != http.StatusTemporaryRedirect || result.RetryAfter != "120" || calls.Load() != 1 || received.Load() != 1 {
+		t.Fatalf("result=%#v dials=%d requests=%d", result, calls.Load(), received.Load())
+	}
+	resolver[host] = []netip.Addr{netip.MustParseAddr("127.0.0.1")}
+	if _, err := client.PostJSON(t.Context(), "https://"+host+"/hook", []byte(`{}`), nil); !IsClass(err, ErrorBlocked) {
+		t.Fatalf("DNS rebind=%v", err)
+	}
+	if calls.Load() != 1 {
+		t.Fatal("rebound host was dialed")
+	}
+}
+
+func TestWebhookRejectsMappedPublicAddressFromDNS(t *testing.T) {
+	var calls atomic.Int32
+	client := New(Config{Resolver: fakeResolver{"mapped.example": {netip.MustParseAddr("::ffff:8.8.8.8")}}, DialContext: func(context.Context, string, string) (net.Conn, error) {
+		calls.Add(1)
+		return nil, errors.New("must not dial")
+	}})
+	if _, err := client.PostJSON(t.Context(), "https://mapped.example/hook", []byte(`{}`), nil); !IsClass(err, ErrorBlocked) || calls.Load() != 0 {
+		t.Fatalf("mapped DNS err=%v dials=%d", err, calls.Load())
+	}
+}
+
+func TestWebhookRetainsResponseMetadataWhenBodyFails(t *testing.T) {
+	for _, mode := range []string{"content_length", "chunked", "truncated"} {
+		for _, status := range []int{http.StatusOK, http.StatusGone, http.StatusTooManyRequests} {
+			t.Run(fmt.Sprintf("%s/%d", mode, status), func(t *testing.T) {
+				server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Retry-After", "3600")
+					switch mode {
+					case "content_length":
+						w.Header().Set("Content-Length", "65")
+					case "truncated":
+						w.Header().Set("Content-Length", "16")
+					}
+					w.WriteHeader(status)
+					if mode == "chunked" {
+						w.(http.Flusher).Flush()
+					}
+					if mode == "truncated" {
+						_, _ = w.Write([]byte("short"))
+					} else {
+						_, _ = w.Write([]byte(strings.Repeat("x", 65)))
+					}
+				}))
+				defer server.Close()
+				certificate := server.Certificate()
+				host := strings.Replace(certificate.DNSNames[0], "*.", "hook.", 1)
+				pool := x509.NewCertPool()
+				pool.AddCert(certificate)
+				var calls atomic.Int32
+				client := New(Config{Resolver: fakeResolver{host: {publicAddr()}}, DialContext: mappedDialer(server.Listener.Addr().String(), &calls), MaxBodyBytes: 64})
+				client.httpClient.Transport.(*http.Transport).TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+				result, err := client.PostJSON(t.Context(), "https://"+host+"/hook", []byte(`{}`), nil)
+				if err == nil || (mode != "truncated" && !IsClass(err, ErrorTooLarge)) {
+					t.Fatalf("body limit/read error = %v", err)
+				}
+				if result.StatusCode != status || result.RetryAfter != "3600" || result.Duration <= 0 {
+					t.Fatalf("lost response metadata: %#v, err=%v", result, err)
+				}
+			})
+		}
+	}
+}
+
+func TestWebhookRawURLPolicyMatchesRequestParsing(t *testing.T) {
+	for _, raw := range []string{"https://allowed.example&sol;@receiver.example:8443/hook", "https://allowed.example&sol;@receiver.example/hook"} {
+		t.Run(raw, func(t *testing.T) {
+			if ValidateWebhookURL(raw) == nil {
+				t.Error("HTML entity changed the validated URL authority")
+			}
+			var calls atomic.Int32
+			client := New(Config{Resolver: fakeResolver{"allowed.example": {publicAddr()}, "receiver.example": {publicAddr()}}, DialContext: func(context.Context, string, string) (net.Conn, error) {
+				calls.Add(1)
+				return nil, errors.New("unexpected dial")
+			}})
+			_, err := client.PostJSON(t.Context(), raw, []byte(`{}`), nil)
+			if !IsClass(err, ErrorBlocked) || calls.Load() != 0 {
+				t.Fatalf("unsafe raw authority err=%v dials=%d", err, calls.Load())
+			}
+		})
 	}
 }

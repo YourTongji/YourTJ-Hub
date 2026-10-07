@@ -3,7 +3,8 @@ import { userDisplayName } from '@/runtime/private-notes'
 import { adminText } from '@/admin/runtime/i18n-text'
 
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Bot, Copy, KeyRound, Pencil, Plus, RefreshCw, ShieldOff } from '@lucide/vue'
+import { useI18n } from 'vue-i18n'
+import { Activity, Bot, Copy, KeyRound, Pencil, Plus, RefreshCw, ShieldOff } from '@lucide/vue'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import AdminConfirmDialog from '@/admin/components/AdminConfirmDialog.vue'
 import { BasicPage } from '@/admin/components/global-layout'
@@ -19,6 +20,7 @@ import {
 } from '@/admin/components/ui/dialog'
 import { Input } from '@/admin/components/ui/input'
 import { Switch } from '@/admin/components/ui/switch'
+import AgentWebhookManagementDialog from '@/admin/pages/management/AgentWebhookManagementDialog.vue'
 import { createAgent, disableAgent, getAgentList, rotateAgentToken, updateAgent } from '@/admin/runtime/api'
 import { adminToast } from '@/admin/runtime/toast'
 import type { AdminAgent, AdminPayload, ManageHomeProps } from '@/admin/types'
@@ -28,6 +30,7 @@ defineProps<{
 }>()
 
 const loading = ref(false)
+const { t } = useI18n()
 const saving = ref(false)
 const error = ref('')
 const agents = ref<AdminAgent[]>([])
@@ -36,6 +39,7 @@ const creating = ref(false)
 const rotating = ref<AdminAgent | null>(null)
 const rotatingToken = ref('')
 const disabling = ref<AdminAgent | null>(null)
+const webhookAgent = ref<AdminAgent | null>(null)
 const copied = ref(false)
 const form = reactive({ username: '', nickname: '', webhookEndpoint: '', enabled: true })
 
@@ -64,7 +68,6 @@ function openEdit(agent: AdminAgent) {
   Object.assign(form, {
     username: agent.username,
     nickname: agent.nickname,
-    webhookEndpoint: agent.webhookEndpoint,
     enabled: agent.enabled === 1,
   })
   editing.value = agent
@@ -102,7 +105,6 @@ async function submitUpdate() {
     await updateAgent({
       agentId: editing.value.agentId,
       nickname: form.nickname.trim(),
-      webhookEndpoint: form.webhookEndpoint.trim(),
       enabled: form.enabled ? 1 : 0,
     })
     editing.value = null
@@ -235,6 +237,9 @@ onMounted(() => {
                   <AdminActionButton compact :title="adminText('k00kj')" @click="openEdit(agent)">
                     <Pencil class="size-3.5" />
                   </AdminActionButton>
+                  <AdminActionButton compact :title="t('agentWebhook.open')" @click="webhookAgent = agent">
+                    <Activity class="size-3.5" />
+                  </AdminActionButton>
                   <AdminActionButton compact tone="primary" :title="adminText('k00kk')" @click="rotating = agent; rotatingToken = ''; copied = false">
                     <KeyRound class="size-3.5" />
                   </AdminActionButton>
@@ -286,16 +291,12 @@ onMounted(() => {
       <DialogContent class="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{{ adminText('k00kq') }} · {{ form.username }}</DialogTitle>
-          <DialogDescription>{{ adminText('k00l9') }}</DialogDescription>
+          <DialogDescription>{{ t('agentWebhook.profileDescription') }}</DialogDescription>
         </DialogHeader>
         <form class="grid gap-4" @submit.prevent="submitUpdate">
           <label class="grid gap-2 text-sm font-medium">
             {{ adminText('k00ka') }}
             <Input v-model="form.nickname" maxlength="64" />
-          </label>
-          <label class="grid gap-2 text-sm font-medium">
-            {{ adminText('k00kb') }}
-            <Input v-model="form.webhookEndpoint" placeholder="https://example.com/hook" />
           </label>
           <div class="grid gap-2 text-sm font-medium">
             {{ adminText('k00kc') }}
@@ -351,6 +352,13 @@ onMounted(() => {
       :loading="saving"
       @update:open="(open) => !open && (disabling = null)"
       @confirm="confirmDisable"
+    />
+
+    <AgentWebhookManagementDialog
+      :agent="webhookAgent"
+      :open="webhookAgent !== null"
+      @update:open="(open) => !open && (webhookAgent = null)"
+      @updated="loadAgents"
     />
   </BasicPage>
 </template>

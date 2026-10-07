@@ -971,6 +971,8 @@ export default {
   "k00wh0": "Validate credential",
   "k00wh1": "Credential validation failed",
   "k00wh2": "Credential valid, OneSystem is reachable",
+
+  "k00wh3": "Agent comment policy",
   "k00x0": "Topic awaiting review",
   "k00x1": "Reply awaiting review",
   "k00x2": "Topic reported",

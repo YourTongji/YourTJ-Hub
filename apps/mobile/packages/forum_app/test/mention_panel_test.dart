@@ -16,12 +16,14 @@ MentionUser user(
   String username, {
   String? nickname,
   MentionTag? tag,
+  String actorType = 'human',
 }) => MentionUser(
   id: id,
   username: username,
   nickname: nickname ?? username,
   avatarUrl: '',
   tag: tag,
+  actorType: actorType,
 );
 
 const MentionPanelMessages messages = MentionPanelMessages(
@@ -33,6 +35,7 @@ const MentionPanelMessages messages = MentionPanelMessages(
   tagReplyTarget: 'Replying to',
   tagTopicAuthor: 'Topic author',
   tagParticipant: 'Participant',
+  agentLabel: 'Bot',
 );
 
 Widget host(
@@ -59,6 +62,25 @@ Widget host(
 }
 
 void main() {
+  testWidgets('server bot metadata survives a duplicate local candidate', (
+    tester,
+  ) async {
+    final session = MentionSessionController(
+      searchUsers: (_) async => [user(12, 'helper', actorType: 'bot')],
+    );
+    addTearDown(session.dispose);
+    session.updateContext(
+      local: [user(12, 'helper', tag: MentionTag.topicAuthor)],
+      currentUserId: 0,
+    );
+    await tester.pumpWidget(host(session));
+    session.handleValue('@help');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+    expect(session.candidates.single.tag, MentionTag.topicAuthor);
+    expect(find.text('Bot'), findsOneWidget);
+    expect(tester.getSemantics(find.text('helper')).label, contains('Bot'));
+  });
   testWidgets(
     'mouse selection keeps composer focus and replaces the mention token',
     (tester) async {
@@ -181,6 +203,22 @@ void main() {
     expect(selected, isNotNull);
     expect(selected!.$1.query, '');
     expect(selected!.$2.username, 'bob');
+  });
+
+  testWidgets('Agent 候选清楚标注机器人身份并纳入读屏文案', (tester) async {
+    final session = MentionSessionController(searchUsers: (_) async => []);
+    addTearDown(session.dispose);
+    session.updateContext(
+      local: [user(12, 'helper-bot', nickname: '迎新助手', actorType: 'bot')],
+      currentUserId: 0,
+    );
+    session.handleValue('@');
+    await tester.pumpWidget(host(session));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bot'), findsOneWidget);
+    final semantics = tester.getSemantics(find.text('迎新助手'));
+    expect(semantics.label, contains('Bot'));
   });
 
   testWidgets('空 query 无本地候选展示继续输入提示', (tester) async {

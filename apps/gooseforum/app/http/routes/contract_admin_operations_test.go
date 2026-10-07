@@ -11,10 +11,13 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentWebhook"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
@@ -31,12 +34,16 @@ func setupAdminOpsContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	conn, router := setupHTTPContractTest(t)
 	if err := conn.AutoMigrate(
 		&rolePermissionRs.Entity{},
-		&agents.Entity{},
+		&agents.Entity{}, &badges.Entity{}, &userBadges.Entity{}, &agentWebhook.Delivery{}, &agentWebhook.Attempt{},
 		&optRecord.Entity{},
 	); err != nil {
 		t.Fatalf("migrate admin operations contract tables: %v", err)
 	}
+	conn.Where("1 = 1").Delete(&badges.Entity{})
+	conn.Where("1 = 1").Delete(&userBadges.Entity{})
 	conn.Where("1 = 1").Delete(&agents.Entity{})
+	conn.Where("1 = 1").Delete(&agentWebhook.Delivery{})
+	conn.Where("1 = 1").Delete(&agentWebhook.Attempt{})
 	conn.Where("1 = 1").Delete(&optRecord.Entity{})
 
 	adminAPI := router.Group("/api/admin",

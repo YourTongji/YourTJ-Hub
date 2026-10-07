@@ -30,7 +30,8 @@ func Create(entity *Entity) error {
 	return builder().Create(entity).Error
 }
 
-// CreateTx 事务内创建帖子。
+// CreateTx creates a post inside the caller's content transaction.
+// Persona callers must hold the topic lock before taking the private owner lock.
 func CreateTx(tx *gorm.DB, entity *Entity) error {
 	if err := identity.ValidateWriterTx(tx, entity.UserId, entity.PersonaUID); err != nil {
 		return err
@@ -42,7 +43,8 @@ func Save(entity *Entity) error {
 	return builder().Save(entity).Error
 }
 
-// SaveTx 事务内保存帖子。
+// SaveTx saves a post inside the caller's content transaction.
+// Persona callers must already hold existing post/topic locks.
 func SaveTx(tx *gorm.DB, entity *Entity) error {
 	if err := identity.ValidateWriterTx(tx, entity.UserId, entity.PersonaUID); err != nil {
 		return err
@@ -673,4 +675,32 @@ func PagePendingReviewInCategories(page, pageSize int, categoryIDs []uint64) str
 		Total    int64
 		Data     []Entity
 	}{Page: page + 1, PageSize: pageSize, Total: total, Data: list}
+}
+
+// GetCurrentTx reads current source metadata without taking a second post lock.
+// Callers holding the topic lock serialize against first-post moderation commits.
+func GetCurrentTx(tx *gorm.DB, id uint64) (Entity, error) {
+	var e Entity
+	err := tx.Unscoped().Where("id = ?", id).Take(&e).Error
+	return e, err
+}
+
+func TopicPostIDsTx(tx *gorm.DB, topicID uint64) ([]uint64, error) {
+	var ids []uint64
+	err := tx.Unscoped().Model(&Entity{}).Where("topic_id = ?", topicID).Order("id ASC").Pluck("id", &ids).Error
+	return ids, err
+}
+
+// TailAuthorIDsTx returns the author ids of the newest visible posts in a
+// topic, newest first. Agent broadcast loop detection reads only this tail.
+func TailAuthorIDsTx(tx *gorm.DB, topicID, throughPostNo uint64, limit int) ([]uint64, error) {
+	var ids []uint64
+	err := tx.Model(&Entity{}).Where("topic_id = ? AND post_no <= ? AND process_status = ? AND visibility_status = ? AND retention_status <> ? AND is_anonymous = ?", topicID, throughPostNo, ProcessStatusNormal, VisibilityActive, RetentionPurged, false).Order("post_no DESC").Limit(limit).Pluck("user_id", &ids).Error
+	return ids, err
+}
+
+// SetAgentEventDepthTx stamps causal depth when a new Agent write is accepted,
+// before capturing publication. Later edits and event result updates leave it intact.
+func SetAgentEventDepthTx(tx *gorm.DB, postID uint64, depth int) error {
+	return tx.Model(&Entity{}).Where("id = ?", postID).Update("agent_event_depth", depth).Error
 }

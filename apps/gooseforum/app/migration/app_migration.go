@@ -3,12 +3,13 @@ package migration
 import (
 	"context"
 	"fmt"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"log/slog"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
 )
 
@@ -429,6 +430,15 @@ func runVersionedDataMigrations() error {
 			return err
 		}
 		currentVersion = 31
+	}
+	if currentVersion < 32 {
+		if err := agentservice.BackfillRobotBadges(); err != nil {
+			return fmt.Errorf("app migration v32 robot badges: %w", err)
+		}
+		if err := pageConfig.SyncMigrationVersion(32); err != nil {
+			return err
+		}
+		currentVersion = 32
 	}
 	slog.Info("app migration end", "version", currentVersion)
 	return nil

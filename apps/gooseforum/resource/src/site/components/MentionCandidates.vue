@@ -91,7 +91,7 @@ function onOptionPointerDown(event: PointerEvent) {
           :key="user.id"
           role="option"
           :aria-selected="index === activeIndex"
-          :aria-label="`${userDisplayName(user.id, user.username, user.nickname)} @${user.username}`"
+          :aria-label="`${userDisplayName(user.id, user.username, user.nickname)} @${user.username}${user.actorType === 'bot' ? `, ${t('mention.agent')}` : ''}`"
           class="gf-mention-option"
           :class="{ 'is-active': index === activeIndex }"
           :data-active="index === activeIndex || undefined"
@@ -103,7 +103,8 @@ function onOptionPointerDown(event: PointerEvent) {
             <span class="gf-mention-nickname">{{ userDisplayName(user.id, user.username, user.nickname) }}</span>
             <span class="gf-mention-username">@{{ user.username }}</span>
           </span>
-          <span v-if="user.tag" class="gf-mention-tag">{{ tagLabel(user.tag) }}</span>
+          <span v-if="user.actorType === 'bot'" class="gf-mention-tag is-bot">{{ t('mention.agent') }}</span>
+          <span v-else-if="user.tag" class="gf-mention-tag">{{ tagLabel(user.tag) }}</span>
         </div>
       </template>
       <div v-else class="gf-mention-status" :class="{ 'is-error': failed }">
@@ -209,6 +210,12 @@ function onOptionPointerDown(event: PointerEvent) {
   line-height: 1.4;
   color: color-mix(in oklch, var(--gf-color-base-content) 60%, transparent);
   background: color-mix(in oklch, var(--gf-color-base-content) 8%, transparent);
+}
+
+.gf-mention-tag.is-bot {
+  color: var(--gf-color-primary);
+  font-weight: 600;
+  background: color-mix(in oklch, var(--gf-color-primary) 12%, transparent);
 }
 
 .gf-mention-status {

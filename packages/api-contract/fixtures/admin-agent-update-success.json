@@ -11,7 +11,19 @@
     "createdBy": 1024,
     "lastUsedAt": null,
     "createdAt": 1750000000000,
-    "updatedAt": 1750003600000
+    "updatedAt": 1750003600000,
+    "configVersion": 0,
+    "eventsEnabled": false,
+    "eventTypes": [],
+    "subscriptionGeneration": 0,
+    "webhookEnabled": false,
+    "endpointGeneration": 0,
+    "secretConfigured": false,
+    "secretVersion": 0,
+    "latestAcceptedAt": null,
+    "pendingCount": 0,
+    "pauseReason": "",
+    "summaryUnavailable": false
   },
   "code": 0
 }

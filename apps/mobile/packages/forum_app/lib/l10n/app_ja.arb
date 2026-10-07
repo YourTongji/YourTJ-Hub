@@ -595,6 +595,7 @@
   "mentionTagReplyTarget": "返信先",
   "mentionTagTopicAuthor": "トピック作成者",
   "mentionTagParticipant": "参加者",
+  "mentionAgentLabel": "ボット",
   "@notificationMention": {
     "placeholders": {
       "actor": {

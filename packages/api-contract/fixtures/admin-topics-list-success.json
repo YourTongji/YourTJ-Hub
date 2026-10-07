@@ -16,7 +16,8 @@
         "viewCount": 356,
         "replyCount": 42,
         "likeCount": 18,
-        "pinWeight": 0
+        "pinWeight": 0,
+        "agentCommentDisabled": false
       }
     ],
     "page": 1,

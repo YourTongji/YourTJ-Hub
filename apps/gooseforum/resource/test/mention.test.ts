@@ -53,6 +53,17 @@ describe('extractMentionToken（@mention token 识别，issue #564）', () => {
 })
 
 describe('rankMentionCandidates（候选排序/去重/排除自己，issue #564）', () => {
+  test('merges authoritative actor type without losing local context rank or tag', () => {
+    const contextual = { ...user(8, 'helper'), tag: 'reply-target' as const }
+    const result = rankMentionCandidates({
+      local: [contextual],
+      server: [{ ...user(9, 'help'), actorType: 'human' }, { ...user(8, 'helper'), actorType: 'bot' }],
+      query: 'help',
+    })
+    expect(result.map(candidate => candidate.id)).toEqual([8, 9])
+    expect(result[0]).toMatchObject({ actorType: 'bot', tag: 'reply-target' })
+    expect(contextual).not.toHaveProperty('actorType')
+  })
   const local = [
     { ...user(1, 'target', '回复目标'), tag: 'reply-target' as const },
     { ...user(2, 'author', '主题作者'), tag: 'topic-author' as const },

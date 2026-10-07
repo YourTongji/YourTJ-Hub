@@ -3,15 +3,16 @@
 package safefetch
 
 import (
+	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"mime"
 	"net"
 	"net/http"
 	"net/netip"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -76,6 +77,7 @@ type Config struct {
 
 // Result is the complete, bounded response available to metadata resolvers.
 type Result struct {
+	RetryAfter  string
 	FinalURL    *url.URL
 	StatusCode  int
 	ContentType string
@@ -85,11 +87,12 @@ type Result struct {
 
 // Client is safe for concurrent use.
 type Client struct {
-	httpClient   *http.Client
-	resolver     Resolver
-	dialContext  DialContextFunc
-	maxBodyBytes int64
-	semaphore    chan struct{}
+	httpClient     *http.Client
+	resolver       Resolver
+	dialContext    DialContextFunc
+	maxBodyBytes   int64
+	connectTimeout time.Duration
+	semaphore      chan struct{}
 }
 
 // New constructs a bounded client. Zero values select conservative defaults.
@@ -117,10 +120,11 @@ func New(config Config) *Client {
 	}
 
 	client := &Client{
-		resolver:     config.Resolver,
-		dialContext:  config.DialContext,
-		maxBodyBytes: config.MaxBodyBytes,
-		semaphore:    make(chan struct{}, config.MaxConcurrency),
+		resolver:       config.Resolver,
+		dialContext:    config.DialContext,
+		maxBodyBytes:   config.MaxBodyBytes,
+		connectTimeout: config.ConnectTimeout,
+		semaphore:      make(chan struct{}, config.MaxConcurrency),
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
@@ -173,7 +177,7 @@ func (c *Client) Fetch(ctx context.Context, rawURL string) (Result, error) {
 	if err != nil {
 		return Result{}, classifyError(err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 
 	if response.ContentLength > c.maxBodyBytes {
 		return Result{}, &FetchError{Class: ErrorTooLarge, Err: errors.New("content length exceeds limit")}
@@ -199,16 +203,29 @@ func (c *Client) Fetch(ctx context.Context, rawURL string) (Result, error) {
 }
 
 func (c *Client) dialVerified(ctx context.Context, network, address string) (net.Conn, error) {
+	return c.dialVerifiedWithPolicy(ctx, network, address, false)
+}
+func (c *Client) dialVerifiedWithPolicy(ctx context.Context, network, address string, rejectMapped bool) (net.Conn, error) {
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return nil, &FetchError{Class: ErrorBlocked, Err: err}
 	}
-	host = strings.Trim(host, "[]")
+	addresses, err := c.resolvePublic(ctx, strings.Trim(host, "[]"), rejectMapped)
+	if err != nil {
+		return nil, err
+	}
+	return c.dialContext(ctx, network, net.JoinHostPort(addresses[0].String(), port))
+}
+
+// resolvePublic is shared by configuration checks and each fresh connection.
+func (c *Client) resolvePublic(ctx context.Context, host string, rejectMapped bool) ([]netip.Addr, error) {
 	addresses := []netip.Addr{}
 	if literal, err := netip.ParseAddr(host); err == nil {
 		addresses = append(addresses, literal)
 	} else {
-		addresses, err = c.resolver.LookupNetIP(ctx, "ip", host)
+		dnsCtx, cancel := context.WithTimeout(ctx, c.connectTimeout)
+		defer cancel()
+		addresses, err = c.resolver.LookupNetIP(dnsCtx, "ip", host)
 		if err != nil {
 			return nil, &FetchError{Class: ErrorUnavailable, Err: err}
 		}
@@ -217,11 +234,22 @@ func (c *Client) dialVerified(ctx context.Context, network, address string) (net
 		return nil, &FetchError{Class: ErrorUnavailable, Err: errors.New("DNS returned no addresses")}
 	}
 	for _, address := range addresses {
-		if !isPublic(address.Unmap()) {
-			return nil, &FetchError{Class: ErrorBlocked, Err: fmt.Errorf("non-public target for host %q", host)}
+		if (rejectMapped && address.Is4In6()) || !isPublic(address.Unmap()) {
+			return nil, &FetchError{Class: ErrorBlocked, Err: errors.New("non-public target")}
 		}
 	}
-	return c.dialContext(ctx, network, net.JoinHostPort(addresses[0].String(), port))
+	return addresses, nil
+}
+
+// CheckWebhookTarget checks URL policy and every DNS answer without making an
+// HTTP request. Actual sends resolve again and pin their validated dial address.
+func (c *Client) CheckWebhookTarget(ctx context.Context, rawURL string) error {
+	if err := ValidateWebhookURL(rawURL); err != nil {
+		return err
+	}
+	target, _ := url.Parse(rawURL)
+	_, err := c.resolvePublic(ctx, target.Hostname(), true)
+	return err
 }
 
 var reservedPrefixes = []netip.Prefix{
@@ -264,4 +292,103 @@ func classifyError(err error) error {
 		return &FetchError{Class: ErrorTimeout, Err: err}
 	}
 	return &FetchError{Class: ErrorUnavailable, Err: err}
+}
+
+// ValidateWebhookURL is shared by save, test and every outbound attempt.
+func ValidateWebhookURL(raw string) error {
+	// Validate the exact representation that net/http will send. Link rendering
+	// may decode HTML entities; webhook configuration is an API URL, not markup.
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return &FetchError{Class: ErrorInvalid}
+	}
+	hostname := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
+	if hostname == "localhost" || strings.HasSuffix(hostname, ".localhost") || strings.HasSuffix(hostname, ".local") || strings.HasSuffix(hostname, ".internal") || strings.Contains(hostname, "%") {
+		return &FetchError{Class: ErrorBlocked}
+	}
+	if _, err := netip.ParseAddr(hostname); err != nil {
+		numeric := true
+		parts := strings.Split(hostname, ".")
+		if len(parts) > 4 {
+			numeric = false
+		}
+		for _, part := range parts {
+			base := 10
+			if strings.HasPrefix(part, "0x") {
+				base = 16
+				part = strings.TrimPrefix(part, "0x")
+			}
+			if _, err := strconv.ParseUint(part, base, 32); err != nil {
+				numeric = false
+			}
+		}
+		if numeric {
+			return &FetchError{Class: ErrorBlocked}
+		}
+	}
+	if u.Scheme != "https" || u.User != nil || u.Fragment != "" || u.RawQuery != "" || (u.Port() != "" && u.Port() != "443") {
+		return &FetchError{Class: ErrorBlocked}
+	}
+	if ip, err := netip.ParseAddr(u.Hostname()); err == nil && (ip.Is4In6() || !isPublic(ip)) {
+		return &FetchError{Class: ErrorBlocked}
+	}
+	return nil
+}
+
+// PostJSON only sends bounded JSON to public HTTPS/443; no redirect, proxy,
+// ambient credentials or pooled connection can bypass a fresh DNS check.
+func (c *Client) PostJSON(ctx context.Context, rawURL string, body []byte, headers http.Header) (Result, error) {
+	if err := ValidateWebhookURL(rawURL); err != nil {
+		return Result{}, err
+	}
+	if len(body) > 64<<10 {
+		return Result{}, &FetchError{Class: ErrorTooLarge}
+	}
+	select {
+	case c.semaphore <- struct{}{}:
+		defer func() { <-c.semaphore }()
+	case <-ctx.Done():
+		return Result{}, classifyError(ctx.Err())
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rawURL, bytes.NewReader(body))
+	if err != nil {
+		return Result{}, &FetchError{Class: ErrorInvalid, Err: err}
+	}
+	for _, name := range []string{"Webhook-Id", "Webhook-Timestamp", "Webhook-Signature", "Webhook-Attempt-Id", "Webhook-Delivery-Id"} {
+		if v := headers.Get(name); v != "" {
+			req.Header.Set(name, v)
+		}
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "YourTJ-AgentWebhook/1.0")
+	base := c.httpClient.Transport.(*http.Transport)
+	transport := base.Clone()
+	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		return c.dialVerifiedWithPolicy(ctx, network, address, true)
+	}
+	transport.DisableKeepAlives = true
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport, Timeout: c.httpClient.Timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	started := time.Now()
+	response, err := client.Do(req)
+	if err != nil {
+		return Result{}, classifyError(err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	// Webhook acceptance/retry is determined by the received status and headers;
+	// an oversized or interrupted diagnostic body must not erase that outcome.
+	result := Result{StatusCode: response.StatusCode, RetryAfter: response.Header.Get("Retry-After")}
+	if response.ContentLength > c.maxBodyBytes {
+		result.Duration = time.Since(started)
+		return result, &FetchError{Class: ErrorTooLarge}
+	}
+	responseBody, err := io.ReadAll(io.LimitReader(response.Body, c.maxBodyBytes+1))
+	result.Duration = time.Since(started)
+	if err != nil {
+		return result, classifyError(err)
+	}
+	if int64(len(responseBody)) > c.maxBodyBytes {
+		return result, &FetchError{Class: ErrorTooLarge}
+	}
+	return result, nil
 }

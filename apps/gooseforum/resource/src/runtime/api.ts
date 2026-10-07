@@ -3,7 +3,7 @@ import type { TopicPayload } from '@gooseforum/client'
 // CourseSummaryPayload 以别名导入：本文件 1663 行另有一个同名但形状不同的
 // CourseSummaryPayload（AI 总结：consensus/keywords/pros/cons），二者同名异物。
 // 这里导入的是课程卡片（id/name/ratingAvg/...），故别名为 CourseCatalogItem 避免混淆。
-import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, ModerationApprovalActionView, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
+import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, MentionTarget, ModerationApprovalActionView, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import type { ReviewQueueItem } from '@/admin/types'
 import { resolveApiMessage } from './api-message'
@@ -441,6 +441,17 @@ export async function searchForumUsers(query: string, signal?: AbortSignal): Pro
   })
   const result = await readApiResponse<{ users?: UserSearchPayload[] }>(response, t('api.searchUsersFailed'))
   return result.users ?? []
+}
+
+/** Dedicated mention candidates include enabled bot personas without changing human search. */
+export async function getMentionTargets(query: string, signal?: AbortSignal): Promise<MentionTarget[]> {
+  const params = new URLSearchParams({ q: query, limit: '20' })
+  const response = await fetch(`/api/forum/mention-targets?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  })
+  const targets = await readApiResponse<MentionTarget[]>(response, t('api.searchUsersFailed'))
+  return Array.isArray(targets) ? targets : []
 }
 
 /** 启用表情包列表（编辑器选择面板，MADR 0030）：公开只读，仅启用项、按 sortOrder 排序。 */

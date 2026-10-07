@@ -360,3 +360,13 @@ func ChatIdentitiesByIDs(tx *gorm.DB, ids []uint64) (map[uint64]PublicChatIdenti
 	}
 	return result, nil
 }
+
+// WearRobotBadgeIfEmptyTx never replaces an explicit badge selection.
+func WearRobotBadgeIfEmptyTx(tx *gorm.DB, userID uint64) error {
+	return tx.Model(&EntityComplete{}).Where("id = ? AND actor_type = ? AND worn_badge_code = ''", userID, ActorTypeBot).Update("worn_badge_code", "robot").Error
+}
+func BotBadgeBackfillBatch(after uint64, limit int) ([]EntityComplete, error) {
+	var rows []EntityComplete
+	err := builder().Where("id > ? AND actor_type = ? AND worn_badge_code = ''", after, ActorTypeBot).Order("id asc").Limit(limit).Find(&rows).Error
+	return rows, err
+}
