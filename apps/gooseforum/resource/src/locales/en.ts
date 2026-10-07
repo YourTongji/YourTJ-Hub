@@ -1989,6 +1989,7 @@ export default {
     latestReply: 'Latest reply',
     replyPosition: 'Reply position',
     joinDiscussion: 'Join the discussion',
+    loginToJoinDiscussion: 'Log in to join',
     resizeComposer: 'Resize reply panel',
     markdownSoon: 'Markdown support is coming later',
     publishReply: 'Post reply',
