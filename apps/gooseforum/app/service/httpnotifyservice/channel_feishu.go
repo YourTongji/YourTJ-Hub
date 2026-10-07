@@ -81,8 +81,15 @@ func (feishuChannel) buildRequest(endpoint pageConfig.HttpNotifyEndpoint, _ stri
 	delete(payload, "sign")
 	if endpoint.Secret != "" {
 		value := strconv.FormatInt(timestamp, 10)
-		payload["timestamp"], _ = json.Marshal(value)
-		payload["sign"], _ = json.Marshal(feishuSign(value, endpoint.Secret))
+		encodedTimestamp, err := json.Marshal(value)
+		if err != nil {
+			return nil, err
+		}
+		encodedSign, err := json.Marshal(feishuSign(value, endpoint.Secret))
+		if err != nil {
+			return nil, err
+		}
+		payload["timestamp"], payload["sign"] = encodedTimestamp, encodedSign
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {

@@ -160,9 +160,10 @@ func applyReportQuickAction(ctx context.Context, actorID uint64, report reports.
 	}
 
 	status, resolution := reports.StatusResolved, reports.ResolutionBanned
-	if action == ReportQuickActionDismiss {
+	switch action {
+	case ReportQuickActionDismiss:
 		status, resolution = reports.StatusRejected, reports.ResolutionIgnored
-	} else if action == ReportQuickActionShow {
+	case ReportQuickActionShow:
 		resolution = ""
 	}
 	changed, reportAlreadyProcessed := false, false
