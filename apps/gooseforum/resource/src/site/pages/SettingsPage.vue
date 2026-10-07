@@ -378,7 +378,7 @@ watch(avatarUrl, (next) => {
 })
 
 onMounted(() => {
-  const urlTab = new URL(window.location.href).searchParams.get('tab')
+  const urlTab = window.location.hash === '#anonymous-identity' ? 'privacy' : new URL(window.location.href).searchParams.get('tab')
   if (tabKeys.includes(urlTab as TabKey)) activeTab.value = urlTab as TabKey
 
   const savedPrivacy = localStorage.getItem('goose-privacy-settings')
@@ -407,6 +407,7 @@ function buildExternalInfo() {
 function setActiveTab(key: TabKey) {
   activeTab.value = key
   const url = new URL(window.location.href)
+  if (url.hash === '#anonymous-identity') url.hash = ''
   if (key === 'profile') url.searchParams.delete('tab')
   else url.searchParams.set('tab', key)
   history.replaceState(history.state, '', url)
@@ -1385,7 +1386,6 @@ async function toggleBinding(provider: string) {
 
 <template>
     <main class="min-w-0 pb-8">
-      <AnonymousIdentitySettings :key="page.layout.viewer.id" />
       <section class="gf-card overflow-visible">
         <!-- 编辑资料页：封面右上角「设置封面」；选图后在封面区浮层编辑（非弹层） -->
         <!-- overflow-visible 保持悬浮 tooltip 不被卡片裁剪；封面图由自身圆角裁剪，封面编辑浮层不裁剪 -->
@@ -2161,6 +2161,7 @@ async function toggleBinding(provider: string) {
           <section v-show="activeTab === 'privacy'">
             <SectionHeader :icon="Shield" :title="t('settings.privacy.title')" />
             <div class="max-w-2xl divide-y divide-line p-4">
+              <AnonymousIdentitySettings v-if="activeTab === 'privacy'" :key="page.layout.viewer.id" />
               <label class="flex items-center justify-between gap-4 py-4">
                 <span>
                   <span class="block text-sm font-semibold text-base-content">{{ t('settings.privacy.showTopics') }}</span>

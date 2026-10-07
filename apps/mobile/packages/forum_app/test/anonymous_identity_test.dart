@@ -108,9 +108,9 @@ void main() {
         await tester.tap(candidate);
         await tester.pumpAndSettle();
         expect(confirms, 0);
-        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(find.byType(AlertDialog), findsNothing);
         expect(tester.takeException(), isNull);
-        final confirm = find.widgetWithText(FilledButton, '确认花名（锁定一年）');
+        final confirm = find.widgetWithText(GfButton, '确认使用此花名');
         await tester.ensureVisible(confirm);
         await tester.tap(confirm);
         await tester.pumpAndSettle();
