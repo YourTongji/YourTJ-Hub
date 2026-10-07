@@ -2347,6 +2347,10 @@ void main() {
         rows.singleWhere((r) => r.text.contains('活动内容')).contextSymbol,
         entry.value,
       );
+      // Unmount each container's page before starting the next icon case so
+      // auto-disposed profile providers can finish their scheduled cleanup.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
     }
   });
 
