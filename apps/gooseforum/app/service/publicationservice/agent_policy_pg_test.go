@@ -228,6 +228,9 @@ func TestPostgreSQLPersonaReplyAndAgentSourceShareLockOrder(t *testing.T) {
 				case "direct edit":
 					reply.Id, reply.PostNo = 201, 2
 					results <- conn.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+						if err := postservice.LockPersonaContentTx(tx, &reply); err != nil {
+							return err
+						}
 						if err := posts.SaveTx(tx, &reply); err != nil {
 							return err
 						}

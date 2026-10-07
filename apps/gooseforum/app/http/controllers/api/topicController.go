@@ -453,6 +453,9 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			// firstPost 行、再写 topic 派生字段。若这里先锁 topics 再锁
 			// posts，与 UpdatePost 的 posts→topics 形成锁环，同一话题双
 			// 路径并发编辑时可能死锁（数据库回滚其中一个事务）。
+			if err := postservice.LockPersonaContentTx(tx, &firstPost); err != nil {
+				return err
+			}
 			if err := posts.SaveTx(tx, &firstPost); err != nil {
 				return err
 			}
@@ -1071,6 +1074,9 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 
 	now := time.Now()
 	if err := db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
+		if err := postservice.LockPersonaContentTx(tx, &postEntity); err != nil {
+			return err
+		}
 		if err := posts.SaveTx(tx, &postEntity); err != nil {
 			return err
 		}

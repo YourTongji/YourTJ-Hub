@@ -101,6 +101,22 @@ func CreateTopicPostWithHooks(entity *posts.Entity, topicEntity topics.Entity, b
 	})
 }
 
+// LockPersonaContentTx follows source authorization's post -> topic -> owner
+// order before model SaveTx rechecks persona governance. Member writes do not
+// take these additional locks. Creation/review paths already hold content locks.
+func LockPersonaContentTx(tx *gorm.DB, post *posts.Entity) error {
+	if post.PersonaUID == "" {
+		return nil
+	}
+	if post.Id != 0 {
+		if _, err := posts.GetUnscopedTx(tx, post.Id); err != nil {
+			return err
+		}
+	}
+	_, err := topics.GetForUpdateTx(tx, post.TopicId)
+	return err
+}
+
 func DeleteTopicPost(postID, userID uint64) (posts.Entity, error) {
 	return deleteTopicPost(db.Connect(), postID, userID)
 }

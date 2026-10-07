@@ -5,7 +5,6 @@ import (
 	"errors"
 	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -31,9 +30,10 @@ func Create(entity *Entity) error {
 	return builder().Create(entity).Error
 }
 
-// CreateTx 事务内创建帖子。
+// CreateTx creates a post inside the caller's content transaction.
+// Persona callers must hold the topic lock before taking the private owner lock.
 func CreateTx(tx *gorm.DB, entity *Entity) error {
-	if err := validatePersonaWriterTx(tx, entity); err != nil {
+	if err := identity.ValidateWriterTx(tx, entity.UserId, entity.PersonaUID); err != nil {
 		return err
 	}
 	return tx.Table(tableName).Create(entity).Error
@@ -43,30 +43,13 @@ func Save(entity *Entity) error {
 	return builder().Save(entity).Error
 }
 
-// SaveTx 事务内保存帖子。
+// SaveTx saves a post inside the caller's content transaction.
+// Persona callers must already hold existing post/topic locks.
 func SaveTx(tx *gorm.DB, entity *Entity) error {
-	if err := validatePersonaWriterTx(tx, entity); err != nil {
+	if err := identity.ValidateWriterTx(tx, entity.UserId, entity.PersonaUID); err != nil {
 		return err
 	}
 	return tx.Table(tableName).Save(entity).Error
-}
-
-// Persona writes retain governance's owner lock until commit, after any
-// existing content locks. This matches Agent source authorization (post ->
-// topic -> users) and also protects callers that use model writes directly.
-func validatePersonaWriterTx(tx *gorm.DB, entity *Entity) error {
-	if entity.PersonaUID == "" {
-		return nil
-	}
-	if entity.Id != 0 {
-		if _, err := GetUnscopedTx(tx, entity.Id); err != nil {
-			return err
-		}
-	}
-	if _, err := topics.GetForUpdateTx(tx, entity.TopicId); err != nil {
-		return err
-	}
-	return identity.ValidateWriterTx(tx, entity.UserId, entity.PersonaUID)
 }
 
 func Get(id uint64) (entity Entity) {
