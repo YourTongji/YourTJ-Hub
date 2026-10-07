@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-05
+> Last verified: 2026-10-07
 
 ## Principles
 
@@ -112,7 +112,9 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   The campus-map suite uses a separate temporary Vite `cacheDir` and removes it after closing its
   server, because its dependency optimizer differs from the other suites. The Node runner caps concurrent suites at two because each suite starts its own Vite server
   and Chromium, and the map uses software WebGL rendering in CI. This bounds process/memory and
-  screenshot contention without removing cases or extending assertion timeouts. Concurrent suites
+  screenshot contention without removing cases or extending assertion timeouts. Atlas screenshots
+  capture the viewport with a separate 60-second software-rendering budget; interactive assertions
+  still use 15 seconds. Concurrent suites
   still need separate caches when optimizer configurations differ: sharing the default cache can
   replace Vue chunks during imports and prevent another fixture from mounting.
   The campus-map location regression checks unknown text, pending override status, cross-semester stable matching, scoped prefix/suffix time conditions and multiple-member choices with synthetic public course responses. Place-text candidate recognition is measured separately from map coverage in `resource/test/place-text-match.test.ts`. It writes desktop/375px screenshots and a source receipt
