@@ -151,7 +151,18 @@ func newPublicRepliesAmong(conn *gorm.DB, viewer uint64, cutoffs map[uint64]time
 	}
 	comparison := "posts.first_public_at > marks.content_at"
 	if conn.Name() == "sqlite" {
-		comparison = "julianday(posts.first_public_at) > julianday(marks.content_at)"
+
+		// SQLite's date functions round fractions to milliseconds. Normalize
+		// whole UTC seconds separately so even an immediate public reply is
+		// compared without swallowing its sub-millisecond fraction.
+		second := func(name string) string {
+			return fmt.Sprintf("datetime(substr(%[1]s,1,19)||CASE WHEN substr(%[1]s,-6,1) IN ('+','-') THEN substr(%[1]s,-6) ELSE '' END)", name)
+		}
+		fraction := func(name string) string {
+			return fmt.Sprintf("CASE WHEN substr(%[1]s,20,1) = '.' THEN CAST('0.'||substr(%[1]s,21) AS REAL) ELSE 0 END", name)
+		}
+		public, cutoff := second("posts.first_public_at"), second("marks.content_at")
+		comparison = fmt.Sprintf("(%s > %s OR (%s = %s AND (%s) > (%s)))", public, cutoff, public, cutoff, fraction("posts.first_public_at"), fraction("marks.content_at"))
 	}
 	eligibleAuthor := users.FeedAuthorsQuery(conn, viewer).Where("users.id = posts.user_id").Limit(1)
 	authorExists := "EXISTS (?)"

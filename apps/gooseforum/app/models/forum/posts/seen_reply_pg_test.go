@@ -164,15 +164,15 @@ func TestNewPublicReplyCutoffsAndQueryPlanOnSQLite(t *testing.T) {
 		t.Fatal(err)
 	}
 	at := time.Date(2026, 10, 7, 8, 0, 0, 0, time.FixedZone("UTC+8", 8*60*60))
-	old, fresh := at.Add(-time.Second), at.Add(time.Second)
-	if err := conn.Create(&[]Entity{{TopicId: 31, UserId: 2, PostNo: 2, FirstPublicAt: &old}, {TopicId: 32, UserId: 2, PostNo: 2, FirstPublicAt: &fresh}}).Error; err != nil {
+	old, fresh, immediate := at.Add(-time.Second), at.Add(time.Second), at.Add(100*time.Microsecond)
+	if err := conn.Create(&[]Entity{{TopicId: 31, UserId: 2, PostNo: 2, FirstPublicAt: &old}, {TopicId: 32, UserId: 2, PostNo: 2, FirstPublicAt: &fresh}, {TopicId: 33, UserId: 2, PostNo: 2, FirstPublicAt: &immediate}}).Error; err != nil {
 		t.Fatal(err)
 	}
-	result, err := newPublicRepliesAmong(conn, 1, map[uint64]time.Time{31: at.UTC(), 32: at.UTC()})
+	result, err := newPublicRepliesAmong(conn, 1, map[uint64]time.Time{31: at.UTC(), 32: at.UTC(), 33: at.UTC()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result[31] || !result[32] {
+	if result[31] || !result[32] || !result[33] {
 		t.Fatalf("timezone-normalized cutoffs: %v", result)
 	}
 	var plan []struct{ Detail string }
