@@ -102,7 +102,9 @@ func EnsureRenderedHTMLBatch(entities []*posts.Entity) {
 		if strings.Contains(entity.Content, "[:sticker:") {
 			refreshStickerHTMLInPlace(entity, urls, mentionTargets)
 		} else {
-			ensureRenderedHTMLWithMentions(entity, posts.SaveNoUpdate, mentionTargets)
+			if _, err := ensureRenderedHTMLWithMentions(entity, posts.SaveNoUpdate, mentionTargets); err != nil {
+				slog.Warn("save rebuilt post html failed", "postId", entity.Id, "error", err)
+			}
 		}
 	}
 }
