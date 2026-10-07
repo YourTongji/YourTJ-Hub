@@ -1570,6 +1570,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
     _replyToPostId = 0;
     _replyTargetName = null;
     _replyMentionPrefix = null;
+    _replyIdentity = 'member';
     _restoringReply = false;
     _replyRevision = _replySavedRevision = 0;
     _replySaveStatus = '';

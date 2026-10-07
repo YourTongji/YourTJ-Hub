@@ -43,6 +43,7 @@ current name; delivered notifications, screenshots and copied text are not recal
 `Current`: topic and reply composers choose `member` or `persona`. A fresh composition defaults to
 member; a continuation in the owner's anonymous topic defaults to that persona. Draft recovery retains
 the chosen identity with its body. Captcha, review and failed submissions retain that choice.
+A session change clears the previous composer's choice before loading the new account's draft.
 An unavailable persona causes failure instead of silently switching to member. Published authors
 cannot be changed by editing their body. Existing server drafts retain the original attribution.
 
