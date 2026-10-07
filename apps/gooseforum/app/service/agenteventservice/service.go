@@ -1133,15 +1133,28 @@ func Cleanup() error {
 		if err := lockEventBatchTx(tx, rows); err != nil {
 			return err
 		}
-		ids := make([]string, 0, len(rows))
+		expiredIDs := make([]string, 0, len(rows))
+		withdrawnIDs := make([]string, 0, len(rows))
 		for _, e := range rows {
 			if err := agentEvents.ExpireEventTx(tx, &e); err != nil {
 				return err
 			}
-			ids = append(ids, e.ID)
+			// Selection may precede a committed lifecycle withdrawal. The
+			// redactor rereads the fenced row; its current terminal state also
+			// determines how retained delivery copies are classified.
+			if e.WithdrawnAt != nil {
+				withdrawnIDs = append(withdrawnIDs, e.ID)
+			} else {
+				expiredIDs = append(expiredIDs, e.ID)
+			}
 		}
-		if expiryHook != nil && len(ids) > 0 {
-			if err := expiryHook(tx, cfg.ID, ids); err != nil {
+		if withdrawalHook != nil && len(withdrawnIDs) > 0 {
+			if err := withdrawalHook(tx, cfg.ID, withdrawnIDs); err != nil {
+				return err
+			}
+		}
+		if expiryHook != nil && len(expiredIDs) > 0 {
+			if err := expiryHook(tx, cfg.ID, expiredIDs); err != nil {
 				return err
 			}
 		}
