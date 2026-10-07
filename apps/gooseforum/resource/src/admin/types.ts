@@ -1,4 +1,4 @@
-import type { LayoutPayload } from '@gooseforum/client'
+import type { components, LayoutPayload } from '@gooseforum/client'
 
 export interface AdminPayload<TProps = unknown> {
   component: string
@@ -738,19 +738,7 @@ export interface AdminAgentWebhookDeliveryPage {
   pageSize: number
 }
 
-export interface AdminAgentInteractionIntent {
-  id: string | number
-  agentId?: number
-  sourceOccurrenceId?: string
-  postId?: number
-  revision?: number
-  status: string
-  createdAt: string
-  expiresAt?: string | null
-  retryCount?: number
-  lastError?: string | null
-  taskId?: number | null
-}
+export type AdminAgentInteractionIntent = components['schemas']['AgentInteractionIntent']
 
 export interface AdminAgentInteractionIntentPage {
   list: AdminAgentInteractionIntent[]

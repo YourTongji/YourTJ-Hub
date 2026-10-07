@@ -14,6 +14,7 @@ import {
   testAgentWebhook,
 } from '../src/admin/runtime/api'
 import type { AdminAgent, AdminAgentInteractionIntent, AdminAgentWebhookDelivery } from '../src/admin/types'
+import type { components } from '@gooseforum/client'
 
 vi.mock('../src/admin/runtime/api', () => ({
   getAgentInteractionIntents: vi.fn(),
@@ -87,9 +88,9 @@ const delivery: AdminAgentWebhookDelivery = {
   }],
 }
 
-const deadIntent: AdminAgentInteractionIntent = {
-  id: 'intent-9',
-  agentId: 8,
+// Keep this fixture identical to the controlled wire response, not UI field aliases.
+const deadIntent = {
+  intentId: 'intent-9',
   sourceOccurrenceId: 'occ-9',
   postId: 31,
   revision: 2,
@@ -97,9 +98,8 @@ const deadIntent: AdminAgentInteractionIntent = {
   createdAt: '2026-10-04T09:00:00Z',
   expiresAt: '2026-10-11T09:00:00Z',
   retryCount: 3,
-  lastError: 'temporary database error',
-  taskId: 88,
-}
+  errorCode: 'materialization_error',
+} satisfies components['schemas']['AgentInteractionIntent']
 
 let wrapper: VueWrapper | undefined
 let priorLocale = 'zh'
@@ -248,7 +248,8 @@ describe('Agent Webhook management dialog', () => {
     await flushPromises()
 
     expect(body.text()).toContain('Source occurrence occ-9')
-    expect(body.text()).toContain('Latest error: temporary database error')
+    expect(body.text()).toContain('Intent ID intent-9')
+    expect(body.text()).toContain('Latest error: materialization_error')
     vi.mocked(replayAgentInteractionIntent).mockResolvedValue(undefined)
     await clickByText(body, 'Replay intent')
     await flushPromises()

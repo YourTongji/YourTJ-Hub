@@ -301,10 +301,10 @@ async function replay(intent: AdminAgentInteractionIntent) {
   const agent = currentAgent.value
   if (!agent || busyIntentId.value !== null) return
   const session = dialogSession
-  busyIntentId.value = intent.id
+  busyIntentId.value = intent.intentId
   actionError.value = ''
   try {
-    await replayAgentInteractionIntent(agent.agentId, intent.id)
+    await replayAgentInteractionIntent(agent.agentId, intent.intentId)
     if (session !== dialogSession) return
     await loadIntents()
   } catch (error) {
@@ -461,14 +461,14 @@ function canReplay(status: string) {
             <p v-else-if="intentsLoading" class="py-5 text-center text-sm text-muted-foreground">{{ t('agentWebhook.loading') }}</p>
             <p v-else-if="!intents.length" class="py-5 text-center text-sm text-muted-foreground">{{ t('agentWebhook.noIntents') }}</p>
             <div v-else class="grid gap-3">
-              <article v-for="intent in intents" :key="intent.id" class="grid gap-2 rounded-md border p-3 text-sm" :data-testid="`intent-${intent.id}`">
+              <article v-for="intent in intents" :key="intent.intentId" class="grid gap-2 rounded-md border p-3 text-sm" :data-testid="`intent-${intent.intentId}`">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span class="break-all font-medium">{{ t('agentWebhook.intentId') }} {{ intent.id }}</span>
+                    <span class="break-all font-medium">{{ t('agentWebhook.intentId') }} {{ intent.intentId }}</span>
                     <span class="rounded-full bg-muted px-2 py-0.5 text-xs">{{ statusText(intent.status) }}</span>
                   </div>
                   <Button v-if="canReplay(intent.status)" size="sm" variant="outline" type="button" :disabled="busyIntentId !== null" @click="replay(intent)">
-                    {{ busyIntentId === intent.id ? t('agentWebhook.saving') : t('agentWebhook.replay') }}
+                    {{ busyIntentId === intent.intentId ? t('agentWebhook.saving') : t('agentWebhook.replay') }}
                   </Button>
                 </div>
                 <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -478,7 +478,7 @@ function canReplay(status: string) {
                   <span>{{ t('agentWebhook.retryCount') }} {{ intent.retryCount ?? 0 }}</span>
                   <span>{{ t('agentWebhook.expires') }} {{ formatTime(intent.expiresAt) }}</span>
                 </div>
-                <p v-if="intent.lastError" class="break-words text-xs text-destructive">{{ t('agentWebhook.lastError') }}: {{ intent.lastError }}</p>
+                <p v-if="intent.errorCode" class="break-words text-xs text-destructive">{{ t('agentWebhook.lastError') }}: {{ intent.errorCode }}</p>
               </article>
             </div>
             <div class="flex items-center justify-between gap-3 text-sm">

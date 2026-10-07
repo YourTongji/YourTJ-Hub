@@ -674,7 +674,7 @@ export function getAgentInteractionIntents(agentId: number, page: number, pageSi
   )
 }
 
-export function replayAgentInteractionIntent(agentId: number, intentId: string | number) {
+export function replayAgentInteractionIntent(agentId: number, intentId: string) {
   return postJson<unknown>(
     '/api/admin/agent-interaction-replay', { agentId, intentId }, t('agentWebhook.replayFailed'),
   )
