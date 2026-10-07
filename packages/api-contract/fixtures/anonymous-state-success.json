@@ -35,6 +35,7 @@
         "createdAt": "2026-10-06T08:00:00Z"
       }
     ],
-    "lexiconVersion": "phrase6-v1"
+    "lexiconVersion": "phrase6-v1",
+    "showContent": true
   }
 }

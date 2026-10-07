@@ -3,6 +3,7 @@
 {{define "page"}}
 <main class="gf-crawler-user-page">
 {{template "partials/profile_header.gohtml" (dict "AvatarUrl" .Payload.Props.Persona.AvatarURL "Name" .Payload.Props.Persona.Name "Label" (t .Lang "anonymous.identity"))}}
+{{if .Payload.Props.ShowContent}}
 <section class="gf-crawler-user-stats" aria-label="{{t .Lang "profileStats"}}"><dl>
 <div><dt>{{t .Lang "topics"}}</dt><dd>{{.Payload.Props.TopicCount}}</dd></div>
 <div><dt>{{t .Lang "repliesTitle"}}</dt><dd>{{.Payload.Props.ReplyCount}}</dd></div>
@@ -17,5 +18,6 @@
 {{if gt .Payload.Props.Page 1}}<a href="{{.Payload.Props.Persona.ProfileURL}}?page={{sub .Payload.Props.Page 1}}">{{t .Lang "prevPage"}}</a>{{end}}
 {{if .Payload.Props.HasNext}}<a href="{{.Payload.Props.Persona.ProfileURL}}?page={{add .Payload.Props.Page 1}}">{{t .Lang "nextPage"}}</a>{{end}}
 </nav>
+{{else}}<section class="gf-crawler-user-section"><p>{{t .Lang "anonymous.profileContentHidden"}}</p></section>{{end}}
 </main>
 {{end}}

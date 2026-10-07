@@ -8,6 +8,7 @@ import {
   disableIdentity,
   generateNames,
   getIdentityState,
+  setProfileContent,
   type IdentityState,
   type Persona,
 } from '@/runtime/anonymous-identity'
@@ -121,6 +122,23 @@ async function toggle() {
     busy.value = false
   }
 }
+async function toggleContent() {
+  if (!state.value?.persona || busy.value || loading.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    const showContent = !state.value.showContent
+    await setProfileContent(showContent)
+    // Commit the checkbox only after success. A subsequent refresh failure
+    // cannot revert a preference already saved by the server.
+    state.value = { ...state.value, showContent }
+    emit('updated', state.value)
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    busy.value = false
+  }
+}
 </script>
 <template>
   <DialogRoot :open="open" @update:open="updateOpen">
@@ -193,6 +211,22 @@ async function toggle() {
                 })
               }}
             </p>
+            <label v-if="state.persona" class="flex items-start justify-between gap-4 rounded-lg border border-line p-4">
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold">{{ t('anonymous.showContent') }}</span>
+                <span class="mt-1 block text-xs leading-5 text-base-content/60">{{
+                  t('anonymous.showContentDescription')
+                }}</span>
+              </span>
+              <input
+                type="checkbox"
+                :checked="state.showContent"
+                :disabled="busy || loading"
+                :aria-label="t('anonymous.showContent')"
+                class="mt-0.5 h-5 w-5 shrink-0 rounded border-line text-primary"
+                @click.prevent="toggleContent"
+              />
+            </label>
             <p v-if="state.governanceDisabled" role="status" class="text-sm text-error">
               {{ t('anonymous.unavailable') }}
             </p>

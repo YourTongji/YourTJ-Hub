@@ -10,7 +10,7 @@ export const topics: TopicPayload[] = ['分享一件最近让你开心的小事'
 }))
 export const identityState = {
   persona, nameSelectedAt: '2026-10-07T00:00:00Z', nameChangeAvailableAt: '2027-10-07T00:00:00Z',
-  disabled: false, governanceDisabled: false, day: '2026-10-07', remaining: 10, resetsAt: '2026-10-07T16:00:00Z', batches: [], lexiconVersion: 'phrase6-v1',
+  disabled: false, governanceDisabled: false, showContent: true, day: '2026-10-07', remaining: 10, resetsAt: '2026-10-07T16:00:00Z', batches: [], lexiconVersion: 'phrase6-v1',
 }
 export const layout: LayoutPayload = {
   site: { name: 'yourtj', description: '', logo: '', favicon: '', brandType: 'text', brandText: 'yourtj', brandImage: '' },
@@ -27,7 +27,7 @@ export const memberProfile: UserProfileProps = {
   isOwnProfile: true, canMessage: false, canFollow: false, messageUrl: '', settingsUrl: '/settings',
 }
 export const anonymousProfile: AnonymousProfileProps = {
-  persona, topics, topicCount: topics.length, replyCount: 2, page: 1, hasNext: false,
+  showContent: true, persona, topics, topicCount: topics.length, replyCount: 2, page: 1, hasNext: false,
   replies: [{ id: 1, url: '/p/1/2', excerpt: '路过图书馆时，发现窗边的银杏已经开始变黄了。' },
     { id: 2, url: '/p/2/3', excerpt: '抱着一杯热茶，看了一下午的雨。' }],
 }

@@ -128,6 +128,9 @@ func migrateSchema() error {
 	if err = upgradePostAgentEventDepth(db); err != nil {
 		return err
 	}
+	if err = upgradeAnonymousProfilePrivacy(db); err != nil {
+		return err
+	}
 	if err = db.AutoMigrate(SchemaModels()...); err != nil {
 		// 迁移失败必须上层按非零码退出，否则服务会带着残缺 schema 继续启动，
 		// 登录/注册等依赖新表的接口在运行期才会报错，故障被发现时已影响线上。
@@ -385,6 +388,18 @@ func upgradeTopicAgentCommentPolicy(db *gorm.DB) error {
 		return fmt.Errorf("add topics.agent_comment_disabled column: %w", err)
 	}
 	slog.Info("dbconnect topics.agent_comment_disabled column added (default false)")
+	return nil
+}
+
+// Add the preference without rebuilding SQLite's retained persona table.
+// Existing personas keep their public history until the owner explicitly hides it.
+func upgradeAnonymousProfilePrivacy(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&identity.Persona{}) || db.Migrator().HasColumn(&identity.Persona{}, "show_content") {
+		return nil
+	}
+	if err := db.Exec("ALTER TABLE anonymous_personas ADD COLUMN show_content BOOLEAN NOT NULL DEFAULT TRUE").Error; err != nil {
+		return fmt.Errorf("add anonymous_personas.show_content: %w", err)
+	}
 	return nil
 }
 

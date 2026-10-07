@@ -1214,9 +1214,6 @@ func LikeTopic(req component.BetterRequest[LikeTopicReq]) component.Response {
 	if topicEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
-	if topicEntity.PersonaUID != "" && topicEntity.UserId == req.UserId && req.Params.Action == 1 {
-		return component.FailResponseCode(component.MessagePermissionDenied, nil)
-	}
 	state := topicUserAction.GetByTopicId(req.UserId, topicEntity.Id)
 	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）清理对已隐藏/封禁话题的
 	// 既有点赞，避免 like_count 与 user_action 行被永久卡住（无状态者仍按不可见拒绝）。
@@ -1352,9 +1349,6 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 	topicEntity := topics.GetSimple(postEntity.TopicId)
 	if topicEntity.Id == 0 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
-	}
-	if postEntity.PersonaUID != "" && postEntity.UserId == req.UserId && req.Params.Action == 1 {
-		return component.FailResponseCode(component.MessagePermissionDenied, nil)
 	}
 	state := postUserAction.GetByPostId(req.UserId, postEntity.Id)
 	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）清理对已隐藏/封禁话题的既有点赞。

@@ -52,6 +52,7 @@ class AnonymousIdentityState {
     required this.disabled,
     required this.governanceDisabled,
     required this.batches,
+    this.showContent = true,
   });
   final AnonymousPersona? persona;
   final String day, lexiconVersion;
@@ -59,6 +60,7 @@ class AnonymousIdentityState {
   final DateTime resetsAt;
   final DateTime? availableAt, nameSelectedAt;
   final bool disabled, governanceDisabled;
+  final bool showContent;
   final List<AnonymousNameBatch> batches;
   bool get locked =>
       availableAt != null && DateTime.now().isBefore(availableAt!);
@@ -80,6 +82,7 @@ class AnonymousIdentityState {
             : DateTime.parse(j['nameChangeAvailableAt'] as String),
         disabled: j['disabled'] as bool,
         governanceDisabled: j['governanceDisabled'] as bool,
+        showContent: j['showContent'] as bool? ?? true,
         batches: (j['batches'] as List)
             .map((b) => AnonymousNameBatch.fromJson(b as Map<String, dynamic>))
             .toList(),

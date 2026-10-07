@@ -52,6 +52,62 @@ AnonymousIdentityState state(AnonymousPersona? p) => AnonymousIdentityState(
   batches: [],
 );
 void main() {
+  testWidgets(
+    'hidden profile keeps its header and owner control but omits stale streams and pagination',
+    (tester) async {
+      final dio = Dio()
+        ..interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (o, h) => h.resolve(
+              Response(
+                requestOptions: o,
+                statusCode: 200,
+                data: {
+                  'props': {
+                    ...props(persona.name),
+                    'showContent': false,
+                    'hasNext': true,
+                  },
+                },
+              ),
+            ),
+          ),
+        );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            apiClientProvider.overrideWithValue(
+              GfApiClient(
+                dio: dio,
+                tokenStorage: MemoryTokenStorage(),
+                baseUrl: 'http://fake.local',
+              ),
+            ),
+            currentUserProvider.overrideWith(
+              (ref) async => const CurrentUser(id: 1, username: 'owner'),
+            ),
+            anonymousIdentityProvider.overrideWith(
+              (ref) async => state(persona),
+            ),
+          ],
+          child: MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            theme: gfThemeData(Brightness.light),
+            home: AnonymousProfilePage(uid: uid),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(ProfileHeaderSliver), findsOneWidget);
+      expect(find.byType(ProfileEditButton), findsOneWidget);
+      expect(find.byType(ProfileTabs), findsNothing);
+      expect(find.text('这是匿名回复'), findsNothing);
+      expect(find.text('匿名主页的内容已隐藏'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
   for (final brightness in Brightness.values) {
     for (final width in [320.0, 768.0]) {
       testWidgets(

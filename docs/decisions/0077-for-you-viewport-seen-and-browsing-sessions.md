@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 Class: feature
 
 ## Context and Problem Statement

@@ -1297,6 +1297,7 @@ export interface ForwardChatMessagesResult { convId: number; messageIds: number[
 
 /** Public persona profile: topics/replies only; member identity and relationships are absent. */
 export interface AnonymousProfileProps {
+ showContent: boolean
  persona: {kind:'persona'; publicUid:string; name:string; avatarUrl:string; profileUrl:string}
  topics: TopicPayload[]
  replies: Array<{id:number;url:string;excerpt:string}>

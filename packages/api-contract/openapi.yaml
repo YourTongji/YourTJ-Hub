@@ -90,6 +90,8 @@ paths:
     $ref: ./paths/anonymous-identity.yaml#/confirmAnonymousName
   /api/forum/anonymous/disable:
     $ref: ./paths/anonymous-identity.yaml#/disableAnonymousIdentity
+  /api/forum/anonymous/privacy:
+    $ref: ./paths/anonymous-identity.yaml#/updateAnonymousProfilePrivacy
   /api/forum/anonymous/reveal:
     $ref: ./paths/anonymous-identity.yaml#/revealAnonymousIdentity
   /api/campus/calendar-rules:
@@ -250,6 +252,10 @@ paths:
     $ref: ./paths/feed.yaml#/reconcileForYou
   /api/forum/feed/events:
     $ref: ./paths/feed.yaml#/captureFeedEvents
+  /api/admin/anonymous-identities/list:
+    $ref: ./paths/admin-anonymous-identity.yaml#/listAdminAnonymousIdentities
+  /api/admin/anonymous-identities/govern:
+    $ref: ./paths/admin-anonymous-identity.yaml#/governAdminAnonymousIdentity
   /api/admin/feed/summary:
     $ref: ./paths/feed.yaml#/getFeedSummary
   /api/forum/events:

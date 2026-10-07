@@ -662,7 +662,11 @@ OpenAPI、TypeScript 和 Dart 镜像同步维护，路由覆盖包含此操作�
 
 ## Persistent anonymous personas
 
-`Current`: `anonymous_personas` owns public UID/name and private avatar seed/lock/status.
+`Current`: `anonymous_personas` owns public UID/name, server-persisted `show_content` (default true),
+and private avatar seed/lock/status. The owner-only `POST /api/forum/anonymous/privacy` accepts
+a required boolean `showContent`, infers the persona through the authenticated binding and keeps
+privacy management available under publishing restrictions. `/a/` exposes the display flag but
+omits streams, counts and pagination when false; its public query never joins private bindings.
 `anonymous_bindings` maps a numeric owner primary key to a unique persona UID.
 `anonymous_name_quotas` uses owner/day as its composite key; batches have a unique owner/day/request
 key and persist the exact ten-word sample. Owner-row write locks serialize quota and confirmation
@@ -678,7 +682,11 @@ results. Notification `private_actor_id` supports private eligibility; payload a
 `actorPersonaUid` support safe hydration and pushes. Public exports redact anonymous authors and
 editors and cannot reconstruct private ownership. Missing personas never resolve through users.
 
-The six private anonymous settings/governance operations live in the controlled OpenAPI contract;
+The private anonymous settings/governance and restricted admin list/governance operations live in
+the controlled OpenAPI contract. The admin list paginates at most 50 private mappings and commits
+one restricted `admin.list` audit per returned mapping (or one access audit for an empty page).
+Current-role user management and explicit reveal grants are checked inside the transaction.
+List and governance responses are no-store and excluded from ordinary access/panic logging context;
 Web generated types and Dart mirrors change together. `/a/` is a three-mode page and its SVG avatar
 is a static response, recorded as route-coverage exclusions. Product semantics live in
 [anonymous identity](../product/anonymous-identity.md); permissions, retention and consistent backup

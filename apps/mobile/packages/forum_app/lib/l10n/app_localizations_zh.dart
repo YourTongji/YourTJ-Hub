@@ -3468,4 +3468,14 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get anonymousNameLockHint => '确认后，花名一年内不可更改。';
+
+  @override
+  String get anonymousShowContent => '展示匿名主页内容';
+
+  @override
+  String get anonymousShowContentDescription =>
+      '允许从匿名主页查看帖子、评论和数量。关闭后仅保留花名与头像，论坛中的原内容仍可正常访问。';
+
+  @override
+  String get anonymousProfileContentHidden => '匿名主页的内容已隐藏';
 }
