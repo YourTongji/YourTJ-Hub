@@ -1,6 +1,7 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 import '../../l10n/app_localizations.dart';
 import '../pages/settings/anonymous_identity_page.dart';
@@ -42,9 +43,17 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
     final epoch = ref.read(offlineCacheEpochProvider);
     final previousFocus = FocusManager.instance.primaryFocus;
     previousFocus?.unfocus();
-    final persona = await showAnonymousIdentitySheet(context);
+    final result = await showAnonymousIdentitySheet(context);
     if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
-    if (!widget.disabled && persona != null) widget.onChanged('persona');
+    if (result?.openProfile == true) {
+      // Let the sheet restore its route scope before clearing its edit focus.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      FocusScope.of(context).unfocus();
+      GoRouter.maybeOf(context)?.push(result!.persona.profileUrl);
+      return;
+    }
+    if (!widget.disabled && result != null) widget.onChanged('persona');
     if (previousFocus?.context != null) previousFocus!.requestFocus();
   }
 

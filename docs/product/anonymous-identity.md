@@ -42,7 +42,8 @@ current name; delivered notifications, screenshots and copied text are not recal
 
 `Current`: Web exposes a compact anonymous-identity row under Settings → Privacy, separate from
 public-profile editing. It shows the current alias and availability or an unconfigured state. The
-legacy `/settings#anonymous-identity` entry selects the Privacy tab. Native mobile retains its
+legacy `/settings#anonymous-identity` entry selects the Privacy tab; choosing a tab clears that
+legacy anchor so reloading keeps the explicit tab selection. Native mobile retains its
 account-settings entry, with a compact description separating persona management from
 public-profile editing.
 
@@ -65,6 +66,8 @@ candidate before explicit confirmation. The one-year lock and confirmation butto
 bottom action area while explanatory text scrolls. Successful setup selects the returned persona
 in the invoking composer; cancellation, failure and late responses after a session change do not.
 Self-disabled identities retain a reactivation action; governance restrictions remain unavailable.
+Opening the persona profile from the sheet leaves the writing field unfocused; returning through
+normal cancellation or successful confirmation restores its focus.
 The sheet follows the native component foundation's safe-area, keyboard-inset and width boundaries,
 using [Flutter's modal-sheet semantics](https://api.flutter.dev/flutter/material/showModalBottomSheet.html).
 

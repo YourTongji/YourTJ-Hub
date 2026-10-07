@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/identity_picker.dart';
+import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'pages_smoke_test.dart' show MemoryTokenStorage;
 
@@ -186,6 +187,78 @@ Future<void> tap(WidgetTester tester, String text) async {
 }
 
 void main() {
+  testWidgets('profile navigation does not refocus the composer', (
+    tester,
+  ) async {
+    final f = Fixture();
+    f.state['persona'] = {
+      'kind': 'persona',
+      'publicUid': 'a' * 32,
+      'name': '星辰',
+      'avatarUrl': '',
+      'profileUrl': '/a/${'a' * 32}',
+    };
+    f.state['nameChangeAvailableAt'] = '2099-10-07T00:00:00Z';
+    final draft = TextEditingController(text: 'Keep this reply');
+    addTearDown(draft.dispose);
+    final navigating = Completer<String?>();
+    final router = GoRouter(
+      redirect: (_, state) =>
+          state.uri.path.startsWith('/a/') ? navigating.future : null,
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => Scaffold(
+            body: Column(
+              children: [
+                TextField(controller: draft),
+                IdentityPicker(value: 'persona', onChanged: (_) {}),
+              ],
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/a/:uid',
+          builder: (_, _) => const Scaffold(body: Text('Anonymous profile')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          apiClientProvider.overrideWithValue(f.client),
+          composerMemberProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp.router(
+          routerConfig: router,
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: gfThemeData(Brightness.light),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(TextField));
+    await tester.pumpAndSettle();
+    final draftFocus = FocusManager.instance.primaryFocus!;
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('管理匿名身份'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(of: find.byType(BottomSheet), matching: find.text('星辰')),
+    );
+    await tester.pumpAndSettle();
+    expect(draftFocus.hasFocus, isFalse);
+    navigating.complete(null);
+    await tester.pumpAndSettle();
+    expect(find.text('Anonymous profile'), findsOneWidget);
+    expect(draftFocus.hasFocus, isFalse);
+    expect(draft.text, 'Keep this reply');
+    expect(tester.takeException(), isNull);
+  });
   testWidgets(
     'composer sets up in a sheet and preserves the draft and identity until confirmation',
     (tester) async {

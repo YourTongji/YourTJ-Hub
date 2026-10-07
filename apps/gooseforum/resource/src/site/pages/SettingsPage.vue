@@ -407,6 +407,7 @@ function buildExternalInfo() {
 function setActiveTab(key: TabKey) {
   activeTab.value = key
   const url = new URL(window.location.href)
+  if (url.hash === '#anonymous-identity') url.hash = ''
   if (key === 'profile') url.searchParams.delete('tab')
   else url.searchParams.set('tab', key)
   history.replaceState(history.state, '', url)

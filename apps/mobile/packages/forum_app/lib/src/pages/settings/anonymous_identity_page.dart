@@ -16,9 +16,10 @@ final anonymousIdentityProvider =
       return AnonymousIdentityRepository(ref.watch(apiClientProvider)).state();
     });
 
-/// The composer's route and draft remain mounted beneath this sheet.
-Future<AnonymousPersona?> showAnonymousIdentitySheet(BuildContext context) =>
-    showGfBottomSheet<AnonymousPersona>(
+/// The composer owns returned profile navigation, so its input stays unfocused.
+Future<({AnonymousPersona persona, bool openProfile})?>
+showAnonymousIdentitySheet(BuildContext context) =>
+    showGfBottomSheet<({AnonymousPersona persona, bool openProfile})>(
       context,
       height: MediaQuery.sizeOf(context).height * .9,
       keyboardAware: true,
@@ -107,7 +108,7 @@ class _AnonymousIdentityContentState
       choice = null;
       if (widget.sheet) {
         ref.invalidate(anonymousIdentityProvider);
-        Navigator.of(context).pop(persona);
+        Navigator.of(context).pop((persona: persona, openProfile: false));
       }
     }, refresh: !widget.sheet);
   }
@@ -233,8 +234,15 @@ class _AnonymousIdentityContentState
                           onTap: busy
                               ? null
                               : () {
-                                  if (widget.sheet) Navigator.of(context).pop();
-                                  GoRouter.maybeOf(context)?.push(p.profileUrl);
+                                  if (widget.sheet) {
+                                    Navigator.of(
+                                      context,
+                                    ).pop((persona: p, openProfile: true));
+                                  } else {
+                                    GoRouter.maybeOf(
+                                      context,
+                                    )?.push(p.profileUrl);
+                                  }
                                 },
                         ),
                         if (s.locked) ...[

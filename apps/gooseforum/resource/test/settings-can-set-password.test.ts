@@ -317,4 +317,24 @@ describe('anonymous identity belongs to private settings', () => {
     wrapper.unmount()
     history.replaceState(null, '', original)
   })
+  test('switching away from the legacy anchor keeps the selected tab after reload', async () => {
+    const original = location.href
+    history.replaceState(null, '', '/settings#anonymous-identity')
+    let wrapper = mountPage(false)
+    try {
+      await flushPromises()
+      const account = wrapper.findAll('nav button').find(button => button.text() === i18n.global.t('settings.tabs.account'))!
+      await account.trigger('click')
+      await flushPromises()
+      expect(new URL(location.href).hash).toBe('')
+      expect(new URL(location.href).searchParams.get('tab')).toBe('account')
+      wrapper.unmount()
+      wrapper = mountPage(false)
+      await flushPromises()
+      expect(wrapper.find('#anonymous-identity').exists()).toBe(false)
+    } finally {
+      wrapper.unmount()
+      history.replaceState(null, '', original)
+    }
+  })
 })
