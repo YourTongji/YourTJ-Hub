@@ -82,6 +82,10 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 
 模型/迁移测试必须同时满足 PG 门禁（见下方 CI mapping 的 `ci-backend-pg`）。
 
+测试模式的 SQLite 内存库固定使用一个保留的连接，连接生命周期设为无限；
+关闭或轮换唯一连接会丢失全部表，长时间运行的整包测试也必须保留该连接。
+`sqlconnect` 的虚拟时间回归覆盖超过一分钟后仍能读取测试数据的行为。
+
 ## CI mapping
 
 All CI `push` triggers are limited to `dev` and `main`, so a push to an in-repository
