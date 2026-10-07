@@ -334,15 +334,44 @@ class _ProfileTabsState extends State<ProfileTabs>
           );
           var indicatorCenter = activeLeft + activeWidth / 2;
           var indicatorWidth = baseIndicatorWidth;
+          // Elastic travel like GfTabBar: the edge facing the destination
+          // leads on a decelerating curve, the trailing edge follows on an
+          // accelerating one, so the line stretches one way and then
+          // catches up instead of growing from both sides.
+          (double, double) elastic(
+            double fromLeft,
+            double fromRight,
+            double toLeft,
+            double toRight,
+            double t,
+          ) {
+            final double lead = math.sin(t * math.pi / 2);
+            final double trail = 1 - math.cos(t * math.pi / 2);
+            final bool forward = toLeft + toRight >= fromLeft + fromRight;
+            final double left =
+                fromLeft + (toLeft - fromLeft) * (forward ? trail : lead);
+            final double right =
+                fromRight + (toRight - fromRight) * (forward ? lead : trail);
+            return ((left + right) / 2, right - left);
+          }
+
           if (dragAnimating) {
             final double targetCenter =
                 destinationWidths
                     .take(dragTarget)
                     .fold(0.0, (sum, width) => sum + width) +
                 destinationWidths[dragTarget] / 2;
-            final double distance = (targetCenter - indicatorCenter).abs();
-            indicatorCenter += (targetCenter - indicatorCenter) * dragFraction;
-            indicatorWidth = baseIndicatorWidth + distance * dragFraction;
+            final double targetWidth = math.min(
+              64.0,
+              math.max(40.0, destinationWidths[dragTarget] * .72),
+            );
+            (indicatorCenter, indicatorWidth) = elastic(
+              indicatorCenter - baseIndicatorWidth / 2,
+              indicatorCenter + baseIndicatorWidth / 2,
+              targetCenter - targetWidth / 2,
+              targetCenter + targetWidth / 2,
+              dragFraction.clamp(0.0, 1.0),
+            );
           } else if (_fromIndicatorCenterShare != null &&
               _fromIndicatorWidthShare != null) {
             final double targetCenter =
@@ -351,13 +380,15 @@ class _ProfileTabsState extends State<ProfileTabs>
               64.0,
               math.max(40.0, targetSegment.dy * rowWidth * .72),
             );
-            indicatorCenter =
-                _fromIndicatorCenterShare! * rowWidth +
-                (targetCenter - _fromIndicatorCenterShare! * rowWidth) *
-                    progress;
-            indicatorWidth =
-                _fromIndicatorWidthShare! * rowWidth +
-                (targetWidth - _fromIndicatorWidthShare! * rowWidth) * progress;
+            final double fromCenter = _fromIndicatorCenterShare! * rowWidth;
+            final double fromWidth = _fromIndicatorWidthShare! * rowWidth;
+            (indicatorCenter, indicatorWidth) = elastic(
+              fromCenter - fromWidth / 2,
+              fromCenter + fromWidth / 2,
+              targetCenter - targetWidth / 2,
+              targetCenter + targetWidth / 2,
+              progress.clamp(0.0, 1.0),
+            );
           }
           _displayedIndicatorCenterShare = indicatorCenter / rowWidth;
           _displayedIndicatorWidthShare = indicatorWidth / rowWidth;

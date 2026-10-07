@@ -71,7 +71,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
   static const double _wideWorkspaceBreakpoint = 760;
   static const Duration _previewDebounceDuration = Duration(milliseconds: 200);
   static const double _dragAutoscrollEdge = 56;
-  static const double _dragAutoscrollStep = 12;
+  static const double _dragAutoscrollStep = 18;
 
   final TextEditingController _simple = TextEditingController();
   final FocusNode _simpleFocusNode = FocusNode(debugLabel: 'simple-body');
@@ -80,7 +80,6 @@ class _PublishPageState extends ConsumerState<PublishPage>
   TextSelection? _stickerSelection;
   final List<String> _images = [];
   int _contentType = 3;
-  bool _formatting = false;
   bool _dirty = false;
   late final WritingStore _localStore;
   late final OfflineCacheEpoch _session;
@@ -130,7 +129,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
       _uploads.items.any(
         (item) => item.status == ComposerUploadStatus.uploading,
       );
-  int? _mediaInsertAt;
+  // Body offsets for article photos: one captured while the picker is open,
+  // then one per queued upload. Each follows later edits until it lands.
+  int? _pickInsertAt;
+  final Map<int, int> _mediaInsertAts = {};
   CaptchaPayload? _captcha;
   final _captchaCode = TextEditingController();
   bool _captchaLoading = false;
@@ -142,6 +144,11 @@ class _PublishPageState extends ConsumerState<PublishPage>
   Timer? _previewDebounce;
   Timer? _dragAutoscrollTimer;
   Offset? _dragPointer;
+  // Where a dragged body image would land, painted over the editor without
+  // rebuilding it on every pointer move.
+  final ValueNotifier<double?> _dropLineY = ValueNotifier(null);
+  final GlobalKey _editorDropKey = GlobalKey();
+  int? _dropOffset;
 
   @override
   void initState() {
@@ -188,7 +195,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
   void _uploadsChanged() {
     if (!mounted || !_sessionCurrent) return;
     setState(() {
-      if (!_uploads.hasPending) _mediaInsertAt = null;
+      final ids = {for (final item in _uploads.items) item.id};
+      _mediaInsertAts.removeWhere((id, _) => !ids.contains(id));
     });
   }
 
@@ -372,9 +380,12 @@ class _PublishPageState extends ConsumerState<PublishPage>
       }
     });
     _documentChanges = controller.document.changes.listen((DocChange change) {
-      if (_mediaInsertAt != null) {
-        _mediaInsertAt = change.change.transformPosition(_mediaInsertAt!);
+      if (_pickInsertAt != null) {
+        _pickInsertAt = change.change.transformPosition(_pickInsertAt!);
       }
+      _mediaInsertAts.updateAll(
+        (_, offset) => change.change.transformPosition(offset),
+      );
       _handleEditorChanged();
     });
     return controller;
@@ -576,6 +587,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     _simple.removeListener(_textChanged);
     _previewDebounce?.cancel();
     _dragAutoscrollTimer?.cancel();
+    _dropLineY.dispose();
     _pageScrollController.dispose();
     _editorScrollController.dispose();
     _simpleFocusNode.dispose();
@@ -610,27 +622,55 @@ class _PublishPageState extends ConsumerState<PublishPage>
     }
     if (_dirty && !_allowPop) {
       final l10n = AppLocalizations.of(context);
-      final choice = await showDialog<String>(
-        context: context,
-        animationStyle: GfMotion.dialogStyle(context),
-        builder: (context) => AlertDialog(
-          title: Text(l10n.publishLeaveTitle),
-          content: Text(l10n.publishLeaveBody),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'continue'),
-              child: Text(l10n.publishContinue),
+      // One column of full-width choices, strongest first, within thumb
+      // reach; dismissing the sheet keeps editing.
+      final choice = await showGfBottomSheet<String>(
+        context,
+        builder: (context) {
+          final type = GfTheme.typographyOf(context);
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(l10n.publishLeaveTitle, style: type.title3),
+                  const SizedBox(height: 6),
+                  Text(
+                    l10n.publishLeaveBody,
+                    style: type.body.copyWith(
+                      color: GfTheme.colorsOf(context).iconMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  GfButton(
+                    label: l10n.draftKeepAndLeave,
+                    size: GfButtonSize.extraLarge,
+                    expanded: true,
+                    onPressed: () => Navigator.pop(context, 'save'),
+                  ),
+                  const SizedBox(height: 8),
+                  GfButton(
+                    label: l10n.publishDiscard,
+                    variant: GfButtonVariant.secondary,
+                    size: GfButtonSize.extraLarge,
+                    expanded: true,
+                    onPressed: () => Navigator.pop(context, 'discard'),
+                  ),
+                  const SizedBox(height: 4),
+                  GfButton(
+                    label: l10n.publishContinue,
+                    variant: GfButtonVariant.ghost,
+                    size: GfButtonSize.extraLarge,
+                    expanded: true,
+                    onPressed: () => Navigator.pop(context, 'continue'),
+                  ),
+                ],
+              ),
             ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'discard'),
-              child: Text(l10n.publishDiscard),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, 'save'),
-              child: Text(l10n.draftKeepAndLeave),
-            ),
-          ],
-        ),
+          );
+        },
       );
       if (!mounted || choice == null || choice == 'continue') return;
       if (choice == 'save') {
@@ -791,14 +831,17 @@ class _PublishPageState extends ConsumerState<PublishPage>
   }
 
   Future<void> _pickAndInsertImage() async {
-    if (_uploading || _submitting || !_sessionCurrent || _finished) return;
+    // Pending uploads keep running; only a second picker is refused.
+    if (_pickingImage || _submitting || !_sessionCurrent || _finished) return;
     final l10n = AppLocalizations.of(context);
-    final remaining = _contentType == 3 ? 9 : 9 - _images.length;
+    final remaining = _contentType == 3
+        ? 9
+        : 9 - _images.length - _uploads.items.length;
     if (remaining <= 0) {
       showGfToast(context, l10n.publishGalleryTooMany, error: true);
       return;
     }
-    _mediaInsertAt = _contentType == 3
+    _pickInsertAt = _contentType == 3
         ? _quill.selection.baseOffset.clamp(0, _quill.document.length - 1)
         : null;
     setState(() => _pickingImage = true);
@@ -851,7 +894,12 @@ class _PublishPageState extends ConsumerState<PublishPage>
         showGfToast(context, l10n.publishGalleryTooMany, error: true);
         return;
       }
-      _uploads.add(selected);
+      final ids = _uploads.add(selected);
+      if (_pickInsertAt case final at?) {
+        for (final id in ids) {
+          _mediaInsertAts[id] = at;
+        }
+      }
     } catch (error) {
       if (mounted && _sessionCurrent) {
         final AppLocalizations l10n = AppLocalizations.of(context);
@@ -866,6 +914,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
         );
       }
     } finally {
+      _pickInsertAt = null;
       if (mounted) setState(() => _pickingImage = false);
     }
   }
@@ -902,10 +951,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       (_contentType == 3 ? _editorFocusNode : _simpleFocusNode).requestFocus();
     } else {
       _quill.skipRequestKeyboard = true;
-      setState(() {
-        _stickerOpen = true;
-        _formatting = false;
-      });
+      setState(() => _stickerOpen = true);
       _keepEditorVisible();
     }
   }
@@ -934,16 +980,17 @@ class _PublishPageState extends ConsumerState<PublishPage>
     _keepEditorVisible();
   }
 
-  void _insertUploadedImage(String url) {
+  void _insertUploadedImage(String url, int id) {
     if (!mounted || !_sessionCurrent || _finished) return;
     if (_contentType != 3) {
       setState(() => _images.add(url));
       _markDirty();
     } else {
-      final insertAt = (_mediaInsertAt ?? _quill.document.length - 1).clamp(
-        0,
-        _quill.document.length - 1,
-      );
+      final insertAt =
+          (_mediaInsertAts.remove(id) ?? _quill.document.length - 1).clamp(
+            0,
+            _quill.document.length - 1,
+          );
       final selection = _quill.selection;
       final change = _quill.document.insert(insertAt, BlockEmbed.image(url));
       _quill.updateSelection(
@@ -977,6 +1024,33 @@ class _PublishPageState extends ConsumerState<PublishPage>
     _dragPointer = null;
     _dragAutoscrollTimer?.cancel();
     _dragAutoscrollTimer = null;
+    _dropOffset = null;
+    _dropLineY.value = null;
+  }
+
+  /// Tracks the paragraph under a dragged image and marks the slot below it,
+  /// with a light tick each time the slot changes.
+  void _updateDropLine(Offset pointer) {
+    _dragPointer = pointer;
+    final EditorState? editorState = _editorKey.currentState;
+    final RenderObject? layer = _editorDropKey.currentContext
+        ?.findRenderObject();
+    if (editorState == null || layer is! RenderBox || !layer.hasSize) return;
+    final RenderEditor editor = editorState.renderEditor;
+    final int offset = clampDropToLineEnd(
+      editor.getPositionForOffset(pointer).offset,
+      _quill.document,
+    ).clamp(0, _quill.document.length - 1);
+    if (_dropOffset != null && _dropOffset != offset) {
+      HapticFeedback.selectionClick();
+    }
+    _dropOffset = offset;
+    final Rect caret = editor.getLocalRectForCaret(
+      TextPosition(offset: offset),
+    );
+    _dropLineY.value = layer
+        .globalToLocal(editor.localToGlobal(caret.bottomLeft))
+        .dy;
   }
 
   void _tickDragAutoscroll() {
@@ -996,14 +1070,23 @@ class _PublishPageState extends ConsumerState<PublishPage>
     final double maxOffset = scroll.position.maxScrollExtent;
     final double viewportBottom =
         scroll.position.viewportDimension - _dragAutoscrollEdge;
+    // Speed grows with how deep the finger sits in the edge band, so a
+    // light nudge creeps and a hard push travels.
+    double speed(double depth) =>
+        _dragAutoscrollStep * (depth / _dragAutoscrollEdge).clamp(.2, 1.0);
     if (localY < _dragAutoscrollEdge && scroll.offset > 0) {
       scroll.jumpTo(
-        (scroll.offset - _dragAutoscrollStep).clamp(0.0, maxOffset),
+        (scroll.offset - speed(_dragAutoscrollEdge - localY)).clamp(
+          0.0,
+          maxOffset,
+        ),
       );
+      _updateDropLine(pointer);
     } else if (localY > viewportBottom && scroll.offset < maxOffset) {
       scroll.jumpTo(
-        (scroll.offset + _dragAutoscrollStep).clamp(0.0, maxOffset),
+        (scroll.offset + speed(localY - viewportBottom)).clamp(0.0, maxOffset),
       );
+      _updateDropLine(pointer);
     }
   }
 
@@ -1224,69 +1307,18 @@ class _PublishPageState extends ConsumerState<PublishPage>
             size: 44,
             onPressed: _goBack,
           ),
-          title: DropdownButtonHideUnderline(
-            child: DropdownButton<int>(
-              value: _contentType,
-              // The preview step puts the draft and publish buttons in the
-              // AppBar, which squeezes the title slot on narrow screens. Long
-              // locale labels (de "Entwurf speichern"/"Veröffentlichen", ja
-              // "下書きを保存"/"投稿") overflowed it; expanding and ellipsizing
-              // keeps the title shrinkable instead of overflowing the row.
-              isExpanded: true,
-              borderRadius: BorderRadius.circular(20),
-              dropdownColor: GfTheme.colorsOf(context).base100,
-              icon: const GfSymbol('chevron-down', size: 16),
-              selectedItemBuilder: (context) => [
-                for (final type in PublishType.values)
-                  LayoutBuilder(
-                    builder: (context, constraints) => Row(
-                      children: [
-                        if (constraints.maxWidth >= 100) ...[
-                          PublishTypeIcon(type, size: 28),
-                          const SizedBox(width: 8),
-                        ],
-                        Expanded(
-                          child: Text(
-                            type.label(l10n),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GfTheme.typographyOf(
-                              context,
-                            ).bodyStrong.copyWith(fontSize: 16),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-              items: [
-                for (final type in PublishType.values)
-                  DropdownMenuItem(
-                    value: type.value,
-                    child: Row(
-                      children: [
-                        PublishTypeIcon(type, size: 28),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            type.label(l10n),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GfTheme.typographyOf(
-                              context,
-                            ).bodyStrong.copyWith(fontSize: 16),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-              onChanged:
-                  _currentTopicId > 0 || _submitting || _uploading || _loading
-                  ? null
-                  : _changeContentType,
-            ),
-          ),
+          // The type switcher lives above the fields; the bar names the step
+          // only when that switcher is out of view.
+          title: _showTypeSwitcher(context)
+              ? const SizedBox.shrink()
+              : Text(
+                  _mode == _ComposeMode.preview
+                      ? l10n.composePreview
+                      : PublishType.fromValue(_contentType).label(l10n),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GfTheme.typographyOf(context).bodyStrong,
+                ),
           actions: <Widget>[
             if (MediaQuery.viewInsetsOf(context).bottom > 0)
               GfIconButton(
@@ -1295,12 +1327,11 @@ class _PublishPageState extends ConsumerState<PublishPage>
                 size: 44,
                 onPressed: () => FocusManager.instance.primaryFocus?.unfocus(),
               ),
-            if (_mode == _ComposeMode.preview)
+            if (!_loading && _loadError.isEmpty)
               GfIconButton(
                 key: const Key('publish-save-draft'),
-                // Icon action keeps the preview AppBar inside the bar even for
-                // long locale labels (de/ja): two labelled buttons overflowed
-                // the 390 px actions row.
+                // One icon action in both steps keeps the bar inside long
+                // locale labels (de/ja) and frees the writing row for tools.
                 symbol: 'save',
                 tooltip: l10n.publishSaveDraft,
                 size: 44,
@@ -1349,6 +1380,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
       ),
     );
   }
+
+  bool _showTypeSwitcher(BuildContext context) =>
+      _mode == _ComposeMode.edit &&
+      _currentTopicId == 0 &&
+      !_loading &&
+      !_stickerOpen &&
+      MediaQuery.viewInsetsOf(context).bottom == 0;
 
   Widget _buildSubmitAction(AppLocalizations l10n) {
     final editing = _mode == _ComposeMode.edit;
@@ -1468,19 +1506,24 @@ class _PublishPageState extends ConsumerState<PublishPage>
                         icon: const GfSymbol('refresh-cw', size: 22),
                         label: Text(l10n.commonRetry),
                       ),
-                    if (_uploads.hasPending) ...[
-                      _buildUploadQueue(l10n),
-                      const SizedBox(height: 16),
-                    ],
-                    if (!typing) ...[
-                      _buildComposeGuide(l10n),
+                    if (_showTypeSwitcher(this.context)) ...[
+                      PublishTypeSwitcher(
+                        value: _contentType,
+                        onChanged: _submitting || _uploading
+                            ? null
+                            : _changeContentType,
+                      ),
                       const SizedBox(height: 20),
                     ],
+                    // Moments lead with their photos; questions attach them
+                    // after the body (below).
                     if (_mode == _ComposeMode.edit &&
-                        _contentType != 3 &&
-                        (!typing || _images.isNotEmpty)) ...[
+                        _contentType == 2 &&
+                        (!typing ||
+                            _images.isNotEmpty ||
+                            _uploads.hasPending)) ...[
                       _buildGallery(l10n, editing: true),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                     ],
                     if (_mode == _ComposeMode.edit || wide) ...[
                       KeyedSubtree(
@@ -1506,62 +1549,19 @@ class _PublishPageState extends ConsumerState<PublishPage>
                       _buildEditor(l10n)
                     else
                       _buildPreview(l10n),
+                    if (_mode == _ComposeMode.edit &&
+                        _contentType == 1 &&
+                        (!typing ||
+                            _images.isNotEmpty ||
+                            _uploads.hasPending)) ...[
+                      const SizedBox(height: 12),
+                      _buildGallery(l10n, editing: true),
+                    ],
                     if (_mode == _ComposeMode.preview) ...[
                       const SizedBox(height: 24),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: GfTheme.colorsOf(
-                            context,
-                          ).base200.withValues(alpha: .65),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: GfTheme.colorsOf(context).line,
-                          ),
-                        ),
-                        child: _buildTopicFields(l10n, classification: true),
-                      ),
+                      _buildPublishSettings(l10n),
+                      const SizedBox(height: 16),
                     ],
-                    const SizedBox(height: 16),
-                    // Publishing settings sit together after the content they apply to.
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        l10n.anonymousPublishAs,
-                        style: GfTheme.typographyOf(context).caption.copyWith(
-                          color: GfTheme.colorsOf(
-                            context,
-                          ).baseContent.withValues(alpha: .65),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: IdentityPicker(
-                        value: _identity,
-                        disabled: _submitting || _currentTopicId > 0,
-                        onChanged: (v) {
-                          setState(() {
-                            _identity = v;
-                            _markDirty();
-                          });
-                        },
-                      ),
-                    ),
-                    if (_currentTopicId == 0)
-                      IgnorePointer(
-                        ignoring: _submitting,
-                        child: GfSwitchRow(
-                          key: const Key('publish-agent-replies'),
-                          title: l10n.agentRepliesAllow,
-                          description: l10n.agentRepliesHelp,
-                          value: !_agentRepliesDisabled,
-                          onChanged: (value) {
-                            setState(() => _agentRepliesDisabled = !value);
-                            _markDirty();
-                          },
-                        ),
-                      ),
                     if (_captcha != null) ...[
                       if (_showPublishCaptchaExplanation)
                         Padding(
@@ -1617,64 +1617,6 @@ class _PublishPageState extends ConsumerState<PublishPage>
     );
   }
 
-  Widget _buildComposeGuide(AppLocalizations l10n) {
-    final type = PublishType.fromValue(_contentType);
-    final colors = GfTheme.colorsOf(context);
-    final typography = GfTheme.typographyOf(context);
-    final preview = _mode == _ComposeMode.preview;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            for (final step in [0, 1]) ...[
-              if (step == 1) const SizedBox(width: 8),
-              Expanded(
-                child: Container(
-                  height: 3,
-                  decoration: BoxDecoration(
-                    color: step == 0 || preview
-                        ? type.color(context)
-                        : colors.line,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 12,
-          runSpacing: 4,
-          children: [
-            Text(
-              '1 · ${l10n.composeEdit}',
-              style: typography.caption.copyWith(
-                color: preview ? colors.iconMuted : type.color(context),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            Text(
-              '2 · ${l10n.composePreview}',
-              style: typography.caption.copyWith(
-                color: preview ? type.color(context) : colors.iconMuted,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        if (!preview) ...[
-          const SizedBox(height: 12),
-          Text(
-            type.hint(l10n),
-            style: typography.small.copyWith(color: colors.iconMuted),
-          ),
-        ],
-      ],
-    );
-  }
-
   Widget _buildTopicFields(
     AppLocalizations l10n, {
     bool classification = false,
@@ -1687,7 +1629,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       children: <Widget>[
         if (!classification && _contentType == 2 && !_momentTitleExpanded)
           Align(
-            alignment: Alignment.centerRight,
+            alignment: AlignmentDirectional.centerStart,
             child: TextButton.icon(
               key: const Key('publish-add-title'),
               onPressed: _submitting
@@ -1704,9 +1646,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
               style: TextButton.styleFrom(
                 foregroundColor: colors.iconMuted,
                 minimumSize: const Size(44, 44),
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsetsDirectional.only(end: 8),
+                textStyle: type.small.copyWith(fontWeight: FontWeight.w600),
               ),
-              icon: const GfSymbol('plus', size: 18),
+              icon: const GfSymbol('plus', size: 16),
               label: Text(l10n.publishAddTitle),
             ),
           ),
@@ -1794,6 +1737,68 @@ class _PublishPageState extends ConsumerState<PublishPage>
     );
   }
 
+  /// Preview step settings in one quiet group: where the post goes, who
+  /// publishes it, and whether bots may reply.
+  Widget _buildPublishSettings(AppLocalizations l10n) {
+    final colors = GfTheme.colorsOf(context);
+    final type = GfTheme.typographyOf(context);
+    return DecoratedBox(
+      key: const Key('publish-settings'),
+      decoration: BoxDecoration(
+        color: colors.base200.withValues(alpha: .6),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: _buildTopicFields(l10n, classification: true),
+          ),
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 8, 0),
+            child: Text(
+              l10n.anonymousPublishAs,
+              style: type.small.copyWith(
+                color: colors.baseContent.withValues(alpha: 0.75),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(10, 0, 8, 0),
+            child: IdentityPicker(
+              value: _identity,
+              disabled: _submitting || _currentTopicId > 0,
+              onChanged: (v) {
+                setState(() {
+                  _identity = v;
+                  _markDirty();
+                });
+              },
+            ),
+          ),
+          if (_currentTopicId == 0)
+            IgnorePointer(
+              ignoring: _submitting,
+              child: GfSwitchRow(
+                key: const Key('publish-agent-replies'),
+                title: l10n.agentRepliesAllow,
+                description: l10n.agentRepliesHelp,
+                value: !_agentRepliesDisabled,
+                onChanged: (value) {
+                  setState(() => _agentRepliesDisabled = !value);
+                  _markDirty();
+                },
+              ),
+            )
+          else
+            const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBodyHeader(AppLocalizations l10n) => Text(
     l10n.publishBodyField,
     style: GfTheme.typographyOf(
@@ -1814,7 +1819,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
         textInputAction: TextInputAction.newline,
         style: readingBodyStyle(context),
         decoration: InputDecoration(
-          hintText: l10n.publishBodyPlaceholder,
+          hintText: PublishType.fromValue(_contentType).hint(l10n),
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,
@@ -1833,55 +1838,85 @@ class _PublishPageState extends ConsumerState<PublishPage>
       key: const Key('publish-editor'),
       controller: _quill,
       focusNode: _editorFocusNode,
-      placeholder: l10n.publishBodyPlaceholder,
+      placeholder: PublishType.fromValue(_contentType).hint(l10n),
       onHeading: () => _toggleFormat(Attribute.h2),
       onHeadingLongPress: () => _showHeadingLevelMenu(l10n),
       onInsertLink: _insertLink,
       showToolbar: false,
       editorBuilder: (context) => DragTarget<ComposerImageDragPayload>(
-        onMove: (DragTargetDetails<ComposerImageDragPayload> details) {
-          _dragPointer = details.offset;
-        },
+        onMove: (DragTargetDetails<ComposerImageDragPayload> details) =>
+            _updateDropLine(details.offset + _imageDragAnchor),
         onLeave: (Object? _) {
           _dragPointer = null;
+          _dropOffset = null;
+          _dropLineY.value = null;
         },
         onAcceptWithDetails:
             (DragTargetDetails<ComposerImageDragPayload> details) {
               _stopDragAutoscroll();
-              _handleComposerImageDrop(details.data, details.offset);
+              _handleComposerImageDrop(
+                details.data,
+                details.offset + _imageDragAnchor,
+              );
             },
         builder:
             (
               BuildContext context,
               List<ComposerImageDragPayload?> candidateData,
               List<dynamic> rejectedData,
-            ) => QuillEditor.basic(
-              controller: _quill,
-              focusNode: _editorFocusNode,
-              scrollController: _editorScrollController,
-              config: QuillEditorConfig(
-                scrollable: false,
-                editorKey: _editorKey,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                placeholder: l10n.publishBodyPlaceholder,
-                customStyles: DefaultStyles(
-                  paragraph: defaults.paragraph!.copyWith(
-                    style: readingBodyStyle(context),
-                    verticalSpacing: const VerticalSpacing(4, 4),
-                  ),
-                  placeHolder: defaults.placeHolder!.copyWith(
-                    style: readingBodyStyle(
-                      context,
-                    ).copyWith(color: GfTheme.colorsOf(context).iconMuted),
+            ) => Stack(
+              key: _editorDropKey,
+              clipBehavior: Clip.none,
+              children: [
+                QuillEditor.basic(
+                  controller: _quill,
+                  focusNode: _editorFocusNode,
+                  scrollController: _editorScrollController,
+                  config: QuillEditorConfig(
+                    scrollable: false,
+                    editorKey: _editorKey,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    placeholder: PublishType.fromValue(_contentType).hint(l10n),
+                    customStyles: DefaultStyles(
+                      paragraph: defaults.paragraph!.copyWith(
+                        style: readingBodyStyle(context),
+                        verticalSpacing: const VerticalSpacing(4, 4),
+                      ),
+                      placeHolder: defaults.placeHolder!.copyWith(
+                        style: readingBodyStyle(
+                          context,
+                        ).copyWith(color: GfTheme.colorsOf(context).iconMuted),
+                      ),
+                    ),
+                    embedBuilders: [
+                      _ComposerImageBuilder(
+                        onDragStarted: _startDragAutoscroll,
+                        onDragEnded: _stopDragAutoscroll,
+                      ),
+                    ],
                   ),
                 ),
-                embedBuilders: [
-                  _ComposerImageBuilder(
-                    onDragStarted: _startDragAutoscroll,
-                    onDragEnded: _stopDragAutoscroll,
-                  ),
-                ],
-              ),
+                ValueListenableBuilder<double?>(
+                  valueListenable: _dropLineY,
+                  builder: (context, y, _) => y == null
+                      ? const SizedBox.shrink()
+                      : PositionedDirectional(
+                          key: const Key('publish-image-drop-line'),
+                          start: 0,
+                          end: 0,
+                          top: y - 1.5,
+                          height: 3,
+                          child: IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: GfTheme.colorsOf(context).primary,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                        ),
+                ),
+              ],
             ),
       ),
     );
@@ -1918,45 +1953,14 @@ class _PublishPageState extends ConsumerState<PublishPage>
                 ),
               ),
             ),
-            if (_contentType == 3 && _formatting) _buildToolbar(l10n),
+            if (_contentType == 3 && _uploads.hasPending)
+              _buildUploadTray(l10n),
+            // One row above the keyboard: media and stickers stay pinned at
+            // the start, article formatting scrolls after them.
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
               child: Row(
                 children: [
-                  if (_contentType == 3)
-                    Flexible(
-                      child: TextButton.icon(
-                        onPressed: () {
-                          if (_stickerOpen) {
-                            FocusManager.instance.primaryFocus?.unfocus();
-                            _quill.skipRequestKeyboard = false;
-                          }
-                          setState(() {
-                            _stickerOpen = false;
-                            _formatting = !_formatting;
-                          });
-                        },
-                        icon: GfSymbol(
-                          _formatting ? 'chevron-down' : 'type',
-                          size: 22,
-                        ),
-                        label: Text(
-                          l10n.publishFormatting,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        style: TextButton.styleFrom(
-                          foregroundColor: _formatting
-                              ? colors.primary
-                              : colors.iconMuted,
-                          backgroundColor: _formatting
-                              ? colors.primary.withValues(alpha: 0.08)
-                              : Colors.transparent,
-                          shape: const StadiumBorder(),
-                          minimumSize: const Size(44, 44),
-                        ),
-                      ),
-                    ),
                   // Publish owns media insertion; the shared toolbar handles
                   // Markdown formatting only.
                   if (_contentType == 3 ||
@@ -1964,29 +1968,25 @@ class _PublishPageState extends ConsumerState<PublishPage>
                     _toolButton(
                       symbol: _activelyUploading ? 'clock' : 'gallery',
                       tooltip: l10n.publishToolImage,
-                      onPressed: _uploading ? null : _pickAndInsertImage,
+                      onPressed: _pickingImage ? null : _pickAndInsertImage,
                     ),
                   _toolButton(
                     symbol: _stickerOpen ? 'keyboard' : 'emoji-circle',
                     tooltip: _stickerOpen
                         ? StickerStrings(context).keyboard
                         : StickerStrings(context).title,
-                    onPressed: _uploading ? null : _pickSticker,
+                    selected: _stickerOpen,
+                    onPressed: _pickingImage ? null : _pickSticker,
                   ),
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: GfButton(
-                        key: const Key('publish-save-draft'),
-                        label: l10n.publishSaveDraft,
-                        variant: GfButtonVariant.ghost,
-                        loading: _submitting,
-                        onPressed: _uploading
-                            ? null
-                            : () => _submit(topicStatus: 0),
-                      ),
+                  if (_contentType == 3) ...[
+                    Container(
+                      width: 1,
+                      height: 24,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      color: colors.line,
                     ),
-                  ),
+                    Expanded(child: _buildToolbar(l10n)),
+                  ],
                 ],
               ),
             ),
@@ -2071,6 +2071,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
 
   Widget _buildToolbar(AppLocalizations l10n) => RichMarkdownToolbar(
     controller: _quill,
+    tinted: false,
     onHeading: () => _toggleFormat(Attribute.h2),
     onHeadingLongPress: () => _showHeadingLevelMenu(l10n),
     onInsertLink: _insertLink,
@@ -2175,152 +2176,329 @@ class _PublishPageState extends ConsumerState<PublishPage>
     );
   }
 
+  static const double _galleryTile = 84;
+
+  /// Composer photos as a strip of square thumbnails; long-press reorders,
+  /// the trailing tile adds more until the nine-photo limit.
   Widget _buildGallery(AppLocalizations l10n, {required bool editing}) {
-    if (editing && _images.isEmpty) {
-      final colors = GfTheme.colorsOf(context);
-      final type = GfTheme.typographyOf(context);
-      return Material(
-        color: colors.base200,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: _uploading ? null : _pickAndInsertImage,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                _activelyUploading
-                    ? const SizedBox.square(
-                        dimension: 24,
-                        child: GfProgressIndicator(strokeWidth: 2),
-                      )
-                    : GfSymbol(
-                        'gallery-duotone',
-                        size: 28,
-                        color: PublishType.fromValue(
-                          _contentType,
-                        ).color(context),
-                      ),
-                const SizedBox(width: 12),
+    final colors = GfTheme.colorsOf(context);
+    final type = GfTheme.typographyOf(context);
+    final cacheWidth =
+        (_galleryTile * 2 * MediaQuery.devicePixelRatioOf(context)).round();
+    final Widget? add = _images.length + _uploads.items.length >= 9
+        ? null
+        : _buildGalleryAddTile(l10n);
+    return Column(
+      key: const Key('publish-gallery'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_uploads.hasPending) ...[
+          _buildUploadQueue(l10n),
+          const SizedBox(height: 12),
+        ],
+        if (_images.isEmpty && add != null)
+          Row(
+            children: [
+              add,
+              if (_contentType == 2) ...[
+                const SizedBox(width: 14),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Text(
+                    l10n.publishGallery,
+                    style: type.small.copyWith(color: colors.iconMuted),
+                  ),
+                ),
+              ],
+            ],
+          )
+        else if (_images.isNotEmpty)
+          SizedBox(
+            height: _galleryTile,
+            child: ReorderableListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _images.length,
+              footer: add,
+              proxyDecorator: (child, _, _) => Material(
+                color: Colors.transparent,
+                elevation: 6,
+                borderRadius: BorderRadius.circular(12),
+                child: child,
+              ),
+              onReorderItem: (oldIndex, newIndex) => setState(() {
+                _images.insert(newIndex, _images.removeAt(oldIndex));
+                _markDirty();
+                _allowPop = false;
+              }),
+              itemBuilder: (context, index) => Padding(
+                key: ValueKey('$index:${_images[index]}'),
+                padding: const EdgeInsetsDirectional.only(end: 8),
+                child: SizedBox.square(
+                  dimension: _galleryTile,
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      Text(l10n.publishGallery, style: type.bodyStrong),
-                      const SizedBox(height: 4),
-                      Text(
-                        l10n.publishGalleryHint,
-                        style: type.caption.copyWith(color: colors.iconMuted),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: ColoredBox(
+                          color: colors.base200,
+                          child: GfNetworkImage(
+                            resolveApiAssetUrl(_images[index]),
+                            fit: BoxFit.cover,
+                            cacheWidth: cacheWidth,
+                            errorBuilder: (_, _, _) => Center(
+                              child: GfSymbol(
+                                'image-off',
+                                color: colors.iconMuted,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      PositionedDirectional(
+                        top: 0,
+                        end: 0,
+                        child: Tooltip(
+                          message: l10n.publishRemoveImage,
+                          excludeFromSemantics: true,
+                          child: Semantics(
+                            button: true,
+                            label: l10n.publishRemoveImage,
+                            child: InkResponse(
+                              radius: 20,
+                              onTap: () => setState(() {
+                                _images.removeAt(index);
+                                _markDirty();
+                                _allowPop = false;
+                              }),
+                              child: SizedBox.square(
+                                dimension: 40,
+                                child: Center(
+                                  child: Container(
+                                    width: 22,
+                                    height: 22,
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(
+                                        alpha: .55,
+                                      ),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Center(
+                                      child: GfSymbol(
+                                        'x',
+                                        size: 13,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        if (_images.length > 1) ...[
+          const SizedBox(height: 6),
+          Text(
+            l10n.publishGalleryHint,
+            style: type.caption.copyWith(color: colors.iconMuted),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildGalleryAddTile(AppLocalizations l10n) {
+    final colors = GfTheme.colorsOf(context);
+    final type = GfTheme.typographyOf(context);
+    final busy = _activelyUploading || _pickingImage;
+    final count = _images.length + _uploads.items.length;
+    return Semantics(
+      key: const Key('publish-gallery-add'),
+      button: true,
+      enabled: !_pickingImage,
+      label: '${l10n.publishToolImage} $count/9',
+      excludeSemantics: true,
+      onTap: _pickingImage ? null : _pickAndInsertImage,
+      child: Material(
+        color: colors.base200,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: colors.line),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: _pickingImage ? null : _pickAndInsertImage,
+          child: SizedBox.square(
+            dimension: _galleryTile,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                busy
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: GfProgressIndicator(strokeWidth: 2),
+                      )
+                    : GfSymbol('plus', size: 22, color: colors.iconMuted),
+                const SizedBox(height: 6),
+                Text(
+                  '$count/9',
+                  style: type.caption.copyWith(
+                    color: colors.iconMuted,
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
               ],
             ),
           ),
         ),
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (editing) ...[
-          Text(l10n.publishGallery, style: GfTheme.typographyOf(context).body),
+      ),
+    );
+  }
+
+  String _uploadStatus(AppLocalizations l10n, ComposerUpload item) =>
+      item.status == ComposerUploadStatus.uploading
+      ? l10n.publishMediaUploading
+      : item.error == null
+      ? l10n.publishMediaWaiting
+      : item.error is ApiException
+      ? resolveErrorMessage(l10n, item.error!)
+      : l10n.commonLoadFailed;
+
+  /// Article uploads ride just above the writing row so progress stays in
+  /// sight while typing; each photo lands where the caret was when picked.
+  Widget _buildUploadTray(AppLocalizations l10n) {
+    final colors = GfTheme.colorsOf(context);
+    final type = GfTheme.typographyOf(context);
+    final failed = _uploads.items
+        .where((item) => item.status == ComposerUploadStatus.failed)
+        .firstOrNull;
+    return Padding(
+      key: const Key('publish-upload-queue'),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
-            l10n.publishGalleryHint,
-            style: GfTheme.typographyOf(context).caption,
+            failed == null
+                ? l10n.publishMediaPendingWarning
+                : _uploadStatus(l10n, failed),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: type.caption.copyWith(
+              color: failed == null ? colors.iconMuted : colors.error,
+            ),
           ),
-          const SizedBox(height: 10),
-        ],
-        if (_images.isNotEmpty)
+          const SizedBox(height: 8),
           SizedBox(
-            height: editing ? 120 : 260,
-            child: editing
-                ? ReorderableListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _images.length,
-                    onReorderItem: (oldIndex, newIndex) => setState(() {
-                      _images.insert(newIndex, _images.removeAt(oldIndex));
-                      _markDirty();
-                      _allowPop = false;
-                    }),
-                    itemBuilder: (context, index) => SizedBox(
-                      key: ValueKey('$index:${_images[index]}'),
-                      width: 128,
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: Padding(
-                              padding: const EdgeInsets.all(4),
-                              child: GfNetworkImage(
-                                resolveApiAssetUrl(_images[index]),
-                                fit: BoxFit.contain,
-                                cacheWidth:
-                                    (256 *
-                                            MediaQuery.devicePixelRatioOf(
-                                              context,
-                                            ))
-                                        .round(),
-                                errorBuilder: (_, _, _) =>
-                                    const GfSymbol('image-off'),
-                              ),
+            height: 56,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _uploads.items.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final item = _uploads.items[index];
+                final bool isFailed =
+                    item.status == ComposerUploadStatus.failed;
+                return Semantics(
+                  key: ValueKey('upload-${item.id}'),
+                  container: true,
+                  label: '${item.file.name}, ${_uploadStatus(l10n, item)}',
+                  child: SizedBox.square(
+                    dimension: 56,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.file(
+                            File(item.file.path),
+                            fit: BoxFit.cover,
+                            cacheWidth: 112,
+                            excludeFromSemantics: true,
+                            color: item.status == ComposerUploadStatus.queued
+                                ? colors.base100.withValues(alpha: .5)
+                                : isFailed
+                                ? Colors.black.withValues(alpha: .45)
+                                : null,
+                            colorBlendMode: BlendMode.srcATop,
+                            errorBuilder: (_, _, _) => ColoredBox(
+                              color: colors.base200,
+                              child: const GfSymbol('image', size: 20),
                             ),
                           ),
-                          Positioned(
-                            right: 0,
-                            top: 0,
-                            child: IconButton(
-                              tooltip: l10n.publishRemoveImage,
-                              onPressed: () => setState(() {
-                                _images.removeAt(index);
-                                _markDirty();
-                                _allowPop = false;
-                              }),
-                              style: IconButton.styleFrom(
-                                fixedSize: const Size.square(44),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                backgroundColor: GfTheme.colorsOf(
-                                  context,
-                                ).base100.withValues(alpha: .9),
-                                foregroundColor: GfTheme.colorsOf(
-                                  context,
-                                ).baseContent,
-                                shape: const CircleBorder(),
-                              ),
-                              icon: const GfSymbol('x', size: 22),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : PageView(
-                    children: [
-                      for (final url in _images)
-                        GfNetworkImage(
-                          resolveApiAssetUrl(url),
-                          fit: BoxFit.contain,
-                          cacheWidth:
-                              (MediaQuery.sizeOf(context).width *
-                                      MediaQuery.devicePixelRatioOf(context))
-                                  .round(),
-                          errorBuilder: (_, _, _) =>
-                              const GfSymbol('image-off'),
                         ),
-                    ],
+                        if (item.status == ComposerUploadStatus.uploading)
+                          const Center(
+                            child: SizedBox.square(
+                              dimension: 18,
+                              child: GfProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        if (isFailed)
+                          Center(
+                            child: IconButton(
+                              tooltip: l10n.commonRetry,
+                              onPressed: () => _uploads.retry(item.id),
+                              color: Colors.white,
+                              icon: const GfSymbol(
+                                'refresh-cw',
+                                size: 20,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        PositionedDirectional(
+                          top: -10,
+                          end: -10,
+                          child: Tooltip(
+                            message: l10n.publishRemoveImage,
+                            excludeFromSemantics: true,
+                            child: Semantics(
+                              button: true,
+                              label: l10n.publishRemoveImage,
+                              child: InkResponse(
+                                onTap: () => _uploads.remove(item.id),
+                                radius: 20,
+                                child: SizedBox.square(
+                                  dimension: 36,
+                                  child: Center(
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(
+                                          alpha: .55,
+                                        ),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Padding(
+                                        padding: EdgeInsets.all(3),
+                                        child: GfSymbol(
+                                          'x',
+                                          size: 12,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                );
+              },
+            ),
           ),
-        if (editing)
-          GfButton(
-            label: l10n.publishToolImage,
-            icon: const GfSymbol('gallery', size: 22),
-            variant: GfButtonVariant.outline,
-            loading: _pickingImage,
-            onPressed: _images.length >= 9 || _uploading
-                ? null
-                : _pickAndInsertImage,
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -2457,6 +2635,9 @@ class _PublishWorkspaceSkeleton extends StatelessWidget {
   }
 }
 
+const Size _imageDragFeedback = Size(132, 96);
+const Offset _imageDragAnchor = Offset(66, 112);
+
 class _ComposerImageBuilder extends EmbedBuilder {
   const _ComposerImageBuilder({this.onDragStarted, this.onDragEnded});
 
@@ -2477,20 +2658,30 @@ class _ComposerImageBuilder extends EmbedBuilder {
               .round(),
       errorBuilder: (_, _, _) => const GfSymbol('image-off'),
     );
+    final Widget thumbnail = GfNetworkImage(
+      resolveApiAssetUrl(embedContext.node.value.data.toString()),
+      fit: BoxFit.cover,
+      cacheWidth: (_imageDragFeedback.width * 2).round(),
+      errorBuilder: (_, _, _) => const GfSymbol('image-off'),
+    );
     return LongPressDraggable<ComposerImageDragPayload>(
       data: ComposerImageDragPayload(
         node: embedContext.node,
         imageUrl: embedContext.node.value.data.toString(),
       ),
-      dragAnchorStrategy: pointerDragAnchorStrategy,
+      // The lifted copy rides above the fingertip so the drop line under the
+      // finger stays visible.
+      dragAnchorStrategy: (_, _, _) => _imageDragAnchor,
       onDragStarted: onDragStarted,
       onDragCompleted: onDragEnded,
       onDraggableCanceled: (Velocity velocity, Offset offset) =>
           onDragEnded?.call(),
       childWhenDragging: Opacity(opacity: 0.35, child: image),
-      feedback: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 180),
-        child: Opacity(opacity: 0.9, child: image),
+      feedback: Material(
+        elevation: 8,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox.fromSize(size: _imageDragFeedback, child: thumbnail),
       ),
       child: image,
     );

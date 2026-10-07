@@ -89,6 +89,7 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
             enabled: !widget.disabled,
             label: '${l.anonymousPublishAs}: $name · $kind',
             excludeSemantics: true,
+            onTap: widget.disabled ? null : openMenu,
             child: Tooltip(
               message: name,
               child: InkWell(

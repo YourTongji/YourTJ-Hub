@@ -140,7 +140,8 @@ void main() {
     final logo = tester.getTopLeft(find.byType(GfLogo)).dy;
     container.read(readingChromeProvider).update(32, 120);
     await tester.pump();
-    expect(tester.getTopLeft(find.byType(GfLogo)).dy, closeTo(logo - 28.5, 1));
+    // The header leaves 1:1 with the content under the finger.
+    expect(tester.getTopLeft(find.byType(GfLogo)).dy, closeTo(logo - 32, 1));
     expect(tester.getTopLeft(find.text('row 4')), position);
     container.read(readingChromeProvider)
       ..update(40, 120)
@@ -252,6 +253,27 @@ void main() {
     chrome.settle(208);
     expect(chrome.reveal.value.value, 1);
     expect(chrome.hidden, isFalse);
+  });
+  test('settling follows the gesture, not a release jitter', () {
+    final chrome = ReadingChrome()..travel = 120;
+    addTearDown(chrome.dispose);
+    chrome.begin();
+    chrome.update(90, 400);
+    // A tiny upward jitter just before release.
+    chrome.update(-2, 398);
+    chrome.settle(398);
+    expect(chrome.reveal.value.value, 0);
+    chrome.begin();
+    chrome.update(-40, 358);
+    chrome.update(1, 359);
+    chrome.settle(359);
+    expect(chrome.reveal.value.value, 1);
+    // A fling decides by its velocity.
+    chrome.begin();
+    chrome.update(30, 389);
+    chrome.update(-10, 379);
+    chrome.settle(379, velocity: 1500);
+    expect(chrome.reveal.value.value, 0);
   });
   test('the top keeps chrome attached; bounce and locks are ignored', () {
     final chrome = ReadingChrome();

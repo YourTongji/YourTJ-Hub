@@ -55,7 +55,10 @@ class RootSurface extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final hidden = ref.watch(readingChromeProvider).hidden;
+    // Only the pieces that depend on hidden chrome listen to it, so a flip
+    // mid-scroll never rebuilds the page underneath.
+    bool watchHidden(WidgetRef ref) =>
+        ref.watch(readingChromeProvider.select((chrome) => chrome.hidden));
     final colors = GfTheme.colorsOf(context);
     final bottom = MediaQuery.paddingOf(context).bottom;
     final hasRail = ReadingWindowScope.hasRailOf(context);
@@ -80,6 +83,10 @@ class RootSurface extends ConsumerWidget {
     );
     // Insets stay fixed while chrome slides, so content never jumps.
     final top = 56 + toolbarHeight;
+    // The header (plus its hairline) leaves at the speed of the content.
+    if (TickerMode.valuesOf(context).enabled) {
+      ref.read(readingChromeProvider).travel = top + 1;
+    }
     final contentBottom = hasRail
         ? 24.0 + bottom
         : navMetrics.contentBottomInset;
@@ -94,18 +101,25 @@ class RootSurface extends ConsumerWidget {
                     swipeTabIndex != null &&
                         swipeTabCount > 1 &&
                         swipePageBuilder != null
-                    ? TabPageTransition(
-                        index: swipeTabIndex!,
-                        length: swipeTabCount,
-                        chromeHidden: hidden,
-                        pageKey: swipePageKey,
-                        pageBuilder: (index, chromeHidden) => ChromeAlignedPage(
-                          topInset: top,
-                          chromeHidden: chromeHidden,
-                          current: index == swipeTabIndex,
-                          child: index == swipeTabIndex
-                              ? body(top, contentBottom)
-                              : swipePageBuilder!(index, top, contentBottom),
+                    ? Consumer(
+                        builder: (context, ref, _) => TabPageTransition(
+                          index: swipeTabIndex!,
+                          length: swipeTabCount,
+                          chromeHidden: watchHidden(ref),
+                          pageKey: swipePageKey,
+                          pageBuilder: (index, chromeHidden) =>
+                              ChromeAlignedPage(
+                                topInset: top,
+                                chromeHidden: chromeHidden,
+                                current: index == swipeTabIndex,
+                                child: index == swipeTabIndex
+                                    ? body(top, contentBottom)
+                                    : swipePageBuilder!(
+                                        index,
+                                        top,
+                                        contentBottom,
+                                      ),
+                              ),
                         ),
                       )
                     : body(top, contentBottom),
@@ -116,59 +130,64 @@ class RootSurface extends ConsumerWidget {
                 right: 0,
                 child: ReadingChromeSlide(
                   direction: -1,
-                  child: IgnorePointer(
-                    ignoring: hidden,
-                    child: ExcludeSemantics(
-                      excluding: hidden,
-                      child: ColoredBox(
-                        color: colors.base100,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            SizedBox(
-                              height: 56,
-                              child: Row(
-                                children: [
-                                  const SizedBox(width: 8),
-                                  IconButton(
-                                    tooltip: AppLocalizations.of(
-                                      context,
-                                    ).navProfile,
-                                    onPressed: () => accountDrawerLayerKey
-                                        .currentState
-                                        ?.open(),
-                                    icon: const AccountAvatar(),
-                                  ),
-                                  Expanded(
-                                    child: Center(
-                                      child:
-                                          titleWidget ??
-                                          (showLogo || title.isEmpty
-                                              ? const GfLogo(size: 32)
-                                              : Text(
-                                                  title,
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: GfTheme.typographyOf(
-                                                    context,
-                                                  ).title2,
-                                                )),
-                                    ),
-                                  ),
-                                  if (actions.isEmpty)
-                                    const SizedBox(width: 48)
-                                  else
-                                    ...actions,
-                                  const SizedBox(width: 8),
-                                ],
-                              ),
-                            ),
-                            if (toolbar != null)
-                              SizedBox(height: toolbarHeight, child: toolbar),
-                            const Divider(height: 1, thickness: 0),
-                          ],
+                  child: Consumer(
+                    builder: (context, ref, child) {
+                      final hidden = watchHidden(ref);
+                      return IgnorePointer(
+                        ignoring: hidden,
+                        child: ExcludeSemantics(
+                          excluding: hidden,
+                          child: child,
                         ),
+                      );
+                    },
+                    child: ColoredBox(
+                      color: colors.base100,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            height: 56,
+                            child: Row(
+                              children: [
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  tooltip: AppLocalizations.of(
+                                    context,
+                                  ).navProfile,
+                                  onPressed: () => accountDrawerLayerKey
+                                      .currentState
+                                      ?.open(),
+                                  icon: const AccountAvatar(),
+                                ),
+                                Expanded(
+                                  child: Center(
+                                    child:
+                                        titleWidget ??
+                                        (showLogo || title.isEmpty
+                                            ? const GfLogo(size: 32)
+                                            : Text(
+                                                title,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: GfTheme.typographyOf(
+                                                  context,
+                                                ).title2,
+                                              )),
+                                  ),
+                                ),
+                                if (actions.isEmpty)
+                                  const SizedBox(width: 48)
+                                else
+                                  ...actions,
+                                const SizedBox(width: 8),
+                              ],
+                            ),
+                          ),
+                          if (toolbar != null)
+                            SizedBox(height: toolbarHeight, child: toolbar),
+                          const Divider(height: 1, thickness: 0),
+                        ],
                       ),
                     ),
                   ),
@@ -176,7 +195,7 @@ class RootSurface extends ConsumerWidget {
               ),
               if (showComposeAction)
                 ValueListenableBuilder<ChromeReveal>(
-                  valueListenable: ref.watch(readingChromeProvider).reveal,
+                  valueListenable: ref.read(readingChromeProvider).reveal,
                   builder: (context, reveal, child) => AnimatedPositioned(
                     duration: readingChromeDuration(context, reveal),
                     curve: GfMotion.enterCurve,
@@ -200,7 +219,8 @@ class RootSurface extends ConsumerWidget {
                         onAction ??
                         () => showComposeMenu(
                           context,
-                          bottom: hidden || hasRail
+                          bottom:
+                              ref.read(readingChromeProvider).hidden || hasRail
                               ? 16
                               : navMetrics.actionBottomInset,
                         ),

@@ -34,7 +34,9 @@ class AnonymousIdentityPage extends StatelessWidget {
   const AnonymousIdentityPage({super.key});
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(AppLocalizations.of(context).anonymousIdentity)),
+    appBar: GfAppBar(
+      title: Text(AppLocalizations.of(context).anonymousIdentity),
+    ),
     body: const SafeArea(top: false, child: _AnonymousIdentityContent()),
   );
 }
@@ -234,74 +236,96 @@ class _AnonymousIdentityContentState
                             const SizedBox(height: 16),
                           ],
                           if (s.persona case final p?) ...[
-                            GfSettingRow(
-                              leading: GfAvatar(
-                                src: resolveApiAssetUrl(p.avatarUrl),
-                                size: 44,
-                              ),
-                              title: p.name,
-                              description: s.governanceDisabled
-                                  ? l.anonymousRestricted
-                                  : s.disabled
-                                  ? l.anonymousInactive
-                                  : l.anonymousReady,
-                              trailing: const GfSymbol(
-                                'chevron-right',
-                                size: 18,
-                              ),
-                              onTap: busy
-                                  ? null
-                                  : () {
-                                      if (widget.sheet) {
-                                        Navigator.of(
-                                          context,
-                                        ).pop((persona: p, openProfile: true));
-                                      } else {
-                                        GoRouter.maybeOf(
-                                          context,
-                                        )?.push(p.profileUrl);
+                            // One inset group keeps the persona and its
+                            // switches on a shared edge.
+                            Material(
+                              key: const ValueKey('anonymous-persona-card'),
+                              color: colors.base200.withValues(alpha: .6),
+                              borderRadius: BorderRadius.circular(20),
+                              clipBehavior: Clip.antiAlias,
+                              child: Column(
+                                children: [
+                                  GfSettingRow(
+                                    leading: GfAvatar(
+                                      src: resolveApiAssetUrl(p.avatarUrl),
+                                      size: 44,
+                                    ),
+                                    title: p.name,
+                                    description: s.governanceDisabled
+                                        ? l.anonymousRestricted
+                                        : s.disabled
+                                        ? l.anonymousInactive
+                                        : l.anonymousReady,
+                                    trailing: const GfSymbol(
+                                      'chevron-right',
+                                      size: 18,
+                                    ),
+                                    onTap: busy
+                                        ? null
+                                        : () {
+                                            if (widget.sheet) {
+                                              Navigator.of(context).pop((
+                                                persona: p,
+                                                openProfile: true,
+                                              ));
+                                            } else {
+                                              GoRouter.maybeOf(
+                                                context,
+                                              )?.push(p.profileUrl);
+                                            }
+                                          },
+                                  ),
+                                  const GfDivider(inset: 16),
+                                  GfSwitchRow(
+                                    title: l.anonymousShowContent,
+                                    description:
+                                        l.anonymousShowContentDescription,
+                                    value: s.showContent,
+                                    onChanged: (value) {
+                                      if (!busy) {
+                                        run(
+                                          () => repo.setProfileContent(value),
+                                        );
                                       }
                                     },
+                                  ),
+                                  const GfDivider(inset: 16),
+                                  if (s.governanceDisabled)
+                                    GfSettingRow(
+                                      title: l.anonymousActiveLabel,
+                                      subtitleWidget: Text(
+                                        l.anonymousStatusRestricted,
+                                        style: type.caption.copyWith(
+                                          color: colors.error,
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    GfSwitchRow(
+                                      title: l.anonymousActiveLabel,
+                                      description: l.anonymousDisabledHint,
+                                      value: !s.disabled,
+                                      onChanged: (active) {
+                                        if (!busy) {
+                                          run(() => repo.setDisabled(!active));
+                                        }
+                                      },
+                                    ),
+                                ],
+                              ),
                             ),
                             if (s.locked) ...[
                               const SizedBox(height: 8),
-                              Text(
-                                l.anonymousLockedUntil(date(s.availableAt!)),
-                                style: type.caption.copyWith(color: muted),
+                              Padding(
+                                padding: const EdgeInsetsDirectional.only(
+                                  start: 16,
+                                ),
+                                child: Text(
+                                  l.anonymousLockedUntil(date(s.availableAt!)),
+                                  style: type.caption.copyWith(color: muted),
+                                ),
                               ),
                             ],
-                            const SizedBox(height: 12),
-                            GfSwitchRow(
-                              title: l.anonymousShowContent,
-                              description: l.anonymousShowContentDescription,
-                              value: s.showContent,
-                              onChanged: (value) {
-                                if (!busy) {
-                                  run(() => repo.setProfileContent(value));
-                                }
-                              },
-                            ),
-                            if (s.governanceDisabled)
-                              GfSettingRow(
-                                title: l.anonymousActiveLabel,
-                                subtitleWidget: Text(
-                                  l.anonymousStatusRestricted,
-                                  style: type.caption.copyWith(
-                                    color: colors.error,
-                                  ),
-                                ),
-                              )
-                            else
-                              GfSwitchRow(
-                                title: l.anonymousActiveLabel,
-                                description: l.anonymousDisabledHint,
-                                value: !s.disabled,
-                                onChanged: (active) {
-                                  if (!busy) {
-                                    run(() => repo.setDisabled(!active));
-                                  }
-                                },
-                              ),
                             const SizedBox(height: 24),
                           ],
                           if (canChoose) ...[
@@ -313,17 +337,6 @@ class _AnonymousIdentityContentState
                             ),
                             const SizedBox(height: 16),
                             if (batch == null) ...[
-                              ExcludeSemantics(
-                                child: Row(
-                                  children: [
-                                    for (var i = 0; i < 3; i++) ...[
-                                      if (i > 0) const SizedBox(width: 10),
-                                      Expanded(child: _FaceDownSlip(index: i)),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 16),
                               Text(
                                 l.anonymousIntroTitle,
                                 style: type.bodyStrong,
@@ -343,19 +356,22 @@ class _AnonymousIdentityContentState
                                     ),
                                   ),
                                   if (s.batches.length > 1)
-                                    _HistoryToggle(
-                                      label: l.anonymousBatchOf(
-                                        s.batches.indexOf(batch) + 1,
-                                        s.batches.length,
+                                    Flexible(
+                                      child: _HistoryToggle(
+                                        label: l.anonymousBatchOf(
+                                          s.batches.indexOf(batch) + 1,
+                                          s.batches.length,
+                                        ),
+                                        semanticsLabel:
+                                            l.anonymousPreviousBatches,
+                                        open: historyOpen,
+                                        onPressed: busy
+                                            ? null
+                                            : () => setState(
+                                                () =>
+                                                    historyOpen = !historyOpen,
+                                              ),
                                       ),
-                                      semanticsLabel:
-                                          l.anonymousPreviousBatches,
-                                      open: historyOpen,
-                                      onPressed: busy
-                                          ? null
-                                          : () => setState(
-                                              () => historyOpen = !historyOpen,
-                                            ),
                                     ),
                                 ],
                               ),
@@ -385,66 +401,59 @@ class _AnonymousIdentityContentState
                                     : const SizedBox(width: double.infinity),
                               ),
                               const SizedBox(height: 12),
-                              LayoutBuilder(
-                                builder: (context, constraints) => Wrap(
-                                  spacing: 10,
-                                  runSpacing: 10,
-                                  children: [
-                                    for (var i = 0; i < batch.words.length; i++)
-                                      SizedBox(
-                                        width: (constraints.maxWidth - 10) / 2,
-                                        child: _NameSlip(
-                                          key: ValueKey('${batch.id}-$i'),
-                                          index: i,
-                                          word: batch.words[i],
-                                          selected: selected?.index == i,
-                                          onTap: busy
-                                              ? null
-                                              : () => setState(
-                                                  () => choice = (
-                                                    batchId: batch.id,
-                                                    index: i,
-                                                    word: batch.words[i],
+                              // One fade per batch keeps a new draw noticeable
+                              // without animating every option.
+                              AnimatedSwitcher(
+                                duration:
+                                    MediaQuery.disableAnimationsOf(context)
+                                    ? Duration.zero
+                                    : const Duration(milliseconds: 200),
+                                switchInCurve: const Cubic(.2, 0, 0, 1),
+                                switchOutCurve: Curves.easeOut,
+                                child: LayoutBuilder(
+                                  key: ValueKey(batch.id),
+                                  builder: (context, constraints) => Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      for (
+                                        var i = 0;
+                                        i < batch.words.length;
+                                        i++
+                                      )
+                                        SizedBox(
+                                          width: (constraints.maxWidth - 8) / 2,
+                                          child: _NameOption(
+                                            word: batch.words[i],
+                                            selected: selected?.index == i,
+                                            onTap: busy
+                                                ? null
+                                                : () => setState(
+                                                    () => choice = (
+                                                      batchId: batch.id,
+                                                      index: i,
+                                                      word: batch.words[i],
+                                                    ),
                                                   ),
-                                                ),
+                                          ),
                                         ),
-                                      ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                l.anonymousDrawsRemaining(s.remaining),
+                                style: type.caption.copyWith(color: muted),
                               ),
                             ],
                             if (compact && batch != null) ...[
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 4),
                               Text(
                                 l.anonymousNameLockHint,
                                 style: type.caption.copyWith(color: muted),
                               ),
                             ],
-                            const SizedBox(height: 20),
-                            Wrap(
-                              spacing: 12,
-                              runSpacing: 8,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                GfButton(
-                                  label: batch == null
-                                      ? l.anonymousGenerateNames
-                                      : l.anonymousRefreshNames,
-                                  icon: const GfSymbol('refresh-cw', size: 18),
-                                  variant: batch == null
-                                      ? GfButtonVariant.primary
-                                      : GfButtonVariant.secondary,
-                                  loading: busy,
-                                  onPressed: busy || s.remaining == 0
-                                      ? null
-                                      : () => draw(s),
-                                ),
-                                Text(
-                                  l.anonymousDrawsRemaining(s.remaining),
-                                  style: type.caption.copyWith(color: muted),
-                                ),
-                              ],
-                            ),
                             if (s.remaining == 0) ...[
                               const SizedBox(height: 8),
                               Text(
@@ -476,7 +485,7 @@ class _AnonymousIdentityContentState
                         ],
                       ),
               ),
-              if (canChoose && batch != null)
+              if (canChoose)
                 Container(
                   key: const ValueKey('anonymous-confirmation-footer'),
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
@@ -484,21 +493,46 @@ class _AnonymousIdentityContentState
                     color: colors.base100,
                     border: Border(top: BorderSide(color: colors.line)),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (!compact) ...[
-                        Text(l.anonymousNameLockHint, style: type.caption),
-                        const SizedBox(height: 12),
-                      ],
-                      GfButton(
-                        label: l.anonymousConfirmName,
-                        expanded: true,
-                        loading: busy,
-                        onPressed: selected == null || busy ? null : confirm,
-                      ),
-                    ],
-                  ),
+                  child: batch == null
+                      ? GfButton(
+                          label: l.anonymousGenerateNames,
+                          icon: const GfSymbol('refresh-cw', size: 18),
+                          expanded: true,
+                          loading: busy,
+                          onPressed: busy || s.remaining == 0
+                              ? null
+                              : () => draw(s),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (!compact) ...[
+                              Text(
+                                l.anonymousNameLockHint,
+                                style: type.caption.copyWith(color: muted),
+                              ),
+                              const SizedBox(height: 10),
+                            ],
+                            _FooterActions(
+                              refresh: GfButton(
+                                label: l.anonymousRefreshNames,
+                                icon: const GfSymbol('refresh-cw', size: 18),
+                                variant: GfButtonVariant.secondary,
+                                onPressed: busy || s.remaining == 0
+                                    ? null
+                                    : () => draw(s),
+                              ),
+                              confirm: GfButton(
+                                label: l.anonymousConfirmName,
+                                expanded: true,
+                                loading: busy,
+                                onPressed: selected == null || busy
+                                    ? null
+                                    : confirm,
+                              ),
+                            ),
+                          ],
+                        ),
                 ),
             ],
           );
@@ -598,171 +632,98 @@ class _NameStage extends StatelessWidget {
   }
 }
 
-const _slipTilts = [-0.010, 0.010, 0.006, -0.008];
+/// Draw again beside confirm; stacks when large text leaves no room.
+class _FooterActions extends StatelessWidget {
+  const _FooterActions({required this.refresh, required this.confirm});
+  final Widget refresh, confirm;
 
-/// A drawn name: tilted like a paper slip, fanned in once per batch.
-class _NameSlip extends StatefulWidget {
-  const _NameSlip({
-    super.key,
-    required this.index,
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      final roomy =
+          box.maxWidth >= 300 &&
+          MediaQuery.textScalerOf(context).scale(14) <= 18;
+      if (!roomy) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [confirm, const SizedBox(height: 8), refresh],
+        );
+      }
+      return Row(
+        children: [
+          refresh,
+          const SizedBox(width: 12),
+          Expanded(child: confirm),
+        ],
+      );
+    },
+  );
+}
+
+/// One drawn name. Selection shows as a primary outline plus a check, so it
+/// never relies on color alone.
+class _NameOption extends StatelessWidget {
+  const _NameOption({
     required this.word,
     required this.selected,
     required this.onTap,
   });
-  final int index;
   final String word;
   final bool selected;
   final VoidCallback? onTap;
 
   @override
-  State<_NameSlip> createState() => _NameSlipState();
-}
-
-class _NameSlipState extends State<_NameSlip>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _enter = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 280),
-  );
-  bool _started = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_started) return;
-    _started = true;
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _enter.value = 1;
-    } else {
-      Future<void>.delayed(Duration(milliseconds: widget.index * 45), () {
-        if (mounted) _enter.forward();
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _enter.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
     final type = GfTheme.typographyOf(context);
-    final selected = widget.selected;
-    final tilt = selected ? 0.0 : _slipTilts[widget.index % _slipTilts.length];
-    final curve = CurvedAnimation(
-      parent: _enter,
-      curve: const Cubic(.2, 0, 0, 1),
-    );
-    return AnimatedBuilder(
-      animation: curve,
-      builder: (context, child) => Opacity(
-        opacity: curve.value,
-        child: Transform.translate(
-          offset: Offset(0, (1 - curve.value) * 8 + (selected ? -2 : 0)),
-          child: Transform.rotate(angle: tilt * curve.value, child: child),
-        ),
-      ),
-      child: Semantics(
-        button: true,
-        selected: selected,
-        label: widget.word,
-        excludeSemantics: true,
-        child: Material(
-          color: selected
-              ? Color.alphaBlend(
-                  colors.primary.withValues(alpha: .10),
-                  colors.base100,
-                )
-              : colors.base100,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(
-              color: selected ? colors.primary : colors.line,
-              width: selected ? 1.5 : 1,
-            ),
+    return Semantics(
+      button: true,
+      selected: selected,
+      enabled: onTap != null,
+      label: word,
+      excludeSemantics: true,
+      onTap: onTap,
+      child: Material(
+        animationDuration: GfMotion.duration(context, GfMotion.selection),
+        color: selected
+            ? Color.alphaBlend(
+                colors.primary.withValues(alpha: .08),
+                colors.base100,
+              )
+            : colors.base100,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: selected ? colors.primary : colors.line,
+            width: selected ? 1.5 : 1,
           ),
-          elevation: selected ? 3 : 0,
-          shadowColor: colors.primary.withValues(alpha: .35),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: widget.onTap,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 52),
-              child: Stack(
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 52),
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 10, 12),
+              child: Row(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
-                    child: Center(
-                      child: Text(
-                        widget.word,
-                        textAlign: TextAlign.center,
-                        style: (selected ? type.bodyStrong : type.body)
-                            .copyWith(color: colors.baseContent),
+                  Expanded(
+                    child: Text(
+                      word,
+                      style: (selected ? type.bodyStrong : type.body).copyWith(
+                        color: colors.baseContent,
                       ),
                     ),
                   ),
-                  PositionedDirectional(
-                    top: 6,
-                    end: 8,
-                    child: selected
-                        ? Container(
-                            width: 18,
-                            height: 18,
-                            decoration: BoxDecoration(
-                              color: colors.primary,
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: GfSymbol(
-                              'check',
-                              size: 12,
-                              color: colors.primaryContent,
-                            ),
-                          )
-                        : Text(
-                            (widget.index + 1).toString().padLeft(2, '0'),
-                            style: type.caption.copyWith(
-                              fontSize: 10,
-                              color: colors.baseContent.withValues(alpha: .4),
-                            ),
-                          ),
+                  const SizedBox(width: 6),
+                  AnimatedOpacity(
+                    opacity: selected ? 1 : 0,
+                    duration: GfMotion.duration(context, GfMotion.selection),
+                    child: GfSymbol('check', size: 16, color: colors.primary),
                   ),
                 ],
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Placeholder slip shown before the first draw.
-class _FaceDownSlip extends StatelessWidget {
-  const _FaceDownSlip({required this.index});
-  final int index;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = GfTheme.colorsOf(context);
-    final type = GfTheme.typographyOf(context);
-    return Transform.rotate(
-      angle: const [-0.026, 0.017, -0.009][index],
-      child: Container(
-        height: 56,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: colors.base200,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: colors.line),
-        ),
-        child: Text(
-          '?',
-          style: type.title3.copyWith(
-            color: colors.baseContent.withValues(alpha: .3),
           ),
         ),
       ),
@@ -790,6 +751,7 @@ class _HistoryToggle extends StatelessWidget {
       expanded: open,
       label: '$semanticsLabel: $label',
       excludeSemantics: true,
+      onTap: onPressed,
       child: Material(
         color: colors.base200,
         shape: const StadiumBorder(),
@@ -805,7 +767,14 @@ class _HistoryToggle extends StatelessWidget {
                 children: [
                   GfSymbol('history', size: 14, color: colors.iconMuted),
                   const SizedBox(width: 6),
-                  Text(label, style: type.caption),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption,
+                    ),
+                  ),
                   const SizedBox(width: 2),
                   AnimatedRotation(
                     turns: open ? .5 : 0,

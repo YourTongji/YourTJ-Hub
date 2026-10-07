@@ -104,7 +104,7 @@ height-limited batch menu and preview a candidate on the same stage before expli
 The one-year lock and confirmation button remain in the bottom action area while explanatory text
 scrolls; on short sheets (large text or an open keyboard) only the button stays pinned and the lock
 note moves into the scrolling content. The native composer identity control opens a bottom-sheet
-menu; the topic composer places it with the bot-reply switch after the body. Successful setup
+menu; the topic composer places it with the bot-reply switch in the preview step's settings panel. Successful setup
 selects the returned persona in the invoking composer; cancellation, failure and late responses after a session change do not.
 Self-disabled identities retain a reactivation action; governance restrictions remain unavailable.
 Opening the persona profile from the sheet leaves the writing field unfocused; returning through

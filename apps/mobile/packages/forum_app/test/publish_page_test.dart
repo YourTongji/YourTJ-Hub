@@ -781,11 +781,17 @@ void main() {
     await tester.tap(find.byKey(const Key('publish-add-title')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('publish-title')), '保留标题');
-    for (final type in ['文章', '提问', '瞬间']) {
-      await tester.tap(find.byType(DropdownButton<int>));
+    for (final (type, value) in [('文章', 3), ('提问', 1), ('瞬间', 2)]) {
+      await tester.tap(find.byKey(Key('publish-type-$value')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(type).last);
-      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<Semantics>(find.byKey(Key('publish-type-$value')))
+            .properties
+            .selected,
+        isTrue,
+        reason: type,
+      );
       expect(
         tester
             .widget<TextField>(find.byKey(const Key('publish-title')))
@@ -1166,8 +1172,6 @@ void main() {
         tester.getBottomLeft(tools).dy,
         lessThanOrEqualTo(keyboardTop + 0.01),
       );
-      await tester.tap(find.text('文字格式'));
-      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('粗体'));
       await tester.pump();
       expect(
@@ -1198,7 +1202,7 @@ void main() {
     );
     original.focusNode.requestFocus();
     await tester.pump();
-    await tester.tap(find.text('文字格式'));
+    await tester.tap(find.byTooltip('粗体'));
     await tester.pumpAndSettle();
     final expanded = tester.widget<QuillEditor>(find.byType(QuillEditor));
     expect(identical(expanded.focusNode, original.focusNode), isTrue);
@@ -1320,8 +1324,6 @@ void main() {
         final l10n = AppLocalizations.of(
           tester.element(find.byType(PublishPage)),
         );
-        await tester.tap(find.text(l10n.publishFormatting));
-        await tester.pumpAndSettle();
         expect(find.byTooltip(l10n.publishUndo), findsOneWidget);
         expect(find.byTooltip(l10n.publishToolBold), findsOneWidget);
         await tester.tap(find.byKey(const Key('publish-appbar-submit')));
@@ -1342,8 +1344,6 @@ void main() {
     final semantics = tester.ensureSemantics();
     await pumpPublishPage(tester, editing: false, contentType: 3);
     final l10n = AppLocalizations.of(tester.element(find.byType(PublishPage)));
-    await tester.tap(find.text('文字格式'));
-    await tester.pumpAndSettle();
     GfIconButton button(String label) => tester.widget<GfIconButton>(
       find.ancestor(
         of: find.byTooltip(label),
@@ -1417,8 +1417,6 @@ void main() {
     );
     tester.view.viewInsets = const FakeViewPadding(bottom: 250);
     addTearDown(tester.view.resetViewInsets);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('文字格式'));
     await tester.pumpAndSettle();
 
     int? headerLevel() =>
@@ -1901,6 +1899,8 @@ void main() {
     await tester.pump();
     expect(find.text('标题不能为空'), findsOneWidget);
     expect(find.byType(GfStatusMessage), findsOneWidget);
+    // Let the preview step's identity request finish before teardown.
+    await tester.pumpAndSettle();
   });
 
   testWidgets('预览页只保留右上角发布按钮，保存草稿移入 AppBar', (tester) async {
@@ -1925,11 +1925,15 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
-  testWidgets('瞬间/提问编辑态只保留顶部画廊图片入口', (tester) async {
+  testWidgets('瞬间/提问编辑态只保留画廊图片入口', (tester) async {
     for (final type in [1, 2]) {
       await pumpPublishPage(tester, editing: false, contentType: type);
       expect(find.byTooltip('添加图片'), findsNothing);
-      expect(find.text('先选图片，再记录这一刻'), findsOneWidget);
+      expect(find.byKey(const Key('publish-gallery-add')), findsOneWidget);
+      expect(
+        find.text('先选图片，再记录这一刻'),
+        type == 2 ? findsOneWidget : findsNothing,
+      );
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 600));
     }
@@ -2172,8 +2176,16 @@ void main() {
     // and pixel distance to the next line.
     await gesture.moveTo(tester.getCenter(targetParagraph));
     await tester.pump();
+    // A drop line marks the slot below the paragraph under the finger.
+    final Finder dropLine = find.byKey(const Key('publish-image-drop-line'));
+    expect(dropLine, findsOneWidget);
+    expect(
+      tester.getRect(dropLine).top,
+      greaterThan(tester.getRect(targetParagraph).top),
+    );
     await gesture.up();
     await tester.pumpAndSettle();
+    expect(dropLine, findsNothing);
     final String after = flatOf(controllerOfEditor().document);
     expect(after, isNot(before));
     // Drop semantics: the image lands directly below the dropped-on

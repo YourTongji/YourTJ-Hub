@@ -114,6 +114,7 @@ class RichMarkdownToolbar extends StatelessWidget {
     this.onInsertImage,
     this.insertingImage = false,
     this.enabled = true,
+    this.tinted = true,
   });
 
   final QuillController controller;
@@ -123,6 +124,9 @@ class RichMarkdownToolbar extends StatelessWidget {
   final VoidCallback? onInsertImage;
   final bool insertingImage;
   final bool enabled;
+
+  /// Paints the toolbar's own band; off when a host row already frames it.
+  final bool tinted;
 
   void _toggle(Attribute attribute) {
     final current = controller.getSelectionStyle().attributes[attribute.key];
@@ -145,7 +149,9 @@ class RichMarkdownToolbar extends StatelessWidget {
             attributes[attribute.key]?.value == attribute.value;
         return ColoredBox(
           key: const Key('rich-markdown-toolbar'),
-          color: colors.base200.withValues(alpha: 0.55),
+          color: tinted
+              ? colors.base200.withValues(alpha: 0.55)
+              : Colors.transparent,
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
