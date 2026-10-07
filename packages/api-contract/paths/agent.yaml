@@ -50,6 +50,7 @@ agentTopicList:
         schema:
           type: string
           enum: [latest, hot, popular, new]
+          description: popular is the rolling 24-hour ranking when the materialized version is enabled and ready; the disabled compatibility path retains view-count order.
       - name: categoryId
         in: query
         schema:

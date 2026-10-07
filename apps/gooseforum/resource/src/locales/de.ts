@@ -1,6 +1,18 @@
 import adminRaw from './admin-raw.de.generated'
 
 export default {
+  feed: {
+    truncated: "Das Limit von 1.000 Zeilen wurde erreicht; Ansicht und Export enthalten eine begrenzte Zusammenfassung.",
+    following: "Autor, dem du folgst",
+    category: "Eine gelesene Kategorie",
+    newreply: "Neue Antworten",
+    recent: "Aktuelle Diskussion",
+    statistics: "Feed-Statistik",
+    capture: "Erfassungsstatus",
+    export: "Summen exportieren",
+    refresh: "Aktualisieren",
+  },
+
   planSync: {
     title: "Plankonflikte lösen",
     body: "Ein anderes Gerät hat diese Einträge ebenfalls geändert. Wähle die Werte, die bleiben sollen. Andere Änderungen werden automatisch zusammengeführt.",
@@ -1041,6 +1053,8 @@ export default {
     refreshComplete: 'Feed ist aktuell',
     refreshFailed: 'Aktualisierung fehlgeschlagen. Bitte später erneut versuchen.',
     tabs: {
+      daily: "Top-Themen heute",
+      forYou: 'Für dich',
       following: 'Gefolgt',
       latest: 'Neueste',
       hot: 'Trending',

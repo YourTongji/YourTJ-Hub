@@ -7,6 +7,7 @@ part 'layout.g.dart';
 abstract class LayoutPayload with _$LayoutPayload {
   const factory LayoutPayload({
     required SitePayload site,
+    @Default(false) bool dailyRanking,
     required ViewerPayload viewer,
     List<NavItemPayload>? header,
     required SidebarPayload sidebar,

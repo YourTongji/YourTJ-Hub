@@ -9,6 +9,7 @@ part of 'layout.dart';
 _$LayoutPayloadImpl _$$LayoutPayloadImplFromJson(Map<String, dynamic> json) =>
     _$LayoutPayloadImpl(
       site: SitePayload.fromJson(json['site'] as Map<String, dynamic>),
+      dailyRanking: json['dailyRanking'] as bool? ?? false,
       viewer: ViewerPayload.fromJson(json['viewer'] as Map<String, dynamic>),
       header: (json['header'] as List<dynamic>?)
           ?.map((e) => NavItemPayload.fromJson(e as Map<String, dynamic>))
@@ -27,6 +28,7 @@ _$LayoutPayloadImpl _$$LayoutPayloadImplFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$$LayoutPayloadImplToJson(_$LayoutPayloadImpl instance) =>
     <String, dynamic>{
       'site': instance.site,
+      'dailyRanking': instance.dailyRanking,
       'viewer': instance.viewer,
       'header': instance.header,
       'sidebar': instance.sidebar,

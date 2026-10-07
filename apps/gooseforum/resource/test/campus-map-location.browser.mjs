@@ -135,7 +135,9 @@ async function selectedTarget(page, target) {
 }
 async function capture(page, filename, state) {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'no horizontal overflow')
-  await page.screenshot({ path: resolve(evidence, filename), fullPage: true })
+  // The atlas fills the viewport. Avoid a full-page resize of its WebGL canvas,
+  // and allow software-rendered capture more time than the 15s interaction assertions.
+  await page.screenshot({ path: resolve(evidence, filename), fullPage: false, animations: 'disabled', timeout: 60_000 })
   receipt.screenshots.push({ filename, width: page.viewportSize().width, ...state })
 }
 async function mapCapture(page, filename, target) {

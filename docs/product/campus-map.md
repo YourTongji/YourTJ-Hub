@@ -131,4 +131,4 @@ facilities outside that boundary are not guaranteed to appear in search.
 - Web type checking, the shared client tests, the production asset build, and
   desktop/mobile browser checks validate the page integration.
 
-See [decision 0022](../decisions/0022-campus-map-native-atlas.md) for the map reuse boundary and [decision 0066](../decisions/0066-stable-campus-places-and-overrides.md) for stable matching and offline exception maintenance. The [maintenance reference](../../apps/gooseforum/resource/scripts/campus-locations/README.md) owns prompts, schema, source fingerprints and dictionary updates.
+See [decision 0022](../decisions/0022-campus-map-native-atlas.md) for the map reuse boundary and [decision 0073](../decisions/0073-stable-campus-places-and-overrides.md) for stable matching and offline exception maintenance. The [maintenance reference](../../apps/gooseforum/resource/scripts/campus-locations/README.md) owns prompts, schema, source fingerprints and dictionary updates.

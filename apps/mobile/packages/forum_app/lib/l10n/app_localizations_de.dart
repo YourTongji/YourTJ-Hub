@@ -1035,6 +1035,9 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get sortForYou => 'Für dich';
+
+  @override
   String get sortLatest => 'Neueste';
 
   @override
@@ -3505,4 +3508,19 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get notificationReviewRejectedDetail =>
       'Diese Einreichung wird nicht öffentlich angezeigt. Bitte prüfe, bearbeite und sende sie über die Inhaltsverwaltung erneut. Bei Fragen wende dich an die Administration.';
+
+  @override
+  String get feedReasonFollowing => 'Von einer Person, der du folgst';
+
+  @override
+  String get feedReasonCategory => 'Eine Kategorie, an der du teilnimmst';
+
+  @override
+  String get feedReasonNewReply => 'Neue Antworten';
+
+  @override
+  String get feedReasonRecent => 'Kürzlich veröffentlicht';
+
+  @override
+  String get sortDaily => 'Top-Themen heute';
 }

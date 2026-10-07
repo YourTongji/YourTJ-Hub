@@ -75,7 +75,7 @@ Neither candidate-name hits nor unchanged map coverage prove semantic accuracy.
 
 ## Links
 
-- [Rejected semester-dictionary proposal](0065-offline-campus-location-dictionaries.md)
+- [Rejected semester-dictionary proposal](0072-offline-campus-location-dictionaries.md)
 - [Campus-map product contract](../product/campus-map.md)
 - [Catalog, override Schema and maintenance](../../apps/gooseforum/resource/scripts/campus-locations/README.md)
 - [Source map data and attribution](../../apps/gooseforum/resource/src/site/campus-map/data/README.md)

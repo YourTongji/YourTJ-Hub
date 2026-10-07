@@ -3,6 +3,7 @@ package posts
 import (
 	"context"
 	"errors"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -96,13 +97,16 @@ func GetMapByIdsUnscoped(ids []uint64) map[uint64]*Entity {
 }
 
 func UpdateProcessStatus(id uint64, processStatus int8) error {
-	return builder().Where(queryopt.Eq("id", id)).Update("process_status", processStatus).Error
+	return db.Connect().Transaction(func(tx *gorm.DB) error { return UpdateProcessStatusTx(tx, id, processStatus) })
 }
 
 // UpdateProcessStatusTx updates moderation state inside a caller-owned
 // transaction.
 func UpdateProcessStatusTx(tx *gorm.DB, id uint64, processStatus int8) error {
-	return tx.Table(tableName).Where(queryopt.Eq("id", id)).Update("process_status", processStatus).Error
+	if err := tx.Table(tableName).Where(queryopt.Eq("id", id)).Update("process_status", processStatus).Error; err != nil {
+		return err
+	}
+	return markPostProjectionTx(tx, id)
 }
 
 // ResetPendingReview 作废待审状态：将 process_status 复位为正常。
@@ -205,23 +209,7 @@ func ExpireRecoverable(before time.Time, limit int) (entities []Entity) {
 // 与 topics 侧守卫对齐）；未命中返回未找到错误，防御未来新调用方漏判——
 // DeletePostByUser 的幂等分支仍在其上层先行处理。
 func MarkUserDeleted(id uint64, deletedBy uint64, reason string) error {
-	result := builder().Unscoped().
-		Where(queryopt.Eq("id", id)).
-		Where(queryopt.Ne("retention_status", RetentionPurged)).
-		Updates(map[string]any{
-			"deleted_at":        time.Now(),
-			"visibility_status": VisibilityUserDeleted,
-			"retention_status":  RetentionRecoverable,
-			"deleted_by":        deletedBy,
-			"delete_reason":     reason,
-		})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+	return db.Connect().Transaction(func(tx *gorm.DB) error { return MarkUserDeletedTx(tx, id, deletedBy, reason) })
 }
 
 // MarkUserDeletedTx marks a post as user-deleted in the caller's transaction.
@@ -236,23 +224,7 @@ func MarkUserDeletedTx(tx *gorm.DB, id uint64, deletedBy uint64, reason string) 
 // 填充 autoUpdateTime），否则 30 天恢复窗口会按最后一次编辑时间判定而立即失效。
 // PURGED 是终态（MADR-0021）：守卫拒绝改写终态行（与 topics 侧对齐）。
 func MarkUserDeletedKeepVisible(id uint64, deletedBy uint64, reason string) error {
-	result := builder().Unscoped().
-		Where(queryopt.Eq("id", id)).
-		Where(queryopt.Ne("retention_status", RetentionPurged)).
-		Updates(map[string]any{
-			"updated_at":        time.Now(),
-			"visibility_status": VisibilityUserDeleted,
-			"retention_status":  RetentionRecoverable,
-			"deleted_by":        deletedBy,
-			"delete_reason":     reason,
-		})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+	return db.Connect().Transaction(func(tx *gorm.DB) error { return MarkUserDeletedKeepVisibleTx(tx, id, deletedBy, reason) })
 }
 
 // MarkUserDeletedKeepVisibleTx marks a post as a user-deleted tombstone in the
@@ -268,46 +240,14 @@ func MarkDeletedKeepVisible(id uint64, visibility string, deletedBy uint64, reas
 	if visibility == "" {
 		visibility = VisibilityUserDeleted
 	}
-	result := builder().Unscoped().
-		Where(queryopt.Eq("id", id)).
-		Where(queryopt.Ne("retention_status", RetentionPurged)).
-		Updates(map[string]any{
-			"updated_at":        time.Now(),
-			"visibility_status": visibility,
-			"retention_status":  RetentionRecoverable,
-			"deleted_by":        deletedBy,
-			"delete_reason":     reason,
-		})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+	return db.Connect().Transaction(func(tx *gorm.DB) error { return markDeletedTx(tx, id, visibility, deletedBy, reason, false) })
 }
 
 // MarkModeratorRemoved 将回复标记为管理员删除，作者不可自行恢复。
 // PURGED 是终态（MADR-0021）：终态行不得被改写回 RECOVERABLE（review nit）；
 // 未命中返回未找到错误，DeletePostAsModerator 的幂等分支在其上层先行处理。
 func MarkModeratorRemoved(id uint64, deletedBy uint64, reason string) error {
-	result := builder().Unscoped().
-		Where(queryopt.Eq("id", id)).
-		Where(queryopt.Ne("retention_status", RetentionPurged)).
-		Updates(map[string]any{
-			"deleted_at":        time.Now(),
-			"visibility_status": VisibilityModeratorRemoved,
-			"retention_status":  RetentionRecoverable,
-			"deleted_by":        deletedBy,
-			"delete_reason":     reason,
-		})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+	return db.Connect().Transaction(func(tx *gorm.DB) error { return MarkModeratorRemovedTx(tx, id, deletedBy, reason) })
 }
 
 // MarkModeratorRemovedTx marks a post as moderator-deleted in the caller's
@@ -341,7 +281,7 @@ func markDeletedTx(tx *gorm.DB, id uint64, visibility string, deletedBy uint64, 
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
-	return nil
+	return markPostProjectionTx(tx, id)
 }
 
 // SoftDeleteByIDs 按回复 ID 列表软删（级联删除），返回受影响行数。
@@ -368,23 +308,25 @@ func SoftDeleteByIDs(ids []uint64, deletedBy uint64, reason string, visibility s
 
 // Restore 恢复回复：清除软删标记并回到正常生命周期。
 func Restore(id uint64) error {
-	result := builder().Unscoped().Where(queryopt.Eq("id", id)).
-		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
-		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
-		Updates(map[string]any{
-			"deleted_at":        gorm.Expr("NULL"),
-			"visibility_status": VisibilityActive,
-			"retention_status":  RetentionNormal,
-			"deleted_by":        0,
-			"delete_reason":     "",
-		})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+	return db.Connect().Transaction(func(tx *gorm.DB) error {
+		result := tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).
+			Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
+			Where(queryopt.Eq("retention_status", RetentionRecoverable)).
+			Updates(map[string]any{
+				"deleted_at":        gorm.Expr("NULL"),
+				"visibility_status": VisibilityActive,
+				"retention_status":  RetentionNormal,
+				"deleted_by":        0,
+				"delete_reason":     "",
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return markPostProjectionTx(tx, id)
+	})
 }
 
 // MarkPurged 标记回复为已永久删除（不再可恢复，仅审计可查）。
@@ -416,25 +358,27 @@ func MarkPurged(id uint64) error {
 // while the audited forensic view still returns it（review P2）；已处于
 // USER_DELETED/MODERATOR_REMOVED 的行保持原删除来源语义不变。
 func MarkPurgedOwned(id uint64, ownerID uint64) error {
-	result := builder().Unscoped().Where(queryopt.Eq("id", id)).
-		Where(queryopt.Eq("user_id", ownerID)).
-		Where(queryopt.In("visibility_status", []string{VisibilityActive, VisibilityUserDeleted, VisibilityModeratorRemoved})).
-		Where(queryopt.Ne("retention_status", RetentionPurged)).
-		Updates(map[string]any{
-			"deleted_at":       time.Now(),
-			"retention_status": RetentionPurged,
-			"visibility_status": gorm.Expr(
-				"CASE WHEN visibility_status = ? THEN ? ELSE visibility_status END",
-				VisibilityActive, VisibilityUserDeleted,
-			),
-		})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+	return db.Connect().Transaction(func(tx *gorm.DB) error {
+		result := tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).
+			Where(queryopt.Eq("user_id", ownerID)).
+			Where(queryopt.In("visibility_status", []string{VisibilityActive, VisibilityUserDeleted, VisibilityModeratorRemoved})).
+			Where(queryopt.Ne("retention_status", RetentionPurged)).
+			Updates(map[string]any{
+				"deleted_at":       time.Now(),
+				"retention_status": RetentionPurged,
+				"visibility_status": gorm.Expr(
+					"CASE WHEN visibility_status = ? THEN ? ELSE visibility_status END",
+					VisibilityActive, VisibilityUserDeleted,
+				),
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return markPostProjectionTx(tx, id)
+	})
 }
 
 // MarkPrivacyErased immediately hides a user's reply and makes it unrecoverable.
@@ -443,13 +387,18 @@ func MarkPurgedOwned(id uint64, ownerID uint64) error {
 // governance records can distinguish the origin. Body fields are kept for
 // forensic access (MADR-0021).
 func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"deleted_at":        time.Now(),
-		"visibility_status": VisibilityAccountAnonymized,
-		"retention_status":  RetentionPurged,
-		"deleted_by":        erasedBy,
-		"delete_reason":     reason,
-	}).Error
+	return db.Connect().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+			"deleted_at":        time.Now(),
+			"visibility_status": VisibilityAccountAnonymized,
+			"retention_status":  RetentionPurged,
+			"deleted_by":        erasedBy,
+			"delete_reason":     reason,
+		}).Error; err != nil {
+			return err
+		}
+		return markPostProjectionTx(tx, id)
+	})
 }
 
 // ListUnscopedByTopicID 返回某话题下全部回复（含已软删行），用于级联恢复/统计。
@@ -507,20 +456,35 @@ func RestoreCascadeDeletedByTopicID(topicID uint64, deletedBy uint64, deleteReas
 // 只恢复"本次删除操作"标记的行（deleted_by + delete_reason 精确匹配），
 // 独立删除的回复与管理端删除不随作者恢复；管理端恢复话题时传 MODERATOR_REMOVED。
 func RestoreCascadeDeletedByTopicIDWithVisibility(topicID uint64, deletedBy uint64, deleteReason string, visibility string) int64 {
-	return builder().Unscoped().
-		Where(queryopt.Eq("topic_id", topicID)).
-		Where("deleted_at IS NOT NULL").
-		Where(queryopt.Eq("visibility_status", visibility)).
-		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
-		Where(queryopt.Eq("deleted_by", deletedBy)).
-		Where(queryopt.Eq("delete_reason", deleteReason)).
-		Updates(map[string]any{
-			"deleted_at":        gorm.Expr("NULL"),
-			"visibility_status": VisibilityActive,
-			"retention_status":  RetentionNormal,
-			"deleted_by":        0,
-			"delete_reason":     "",
-		}).RowsAffected
+	var affected int64
+	err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		result := tx.Table(tableName).Unscoped().
+			Where(queryopt.Eq("topic_id", topicID)).
+			Where("deleted_at IS NOT NULL").
+			Where(queryopt.Eq("visibility_status", visibility)).
+			Where(queryopt.Eq("retention_status", RetentionRecoverable)).
+			Where(queryopt.Eq("deleted_by", deletedBy)).
+			Where(queryopt.Eq("delete_reason", deleteReason)).
+			Updates(map[string]any{
+				"deleted_at":        gorm.Expr("NULL"),
+				"visibility_status": VisibilityActive,
+				"retention_status":  RetentionNormal,
+				"deleted_by":        0,
+				"delete_reason":     "",
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		affected = result.RowsAffected
+		if affected == 0 {
+			return nil
+		}
+		return feed.MarkProjectionTx(tx, topicID)
+	})
+	if err != nil {
+		return 0
+	}
+	return affected
 }
 
 func GetFirstPageByTopicId(topicId uint64) (entities []*Entity) {

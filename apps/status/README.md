@@ -42,6 +42,9 @@ See [the Cloudflare runbook](../../docs/operations/status-cloudflare.md). Produc
 separate private buckets. Only reviewed main is deployed. `Deploy / status` verifies the build tree
 and API; the separate Cron Worker dispatches `Collect / status` on main. The GitHub dev timer is a
 best-effort fallback, disabled when `STATUS_SCHEDULER_ENABLED=true`.
+Public and device collections use separate job concurrency groups; each new same-kind collection
+cancels its unfinished predecessor. Fallback dispatch jobs have their own groups, so skipped timers
+cannot block production collection. See the runbook for queue diagnosis and recovery verification.
 The collector's workflow definition and checked-out source come from the same main commit, and its
 environment allows only main. Freeze Netlify automatic builds before removing its handlers from main;
 keep the existing deployment until Cloudflare cutover passes acceptance.

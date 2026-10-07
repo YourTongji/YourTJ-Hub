@@ -132,5 +132,7 @@
   "serverMessages.sticker.libraryFull": "Deine Sammlung kann {limit} Sticker enthalten. Entferne zuerst einige.",
   "serverMessages.sticker.uploadQuota": "Du hast das Limit von {limit} hochgeladenen Stickern erreicht. Gesendete Bilder bleiben für den Nachrichtenverlauf erhalten.",
   "serverMessages.sticker.imageRequired": "Wähle ein selbst hochgeladenes Bild oder GIF mit höchstens {maxSizeMb} MB.",
-  "serverMessages.sticker.unavailable": "Dieser Sticker ist nicht verfügbar."
+  "serverMessages.sticker.unavailable": "Dieser Sticker ist nicht verfügbar.",
+  "forYouFeed": "Für dich",
+  "dailyFeed": "Top-Themen heute"
 }

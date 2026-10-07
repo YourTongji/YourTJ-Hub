@@ -1,6 +1,18 @@
 import adminRaw from './admin-raw.en.generated'
 
 export default {
+  feed: {
+    truncated: "The 1,000-row limit was reached; this view and export contain a bounded summary.",
+    following: "An author you follow",
+    category: "A category you read",
+    newreply: "New replies",
+    recent: "Recent discussion",
+    statistics: "Feed statistics",
+    capture: "Capture status",
+    export: "Export aggregates",
+    refresh: "Refresh",
+  },
+
   planSync: {
     title: "Resolve plan conflicts",
     body: "Another device changed these items too. Choose each value to keep; other changes merge automatically.",
@@ -1042,6 +1054,8 @@ export default {
     refreshComplete: 'Feed is up to date',
     refreshFailed: 'Unable to refresh. Try again later.',
     tabs: {
+      daily: "Today's top",
+      forYou: 'For you',
       following: 'Following',
       latest: 'Latest',
       hot: 'Hot',

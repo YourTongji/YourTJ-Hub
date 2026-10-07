@@ -656,3 +656,17 @@ OpenAPI、TypeScript 和 Dart 镜像同步维护，路由覆盖包含此操作�
 用户生命周期：`DeleteUserDataTx`（硬删该用户的投递与领取）与 `AnonymizeUserDataTx`
 （保留事实行、剥离身份并轮换唯一键）是预留的清理边界；接入账号关闭与保留期限策略由 #787 负责。
 该域不扩展 `event_notification` 或私信表，存量通知/私信的行与表结构不因升级改变。
+
+## Feed ranking projection and observation boundary
+
+`Current`: publication time is stamped only at actual first public approval; legacy timestamps are
+explicit estimates. Ranking columns and internal anonymous-contributor projections are rebuildable,
+with one serving worker, bounded owner queries and transactionally coalesced dirtiness. Account-close
+fences raw ingestion before cleanup. The default parameter and period records contain no credentials.
+
+The page protocol negotiates exact feed capability v2 and carries optional actualSort/degradeReason,
+feedTrace/position/reason. Personal cursors bind account, hash, offset and process epoch. New observation
+and admin aggregate routes are covered in OpenAPI, route snapshots, TS and Dart mirrors. Native actions
+carry optional signed source headers; absent context remains unclassified or separately inferred.
+[Feed product](../product/feed-ranking.md) and [operations](../operations/feed-ranking.md) own the
+behavior and lifecycle; schema definitions remain in models/migrations.
