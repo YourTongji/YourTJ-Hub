@@ -6,12 +6,17 @@
 >
 > Owner: Wiki maintainers
 >
-> Last verified: 2026-08-16
+> Last verified: 2026-10-07
 
 Wiki content is authored in the public `YourTongji/YourTJ-Wiki` Git repository. The forum is a
 read-only projection: merge changes through GitHub, then wait for the scheduled sync or trigger the
 admin Wiki sync. Pages are Markdown files beneath a top-level namespace directory; page URLs omit the
 `.md` suffix; the URL path segment is the top-level namespace directory name (the display name).
+
+`Current`: YourTJ Wiki page content is licensed under [CC BY-NC-SA 4.0](../development/licensing.md).
+Redistribution requires attribution, a link to the license, notice of changes and the same license for adaptations.
+This grant covers only rights held or authorized by the contributor; third-party works and personal information may need separate permission.
+The license is irrevocable for recipients who comply with its terms; removing a page from Wiki does not revoke copies already shared.
 
 ## Wiki local search (Current)
 

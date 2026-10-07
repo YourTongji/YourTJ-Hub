@@ -15,6 +15,9 @@ links are maintained in [Distribution and updates](../product/mobile-experience.
 Each new candidate still requires the reviewed release workflow on `main`, configured
 `mobile-release` environment secrets and successful platform execution. Apple review and the Android
 system installer remain independent gates; a completed upload does not mean distribution approval.
+GPL source/license delivery and iOS distribution checks follow the
+[licensing guide](../development/licensing.md#许可兼容与分发), including the confirmed standard EULA
+configuration and the remaining GPL compatibility verification.
 `Partial`: native push delivery and signed upgrade/device journeys need candidate-specific evidence;
 public availability does not establish the full physical-device acceptance matrix.
 

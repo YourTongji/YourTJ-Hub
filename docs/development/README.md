@@ -50,6 +50,7 @@ problem evidence, research and affected users
 - [Testing strategy & commands](testing.md)
 - [Mobile performance](mobile-performance.md)
 - [Issues, requirements, review & pull requests](pull-requests.md)
+- [Licensing](licensing.md)
 - [Release workflow and agent entrypoints](../operations/releases.md)
 - [Project board workflow](project-board.md)
 - [Documentation governance](documentation.md)

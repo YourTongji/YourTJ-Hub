@@ -53,6 +53,12 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - LICENSE*
+      - README*
+      - src: ../../LICENSE
+        dst: licenses/GPL-3.0-only
+        strip_parent: true
   - id: windows
     ids: [windows]
     formats: [zip]
@@ -66,6 +72,9 @@ archives:
     files:
       - LICENSE*
       - README*
+      - src: ../../LICENSE
+        dst: licenses/GPL-3.0-only
+        strip_parent: true
       - src: scripts/windows/start.bat
         dst: start.bat
 
