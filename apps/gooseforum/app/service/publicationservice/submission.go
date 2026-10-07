@@ -10,6 +10,7 @@ import (
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
+	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -18,6 +19,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicpolicyservice"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -69,6 +71,9 @@ func SubmitWithHooks(ctx context.Context, topic *topics.Entity, post *posts.Enti
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&liveTopic, topic.Id).Error; err != nil {
 			return err
 		}
+		if err := identity.ValidateWriterTx(tx, post.UserId, post.PersonaUID); err != nil {
+			return err
+		}
 		if liveTopic.VisibilityStatus != topics.VisibilityActive {
 			return ErrUnavailable
 		}
@@ -77,6 +82,9 @@ func SubmitWithHooks(ctx context.Context, topic *topics.Entity, post *posts.Enti
 		}
 		if post.Id == 0 {
 			if post.PostNo != 1 {
+				if err := topicpolicyservice.CheckReplyTx(tx, liveTopic, post.UserId); err != nil {
+					return err
+				}
 				no, err := topics.ReservePostSequenceTx(tx, topic.Id)
 				if err != nil {
 					return err

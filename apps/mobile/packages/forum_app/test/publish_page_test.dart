@@ -112,6 +112,7 @@ class _RecordingTopicRepository extends TopicRepository {
       List<int> categoryIds,
       int topicStatus,
       int contentType,
+      bool agentRepliesDisabled,
     })
   >
   writes =
@@ -123,6 +124,7 @@ class _RecordingTopicRepository extends TopicRepository {
           List<int> categoryIds,
           int topicStatus,
           int contentType,
+          bool agentRepliesDisabled,
         })
       >[];
 
@@ -134,9 +136,11 @@ class _RecordingTopicRepository extends TopicRepository {
     required List<int> categoryIds,
     required int topicStatus,
     int contentType = 3,
+    bool agentRepliesDisabled = false,
     List<String>? images,
     String? captchaId,
     String? captchaCode,
+    String? identity,
   }) async {
     if (requireCaptcha &&
         (captchaId != 'challenge' ||
@@ -161,6 +165,7 @@ class _RecordingTopicRepository extends TopicRepository {
       categoryIds: List<int>.of(categoryIds),
       topicStatus: topicStatus,
       contentType: contentType,
+      agentRepliesDisabled: agentRepliesDisabled,
     ));
     return WriteTopicResult(
       id: resultId,
@@ -304,6 +309,7 @@ void main() {
     WritingStore? localStore,
     bool withStickers = false,
     bool fromContentManagement = false,
+    ImageProvider<Object>? imageProvider,
   }) async {
     final _MemoryTokenStorage storage = _MemoryTokenStorage();
     final GfApiClient client = GfApiClient(
@@ -368,6 +374,28 @@ void main() {
       ],
     );
 
+    Widget app = MaterialApp.router(
+      theme: gfThemeData(Brightness.light),
+      routerConfig: router,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      locale: locale,
+    );
+    if (imageProvider != null) {
+      app = GfMediaScope(
+        identity: imageProvider,
+        factory:
+            (
+              _, {
+              int? width,
+              int? height,
+              Set<String>? allowedOrigins,
+              ResizeImagePolicy policy = ResizeImagePolicy.exact,
+            }) => imageProvider,
+        child: app,
+      );
+    }
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: <Override>[
@@ -400,13 +428,7 @@ void main() {
           pageRepositoryProvider.overrideWithValue(pageRepository),
           topicRepositoryProvider.overrideWithValue(topicRepository),
         ],
-        child: MaterialApp.router(
-          theme: gfThemeData(Brightness.light),
-          routerConfig: router,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          locale: locale,
-        ),
+        child: app,
       ),
     );
     await tester.pumpAndSettle();
@@ -570,6 +592,33 @@ void main() {
     expect(result.router.state.uri.path, '/');
   });
 
+  testWidgets('new topic submits the selected robot reply restriction', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    final result = await pumpPublishPage(
+      tester,
+      editing: false,
+      contentType: 2,
+      categoryIds: [2],
+    );
+    await tester.enterText(
+      find.byKey(const Key('publish-editor')),
+      'A sufficiently long campus moment.',
+    );
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    final setting = find.byKey(const Key('publish-agent-replies'));
+    await tester.ensureVisible(setting);
+    await tester.tap(
+      find.descendant(of: setting, matching: find.byType(Switch)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    expect(result.topicRepository.writes.single.agentRepliesDisabled, isTrue);
+  });
+
   for (final draft in [false, true]) {
     testWidgets(
       'a titleless moment ${draft ? 'saves a server draft' : 'publishes'} with an empty API title and no duplicate preview',
@@ -717,6 +766,9 @@ void main() {
         '原始标题',
       );
       expect(find.byKey(const Key('publish-add-title')), findsNothing);
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('publish-agent-replies')), findsNothing);
     });
   }
 
@@ -2064,12 +2116,25 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
+    // Use a decoded image rather than depending on an HTTP failure icon and
+    // whether the current test command includes the package's SVG assets.
+    final imageProvider = MemoryImage(
+      img.encodePng(img.Image(width: 120, height: 60)),
+    );
     await pumpPublishPage(
       tester,
       editing: true,
       contentType: 3,
       content: '第一段\n\n![image](u1)\n\n第三段\n',
+      imageProvider: imageProvider,
     );
+    await tester.runAsync(
+      () => precacheImage(
+        imageProvider,
+        tester.element(find.byType(QuillEditor)),
+      ),
+    );
+    await tester.pumpAndSettle();
     expect(find.text('长按正文图片，可拖动到任意段落位置'), findsOneWidget);
 
     QuillController controllerOfEditor() =>
@@ -2091,12 +2156,21 @@ void main() {
       matching: find.byType(LongPressDraggable<ComposerImageDragPayload>),
     );
     expect(draggable, findsOneWidget);
+    expect(draggable.hitTestable(), findsOneWidget);
+    final Finder targetParagraph = find.descendant(
+      of: find.byType(QuillEditor),
+      matching: find.textContaining('第三段', findRichText: true),
+    );
+    expect(targetParagraph, findsOneWidget);
+    expect(targetParagraph.hitTestable(), findsOneWidget);
 
     final TestGesture gesture = await tester.startGesture(
       tester.getCenter(draggable),
     );
     await tester.pump(const Duration(milliseconds: 600));
-    await gesture.moveBy(const Offset(0, 140));
+    // Drop onto the actual paragraph instead of assuming a fixed image height
+    // and pixel distance to the next line.
+    await gesture.moveTo(tester.getCenter(targetParagraph));
     await tester.pump();
     await gesture.up();
     await tester.pumpAndSettle();

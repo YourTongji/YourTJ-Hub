@@ -42,3 +42,37 @@ for (const width of [320, 1280]) {
     })
   }
 }
+
+for (const width of [320, 1280]) {
+  for (const role of ['reader', 'guest', 'own']) {
+    test(`deep-link topic capsule stays usable at width ${width}, ${role}`, async () => {
+      const page = await browser.newPage({ viewport: { width, height: 900 } })
+      try {
+        await page.goto(`${origin}/assets/test/fixtures/browser/post-actions.html?topic&${role}`)
+        const pill = page.locator('[data-test="floating-controls"] .gf-floating-surface')
+        await pill.waitFor()
+        const like = pill.locator('button[title="Like"]')
+        await like.waitFor({ state: 'visible' })
+        assert.equal(await pill.locator('[data-test="mobile-topic-reply"]').isVisible(), true)
+        assert.equal(await pill.locator('button[title="Report"]').count(), role === 'reader' ? 1 : 0)
+        assert.equal(await pill.locator('button[title="Share"]').count(), role === 'guest' ? 0 : 1)
+        if (role !== 'guest') {
+          await page.evaluate(() => {
+            navigator.clipboard.writeText = async (text) => { window.sharedTopicUrl = text }
+          })
+          await pill.locator('button[title="Share"]').click()
+          assert.equal(await page.evaluate(() => window.sharedTopicUrl), `${origin}/p/post/42`)
+        }
+        if (role === 'reader') {
+          await pill.locator('button[title="Report"]').click()
+          await page.getByRole('dialog').waitFor({ state: 'visible' })
+        }
+        const bounds = await pill.evaluate(el => {
+          const box = el.getBoundingClientRect()
+          return { left: box.left, right: box.right, width: innerWidth }
+        })
+        assert.ok(bounds.left >= 0 && bounds.right <= bounds.width, `capsule overflows: ${JSON.stringify(bounds)}`)
+      } finally { await page.close() }
+    })
+  }
+}

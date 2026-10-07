@@ -8,15 +8,18 @@ import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
 import 'post_history_sheet.dart';
+import 'anonymous_moderation_dialog.dart';
 
 class TopicActions extends ConsumerStatefulWidget {
   const TopicActions({
     super.key,
+    this.canRevealAnonymous = false,
     required this.props,
     required this.onChanged,
     this.firstPostId,
   });
   final TopicDetailProps props;
+  final bool canRevealAnonymous;
   final int? firstPostId;
   final Future<void> Function() onChanged;
   @override
@@ -30,6 +33,34 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
     final l10n = AppLocalizations.of(context);
     final epoch = ref.read(offlineCacheEpochProvider);
     final topic = widget.props.topic;
+    if (action == 'agent-replies') {
+      setState(() => _busy = true);
+      try {
+        await ref.read(topicRepositoryProvider).updateAgentReplies(
+          topicId: topic.id,
+          disabled: !topic.agentRepliesDisabled,
+        );
+        if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+          await widget.onChanged();
+        }
+      } catch (error) {
+        if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+          showGfToast(context, resolveErrorMessage(l10n, error), error: true);
+        }
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+      return;
+    }
+    if (action == 'anonymous') {
+      await showAnonymousModeration(
+        context,
+        postId: widget.firstPostId!,
+        publicUid: topic.author.publicUid!,
+        canReveal: widget.canRevealAnonymous,
+      );
+      return;
+    }
     if (action == 'edit') {
       await context.push('/publish?id=${topic.id}');
       if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
@@ -137,6 +168,12 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
       enabled: !_busy,
       onSelected: _action,
       itemBuilder: (_) => [
+        if (props.permissions.canManageAgentReplies && available)
+          CheckedPopupMenuItem(
+            value: 'agent-replies',
+            checked: props.topic.agentRepliesDisabled,
+            child: Text(l10n.agentRepliesDisable),
+          ),
         if (props.permissions.isOwnTopic && available)
           PopupMenuItem(value: 'edit', child: Text(l10n.commonEdit)),
         if (props.permissions.isOwnTopic && available)
@@ -144,6 +181,10 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
         if (widget.firstPostId != null)
           PopupMenuItem(value: 'history', child: Text(l10n.topicHistory)),
         PopupMenuItem(value: 'share', child: Text(l10n.topicShare)),
+        if (props.permissions.canModerateTopic &&
+            widget.firstPostId != null &&
+            props.topic.author.publicUid != null)
+          PopupMenuItem(value: 'anonymous', child: Text(l10n.anonymousManage)),
         if (props.permissions.canModerateTopic &&
             props.topic.processStatus == 0)
           PopupMenuItem(value: 'ban', child: Text(l10n.topicModerateBan)),

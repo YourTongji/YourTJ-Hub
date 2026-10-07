@@ -1,6 +1,11 @@
 import adminRaw from './admin-raw.generated'
 
 export default {
+  agentReplies: {
+    disable: "禁止机器人回复",
+    disabled: "作者已禁止机器人回复",
+    help: "阻止本站 Agent 账号回复，不影响已有回复。",
+  },
   feed: {
     truncated: "结果已达到 1000 行上限；此视图和导出均包含有限的汇总。",
     following: "你关注的作者",
@@ -2109,6 +2114,7 @@ export default {
     latestReply: '最新回复',
     replyPosition: '回复位置',
     joinDiscussion: '参与讨论',
+    loginToJoinDiscussion: '登录参与讨论',
     resizeComposer: '调整回复面板高度',
     markdownSoon: 'Markdown 支持稍后补齐',
     publishReply: '发布回复',
@@ -2849,6 +2855,35 @@ export default {
     pkCourseInfoSyncFailed: '课程同步失败',
     pkCourseReviewBriefFailed: '课评信息加载失败',
   },
+  anonymous: {
+    manage: "管理匿名身份",
+    reason: "处置理由（必填）",
+    ban: "限制该账号发言",
+    restore: "解除此项发言限制",
+    reveal: "审计揭示身份",
+
+    confirm: "确认花名（锁定一年）",
+    cancel: "取消",
+    identity: "匿名身份",
+    boundary: "每个账号仅有一个匿名身份，花名一年内不可更改。公众和普通版主无法查看主账号；仅获受限权限的管理员可填写理由并审计揭示。账号关闭后私有绑定和审计长期保留。",
+    retry: "重新加载",
+    lockedUntil: "可再次改名时间：{date}",
+    unavailable: "匿名身份当前不可用",
+    enable: "恢复匿名身份",
+    disable: "停用匿名身份",
+    quota: "今日剩余 {remaining} 次，每批 10 个；{date} 重置。",
+    randomize: "随机 10 个花名",
+    batch: "第 {number} 批（确认后锁定一年）",
+    publishAs: "发布身份",
+    member: "主身份",
+    personaLabel: "匿名身份：{name}",
+    setup: "设置匿名身份",
+    profileCounts: "主题 {topics} · 回复 {replies}",
+    next: "下一页",
+    nameLocked: "花名一年内不可更改。",
+    dailyLimit: "今日 10 次随机额度已用完，仍可选择当天已生成候选。",
+    candidateExpired: "候选已过期或无效，请重新加载当天候选。"
+},
   server: {
     common: {
       request: {
@@ -2966,6 +3001,7 @@ export default {
     topic: {
       notFound: '内容不存在',
       ownerMismatch: '不要更改别人发出的帖子哦',
+      agentRepliesDisabled: "话题作者已禁止机器人回复。",
       operationDenied: '不可操作',
       repliesNotAllowed: '该话题不允许回复（瞬间/文章类型）',
       agentCommentDisabled: '该话题已设置为不允许 Agent 评论',
@@ -3301,6 +3337,11 @@ export default {
     },
   },
   serverMessages: {
+    "anonymous.nameLocked": "花名一年内不可更改。",
+    "anonymous.dailyLimit": "今日 10 次随机额度已用完，仍可选择当天已生成候选。",
+    "anonymous.candidateExpired": "候选已过期或无效，请重新加载当天候选。",
+    "anonymous.unavailable": "匿名身份当前不可用",
+
     'sticker.libraryFull': "我的表情最多保存 {limit} 个，请先移除一些。",
     'sticker.uploadQuota': "已达到 {limit} 个个人表情素材的上传上限。已发送素材会保留以供历史内容显示。",
     'sticker.imageRequired': "请选择自己已上传的图片或 GIF，单张不超过 {maxSizeMb} MB。",
@@ -3350,6 +3391,7 @@ export default {
     'report.duplicate': '已举报，等待处理。',
     'report.createFailed': '举报提交失败，请稍后重试。',
     'report.notFound': '举报不存在。',
+    'report.alreadyProcessed': '这条举报已被处理，请查看最新状态。',
     'review.notFound': '评价不存在或不可见。',
     'review.notOwned': '不能修改或删除他人的评价。',
     'review.duplicate': '你已评价过该开课实例。',

@@ -40,6 +40,9 @@
 | 跨服务积分结算 | `Planned` | credit 尚未部署或接入论坛；见[积分规范](credit-and-escrow.md)。 |
 | 独立运行状态站 | `Partial` | Vue／Cloudflare 快照读取与 GitHub Actions 采集已实现；生产项目、DNS 与定时采集仍需配置验收，见[状态站规范](server-status.md)。 |
 
+`Current`：普通论坛话题作者可控制机器人回复，Web／Flutter 设置及 REST／MCP 约束共用
+[话题禁评规则](forum.md#robot-reply-control)；已有回复和 AI 总结不受影响。
+
 ## Development and operations
 
 - 环境、服务地址与启动命令：[本地开发](../development/local-development.md)。

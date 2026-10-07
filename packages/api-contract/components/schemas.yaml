@@ -439,6 +439,18 @@ OidcExchangeSuccess:
         result:
           $ref: '#/OidcExchangeResult'
 
+UpdateTopicAgentRepliesRequest:
+  type: object
+  required: [topicId, agentRepliesDisabled]
+  properties:
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+    agentRepliesDisabled:
+      type: boolean
+  additionalProperties: false
+
 WriteTopicRequest:
   type: object
   required: [content, categoryId]
@@ -456,6 +468,14 @@ WriteTopicRequest:
       title:
         minLength: 1
   properties:
+    agentRepliesDisabled:
+      type: boolean
+      default: false
+      description: Initial robot reply policy for a new topic only. Ignored on content edits; use topics/agent-replies to change an existing topic.
+    identity:
+      type: string
+      enum: [member, persona]
+      description: Defaults to member on creation. Edits preserve the original author; attempting to switch fails. An unavailable persona never falls back to member.
     topicId:
       type: integer
       format: uint64
@@ -571,6 +591,11 @@ AgentTopicItem:
   type: object
   required: [id, title, excerpt, categoryIds, userId, status, processStatus, replyCount, viewCount, postCount, createdAt, updatedAt]
   properties:
+    agentRepliesDisabled:
+      type: boolean
+      description: Whether the topic author prohibits replies from bot identities. Missing on older servers means false.
+    author:
+      $ref: '#/TopicAuthorPayload'
     id:
       type: integer
       format: uint64
@@ -718,6 +743,10 @@ AgentCreatePostRequest:
       maxLength: 80
       description: Optional owned event linking this reply; source visibility and blocks
         must remain authorized at commit.
+    identity:
+      type: string
+      enum: [member, persona]
+      description: Defaults to member on creation. Edits preserve the original author; attempting to switch fails. An unavailable persona never falls back to member.
     content:
       type: string
       minLength: 1
@@ -2495,10 +2524,17 @@ TopicAuthorPayload:
   type: object
   required: [id, username, avatarUrl]
   properties:
+    kind:
+      type: string
+      enum: [member, persona]
+    publicUid:
+      type: string
+    profileUrl:
+      type: string
     id:
       type: integer
       format: uint64
-      minimum: 1
+      minimum: 0
     username:
       type: string
     nickname:
@@ -4975,6 +5011,13 @@ NotificationActorPayload:
   type: object
   required: [id, username, avatarUrl]
   properties:
+    kind:
+      type: string
+      enum: [member, persona]
+    publicUid:
+      type: string
+    profileUrl:
+      type: string
     id:
       type: integer
       format: uint64
@@ -5745,8 +5788,8 @@ ModerationReportStatusRequest:
       description: Report id; unknown ids fail with `report.notFound` (HTTP 200). Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
     action:
       type: string
-      enum: [ban, resolve, reject]
-      description: ban resolves with resolution `banned`, resolve resolves with empty resolution, reject rejects with resolution `ignored`. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
+      enum: [ban, resolve, reject, show]
+      description: ban resolves with resolution `banned` and atomically blocks topic/post targets or hides course reviews; resolve resolves with empty resolution; reject rejects with resolution `ignored`; show resolves with empty resolution and restores a course review. Chat-message reports only change report status. A report already closed by another moderator fails with `report.alreadyProcessed`. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
   additionalProperties: false
 
 ModerationLogListRequest:
@@ -6917,8 +6960,8 @@ AdminPermissionOption:
     value:
       type: integer
       minimum: 0
-      maximum: 6
-      description: Permission enum id (0 Admin, 1 UserManager, 2 TopicsManager, 3 PageManager, 4 RoleManager, 5 SiteManager, 6 CourseManager).
+      maximum: 7
+      description: Permission enum id (0 Admin, 1 UserManager, 2 TopicsManager, 3 PageManager, 4 RoleManager, 5 SiteManager, 6 CourseManager, 7 anonymous.identity.reveal requiring an explicit grant).
   additionalProperties: false
 
 AdminPermissionListResponse:
@@ -6931,7 +6974,7 @@ AdminPermissionListResponse:
           type: array
           items:
             $ref: '#/AdminPermissionOption'
-          description: All 7 assignable permissions, enum id ascending.
+          description: All 8 assignable permissions, enum id ascending.
 
 AdminRolePermissionItem:
   type: object
@@ -9158,6 +9201,7 @@ AdminFileResourceItem:
     userId:
       type: integer
       format: uint64
+      description: Always zero; private uploader attribution is not part of this projection.
     createdAt:
       type: string
       format: date-time
@@ -9166,7 +9210,7 @@ AdminFileResourceItem:
       description: Public access path (`/file/img/...` under the local provider, or the configured public prefix).
     uploaderUsername:
       type: string
-      description: Empty when the uploader row is missing.
+      description: Always empty; uploader attribution is private and omitted from ordinary administrative listings.
   additionalProperties: false
 
 AdminFileResourcePageResult:

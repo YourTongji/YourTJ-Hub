@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const rankColumns = "id,user_id,category_id,first_public_at,first_public_estimated,rank_score,daily_score,rank_ready,rank_params_hash,rank_scored_at,last_public_reply_at,reply_count,like_count,updated_at,rank_source,rank_components"
+const rankColumns = "id,user_id,persona_uid,category_id,first_public_at,first_public_estimated,rank_score,daily_score,rank_ready,rank_params_hash,rank_scored_at,last_public_reply_at,reply_count,like_count,updated_at,rank_source,rank_components"
 
 // Candidate recall reads IDs only. Validate first-post visibility after the
 // candidate LIMIT in RankTopics/PublicTopics, so planner selectivity estimates
@@ -66,7 +66,7 @@ func RecallRankIDs(ctx context.Context, q Recall) ([]uint64, error) {
 	}
 	switch q.Source {
 	case "following":
-		b = b.Where("user_id IN (?)", userFollow.ActiveFollowedIDsQuery(ctx, q.Viewer))
+		b = b.Where("persona_uid = '' AND user_id IN (?)", userFollow.ActiveFollowedIDsQuery(ctx, q.Viewer))
 	case "hot":
 		b = b.Where("rank_ready = ? AND rank_params_hash = ? AND rank_score > 0 AND (rank_due_at IS NULL OR rank_due_at >= ?)", true, q.Hash, time.Now().Add(-10*time.Minute)).Order("rank_score DESC")
 	case "daily":
@@ -75,7 +75,7 @@ func RecallRankIDs(ctx context.Context, q Recall) ([]uint64, error) {
 		if len(q.Authors) == 0 {
 			return []uint64{}, nil
 		}
-		b = b.Where("user_id IN ?", q.Authors)
+		b = b.Where("persona_uid = '' AND user_id IN ?", q.Authors)
 	case "category":
 		// Materialize the small recent pool before quality sorting. A nested
 		// IN+ORDER BY could choose a global rank-index scan on PostgreSQL.

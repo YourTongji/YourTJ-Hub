@@ -58,6 +58,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		"oidc_access_tokens",
 		"users",
 		"agents",
+		"anonymous_personas", "anonymous_bindings", "anonymous_name_quotas", "anonymous_name_batches", "anonymous_reveal_audits",
 		// PK 排课数据域（Issue #187 / #186）：13 表。
 		"pk_calendar",
 		"pk_campus",
@@ -102,6 +103,9 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	if !db.Migrator().HasColumn(&topics.Entity{}, "agent_comment_disabled") {
 		t.Error("topics.agent_comment_disabled column missing after postgres migration")
 	}
+	if !db.Migrator().HasColumn(&users.EntityComplete{}, "anonymous_governance_blocked") || !db.Migrator().HasColumn(&topics.Entity{}, "persona_uid") {
+		t.Fatal("anonymous columns missing")
+	}
 	assertUniqueUserEmailSchema(t, db)
 	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
@@ -133,6 +137,12 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		t.Fatalf("AutoMigrate legacy subset failed: %v", err)
 	}
 	if err := db.Migrator().DropColumn(&userOAuth.Entity{}, "apple_refresh_token"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Migrator().DropColumn(&users.EntityComplete{}, "anonymous_governance_blocked"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Migrator().DropColumn(&topics.Entity{}, "persona_uid"); err != nil {
 		t.Fatal(err)
 	}
 	// The current model includes actor_type, but a true legacy users table did
@@ -247,6 +257,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	}
 	if !db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_username") {
 		t.Error("users username unique index missing after upgrade migration")
+	}
+	if !db.Migrator().HasColumn(&users.EntityComplete{}, "anonymous_governance_blocked") || !db.Migrator().HasColumn(&topics.Entity{}, "persona_uid") {
+		t.Fatal("anonymous columns missing")
 	}
 	assertUniqueUserEmailSchema(t, db)
 	assertPkFetchLogLeaseSchema(t, db)

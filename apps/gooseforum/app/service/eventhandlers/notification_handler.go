@@ -45,6 +45,7 @@ func TakeUpTo64Chars(s string) string {
 
 // CommentCreatedEvent 评论/回复创建事件
 type CommentCreatedEvent struct {
+	PersonaUID          string
 	TopicId             uint64
 	PostId              uint64 // 新创建的 post ID
 	PostNo              uint64 // 新创建的 post 楼层号
@@ -62,7 +63,7 @@ func handleCommentCreated(ctx context.Context, event *CommentCreatedEvent) error
 	// ActorName 在读取时按 ActorId 回填真实用户名，会向他人泄露匿名身份。
 	// 匿名作者收到「他人回复其楼层」的通知不在此事件内——那是另一条以真实
 	// 回复者为 Actor 的 CommentCreatedEvent，走下方非匿名分支正常发送。
-	if event == nil || event.IsAnonymous {
+	if event == nil || (event.IsAnonymous && event.PersonaUID == "") {
 		return nil
 	}
 	visible, err := mentionPostIsPublic(ctx, event.TopicId, event.PostId)
@@ -205,6 +206,7 @@ func commentNotificationExcludeUserIds(event *CommentCreatedEvent) []uint64 {
 
 // PostUpdatedEvent 帖子编辑事件（issue #563）：编辑后仅新增 mention 产生通知。
 type PostUpdatedEvent struct {
+	PersonaUID  string
 	TopicId     uint64
 	PostId      uint64
 	PostNo      uint64
@@ -218,7 +220,7 @@ type PostUpdatedEvent struct {
 // 修改均不重复通知（旧/新内容集合差，issue #563）。
 func handlePostUpdated(ctx context.Context, event *PostUpdatedEvent) error {
 	// 匿名楼层编辑同样不产生通知（issue #524 边界）。
-	if event == nil || event.IsAnonymous {
+	if event == nil || (event.IsAnonymous && event.PersonaUID == "") {
 		return nil
 	}
 	if event.OldContent == event.NewContent {
@@ -266,7 +268,7 @@ func mentionPostIsPublic(ctx context.Context, topicID, postID uint64) (bool, err
 	if err != nil {
 		return false, err
 	}
-	return post.TopicId == topicID && !post.IsAnonymous && post.ProcessStatus == posts.ProcessStatusNormal && post.VisibilityStatus == posts.VisibilityActive, nil
+	return post.TopicId == topicID && (!post.IsAnonymous || post.PersonaUID != "") && post.ProcessStatus == posts.ProcessStatusNormal && post.VisibilityStatus == posts.VisibilityActive, nil
 }
 
 func handleTopicMentionPublished(ctx context.Context, event *TopicPublishedEvent) error {
@@ -274,7 +276,7 @@ func handleTopicMentionPublished(ctx context.Context, event *TopicPublishedEvent
 		return nil
 	}
 	visible, err := mentionPostIsPublic(ctx, event.Topic.Id, event.FirstPost.Id)
-	if err != nil || !visible || event.FirstPost.IsAnonymous {
+	if err != nil || !visible || (event.FirstPost.IsAnonymous && event.FirstPost.PersonaUID == "") {
 		return err
 	}
 	targets := resolveMentionUserIDs(event.FirstPost.Content, event.FirstPost.UserId, maxMentionFanOut)

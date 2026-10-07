@@ -298,6 +298,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/anonymous/govern": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * governAnonymousIdentity
+         * @description Private, no-store response. Requires moderation permission in the target post category and a nonempty reason. Restricts both the persona and its private owner atomically, preserving other account freezes when restored. Writes a private governance audit and returns only a boolean; it does not reveal the owner.
+         */
+        post: operations["governAnonymousIdentity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/anonymous/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * getAnonymousIdentityState
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. State reads share the configurable interaction rate limit with persona writes. Names come from the complete embedded THUOCL pool without content filters. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         */
+        get: operations["getAnonymousIdentityState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/anonymous/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * generateAnonymousNames
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. Names come from the complete embedded THUOCL pool without content filters. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         */
+        post: operations["generateAnonymousNames"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/anonymous/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * confirmAnonymousName
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. Names come from the complete embedded THUOCL pool without content filters. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         */
+        post: operations["confirmAnonymousName"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/anonymous/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * disableAnonymousIdentity
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. Names come from the complete embedded THUOCL pool without content filters. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         */
+        post: operations["disableAnonymousIdentity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/anonymous/reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * revealAnonymousIdentity
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. Names come from the complete embedded THUOCL pool without content filters. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         */
+        post: operations["revealAnonymousIdentity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/campus/calendar-rules": {
         parameters: {
             query?: never;
@@ -1076,6 +1196,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/topics/agent-replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set the robot reply policy for a topic you own
+         * @description Immediately sets the robot reply policy of an active ordinary forum topic.
+         *     Only its author may change it; Wiki and deleted topics cannot be changed.
+         *     Does not edit content or enter moderation. Repeated values are idempotent.
+         *     Both true and false must be explicitly supplied. Missing values return
+         *     `common.request.invalidParams`. Non-owners and unsupported topics return
+         *     `topic.operationDenied`; missing topics return `topic.notFound`.
+         *     A database error returns `common.operation.failed`. Business failures use
+         *     HTTP 200 with code 1. Bot identities cannot bypass the policy by role or transport.
+         */
+        post: operations["updateTopicAgentReplies"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/topics/status": {
         parameters: {
             query?: never;
@@ -1217,7 +1364,11 @@ export interface paths {
         put?: never;
         /**
          * Create a reply post in a topic
-         * @description Creates a reply (postNo 2 or higher) in a visible topic. JSON binding is lenient:
+         * @description Creates a reply (postNo 2 or higher) in a visible topic. Bot identities are rejected
+         *     with `topic.agentRepliesDisabled` when the topic author has disabled robot replies,
+         *     regardless of transport or role. Pending new bot replies are rechecked at first
+         *     public approval; a disabled policy records a terminal rejection. Existing public
+         *     replies remain editable. JSON binding is lenient:
          *     a malformed body binds to zero values and the request then fails as
          *     `topic.notFound` (HTTP 200) rather than a 400. A populated `website` honeypot
          *     field silently succeeds with result true and creates nothing. New accounts may
@@ -1580,7 +1731,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Resolve or reject a report from the moderation workbench
+         * Handle a report from the moderation workbench
          * @description Moderator workbench operation. Authorization is decided inside the controller
          *     against the categories of the report target (course-review reports instead
          *     require the course-review moderation capability) — it does NOT use the
@@ -1589,7 +1740,10 @@ export interface paths {
          *     `report.notFound` (HTTP 200) before the permission check. JSON binding is
          *     lenient: a malformed body binds to zero values and fails validation as
          *     `common.request.invalidParams` (HTTP 200). Other business failures:
-         *     `common.operation.failed` (HTTP 200).
+         *     `common.operation.failed` (HTTP 200). Report status and a supported target
+         *     action are committed in one transaction. A repeated or concurrent action
+         *     against a report that is no longer open fails with `report.alreadyProcessed`
+         *     (HTTP 200), and the first handler and resolution remain unchanged.
          */
         post: operations["moderationUpdateReportStatus"];
         delete?: never;
@@ -8269,6 +8423,16 @@ export interface components {
         TotpDisableResponse: components["schemas"]["TotpDisableSuccess"] | components["schemas"]["ApiFailure"];
         WriteTopicRequest: {
             /**
+             * @description Initial robot reply policy for a new topic only. Ignored on content edits; use topics/agent-replies to change an existing topic.
+             * @default false
+             */
+            agentRepliesDisabled: boolean;
+            /**
+             * @description Defaults to member on creation. Edits preserve the original author; attempting to switch fails. An unavailable persona never falls back to member.
+             * @enum {string}
+             */
+            identity?: "member" | "persona";
+            /**
              * Format: uint64
              * @description Existing topic ID when updating; omit or send 0 when creating.
              */
@@ -9144,6 +9308,9 @@ export interface components {
             };
         };
         AgentTopicItem: {
+            /** @description Whether the topic author prohibits replies from bot identities. Missing on older servers means false. */
+            agentRepliesDisabled?: boolean;
+            author?: components["schemas"]["TopicAuthorPayload"];
             /** Format: uint64 */
             id: number;
             title: string;
@@ -9215,6 +9382,11 @@ export interface components {
         AgentCreatePostRequest: {
             /** @description Optional owned event linking this reply; source visibility and blocks must remain authorized at commit. */
             sourceEventId?: string;
+            /**
+             * @description Defaults to member on creation. Edits preserve the original author; attempting to switch fails. An unavailable persona never falls back to member.
+             * @enum {string}
+             */
+            identity?: "member" | "persona";
             content: string;
             /** Format: uint64 */
             replyToPostId?: number;
@@ -9668,10 +9840,10 @@ export interface components {
              */
             id: number;
             /**
-             * @description ban resolves with resolution `banned`, resolve resolves with empty resolution, reject rejects with resolution `ignored`. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
+             * @description ban resolves with resolution `banned` and atomically blocks topic/post targets or hides course reviews; resolve resolves with empty resolution; reject rejects with resolution `ignored`; show resolves with empty resolution and restores a course review. Chat-message reports only change report status. A report already closed by another moderator fails with `report.alreadyProcessed`. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
              * @enum {string}
              */
-            action: "ban" | "resolve" | "reject";
+            action: "ban" | "resolve" | "reject" | "show";
         };
         ModerationLogListRequest: {
             /**
@@ -10333,11 +10505,11 @@ export interface components {
             name: string;
             /** @description Same as name. */
             label: string;
-            /** @description Permission enum id (0 Admin, 1 UserManager, 2 TopicsManager, 3 PageManager, 4 RoleManager, 5 SiteManager, 6 CourseManager). */
+            /** @description Permission enum id (0 Admin, 1 UserManager, 2 TopicsManager, 3 PageManager, 4 RoleManager, 5 SiteManager, 6 CourseManager, 7 anonymous.identity.reveal requiring an explicit grant). */
             value: number;
         };
         AdminPermissionListResponse: components["schemas"]["ApiSuccess"] & {
-            /** @description All 7 assignable permissions, enum id ascending. */
+            /** @description All 8 assignable permissions, enum id ascending. */
             result: components["schemas"]["AdminPermissionOption"][];
         };
         AdminRolePermissionItem: {
@@ -11313,13 +11485,16 @@ export interface components {
              * @description Byte length of the stored content.
              */
             size: number;
-            /** Format: uint64 */
+            /**
+             * Format: uint64
+             * @description Always zero; private uploader attribution is not part of this projection.
+             */
             userId: number;
             /** Format: date-time */
             createdAt: string;
             /** @description Public access path (`/file/img/...` under the local provider, or the configured public prefix). */
             url: string;
-            /** @description Empty when the uploader row is missing. */
+            /** @description Always empty; uploader attribution is private and omitted from ordinary administrative listings. */
             uploaderUsername: string;
         };
         AdminFileResourcePageResult: {
@@ -11387,6 +11562,10 @@ export interface components {
             result: components["schemas"]["AdminImportTaskAcceptedResult"];
         }) | components["schemas"]["ApiFailure"];
         TopicAuthorPayload: {
+            /** @enum {string} */
+            kind?: "member" | "persona";
+            publicUid?: string;
+            profileUrl?: string;
             /** Format: uint64 */
             id: number;
             username: string;
@@ -12928,6 +13107,60 @@ export interface components {
             msg: string;
             data: components["schemas"]["PkPlanItem"][];
         };
+        PublicPersona: {
+            /** @constant */
+            kind: "persona";
+            publicUid: string;
+            /** @description Unmodified full THUOCL entry; escaped as plain text. */
+            name: string;
+            avatarUrl: string;
+            profileUrl: string;
+        };
+        AnonymousState: {
+            persona: components["schemas"]["PublicPersona"] | null;
+            /** Format: date-time */
+            nameSelectedAt: string | null;
+            /** Format: date-time */
+            nameChangeAvailableAt: string | null;
+            disabled: boolean;
+            governanceDisabled: boolean;
+            day: string;
+            remaining: number;
+            /** Format: date-time */
+            resetsAt: string;
+            batches: components["schemas"]["AnonymousBatch"][];
+            lexiconVersion: string;
+        };
+        AnonymousBatch: {
+            id: string;
+            /** Format: date */
+            day: string;
+            words: string[];
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AnonymousRevealedOwner: {
+            publicUid: string;
+            userId: number;
+            username: string;
+        };
+        AnonymousBatchRequest: {
+            day: string;
+            requestKey: string;
+        };
+        AnonymousConfirmRequest: {
+            batchId: string;
+            index: number;
+        };
+        AnonymousDisableRequest: {
+            disabled: boolean;
+        };
+        AnonymousRevealRequest: {
+            publicUid: string;
+            reason: string;
+        };
         AgentEventData: {
             /** Format: uint64 */
             topicId: number;
@@ -13186,6 +13419,29 @@ export interface components {
             result?: components["schemas"]["AgentCommentTopicPolicyResult"];
         };
         AgentCommentTopicPolicyResponse: components["schemas"]["AgentCommentTopicPolicySuccess"] | components["schemas"]["ApiFailure"];
+        AnonymousGovernRequest: {
+            postId: number;
+            disabled: boolean;
+            reason: string;
+        };
+        governAnonymousIdentityResponse: (components["schemas"]["ApiSuccess"] & {
+            result: boolean;
+        }) | components["schemas"]["ApiFailure"];
+        getAnonymousIdentityStateResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AnonymousState"];
+        }) | components["schemas"]["ApiFailure"];
+        generateAnonymousNamesResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AnonymousBatch"];
+        }) | components["schemas"]["ApiFailure"];
+        confirmAnonymousNameResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["PublicPersona"];
+        }) | components["schemas"]["ApiFailure"];
+        disableAnonymousIdentityResponse: (components["schemas"]["ApiSuccess"] & {
+            result: boolean;
+        }) | components["schemas"]["ApiFailure"];
+        revealAnonymousIdentityResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AnonymousRevealedOwner"];
+        }) | components["schemas"]["ApiFailure"];
         TongjiRegistrationStatus: {
             csrfToken: string;
             email: string;
@@ -13210,6 +13466,11 @@ export interface components {
         };
         TongjiRegistrationResultResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["TongjiRegistrationResult"];
+        };
+        UpdateTopicAgentRepliesRequest: {
+            /** Format: uint64 */
+            topicId: number;
+            agentRepliesDisabled: boolean;
         };
         PostMention: {
             username: string;
@@ -13442,6 +13703,10 @@ export interface components {
             messageCode?: string;
         };
         NotificationActorPayload: {
+            /** @enum {string} */
+            kind?: "member" | "persona";
+            publicUid?: string;
+            profileUrl?: string;
             /**
              * Format: uint64
              * @description 0 for system and moderation feedback without a triggering user.
@@ -14559,6 +14824,308 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    governAnonymousIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnonymousGovernRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["governAnonymousIdentityResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, write eligibility or CSRF rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    getAnonymousIdentityState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success or business failure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["getAnonymousIdentityStateResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, write eligibility or CSRF rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    generateAnonymousNames: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnonymousBatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["generateAnonymousNamesResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, write eligibility or CSRF rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    confirmAnonymousName: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnonymousConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["confirmAnonymousNameResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, write eligibility or CSRF rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    disableAnonymousIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnonymousDisableRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["disableAnonymousIdentityResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, write eligibility or CSRF rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    revealAnonymousIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnonymousRevealRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["revealAnonymousIdentityResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, write eligibility or CSRF rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -16089,6 +16656,58 @@ export interface operations {
             };
         };
     };
+    updateTopicAgentReplies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTopicAgentRepliesRequest"];
+            };
+        };
+        responses: {
+            /** @description Status applied (or already in the target state), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
     updateTopicStatus: {
         parameters: {
             query?: never;
@@ -16930,7 +17549,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Report handled, or a legacy business failure envelope (`report.notFound` / `permission.denied` / `common.operation.failed` / `common.request.invalidParams`). */
+            /** @description Report handled, or a legacy business failure envelope (`report.notFound` / `report.alreadyProcessed` / `permission.denied` / `common.operation.failed` / `common.request.invalidParams`). */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19822,7 +20441,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Created post payload, or a legacy business failure envelope (unknown topic, length, sensitive-content rules). */
+            /** @description Created post payload, or a legacy business failure envelope (unknown topic, topic.agentRepliesDisabled, length, sensitive-content rules). A reply submitted for review is checked again before its first public publication. */
             200: {
                 headers: {
                     [name: string]: unknown;

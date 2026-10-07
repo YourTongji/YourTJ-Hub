@@ -252,6 +252,7 @@ class _CreatedReplyPostRepository extends PostRepository {
     int replyToPostId = 0,
     String? captchaId,
     String? captchaCode,
+    String? identity,
   }) async {
     if (requireCaptcha &&
         (captchaId != 'challenge' ||
@@ -400,6 +401,27 @@ void main() {
     composer(tester).controller.text = text;
     composer(tester).onPublish();
     await tester.pumpAndSettle();
+  }
+
+  for (final removed in ['', 'authorDeleted', 'moderatorRemoved']) {
+    testWidgets('robot reply banner requires an available topic ($removed)', (
+      tester,
+    ) async {
+      final page = topicDetailPayloadJson();
+      final topic =
+          (page['props'] as Map<String, dynamic>)['topic']
+              as Map<String, dynamic>;
+      topic['agentRepliesDisabled'] = true;
+      if (removed.isNotEmpty) topic[removed] = true;
+      await pumpTopic(tester, page: page);
+      await expandViewport(tester);
+      final l10n = l10nOf(tester);
+      expect(
+        find.text('${l10n.agentRepliesDisabled}\n${l10n.agentRepliesHelp}'),
+        removed.isEmpty ? findsOneWidget : findsNothing,
+      );
+      await disposePage(tester);
+    });
   }
 
   testWidgets('通知锚定进入后前后楼层仍可通过分页入口续载', (tester) async {

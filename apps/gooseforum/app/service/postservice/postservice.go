@@ -8,12 +8,14 @@ import (
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/feedconfig"
+	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserStat"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pointservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicpolicyservice"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -48,6 +50,16 @@ func CreateTopicPostWithHooks(entity *posts.Entity, topicEntity topics.Entity, b
 			return err
 		}
 		entity.PostNo = postNo
+		liveTopic, err := topics.GetForUpdateTx(tx, entity.TopicId)
+		if err != nil {
+			return err
+		}
+		if err := identity.ValidateWriterTx(tx, entity.UserId, entity.PersonaUID); err != nil {
+			return err
+		}
+		if err := topicpolicyservice.CheckReplyTx(tx, liveTopic, entity.UserId); err != nil {
+			return err
+		}
 		if err := posts.CreateTx(tx, entity); err != nil {
 			return err
 		}
@@ -59,11 +71,14 @@ func CreateTopicPostWithHooks(entity *posts.Entity, topicEntity topics.Entity, b
 				return err
 			}
 		}
-		ids, err := topicUserStat.SyncTopicPostersTx(tx, entity.TopicId, topicEntity.UserId)
+		ids, err := topicUserStat.SyncTopicPostersTx(tx, entity.TopicId, publicTopicOwner(topicEntity))
 		if err != nil {
 			return err
 		}
-		posters := []topics.Poster{{UserID: topicEntity.UserId}}
+		posters := []topics.Poster{}
+		if topicEntity.PersonaUID == "" {
+			posters = append(posters, topics.Poster{UserID: topicEntity.UserId})
+		}
 		for _, id := range ids {
 			posters = append(posters, topics.Poster{UserID: id})
 		}
@@ -237,12 +252,14 @@ func RebuildTopicPostStatsTx(tx *gorm.DB, topicEntity topics.Entity) error {
 		return err
 	}
 
-	activePosterIDs, err := topicUserStat.SyncTopicPostersTx(tx, topicEntity.Id, topicEntity.UserId)
+	activePosterIDs, err := topicUserStat.SyncTopicPostersTx(tx, topicEntity.Id, publicTopicOwner(topicEntity))
 	if err != nil {
 		return err
 	}
 	posterIDs := make([]topics.Poster, 0, len(activePosterIDs)+1)
-	posterIDs = append(posterIDs, topics.Poster{UserID: topicEntity.UserId})
+	if topicEntity.PersonaUID == "" {
+		posterIDs = append(posterIDs, topics.Poster{UserID: topicEntity.UserId})
+	}
 	for _, userID := range activePosterIDs {
 		posterIDs = append(posterIDs, topics.Poster{UserID: userID})
 	}
@@ -269,4 +286,11 @@ func RebuildTopicPostStatsTx(tx *gorm.DB, topicEntity topics.Entity) error {
 		}
 	}
 	return feed.MarkTx(tx, topicEntity.Id)
+}
+
+func publicTopicOwner(topic topics.Entity) uint64 {
+	if topic.PersonaUID != "" {
+		return 0
+	}
+	return topic.UserId
 }

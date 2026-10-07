@@ -45,11 +45,15 @@ class LocalDraft {
     required this.images,
     required this.updatedAt,
     this.kind = DraftKind.newTopic,
+    this.agentRepliesDisabled = false,
+    this.identity = "member",
     this.replyToPostId = 0,
     this.replyTargetName,
     this.replyMentionPrefix,
   });
   final DraftKind kind;
+  final bool agentRepliesDisabled;
+  final String identity;
   final int replyToPostId;
   final String? replyTargetName, replyMentionPrefix;
   final String key, title, content;
@@ -61,10 +65,13 @@ class LocalDraft {
       content.trim().isEmpty &&
       images.isEmpty &&
       categories.isEmpty &&
+      !agentRepliesDisabled &&
       replyToPostId == 0;
   Map<String, dynamic> toJson() => {
     'version': 2,
+    'identity': identity,
     'kind': kind.name,
+    'agentRepliesDisabled': agentRepliesDisabled,
     'replyToPostId': replyToPostId,
     'replyTargetName': replyTargetName,
     'replyMentionPrefix': replyMentionPrefix,
@@ -78,6 +85,8 @@ class LocalDraft {
     'updatedAt': updatedAt,
   };
   factory LocalDraft.fromJson(Map<String, dynamic> json) => LocalDraft(
+    agentRepliesDisabled: json['agentRepliesDisabled'] as bool? ?? false,
+    identity: _draftIdentity(json["identity"]),
     kind:
         DraftKind.values
             .where((kind) => kind.name == json['kind'])
@@ -192,4 +201,10 @@ class WritingStore {
     {'search': null},
     generation: _generation,
   );
+}
+
+String _draftIdentity(Object? value) {
+  if (value == null) return "member";
+  if (value == "member" || value == "persona") return value as String;
+  throw const FormatException("Invalid draft identity");
 }

@@ -906,6 +906,25 @@ void main() {
           expect(harness.page.requests, 0);
           expect(harness.user.requests, 0);
           expect(tester.takeException(), isNull);
+          final l10n = AppLocalizations.of(
+            tester.element(find.byType(SettingsPage)),
+          );
+          final logout = find.widgetWithText(GfButton, l10n.settingsLogout);
+          await tester.scrollUntilVisible(
+            logout,
+            180,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await tester.pumpAndSettle();
+          await tester.tap(logout);
+          await tester.pumpAndSettle();
+          expect(find.text(l10n.settingsLogoutConfirm), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          await tester.tap(dialogAction(l10n.commonCancel));
+          await tester.pumpAndSettle();
+          expect(find.byType(GfAlertDialog), findsNothing);
+          expect(harness.page.requests, 0);
+          expect(harness.user.requests, 0);
           for (final section in [
             'appearance',
             'profile',

@@ -21,6 +21,8 @@ abstract class PublishCategoryPayload with _$PublishCategoryPayload {
 @freezed
 abstract class PublishTopicPayload with _$PublishTopicPayload {
   const factory PublishTopicPayload({
+    @Default(false) bool agentRepliesDisabled,
+    @Default("member") String identity,
     required String title,
     required String content,
     @Default(<String>[]) List<String> images,

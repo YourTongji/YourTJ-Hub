@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import IdentityPicker from '@/site/components/IdentityPicker.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import Draggable from 'vuedraggable'
-import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, HelpCircle, Loader2, Plus, Sparkles, X } from '@lucide/vue'
+import { AlertTriangle, Bot, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, HelpCircle, Loader2, Plus, Sparkles, X } from '@lucide/vue'
 import {
   DialogContent,
   DialogOverlay,
@@ -61,7 +62,9 @@ const {
   challengeFromError,
 } = useCaptchaChallenge()
 
+const agentRepliesDisabled = ref(false)
 const title = ref('')
+const identity = ref<'member' | 'persona'>('member')
 const content = ref('')
 const categoryIds = ref<number[]>([])
 const categoryPickerOpen = ref(false)
@@ -153,6 +156,7 @@ const typeMeta = computed(() => {
 // 快照序列化与 PublishPage editorSnapshot 同构：标题/正文 trim、分类排序、图片取已上传 URL。
 function editorSnapshot() {
   return JSON.stringify({
+    agentRepliesDisabled: agentRepliesDisabled.value,
     title: title.value.trim(),
     content: content.value.trim(),
     categoryIds: [...categoryIds.value].sort((a, b) => a - b),
@@ -162,13 +166,13 @@ function editorSnapshot() {
 
 const uploadedImageUrls = computed(() => uploadedImages.value.filter((i) => !i.uploading && i.url).map((i) => i.url))
 const dirty = computed(() => uploading.value || editorSnapshot() !== baselineSnapshot.value)
-const hasContent = computed(() => Boolean(title.value.trim() || content.value.trim() || categoryIds.value.length > 0 || uploadedImageUrls.value.length > 0))
+const hasContent = computed(() => Boolean(agentRepliesDisabled.value || title.value.trim() || content.value.trim() || categoryIds.value.length > 0 || uploadedImageUrls.value.length > 0))
 // 服务端草稿需要正文/分类；标题仅对非瞬间类型必填（瞬间留空即空标题草稿）。
 // 编辑模式不提供保存草稿（把已发布话题降级为 topicStatus:0 草稿是错误语义）。
 const canSaveDraft = computed(() => !isEditing.value && Boolean((title.value.trim() || quickPublishType.value === 2) && content.value.trim() && categoryIds.value.length > 0) && !submitting.value && !savingDraft.value && !uploading.value)
 
 function stashHasContent(stash: QuickPublishDraftStash): boolean {
-  return Boolean(stash.title.trim() || stash.content.trim() || stash.categoryIds.length > 0 || stash.images.length > 0)
+  return Boolean(stash.agentRepliesDisabled || stash.title.trim() || stash.content.trim() || stash.categoryIds.length > 0 || stash.images.length > 0)
 }
 
 function resolvePendingNav(allow: boolean) {
@@ -224,7 +228,8 @@ async function saveDraftAndClose() {
       title: title.value.trim(),
       content: content.value.trim(),
       categoryId: [...categoryIds.value],
-      topicStatus: 0,
+      agentRepliesDisabled: agentRepliesDisabled.value,
+      topicStatus: 0, identity: identity.value,
       contentType: quickPublishType.value,
       images: uploadedImageUrls.value,
       captchaId: captchaRequired.value ? (captchaId.value || undefined) : undefined,
@@ -314,12 +319,16 @@ watch(
       draftRestored.value = false
       clearCaptcha()
       draftUserId.value = viewerId.value
+      identity.value = quickPublishEditPayload.value?.identity ?? 'member'
 
+      agentRepliesDisabled.value = false
       const stash = readQuickPublishDraft(draftUserId.value, quickPublishType.value, quickPublishEditPayload.value?.topicId)
       if (stash && stashHasContent(stash)) {
         // 本地暂存优先：恢复上次未保存的内容并提示
+        agentRepliesDisabled.value = stash.agentRepliesDisabled ?? false
         title.value = stash.title
         content.value = stash.content
+        identity.value = quickPublishEditPayload.value?.identity ?? stash.identity ?? 'member'
         categoryIds.value = [...stash.categoryIds]
         uploadedImages.value = stash.images.map((url, idx) => ({
           id: `stash-${idx}-${Date.now()}`,
@@ -349,7 +358,7 @@ watch(
 
       // 基线快照在字段填充完成后捕获：此后任何偏离都视为未保存改动
       baselineSnapshot.value = stash && stashHasContent(stash)
-        ? JSON.stringify({ title: '', content: '', categoryIds: [], images: [] })
+        ? JSON.stringify({ agentRepliesDisabled: false, title: '', content: '', categoryIds: [], images: [] })
         : editorSnapshot()
 
       void nextTick(() => {
@@ -389,13 +398,14 @@ function stashCurrentDraft() {
   }
   writeQuickPublishDraft(draftUserId.value, quickPublishType.value, {
     title: title.value,
-    content: content.value,
+    content: content.value, identity: identity.value,
     categoryIds: [...categoryIds.value],
     images: uploadedImageUrls.value,
+    agentRepliesDisabled: agentRepliesDisabled.value,
   }, quickPublishEditPayload.value?.topicId)
 }
 
-watch([title, content, categoryIds, uploadedImages, quickPublishOpen], () => {
+watch([title, content, identity, agentRepliesDisabled, categoryIds, uploadedImages, quickPublishOpen], () => {
   if (!quickPublishOpen.value) return
   if (stashTimer) window.clearTimeout(stashTimer)
   stashTimer = window.setTimeout(stashCurrentDraft, 500)
@@ -591,7 +601,8 @@ async function handleSubmit() {
       title: finalTitle,
       content: finalContent,
       categoryId: categoryIds.value,
-      topicStatus: 1,
+      agentRepliesDisabled: agentRepliesDisabled.value,
+      topicStatus: 1, identity: quickPublishEditPayload.value ? undefined : identity.value,
       contentType: quickPublishType.value,
       images: uploadedImages.value.filter((i) => !i.uploading && i.url).map((i) => i.url),
       captchaId: captchaId.value || undefined,
@@ -653,6 +664,7 @@ async function handleSubmit() {
         @keydown.meta.enter="handleSubmit"
         @keydown.ctrl.enter="handleSubmit"
       >
+        <IdentityPicker :key="props.layout.viewer.id" :viewer="props.layout.viewer" v-model="identity" :disabled="!!quickPublishEditPayload" class="px-4 py-2" />
         <!-- 弹层顶栏：类型徽章与关闭按钮（具有平滑悬停微交互） -->
         <div class="flex items-center justify-between px-4 sm:px-6 pt-3.5 sm:pt-4 pb-2 shrink-0 border-b border-line/40">
           <div class="flex items-center gap-2">
@@ -671,14 +683,37 @@ async function handleSubmit() {
             </span>
           </div>
 
-          <button
-            type="button"
-            class="rounded-full p-1.5 text-base-content/40 hover:bg-base-200 hover:text-base-content hover:rotate-90 transition-all duration-200 active:scale-[0.92] focus-visible:ring-2 focus-visible:ring-primary/40 outline-none"
-            :aria-label="t('publish.modal.close')"
-            @click="requestClose"
-          >
-            <X class="h-5 w-5 transition-transform duration-200" />
-          </button>
+          <div class="flex items-center gap-1">
+            <PopoverRoot v-if="!isEditing">
+              <PopoverTrigger as-child>
+                <button
+                  type="button"
+                  class="rounded-full p-1.5 hover:bg-base-200 focus-visible:ring-2 focus-visible:ring-primary/40 outline-none"
+                  :class="agentRepliesDisabled ? 'text-primary' : 'text-base-content/40'"
+                  :aria-label="t('agentReplies.disable')"
+                  :title="t('agentReplies.disable')"
+                >
+                  <Bot class="h-5 w-5" />
+                </button>
+              </PopoverTrigger>
+              <PopoverPortal>
+                <PopoverContent side="bottom" align="end" :side-offset="8" class="z-[100] w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-base-100 p-3 shadow-lg">
+                  <label class="flex items-start gap-2 text-sm">
+                    <input v-model="agentRepliesDisabled" type="checkbox" class="mt-1 shrink-0" :disabled="submitting || savingDraft" />
+                    <span>{{ t('agentReplies.disable') }}<small class="mt-1 block text-base-content/60">{{ t('agentReplies.help') }}</small></span>
+                  </label>
+                </PopoverContent>
+              </PopoverPortal>
+            </PopoverRoot>
+            <button
+              type="button"
+              class="rounded-full p-1.5 text-base-content/40 hover:bg-base-200 hover:text-base-content hover:rotate-90 transition-all duration-200 active:scale-[0.92] focus-visible:ring-2 focus-visible:ring-primary/40 outline-none"
+              :aria-label="t('publish.modal.close')"
+              @click="requestClose"
+            >
+              <X class="h-5 w-5 transition-transform duration-200" />
+            </button>
+          </div>
         </div>
 
         <!-- 弹层主体：首行快捷传图 -> 选择分类 -> 填写标题 -> 添加正文铺满 -> 底部工具栏 -->
@@ -1251,6 +1286,7 @@ async function handleSubmit() {
 
 .gf-modal-editor.is-mention-picking .gf-mention-panel.is-docked {
   flex-shrink: 0;
-  max-height: min(234px, 38vh);
+  /* Reserve space for the identity row and toolbar in short viewports. */
+  max-height: min(234px, 30vh);
 }
 </style>

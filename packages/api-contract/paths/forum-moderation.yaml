@@ -188,7 +188,7 @@ listModerationReports:
 moderationUpdateReportStatus:
   post:
     tags: [Forum]
-    summary: Resolve or reject a report from the moderation workbench
+    summary: Handle a report from the moderation workbench
     operationId: moderationUpdateReportStatus
     description: |
       Moderator workbench operation. Authorization is decided inside the controller
@@ -199,7 +199,10 @@ moderationUpdateReportStatus:
       `report.notFound` (HTTP 200) before the permission check. JSON binding is
       lenient: a malformed body binds to zero values and fails validation as
       `common.request.invalidParams` (HTTP 200). Other business failures:
-      `common.operation.failed` (HTTP 200).
+      `common.operation.failed` (HTTP 200). Report status and a supported target
+      action are committed in one transaction. A repeated or concurrent action
+      against a report that is no longer open fails with `report.alreadyProcessed`
+      (HTTP 200), and the first handler and resolution remain unchanged.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -211,7 +214,7 @@ moderationUpdateReportStatus:
             $ref: ../components/schemas.yaml#/ModerationReportStatusRequest
     responses:
       '200':
-        description: Report handled, or a legacy business failure envelope (`report.notFound` / `permission.denied` / `common.operation.failed` / `common.request.invalidParams`).
+        description: Report handled, or a legacy business failure envelope (`report.notFound` / `report.alreadyProcessed` / `permission.denied` / `common.operation.failed` / `common.request.invalidParams`).
         content:
           application/json:
             schema:
@@ -223,6 +226,8 @@ moderationUpdateReportStatus:
                 externalValue: ../fixtures/permission-denied.json
               reportNotFound:
                 externalValue: ../fixtures/moderation-report-status-report-not-found.json
+              reportAlreadyProcessed:
+                externalValue: ../fixtures/moderation-report-status-already-processed.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:

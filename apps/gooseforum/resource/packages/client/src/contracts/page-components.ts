@@ -1,4 +1,5 @@
 import type {
+  AnonymousProfileProps,
   CategoryPageProps,
   CourseCatalogPageProps,
   CourseDetailPageProps,
@@ -33,6 +34,7 @@ export const pageComponents = [
   'home.index',
   'topic.detail',
   'user.profile',
+  'anonymous.profile',
   'category.index',
   'links.index',
   'sponsors.index',
@@ -67,6 +69,7 @@ export interface PagePayloadMap {
   'home.index': HomeProps
   'topic.detail': TopicDetailProps
   'user.profile': UserProfileProps
+  'anonymous.profile': AnonymousProfileProps
   'category.index': CategoryPageProps
   'links.index': LinksPageProps
   'sponsors.index': SponsorsPageProps

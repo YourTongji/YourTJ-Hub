@@ -80,6 +80,18 @@ paths:
     $ref: ./paths/admin-agent-comment-policy.yaml#/adminSaveAgentCommentPolicy
   /api/admin/set-agent-comment-topic-policy:
     $ref: ./paths/admin-agent-comment-policy.yaml#/adminSetAgentCommentTopicPolicy
+  /api/forum/anonymous/govern:
+    $ref: ./paths/anonymous-identity.yaml#/governAnonymousIdentity
+  /api/forum/anonymous/state:
+    $ref: ./paths/anonymous-identity.yaml#/getAnonymousIdentityState
+  /api/forum/anonymous/batches:
+    $ref: ./paths/anonymous-identity.yaml#/generateAnonymousNames
+  /api/forum/anonymous/confirm:
+    $ref: ./paths/anonymous-identity.yaml#/confirmAnonymousName
+  /api/forum/anonymous/disable:
+    $ref: ./paths/anonymous-identity.yaml#/disableAnonymousIdentity
+  /api/forum/anonymous/reveal:
+    $ref: ./paths/anonymous-identity.yaml#/revealAnonymousIdentity
   /api/campus/calendar-rules:
     $ref: ./paths/campus-calendar-rules.yaml#/rules
   /api/admin/campus/calendar-rules:
@@ -142,6 +154,8 @@ paths:
     $ref: ./paths/auth-sessions.yaml#/revokeAllSessions
   /api/forum/topics/write:
     $ref: ./paths/forum-topics.yaml#/writeTopic
+  /api/forum/topics/agent-replies:
+    $ref: ./paths/forum-topic-policy.yaml#/updateTopicAgentReplies
   /api/forum/topics/status:
     $ref: ./paths/forum-topic-interactions.yaml#/updateTopicStatus
   /api/forum/topics/delete:
@@ -2025,3 +2039,20 @@ components:
       $ref: ./components/schemas.yaml#/PkPlanItemResponse
     PkPlanItemsResponse:
       $ref: ./components/schemas.yaml#/PkPlanItemsResponse
+
+    PublicPersona:
+      $ref: ./components/anonymous-identity.yaml#/PublicPersona
+    AnonymousState:
+      $ref: ./components/anonymous-identity.yaml#/AnonymousState
+    AnonymousBatch:
+      $ref: ./components/anonymous-identity.yaml#/AnonymousBatch
+    AnonymousRevealedOwner:
+      $ref: ./components/anonymous-identity.yaml#/AnonymousRevealedOwner
+    AnonymousBatchRequest:
+      $ref: ./components/anonymous-identity.yaml#/AnonymousBatchRequest
+    AnonymousConfirmRequest:
+      $ref: ./components/anonymous-identity.yaml#/AnonymousConfirmRequest
+    AnonymousDisableRequest:
+      $ref: ./components/anonymous-identity.yaml#/AnonymousDisableRequest
+    AnonymousRevealRequest:
+      $ref: ./components/anonymous-identity.yaml#/AnonymousRevealRequest

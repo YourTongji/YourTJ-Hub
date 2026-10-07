@@ -33,6 +33,14 @@
   },
   {
     "method": "GET",
+    "path": "/a/:publicUid"
+  },
+  {
+    "method": "GET",
+    "path": "/a/:publicUid/avatar.svg"
+  },
+  {
+    "method": "GET",
     "path": "/activate"
   },
   {
@@ -234,6 +242,10 @@
   {
     "method": "GET",
     "path": "/api/campus/tongji/callback"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/anonymous/state"
   },
   {
     "method": "GET",
@@ -1053,6 +1065,26 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/anonymous/batches"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/anonymous/confirm"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/anonymous/disable"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/anonymous/govern"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/anonymous/reveal"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/chat/forward"
   },
   {
@@ -1274,6 +1306,10 @@
   {
     "method": "POST",
     "path": "/api/forum/stickers/resolve"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/topics/agent-replies"
   },
   {
     "method": "POST",

@@ -24,6 +24,7 @@ func FollowingPage(ctx context.Context, viewerID uint64, before *CreatedCursor, 
 	limit = pageutil.BoundPageSize(limit)
 	b := builder().WithContext(ctx).
 		Where("user_id IN (?)", userFollow.ActiveFollowedIDsQuery(ctx, viewerID)).
+		Where("persona_uid = ?", "").
 		Where("status = ? AND process_status = ? AND visibility_status = ?", 1, ProcessStatusNormal, VisibilityActive).
 		Where("topic_type = ?", TopicTypeForum).
 		Where(firstPostVisibleSQL, ProcessStatusNormal)

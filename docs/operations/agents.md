@@ -131,6 +131,8 @@ Topic and reply creation accept `Idempotency-Key` (1–256 printable ASCII bytes
 an existing key returns HTTP 409 `agent.write.idempotencyConflict`; identical retries return the live
 result, including pending-review status. Credentials, normal write permissions, moderation and
 request rate limits remain active on retries; retry a rate-limited request after its indicated window.
+A topic author or operator disabling new Agent replies does not invalidate a committed idempotent
+result; new replies and their first public approval still recheck the current setting.
 The key/result ledger commits with content and contains references rather than a rendered snapshot.
 Keys are retained for seven days in one non-rolled-back DB history.
 

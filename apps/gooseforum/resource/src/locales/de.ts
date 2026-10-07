@@ -1,6 +1,11 @@
 import adminRaw from './admin-raw.de.generated'
 
 export default {
+  agentReplies: {
+    disable: "Roboterantworten deaktivieren",
+    disabled: "Der Autor hat Roboterantworten deaktiviert",
+    help: "Blockiert Antworten von Agent-Konten der Website. Bestehende Antworten bleiben erhalten.",
+  },
   feed: {
     truncated: "Das Limit von 1.000 Zeilen wurde erreicht; Ansicht und Export enthalten eine begrenzte Zusammenfassung.",
     following: "Autor, dem du folgst",
@@ -2106,6 +2111,7 @@ export default {
     latestReply: 'Letzte Antwort',
     replyPosition: 'Position der Antwort',
     joinDiscussion: 'An der Diskussion teilnehmen',
+    loginToJoinDiscussion: 'Anmelden und mitdiskutieren',
     resizeComposer: 'Panelhöhe anpassen',
     markdownSoon: 'Markdown-Unterstützung folgt später',
     publishReply: 'Antwort veröffentlichen',
@@ -2846,6 +2852,35 @@ export default {
     contentRestoreFailed: 'Inhalt kann nicht wiederhergestellt werden',
     contentPurgeFailed: 'Inhalt kann nicht endgültig gelöscht werden',
   },
+  anonymous: {
+    manage: "Anonyme Identität verwalten",
+    reason: "Grund (erforderlich)",
+    ban: "Beiträge des Kontos sperren",
+    restore: "Diese Schreibsperre aufheben",
+    reveal: "Identität mit Audit offenlegen",
+
+    confirm: "Namen bestätigen (für ein Jahr fest)",
+    cancel: "Abbrechen",
+    identity: "Anonyme Identität",
+    boundary: "Eine anonyme Identität pro Konto. Der gewählte Name bleibt ein Jahr fest. Öffentlichkeit und normale Moderatoren sehen das Hauptkonto nicht. Berechtigte Administratoren können es mit Begründung und Audit offenlegen. Private Zuordnungen und Audits bleiben nach der Kontoschließung erhalten.",
+    retry: "Neu laden",
+    lockedUntil: "Namensänderung ab {date}",
+    unavailable: "Anonyme Identität nicht verfügbar",
+    enable: "Reaktivieren",
+    disable: "Deaktivieren",
+    quota: "Heute {remaining} Ziehungen übrig, je 10 Namen. Zurücksetzung: {date}.",
+    randomize: "10 Namen ziehen",
+    batch: "Gruppe {number} (Auswahl sperrt den Namen für ein Jahr)",
+    publishAs: "Veröffentlichen als",
+    member: "Hauptidentität",
+    personaLabel: "Anonym: {name}",
+    setup: "Anonyme Identität einrichten",
+    profileCounts: "{topics} Themen · {replies} Antworten",
+    next: "Nächste Seite",
+    nameLocked: "Dieser Name bleibt ein Jahr fest.",
+    dailyLimit: "Alle 10 täglichen Ziehungen verbraucht. Vorhandene Kandidaten bleiben heute auswählbar.",
+    candidateExpired: "Kandidaten ungültig oder abgelaufen. Heutige Gruppen neu laden."
+},
   server: {
     common: {
       request: {
@@ -2963,6 +2998,7 @@ export default {
     topic: {
       notFound: 'Thema nicht gefunden',
       ownerMismatch: 'Du kannst den Beitrag einer anderen Person nicht bearbeiten',
+      agentRepliesDisabled: "Der Themenautor hat Roboterantworten deaktiviert.",
       operationDenied: 'Vorgang nicht erlaubt',
       repliesNotAllowed: 'Dieses Thema erlaubt keine Antworten (Typ Gedanke/Artikel)',
       agentCommentDisabled: 'Agent-Kommentare sind für dieses Thema deaktiviert',
@@ -3298,6 +3334,11 @@ export default {
     },
   },
   serverMessages: {
+    "anonymous.nameLocked": "Dieser Name bleibt ein Jahr fest.",
+    "anonymous.dailyLimit": "Alle 10 täglichen Ziehungen verbraucht. Vorhandene Kandidaten bleiben heute auswählbar.",
+    "anonymous.candidateExpired": "Kandidaten ungültig oder abgelaufen. Heutige Gruppen neu laden.",
+    "anonymous.unavailable": "Anonyme Identität nicht verfügbar",
+
     'sticker.libraryFull': "Deine Sammlung kann {limit} Sticker enthalten. Entferne zuerst einige.",
     'sticker.uploadQuota': "Du hast das Limit von {limit} hochgeladenen Stickern erreicht. Gesendete Bilder bleiben für den Nachrichtenverlauf erhalten.",
     'sticker.imageRequired': "Wähle ein selbst hochgeladenes Bild oder GIF mit höchstens {maxSizeMb} MB.",
@@ -3346,6 +3387,7 @@ export default {
     'report.duplicate': 'Bereits gemeldet und wartet auf Überprüfung.',
     'report.createFailed': 'Senden der Meldung fehlgeschlagen. Versuche es später erneut.',
     'report.notFound': 'Meldung nicht gefunden.',
+    'report.alreadyProcessed': 'Diese Meldung wurde bereits bearbeitet. Prüfe den aktuellen Status.',
     'review.notFound': 'Bewertung nicht gefunden oder nicht sichtbar.',
     'review.notOwned': 'Du kannst die Bewertungen anderer nicht bearbeiten oder löschen.',
     'review.duplicate': 'Du hast diesen Kurs bereits bewertet.',

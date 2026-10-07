@@ -1,4 +1,5 @@
 import '../../widgets/stickers/sticker_draft_preview.dart';
+import '../../widgets/identity_picker.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
 import 'dart:async';
@@ -112,11 +113,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
   final GlobalKey _pageScrollViewKey = GlobalKey();
   late StreamSubscription<DocChange> _documentChanges;
   late int _currentTopicId;
+  bool _agentRepliesDisabled = false;
 
   _ComposeMode _mode = _ComposeMode.edit;
   double? _editScrollOffset;
   bool _restoreEditorFocus = false;
   int _modeRevision = 0;
+  String _identity = "member";
   bool _loading = true;
   bool _submitting = false;
   late final ComposerUploadQueue _uploads;
@@ -264,6 +267,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
     }
     try {
       final draft = LocalDraft(
+        agentRepliesDisabled: _agentRepliesDisabled,
+        identity: _identity,
         key: _draftKey,
         kind: _draftKind ?? DraftKind.newTopic,
         title: _title.text,
@@ -328,10 +333,12 @@ class _PublishPageState extends ConsumerState<PublishPage>
     }
     if (matching.isEmpty) return;
     final draft = matching.first;
+    _agentRepliesDisabled = draft.agentRepliesDisabled;
     _draftKey = draft.key;
     _draftKind ??= draft.kind;
     _contentType = draft.contentType;
     _currentTopicId = draft.topicId;
+    _identity = draft.identity;
     _title.text = draft.title;
     _simple.text = draft.content;
     _images
@@ -511,6 +518,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       }
       final keepEditing = _dirty;
       if (!keepEditing) {
+        _identity = props.topic.identity;
         _contentType = props.isEditing
             ? (props.topic.contentType == 0 ? 3 : props.topic.contentType)
             : widget.initialContentType;
@@ -1111,11 +1119,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
           .writeTopicResult(
             captchaId: _captcha?.captchaId,
             captchaCode: _captchaCode.text.trim(),
+            identity: _currentTopicId > 0 ? null : _identity,
             topicId: _currentTopicId,
             title: title,
             content: content,
             categoryIds: List<int>.of(_categoryIds),
             topicStatus: topicStatus,
+            agentRepliesDisabled: _agentRepliesDisabled,
             contentType: _contentType,
             images: _contentType == 3 ? null : List.of(_images),
           );
@@ -1429,6 +1439,17 @@ class _PublishPageState extends ConsumerState<PublishPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
+                    IdentityPicker(
+                      value: _identity,
+                      disabled: _submitting || _currentTopicId > 0,
+                      onChanged: (v) {
+                        setState(() {
+                          _identity = v;
+                          _markDirty();
+                        });
+                      },
+                    ),
+
                     if (_localStatus.isNotEmpty) ...[
                       Row(
                         children: [
@@ -1513,6 +1534,20 @@ class _PublishPageState extends ConsumerState<PublishPage>
                       ),
                     ],
                     const SizedBox(height: 16),
+                    if (_currentTopicId == 0)
+                      IgnorePointer(
+                        ignoring: _submitting,
+                        child: GfSwitchRow(
+                          key: const Key('publish-agent-replies'),
+                          title: l10n.agentRepliesDisable,
+                          description: l10n.agentRepliesHelp,
+                          value: _agentRepliesDisabled,
+                          onChanged: (value) {
+                            setState(() => _agentRepliesDisabled = value);
+                            _markDirty();
+                          },
+                        ),
+                      ),
                     if (_captcha != null) ...[
                       if (_showPublishCaptchaExplanation)
                         Padding(

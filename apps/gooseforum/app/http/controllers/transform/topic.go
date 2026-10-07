@@ -1,6 +1,7 @@
 package transform
 
 import (
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/anonymousidentityservice"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
@@ -45,6 +46,13 @@ func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.E
 	// Fetch first posts to get content types
 	firstPostMap := posts.GetMapByIds(firstPostIDs)
 
+	uids := make([]string, 0, len(data))
+	for _, t := range data {
+		if t != nil && t.PersonaUID != "" {
+			uids = append(uids, t.PersonaUID)
+		}
+	}
+	personas := anonymousidentityservice.Lookup(uids)
 	res := make([]*vo.TopicsSimpleVo, 0, len(data))
 	for _, t := range data {
 		if t == nil {
@@ -69,6 +77,14 @@ func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.E
 			avatarUrl = user.GetWebAvatarUrl()
 		}
 
+		authorID := t.UserId
+		if t.PersonaUID != "" {
+			p := personas[t.PersonaUID]
+			authorID = 0
+			username = p.Name
+			nickname = ""
+			avatarUrl = p.AvatarURL
+		}
 		posters := t.GetPosters()
 		postersVo := make([]vo.PosterVo, 0, len(posters))
 		for _, poster := range posters {
@@ -104,7 +120,8 @@ func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.E
 			ImageUrls:      t.ImageUrls,
 			LastUpdateTime: t.UpdatedAt.Format(time.RFC3339),
 			CreateTime:     t.CreatedAt.Format(time.RFC3339),
-			AuthorId:       t.UserId,
+			AuthorId:       authorID,
+			PersonaUID:     t.PersonaUID,
 			Username:       username,
 			Nickname:       nickname,
 			AvatarUrl:      avatarUrl,

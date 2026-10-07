@@ -35,6 +35,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/filemigrateservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/httpnotifyservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
@@ -341,6 +342,8 @@ func startBusinessServices() {
 	// 绝不会外发——与 webpush worker 同语义）。
 	_ = nativepushservice.RecoverStaleTasks()
 	backgroundservice.RunWorker("nativepush_worker", nativepushservice.TaskTypeNativePush, nativepushservice.RunPushTask)
+	// Failed HTTP notification deliveries are retried through the shared task queue.
+	backgroundservice.RunWorker("http_notify_retry_worker", httpnotifyservice.TaskTypeDeliveryRetry, httpnotifyservice.RunDeliveryRetryTask)
 	sessionservice.CleanupExpired()
 	oidcservice.CleanupExpired()
 	job.Run()

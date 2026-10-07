@@ -12,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/anonymousidentityservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/httpnotifyservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
 )
@@ -50,12 +51,12 @@ func handleHttpNotifyCommentCreated(ctx context.Context, event *CommentCreatedEv
 	}
 	// 匿名楼层不推 webhook（issue #524）：webhook 负载含完整评论者用户信息，
 	// 会向订阅方泄露匿名身份。与 in-app 通知同口径。
-	if event.IsAnonymous {
+	if event.IsAnonymous && event.PersonaUID == "" {
 		return nil
 	}
 	topic := topics.GetSimple(event.TopicId)
 	topicPayload := topicNotifyPayloadFromSmall(topic)
-	commenter := userNotifyPayload(event.UserId)
+	commenter := publicNotifyAuthor(event.UserId, event.PersonaUID)
 	post := posts.Get(event.PostId)
 	postNo := uint64(0)
 	if post.Id > 0 {
@@ -65,7 +66,7 @@ func handleHttpNotifyCommentCreated(ctx context.Context, event *CommentCreatedEv
 	postPayload := notifyPost{
 		ID:                  event.PostId,
 		PostNo:              postNo,
-		UserID:              event.UserId,
+		UserID:              commenter.ID,
 		User:                commenter,
 		ReplyToPostID:       event.ReplyToPostId,
 		ReplyToPostAuthorID: event.ReplyToPostAuthorId,
@@ -79,7 +80,12 @@ func handleHttpNotifyCommentCreated(ctx context.Context, event *CommentCreatedEv
 		Post:           &postPayload,
 	}
 	if event.ReplyToPostAuthorId > 0 {
-		parentAuthor := userNotifyPayload(event.ReplyToPostAuthorId)
+		parent := posts.Get(event.ReplyToPostId)
+		parentAuthor := publicNotifyAuthor(event.ReplyToPostAuthorId, parent.PersonaUID)
+		if parent.IsAnonymous && parent.PersonaUID == "" {
+			parentAuthor = notifyUser{}
+		}
+		payload.Post.ReplyToPostAuthorID = parentAuthor.ID
 		payload.Post.ReplyToPostAuthor = &parentAuthor
 	}
 	httpnotifyservice.Notify(httpnotifyservice.EventCommentCreated, payload)
@@ -206,6 +212,8 @@ type notifyCategory struct {
 }
 
 type notifyUser struct {
+	Kind        string `json:"kind,omitempty"`
+	PublicUID   string `json:"publicUid,omitempty"`
 	ID          uint64 `json:"id"`
 	Username    string `json:"username"`
 	Nickname    string `json:"nickname"`
@@ -232,7 +240,7 @@ func topicNotifyPayload(topic *topics.Entity) notifyEventData {
 	if topic == nil {
 		return notifyEventData{BaseURI: baseURI()}
 	}
-	summary := buildNotifyTopic(topic.Id, topic.Title, topic.Excerpt, topic.FirstImageURL, topic.UserId, topic.CategoryIds)
+	summary := buildNotifyTopic(topic.Id, topic.Title, topic.Excerpt, topic.FirstImageURL, topic.UserId, topic.CategoryIds, topic.PersonaUID)
 	user := summary.User
 	return notifyEventData{
 		BaseURI: baseURI(),
@@ -245,18 +253,19 @@ func topicNotifyPayloadFromSmall(topic topics.Entity) notifyTopic {
 	if topic.Id == 0 {
 		return notifyTopic{}
 	}
-	return buildNotifyTopic(topic.Id, topic.Title, topic.Excerpt, topic.FirstImageURL, topic.UserId, topic.CategoryIds)
+	return buildNotifyTopic(topic.Id, topic.Title, topic.Excerpt, topic.FirstImageURL, topic.UserId, topic.CategoryIds, topic.PersonaUID)
 }
 
-func buildNotifyTopic(id uint64, title string, description string, firstImageURL string, userID uint64, categoryIDs []uint64) notifyTopic {
+func buildNotifyTopic(id uint64, title string, description string, firstImageURL string, userID uint64, categoryIDs []uint64, personaUID string) notifyTopic {
+	author := publicNotifyAuthor(userID, personaUID)
 	return notifyTopic{
 		ID:            id,
 		Title:         title,
 		URL:           urlconfig.PostDetail(id),
 		Description:   description,
 		FirstImageURL: firstImageURL,
-		UserID:        userID,
-		User:          userNotifyPayload(userID),
+		UserID:        author.ID,
+		User:          author,
 		CategoryIDs:   categoryIDs,
 		Categories:    topicCategoryNotifyPayloads(categoryIDs),
 	}
@@ -340,4 +349,12 @@ func uintToString(value uint64) string {
 
 func baseURI() string {
 	return strings.TrimRight(hotdataserve.GetSiteSettingsConfigCache().SiteUrl, "/")
+}
+
+func publicNotifyAuthor(owner uint64, uid string) notifyUser {
+	if uid == "" {
+		return userNotifyPayload(owner)
+	}
+	p := anonymousidentityservice.Lookup([]string{uid})[uid]
+	return notifyUser{Kind: "persona", PublicUID: uid, Username: p.Name, DisplayName: p.Name, AvatarURL: baseURI() + p.AvatarURL, URL: baseURI() + p.ProfileURL}
 }

@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { authorURL } from '@/runtime/anonymous-identity'
 import { useContentUpdates } from '@/runtime/content-updates'
+import AgentReplySetting from '@/site/components/AgentReplySetting.vue'
 import { useRouter } from 'vue-router'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -224,7 +226,7 @@ function handleTopicState(nextLikeCount: number) {
       <!-- 桌面端元数据栏：完整横排平铺（sm 及以上屏幕） -->
       <div class="mt-3 hidden sm:flex sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-2 text-[13px] text-base-content/55">
         <a
-          :href="`/u/${view.topic.author.id}`"
+          :href="authorURL(view.topic.author)"
           class="inline-flex items-center gap-2 font-medium text-base-content/75 hover:text-primary"
           @click="showUserCard(view.topic.author, $event)"
         >
@@ -277,7 +279,7 @@ function handleTopicState(nextLikeCount: number) {
         <div class="flex items-center justify-between gap-2 min-w-0">
           <div class="flex items-center gap-2 min-w-0 flex-wrap">
             <a
-              :href="`/u/${view.topic.author.id}`"
+              :href="authorURL(view.topic.author)"
               class="inline-flex items-center gap-1.5 font-medium text-base-content/80 hover:text-primary truncate"
               @click="showUserCard(view.topic.author, $event)"
             >
@@ -333,6 +335,13 @@ function handleTopicState(nextLikeCount: number) {
         </div>
       </div>
     </header>
+
+    <AgentReplySetting
+      :topic-id="view.topic.id"
+      :disabled="view.topic.agentRepliesDisabled ?? false"
+      :can-manage="view.permissions.canManageAgentReplies ?? false"
+      @changed="view.topic.agentRepliesDisabled = $event"
+    />
 
     <PostStream
       ref="postStreamRef"

@@ -83,6 +83,7 @@ class TopicRepository {
     List<String>? images,
     String? captchaId,
     String? captchaCode,
+    String? identity,
   }) async {
     final WriteTopicResult result = await writeTopicResult(
       topicId: topicId,
@@ -94,6 +95,7 @@ class TopicRepository {
       images: images,
       captchaId: captchaId,
       captchaCode: captchaCode,
+      identity: identity,
     );
     return result.id;
   }
@@ -107,18 +109,22 @@ class TopicRepository {
     required List<int> categoryIds,
     required int topicStatus,
     int contentType = 3,
+    bool agentRepliesDisabled = false,
     List<String>? images,
     String? captchaId,
     String? captchaCode,
+    String? identity,
   }) async {
     final response = await _client.postEnvelope<int>(
       '/api/forum/topics/write',
       body: {
+        'identity': ?identity,
         'topicId': topicId,
         'title': title,
         'content': content,
         'categoryId': categoryIds,
         'topicStatus': topicStatus,
+        if (topicId == 0) 'agentRepliesDisabled': agentRepliesDisabled,
         'contentType': contentType == 0 ? 3 : contentType,
         'images': ?images,
         if (captchaId != null && captchaId.isNotEmpty) 'captchaId': captchaId,
@@ -150,6 +156,16 @@ class TopicRepository {
     await _client.post<Object?>(
       '/api/forum/topics/delete',
       body: {'topicId': topicId},
+    );
+  }
+
+  Future<void> updateAgentReplies({
+    required int topicId,
+    required bool disabled,
+  }) async {
+    await _client.post<Object?>(
+      '/api/forum/topics/agent-replies',
+      body: {'topicId': topicId, 'agentRepliesDisabled': disabled},
     );
   }
 

@@ -315,6 +315,15 @@ func TestCreatePostTool(t *testing.T) {
 	if no := asUint(out["postNo"]); no != 2 {
 		t.Fatalf("create_post postNo = %d, want 2", no)
 	}
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", topic.Id).Update("agent_replies_disabled", true).Error; err != nil {
+		t.Fatal(err)
+	}
+	res, err = cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "create_post", Arguments: map[string]any{"topicId": topic.Id, "content": "Another sufficiently long robot reply."},
+	})
+	if err != nil || !res.IsError || !strings.Contains(mustJSON(res.Content), "topic.agentRepliesDisabled") {
+		t.Fatalf("disabled MCP reply = %v %+v", err, res)
+	}
 }
 
 func TestCreateTopicToolRateLimited(t *testing.T) {

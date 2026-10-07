@@ -9,6 +9,7 @@ import (
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
+	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
@@ -28,6 +29,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicpolicyservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -132,6 +134,13 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&topic, post.TopicId).Error; err != nil {
 			return err
 		}
+		// Source-linked Agent writes acquire content before participant rows.
+		// Persona governance must follow the same order, including delayed approval.
+		if action == moderationDecision.ActionAllow {
+			if err := identity.ValidateWriterTx(tx, post.UserId, post.PersonaUID); err != nil {
+				return err
+			}
+		}
 		oldCategories = append(oldCategories, topic.CategoryIds...)
 		// Re-read the revision after acquiring the post lock.
 		if err := tx.First(&revision, revisionID).Error; err != nil {
@@ -187,6 +196,16 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 				} else if err != nil {
 					return err
 				}
+			}
+		}
+		// Newly submitted replies must still be allowed when they become public.
+		// Keep existing public replies editable; turn a revoked publication into
+		// a recorded terminal rejection rather than an endlessly retried job.
+		if action == moderationDecision.ActionAllow && post.PostNo > 1 && post.PublishedRevisionId == 0 && post.ProcessStatus != posts.ProcessStatusNormal {
+			if err := topicpolicyservice.CheckReplyTx(tx, topic, post.UserId); errors.Is(err, topicpolicyservice.ErrAgentRepliesDisabled) {
+				action, reason = moderationDecision.ActionBlock, "话题作者已禁止机器人回复。"
+			} else if err != nil {
+				return err
 			}
 		}
 		status := posts.ProcessStatusBlocked

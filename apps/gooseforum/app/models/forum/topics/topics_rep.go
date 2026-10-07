@@ -136,6 +136,19 @@ func GetSimple(id any) (entity Entity) {
 	return
 }
 
+// GetForUpdateTx serializes reply publication and immediate topic settings.
+func GetForUpdateTx(tx *gorm.DB, id uint64) (entity Entity, err error) {
+	err = tx.Table(tableName).Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND deleted_at IS NULL", id).Take(&entity).Error
+	return
+}
+
+func UpdateAgentRepliesDisabledTx(tx *gorm.DB, id uint64, disabled bool) error {
+	return tx.Table(tableName).Where("id = ?", id).Updates(map[string]any{
+		"agent_replies_disabled": disabled,
+		"updated_at":             time.Now(),
+	}).Error
+}
+
 func GetMaxId() uint64 {
 	var entity Entity
 	builder().Order(queryopt.Desc("id")).Limit(1).First(&entity)
@@ -236,7 +249,7 @@ func GetPublished(id uint64) (entity Entity, err error) {
 func GetLatestPublishedByUserId(userId uint64, limit int) ([]*Entity, error) {
 	var entities []*Entity
 	err := builder().
-		Where(queryopt.Eq("user_id", userId)).
+		Where(queryopt.Eq("user_id", userId)).Where("persona_uid = ?", "").
 		Where(queryopt.Eq("status", 1)).
 		Where(queryopt.Eq("process_status", 0)).
 		Where(queryopt.Eq("visibility_status", VisibilityActive)).
@@ -254,7 +267,7 @@ func GetLatestPublishedByUserId(userId uint64, limit int) ([]*Entity, error) {
 func GetProfileTopicsBeforeID(userId uint64, beforeId uint64, limit int, includePending bool) ([]*Entity, error) {
 	var entities []*Entity
 	query := builder().
-		Where(queryopt.Eq("user_id", userId)).
+		Where(queryopt.Eq("user_id", userId)).Where("persona_uid = ?", "").
 		Where(queryopt.Eq("status", 1)).
 		Where(queryopt.Eq("visibility_status", VisibilityActive)).
 		Where(queryopt.Eq("topic_type", TopicTypeForum))
@@ -341,6 +354,7 @@ type PageQuery struct {
 	Page, PageSize int
 	Search         string
 	UserId         uint64
+	PersonaUID     string
 	FilterStatus   bool
 	CategoryId     uint64
 	Sort           string
@@ -379,6 +393,12 @@ func Page(q PageQuery) struct {
 	}
 	if q.UserId != 0 {
 		b.Where(queryopt.Eq("user_id", q.UserId))
+	}
+	if q.PersonaUID != "" {
+		b.Where("persona_uid = ?", q.PersonaUID).Where("retention_status <> ?", RetentionPurged).Where("EXISTS (SELECT 1 FROM posts p WHERE p.id=topics.first_post_id AND p.topic_id=topics.id AND p.visibility_status=? AND p.retention_status<>?)", VisibilityActive, RetentionPurged)
+	}
+	if q.UserId != 0 && q.FilterStatus {
+		b.Where("persona_uid = ?", "")
 	}
 	if q.TopicType != nil {
 		b.Where(queryopt.Eq("topic_type", *q.TopicType))
@@ -430,7 +450,7 @@ func PageForAdmin(q AdminPageQuery) struct {
 		b.Where(queryopt.Like("title", q.Search))
 	}
 	if q.UserId != 0 {
-		b.Where(queryopt.Eq("user_id", q.UserId))
+		b.Where(queryopt.Eq("user_id", q.UserId)).Where("persona_uid = ?", "")
 	}
 	if q.AgentCommentDisabled != nil {
 		b.Where(queryopt.Eq("agent_comment_disabled", *q.AgentCommentDisabled))
@@ -558,10 +578,15 @@ func UpdateProcessStatus(id uint64, processStatus int8) error {
 // UpdateProcessStatusTx updates moderation state and lets callers enqueue an
 // outbox task in the same transaction.
 func UpdateProcessStatusTx(tx *gorm.DB, id uint64, processStatus int8) error {
-	if err := tx.Table(tableName).Where(queryopt.Eq("id", id)).UpdateColumn("process_status", processStatus).Error; err != nil {
-		return err
+	result := tx.Table(tableName).Where(queryopt.Eq("id", id)).UpdateColumn("process_status", processStatus)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
 	}
 	return feed.MarkTx(tx, id)
+
 }
 
 // UpdateStatusTx updates publish status inside a caller-owned transaction.

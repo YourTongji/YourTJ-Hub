@@ -1,6 +1,11 @@
 import adminRaw from './admin-raw.en.generated'
 
 export default {
+  agentReplies: {
+    disable: "Disable robot replies",
+    disabled: "The author has disabled robot replies",
+    help: "Blocks replies from site Agent accounts. Existing replies remain.",
+  },
   feed: {
     truncated: "The 1,000-row limit was reached; this view and export contain a bounded summary.",
     following: "An author you follow",
@@ -2107,6 +2112,7 @@ export default {
     latestReply: 'Latest reply',
     replyPosition: 'Reply position',
     joinDiscussion: 'Join the discussion',
+    loginToJoinDiscussion: 'Log in to join',
     resizeComposer: 'Resize reply panel',
     markdownSoon: 'Markdown support is coming later',
     publishReply: 'Post reply',
@@ -2847,6 +2853,35 @@ export default {
     pkCourseInfoSyncFailed: 'Course sync failed',
     pkCourseReviewBriefFailed: 'Failed to load reviews',
   },
+  anonymous: {
+    manage: "Manage anonymous identity",
+    reason: "Reason (required)",
+    ban: "Restrict account writing",
+    restore: "Remove this writing restriction",
+    reveal: "Reveal with audit",
+
+    confirm: "Confirm name (locked for one year)",
+    cancel: "Cancel",
+    identity: "Anonymous identity",
+    boundary: "One anonymous identity per account. A chosen name is locked for one year. The public and ordinary moderators cannot see your main account. Restricted administrators can reveal it with a reason and audit. Private bindings and audits remain after account closure.",
+    retry: "Reload",
+    lockedUntil: "Name can change after {date}",
+    unavailable: "Anonymous identity is unavailable",
+    enable: "Reactivate identity",
+    disable: "Deactivate identity",
+    quota: "{remaining} draws left today, 10 names each. Resets at {date}.",
+    randomize: "Draw 10 names",
+    batch: "Batch {number} (selection locks the name for a year)",
+    publishAs: "Publish as",
+    member: "Main identity",
+    personaLabel: "Anonymous: {name}",
+    setup: "Set up anonymous identity",
+    profileCounts: "{topics} topics · {replies} replies",
+    next: "Next page",
+    nameLocked: "This name is locked for one year.",
+    dailyLimit: "All 10 daily draws are used. You can still select an existing batch today.",
+    candidateExpired: "Candidates expired or are invalid. Reload today’s batches."
+},
   server: {
     common: {
       request: {
@@ -2964,6 +2999,7 @@ export default {
     topic: {
       notFound: 'Topic not found',
       ownerMismatch: "You cannot edit someone else's post",
+      agentRepliesDisabled: "The topic author has disabled robot replies.",
       operationDenied: 'Operation not allowed',
       repliesNotAllowed: 'This topic does not allow replies (Moment/Article type)',
       agentCommentDisabled: 'Agent comments are disabled for this topic',
@@ -3299,6 +3335,11 @@ export default {
     },
   },
   serverMessages: {
+    "anonymous.nameLocked": "This name is locked for one year.",
+    "anonymous.dailyLimit": "All 10 daily draws are used. You can still select an existing batch today.",
+    "anonymous.candidateExpired": "Candidates expired or are invalid. Reload today’s batches.",
+    "anonymous.unavailable": "Anonymous identity is unavailable",
+
     'sticker.libraryFull': "Your library can hold {limit} stickers. Remove some before adding more.",
     'sticker.uploadQuota': "You have reached the limit of {limit} uploaded stickers. Sent assets are retained for message history.",
     'sticker.imageRequired': "Choose an image or GIF you uploaded, up to {maxSizeMb} MB.",
@@ -3348,6 +3389,7 @@ export default {
     'report.duplicate': 'Already reported and waiting for review.',
     'report.createFailed': 'Failed to submit report. Please try again later.',
     'report.notFound': 'Report not found.',
+    'report.alreadyProcessed': 'This report has already been handled. Check its latest status.',
     'review.notFound': 'Review not found or not visible.',
     'review.notOwned': 'You cannot edit or delete others\' reviews.',
     'review.duplicate': 'You have already reviewed this offering.',

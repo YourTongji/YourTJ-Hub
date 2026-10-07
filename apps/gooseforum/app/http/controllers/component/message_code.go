@@ -129,6 +129,7 @@ const (
 	MessageTopicAgentCommentDisabled        MessageCode = "topic.agentCommentDisabled"        // 该主题已禁止 Agent 评论（管理端 Agent 评论策略）。
 	MessageTopicOwnerMismatch               MessageCode = "topic.ownerMismatch"               // 不能修改或删除他人的主题。
 	MessageTopicOperationDenied             MessageCode = "topic.operationDenied"             // 当前主题不可操作。
+	MessageTopicAgentRepliesDisabled        MessageCode = "topic.agentRepliesDisabled"        // 作者禁止机器人回复。
 	MessageTopicSaveFailed                  MessageCode = "topic.saveFailed"                  // 主题保存失败。
 	MessageTopicDailyLimit                  MessageCode = "topic.dailyLimit"                  // 当天发布过多。
 	MessageTopicTitleTooShort               MessageCode = "topic.title.tooShort"              // 标题过短，params.minLength。
@@ -148,6 +149,7 @@ const (
 	MessagePostFirstPostUndeletable         MessageCode = "post.firstPostUndeletable"         // 话题首楼不可删除，请改用话题删除（issue #553）。
 	MessagePostUpdateFailed                 MessageCode = "post.updateFailed"                 // post 更新失败，params.error 可带原始错误。
 	MessageReportNotFound                   MessageCode = "report.notFound"                   // 举报不存在。
+	MessageReportAlreadyProcessed           MessageCode = "report.alreadyProcessed"           // 举报已被其他版主处理。
 	MessageReportTargetInvalid              MessageCode = "report.targetInvalid"              // 举报对象无效。
 	MessageReportOwnContent                 MessageCode = "report.ownContent"                 // 不能举报自己的内容。
 	MessageReportDuplicate                  MessageCode = "report.duplicate"                  // 已举报，等待处理。

@@ -87,6 +87,19 @@ afterEach(() => {
 })
 
 describe('QuickPublishModal 草稿与离开保护（issue #583）', () => {
+  test('restored local draft preserves the robot reply choice', async () => {
+    writeQuickPublishDraft(1, 2, { title: '', content: 'saved body', categoryIds: [101], images: [], agentRepliesDisabled: true })
+    const { wrapper, vm, closeQuickPublish } = await mountModal(2)
+    try {
+      expect(vm.agentRepliesDisabled).toBe(true)
+      expect(vm.content).toBe('saved body')
+      expect(readQuickPublishDraft(1, 2)?.agentRepliesDisabled).toBe(true)
+    } finally {
+      closeQuickPublish()
+      await flushPromises()
+      wrapper.unmount()
+    }
+  })
   test('空字段关闭立即关闭，不弹离开确认', async () => {
     const { wrapper, vm, quickPublishOpen } = await mountModal(2)
     try {

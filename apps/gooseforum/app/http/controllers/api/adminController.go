@@ -498,6 +498,12 @@ func TopicsList(req component.BetterRequest[TopicsListReq]) component.Response {
 				nickname = user.Nickname
 				userAvatarUrl = user.GetWebAvatarUrl()
 			}
+			if t.PersonaUID != "" {
+				t.UserId = 0
+				username = "匿名同学"
+				nickname = ""
+				userAvatarUrl = ""
+			}
 			return TopicInfoAdminVo{
 				TopicAdminBaseVo: TopicAdminBaseVo{
 					Id:            t.Id,
@@ -538,11 +544,16 @@ func TopicSource(req component.BetterRequest[TopicSourceReq]) component.Response
 
 	return component.SuccessResponse(TopicSourceVo{
 		TopicAdminBaseVo: TopicAdminBaseVo{
-			Id:            topic.Id,
-			Title:         topic.Title,
-			Description:   topic.Excerpt,
-			CategoryId:    topic.CategoryIds,
-			UserId:        topic.UserId,
+			Id:          topic.Id,
+			Title:       topic.Title,
+			Description: topic.Excerpt,
+			CategoryId:  topic.CategoryIds,
+			UserId: func() uint64 {
+				if topic.PersonaUID != "" {
+					return 0
+				}
+				return topic.UserId
+			}(),
 			TopicStatus:   topic.Status,
 			ProcessStatus: topic.ProcessStatus,
 			CreatedAt:     topic.CreatedAt.Format(time.RFC3339),
@@ -943,17 +954,10 @@ type FileResourceItem struct {
 
 func FileResourcePage(req component.BetterRequest[FileResourcePageReq]) component.Response {
 	pageData := filedata.FileResourcePage(req.Params.Page, component.BoundPageSizeWithRange(req.Params.PageSize, 10, 50))
-	userIDs := lo.Map(pageData.List, func(item filedata.FileResource, _ int) uint64 {
-		return item.UserId
-	})
-	userMap := users.GetMapByIds(userIDs)
 	return component.SuccessPage(
 		lo.Map(pageData.List, func(item filedata.FileResource, _ int) FileResourceItem {
-			username := ""
-			if user := userMap[item.UserId]; user != nil {
-				username = user.Username
-			}
-			return FileResourceItem{FileResource: item, UploaderUsername: username}
+			item.UserId = 0
+			return FileResourceItem{FileResource: item, UploaderUsername: ""}
 		}),
 		pageData.Page,
 		pageData.PageSize,
@@ -2433,7 +2437,22 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 			}
 			items = append(items, ReviewQueueItem{
 				Id: t.Id, Title: t.Title, Excerpt: excerpt, RevisionId: revision.Id, Content: post.Content, ReviewReason: revision.ReviewReason,
-				UserId: t.UserId, Username: username, Nickname: nickname,
+				UserId: func() uint64 {
+					if t.PersonaUID != "" {
+						return 0
+					}
+					return t.UserId
+				}(), Username: func() string {
+					if t.PersonaUID != "" {
+						return "匿名同学"
+					}
+					return username
+				}(), Nickname: func() string {
+					if t.PersonaUID != "" {
+						return ""
+					}
+					return nickname
+				}(),
 				ProcessStatus: t.ProcessStatus,
 				CreatedAt:     t.CreatedAt.Format(time.RFC3339),
 				Images:        reviewQueueImages(t.ImageUrls),
@@ -2480,7 +2499,22 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 			}
 			items = append(items, ReviewQueueItem{
 				Id: p.Id, Title: title, Excerpt: excerpt, RevisionId: revision.Id, Content: p.Content, ReviewReason: revision.ReviewReason,
-				UserId: p.UserId, Username: username, Nickname: nickname,
+				UserId: func() uint64 {
+					if p.IsAnonymous {
+						return 0
+					}
+					return p.UserId
+				}(), Username: func() string {
+					if p.IsAnonymous {
+						return "匿名同学"
+					}
+					return username
+				}(), Nickname: func() string {
+					if p.IsAnonymous {
+						return ""
+					}
+					return nickname
+				}(),
 				ProcessStatus: p.ProcessStatus,
 				CreatedAt:     p.CreatedAt.Format(time.RFC3339),
 				TopicId:       p.TopicId, PostNo: p.PostNo,
@@ -2623,7 +2657,9 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 			if hasPriorPublic || (!usePublicationBaseline && userActivities.HasRecord(userActivities.ActionPost, userActivities.SubjectTopic, topic.Id)) {
 				eventbus.Publish(eventbus.DetachedContext(ctx), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 			} else {
-				userStatistics.WriteTopic(topic.UserId)
+				if topic.PersonaUID == "" {
+					userStatistics.WriteTopic(topic.UserId)
+				}
 				eventbus.Publish(eventbus.DetachedContext(ctx), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 			}
 		}
@@ -2688,7 +2724,9 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 			eventbus.Publish(eventbus.DetachedContext(ctx), &eventhandlers.PostUpdatedEvent{TopicId: post.TopicId, PostId: post.Id, PostNo: post.PostNo, UserId: post.UserId, OldContent: priorPublic.Content, NewContent: post.Content, IsAnonymous: post.IsAnonymous})
 		}
 		if params.Approve && !hasPriorPublic && (usePublicationBaseline || !userActivities.HasRecord(userActivities.ActionComment, userActivities.SubjectPost, post.Id)) {
-			userStatistics.WriteComment(post.UserId)
+			if !post.IsAnonymous {
+				userStatistics.WriteComment(post.UserId)
+			}
 			topicEntity := topics.GetSimple(post.TopicId)
 			replyToAuthorID := uint64(0)
 			if post.ReplyToPostId > 0 {
@@ -2705,7 +2743,7 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 				TopicAuthorId:       topicEntity.UserId,
 				ReplyToPostId:       post.ReplyToPostId,
 				ReplyToPostAuthorId: replyToAuthorID,
-				IsAnonymous:         post.IsAnonymous,
+				IsAnonymous:         post.IsAnonymous, PersonaUID: post.PersonaUID,
 			})
 		}
 		if !automatic {

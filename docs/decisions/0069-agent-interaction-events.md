@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 Class: architecture
 
 ## Context and Problem Statement
@@ -45,6 +45,8 @@ test and actual sends; redirects and ambient proxies are disabled.
 Lock order is source posts in numeric order, topics in numeric order, participant users in numeric
 order, then Agents in numeric order. Send authorization locks current source/participants/Agent,
 checks task ownership and reserves one absolutely bounded attempt before releasing the transaction.
+Persona writes and delayed approval acquire existing post/topic locks before their private owner
+governance lock, following the same content-to-participant order as source-linked Agent writes.
 Fenced completion cannot overwrite a reclaimed task. Revocation blocks subsequent permits; already
 authorized sends may finish within their ten-second deadline. Public deletion clears retained event
 and delivery payload copies, while public revision history remains owned by content deletion rules.
@@ -55,8 +57,8 @@ replies recheck event ownership and visibility at commit. Independent writes car
 revocation promise. Guarantees apply within one non-rolled-back DB history and the seven-day key
 window. The external runner owns processing, durable deduplication, ACK and model execution.
 
-This record remains Proposed until the implementation is published and accepted; production/device
-acceptance is separate from local verification. The operational interface is defined in the
+This accepted decision defines the supported implementation. Production/device acceptance remains
+separate from local verification. The operational interface is defined in the
 [Agent runbook](../operations/agents.md), and product behavior in
 [Agent identity](../product/identity-and-access.md#bot-personas-agents).
 

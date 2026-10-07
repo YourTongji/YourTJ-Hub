@@ -58,6 +58,15 @@ func ImportData(ctx context.Context, data []byte, format string) (*ImportReport,
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrImportInvalidFormat, err)
 	}
+	// Ordinary exports cannot restore a private owner binding. Refuse the whole
+	// import instead of silently changing historical attribution or inventing an owner.
+	for _, table := range []string{"topics", "posts"} {
+		for _, row := range parsed[table] {
+			if uid, ok := row["personaUid"].(string); ok && uid != "" {
+				return nil, fmt.Errorf("%w: anonymous snapshots require a restricted database restore", ErrImportInvalidFormat)
+			}
+		}
+	}
 	report := &ImportReport{
 		Errors:   []ImportError{},
 		Imported: []string{},

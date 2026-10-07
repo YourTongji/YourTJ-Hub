@@ -19,6 +19,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentWebhook"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentWrites"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
+	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
@@ -668,6 +669,7 @@ func validateUniqueUsernames(db *gorm.DB) error {
 // 迁移与 PostgreSQL 兼容性测试共用同一份清单，避免两处维护漂移。
 func SchemaModels() []any {
 	return append(feed.Models(), []any{
+		&identity.Persona{}, &identity.Binding{}, &identity.Quota{}, &identity.Batch{}, &identity.RevealAudit{},
 		&badges.Entity{},
 		&sticker.Entity{},
 		&sticker.LibraryOwner{},

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
@@ -16,6 +17,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // 举报快捷处置（issue #1049）：通知卡片的签名链接只把版主带到 Hub 确认页，真正的
@@ -34,8 +36,9 @@ const (
 
 // 举报快捷动作。
 const (
-	ReportQuickActionBan     = "ban"     // topic/post：封禁目标并结案
+	ReportQuickActionBan     = "ban"     // topic/post：封禁目标；课评：隐藏目标，然后结案
 	ReportQuickActionHide    = "hide"    // course_review：隐藏评价并结案
+	ReportQuickActionShow    = "show"    // course_review：恢复显示并结案
 	ReportQuickActionDismiss = "dismiss" // 驳回举报
 )
 
@@ -55,7 +58,7 @@ func reportQuickActionAllowed(targetType string, action string) bool {
 	case reports.TargetTopic, reports.TargetPost:
 		return action == ReportQuickActionBan || action == ReportQuickActionDismiss
 	case reports.TargetCourseReview:
-		return action == ReportQuickActionHide || action == ReportQuickActionDismiss
+		return action == ReportQuickActionBan || action == ReportQuickActionHide || action == ReportQuickActionShow || action == ReportQuickActionDismiss
 	default:
 		return false
 	}
@@ -124,71 +127,93 @@ func reportQuickActionPreview(report reports.Entity) ReportQuickActionPreview {
 	return preview
 }
 
-// ApplyReportQuickAction 举报处置的后端原子命令：先对目标执行与工作台相同的封禁/
-// 隐藏（幂等），再以 CAS 结案；已被他人处理时返回 processed，不覆盖首个处理人。
-// handler_id 与审核日志记录真实操作者。
+// ApplyReportQuickAction 在一个事务中 CAS 结案并更新目标，避免目标状态与举报结论分离。
 func ApplyReportQuickAction(ctx context.Context, actorID uint64, reportID uint64, action string) string {
-	_, state := InspectReportQuickAction(actorID, reportID, action)
+	preview, state := InspectReportQuickAction(actorID, reportID, action)
 	if state != QuickActionReady {
 		return state
 	}
-	report := reports.Get(reportID)
-	switch action {
-	case ReportQuickActionDismiss:
-		return closeReportIfOpen(actorID, report, reports.StatusRejected, reports.ResolutionIgnored)
-	case ReportQuickActionBan:
+	return applyReportQuickAction(ctx, actorID, preview.Report, action)
+}
+
+func applyReportQuickAction(ctx context.Context, actorID uint64, report reports.Entity, action string) string {
+	if !reportQuickActionAllowed(report.TargetType, action) {
+		return QuickActionInvalid
+	}
+	var topic topics.Entity
+	var post posts.Entity
+	var postTopic topics.Entity
+	if action == ReportQuickActionBan {
 		switch report.TargetType {
 		case reports.TargetTopic:
-			topic := topics.Get(report.TargetId)
+			topic = topics.Get(report.TargetId)
 			if topic.Id == 0 {
 				return QuickActionNotFound
 			}
-			if err := applyTopicModerationStatus(ctx, actorID, topic, topics.ProcessStatusBlocked); err != nil {
-				slog.Error("report quick action: ban topic failed", "reportId", report.Id, "err", err)
-				return QuickActionFailed
+		case reports.TargetPost:
+			post = posts.Get(report.TargetId)
+			postTopic = topics.GetSimple(post.TopicId)
+			if post.Id == 0 || postTopic.Id == 0 {
+				return QuickActionNotFound
+			}
+		}
+	}
+
+	status, resolution := reports.StatusResolved, reports.ResolutionBanned
+	switch action {
+	case ReportQuickActionDismiss:
+		status, resolution = reports.StatusRejected, reports.ResolutionIgnored
+	case ReportQuickActionShow:
+		resolution = ""
+	}
+	changed, reportAlreadyProcessed := false, false
+	reviewHidden := action != ReportQuickActionShow
+	err := dbconnect.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
+		updated, err := reports.UpdateStatusIfOpenTx(tx, report.Id, status, resolution, actorID)
+		if err != nil {
+			return err
+		}
+		if !updated {
+			reportAlreadyProcessed = true
+			return nil
+		}
+		switch report.TargetType {
+		case reports.TargetTopic:
+			if action == ReportQuickActionBan {
+				changed, err = applyTopicModerationStatusTx(tx, topic, topics.ProcessStatusBlocked)
 			}
 		case reports.TargetPost:
-			post := posts.Get(report.TargetId)
-			topic := topics.GetSimple(post.TopicId)
-			if post.Id == 0 || topic.Id == 0 {
-				return QuickActionNotFound
+			if action == ReportQuickActionBan {
+				changed, err = applyPostModerationStatusTx(tx, post, posts.ProcessStatusBlocked)
 			}
-			if err := applyPostModerationStatus(ctx, actorID, post, topic, posts.ProcessStatusBlocked); err != nil {
-				slog.Error("report quick action: ban post failed", "reportId", report.Id, "err", err)
-				return QuickActionFailed
+		case reports.TargetCourseReview:
+			if action == ReportQuickActionBan || action == ReportQuickActionHide || action == ReportQuickActionShow {
+				changed, err = courseservice.SetReviewVisibilityTx(tx, report.TargetId, reviewHidden)
 			}
 		}
-		return closeReportIfOpen(actorID, report, reports.StatusResolved, reports.ResolutionBanned)
-	case ReportQuickActionHide:
-		if err := courseservice.SetReviewVisibility(report.TargetId, true); err != nil {
-			if errors.Is(err, courseservice.ErrReviewNotFound) {
-				return QuickActionNotFound
-			}
-			slog.Error("report quick action: hide course review failed", "reportId", report.Id, "err", err)
-			return QuickActionFailed
-		}
-		moderationservice.ReviewStatusChanged(actorID, report.TargetId, true)
-		return closeReportIfOpen(actorID, report, reports.StatusResolved, reports.ResolutionBanned)
-	default:
-		return QuickActionInvalid
-	}
-}
-
-// closeReportIfOpen 以 CAS 结案并写审核日志（与工作台 UpdateModerationReportStatus 同口径）。
-func closeReportIfOpen(actorID uint64, report reports.Entity, status string, resolution string) string {
-	updated, err := reports.UpdateStatusIfOpen(report.Id, status, resolution, actorID)
+		return err
+	})
 	if err != nil {
-		slog.Error("report quick action: close report failed", "reportId", report.Id, "err", err)
+		if errors.Is(err, courseservice.ErrReviewNotFound) || errors.Is(err, gorm.ErrRecordNotFound) {
+			return QuickActionNotFound
+		}
+		slog.Error("report quick action: apply failed", "reportId", report.Id, "err", err)
 		return QuickActionFailed
 	}
-	if !updated {
+	if reportAlreadyProcessed {
 		return QuickActionProcessed
 	}
-	if report.TargetType != reports.TargetChatMessage {
-		moderationservice.ReportStatusChanged(actorID, buildReportLogSnapshot(report, resolution), status)
-	} else {
-		moderationservice.InvalidatePrivateReports()
+	if changed {
+		switch report.TargetType {
+		case reports.TargetTopic:
+			afterTopicModerationStatusChanged(actorID, topic, topics.ProcessStatusBlocked)
+		case reports.TargetPost:
+			afterPostModerationStatusChanged(actorID, post, postTopic, posts.ProcessStatusBlocked)
+		case reports.TargetCourseReview:
+			moderationservice.ReviewStatusChanged(actorID, report.TargetId, reviewHidden)
+		}
 	}
+	moderationservice.ReportStatusChanged(actorID, buildReportLogSnapshot(report, resolution), status)
 	moderationservice.InvalidateTopic(reportTopicID(report))
 	return QuickActionDone
 }

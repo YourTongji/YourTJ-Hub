@@ -13,19 +13,33 @@ before(async () => {
 after(async () => { await browser?.close(); await server?.close() })
 // A doubled root text size stresses 200% text magnification at the narrowest
 // supported CSS viewport, alongside reduced-height soft-keyboard layouts.
-for (const [width, height, fontSize] of [[320, 640, 16], [320, 640, 32], [375, 667, 16], [390, 560, 16], [640, 720, 16]]) {
+for (const [width, height, fontSize] of [[320, 640, 16], [320, 640, 32], [320, 560, 32], [375, 667, 16], [390, 560, 16], [640, 720, 16]]) {
   test(`quick publisher mention candidates remain tappable at ${width}x${height}, ${fontSize}px text`, async () => {
     const page = await browser.newPage({ viewport: { width, height } })
     try {
+      // A late identity-state error must not move an already open candidate
+      // panel. Control its timing rather than relying on a live backend error.
+      let releaseState
+      const stateReady = new Promise(resolve => { releaseState = resolve })
+      await page.route('**/api/forum/anonymous/state', async route => {
+        await stateReady
+        await route.fulfill({ status: 503, json: { code: 1, messageCode: 'anonymous.unavailable' } })
+      })
       await page.route('**/api/forum/mention-targets?*', route => route.fulfill({ json: { code: 0, result: Array.from({ length: 8 }, (_, i) => ({ userId: i + 2, username: `tester${i}`, nickname: `测试用户${i}`, avatarUrl: '', actorType: 'human' })) } }))
       await page.goto(`${origin}/assets/test/fixtures/browser/quick-publish.html`)
       await page.evaluate(size => { document.documentElement.style.fontSize = `${size}px` }, fontSize)
+      const replySetting = page.getByRole('button', { name: '禁止机器人回复', exact: true })
+      await replySetting.click()
+      await page.getByRole('checkbox').check()
+      await page.keyboard.press('Escape')
       const editor = page.locator('.vditor [contenteditable="true"]:visible').first()
       await editor.waitFor()
       await editor.click()
       await page.keyboard.type('@test')
       const last = page.locator('.gf-mention-option').last()
       await last.waitFor()
+      releaseState()
+      await page.locator('[role="status"]').filter({ hasText: '匿名身份当前不可用' }).waitFor()
       const panelBox = await page.locator('.gf-mention-panel').boundingBox()
       assert.ok(panelBox && panelBox.y >= 0 && panelBox.y + panelBox.height <= height, `panel must fit before any scrolling: ${JSON.stringify(panelBox)}`)
       assert.ok(panelBox.x >= 0 && panelBox.x + panelBox.width <= width, 'candidate panel must fit horizontally')
@@ -33,13 +47,17 @@ for (const [width, height, fontSize] of [[320, 640, 16], [320, 640, 32], [375, 6
       await last.scrollIntoViewIfNeeded()
       const box = await last.boundingBox()
       assert.ok(box && box.y >= 0 && box.y + box.height <= height, 'last candidate must be in viewport')
-      assert.ok(await last.evaluate(el => {
+      const visibility = await last.evaluate(el => {
         const r = el.getBoundingClientRect()
-        return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2))
-      }), 'last candidate must not be clipped or covered')
+        const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+        return { visible: el.contains(hit), hit: hit?.outerHTML.slice(0, 160), option: r.toJSON(), panel: el.parentElement.getBoundingClientRect().toJSON(), editor: document.querySelector('.gf-modal-editor').getBoundingClientRect().toJSON() }
+      })
+      assert.ok(visibility.visible, `last candidate must not be clipped or covered: ${JSON.stringify(visibility)}`)
       await last.click({ timeout: 3000 })
       await page.waitForFunction(() => document.querySelector('.vditor [contenteditable="true"]')?.textContent.includes('@tester7'))
       await page.locator('.gf-mention-panel').waitFor({ state: 'detached' })
+      await replySetting.click()
+      assert.equal(await page.getByRole('checkbox').isChecked(), true, 'reply choice must survive editing and reopening settings')
     } finally { await page.close() }
   })
 }

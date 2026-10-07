@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -235,5 +236,49 @@ func TestAgentCommentPolicyRecheckedAtFirstApproval(t *testing.T) {
 				t.Fatalf("retry revived rejected reply: %v", err)
 			}
 		})
+	}
+}
+
+func TestAgentAuthorPolicyBlocksNewWritesButAllowsCommittedReplay(t *testing.T) {
+	setupHTTPContractTest(t)
+	conn := setupAgentEventsHTTP(t)
+	_, token := createAgentForumAgent(t, conn, "author-replay-agent")
+	author := createHTTPContractUser(t, conn, contractTestID())
+	base := contractTestID()
+	createContractPublishedTopic(t, conn, base, base+1, author.Id)
+	router := agentForumRouter()
+	path := fmt.Sprintf("/api/v1/agent/topics/%d/posts", base)
+	body := `{"content":"A committed robot reply long enough to pass forum posting requirements."}`
+	code, first := keyRequest(t, router, path, body, token, "author-policy-replay")
+	if code != http.StatusOK || first.Code != 0 {
+		t.Fatalf("initial write: %d %#v", code, first)
+	}
+	var created struct {
+		Id uint64 `json:"id"`
+	}
+	if err := json.Unmarshal(first.Result, &created); err != nil || created.Id == 0 {
+		t.Fatalf("created: %s %v", first.Result, err)
+	}
+	toggle := serveJSON(router, "/api/forum/topics/agent-replies", fmt.Sprintf(`{"topicId":%d,"agentRepliesDisabled":true}`, base), contractSessionToken(t, author))
+	if toggle.Code != http.StatusOK || decodeContractEnvelope(t, toggle).Code != 0 {
+		t.Fatalf("owner toggle: %d %s", toggle.Code, toggle.Body.String())
+	}
+	code, replay := keyRequest(t, router, path, body, token, "author-policy-replay")
+	if code != http.StatusOK || replay.Code != 0 {
+		t.Fatalf("committed replay blocked: %d %#v", code, replay)
+	}
+	var repeated struct {
+		Id uint64 `json:"id"`
+	}
+	if err := json.Unmarshal(replay.Result, &repeated); err != nil || repeated.Id != created.Id {
+		t.Fatalf("replay: %s, want %d", replay.Result, created.Id)
+	}
+	code, rejected := keyRequest(t, router, path, body, token, "author-policy-new")
+	if code != http.StatusOK || rejected.Code != 1 || rejected.MessageCode != "topic.agentRepliesDisabled" {
+		t.Fatalf("new reply: %d %#v", code, rejected)
+	}
+	var count int64
+	if err := conn.Model(&posts.Entity{}).Where("topic_id = ?", base).Count(&count).Error; err != nil || count != 2 {
+		t.Fatalf("posts = %d, err=%v", count, err)
 	}
 }

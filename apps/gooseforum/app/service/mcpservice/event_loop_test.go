@@ -2,6 +2,7 @@ package mcpservice
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicpolicyservice"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"gorm.io/gorm"
 )
@@ -108,6 +110,26 @@ func TestMCPInteractionReplyReplayACKAndRevocation(t *testing.T) {
 	replay := call("create_post", args)
 	if asUint(first["id"]) == 0 || asUint(first["id"]) != asUint(replay["id"]) {
 		t.Fatalf("reply/replay %s / %s", mustJSON(first), mustJSON(replay))
+	}
+
+	// The topic owner can stop new replies without invalidating a committed write.
+	if _, err := topicpolicyservice.SetAgentRepliesDisabled(context.Background(), topic.Id, human.Id, true); err != nil {
+		t.Fatal(err)
+	}
+	ratelimit.Default().ResetAll()
+	replay = call("create_post", args)
+	if asUint(replay["id"]) != asUint(first["id"]) {
+		t.Fatalf("owner-policy replay %s", mustJSON(replay))
+	}
+	blockedArgs := make(map[string]any, len(args))
+	for key, value := range args {
+		blockedArgs[key] = value
+	}
+	blockedArgs["idempotencyKey"] = "new-reply:" + eventID
+	ratelimit.Default().ResetAll()
+	blocked, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "create_post", Arguments: blockedArgs})
+	if err != nil || !blocked.IsError || !strings.Contains(mustJSON(blocked.Content), "topic.agentRepliesDisabled") {
+		t.Fatalf("new reply after owner policy: %+v %v", blocked, err)
 	}
 	var count int64
 	if err := conn.Model(&posts.Entity{}).Where("topic_id = ? AND user_id = ?", topic.Id, id).Count(&count).Error; err != nil || count != 1 {

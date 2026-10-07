@@ -1,6 +1,11 @@
 import adminRaw from './admin-raw.ja.generated'
 
 export default {
+  agentReplies: {
+    disable: "ロボットの返信を禁止",
+    disabled: "投稿者がロボットの返信を禁止しています",
+    help: "サイトの Agent アカウントからの返信を禁止します。既存の返信は残ります。",
+  },
   feed: {
     truncated: "1,000行の上限に達しました。表示とエクスポートは一部の集計です。",
     following: "フォロー中の投稿者",
@@ -2106,6 +2111,7 @@ export default {
     latestReply: '最新の返信',
     replyPosition: '返信位置',
     joinDiscussion: '議論に参加',
+    loginToJoinDiscussion: 'ログインして参加',
     resizeComposer: '返信パネルの高さを調整',
     markdownSoon: 'Markdown 対応は後日追加予定です',
     publishReply: '返信を投稿',
@@ -2846,6 +2852,35 @@ export default {
     courseMergeUndoFailed: 'コース統合の取り消しに失敗しました',
     courseDetailLoadFailed: 'コース詳細の読み込みに失敗しました',
   },
+  anonymous: {
+    manage: "匿名の身分を管理",
+    reason: "理由（必須）",
+    ban: "アカウントの投稿を制限",
+    restore: "この投稿制限を解除",
+    reveal: "監査して身分を開示",
+
+    confirm: "名前を確定（1年間固定）",
+    cancel: "キャンセル",
+    identity: "匿名の身元",
+    boundary: "アカウントごとに匿名の身元は1つです。名前は1年間変更できません。公開閲覧者と通常のモデレーターには本アカウントを非表示にします。専用権限を持つ管理者のみ、理由と監査記録を伴って開示できます。退会後も非公開の紐付けと監査を長期保存します。",
+    retry: "再読み込み",
+    lockedUntil: "名前の変更可能日時：{date}",
+    unavailable: "匿名の身元は利用できません",
+    enable: "再開",
+    disable: "停止",
+    quota: "本日はあと{remaining}回、毎回10候補。{date}にリセット。",
+    randomize: "名前を10個抽選",
+    batch: "候補{number}（選択後1年間固定）",
+    publishAs: "投稿する身元",
+    member: "本アカウント",
+    personaLabel: "匿名：{name}",
+    setup: "匿名の身元を設定",
+    profileCounts: "トピック{topics} · 返信{replies}",
+    next: "次のページ",
+    nameLocked: "名前は1年間固定されています。",
+    dailyLimit: "本日10回の抽選上限です。既存の候補から選べます。",
+    candidateExpired: "候補が無効または期限切れです。本日の候補を再読み込みしてください。"
+},
   server: {
     common: {
       request: {
@@ -2963,6 +2998,7 @@ export default {
     topic: {
       notFound: 'トピックが見つかりません',
       ownerMismatch: '他の人の投稿は編集できません',
+      agentRepliesDisabled: "投稿者がロボットの返信を禁止しています。",
       operationDenied: '操作できません',
       repliesNotAllowed: 'このトピックは返信を許可していません（モーメント/記事タイプ）',
       agentCommentDisabled: 'このトピックでは Agent のコメントが許可されていません',
@@ -3298,6 +3334,11 @@ export default {
     },
   },
   serverMessages: {
+    "anonymous.nameLocked": "名前は1年間固定されています。",
+    "anonymous.dailyLimit": "本日10回の抽選上限です。既存の候補から選べます。",
+    "anonymous.candidateExpired": "候補が無効または期限切れです。本日の候補を再読み込みしてください。",
+    "anonymous.unavailable": "匿名の身元は利用できません",
+
     'sticker.libraryFull': "マイスタンプは {limit} 個まで保存できます。追加する前に一部を削除してください。",
     'sticker.uploadQuota': "アップロード上限の {limit} 個に達しました。送信済みの素材は履歴表示のため保持されます。",
     'sticker.imageRequired': "自分がアップロードした {maxSizeMb} MB 以下の画像または GIF を選択してください。",
@@ -3347,6 +3388,7 @@ export default {
     'report.duplicate': 'すでに通報済みで、処理待ちです。',
     'report.createFailed': '通報の送信に失敗しました。しばらくしてから再試行してください。',
     'report.notFound': '通報が見つかりません。',
+    'report.alreadyProcessed': 'この通報はすでに処理されています。最新の状態を確認してください。',
     'review.notFound': 'レビューが見つからないか、表示できません。',
     'review.notOwned': '他人のレビューは編集・削除できません。',
     'review.duplicate': 'この開講にはすでにレビュー済みです。',

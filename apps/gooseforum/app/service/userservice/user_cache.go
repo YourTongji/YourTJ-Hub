@@ -26,29 +26,30 @@ var errUserNotFound = errors.New("user not found")
 // UserInfo is the sanitized user snapshot cached by userservice.
 // It intentionally excludes password hashes and model-only deletion metadata.
 type UserInfo struct {
-	Id                  uint64
-	Username            string
-	Email               string
-	Locale              string
-	TokenVersion        uint64
-	IsFrozen            int8
-	IsActivated         int8
-	ActivatedAt         *time.Time
-	ActorType           int8
-	Nickname            string
-	RoleId              uint64
-	Prestige            int64
-	AvatarUrl           string
-	ProfileCoverUrl     string
-	Bio                 string
-	Signature           string
-	WebsiteName         string
-	Website             string
-	ExternalInformation users.ExternalInformation
-	DisplayBadgeCodes   string
-	WornBadgeCode       string
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	AnonymousGovernanceBlocked bool
+	Id                         uint64
+	Username                   string
+	Email                      string
+	Locale                     string
+	TokenVersion               uint64
+	IsFrozen                   int8
+	IsActivated                int8
+	ActivatedAt                *time.Time
+	ActorType                  int8
+	Nickname                   string
+	RoleId                     uint64
+	Prestige                   int64
+	AvatarUrl                  string
+	ProfileCoverUrl            string
+	Bio                        string
+	Signature                  string
+	WebsiteName                string
+	Website                    string
+	ExternalInformation        users.ExternalInformation
+	DisplayBadgeCodes          string
+	WornBadgeCode              string
+	CreatedAt                  time.Time
+	UpdatedAt                  time.Time
 }
 
 // UserPublicInfo contains only fields needed by public display surfaces.
@@ -209,29 +210,30 @@ func refreshUserInfo(user users.EntityComplete) {
 
 func userInfoFromEntity(user users.EntityComplete) UserInfo {
 	return UserInfo{
-		Id:                  user.Id,
-		Username:            user.Username,
-		Email:               user.Email,
-		Locale:              user.Locale,
-		TokenVersion:        user.TokenVersion,
-		IsFrozen:            user.IsFrozen,
-		IsActivated:         user.IsActivated,
-		ActivatedAt:         user.ActivatedAt,
-		ActorType:           user.ActorType,
-		Nickname:            user.Nickname,
-		RoleId:              user.RoleId,
-		Prestige:            user.Prestige,
-		AvatarUrl:           user.AvatarUrl,
-		ProfileCoverUrl:     user.ProfileCoverUrl,
-		Bio:                 user.Bio,
-		Signature:           user.Signature,
-		WebsiteName:         user.WebsiteName,
-		Website:             user.Website,
-		ExternalInformation: user.ExternalInformation,
-		WornBadgeCode:       user.WornBadgeCode,
-		DisplayBadgeCodes:   user.DisplayBadgeCodes,
-		CreatedAt:           user.CreatedAt,
-		UpdatedAt:           user.UpdatedAt,
+		Id:                         user.Id,
+		Username:                   user.Username,
+		Email:                      user.Email,
+		Locale:                     user.Locale,
+		TokenVersion:               user.TokenVersion,
+		IsFrozen:                   user.IsFrozen,
+		AnonymousGovernanceBlocked: user.AnonymousGovernanceBlocked,
+		IsActivated:                user.IsActivated,
+		ActivatedAt:                user.ActivatedAt,
+		ActorType:                  user.ActorType,
+		Nickname:                   user.Nickname,
+		RoleId:                     user.RoleId,
+		Prestige:                   user.Prestige,
+		AvatarUrl:                  user.AvatarUrl,
+		ProfileCoverUrl:            user.ProfileCoverUrl,
+		Bio:                        user.Bio,
+		Signature:                  user.Signature,
+		WebsiteName:                user.WebsiteName,
+		Website:                    user.Website,
+		ExternalInformation:        user.ExternalInformation,
+		WornBadgeCode:              user.WornBadgeCode,
+		DisplayBadgeCodes:          user.DisplayBadgeCodes,
+		CreatedAt:                  user.CreatedAt,
+		UpdatedAt:                  user.UpdatedAt,
 	}
 }
 
@@ -258,29 +260,30 @@ func (user UserInfo) toPublicInfo() UserPublicInfo {
 
 func (user UserInfo) toEntity() users.EntityComplete {
 	return users.EntityComplete{
-		Id:                  user.Id,
-		Username:            user.Username,
-		Email:               user.Email,
-		Locale:              user.Locale,
-		TokenVersion:        user.TokenVersion,
-		IsFrozen:            user.IsFrozen,
-		IsActivated:         user.IsActivated,
-		ActivatedAt:         user.ActivatedAt,
-		ActorType:           user.ActorType,
-		Nickname:            user.Nickname,
-		RoleId:              user.RoleId,
-		Prestige:            user.Prestige,
-		AvatarUrl:           user.AvatarUrl,
-		ProfileCoverUrl:     user.ProfileCoverUrl,
-		Bio:                 user.Bio,
-		Signature:           user.Signature,
-		WebsiteName:         user.WebsiteName,
-		Website:             user.Website,
-		ExternalInformation: user.ExternalInformation,
-		WornBadgeCode:       user.WornBadgeCode,
-		DisplayBadgeCodes:   user.DisplayBadgeCodes,
-		CreatedAt:           user.CreatedAt,
-		UpdatedAt:           user.UpdatedAt,
+		Id:                         user.Id,
+		Username:                   user.Username,
+		Email:                      user.Email,
+		Locale:                     user.Locale,
+		TokenVersion:               user.TokenVersion,
+		IsFrozen:                   user.IsFrozen,
+		AnonymousGovernanceBlocked: user.AnonymousGovernanceBlocked,
+		IsActivated:                user.IsActivated,
+		ActivatedAt:                user.ActivatedAt,
+		ActorType:                  user.ActorType,
+		Nickname:                   user.Nickname,
+		RoleId:                     user.RoleId,
+		Prestige:                   user.Prestige,
+		AvatarUrl:                  user.AvatarUrl,
+		ProfileCoverUrl:            user.ProfileCoverUrl,
+		Bio:                        user.Bio,
+		Signature:                  user.Signature,
+		WebsiteName:                user.WebsiteName,
+		Website:                    user.Website,
+		ExternalInformation:        user.ExternalInformation,
+		WornBadgeCode:              user.WornBadgeCode,
+		DisplayBadgeCodes:          user.DisplayBadgeCodes,
+		CreatedAt:                  user.CreatedAt,
+		UpdatedAt:                  user.UpdatedAt,
 	}
 }
 

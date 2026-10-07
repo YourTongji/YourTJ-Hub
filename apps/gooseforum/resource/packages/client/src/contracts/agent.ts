@@ -26,6 +26,7 @@ export interface AgentMeResult {
 }
 
 export interface AgentTopicItem {
+  agentRepliesDisabled?: boolean
   id: number
   title: string
   excerpt: string

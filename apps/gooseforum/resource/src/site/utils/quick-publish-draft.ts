@@ -7,6 +7,8 @@ const STORAGE_PREFIX = 'gf:quick-publish-draft:v2'
 const MAX_DRAFT_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 export interface QuickPublishDraftStash {
+  agentRepliesDisabled?: boolean
+ identity?: 'member' | 'persona'
   title: string
   content: string
   categoryIds: number[]
@@ -23,6 +25,8 @@ function isStash(value: unknown): value is QuickPublishDraftStash {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const record = value as Record<string, unknown>
   return (
+    (record.agentRepliesDisabled === undefined || typeof record.agentRepliesDisabled === 'boolean') &&
+    (record.identity === undefined || record.identity === 'member' || record.identity === 'persona') &&
     typeof record.title === 'string' &&
     typeof record.content === 'string' &&
     Array.isArray(record.categoryIds) &&
