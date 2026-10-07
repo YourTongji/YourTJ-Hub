@@ -135,7 +135,7 @@ test('expired cursor retains loaded cards and asks for explicit refresh', async 
 test('empty recommendation pool has bounded wording and a usable refresh', async () => {
   const { page } = await setupPage(390, { empty: true })
   try {
-    await page.getByText('当前推荐池暂无未看过的帖子').waitFor()
+    await page.getByText('这一批已经看完了').waitFor()
     assert.equal(await page.locator('.gf-home-refresh-button').count(), 1)
     await page.screenshot({ path: join(screenshots, 'empty-390.png') })
   } finally { await page.close() }

@@ -24,10 +24,10 @@ for (const lang of ['zh', 'en', 'ja', 'de']) {
         })
         await page.goto(`${origin}/assets/test/fixtures/browser/course-materialize.html?lang=${lang}`)
         await page.waitForSelector('html[data-ready="true"]')
-        await page.locator('button').click()
+        await page.getByTestId('materialize-submit').click()
         await page.locator('[role="status"]').waitFor()
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'page must not overflow horizontally')
-        const button = await page.locator('button').boundingBox()
+        const button = await page.getByTestId('materialize-submit').boundingBox()
         assert.ok(button && button.x >= 0 && button.x + button.width <= width, 'action remains in viewport')
         if (process.env.COURSE_MATERIALIZE_SCREENSHOT && lang === 'zh' && width === 1024) {
           await page.screenshot({ path: process.env.COURSE_MATERIALIZE_SCREENSHOT, fullPage: true })

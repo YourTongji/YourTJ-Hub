@@ -1004,7 +1004,7 @@ async function handleSubmit() {
         </div>
 
         <!-- 弹层底部操作栏：弱底色、圆角平滑过渡、主次操作分明 -->
-        <div class="px-4 sm:px-6 py-2 sm:py-2.5 border-t border-line/60 bg-base-200/20 flex items-center justify-between gap-3 shrink-0">
+        <div class="px-4 sm:px-6 py-2 sm:py-2.5 border-t border-line/60 bg-base-200/20 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 shrink-0">
           <!-- 左侧：发布身份（紧邻发布按钮）与图片处理提示 -->
           <div class="text-xs text-base-content/50 flex items-center gap-2 min-w-0 -ms-1.5">
             <IdentityPicker :key="props.layout.viewer.id" :viewer="props.layout.viewer" v-model="identity" :disabled="!!quickPublishEditPayload" class="min-w-0" />
@@ -1014,8 +1014,8 @@ async function handleSubmit() {
             </span>
           </div>
 
-          <!-- 右侧：取消 / 保存草稿（新建模式）/ 立即发布（严格遵循 active:scale-[0.96] 微反馈） -->
-          <div class="flex shrink-0 items-center gap-2">
+          <!-- 右侧：取消 / 保存草稿（新建模式）/ 立即发布（严格遵循 active:scale-[0.96] 微反馈）；放大字号时整组换行而不溢出 -->
+          <div class="ms-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
             <button
               type="button"
               class="gf-button gf-button-secondary rounded-xl text-xs px-3.5 py-1.5 sm:px-4 sm:py-2 transition-all duration-150 hover:bg-base-200/80 active:scale-[0.96]"
