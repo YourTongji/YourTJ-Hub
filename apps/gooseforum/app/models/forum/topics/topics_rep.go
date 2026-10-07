@@ -559,10 +559,15 @@ func UpdateProcessStatus(id uint64, processStatus int8) error {
 // UpdateProcessStatusTx updates moderation state and lets callers enqueue an
 // outbox task in the same transaction.
 func UpdateProcessStatusTx(tx *gorm.DB, id uint64, processStatus int8) error {
-	if err := tx.Table(tableName).Where(queryopt.Eq("id", id)).UpdateColumn("process_status", processStatus).Error; err != nil {
-		return err
+	result := tx.Table(tableName).Where(queryopt.Eq("id", id)).UpdateColumn("process_status", processStatus)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
 	}
 	return feed.MarkTx(tx, id)
+
 }
 
 // UpdateStatusTx updates publish status inside a caller-owned transaction.

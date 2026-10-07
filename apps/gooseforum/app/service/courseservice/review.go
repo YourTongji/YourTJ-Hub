@@ -619,69 +619,75 @@ func ListReviewsByCourse(courseId, viewerId uint64) ([]ReviewPayload, error) {
 // 幂等成功（已被并发转为目标态）或 404（已被删除）。
 func SetReviewVisibility(reviewId uint64, hidden bool) error {
 	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
-		entity, err := course.GetReviewTx(tx, reviewId)
-		if err != nil {
-			return ErrReviewNotFound
-		}
-		if entity.Status == course.ReviewStatusDeleted {
-			return ErrReviewNotFound
-		}
-		target := course.ReviewStatusVisible
-		if hidden {
-			target = course.ReviewStatusHidden
-		}
-		if entity.Status == target {
-			return nil
-		}
-		converted, err := course.UpdateReviewStatusFromTx(tx, reviewId, entity.Status, target)
-		if err != nil {
-			return err
-		}
-		if !converted {
-			// 并发状态转换已发生：重新读取，按最新状态判定幂等成功或 404。
-			latest, err := course.GetReviewTx(tx, reviewId)
-			if err != nil {
-				return ErrReviewNotFound
-			}
-			if latest.Status == target {
-				return nil
-			}
-			return ErrReviewNotFound
-		}
-		offering, err := course.GetOfferingTx(tx, entity.OfferingId)
-		if err != nil {
-			return err
-		}
-		delta := 1
-		if hidden {
-			delta = -1
-		}
-		rating := 0
-		if entity.Rating != nil {
-			rating = *entity.Rating
-		}
-		// 隐藏/恢复时同步调整 stats 投影；无 rating 的 legacy 评价只影响 review_count。
-		if rating > 0 {
-			if err := course.UpsertCourseStatsTx(tx, offering.CourseId, delta, delta*rating, delta); err != nil {
-				return err
-			}
-			if err := course.UpsertOfferingStatsTx(tx, offering.Id, delta, delta*rating, delta); err != nil {
-				return err
-			}
-		} else {
-			if err := course.UpsertCourseStatsTx(tx, offering.CourseId, 0, 0, delta); err != nil {
-				return err
-			}
-			if err := course.UpsertOfferingStatsTx(tx, offering.Id, 0, 0, delta); err != nil {
-				return err
-			}
-		}
-		// 可见性变化改变 summary 输入 → 失效 AI 总结缓存。
-		if err := course.DeleteCourseAiSummaryTx(tx, offering.CourseId); err != nil {
-			return err
-		}
-		return nil
+		_, err := SetReviewVisibilityTx(tx, reviewId, hidden)
+		return err
 	})
+}
+
+// SetReviewVisibilityTx applies a review visibility change inside the caller's transaction.
+func SetReviewVisibilityTx(tx *gorm.DB, reviewId uint64, hidden bool) (bool, error) {
+	entity, err := course.GetReviewTx(tx, reviewId)
+	if err != nil {
+		return false, ErrReviewNotFound
+	}
+	if entity.Status == course.ReviewStatusDeleted {
+		return false, ErrReviewNotFound
+	}
+	target := course.ReviewStatusVisible
+	if hidden {
+		target = course.ReviewStatusHidden
+	}
+	if entity.Status == target {
+		return false, nil
+	}
+	converted, err := course.UpdateReviewStatusFromTx(tx, reviewId, entity.Status, target)
+	if err != nil {
+		return false, err
+	}
+	if !converted {
+		// 并发状态转换已发生：重新读取，按最新状态判定幂等成功或 404。
+		latest, err := course.GetReviewTx(tx, reviewId)
+		if err != nil {
+			return false, ErrReviewNotFound
+		}
+		if latest.Status == target {
+			return false, nil
+		}
+		return false, ErrReviewNotFound
+	}
+	offering, err := course.GetOfferingTx(tx, entity.OfferingId)
+	if err != nil {
+		return false, err
+	}
+	delta := 1
+	if hidden {
+		delta = -1
+	}
+	rating := 0
+	if entity.Rating != nil {
+		rating = *entity.Rating
+	}
+	// 隐藏/恢复时同步调整 stats 投影；无 rating 的 legacy 评价只影响 review_count。
+	if rating > 0 {
+		if err := course.UpsertCourseStatsTx(tx, offering.CourseId, delta, delta*rating, delta); err != nil {
+			return false, err
+		}
+		if err := course.UpsertOfferingStatsTx(tx, offering.Id, delta, delta*rating, delta); err != nil {
+			return false, err
+		}
+	} else {
+		if err := course.UpsertCourseStatsTx(tx, offering.CourseId, 0, 0, delta); err != nil {
+			return false, err
+		}
+		if err := course.UpsertOfferingStatsTx(tx, offering.Id, 0, 0, delta); err != nil {
+			return false, err
+		}
+	}
+	// 可见性变化改变 summary 输入 → 失效 AI 总结缓存。
+	if err := course.DeleteCourseAiSummaryTx(tx, offering.CourseId); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // listReviewPayloads 批量构造公开 DTO：匿名/legacy 评价不泄漏身份；

@@ -3249,6 +3249,7 @@ export default {
     'report.duplicate': '已举报，等待处理。',
     'report.createFailed': '举报提交失败，请稍后重试。',
     'report.notFound': '举报不存在。',
+    'report.alreadyProcessed': '这条举报已被处理，请查看最新状态。',
     'review.notFound': '评价不存在或不可见。',
     'review.notOwned': '不能修改或删除他人的评价。',
     'review.duplicate': '你已评价过该开课实例。',

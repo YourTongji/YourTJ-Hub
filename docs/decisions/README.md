@@ -152,5 +152,7 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0063](0063-oryn-review-once-per-version.md) — Keep six-hour Oryn catch-up and deduplicate completed automatic reviews by source version.
 - [0064](0064-moderation-approval-notify-channels.md) — 版主审批通知走 HTTP 通知的通道适配器（通用 JSON／飞书卡片／AstrBot 文本），快捷操作只打开签名确认页并按当前会话复核权限。
 
+
 - [0065](0065-bounded-feed-ranking-and-measurement.md) — Bound materialized ranking, finite personalization and account-level measurement with 30-day raw retention.
 - [0066](0066-persistent-anonymous-forum-persona.md) — 持久匿名 persona、私有绑定和受限审计；全 THUOCL 候选与账号共享配额。
+- [0067](0067-bounded-http-notification-retries.md) — HTTP 通知失败复用持久任务队列做有限重试，并与举报结案保持原子一致。

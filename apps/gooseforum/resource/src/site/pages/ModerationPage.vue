@@ -3,7 +3,7 @@ import { userDisplayName } from '@/runtime/private-notes'
 import { ref, watch } from 'vue'
 import { Ban, CircleAlert, Flag, History, Loader2, RotateCcw, Scale, ShieldCheck, X, XCircle } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
-import { fetchModerationLogs, fetchModerationReports, updateModerationTopicStatus, updateModerationPostStatus, updateModerationReportStatus, viewDeletedContent } from '@/runtime/api'
+import { ApiResponseError, fetchModerationLogs, fetchModerationReports, updateModerationTopicStatus, updateModerationPostStatus, updateModerationReportStatus, viewDeletedContent } from '@/runtime/api'
 import { formatDateTime } from '@/runtime/format'
 import { fetchPage } from '@/runtime/router'
 import { showUserCard } from '@/runtime/user-card-events'
@@ -179,6 +179,12 @@ function reportBusy(id: number) {
   return reportBusyIds.value.includes(id)
 }
 
+async function refreshAfterProcessedReport(error: unknown) {
+  if (!(error instanceof ApiResponseError) || error.messageCode !== 'report.alreadyProcessed') return
+  await loadModerationReports(true)
+  resetModerationLogs()
+}
+
 async function handleReport(item: ModerationReportItem, action: 'resolve' | 'reject') {
   if (reportBusy(item.id)) return
   reportBusyIds.value = [...reportBusyIds.value, item.id]
@@ -191,6 +197,7 @@ async function handleReport(item: ModerationReportItem, action: 'resolve' | 'rej
     logNextCursor.value = 0
     logHasNext.value = true
   } catch (error) {
+    await refreshAfterProcessedReport(error)
     reportError.value = error instanceof Error ? error.message : t('api.moderationActionFailed')
   } finally {
     reportBusyIds.value = reportBusyIds.value.filter(id => id !== item.id)
@@ -202,11 +209,6 @@ async function hideReportTarget(item: ModerationReportItem) {
   reportBusyIds.value = [...reportBusyIds.value, item.id]
   reportError.value = ''
   try {
-    if (item.targetType === 'topic') {
-      await updateModerationTopicStatus(item.targetId, 'ban')
-    } else {
-      await updateModerationPostStatus(item.targetId, 'ban')
-    }
     await updateModerationReportStatus(item.id, 'ban')
     reportItems.value = reportItems.value.filter(report => report.id !== item.id)
     if (item.targetType === 'topic') {
@@ -217,6 +219,7 @@ async function hideReportTarget(item: ModerationReportItem) {
     logNextCursor.value = 0
     logHasNext.value = true
   } catch (error) {
+    await refreshAfterProcessedReport(error)
     reportError.value = error instanceof Error ? error.message : t('api.moderationActionFailed')
   } finally {
     reportBusyIds.value = reportBusyIds.value.filter(id => id !== item.id)

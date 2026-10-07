@@ -3247,6 +3247,7 @@ export default {
     'report.duplicate': 'Already reported and waiting for review.',
     'report.createFailed': 'Failed to submit report. Please try again later.',
     'report.notFound': 'Report not found.',
+    'report.alreadyProcessed': 'This report has already been handled. Check its latest status.',
     'review.notFound': 'Review not found or not visible.',
     'review.notOwned': 'You cannot edit or delete others\' reviews.',
     'review.duplicate': 'You have already reviewed this offering.',
