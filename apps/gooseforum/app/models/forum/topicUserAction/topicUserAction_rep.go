@@ -33,12 +33,16 @@ func GetByTopicId(userId, topicId any) (entity Entity) {
 
 // GetByTopicIDs loads one viewer's interaction state in a single bounded page query.
 func GetByTopicIDs(userID uint64, topicIDs []uint64) (map[uint64]Entity, error) {
+	return GetByTopicIDsContext(context.Background(), userID, topicIDs)
+}
+
+func GetByTopicIDsContext(ctx context.Context, userID uint64, topicIDs []uint64) (map[uint64]Entity, error) {
 	result := make(map[uint64]Entity)
 	if userID == 0 || len(topicIDs) == 0 {
 		return result, nil
 	}
 	var rows []Entity
-	err := builder().Select("topic_id", "liked_at", "bookmarked_at").Where("user_id = ? AND topic_id IN ?", userID, topicIDs).Find(&rows).Error
+	err := builder().WithContext(ctx).Select("topic_id", "liked_at", "bookmarked_at").Where("user_id = ? AND topic_id IN ?", userID, topicIDs).Find(&rows).Error
 	for _, row := range rows {
 		result[row.TopicId] = row
 	}

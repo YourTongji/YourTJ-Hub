@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-04
+> Last verified: 2026-10-07
 
 ## Contract status
 
@@ -699,7 +699,14 @@ with one serving worker, bounded owner queries and transactionally coalesced dir
 fences raw ingestion before cleanup. The default parameter and period records contain no credentials.
 
 The page protocol negotiates exact feed capability v2 and carries optional actualSort/degradeReason,
-feedTrace/position/reason. Personal cursors bind account, hash, offset and process epoch. New observation
+feedTrace/position/reason, snapshotId and grouped seenProofs. Seen proofs bind owner, public topic positions,
+process epoch and displayed-content cutoff, independently of analytics. The shared events transport
+commits functional seen claims before ACK; legacy metric-only requests still return boolean acceptance.
+Refresh confirms pending claims before creating a new snapshot; reconciliation hydrates only loaded IDs
+and never applies seen suppression to them. `feed_seen_state` stores one owner/topic aggregate, expires
+30 days after qualified exposure, participates in account-close fencing/cleanup and is excluded from
+regular backups. It neither extends the global detail-visit unread state nor creates public rank credits.
+Personal cursors bind account, hash, offset and process epoch. New observation
 and admin aggregate routes are covered in OpenAPI, route snapshots, TS and Dart mirrors. Native actions
 carry optional signed source headers; absent context remains unclassified or separately inferred.
 [Feed product](../product/feed-ranking.md) and [operations](../operations/feed-ranking.md) own the

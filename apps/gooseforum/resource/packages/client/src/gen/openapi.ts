@@ -2474,6 +2474,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/feed/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Build a fresh For You batch after confirming pending seen state
+         * @description Confirms pending seen claims before a new bounded 300-candidate build. Returns a fresh snapshot and at most 20 cards. Publishes only after the complete response is prepared, replacing the identified owner-bound snapshot rather than another live history session. Strictly excludes seen topics unless an eligible current public reply by another account first became public after the displayed cutoff. Failure preserves the caller browsing batch and valid continuation; no fallback/latest batch is returned. Shares the 200 ms total deadline and event rate limit.
+         */
+        post: operations["refreshForYou"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/feed/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reconcile only loaded For You cards in caller order
+         * @description Rechecks at most 120 unique IDs and returns current public eligible survivors plus removedIds. Does not recall, rerank, apply seen suppression, create a cursor or record served. available signals whether continuation is enabled. Returns current displayed-content proofs, independent of metrics. A transient failure is not an authoritative deletion.
+         */
+        post: operations["reconcileForYou"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/feed/events": {
         parameters: {
             query?: never;
@@ -2484,16 +2524,23 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Merge authenticated visible and foreground dwell observations
-         * @description Maximum body 32 KiB and 50 patches; account-bound HMAC trace expires within
+         * Confirm viewport seen state and merge feed observations
+         * @description Maximum body 32 KiB and 50 combined patches/seenPatches; account-bound HMAC trace expires within
          *     six hours. Only its 20 server-served positions are valid. Visible masks
          *     merge with OR and foreground dwell with max, in five-second steps capped
          *     at 600 seconds. The server alone records a successful public detail open.
          *     Client observations are measurement proxies, never points or global rank
          *     credits. Cookie requests require same-origin CSRF validation. Each account
          *     gets 12 batches/minute, burst 24; a global 200/s, burst 400 cap also applies.
-         *     HTTP 200 confirms bounded queue acceptance, not durable storage. When
-         *     metrics are disabled it is a no-op. Fields unknown to JSON binding are ignored.
+         *     Legacy patches return boolean true for bounded queue acceptance and are a
+         *     no-op when metrics are disabled. seenPatches use a separate account-bound
+         *     30-minute proof with displayed-content cutoff and elapsed milliseconds
+         *     after receipt (50% visible for one continuous foreground second).
+         *     At most 120 distinct topic claims are committed synchronously, independent
+         *     of metrics; seenConfirmed is returned only after commit. Duplicate/older
+         *     proofs cannot extend 30-day retention or regress the cutoff. A full metrics
+         *     queue cannot undo a seen ACK. No client opened/rank/points credit is minted.
+         *     Fields unknown to JSON binding are ignored.
          */
         post: operations["captureFeedEvents"];
         delete?: never;
@@ -12872,6 +12919,10 @@ export interface components {
             color: string;
         };
         TopicPayload: {
+            feedTrace?: string;
+            feedPosition?: number;
+            feedReason?: string;
+            contentType?: number;
             /** Format: uint64 */
             id: number;
             title: string;
@@ -13705,6 +13756,46 @@ export interface components {
         DisplayBadgesRequest: {
             badgeCodes: string[];
         };
+        FeedSeenPatch: {
+            proof: string;
+            seen: {
+                [key: string]: number;
+            };
+        };
+        FeedRefreshRequest: {
+            /** @description Current owner-bound browsing snapshot to replace after successful hydration. Optional for a new or expired session; never replaces another live session when this ID was already consumed. */
+            replaceSnapshotId?: string;
+            seenPatches?: components["schemas"]["FeedSeenPatch"][];
+        };
+        FeedSeenProof: {
+            token: string;
+            topicIds: number[];
+            /** Format: int64 */
+            issuedAt: number;
+            /** Format: int64 */
+            expiresAt: number;
+        };
+        FeedSessionResult: {
+            /** Format: uint64 */
+            viewerId: number;
+            topics: components["schemas"]["TopicPayload"][];
+            removedIds: number[];
+            seenProofs: components["schemas"]["FeedSeenProof"][];
+            snapshotId: string;
+            pagination?: components["schemas"]["PaginationPayload"];
+            available: boolean;
+            seenConfirmed: boolean;
+        };
+        FeedSessionResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["FeedSessionResult"];
+            message?: string;
+            messageCode?: string;
+        };
+        FeedReconcileRequest: {
+            topicIds: number[];
+        };
         FeedEventPatch: {
             trace: string;
             visibleMask: number;
@@ -13713,13 +13804,17 @@ export interface components {
             };
         };
         FeedEventsRequest: {
-            patches: components["schemas"]["FeedEventPatch"][];
+            patches?: components["schemas"]["FeedEventPatch"][];
+            seenPatches?: components["schemas"]["FeedSeenPatch"][];
+        };
+        FeedSeenAck: {
+            /** @constant */
+            seenConfirmed: true;
         };
         FeedEventsResponse: {
             /** @constant */
             code: 0;
-            /** @constant */
-            result: true;
+            result: true | components["schemas"]["FeedSeenAck"];
             message?: string;
             messageCode?: string;
         };
@@ -18889,6 +18984,144 @@ export interface operations {
             };
         };
     };
+    refreshForYou: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedRefreshRequest"];
+            };
+        };
+        responses: {
+            /** @description Owner-bound successful result. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedSessionResponse"];
+                };
+            };
+            /** @description Invalid body, proof or IDs. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cookie CSRF validation failed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared event rate limit reached. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Feed unavailable, deadline or storage failure; keep existing batch. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    reconcileForYou: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedReconcileRequest"];
+            };
+        };
+        responses: {
+            /** @description Owner-bound successful result. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedSessionResponse"];
+                };
+            };
+            /** @description Invalid body, proof or IDs. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cookie CSRF validation failed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared event rate limit reached. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Feed unavailable, deadline or storage failure; keep existing batch. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     captureFeedEvents: {
         parameters: {
             query?: never;
@@ -18942,6 +19175,15 @@ export interface operations {
             429: {
                 headers: {
                     "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Seen-state storage failed or deadline expired; keep pending claims. */
+            503: {
+                headers: {
                     [name: string]: unknown;
                 };
                 content: {

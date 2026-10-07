@@ -166,3 +166,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0075](0075-restricted-anonymous-administration.md) — 受限的匿名身份后台管理；显式身份揭示与用户管理权限、逐页私有审计。
 - [0076](0076-anonymous-profile-content-privacy.md) — 匿名主页独立的服务端内容展示偏好；关闭时隐藏聚合历史与数量。
 - [0077](0077-scoped-software-and-data-licenses.md) — YourTJ 软件使用 GPL-3.0-only，上游 GooseForum 保留 MIT，Wiki 与课评数据使用 CC BY-NC-SA 4.0。
+- [0078](0078-for-you-viewport-seen-and-browsing-sessions.md) — 可视卡片已见的30天聚合、同步确认和For You历史会话恢复，保持有限候选与统计边界。

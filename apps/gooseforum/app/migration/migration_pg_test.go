@@ -48,6 +48,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 
 	// 关键新表必须存在（issue #8 回归点；agents 为本仓库 Agent 模型新增表）
 	for _, table := range []string{
+		"feed_seen_state",
 		"user_blocks",
 		"user_sessions",
 		"user_totp",
@@ -214,6 +215,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		t.Fatal("Apple revocation column missing after upgrade")
 	}
 	for _, table := range []string{
+		"feed_seen_state",
 		"user_blocks",
 		"user_sessions",
 		"user_totp",

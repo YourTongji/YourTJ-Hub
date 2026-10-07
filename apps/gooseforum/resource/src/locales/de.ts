@@ -1238,6 +1238,11 @@ export default {
     semicolon: '; ',
   },
   topicList: {
+    forYouEmptyTitle: 'Keine ungesehenen Beiträge im aktuellen Empfehlungspool',
+    forYouEmptyDescription: 'Später für neue Beiträge oder Antworten aktualisieren oder Neueste ansehen.',
+    forYouExpired: 'Diese Auswahl ist abgelaufen. Geladene Beiträge bleiben erhalten. Für eine neue Auswahl aktualisieren.',
+    forYouSessionLost: 'Die vorherige Sitzung ist nicht verfügbar. Für eine neue Auswahl aktualisieren.',
+    forYouSeenConfirmationLost: 'Einige Gesehen-Markierungen konnten nicht gespeichert werden. Diese Themen können nach dem Aktualisieren erneut erscheinen.',
     newTopic: 'Neues Thema',
     pinned: 'Hervorgehoben',
     pinnedTopics: 'Hervorgehobene Themen',

@@ -1137,6 +1137,14 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/feed/reconcile"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/feed/refresh"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/follow-user"
   },
   {

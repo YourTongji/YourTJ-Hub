@@ -43,7 +43,9 @@ func TestConfig() Config {
 		DbPath:             ":memory:",
 		MaxIdleConnections: 1,
 		MaxOpenConnections: 1,
-		MaxLifeSeconds:     60,
+		// The only connection owns the in-memory database. Expiring it destroys
+		// every table during a suite that runs longer than the lifetime.
+		MaxLifeSeconds: 0,
 	}
 }
 

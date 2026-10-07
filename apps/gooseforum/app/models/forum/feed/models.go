@@ -180,12 +180,12 @@ type State struct {
 func (State) TableName() string { return "feed_state" }
 
 func Models() []any {
-	return []any{&NewTopicOutcome{}, &ActorWork{}, &Schedule{}, &ViewFact{}, &ActionCredit{}, &Owner{}, &Serve{}, &Observation{}, &Event{}, &Assignment{}, &UserDaily{}, &CandidateSample{}, &RankSnapshot{}, &MetricsDaily{}, &ParamsVersion{}, &State{}, &ActionResult{}, &ExperimentPeriod{}, &PeriodProgress{}}
+	return []any{&SeenState{}, &NewTopicOutcome{}, &ActorWork{}, &Schedule{}, &ViewFact{}, &ActionCredit{}, &Owner{}, &Serve{}, &Observation{}, &Event{}, &Assignment{}, &UserDaily{}, &CandidateSample{}, &RankSnapshot{}, &MetricsDaily{}, &ParamsVersion{}, &State{}, &ActionResult{}, &ExperimentPeriod{}, &PeriodProgress{}}
 }
 
 // RawTables is shared by cleanup/closure/export. Deployment backups use the
 // same list (deploy/scripts/feed-raw-tables.json); its freshness is tested.
-var RawTables = []string{"feed_new_topic_outcome", "feed_actor_work", "feed_period_progress", "feed_action_result", "feed_owner", "topic_view_fact", "topic_action_credit", "feed_serve_log", "feed_page_observation", "feed_event_log", "feed_experiment_assignment", "feed_user_daily", "feed_candidate_sample", "feed_rank_snapshot"}
+var RawTables = []string{"feed_seen_state", "feed_new_topic_outcome", "feed_actor_work", "feed_period_progress", "feed_action_result", "feed_owner", "topic_view_fact", "topic_action_credit", "feed_serve_log", "feed_page_observation", "feed_event_log", "feed_experiment_assignment", "feed_user_daily", "feed_candidate_sample", "feed_rank_snapshot"}
 
 // ActionResult holds compensation state only while the original event can be
 // retained. The first activation date is preserved through repeat toggles.

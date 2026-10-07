@@ -1239,6 +1239,11 @@ export default {
     semicolon: '; ',
   },
   topicList: {
+    forYouEmptyTitle: 'No unseen posts in the current recommendation pool',
+    forYouEmptyDescription: 'Refresh later for new posts or replies, or browse Latest.',
+    forYouExpired: 'This batch has expired. Loaded posts are kept; refresh for a new batch.',
+    forYouSessionLost: 'Your previous browsing session is unavailable. Refresh for a new batch.',
+    forYouSeenConfirmationLost: 'Some seen records could not be saved. These topics may appear again after refresh.',
     newTopic: 'New topic',
     pinned: 'Pinned',
     pinnedTopics: 'Pinned topics',

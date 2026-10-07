@@ -1,4 +1,5 @@
 [
+  "feed_seen_state",
   "feed_owner",
   "topic_view_fact",
   "topic_action_credit",

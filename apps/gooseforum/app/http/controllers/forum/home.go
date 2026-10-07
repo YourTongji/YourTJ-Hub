@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/transform"
@@ -16,6 +17,7 @@ import (
 )
 
 func Home(c *gin.Context) {
+	c.Set("feed.contentAt", time.Now())
 	sort := personalizeDefault(c, c.Query("sort"))
 	if sort == "" {
 		sort = "latest"

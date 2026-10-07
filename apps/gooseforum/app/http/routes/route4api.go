@@ -306,6 +306,8 @@ func apiRoute(ginApp *gin.Engine) {
 
 	forumApi := baseApi.Group("forum")
 	forumApi.POST("feed/events", middleware.CSRFProtection, middleware.JWTAuthCheck, api.FeedEvents)
+	forumApi.POST("feed/refresh", middleware.CSRFProtection, middleware.JWTAuthCheck, forum.FeedRefresh)
+	forumApi.POST("feed/reconcile", middleware.CSRFProtection, middleware.JWTAuthCheck, forum.FeedReconcile)
 	forumApi.GET("get-site-statistics", ginUpNP(api.GetSiteStatistics))
 	forumApi.GET("search", middleware.JWTAuth, UpQueryReq(forum.SearchJSON))
 	forumApi.GET("courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpQueryReq(forum.CourseListJSON))

@@ -78,7 +78,14 @@ func GetByIds(ids []uint64) (entities []*Entity) {
 }
 
 func GetMapByIds(ids []uint64) map[uint64]*Entity {
-	list := GetByIds(ids)
+	return GetMapByIdsContext(context.Background(), ids)
+}
+
+func GetMapByIdsContext(ctx context.Context, ids []uint64) map[uint64]*Entity {
+	var list []*Entity
+	if len(ids) > 0 {
+		builder().WithContext(ctx).Where("id in ?", ids).Find(&list)
+	}
 	result := make(map[uint64]*Entity, len(list))
 	for _, item := range list {
 		if item != nil {

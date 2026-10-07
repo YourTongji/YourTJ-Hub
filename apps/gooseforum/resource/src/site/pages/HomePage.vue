@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { observeFeedRows } from "@/runtime/feed-telemetry"
+import { confirmPendingSeen, feedAccount, observeFeedRows, seenConfirmationLost } from "@/runtime/feed-telemetry"
+import { refreshForYou, reconcileForYou } from '@/runtime/feed-session-api'
+import { activeForYouSession, forYouSessionLost, captureFeedAnchor, restoreFeedAnchor, updateForYouSession } from '@/runtime/for-you-sessions'
 import { GooseClientError } from "@gooseforum/client"
 import { useContentUpdates } from '@/runtime/content-updates'
 import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
@@ -13,7 +15,7 @@ import { countNewTopics, firstPageUrl, prependTopics } from '@/site/utils/home-f
 import EmptyState from '@/site/components/EmptyState.vue'
 import TopicListFooter from '@/site/components/TopicListFooter.vue'
 import TopicList from '@/site/components/TopicList.vue'
-import type { HomeProps, LayoutPayload, PagePayload, TopicPayload } from '@gooseforum/client'
+import type { HomeProps, LayoutPayload, PagePayload, SeenProof, TopicPayload } from '@gooseforum/client'
 
 const page = defineProps<{
   layout: LayoutPayload
@@ -29,6 +31,15 @@ const announcementCollapseStorageKey = 'goose:announcement:collapsed'
 const announcementPanelId = 'gf-announcement-panel'
 
 const topics = ref<TopicPayload[]>([])
+const seenProofs = ref<SeenProof[]>(page.props.seenProofs ?? [])
+const snapshotId = ref(page.props.snapshotId ?? '')
+const cursorExpired = ref(false)
+const isForYouFeed = computed(() => (page.props.actualSort ?? page.props.sort) === 'for_you')
+let sessionActive = true
+let sessionAbort = new AbortController()
+let reconcileRunning = false
+let reconcileQueued = false
+let reconcileTimer: ReturnType<typeof setTimeout> | undefined
 const pagination = ref<HomeProps['pagination']>(page.props.pagination)
 const announcement = ref<HomeProps['announcement']>(page.props.announcement)
 const requiresEmailVerification = ref(page.layout.viewer.requiresEmailVerification)
@@ -59,11 +70,22 @@ let refreshViewportQuery: MediaQueryList | undefined
 let feedRevision = 0
 let stopFeedObserver: (() => void) | undefined
 const feedRoot = ref<HTMLElement | null>(null)
-function observeFeed() { stopFeedObserver?.(); if (feedRoot.value) stopFeedObserver = observeFeedRows(feedRoot.value, () => topics.value) }
-onActivated(() => void nextTick(observeFeed))
+function observeFeed() { stopFeedObserver?.(); if (feedRoot.value) stopFeedObserver = observeFeedRows(feedRoot.value, () => topics.value, () => seenProofs.value) }
+onActivated(() => { sessionActive = true; void nextTick(observeFeed); scheduleReconcile() })
 onMounted(() => void nextTick(observeFeed))
-onDeactivated(() => { stopFeedObserver?.(); stopFeedObserver = undefined })
-onBeforeUnmount(() => stopFeedObserver?.())
+onDeactivated(() => {
+  sessionActive = false; feedRevision++; sessionAbort.abort(); sessionAbort = new AbortController()
+  loadingMore.value = false; refreshing.value = false
+  if (reconcileTimer) clearTimeout(reconcileTimer)
+  stopFeedObserver?.(); stopFeedObserver = undefined
+})
+function foregroundReconcile() { if (!document.hidden) scheduleReconcile() }
+onMounted(() => { window.addEventListener('pageshow', foregroundReconcile); document.addEventListener('visibilitychange', foregroundReconcile) })
+onBeforeUnmount(() => {
+  sessionActive = false; sessionAbort.abort(); stopFeedObserver?.()
+  if (reconcileTimer) clearTimeout(reconcileTimer)
+  window.removeEventListener('pageshow', foregroundReconcile); document.removeEventListener('visibilitychange', foregroundReconcile)
+})
 
 const hasTopics = computed(() => topics.value.length > 0)
 const pendingFeedSort = computed(() => {
@@ -188,9 +210,13 @@ function selectAnnouncement(index: number) {
 }
 
 watch(
-  () => page.pageUrl,
+  () => [page.pageUrl, activeForYouSession.value, page.props],
   () => {
     feedRevision++
+    sessionAbort.abort(); sessionAbort = new AbortController()
+    seenProofs.value = [...(page.props.seenProofs ?? [])]
+    snapshotId.value = page.props.snapshotId ?? ""
+    cursorExpired.value = Boolean(page.props.sessionCursorExpired)
     topics.value = [...page.props.topics]
     pagination.value = page.props.pagination
     announcement.value = page.props.announcement
@@ -205,7 +231,7 @@ watch(
     refreshStatusMessage.value = ''
     void nextTick(observeSentinel)
   },
-  { immediate: true },
+  { immediate: true, flush: 'post' },
 )
 
 watch(
@@ -250,15 +276,69 @@ async function checkForNewTopics() {
   }
 }
 
-useContentUpdates(() => void refreshFirstPage('replace'), () => !!page.layout.viewer?.isAuthenticated)
+function persistSession() {
+  if (isForYouFeed.value && sessionActive) updateForYouSession({ ...page.props,
+    topics: topics.value, pagination: pagination.value, seenProofs: seenProofs.value,
+    snapshotId: snapshotId.value, sessionLost: forYouSessionLost.value, sessionCursorExpired: cursorExpired.value })
+}
+watch([topics, pagination, seenProofs, snapshotId, cursorExpired], persistSession, { deep: true, flush: 'post' })
+
+function scheduleReconcile() {
+  if (!isForYouFeed.value || !sessionActive || document.hidden || reconcileTimer) return
+  if (reconcileRunning) { reconcileQueued = true; return }
+  reconcileTimer = setTimeout(() => { reconcileTimer = undefined; void reconcileLoaded() }, 100)
+}
+async function reconcileLoaded() {
+  if (!isForYouFeed.value || !sessionActive || !topics.value.length || refreshing.value || feedSwitchInProgress.value) return
+  const revision = feedRevision
+  const owner = page.layout.viewer.id
+  const anchor = captureFeedAnchor(feedRoot.value ?? document)
+  reconcileRunning = true
+  try {
+    const result = await reconcileForYou(topics.value.map((topic) => topic.id), sessionAbort.signal)
+    if (revision !== feedRevision || !sessionActive || feedSwitchInProgress.value) return
+    const updated = new Map(result.topics.map((topic) => [topic.id, topic]))
+    const removed = new Set(result.removedIds)
+    topics.value = topics.value.filter((topic) => !removed.has(topic.id)).map((topic) => {
+      const fresh = updated.get(topic.id)
+      return fresh ? { ...topic, ...fresh, feedTrace: topic.feedTrace, feedPosition: topic.feedPosition, feedReason: topic.feedReason } : topic
+    })
+    seenProofs.value = result.seenProofs
+    if (!result.available) cursorExpired.value = true
+    await nextTick(); restoreFeedAnchor(anchor); observeFeed()
+  } catch {
+    if (feedAccount() !== owner) { topics.value = []; pagination.value = { ...pagination.value, hasNext: false, nextUrl: '' } }
+    // Preserve the batch on transient errors; the next activation/SSE retries.
+  } finally { reconcileRunning = false; if (reconcileQueued) { reconcileQueued = false; scheduleReconcile() } }
+}
+useContentUpdates(() => { if (isForYouFeed.value) scheduleReconcile(); else void refreshFirstPage('replace') }, () => !!page.layout.viewer?.isAuthenticated)
 
 async function refreshFirstPage(mode: 'prepend' | 'replace') {
-  if (pendingHomeFeedUrl.value || failedHomeFeedUrl.value || refreshing.value || loadingMore.value) return
-  const revision = feedRevision
+  if (pendingHomeFeedUrl.value || failedHomeFeedUrl.value || refreshing.value) return
+  if (loadingMore.value && !isForYouFeed.value) return
+  const revision = ++feedRevision
+  const requestOwner = feedAccount()
+  sessionAbort.abort(); sessionAbort = new AbortController()
+  loadingMore.value = false
   refreshing.value = true
   loadError.value = ''
   refreshStatusMessage.value = t('topicList.refreshing')
   try {
+    if (isForYouFeed.value) {
+      const result = await refreshForYou(sessionAbort.signal, snapshotId.value)
+      if (revision !== feedRevision || !sessionActive || feedSwitchInProgress.value) return
+      topics.value = result.topics
+      pagination.value = result.pagination!
+      seenProofs.value = result.seenProofs
+      snapshotId.value = result.snapshotId
+      forYouSessionLost.value = false
+      cursorExpired.value = false
+      newTopicCount.value = 0
+      refreshStatusMessage.value = t('topicList.refreshComplete')
+      await nextTick(); observeSentinel(); observeFeed()
+      window.scrollTo({ top: 0, behavior: 'instant' })
+      return
+    }
     const payload = (await fetchPage(currentFirstPageUrl())) as PagePayload<HomeProps>
     if (revision !== feedRevision || feedSwitchInProgress.value) return
     // Following refreshes replace retained rows so unfollowed authors disappear.
@@ -266,6 +346,7 @@ async function refreshFirstPage(mode: 'prepend' | 'replace') {
       ? prependTopics(topics.value, payload.props.topics)
       : [...payload.props.topics]
     pagination.value = payload.props.pagination
+    seenProofs.value = payload.props.seenProofs ?? []
     announcement.value = payload.props.announcement
     requiresEmailVerification.value = payload.layout.viewer.requiresEmailVerification
     newTopicCount.value = 0
@@ -274,6 +355,7 @@ async function refreshFirstPage(mode: 'prepend' | 'replace') {
     refreshStatusMessage.value = t('topicList.refreshComplete')
     void nextTick(observeSentinel)
   } catch (error) {
+    if (feedAccount() !== requestOwner) { topics.value = []; seenProofs.value = []; pagination.value = { ...pagination.value, hasNext: false, nextUrl: "" } }
     if (revision === feedRevision && !feedSwitchInProgress.value) {
       loadError.value = error instanceof Error ? error.message : t('common.loadFailed')
       refreshStatusMessage.value = t('topicList.refreshFailed')
@@ -349,22 +431,30 @@ function stopRefreshPollTimer() {
 }
 
 async function loadMore() {
-  if (pendingHomeFeedUrl.value || failedHomeFeedUrl.value || loadingMore.value || refreshing.value || !pagination.value.hasNext || !pagination.value.nextUrl) return
+  if (pendingHomeFeedUrl.value || failedHomeFeedUrl.value || loadingMore.value || refreshing.value || cursorExpired.value || forYouSessionLost.value || !pagination.value.hasNext || !pagination.value.nextUrl) return
 
   const revision = feedRevision
   loadingMore.value = true
   loadError.value = ''
   try {
+    if (isForYouFeed.value) await confirmPendingSeen()
+    if (revision !== feedRevision || !sessionActive || feedSwitchInProgress.value) return
     const payload = (await fetchPage(new URL(pagination.value.nextUrl, window.location.origin))) as PagePayload<HomeProps>
     if (revision !== feedRevision || feedSwitchInProgress.value) return
     if ((payload.props.actualSort ?? payload.props.sort) !== (page.props.actualSort ?? page.props.sort)) {
+      if (isForYouFeed.value) { cursorExpired.value = true; return }
       topics.value = payload.props.topics
       await router.replace('/?sort=latest')
       return
     } else topics.value = mergeTopics(topics.value, payload.props.topics)
     pagination.value = payload.props.pagination
+    seenProofs.value = [...seenProofs.value, ...(payload.props.seenProofs ?? [])].slice(-6)
   } catch (error) {
-    if (error instanceof GooseClientError && error.status === 409) { loadingMore.value = false; await refreshFirstPage('replace'); return }
+    if (error instanceof GooseClientError && error.status === 409) {
+      if (revision !== feedRevision || feedSwitchInProgress.value) return
+      if (isForYouFeed.value) { cursorExpired.value = true; return }
+      loadingMore.value = false; await refreshFirstPage('replace'); return
+    }
     if (revision === feedRevision && !feedSwitchInProgress.value) loadError.value = error instanceof Error ? error.message : t('common.loadFailed')
   } finally {
     if (revision === feedRevision) loadingMore.value = false
@@ -715,11 +805,11 @@ onBeforeUnmount(() => {
           <div class="gf-home-topic-actions flex shrink-0 items-center gap-2">
             <button
               type="button"
-              class="gf-home-refresh-button hidden h-8 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold sm:inline-flex"
-              :class="newTopicCount > 0
+              class="gf-home-refresh-button h-8 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold"
+              :class="[isForYouFeed ? 'inline-flex' : 'hidden sm:inline-flex', newTopicCount > 0
                 ? 'border-primary/25 bg-primary/10 text-primary'
-                : 'border-line bg-base-100 text-base-content/55 hover:bg-base-200 hover:text-base-content'"
-              :disabled="refreshing || loadingMore || Boolean(pendingHomeFeedUrl) || Boolean(failedHomeFeedUrl)"
+                : 'border-line bg-base-100 text-base-content/55 hover:bg-base-200 hover:text-base-content']"
+              :disabled="refreshing || (loadingMore && !isForYouFeed) || Boolean(pendingHomeFeedUrl) || Boolean(failedHomeFeedUrl)"
               :title="newTopicCount > 0 ? t('topicList.newTopics', { count: newTopicCount }) : t('topicList.refreshTopics')"
               :aria-label="newTopicCount > 0 ? t('topicList.newTopics', { count: newTopicCount }) : t('topicList.refreshTopics')"
               @click="refreshFirstPage('prepend')"
@@ -784,13 +874,19 @@ onBeforeUnmount(() => {
           </button>
         </div>
         <template v-else>
+          <p v-if="isForYouFeed && seenConfirmationLost" class="px-4 py-3 text-sm text-base-content/65" role="status">{{ t('topicList.forYouSeenConfirmationLost') }}</p>
           <TopicList :topics="topics" :viewer-id="page.layout.viewer.id" home :show-pinned="showPinnedLabels" :feed-mode="feedMode">
             <template #empty>
-              <EmptyState v-if="!hasTopics" :icon="UsersRound" :title="t('topicList.emptyTitle')" :description="t('topicList.emptyDescription')" />
+              <EmptyState v-if="!hasTopics && !forYouSessionLost" :icon="UsersRound" :title="t(isForYouFeed ? 'topicList.forYouEmptyTitle' : 'topicList.emptyTitle')" :description="t(isForYouFeed ? 'topicList.forYouEmptyDescription' : 'topicList.emptyDescription')" />
             </template>
           </TopicList>
 
-          <div ref="loadMoreSentinel">
+          <div v-if="isForYouFeed && (cursorExpired || forYouSessionLost)" class="flex items-center justify-between gap-3 px-4 py-3 text-sm text-base-content/65" role="status">
+            <span>{{ t(forYouSessionLost ? 'topicList.forYouSessionLost' : 'topicList.forYouExpired') }}</span>
+            <button type="button" class="shrink-0 rounded-full border border-line px-3 py-1.5 font-semibold hover:bg-base-200" :disabled="refreshing" @click="refreshFirstPage('replace')">{{ t('common.refresh') }}</button>
+          </div>
+
+          <div v-else ref="loadMoreSentinel">
             <TopicListFooter
               :pagination="pagination"
               :loading-more="loadingMore"

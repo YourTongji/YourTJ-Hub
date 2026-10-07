@@ -277,7 +277,15 @@ func GetActiveUserIdsByRoleIds(roleIds []uint64) []uint64 {
 }
 
 func GetMapByIds(userIds []uint64) map[uint64]*EntityComplete {
-	return lo.KeyBy(GetByIds(userIds), func(v *EntityComplete) uint64 {
+	return GetMapByIdsContext(context.Background(), userIds)
+}
+
+func GetMapByIdsContext(ctx context.Context, userIds []uint64) map[uint64]*EntityComplete {
+	var entities []*EntityComplete
+	if len(userIds) > 0 {
+		builder().WithContext(ctx).Where(queryopt.In(pid, userIds)).Find(&entities)
+	}
+	return lo.KeyBy(entities, func(v *EntityComplete) uint64 {
 		return v.Id
 	})
 }

@@ -1,0 +1,12 @@
+{
+  "code": 0,
+  "result": {
+    "viewerId": 12,
+    "topics": [],
+    "removedIds": [],
+    "seenProofs": [],
+    "snapshotId": "",
+    "available": true,
+    "seenConfirmed": false
+  }
+}

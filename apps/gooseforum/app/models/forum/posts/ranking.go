@@ -6,6 +6,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/feedconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -122,4 +123,63 @@ func markPostProjectionTx(tx *gorm.DB, id uint64) error {
 		return err
 	}
 	return feed.MarkProjectionTx(tx, row.TopicId)
+}
+
+// NewPublicRepliesAmong checks at most 300 topic/cutoff pairs in one statement.
+// EXISTS uses the public-time index and never hydrates reply bodies. The caller's
+// deadline also bounds pathological long chains of ineligible replies.
+func NewPublicRepliesAmong(ctx context.Context, viewer uint64, cutoffs map[uint64]time.Time) (map[uint64]bool, error) {
+	return newPublicRepliesAmong(builder().WithContext(ctx), viewer, cutoffs)
+}
+func newPublicRepliesAmong(conn *gorm.DB, viewer uint64, cutoffs map[uint64]time.Time) (map[uint64]bool, error) {
+	result := map[uint64]bool{}
+	if len(cutoffs) == 0 {
+		return result, nil
+	}
+	if len(cutoffs) > 300 {
+		return nil, fmt.Errorf("reply cutoff batch exceeds bound")
+	}
+	parts := make([]string, 0, len(cutoffs))
+	args := make([]any, 0, 2*len(cutoffs))
+	for id, at := range cutoffs {
+		if conn.Name() == "postgres" {
+			parts = append(parts, "SELECT CAST(? AS BIGINT) AS topic_id, CAST(? AS TIMESTAMPTZ) AS content_at")
+		} else {
+			parts = append(parts, "SELECT ? AS topic_id, ? AS content_at")
+		}
+		args = append(args, id, at.UTC())
+	}
+	comparison := "posts.first_public_at > marks.content_at"
+	if conn.Name() == "sqlite" {
+
+		// SQLite's date functions round fractions to milliseconds. Normalize
+		// whole UTC seconds separately so even an immediate public reply is
+		// compared without swallowing its sub-millisecond fraction.
+		second := func(name string) string {
+			return fmt.Sprintf("datetime(substr(%[1]s,1,19)||CASE WHEN substr(%[1]s,-6,1) IN ('+','-') THEN substr(%[1]s,-6) ELSE '' END)", name)
+		}
+		fraction := func(name string) string {
+			return fmt.Sprintf("CASE WHEN substr(%[1]s,20,1) = '.' THEN CAST('0.'||substr(%[1]s,21) AS REAL) ELSE 0 END", name)
+		}
+		public, cutoff := second("posts.first_public_at"), second("marks.content_at")
+		comparison = fmt.Sprintf("(%s > %s OR (%s = %s AND (%s) > (%s)))", public, cutoff, public, cutoff, fraction("posts.first_public_at"), fraction("marks.content_at"))
+	}
+	eligibleAuthor := users.FeedAuthorsQuery(conn, viewer).Where("users.id = posts.user_id").Limit(1)
+	authorExists := "EXISTS (?)"
+	exists := "EXISTS (?)"
+	if conn.Name() == "postgres" {
+		// Optimization fences keep both probes correlated: topic/time index first,
+		// then author PK and block keys. Neither public replies nor all users should
+		// be scanned/hash-joined globally before the finite cutoff batch.
+		authorExists = "EXISTS (? OFFSET 0)"
+		exists = "EXISTS (? OFFSET 0)"
+	}
+	reply := conn.Session(&gorm.Session{NewDB: true}).Table("posts").Select("1").Where("posts.topic_id = marks.topic_id AND post_no > 1 AND user_id <> ? AND process_status = 0 AND visibility_status = ? AND deleted_at IS NULL AND "+comparison, viewer, VisibilityActive).Where(authorExists, eligibleAuthor).Limit(1)
+
+	var ids []uint64
+	err := conn.Table("(?) marks", conn.Raw(strings.Join(parts, " UNION ALL "), args...)).Select("marks.topic_id").Where(exists, reply).Scan(&ids).Error
+	for _, id := range ids {
+		result[id] = true
+	}
+	return result, err
 }

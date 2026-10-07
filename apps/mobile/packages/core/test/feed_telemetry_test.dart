@@ -18,6 +18,46 @@ void main() {
     final result = FeedEventsResponse.fromJson(events);
     expect(result.code, 0);
     expect(result.accepted, true);
+    final seen =
+        jsonDecode(
+              File(
+                '$root/../../../../packages/api-contract/fixtures/feed-seen-success.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, dynamic>;
+    expect(FeedEventsResponse.fromJson(seen).accepted, true);
+    for (final fixture in [
+      'feed-refresh-success.json',
+      'feed-reconcile-success.json',
+    ]) {
+      final envelope =
+          jsonDecode(
+                File(
+                  '$root/../../../../packages/api-contract/fixtures/$fixture',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final session = FeedSessionResult.fromJson(
+        envelope['result'] as Map<String, dynamic>,
+      );
+      expect(session.viewerId, 12);
+      expect(session.topics, isEmpty);
+    }
+    expect(
+      FeedRefreshRequest(
+        replaceSnapshotId: 'current-session',
+        seenPatches: [
+          FeedSeenPatch(proof: 'signed', seen: {'0': 1000}),
+        ],
+      ).toJson()['seenPatches'],
+      hasLength(1),
+    );
+    expect(
+      const FeedRefreshRequest(
+        replaceSnapshotId: 'current-session',
+      ).toJson()['replaceSnapshotId'],
+      'current-session',
+    );
     final summary =
         jsonDecode(
               File(

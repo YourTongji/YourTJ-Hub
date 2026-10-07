@@ -120,3 +120,41 @@ it('does not let an earlier duplicate destination overwrite the latest response'
   expect(committed).toEqual(['current'])
   expect(router.currentRoute.value.fullPath).toBe('/?sort=hot')
 })
+
+it('restores the loaded For You batch on browser back without fetching a new first page', async () => {
+  const { activeForYouSession, updateForYouSession } = await import('../src/runtime/for-you-sessions')
+  const committed: PagePayload[] = []
+  const router = await setup((page) => committed.push(page.payload))
+  const home = { ...payload('/?sort=for_you'), layout: { viewer: { id: 12 } },
+    props: { sort: 'for_you', snapshotId: 'original', topics: [{ id: 1 }, { id: 2 }],
+      pagination: { page: 1, nextPage: 2, hasNext: true, nextUrl: '/?cursor=original' } } } as unknown as PagePayload
+  mocks.fetch.mockResolvedValueOnce(home)
+  await router.push('/?sort=for_you')
+  expect(activeForYouSession.value).not.toBe('')
+  updateForYouSession({ ...home.props, topics: [{ id: 1 }, { id: 2 }, { id: 3 }],
+    pagination: { page: 2, nextPage: 3, hasNext: true, nextUrl: '/?cursor=page-three' } } as never)
+  mocks.fetch.mockResolvedValueOnce({ ...payload('/p/post/2'), component: 'topic.detail', layout: home.layout })
+  await router.push('/p/post/2')
+  mocks.fetch.mockClear()
+  router.back()
+  await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe('/?sort=for_you'))
+  await vi.waitFor(() => expect(committed.at(-1)?.url).toBe('/?sort=for_you'))
+  expect(mocks.fetch).not.toHaveBeenCalled()
+  const restored = committed.at(-1)!.props as { topics: { id: number }[]; pagination: { nextUrl: string } }
+  expect(restored.topics.map((t) => t.id)).toEqual([1, 2, 3])
+  expect(restored.pagination.nextUrl).toContain('page-three')
+})
+
+it('a late page response cannot switch the account back to its previous owner', async () => {
+  const { fetchPage } = await import('../src/runtime/router')
+  const { feedAccount, resetFeedAccount } = await import('../src/runtime/feed-telemetry')
+  resetFeedAccount(12)
+  let resolve!: (page: PagePayload) => void
+  mocks.fetch.mockImplementation(() => new Promise((r) => { resolve = r }))
+  const result = fetchPage(new URL('http://localhost/?sort=for_you&cursor=old'))
+  resetFeedAccount(13)
+  resolve({ ...payload('/?sort=for_you'), layout: { viewer: { id: 12 } } } as PagePayload)
+  await expect(result).rejects.toThrow()
+  expect(feedAccount()).toBe(13)
+  resetFeedAccount(0)
+})

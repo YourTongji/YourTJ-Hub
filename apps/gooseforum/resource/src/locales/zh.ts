@@ -1239,6 +1239,11 @@ export default {
     semicolon: '；',
   },
   topicList: {
+    forYouEmptyTitle: '当前推荐池暂无未看过的帖子',
+    forYouEmptyDescription: '稍后刷新发现新帖子或新回复，也可以查看最新栏目。',
+    forYouExpired: '这批推荐已过期，已加载的帖子仍保留。刷新可获取新一批。',
+    forYouSessionLost: '上次浏览会话已失效，刷新可获取新一批推荐。',
+    forYouSeenConfirmationLost: '部分已见记录未能保存，刷新后可能再次出现这些帖子。',
     newTopic: '新建内容',
     pinned: '置顶',
     pinnedTopics: '置顶话题',

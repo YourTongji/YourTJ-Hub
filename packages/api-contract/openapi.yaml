@@ -246,6 +246,10 @@ paths:
     $ref: ./paths/user-account.yaml#/unbindOAuth
   /api/forum/unread-status:
     $ref: ./paths/forum-notifications.yaml#/getUnreadStatus
+  /api/forum/feed/refresh:
+    $ref: ./paths/feed.yaml#/refreshForYou
+  /api/forum/feed/reconcile:
+    $ref: ./paths/feed.yaml#/reconcileForYou
   /api/forum/feed/events:
     $ref: ./paths/feed.yaml#/captureFeedEvents
   /api/admin/anonymous-identities/list:

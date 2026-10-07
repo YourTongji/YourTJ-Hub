@@ -19,7 +19,7 @@ func FilterEligibleFeedAuthors(ctx context.Context, viewer uint64, ids []uint64)
 		return nil, fmt.Errorf("feed author batch exceeds bound")
 	}
 	var active []uint64
-	err := db.ConnectContext(ctx).Model(&EntityComplete{}).Select("users.id").Where("users.id IN ? AND users.is_frozen = ?", ids, StatusNormal).Where("NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.owner_id = ? AND b.target_user_id = users.id) OR (b.target_user_id = ? AND b.owner_id = users.id))", viewer, viewer).Find(&active).Error
+	err := FeedAuthorsQuery(db.ConnectContext(ctx), viewer).Where("users.id IN ?", ids).Find(&active).Error
 	if err != nil {
 		return nil, err
 	}
@@ -43,4 +43,9 @@ func FeedActorEligibleTx(tx *gorm.DB, uid uint64) (bool, error) {
 	var ids []uint64
 	err := tx.Model(&EntityComplete{}).Select("id").Where("id = ? AND is_frozen = ?", uid, StatusNormal).Limit(1).Find(&ids).Error
 	return len(ids) == 1, err
+}
+
+// FeedAuthorsQuery composes the same scalar owner query on a transaction or dialect.
+func FeedAuthorsQuery(conn *gorm.DB, viewer uint64) *gorm.DB {
+	return conn.Session(&gorm.Session{NewDB: true}).Model(&EntityComplete{}).Select("users.id").Where("users.is_frozen = ?", StatusNormal).Where("users.id <> ?", viewer).Where("NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.owner_id = ? AND b.target_user_id = users.id) OR (b.target_user_id = ? AND b.owner_id = users.id))", viewer, viewer)
 }
