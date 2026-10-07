@@ -91,7 +91,7 @@ func RunEffectsTask(ctx context.Context, task *taskQueue.Entity) error {
 				return err
 			}
 		}
-		return eventbus.PublishE(ctx, &eventhandlers.PostUpdatedEvent{TopicId: topic.Id, PostId: post.Id, PostNo: post.PostNo, UserId: post.UserId, OldContent: previous.Content, NewContent: post.Content, IsAnonymous: post.IsAnonymous})
+		return eventbus.PublishE(ctx, &eventhandlers.PostUpdatedEvent{TopicId: topic.Id, PostId: post.Id, PostNo: post.PostNo, UserId: post.UserId, OldContent: previous.Content, NewContent: post.Content, IsAnonymous: post.IsAnonymous, PersonaUID: post.PersonaUID})
 	} else if post.PostNo == 1 {
 		return eventbus.PublishE(ctx, &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &post})
 	} else {
@@ -101,6 +101,6 @@ func RunEffectsTask(ctx context.Context, task *taskQueue.Entity) error {
 				return err
 			}
 		}
-		return eventbus.PublishE(ctx, &eventhandlers.CommentCreatedEvent{TopicId: topic.Id, PostId: post.Id, PostNo: post.PostNo, UserId: post.UserId, Content: post.Content, TopicAuthorId: topic.UserId, ReplyToPostId: post.ReplyToPostId, ReplyToPostAuthorId: parent.UserId, IsAnonymous: post.IsAnonymous})
+		return eventbus.PublishE(ctx, &eventhandlers.CommentCreatedEvent{TopicId: topic.Id, PostId: post.Id, PostNo: post.PostNo, UserId: post.UserId, Content: post.Content, TopicAuthorId: topic.UserId, ReplyToPostId: post.ReplyToPostId, ReplyToPostAuthorId: parent.UserId, IsAnonymous: post.IsAnonymous, PersonaUID: post.PersonaUID})
 	}
 }

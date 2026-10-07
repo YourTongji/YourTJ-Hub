@@ -27,6 +27,16 @@ func AccessLog(c *gin.Context) {
 	latency := time.Since(startTime)
 	statusCode := c.Writer.Status()
 
+	anonymousSurface := strings.HasPrefix(c.Request.URL.Path, "/api/forum/anonymous/") || strings.HasPrefix(c.Request.URL.Path, "/a/")
+	logUserID := c.GetUint64("userId")
+	if anonymousSurface {
+		logUserID = 0
+		clientPath := c.FullPath()
+		if clientPath != "" {
+			path = clientPath
+		}
+		raw = ""
+	}
 	if raw != "" {
 		path = path + "?" + raw
 	}
@@ -41,7 +51,7 @@ func AccessLog(c *gin.Context) {
 	}
 	// IP 记录由 [log] logIp 开关控制，默认关闭（隐私最小化）
 	clientIP := ""
-	if preferences.GetBool("log.logIp", false) {
+	if preferences.GetBool("log.logIp", false) && !anonymousSurface {
 		clientIP = c.ClientIP()
 		fields = append(fields, "ip", clientIP)
 	}
@@ -54,7 +64,7 @@ func AccessLog(c *gin.Context) {
 		Path:      path,
 		Route:     c.FullPath(),
 		Status:    statusCode,
-		UserId:    c.GetUint64("userId"),
+		UserId:    logUserID,
 		ClientIP:  clientIP,
 		LatencyMs: latency.Milliseconds(),
 	}); err != nil {

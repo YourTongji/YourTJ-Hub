@@ -40,6 +40,7 @@ const (
 )
 
 type Entity struct {
+	PersonaUID           string     `gorm:"column:persona_uid;type:varchar(32);not null;default:'';index" json:"personaUid,omitempty"`
 	FirstPublicAt        *time.Time `gorm:"index;index:idx_posts_topic_public,priority:2" json:"-"`
 	FirstPublicEstimated bool       `gorm:"not null;default:false" json:"-"`
 	// Revision pointers fence asynchronous outcomes; zero denotes legacy content.

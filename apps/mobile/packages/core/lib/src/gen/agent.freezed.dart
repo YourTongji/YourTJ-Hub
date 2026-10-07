@@ -340,6 +340,7 @@ AgentTopicItem _$AgentTopicItemFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$AgentTopicItem {
+  UserBriefPayload? get author => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
   String get title => throw _privateConstructorUsedError;
   String get excerpt => throw _privateConstructorUsedError;
@@ -372,6 +373,7 @@ abstract class $AgentTopicItemCopyWith<$Res> {
   ) = _$AgentTopicItemCopyWithImpl<$Res, AgentTopicItem>;
   @useResult
   $Res call({
+    UserBriefPayload? author,
     int id,
     String title,
     String excerpt,
@@ -386,6 +388,8 @@ abstract class $AgentTopicItemCopyWith<$Res> {
     int createdAt,
     int updatedAt,
   });
+
+  $UserBriefPayloadCopyWith<$Res>? get author;
 }
 
 /// @nodoc
@@ -403,6 +407,7 @@ class _$AgentTopicItemCopyWithImpl<$Res, $Val extends AgentTopicItem>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? author = freezed,
     Object? id = null,
     Object? title = null,
     Object? excerpt = null,
@@ -419,6 +424,10 @@ class _$AgentTopicItemCopyWithImpl<$Res, $Val extends AgentTopicItem>
   }) {
     return _then(
       _value.copyWith(
+            author: freezed == author
+                ? _value.author
+                : author // ignore: cast_nullable_to_non_nullable
+                      as UserBriefPayload?,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
@@ -475,6 +484,20 @@ class _$AgentTopicItemCopyWithImpl<$Res, $Val extends AgentTopicItem>
           as $Val,
     );
   }
+
+  /// Create a copy of AgentTopicItem
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $UserBriefPayloadCopyWith<$Res>? get author {
+    if (_value.author == null) {
+      return null;
+    }
+
+    return $UserBriefPayloadCopyWith<$Res>(_value.author!, (value) {
+      return _then(_value.copyWith(author: value) as $Val);
+    });
+  }
 }
 
 /// @nodoc
@@ -487,6 +510,7 @@ abstract class _$$AgentTopicItemImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    UserBriefPayload? author,
     int id,
     String title,
     String excerpt,
@@ -501,6 +525,9 @@ abstract class _$$AgentTopicItemImplCopyWith<$Res>
     int createdAt,
     int updatedAt,
   });
+
+  @override
+  $UserBriefPayloadCopyWith<$Res>? get author;
 }
 
 /// @nodoc
@@ -517,6 +544,7 @@ class __$$AgentTopicItemImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? author = freezed,
     Object? id = null,
     Object? title = null,
     Object? excerpt = null,
@@ -533,6 +561,10 @@ class __$$AgentTopicItemImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$AgentTopicItemImpl(
+        author: freezed == author
+            ? _value.author
+            : author // ignore: cast_nullable_to_non_nullable
+                  as UserBriefPayload?,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
@@ -594,6 +626,7 @@ class __$$AgentTopicItemImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$AgentTopicItemImpl implements _AgentTopicItem {
   const _$AgentTopicItemImpl({
+    this.author,
     required this.id,
     required this.title,
     required this.excerpt,
@@ -612,6 +645,8 @@ class _$AgentTopicItemImpl implements _AgentTopicItem {
   factory _$AgentTopicItemImpl.fromJson(Map<String, dynamic> json) =>
       _$$AgentTopicItemImplFromJson(json);
 
+  @override
+  final UserBriefPayload? author;
   @override
   final int id;
   @override
@@ -647,7 +682,7 @@ class _$AgentTopicItemImpl implements _AgentTopicItem {
 
   @override
   String toString() {
-    return 'AgentTopicItem(id: $id, title: $title, excerpt: $excerpt, categoryIds: $categoryIds, userId: $userId, status: $status, processStatus: $processStatus, replyCount: $replyCount, viewCount: $viewCount, postCount: $postCount, lastPostedAt: $lastPostedAt, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'AgentTopicItem(author: $author, id: $id, title: $title, excerpt: $excerpt, categoryIds: $categoryIds, userId: $userId, status: $status, processStatus: $processStatus, replyCount: $replyCount, viewCount: $viewCount, postCount: $postCount, lastPostedAt: $lastPostedAt, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -655,6 +690,7 @@ class _$AgentTopicItemImpl implements _AgentTopicItem {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$AgentTopicItemImpl &&
+            (identical(other.author, author) || other.author == author) &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.title, title) || other.title == title) &&
             (identical(other.excerpt, excerpt) || other.excerpt == excerpt) &&
@@ -684,6 +720,7 @@ class _$AgentTopicItemImpl implements _AgentTopicItem {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    author,
     id,
     title,
     excerpt,
@@ -718,6 +755,7 @@ class _$AgentTopicItemImpl implements _AgentTopicItem {
 
 abstract class _AgentTopicItem implements AgentTopicItem {
   const factory _AgentTopicItem({
+    final UserBriefPayload? author,
     required final int id,
     required final String title,
     required final String excerpt,
@@ -736,6 +774,8 @@ abstract class _AgentTopicItem implements AgentTopicItem {
   factory _AgentTopicItem.fromJson(Map<String, dynamic> json) =
       _$AgentTopicItemImpl.fromJson;
 
+  @override
+  UserBriefPayload? get author;
   @override
   int get id;
   @override

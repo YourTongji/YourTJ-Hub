@@ -252,6 +252,7 @@ class _CreatedReplyPostRepository extends PostRepository {
     int replyToPostId = 0,
     String? captchaId,
     String? captchaCode,
+    String? identity,
   }) async {
     if (requireCaptcha &&
         (captchaId != 'challenge' ||

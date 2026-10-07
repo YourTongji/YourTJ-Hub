@@ -9,6 +9,7 @@ import (
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
+	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
@@ -122,6 +123,15 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 		var revision postRevisions.Entity
 		if err := tx.First(&revision, revisionID).Error; err != nil {
 			return err
+		}
+		var authorPost posts.Entity
+		if err := tx.First(&authorPost, revision.PostId).Error; err != nil {
+			return err
+		}
+		if action == moderationDecision.ActionAllow {
+			if err := identity.ValidateWriterTx(tx, authorPost.UserId, authorPost.PersonaUID); err != nil {
+				return err
+			}
 		}
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&post, revision.PostId).Error; err != nil {
 			return err

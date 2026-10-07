@@ -30,6 +30,9 @@ abstract class NotificationPayload with _$NotificationPayload {
 abstract class NotificationActorPayload with _$NotificationActorPayload {
   const factory NotificationActorPayload({
     required int id,
+    String? kind,
+    String? publicUid,
+    String? profileUrl,
     required String username,
     String? nickname,
     String? avatarUrl,
@@ -60,6 +63,7 @@ abstract class NotificationInnerPayload with _$NotificationInnerPayload {
     NotificationTemplateParams? templateParams,
     required int actorId,
     String? actorName,
+    String? actorPersonaUid,
     int? topicId,
     int? postId,
     int? postNo,
@@ -73,9 +77,8 @@ abstract class NotificationInnerPayload with _$NotificationInnerPayload {
 
 @freezed
 abstract class NotificationTemplateParams with _$NotificationTemplateParams {
-  const factory NotificationTemplateParams({
-    String? preview,
-  }) = _NotificationTemplateParams;
+  const factory NotificationTemplateParams({String? preview}) =
+      _NotificationTemplateParams;
 
   factory NotificationTemplateParams.fromJson(Map<String, dynamic> json) =>
       _$NotificationTemplateParamsFromJson(json);
@@ -136,7 +139,8 @@ abstract class DraftPayload with _$DraftPayload {
     required List<CategoryBriefPayload> categories,
   }) = _DraftPayload;
 
-  factory DraftPayload.fromJson(Map<String, dynamic> json) => _$DraftPayloadFromJson(json);
+  factory DraftPayload.fromJson(Map<String, dynamic> json) =>
+      _$DraftPayloadFromJson(json);
 }
 
 @freezed

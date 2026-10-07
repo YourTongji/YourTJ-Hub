@@ -52,6 +52,18 @@ tags:
   - name: Files
     description: 图片上传端点（服务端代理 multipart 与 S3 预签名直传）。
 paths:
+  /api/forum/anonymous/govern:
+    $ref: ./paths/anonymous-identity.yaml#/governAnonymousIdentity
+  /api/forum/anonymous/state:
+    $ref: ./paths/anonymous-identity.yaml#/getAnonymousIdentityState
+  /api/forum/anonymous/batches:
+    $ref: ./paths/anonymous-identity.yaml#/generateAnonymousNames
+  /api/forum/anonymous/confirm:
+    $ref: ./paths/anonymous-identity.yaml#/confirmAnonymousName
+  /api/forum/anonymous/disable:
+    $ref: ./paths/anonymous-identity.yaml#/disableAnonymousIdentity
+  /api/forum/anonymous/reveal:
+    $ref: ./paths/anonymous-identity.yaml#/revealAnonymousIdentity
   /api/campus/calendar-rules:
     $ref: ./paths/campus-calendar-rules.yaml#/rules
   /api/admin/campus/calendar-rules:
@@ -1997,3 +2009,20 @@ components:
       $ref: ./components/schemas.yaml#/PkPlanItemResponse
     PkPlanItemsResponse:
       $ref: ./components/schemas.yaml#/PkPlanItemsResponse
+
+    PublicPersona:
+      $ref: ./components/anonymous-identity.yaml#/PublicPersona
+    AnonymousState:
+      $ref: ./components/anonymous-identity.yaml#/AnonymousState
+    AnonymousBatch:
+      $ref: ./components/anonymous-identity.yaml#/AnonymousBatch
+    AnonymousRevealedOwner:
+      $ref: ./components/anonymous-identity.yaml#/AnonymousRevealedOwner
+    AnonymousBatchRequest:
+      $ref: ./components/anonymous-identity.yaml#/AnonymousBatchRequest
+    AnonymousConfirmRequest:
+      $ref: ./components/anonymous-identity.yaml#/AnonymousConfirmRequest
+    AnonymousDisableRequest:
+      $ref: ./components/anonymous-identity.yaml#/AnonymousDisableRequest
+    AnonymousRevealRequest:
+      $ref: ./components/anonymous-identity.yaml#/AnonymousRevealRequest

@@ -13,6 +13,7 @@ import 'package:forum_app/src/providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 import 'package:forum_app/src/pages/topic/mention_panel.dart';
+import 'package:forum_app/src/widgets/identity_picker.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'pages_smoke_test.dart'
     show
@@ -48,6 +49,7 @@ class _Posts extends PostRepository {
     int replyToPostId = 0,
     String? captchaId,
     String? captchaCode,
+    String? identity,
   }) async {
     if (fail) throw const NetworkException(fallbackMessage: 'offline');
     return pending == null
@@ -570,5 +572,30 @@ void main() {
     expect(await store.drafts(scope), isEmpty);
     await disposePage(tester);
     expect(await store.drafts(scope), isEmpty);
+  });
+
+  testWidgets('fresh reply resets identity after session invalidation', (
+    tester,
+  ) async {
+    await pumpTopic(tester);
+    await open(tester);
+    tester
+        .widget<IdentityPicker>(find.byType(IdentityPicker))
+        .onChanged('persona');
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<IdentityPicker>(find.byType(IdentityPicker)).value,
+      'persona',
+    );
+
+    container.read(offlineCacheEpochProvider.notifier).invalidate();
+    await tester.pumpAndSettle();
+    await open(tester);
+    expect(composer(tester).controller.text, isEmpty);
+    expect(
+      tester.widget<IdentityPicker>(find.byType(IdentityPicker)).value,
+      'member',
+    );
+    await disposePage(tester);
   });
 }

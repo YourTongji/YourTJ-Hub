@@ -8,6 +8,7 @@ import (
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/feedconfig"
+	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserStat"
@@ -31,6 +32,9 @@ func CreateTopicPost(entity *posts.Entity, topicEntity topics.Entity) error {
 	// Sequence reservation locks the topic before the post becomes visible. All
 	// derived writes share that transaction, so rebuilds see either side in full.
 	return db.Connect().Transaction(func(tx *gorm.DB) error {
+		if err := identity.ValidateWriterTx(tx, entity.UserId, entity.PersonaUID); err != nil {
+			return err
+		}
 		postNo, err := topics.ReservePostSequenceTx(tx, entity.TopicId)
 		if err != nil {
 			return err
@@ -47,11 +51,14 @@ func CreateTopicPost(entity *posts.Entity, topicEntity topics.Entity) error {
 				return err
 			}
 		}
-		ids, err := topicUserStat.SyncTopicPostersTx(tx, entity.TopicId, topicEntity.UserId)
+		ids, err := topicUserStat.SyncTopicPostersTx(tx, entity.TopicId, publicTopicOwner(topicEntity))
 		if err != nil {
 			return err
 		}
-		posters := []topics.Poster{{UserID: topicEntity.UserId}}
+		posters := []topics.Poster{}
+		if topicEntity.PersonaUID == "" {
+			posters = append(posters, topics.Poster{UserID: topicEntity.UserId})
+		}
 		for _, id := range ids {
 			posters = append(posters, topics.Poster{UserID: id})
 		}
@@ -218,12 +225,14 @@ func RebuildTopicPostStatsTx(tx *gorm.DB, topicEntity topics.Entity) error {
 		return err
 	}
 
-	activePosterIDs, err := topicUserStat.SyncTopicPostersTx(tx, topicEntity.Id, topicEntity.UserId)
+	activePosterIDs, err := topicUserStat.SyncTopicPostersTx(tx, topicEntity.Id, publicTopicOwner(topicEntity))
 	if err != nil {
 		return err
 	}
 	posterIDs := make([]topics.Poster, 0, len(activePosterIDs)+1)
-	posterIDs = append(posterIDs, topics.Poster{UserID: topicEntity.UserId})
+	if topicEntity.PersonaUID == "" {
+		posterIDs = append(posterIDs, topics.Poster{UserID: topicEntity.UserId})
+	}
 	for _, userID := range activePosterIDs {
 		posterIDs = append(posterIDs, topics.Poster{UserID: userID})
 	}
@@ -250,4 +259,11 @@ func RebuildTopicPostStatsTx(tx *gorm.DB, topicEntity topics.Entity) error {
 		}
 	}
 	return feed.MarkTx(tx, topicEntity.Id)
+}
+
+func publicTopicOwner(topic topics.Entity) uint64 {
+	if topic.PersonaUID != "" {
+		return 0
+	}
+	return topic.UserId
 }

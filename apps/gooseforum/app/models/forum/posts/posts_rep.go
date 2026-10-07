@@ -3,6 +3,7 @@ package posts
 import (
 	"context"
 	"errors"
+	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"time"
 
@@ -31,6 +32,9 @@ func Create(entity *Entity) error {
 
 // CreateTx 事务内创建帖子。
 func CreateTx(tx *gorm.DB, entity *Entity) error {
+	if err := identity.ValidateWriterTx(tx, entity.UserId, entity.PersonaUID); err != nil {
+		return err
+	}
 	return tx.Table(tableName).Create(entity).Error
 }
 
@@ -40,6 +44,9 @@ func Save(entity *Entity) error {
 
 // SaveTx 事务内保存帖子。
 func SaveTx(tx *gorm.DB, entity *Entity) error {
+	if err := identity.ValidateWriterTx(tx, entity.UserId, entity.PersonaUID); err != nil {
+		return err
+	}
 	return tx.Table(tableName).Save(entity).Error
 }
 

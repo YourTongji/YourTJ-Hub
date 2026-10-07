@@ -354,6 +354,9 @@ export interface TopicDetailPayload {
   authorDeleted: boolean
   moderatorRemoved: boolean
   author: {
+    kind?: 'member' | 'persona' | 'anonymous'
+    publicUid?: string
+    profileUrl?: string
     id: number
     username: string
     nickname?: string
@@ -395,6 +398,9 @@ export interface PostPayload {
   isModeratorRemoved: boolean
   canModerate: boolean
   author: {
+    kind?: 'member' | 'persona' | 'anonymous'
+    publicUid?: string
+    profileUrl?: string
     id: number
     username: string
     nickname?: string
@@ -410,6 +416,9 @@ export interface PostPayload {
   isAnonymous?: boolean
   updatedAt?: string
   lastEditor?: {
+    kind?: 'member' | 'persona' | 'anonymous'
+    publicUid?: string
+    profileUrl?: string
     id: number
     username: string
     nickname?: string
@@ -428,6 +437,9 @@ export interface ReplyTargetPayload {
   id: number
   postNo?: number
   author: {
+    kind?: 'member' | 'persona' | 'anonymous'
+    publicUid?: string
+    profileUrl?: string
     id: number
     username: string
     nickname?: string
@@ -465,6 +477,9 @@ export interface TopicPayload {
   images?: string[]
   url: string
   author: {
+    kind?: 'member' | 'persona' | 'anonymous'
+    publicUid?: string
+    profileUrl?: string
     id: number
     username: string
     nickname?: string
@@ -510,6 +525,9 @@ export interface ModerationLogItem {
   id: number
   action: string
   actor: {
+    kind?: 'member' | 'persona' | 'anonymous'
+    publicUid?: string
+    profileUrl?: string
     id: number
     username: string
     /** Current nickname; absent when the actor has none. */
@@ -882,6 +900,9 @@ export interface NotificationPayload {
   title: string
   content: string
   actor: {
+    kind?: 'member' | 'persona' | 'anonymous'
+    publicUid?: string
+    profileUrl?: string
     id: number
     username: string
     /** Current nickname; absent when the actor has none. */
@@ -991,6 +1012,7 @@ export interface PublishPageProps {
     content: string
     categoryIds: number[]
     topicStatus: number
+    identity?: 'member' | 'persona'
     contentType?: 0 | 1 | 2 | 3 // 0=regular, 1=question, 2=thought, 3=article
   }
 }
@@ -1243,3 +1265,13 @@ export interface ChatForwardEntry { senderName: string; avatarUrl?: string; cont
 export interface ChatForwardBundle { version: number; messages: ChatForwardEntry[] }
 export interface ForwardChatMessagesRequest { convId: number; peerId: number; messageIds: number[]; mode: 'individual' | 'merged'; clientForwardId: string }
 export interface ForwardChatMessagesResult { convId: number; messageIds: number[] }
+
+export interface AnonymousProfileProps {
+ persona: {kind:'persona'; publicUid:string; name:string; avatarUrl:string; profileUrl:string}
+ topics: TopicPayload[]
+ replies: Array<{id:number;url:string;excerpt:string}>
+ topicCount:number
+ replyCount:number
+ page:number
+ hasNext:boolean
+}

@@ -355,6 +355,9 @@ func fetchExportRows(table string, lastID uint64, limit int) ([]exportRow, error
 		}
 		rows := make([]exportRow, 0, len(list))
 		for _, t := range list {
+			if t.PersonaUID != "" {
+				t.UserId = 0
+			}
 			cats, _ := json.Marshal(t.CategoryIds)
 			posters, _ := json.Marshal(t.Posters)
 			imageURLs, _ := json.Marshal(t.ImageUrls)
@@ -363,7 +366,7 @@ func fetchExportRows(table string, lastID uint64, limit int) ([]exportRow, error
 				lastPostedAt = t.LastPostedAt.Format(time.RFC3339Nano)
 			}
 			rows = append(rows, exportRow{ID: t.Id, Fields: map[string]any{
-				"id": t.Id, "title": t.Title, "categoryIds": string(cats), "userId": t.UserId,
+				"personaUid": t.PersonaUID, "id": t.Id, "title": t.Title, "categoryIds": string(cats), "userId": t.UserId,
 				"status": t.Status, "processStatus": t.ProcessStatus,
 				// 话题 invariants（issue #135）：缺失会导致导入后计数错误、
 				// 首末帖指针丢失、post_seq=0 使下一次回复 post_no 与首帖冲突。
@@ -387,6 +390,11 @@ func fetchExportRows(table string, lastID uint64, limit int) ([]exportRow, error
 		}
 		rows := make([]exportRow, 0, len(list))
 		for _, p := range list {
+			if p.IsAnonymous {
+				p.UserId = 0
+				p.LastEditorId = 0
+				p.DeletedBy = 0
+			}
 			lastEditedAt := ""
 			if p.LastEditedAt != nil {
 				lastEditedAt = p.LastEditedAt.Format(time.RFC3339Nano)
@@ -396,7 +404,7 @@ func fetchExportRows(table string, lastID uint64, limit int) ([]exportRow, error
 				deletedAt = p.DeletedAt.Time.Format(time.RFC3339)
 			}
 			rows = append(rows, exportRow{ID: p.Id, Fields: map[string]any{
-				"id": p.Id, "topicId": p.TopicId, "postNo": p.PostNo, "userId": p.UserId,
+				"personaUid": p.PersonaUID, "isAnonymous": p.IsAnonymous, "id": p.Id, "topicId": p.TopicId, "postNo": p.PostNo, "userId": p.UserId,
 				"replyToPostId": p.ReplyToPostId, "content": p.Content, "processStatus": p.ProcessStatus,
 				"lastEditorId": p.LastEditorId, "lastEditedAt": lastEditedAt,
 				"visibilityStatus": p.VisibilityStatus, "retentionStatus": p.RetentionStatus,
@@ -410,8 +418,27 @@ func fetchExportRows(table string, lastID uint64, limit int) ([]exportRow, error
 		if err := db.Table("post_revisions").Where("id > ?", lastID).Order("id asc").Limit(limit).Find(&list).Error; err != nil {
 			return nil, fmt.Errorf("查询 post_revisions 表失败: %w", err)
 		}
+		postIDs := make([]uint64, 0, len(list))
+		for _, r := range list {
+			postIDs = append(postIDs, r.PostId)
+		}
+		var postRows []posts.Entity
+		if len(postIDs) > 0 {
+			if err := db.Unscoped().Select("id", "is_anonymous").Where("id IN ?", postIDs).Find(&postRows).Error; err != nil {
+				return nil, err
+			}
+		}
+		anonymous := make(map[uint64]bool, len(postRows))
+		for _, post := range postRows {
+			anonymous[post.Id] = post.IsAnonymous
+		}
 		rows := make([]exportRow, 0, len(list))
 		for _, r := range list {
+			// Missing content cannot justify disclosing a historical editor.
+			isAnonymous, exists := anonymous[r.PostId]
+			if !exists || isAnonymous {
+				r.EditorId = 0
+			}
 			rows = append(rows, exportRow{ID: r.Id, Fields: map[string]any{
 				"id": r.Id, "postId": r.PostId, "version": r.Version, "editorId": r.EditorId,
 				"content": r.Content, "renderedHTML": r.RenderedHTML, "processStatus": r.ProcessStatus,
@@ -450,8 +477,8 @@ func fetchExportRows(table string, lastID uint64, limit int) ([]exportRow, error
 
 var exportCSVHeaders = map[string][]string{
 	"users":              {"id", "username", "email", "nickname", "bio", "signature", "prestige", "isFrozen", "isActivated", "roleId", "avatarUrl", "website", "createdAt", "updatedAt"},
-	"topics":             {"id", "title", "categoryIds", "userId", "status", "processStatus", "postCount", "replyCount", "postSeq", "firstPostId", "lastPostId", "lastPostedAt", "likeCount", "viewCount", "pinWeight", "posters", "imageUrls", "excerpt", "firstImageUrl", "createdAt", "updatedAt"},
-	"posts":              {"id", "topicId", "postNo", "userId", "replyToPostId", "content", "processStatus", "lastEditorId", "lastEditedAt", "visibilityStatus", "retentionStatus", "deletedAt", "deletedBy", "deleteReason", "createdAt", "updatedAt"},
+	"topics":             {"personaUid", "id", "title", "categoryIds", "userId", "status", "processStatus", "postCount", "replyCount", "postSeq", "firstPostId", "lastPostId", "lastPostedAt", "likeCount", "viewCount", "pinWeight", "posters", "imageUrls", "excerpt", "firstImageUrl", "createdAt", "updatedAt"},
+	"posts":              {"personaUid", "isAnonymous", "id", "topicId", "postNo", "userId", "replyToPostId", "content", "processStatus", "lastEditorId", "lastEditedAt", "visibilityStatus", "retentionStatus", "deletedAt", "deletedBy", "deleteReason", "createdAt", "updatedAt"},
 	"postRevisions":      {"id", "postId", "version", "editorId", "content", "renderedHTML", "processStatus", "createdAt"},
 	"topicCategoryIndex": {"id", "topicId", "categoryId", "effective"},
 	"topicUserStat":      {"id", "topicId", "userId", "replyCount", "lastReplyAt"},
