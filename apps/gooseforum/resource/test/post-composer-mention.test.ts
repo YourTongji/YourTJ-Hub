@@ -84,8 +84,8 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve }
 }
 
-function searchUser(id: number, username: string, nickname?: string) {
-  return { userId: id, username, nickname: nickname ?? username, avatarUrl: `/a${id}.png`, actorType: 'human' as const }
+function searchUser(id: number, username: string, nickname?: string, actorType: 'human' | 'bot' = 'human') {
+  return { userId: id, username, nickname: nickname ?? username, avatarUrl: `/a${id}.png`, actorType }
 }
 
 const searchPending = new Map<string, Deferred<ReturnType<typeof searchUser>[]>>()
@@ -156,6 +156,16 @@ async function openMentionWithSearch(wrapper: VueWrapper, prefix: string, result
 }
 
 describe('PostComposer @mention 会话（issue #564）', () => {
+  test('labels a local participant using the duplicate server candidate bot identity', async () => {
+    const { wrapper } = mountComposer({
+      mentionUsers: [{ id: 8, username: 'helper', nickname: '迎新助手', avatarUrl: '', tag: 'participant' }],
+    })
+    await openMentionWithSearch(wrapper, '@help', [searchUser(8, 'helper', '迎新助手', 'bot')])
+    const panel = mentionPanel()!
+    expect(panel.textContent).toContain('机器人')
+    expect(panel.querySelector('[role="option"]')?.getAttribute('aria-label')).toContain('机器人')
+    wrapper.unmount()
+  })
   test('输入 @ 后打开候选列表，展示服务端搜索结果', async () => {
     const { wrapper } = mountComposer({})
     await openMentionWithSearch(wrapper, '@wa', [searchUser(21, 'wavery', '小薇')])

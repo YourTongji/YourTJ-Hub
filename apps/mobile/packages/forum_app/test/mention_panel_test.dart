@@ -62,6 +62,25 @@ Widget host(
 }
 
 void main() {
+  testWidgets('server bot metadata survives a duplicate local candidate', (
+    tester,
+  ) async {
+    final session = MentionSessionController(
+      searchUsers: (_) async => [user(12, 'helper', actorType: 'bot')],
+    );
+    addTearDown(session.dispose);
+    session.updateContext(
+      local: [user(12, 'helper', tag: MentionTag.topicAuthor)],
+      currentUserId: 0,
+    );
+    await tester.pumpWidget(host(session));
+    session.handleValue('@help');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+    expect(session.candidates.single.tag, MentionTag.topicAuthor);
+    expect(find.text('Bot'), findsOneWidget);
+    expect(tester.getSemantics(find.text('helper')).label, contains('Bot'));
+  });
   testWidgets(
     'mouse selection keeps composer focus and replaces the mention token',
     (tester) async {
@@ -190,9 +209,7 @@ void main() {
     final session = MentionSessionController(searchUsers: (_) async => []);
     addTearDown(session.dispose);
     session.updateContext(
-      local: [
-        user(12, 'helper-bot', nickname: '迎新助手', actorType: 'bot'),
-      ],
+      local: [user(12, 'helper-bot', nickname: '迎新助手', actorType: 'bot')],
       currentUserId: 0,
     );
     session.handleValue('@');

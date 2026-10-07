@@ -50,7 +50,8 @@ class MentionUser {
           other.tag == tag;
 
   @override
-  int get hashCode => Object.hash(id, username, nickname, avatarUrl, actorType, tag);
+  int get hashCode =>
+      Object.hash(id, username, nickname, avatarUrl, actorType, tag);
 }
 
 /// 识别出的 mention token：光标前文本中 [start, start + length) 即 "@query"。
@@ -211,10 +212,24 @@ List<MentionUser> rankMentionCandidates({
 }) {
   final seen = <int>{};
   final out = <MentionUser>[];
+  // Keep contextual order/tag while merging the server's actor identity.
+  final actorTypes = {for (final user in server) user.id: user.actorType};
   void push(MentionUser user) {
     if (user.id == currentUserId || seen.contains(user.id)) return;
     seen.add(user.id);
-    out.add(user);
+    final actorType = actorTypes[user.id] ?? user.actorType;
+    out.add(
+      actorType == user.actorType
+          ? user
+          : MentionUser(
+              id: user.id,
+              username: user.username,
+              nickname: user.nickname,
+              avatarUrl: user.avatarUrl,
+              tag: user.tag,
+              actorType: actorType,
+            ),
+    );
   }
 
   final localSorted =
