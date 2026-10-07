@@ -12,13 +12,20 @@ func Recovery() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
+				path := c.Request.URL.Path
+				privateIdentity := isAnonymousIdentityPath(path)
+				if privateIdentity && c.FullPath() != "" {
+					path = c.FullPath()
+				}
 				attrs := []any{
 					"method", c.Request.Method,
-					"path", c.Request.URL.Path,
+					"path", path,
 					"query", logQuery(c.Request.URL),
 					"route", c.FullPath(),
-					"ip", c.ClientIP(),
 					"user_agent", c.Request.UserAgent(),
+				}
+				if !privateIdentity {
+					attrs = append(attrs, "ip", c.ClientIP())
 				}
 				if referer := c.Request.Referer(); referer != "" {
 					if redacted := logReferer(referer); redacted != "" {

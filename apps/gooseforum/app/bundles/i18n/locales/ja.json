@@ -134,6 +134,7 @@
   "serverMessages.sticker.imageRequired": "自分がアップロードした {maxSizeMb} MB 以下の画像または GIF を選択してください。",
   "serverMessages.sticker.unavailable": "このスタンプは利用できません。",
   "permission.revealAnonymousIdentity": "匿名の身元開示（制限された監査）",
+  "anonymous.profileContentHidden": "匿名プロフィールの内容は非表示です",
   "anonymous.identity": "匿名の身元",
   "anonymous.nameLocked": "名前は1年間固定されています。",
   "anonymous.dailyLimit": "本日10回の抽選上限です。既存の候補から選べます。",

@@ -1263,5 +1263,8 @@
   "anonymousReady": "利用可能",
   "anonymousLockedUntil": "{date} 以降に名前を変更できます",
   "anonymousResetAt": "抽選回数は {date} にリセットされます",
-  "anonymousNameLockHint": "確定後、名前は1年間固定です。"
+  "anonymousNameLockHint": "確定後、名前は1年間固定です。",
+  "anonymousShowContent": "匿名プロフィールの内容を表示",
+  "anonymousShowContentDescription": "匿名プロフィールに投稿、返信、件数を表示します。オフにすると名前とアバターのみ表示され、フォーラムの元の内容は引き続き閲覧できます。",
+  "anonymousProfileContentHidden": "匿名プロフィールの内容は非表示です"
 }

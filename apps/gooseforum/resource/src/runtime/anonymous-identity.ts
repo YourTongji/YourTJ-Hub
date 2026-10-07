@@ -23,6 +23,7 @@ export interface IdentityState {
   nameChangeAvailableAt: string | null
   disabled: boolean
   governanceDisabled: boolean
+  showContent: boolean
   day: string
   remaining: number
   resetsAt: string
@@ -47,6 +48,7 @@ export const generateNames = (day: string, requestKey: string) =>
 export const confirmName = (batchId: string, index: number) =>
   request<Persona>('confirm', { batchId, index })
 export const disableIdentity = (disabled: boolean) => request<boolean>('disable', { disabled })
+export const setProfileContent = (showContent: boolean) => request<boolean>('privacy', { showContent })
 
 export interface PublicAuthor {
   id: number

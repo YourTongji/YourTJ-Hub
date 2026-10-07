@@ -20,6 +20,19 @@ type AnonymousConfirmReq struct {
 type AnonymousDisabledReq struct {
 	Disabled bool `json:"disabled"`
 }
+type AnonymousPrivacyReq struct {
+	ShowContent *bool `json:"showContent" validate:"required"`
+}
+
+func AnonymousPrivacy(req component.BetterRequest[AnonymousPrivacyReq]) component.Response {
+	req.GinContext.Header("Cache-Control", "private, no-store")
+	err := anonymousidentityservice.Default(req.GinContext.Request.Context()).SetShowContent(req.UserId, *req.Params.ShowContent)
+	if err != nil {
+		return component.FailResponseCode(component.MessageCode(anonymousidentityservice.ErrorCode(err)), nil)
+	}
+	return component.SuccessResponse(true)
+}
+
 type AnonymousRevealReq struct {
 	PublicUID string `json:"publicUid" validate:"required"`
 	Reason    string `json:"reason" validate:"required,max=512"`

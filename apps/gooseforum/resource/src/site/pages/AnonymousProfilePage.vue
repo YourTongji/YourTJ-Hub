@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { FileText, MessageCircle } from '@lucide/vue'
+import { EyeOff, FileText, MessageCircle } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import type { AnonymousProfileProps, LayoutPayload } from '@gooseforum/client'
 import { getIdentityState, type IdentityState } from '@/runtime/anonymous-identity'
@@ -36,6 +36,7 @@ watch(() => [page.layout.viewer.isAuthenticated ? page.layout.viewer.id : 0, pag
   } catch { /* Public viewing remains available if the private state cannot load. */ }
 }, { immediate: true })
 const isOwnProfile = computed(() => ownState.value?.persona?.publicUid === page.props.persona.publicUid)
+const showContent = computed(() => page.props.showContent && (!isOwnProfile.value || ownState.value?.showContent !== false))
 const persona = computed(() => isOwnProfile.value ? ownState.value!.persona! : page.props.persona)
 const tabs = computed(() => [
   { key: 'topics', label: t('user.stats.topics'), url: `${page.props.persona.profileUrl}?tab=topics`, active: activeTab.value === 'topics' },
@@ -56,6 +57,9 @@ function manage(event: MouseEvent) {
 function updateState(state: IdentityState) {
   if (page.layout.viewer.isAuthenticated && page.layout.viewer.id === managedViewer && page.props.persona.publicUid === managedUid) ownState.value = state
 }
+watch(manageOpen, (open) => {
+  if (!open && isOwnProfile.value && ownState.value?.showContent !== page.props.showContent) window.location.reload()
+})
 </script>
 
 <template>
@@ -73,8 +77,8 @@ function updateState(state: IdentityState) {
           <ProfileManageButton v-if="isOwnProfile" :label="t('anonymous.manageShort')" @click="manage" />
         </template>
       </ProfileHeader>
-      <ProfileTabs :tabs="tabs" />
-      <div class="p-4">
+      <ProfileTabs v-if="showContent" :tabs="tabs" />
+      <div v-if="showContent" class="p-4">
         <ProfileStats :items="stats" />
         <div class="pt-4">
           <template v-if="activeTab === 'topics'">
@@ -93,7 +97,8 @@ function updateState(state: IdentityState) {
           </template>
         </div>
       </div>
-      <nav v-if="page.props.page > 1 || hasNext" class="flex justify-between gap-3 border-t border-line p-4">
+      <EmptyState v-else :icon="EyeOff" :title="t('anonymous.profileContentHidden')" class="p-8" />
+      <nav v-if="showContent && (page.props.page > 1 || hasNext)" class="flex justify-between gap-3 border-t border-line p-4">
         <a v-if="page.props.page > 1" :href="pageUrl(page.props.page - 1)" class="gf-button gf-button-secondary">{{ t('common.previousPage') }}</a>
         <a v-if="hasNext" :href="pageUrl(page.props.page + 1)" class="gf-button gf-button-secondary ml-auto">{{ t('anonymous.next') }}</a>
       </nav>

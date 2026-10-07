@@ -13,6 +13,7 @@ import (
 	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
@@ -233,9 +234,19 @@ func TestPersonaPublishingAndAuthorImmutabilityHTTP(t *testing.T) {
 	if saved.PersonaUID != uid || saved.UserId != owner.Id {
 		t.Fatal("body edit changed author")
 	}
-	selfLike := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/like", fmt.Sprintf(`{"postId":%d,"action":1}`, anonymous.Id), token))
-	if selfLike.Code == 0 {
-		t.Fatal("persona owner liked their own post")
+	for _, action := range []struct{ path, body string }{
+		{"/api/forum/topics/like", fmt.Sprintf(`{"topicId":%d,"action":1}`, topicID)},
+		{"/api/forum/posts/like", fmt.Sprintf(`{"postId":%d,"action":1}`, anonymous.Id)},
+	} {
+		for range 2 {
+			selfLike := decodeContractEnvelope(t, serveJSON(router, action.path, action.body, token))
+			if selfLike.Code != 0 {
+				t.Fatal("persona owner cannot like their own content", action.path, selfLike)
+			}
+		}
+	}
+	if err := conn.First(&topic, topicID).Error; err != nil || topic.LikeCount != 1 {
+		t.Fatal("repeated owner topic likes must count once", topic.LikeCount, err)
 	}
 	window := serveAuthSecurityJSON(router, http.MethodGet, fmt.Sprintf("/api/forum/posts/window?topicId=%d", topicID), "", "")
 	var publicWindow forum.PostWindowPayload
@@ -243,9 +254,23 @@ func TestPersonaPublishingAndAuthorImmutabilityHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, post := range publicWindow.Posts {
+		if post.ID == anonymous.Id && post.LikeCount != 1 {
+			t.Fatal("repeated owner reply likes must count once", post.LikeCount)
+		}
 		if post.Author.PublicUID == uid && (post.Author.ID != 0 || post.Author.Username == owner.Username) {
 			t.Fatal("public window exposes anonymous owner", post)
 		}
+	}
+	for _, action := range []struct{ path, body string }{
+		{"/api/forum/topics/like", fmt.Sprintf(`{"topicId":%d,"action":2}`, topicID)},
+		{"/api/forum/posts/like", fmt.Sprintf(`{"postId":%d,"action":2}`, anonymous.Id)},
+	} {
+		if res := decodeContractEnvelope(t, serveJSON(router, action.path, action.body, token)); res.Code != 0 {
+			t.Fatal("owner cannot cancel persona like", res)
+		}
+	}
+	if err := conn.First(&topic, topicID).Error; err != nil || topic.LikeCount != 0 || postUserAction.CountLikesByPostIds([]uint64{anonymous.Id})[anonymous.Id] != 0 {
+		t.Fatal("cancel did not clear owner likes", err)
 	}
 	if err := conn.Model(&persona).Update("disabled", true).Error; err != nil {
 		t.Fatal(err)

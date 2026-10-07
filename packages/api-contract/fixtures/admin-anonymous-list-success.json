@@ -1,0 +1,26 @@
+{
+  "code": 0,
+  "result": {
+    "items": [
+      {
+        "kind": "persona",
+        "publicUid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "躲进云里的猫",
+        "avatarUrl": "/a/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/avatar.svg",
+        "profileUrl": "/a/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "owner": {
+          "userId": 1,
+          "username": "example-owner",
+          "closed": false,
+          "frozen": false
+        },
+        "disabled": false,
+        "governanceDisabled": false,
+        "selectedAt": "2026-10-07T08:00:00Z"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "pageSize": 10
+  }
+}
