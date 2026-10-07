@@ -456,6 +456,10 @@ WriteTopicRequest:
       title:
         minLength: 1
   properties:
+    identity:
+      type: string
+      enum: [member, persona]
+      description: Defaults to member on creation. Edits preserve the original author; attempting to switch fails. An unavailable persona never falls back to member.
     topicId:
       type: integer
       format: uint64
@@ -571,6 +575,8 @@ AgentTopicItem:
   type: object
   required: [id, title, excerpt, categoryIds, userId, status, processStatus, replyCount, viewCount, postCount, createdAt, updatedAt]
   properties:
+    author:
+      $ref: '#/TopicAuthorPayload'
     id:
       type: integer
       format: uint64
@@ -709,6 +715,10 @@ AgentCreatePostRequest:
   type: object
   required: [content]
   properties:
+    identity:
+      type: string
+      enum: [member, persona]
+      description: Defaults to member on creation. Edits preserve the original author; attempting to switch fails. An unavailable persona never falls back to member.
     content:
       type: string
       minLength: 1
@@ -2484,10 +2494,17 @@ TopicAuthorPayload:
   type: object
   required: [id, username, avatarUrl]
   properties:
+    kind:
+      type: string
+      enum: [member, persona]
+    publicUid:
+      type: string
+    profileUrl:
+      type: string
     id:
       type: integer
       format: uint64
-      minimum: 1
+      minimum: 0
     username:
       type: string
     nickname:
@@ -4964,6 +4981,13 @@ NotificationActorPayload:
   type: object
   required: [id, username, avatarUrl]
   properties:
+    kind:
+      type: string
+      enum: [member, persona]
+    publicUid:
+      type: string
+    profileUrl:
+      type: string
     id:
       type: integer
       format: uint64
@@ -6861,8 +6885,8 @@ AdminPermissionOption:
     value:
       type: integer
       minimum: 0
-      maximum: 6
-      description: Permission enum id (0 Admin, 1 UserManager, 2 TopicsManager, 3 PageManager, 4 RoleManager, 5 SiteManager, 6 CourseManager).
+      maximum: 7
+      description: Permission enum id (0 Admin, 1 UserManager, 2 TopicsManager, 3 PageManager, 4 RoleManager, 5 SiteManager, 6 CourseManager, 7 anonymous.identity.reveal requiring an explicit grant).
   additionalProperties: false
 
 AdminPermissionListResponse:
@@ -6875,7 +6899,7 @@ AdminPermissionListResponse:
           type: array
           items:
             $ref: '#/AdminPermissionOption'
-          description: All 7 assignable permissions, enum id ascending.
+          description: All 8 assignable permissions, enum id ascending.
 
 AdminRolePermissionItem:
   type: object
@@ -9102,6 +9126,7 @@ AdminFileResourceItem:
     userId:
       type: integer
       format: uint64
+      description: Always zero; private uploader attribution is not part of this projection.
     createdAt:
       type: string
       format: date-time
@@ -9110,7 +9135,7 @@ AdminFileResourceItem:
       description: Public access path (`/file/img/...` under the local provider, or the configured public prefix).
     uploaderUsername:
       type: string
-      description: Empty when the uploader row is missing.
+      description: Always empty; uploader attribution is private and omitted from ordinary administrative listings.
   additionalProperties: false
 
 AdminFileResourcePageResult:

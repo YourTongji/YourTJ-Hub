@@ -327,7 +327,9 @@ func getProfile(ctx context.Context, uid uint64) (profile, error) {
 		}
 		p.Count++
 		weight := a.weight * math.Pow(.5, now.Sub(a.at).Hours()/(14*24))
-		p.Authors[r.UserId] += weight
+		if r.PersonaUID == "" {
+			p.Authors[r.UserId] += weight
+		}
 		for _, cat := range r.CategoryIds {
 			p.Categories[cat] += weight
 		}
@@ -475,7 +477,7 @@ func buildSnapshot(ctx context.Context, uid uint64, cfg feedconfig.Config) (*sna
 		}
 		age := max(0, now.Sub(*r.FirstPublicAt).Hours())
 		c := Candidate{Repeat: wasRepeated(uid, r.Id, r.LastPublicReplyAt, now), ID: r.Id, Author: r.UserId, Sources: sources[r.Id], Reason: "recent", Fallback: sources[r.Id] == 0}
-		if followed[r.UserId] {
+		if r.PersonaUID == "" && followed[r.UserId] {
 			c.Features[0] = 10000
 			c.Reason = "following"
 		}
@@ -488,7 +490,7 @@ func buildSnapshot(ctx context.Context, uid uint64, cfg feedconfig.Config) (*sna
 		if c.Features[4] > 0 && c.Reason == "recent" {
 			c.Reason = "category"
 		}
-		if !followed[r.UserId] {
+		if r.PersonaUID == "" && !followed[r.UserId] {
 			c.Features[5] = Quantize(p.Authors[r.UserId])
 		}
 		if visit, ok := visited[r.Id]; ok {

@@ -2,7 +2,7 @@
 
 ## Status
 
-Superseded by [0066](0066-bounded-http-notification-retries.md)
+Superseded by [0067](0067-bounded-http-notification-retries.md)
 Class: feature
 
 ## Context and Problem Statement

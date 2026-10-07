@@ -516,12 +516,18 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                       displayName: (id, name) =>
                                           privateDisplayName(context, id, name),
                                     ),
-                                    avatarUrl: n.actor.id > 0
+                                    avatarUrl:
+                                        (n.actor.id > 0 ||
+                                            n.actor.publicUid != null)
                                         ? resolveApiAssetUrl(
                                             n.actor.avatarUrl ?? '',
                                           )
                                         : null,
-                                    onActorTap: n.actor.id > 0
+                                    onActorTap: n.actor.publicUid != null
+                                        ? () => context.push(
+                                            '/a/${n.actor.publicUid}',
+                                          )
+                                        : n.actor.id > 0
                                         ? () => context.push('/u/${n.actor.id}')
                                         : null,
                                     tone: tone,

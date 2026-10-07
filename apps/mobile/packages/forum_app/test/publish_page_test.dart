@@ -137,6 +137,7 @@ class _RecordingTopicRepository extends TopicRepository {
     List<String>? images,
     String? captchaId,
     String? captchaCode,
+    String? identity,
   }) async {
     if (requireCaptcha &&
         (captchaId != 'challenge' ||

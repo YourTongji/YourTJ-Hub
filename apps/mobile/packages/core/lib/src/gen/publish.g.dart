@@ -25,6 +25,7 @@ Map<String, dynamic> _$$PublishCategoryPayloadImplToJson(
 _$PublishTopicPayloadImpl _$$PublishTopicPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$PublishTopicPayloadImpl(
+  identity: json['identity'] as String? ?? "member",
   title: json['title'] as String,
   content: json['content'] as String,
   images:
@@ -42,6 +43,7 @@ _$PublishTopicPayloadImpl _$$PublishTopicPayloadImplFromJson(
 Map<String, dynamic> _$$PublishTopicPayloadImplToJson(
   _$PublishTopicPayloadImpl instance,
 ) => <String, dynamic>{
+  'identity': instance.identity,
   'title': instance.title,
   'content': instance.content,
   'images': instance.images,

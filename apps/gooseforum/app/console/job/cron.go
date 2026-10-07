@@ -15,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/networkAccessLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/anonymousidentityservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
@@ -64,6 +65,14 @@ func Run() {
 
 func registerJobs() {
 	slog.Info("start cron")
+	_, errAnonymous := scheduler.AddFunc("13 * * * *", upCmd(func() {
+		if err := anonymousidentityservice.Default(context.Background()).Cleanup(); err != nil {
+			slog.Warn("anonymous candidate cleanup failed", "err", err)
+		}
+	}))
+	if errAnonymous != nil {
+		slog.Error("register anonymous cleanup failed", "err", errAnonymous)
+	}
 	backupSpec := preferences.Get("db.spec", "0 3 * * *")
 	entryID, err := scheduler.AddFunc(backupSpec, upCmd(func() {
 		dbconnect.BackupSQLiteHandle()

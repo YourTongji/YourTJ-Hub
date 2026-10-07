@@ -1938,12 +1938,6 @@ abstract class AppLocalizations {
   /// **'Jumped to floor {floor}'**
   String topicFloorSelected(Object floor);
 
-  /// No description provided for @sortForYou.
-  ///
-  /// In en, this message translates to:
-  /// **'For you'**
-  String get sortForYou;
-
   /// No description provided for @sortLatest.
   ///
   /// In en, this message translates to:
@@ -6311,6 +6305,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions.'**
   String get notificationReviewRejectedDetail;
+
+  /// No description provided for @anonymousLockDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Name available from: '**
+  String get anonymousLockDate;
+
+  /// No description provided for @anonymousRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'Batches remaining today: '**
+  String get anonymousRemaining;
+
+  /// No description provided for @anonymousIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Anonymous identity'**
+  String get anonymousIdentity;
+
+  /// No description provided for @anonymousBoundary.
+  ///
+  /// In en, this message translates to:
+  /// **'One anonymous identity per account. A chosen name is locked for one year. The public and ordinary moderators cannot see your main account. Restricted administrators can reveal it with a reason and audit. Private bindings and audits remain after account closure.'**
+  String get anonymousBoundary;
+
+  /// No description provided for @anonymousRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload'**
+  String get anonymousRetry;
+
+  /// No description provided for @anonymousUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Anonymous identity is unavailable'**
+  String get anonymousUnavailable;
+
+  /// No description provided for @anonymousEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Reactivate identity'**
+  String get anonymousEnable;
+
+  /// No description provided for @anonymousDisable.
+  ///
+  /// In en, this message translates to:
+  /// **'Deactivate identity'**
+  String get anonymousDisable;
+
+  /// No description provided for @anonymousRandomize.
+  ///
+  /// In en, this message translates to:
+  /// **'Draw 10 names'**
+  String get anonymousRandomize;
+
+  /// No description provided for @anonymousPublishAs.
+  ///
+  /// In en, this message translates to:
+  /// **'Publish as'**
+  String get anonymousPublishAs;
+
+  /// No description provided for @anonymousMember.
+  ///
+  /// In en, this message translates to:
+  /// **'Main identity'**
+  String get anonymousMember;
+
+  /// No description provided for @anonymousSetup.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up anonymous identity'**
+  String get anonymousSetup;
+
+  /// No description provided for @anonymousConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm name (locked for one year)'**
+  String get anonymousConfirm;
+
+  /// No description provided for @anonymousCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get anonymousCancel;
+
+  /// No description provided for @anonymousNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next page'**
+  String get anonymousNext;
+
+  /// No description provided for @anonymousPersonaLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Anonymous identity'**
+  String get anonymousPersonaLabel;
+
+  /// No description provided for @anonymousManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage anonymous identity'**
+  String get anonymousManage;
+
+  /// No description provided for @anonymousReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Reason (required)'**
+  String get anonymousReason;
+
+  /// No description provided for @anonymousBan.
+  ///
+  /// In en, this message translates to:
+  /// **'Restrict account writing'**
+  String get anonymousBan;
+
+  /// No description provided for @anonymousRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove this writing restriction'**
+  String get anonymousRestore;
+
+  /// No description provided for @anonymousReveal.
+  ///
+  /// In en, this message translates to:
+  /// **'Reveal with audit'**
+  String get anonymousReveal;
+
+  /// No description provided for @sortForYou.
+  ///
+  /// In en, this message translates to:
+  /// **'For you'**
+  String get sortForYou;
 
   /// No description provided for @feedReasonFollowing.
   ///

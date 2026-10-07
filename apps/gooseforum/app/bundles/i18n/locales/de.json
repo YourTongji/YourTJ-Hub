@@ -133,6 +133,12 @@
   "serverMessages.sticker.uploadQuota": "Du hast das Limit von {limit} hochgeladenen Stickern erreicht. Gesendete Bilder bleiben für den Nachrichtenverlauf erhalten.",
   "serverMessages.sticker.imageRequired": "Wähle ein selbst hochgeladenes Bild oder GIF mit höchstens {maxSizeMb} MB.",
   "serverMessages.sticker.unavailable": "Dieser Sticker ist nicht verfügbar.",
+  "permission.revealAnonymousIdentity": "Anonyme Identität offenlegen (beschränkte Prüfung)",
+  "anonymous.identity": "Anonyme Identität",
+  "anonymous.nameLocked": "Dieser Name bleibt ein Jahr fest.",
+  "anonymous.dailyLimit": "Alle 10 täglichen Ziehungen verbraucht. Vorhandene Kandidaten bleiben heute auswählbar.",
+  "anonymous.candidateExpired": "Kandidaten ungültig oder abgelaufen. Heutige Gruppen neu laden.",
+  "anonymous.unavailable": "Anonyme Identität nicht verfügbar",
   "forYouFeed": "Für dich",
   "dailyFeed": "Top-Themen heute"
 }

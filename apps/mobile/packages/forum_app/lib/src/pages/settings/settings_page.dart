@@ -1141,6 +1141,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ],
         ),
       ),
+      if (_signedIn == true) ...[
+        const SizedBox(height: 24),
+        GfButton(
+          label: l10n.settingsLogout,
+          variant: GfButtonVariant.danger,
+          expanded: true,
+          onPressed: _logout,
+        ),
+      ],
     ],
   );
 
@@ -1363,6 +1372,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           context,
           child: Column(
             children: [
+              GfSettingRow(
+                symbol: 'eye-off',
+                title: l10n.anonymousIdentity,
+                trailing: const GfSymbol('chevron-right', size: 18),
+                onTap: () => context.push('/settings/anonymous-identity'),
+              ),
+              const GfDivider(),
               GfSettingRow(
                 symbol: 'at-sign',
                 title: l10n.authUsername,
@@ -1601,14 +1617,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               );
             },
           ),
-        ),
-        const SizedBox(height: 12),
-        // 登出(web AppShell logout 语义):服务端失效 + 清本地 token + 回登录页。
-        GfButton(
-          label: l10n.settingsLogout,
-          variant: GfButtonVariant.danger,
-          expanded: true,
-          onPressed: _logout,
         ),
         const SizedBox(height: 24),
       ],

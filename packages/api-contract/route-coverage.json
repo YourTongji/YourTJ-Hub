@@ -280,6 +280,16 @@
       "method": "GET",
       "path": "/register/tongji",
       "reason": "SSR 同济注册完成页（GoHTML 三模渲染），非 JSON API；状态及提交受 /api/auth/tongji/registration 契约控制。"
+    },
+    {
+      "method": "GET",
+      "path": "/a/:publicUid",
+      "reason": "匿名身份只读主页，GoHTML 三模页面（包括 X-Goose-Page），非 JSON API。"
+    },
+    {
+      "method": "GET",
+      "path": "/a/:publicUid/avatar.svg",
+      "reason": "固定匿名头像 SVG 资源，非 JSON API。"
     }
   ],
   "knownUncovered": []

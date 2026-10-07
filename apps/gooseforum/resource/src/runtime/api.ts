@@ -101,7 +101,7 @@ export function pendingReviewMessage(result?: { checking?: boolean }) {
   return resolveApiMessage({ messageCode: PENDING_REVIEW_MESSAGE_CODE }, t('api.pendingReview'))
 }
 
-async function readApiResponse<T>(response: Response, fallback: string): Promise<T> {
+export async function readApiResponse<T>(response: Response, fallback: string): Promise<T> {
   return (await readApiEnvelope<T>(response, fallback)).result
 }
 
@@ -769,6 +769,7 @@ export async function followUser(userId: number, isFollowing: boolean): Promise<
 }
 
 export interface SubmitTopicInput {
+ identity?: 'member' | 'persona'
   topicId: number
   title: string
   content: string
@@ -818,7 +819,7 @@ export async function submitTopicResult(topic: SubmitTopicInput): Promise<Submit
   return { id: data.result ?? data.data ?? topic.topicId, ...reviewState(data.messageCode) }
 }
 
-export async function createPost(topicId: number, content: string, replyToPostId = 0, extra?: { captchaId?: string, captchaCode?: string, website?: string, isAnonymous?: boolean }): Promise<CreatePostResult | number | boolean> {
+export async function createPost(topicId: number, content: string, replyToPostId = 0, extra?: { captchaId?: string, captchaCode?: string, website?: string, isAnonymous?: boolean, identity?: 'member' | 'persona' }): Promise<CreatePostResult | number | boolean> {
   const response = await feedFetch('/api/forum/posts/create', {
     method: 'POST',
     headers: {

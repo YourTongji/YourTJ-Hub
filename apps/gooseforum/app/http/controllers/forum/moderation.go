@@ -331,6 +331,10 @@ func buildReportEvidenceSnapshot(targetType string, targetID uint64, topicID uin
 	case reports.TargetTopic:
 		topic := topics.GetSimple(targetID)
 		if topic.Id > 0 {
+			if topic.PersonaUID != "" {
+				snapshot.AuthorID = 0
+				snapshot.AuthorName = ""
+			}
 			snapshot.Title = topic.Title
 			snapshot.Excerpt = moderationExcerpt(topic.Excerpt)
 			snapshot.CategoryIDs = topic.CategoryIds
@@ -461,6 +465,9 @@ func ModerationPostReveal(req component.BetterRequest[ModerationPostRevealReq]) 
 	post := posts.Get(req.Params.PostId)
 	if post.Id == 0 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+	if post.PersonaUID != "" {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
 	}
 	payload := PostAuthorRevealPayload{
 		PostId:       post.Id,
@@ -641,16 +648,25 @@ func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) comp
 			return component.FailResponseCode(component.MessagePermissionDenied, nil)
 		}
 		view = ModerationDeletedContentView{
-			ContentType:  reports.TargetTopic,
-			ContentID:    topic.Id,
-			TopicID:      topic.Id,
-			Title:        topic.Title,
-			AuthorID:     topic.UserId,
+			ContentType: reports.TargetTopic,
+			ContentID:   topic.Id,
+			TopicID:     topic.Id,
+			Title:       topic.Title,
+			AuthorID: func() uint64 {
+				if topic.PersonaUID != "" {
+					return 0
+				}
+				return topic.UserId
+			}(),
 			DeletedBy:    topic.DeletedBy,
 			DeletedAt:    formatDeletedTime(topic.DeletedAt),
 			DeleteReason: topic.DeleteReason,
 			TargetURL:    urlconfig.PostDetail(topic.Id),
 			Categories:   categoryPayloads(topic.CategoryIds),
+		}
+		// A self-delete operator is the anonymous author, not a separate public moderator.
+		if topic.PersonaUID != "" && view.DeletedBy == topic.UserId {
+			view.DeletedBy = 0
 		}
 		firstPost := posts.UnscopedGet(topic.FirstPostId)
 		if firstPost.Id > 0 {
@@ -684,6 +700,9 @@ func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) comp
 		if post.IsAnonymous {
 			view.AuthorID = 0
 			view.AuthorName = ""
+			if view.DeletedBy == post.UserId {
+				view.DeletedBy = 0
+			}
 		}
 	default:
 		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)

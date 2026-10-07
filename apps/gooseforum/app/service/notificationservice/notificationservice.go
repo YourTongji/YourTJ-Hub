@@ -2,6 +2,7 @@ package notificationservice
 
 import (
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/anonymousidentityservice"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
@@ -59,9 +60,22 @@ func hydrateNotifications(notifications []*eventNotification.Entity) error {
 		return fmt.Errorf("load notification topic titles: %w", err)
 	}
 
+	uids := make([]string, 0, len(notifications))
+	for _, n := range notifications {
+		if n.Payload.ActorPersonaUID != "" {
+			uids = append(uids, n.Payload.ActorPersonaUID)
+		}
+	}
+	personas := anonymousidentityservice.Lookup(uids)
 	// 转换数据
 	lo.ForEach(notifications, func(notification *eventNotification.Entity, _ int) {
-		if userInfo, ok := userMap[notification.Payload.ActorId]; ok {
+		if notification.Payload.ActorPersonaUID != "" {
+			public := personas[notification.Payload.ActorPersonaUID]
+			notification.Payload.ActorId = 0
+			notification.Payload.ActorName = public.Name
+			notification.Payload.Extra.ProfileURL = public.ProfileURL
+		}
+		if userInfo, ok := userMap[notification.Payload.ActorId]; ok && notification.Payload.ActorPersonaUID == "" {
 			notification.Payload.ActorName = userInfo.Username
 		}
 		// Review subjects describe the reviewed version (including untitled bodies

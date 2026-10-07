@@ -68,8 +68,9 @@ type NotificationPayload struct {
 	TemplateKey    string                     `json:"templateKey,omitempty"`
 	TemplateParams NotificationTemplateParams `json:"templateParams"`
 	// 通用字段
-	ActorId   uint64 `json:"actorId"`             // 触发者ID
-	ActorName string `json:"actorName,omitempty"` // 触发者名称
+	ActorPersonaUID string `json:"actorPersonaUid,omitempty"`
+	ActorId         uint64 `json:"actorId"`             // 触发者ID
+	ActorName       string `json:"actorName,omitempty"` // 触发者名称
 	// Topic / post references
 	TopicId    uint64 `json:"topicId,omitempty"`
 	TopicTitle string `json:"topicTitle,omitempty"`
@@ -94,8 +95,9 @@ type Extra struct {
 }
 
 type Entity struct {
-	Id     uint64 `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_user_id_desc,priority:2;index:idx_user_read_id,priority:3" json:"id"`
-	UserId uint64 `gorm:"column:user_id;type:bigint;index:idx_user_id_event_type_read;index:idx_user_read;index:idx_user_id_desc,priority:1;index:idx_user_read_id,priority:1" json:"userId"` // 接收通知的用户ID
+	PrivateActorID uint64 `gorm:"not null;default:0" json:"-"`
+	Id             uint64 `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_user_id_desc,priority:2;index:idx_user_read_id,priority:3" json:"id"`
+	UserId         uint64 `gorm:"column:user_id;type:bigint;index:idx_user_id_event_type_read;index:idx_user_read;index:idx_user_id_desc,priority:1;index:idx_user_read_id,priority:1" json:"userId"` // 接收通知的用户ID
 	// TopicID 冗余列：与 Payload.TopicId 同步维护，供删除联动按 SQL 过滤而非全表扫描。
 	// 非话题类通知（badge/follow）该列为 0。跨库 JSON 查询语法不一致，SQL 过滤需要此列。
 	TopicID   uint64              `gorm:"column:topic_id;not null;default:0;index:idx_event_notification_topic" json:"-"`

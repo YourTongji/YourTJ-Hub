@@ -139,6 +139,9 @@ void main() {
           scrollable: find.byType(Scrollable).first,
         );
         expect(find.text(l10n.authLoginTitle), findsOneWidget);
+        await tester.drag(find.byType(ListView), const Offset(0, -1000));
+        await tester.pumpAndSettle();
+        expect(find.text(l10n.settingsLogout), findsNothing);
         // Center the row after scrolling from the account section; its long
         // description can otherwise place the title above the viewport.
         await Scrollable.ensureVisible(

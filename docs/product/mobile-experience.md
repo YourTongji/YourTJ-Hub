@@ -298,7 +298,8 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   within the active session, then
   refreshed in the background.
   Late reads cannot replace a newer read or follow action. Closed accounts show the closure notice,
-  and anonymous reply avatars do not open a profile. Profile pages, relationship lists and previews
+  and legacy per-content anonymous reply avatars do not open a profile. Persistent anonymous personas
+  open their independent `/a/:publicUid` profile. Profile pages, relationship lists and previews
   share one optimistic follow state per user; failure restores it and the next profile-card read
   refreshes follower counts.
 - `Current`: topic and reply authors open their public profiles. Owners can edit/delete their
@@ -988,6 +989,28 @@ identity survive this layout change. The header keeps a small outer margin for i
   their inbox; when it is disabled, the ordinary registration confirmation remains. Email changes
   tell the user to check the new address for its activation link in both immediate and staged modes.
 
+## Persistent forum anonymous identity
+
+`Current`: native settings offer the same complete THUOCL candidates, ten words per batch and ten
+batches per Shanghai day as Web. Candidates wrap without truncation and require a confirmation
+dialog explaining the one-year name lock and restricted audit boundary. An ambiguous draw retains
+its request key for retry. Self-disable/enable keeps the persona UID, avatar and slot; a governance
+restriction cannot be cleared from settings. Private state follows the current session epoch.
+
+`Current`: native topic and reply composers show the current name/avatar and a main/persona choice,
+retained in local writing recovery and failed/captcha submissions. Editing a published topic retains
+its author. A continuation in an owned anonymous topic defaults to persona. Persona names and
+notification actors open the native `/a/:publicUid` profile with only visible topic/reply history
+and counts; author-only reply filtering compares public identities. The common avatar component
+loads the server's fixed SVG. These are display identities and never receive a native user preview
+or private-message action. Scoped moderators can open anonymous governance from topic/reply menus;
+only explicit permission 7 exposes the audited reveal action. Reveal results stay in the open dialog
+and are discarded on close or session change.
+
+`Partial`: native widget/contract evidence does not establish physical-device keyboard, screen-reader
+or production push delivery behavior. The shared business and privacy rules are owned by
+[anonymous identity](anonymous-identity.md).
+
 ## Profile and privacy
 
 - `Current`: visit statistics run automatically for guests and signed-in users in official Android/iOS
@@ -1134,6 +1157,10 @@ identity survive this layout change. The header keeps a small outer margin for i
   serialized so the latest choice remains stored. Account categories preserve existing section
   links, open on a normal back stack and fetch only their required data. Failed refreshes retain
   loaded content, and session changes clear private settings before loading the next account.
+  Signed-in users can log out directly from the bottom of the category index. The action requires
+  confirmation and retains push unbinding, server-session revocation, local credential and cache
+  cleanup, and navigation to sign-in. Cancelling leaves the session intact. Security contains
+  two-factor authentication and session management; guests have no logout action.
   The category index and section headers support enlarged text, keyboard activation and localized
   accessible labels; content stays centered within 720 pixels on larger windows.
 - `Current`: users with follow permission retain the follow button for already-followed accounts,

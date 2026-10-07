@@ -353,6 +353,9 @@ func persistInteractions(conn *gorm.DB, notifications []*eventNotification.Entit
 				committed = append(committed, n)
 			}
 		}
+		if err := redactAnonymousActors(tx, committed); err != nil {
+			return err
+		}
 		return eventNotification.CreateBatchTx(tx, committed, 100)
 	})
 	if err != nil {
