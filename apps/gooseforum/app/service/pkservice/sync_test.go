@@ -22,6 +22,8 @@ import (
 // migratePkTables 迁移并清空 PK 域表（测试用内存 sqlite）。
 func migratePkTables(t *testing.T) {
 	t.Helper()
+	InvalidateCatalogCache()
+	t.Cleanup(InvalidateCatalogCache)
 	models := []any{
 		&pk.CalendarEntity{},
 		&pk.LanguageEntity{},

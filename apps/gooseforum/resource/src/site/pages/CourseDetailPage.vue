@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeft, BookOpen, Building2, CalendarDays, Check, Download, FileText, Flag, GraduationCap, Hash, Loader2, MessageSquareText, Pencil, Share2, Star, ThumbsDown, ThumbsUp, Trash2, UsersRound, X } from '@lucide/vue'
 import {
@@ -21,7 +21,9 @@ import { formatDateTime } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
 import { processImageFile, validateImageFile } from '@/runtime/image'
 import CourseReviewTemplateSelector from '@/site/components/CourseReviewTemplateSelector.vue'
-import VditorOfficial from '@/site/components/VditorOfficial.vue'
+import type VditorOfficialComponent from '@/site/components/VditorOfficial.vue'
+
+const VditorOfficial = defineAsyncComponent(() => import('@/site/components/VditorOfficial.vue'))
 import AISummaryCard from '@/site/components/AISummaryCard.vue'
 import RatingSummaryCard from '@/site/components/RatingSummaryCard.vue'
 import EmptyState from '@/site/components/EmptyState.vue'
@@ -295,7 +297,7 @@ const templateSelectorOpen = ref(false)
 const formTemplateId = ref('')
 
 // —— 富文本编辑器（与帖子/回复同款 Vditor，紧凑工具栏）：异步就绪遮罩 + 图片上传 ——
-const reviewEditor = ref<InstanceType<typeof VditorOfficial> | null>(null)
+const reviewEditor = ref<InstanceType<typeof VditorOfficialComponent> | null>(null)
 const reviewEditorReady = ref(false)
 const reviewEditorFailed = ref(false)
 const uploadingReviewImages = ref(false)
