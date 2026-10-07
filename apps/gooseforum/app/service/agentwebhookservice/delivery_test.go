@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/safefetch"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentEvents"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentWebhook"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
@@ -546,4 +548,89 @@ func TestInfrastructureDiagnosticFailureRollsBackTaskTransition(t *testing.T) {
 	if err != nil || queued.Status != taskQueue.StatusRunning || queued.RetryCount != 8 || queued.LeaseToken != task.LeaseToken {
 		t.Fatalf("partial task transition: %#v err=%v", queued, err)
 	}
+}
+
+func TestRotateSecretRecoversInvalidSecretWithoutDamagedOverlap(t *testing.T) {
+	for _, emergency := range []bool{false, true} {
+		t.Run(fmt.Sprintf("emergency=%t", emergency), func(t *testing.T) {
+			conn := setup(t)
+			row := agents.Entity{UserId: 32, TokenPrefix: "invalid-secret", Enabled: 1, EventsEnabled: true, WebhookEnabled: true, WebhookEndpoint: "https://example.com/hook", SecretCiphertext: "corrupt-ciphertext", WebhookPausedReason: "secret_invalid"}
+			if err := conn.Create(&row).Error; err != nil {
+				t.Fatal(err)
+			}
+			rotated, err := RotateSecret(row.UserId, 0, emergency)
+			if err != nil {
+				t.Fatal(err)
+			}
+			current := agents.GetByUserID(row.UserId)
+			if current.WebhookPausedReason != "" || current.PreviousSecretCiphertext != "" || current.PreviousSecretExpiresAt != nil {
+				t.Fatalf("invalid-secret recovery left unusable state: %+v", current)
+			}
+			decoded, err := securestore.DecryptPurpose(current.SecretCiphertext, securestore.AgentWebhookSecretPurpose)
+			if err != nil || decoded != rotated.Secret {
+				t.Fatalf("new secret unavailable: %v", err)
+			}
+			delivery, err := Test(row.UserId, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			task, claimed, err := taskQueue.ClaimTask(delivery.TaskID)
+			if err != nil || !claimed {
+				t.Fatalf("claim=%t %v", claimed, err)
+			}
+			var permit permit
+			if err := conn.Transaction(func(tx *gorm.DB) error { var err error; permit, err = authorizeTx(tx, &task, delivery.ID); return err }); err != nil {
+				t.Fatal(err)
+			}
+			if permit.attemptID == "" || permit.secret != rotated.Secret {
+				t.Fatal("fresh secret did not recover send authorization")
+			}
+		})
+	}
+}
+
+func TestConfigureCanDisableUnchangedEndpointDuringDNSFailure(t *testing.T) {
+	for _, keepInbox := range []bool{false, true} {
+		t.Run(fmt.Sprintf("keepInbox=%t", keepInbox), func(t *testing.T) {
+			conn := setup(t)
+			row := agents.Entity{UserId: 33, TokenPrefix: "disable-dns", Enabled: 1, ConfigVersion: 1, EventsEnabled: true, EventTypes: `["agent.mentioned"]`, WebhookEnabled: true, WebhookEndpoint: "https://offline.example/hook"}
+			if err := conn.Create(&row).Error; err != nil {
+				t.Fatal(err)
+			}
+			sender = safefetch.New(safefetch.Config{Resolver: webhookFailedResolver{}})
+			disabled, err := Configure(row.UserId, 1, ConfigParams{EventsEnabled: keepInbox, EventTypes: []string{"agent.mentioned"}, WebhookEnabled: false, WebhookEndpoint: row.WebhookEndpoint})
+			if err != nil {
+				t.Fatalf("disable depends on receiver DNS: %v", err)
+			}
+			if disabled.EventsEnabled != keepInbox || disabled.WebhookEnabled || disabled.ConfigVersion != 2 {
+				t.Fatalf("disable not persisted: %+v", disabled)
+			}
+			if _, err := Configure(row.UserId, 2, ConfigParams{WebhookEndpoint: "https://changed.example/hook"}); !errors.Is(err, ErrInvalidConfig) {
+				t.Fatalf("new destination skipped DNS: %v", err)
+			}
+			if _, err := Configure(row.UserId, 2, ConfigParams{WebhookEndpoint: row.WebhookEndpoint, EventsEnabled: true, WebhookEnabled: true, EventTypes: []string{"agent.mentioned"}}); !errors.Is(err, ErrInvalidConfig) {
+				t.Fatalf("outbound reactivation skipped DNS: %v", err)
+			}
+		})
+	}
+}
+
+func TestRotateSecretPreservesUnrelatedPause(t *testing.T) {
+	conn := setup(t)
+	row := agents.Entity{UserId: 34, TokenPrefix: "paused-target", Enabled: 1, WebhookPausedReason: "target_blocked"}
+	if err := conn.Create(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RotateSecret(row.UserId, 0, true); err != nil {
+		t.Fatal(err)
+	}
+	if current := agents.GetByUserID(row.UserId); current.WebhookPausedReason != "target_blocked" {
+		t.Fatal("secret rotation cleared an unrelated safety pause")
+	}
+}
+
+type webhookFailedResolver struct{}
+
+func (webhookFailedResolver) LookupNetIP(context.Context, string, string) ([]netip.Addr, error) {
+	return nil, errors.New("receiver DNS unavailable")
 }

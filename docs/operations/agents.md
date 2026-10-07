@@ -77,8 +77,10 @@ encrypted in the forum. The `app.signingKey` must be preserved separately from b
 snapshots. See [secure storage](../../apps/gooseforum/app/bundles/securestore/securestore.go) for
 purpose-separated key derivation from the configured `app.signingKey`. Decryption errors stop sending;
 there is no plaintext fallback. Ordinary rotation signs with both current and previous keys for
-24 hours; emergency rotation immediately discards the previous key. The receiver keeps corresponding
-keys for the overlap and removes the compromised key during emergency rotation.
+24 hours; emergency rotation immediately discards the previous key. Rotation omits an undecryptable
+or invalid old key and clears a `secret_invalid` pause after replacing it; other pause reasons remain.
+The receiver keeps corresponding keys for the overlap and removes the compromised key during
+emergency rotation.
 
 Headers are `Webhook-Id`, `Webhook-Timestamp`, `Webhook-Signature`, `Webhook-Delivery-Id`, and
 `Webhook-Attempt-Id`. The signature is HMAC-SHA256 over the exact bytes
@@ -90,7 +92,10 @@ Webhook/pull by instance/event ID. `agent.webhook_test` never creates content or
 
 Only public HTTPS port 443 is accepted. URL credentials, fragments, numeric-IP bypass spellings,
 private/loopback/link-local/metadata addresses, mapped IPv6 and any forbidden mixed DNS answer are
-rejected. DNS is checked for every connection and dialing uses a validated address. No redirects or
+rejected. Configuration and sending validate the same raw URL representation. Disabling outbound
+delivery can preserve an unchanged saved endpoint during a DNS outage; changing the destination or
+reenabling outbound delivery still requires fresh public DNS validation. DNS is checked for every
+connection and dialing uses a validated address. No redirects or
 ambient proxy credentials are used. Limits are two-second connect, ten-second total and 16 KiB
 response body. Initial scheduling polls every five seconds. There are eight fixed outbound workers,
 with two concurrent permits per Agent/host; groups distribute ready work among Agents.

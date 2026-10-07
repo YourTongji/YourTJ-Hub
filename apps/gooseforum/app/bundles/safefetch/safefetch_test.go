@@ -351,3 +351,22 @@ func TestWebhookRetainsResponseMetadataWhenBodyFails(t *testing.T) {
 		}
 	}
 }
+
+func TestWebhookRawURLPolicyMatchesRequestParsing(t *testing.T) {
+	for _, raw := range []string{"https://allowed.example&sol;@receiver.example:8443/hook", "https://allowed.example&sol;@receiver.example/hook"} {
+		t.Run(raw, func(t *testing.T) {
+			if ValidateWebhookURL(raw) == nil {
+				t.Error("HTML entity changed the validated URL authority")
+			}
+			var calls atomic.Int32
+			client := New(Config{Resolver: fakeResolver{"allowed.example": {publicAddr()}, "receiver.example": {publicAddr()}}, DialContext: func(context.Context, string, string) (net.Conn, error) {
+				calls.Add(1)
+				return nil, errors.New("unexpected dial")
+			}})
+			_, err := client.PostJSON(t.Context(), raw, []byte(`{}`), nil)
+			if !IsClass(err, ErrorBlocked) || calls.Load() != 0 {
+				t.Fatalf("unsafe raw authority err=%v dials=%d", err, calls.Load())
+			}
+		})
+	}
+}

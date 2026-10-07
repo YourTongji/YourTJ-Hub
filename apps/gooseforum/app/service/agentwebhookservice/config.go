@@ -13,6 +13,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/agentinstance"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/safefetch"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentWebhook"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentWrites"
@@ -44,7 +45,20 @@ type SecretResult struct {
 
 func Configure(agentID, expectedVersion uint64, p ConfigParams) (*agents.Entity, error) {
 	p.WebhookEndpoint = strings.TrimSpace(p.WebhookEndpoint)
-	if len(p.WebhookEndpoint) > 512 || (p.WebhookEndpoint != "" && sender.CheckWebhookTarget(context.Background(), p.WebhookEndpoint) != nil) {
+	if len(p.WebhookEndpoint) > 512 || (p.WebhookEndpoint != "" && safefetch.ValidateWebhookURL(p.WebhookEndpoint) != nil) {
+		return nil, ErrInvalidConfig
+	}
+	checkDNS := p.WebhookEndpoint != ""
+	if checkDNS && !p.WebhookEnabled {
+		// Stopping an unchanged receiver must work during DNS outages. The snapshot
+		// version is checked again by the transaction's CAS, so changed/new endpoints
+		// and outbound reactivation still require fresh public DNS before saving.
+		current := agents.GetByUserID(agentID)
+		if current != nil && current.ConfigVersion == expectedVersion && current.WebhookEndpoint == p.WebhookEndpoint {
+			checkDNS = false
+		}
+	}
+	if checkDNS && sender.CheckWebhookTarget(context.Background(), p.WebhookEndpoint) != nil {
 		return nil, ErrInvalidConfig
 	}
 	seen := map[string]bool{}
@@ -137,10 +151,19 @@ func RotateSecret(agentID, expectedVersion uint64, emergency bool) (SecretResult
 		}
 		result.SecretVersion = row.SecretVersion + 1
 		changes := map[string]any{"secret_ciphertext": encrypted, "secret_version": result.SecretVersion, "previous_secret_ciphertext": "", "previous_secret_expires_at": nil}
+		if row.WebhookPausedReason == "secret_invalid" {
+			changes["webhook_paused_reason"] = ""
+		}
 		if !emergency && row.SecretCiphertext != "" {
-			until := time.Now().Add(24 * time.Hour)
-			changes["previous_secret_ciphertext"] = row.SecretCiphertext
-			changes["previous_secret_expires_at"] = &until
+			// A damaged old secret cannot participate in overlap or re-pause delivery.
+			// Rotation replaces it; other pause reasons still require their own remedy.
+			if previous, err := securestore.DecryptPurpose(row.SecretCiphertext, securestore.AgentWebhookSecretPurpose); err == nil {
+				if _, err := Sign(previous, "rotation-check", time.Now().Unix(), nil); err == nil {
+					until := time.Now().Add(24 * time.Hour)
+					changes["previous_secret_ciphertext"] = row.SecretCiphertext
+					changes["previous_secret_expires_at"] = &until
+				}
+			}
 		}
 		return agents.UpdateConfigTx(tx, agentID, expectedVersion, changes)
 	})

@@ -296,11 +296,12 @@ func classifyError(err error) error {
 
 // ValidateWebhookURL is shared by save, test and every outbound attempt.
 func ValidateWebhookURL(raw string) error {
-	classified := urlutil.ClassifyLink(raw)
-	if classified.Kind != urlutil.LinkExternalHTTP || classified.URL == nil {
+	// Validate the exact representation that net/http will send. Link rendering
+	// may decode HTML entities; webhook configuration is an API URL, not markup.
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
 		return &FetchError{Class: ErrorInvalid}
 	}
-	u := classified.URL
 	hostname := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
 	if hostname == "localhost" || strings.HasSuffix(hostname, ".localhost") || strings.HasSuffix(hostname, ".local") || strings.HasSuffix(hostname, ".internal") || strings.Contains(hostname, "%") {
 		return &FetchError{Class: ErrorBlocked}
