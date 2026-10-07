@@ -2,6 +2,8 @@ package userActivities
 
 import (
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // ActionType 行为类型枚举
@@ -54,4 +56,11 @@ func HasRecord(action ActionType, subjectType string, subjectId uint64) bool {
 		Where("action = ? AND subject_type = ? AND subject_id = ?", int(action), subjectType, subjectId).
 		Count(&count)
 	return count > 0
+}
+
+// HasRecordTx keeps publication accounting on the transaction connection.
+func HasRecordTx(tx *gorm.DB, action ActionType, subjectType string, subjectId uint64) (bool, error) {
+	var count int64
+	err := tx.Model(&Entity{}).Where("action = ? AND subject_type = ? AND subject_id = ?", int(action), subjectType, subjectId).Count(&count).Error
+	return count > 0, err
 }

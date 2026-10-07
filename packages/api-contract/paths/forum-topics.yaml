@@ -9,6 +9,15 @@ writeTopic:
       Request bodies over 2 MiB are rejected with HTTP 400 `common.request.parseFailed`
       before binding; JSON binding is otherwise lenient, so a malformed body within the
       limit binds to zero values and fails as `common.request.invalidParams` (HTTP 200).
+      Moderated submissions are saved with their immutable revision, private image references
+      and a durable review task before returning success (`content.moderation.checking`).
+      Both `enforce` (compatibility setting) and `deferred` run in the background. Sensitive-word
+      blocks and disallowed external images follow the same saved-then-rejected path.
+      Approval publishes silently; rejection notifies the author and retains editable content
+      in content management. An existing approved version stays public during edit review and
+      after a rejected edit. Stale decisions cannot apply to newer submissions.
+      Draft saves do not start review; publishing a draft does. Basic validation and account
+      permission failures remain synchronous. Pending attachments are private until approval.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -28,6 +37,9 @@ writeTopic:
             examples:
               success:
                 externalValue: ../fixtures/topic-write-success.json
+              checking:
+                summary: Content and its review task have been durably saved; the author sees a sent confirmation.
+                externalValue: ../fixtures/topic-write-checking.json
               invalidRequest:
                 summary: Current route behavior for malformed or incomplete JSON.
                 externalValue: ../fixtures/invalid-params.json

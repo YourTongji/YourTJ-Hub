@@ -1,0 +1,29 @@
+name: Release / Recover
+on:
+  workflow_dispatch:
+    inputs:
+      candidate:
+        description: Original approved candidate ID (select main branch)
+        type: string
+        required: true
+      channel:
+        description: Resume only this approved channel using original artifacts
+        type: choice
+        options: [web, android, android-alias, ios-testflight, ios-app-store]
+        required: true
+permissions:
+  contents: write
+  actions: read
+  pull-requests: read
+  checks: read
+  packages: write
+  deployments: write
+jobs:
+  recover:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/release-publish.yml
+    with:
+      candidate: ${{ inputs.candidate }}
+      channel: ${{ inputs.channel }}
+      recover: true
+    secrets: inherit

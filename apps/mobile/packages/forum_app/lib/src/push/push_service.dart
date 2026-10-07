@@ -69,7 +69,8 @@ String? pushRoute(String? value) {
   }
   if (RegExp(r'^/p/[0-9]+$').hasMatch(uri.path) ||
       RegExp(r'^/u/[0-9]+$').hasMatch(uri.path) ||
-      uri.path == '/notifications') {
+      uri.path == '/notifications' ||
+      uri.path == '/my-content') {
     return value;
   }
   return null;

@@ -6,36 +6,51 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you for taking the time to report this issue! Please fill in the information below to help us locate and fix the problem quickly. / 感谢您抽出时间报告问题！请填写以下信息以帮助我们快速定位和修复问题。
+        请描述实际发生的情况。未知项可以注明，偶发问题可提供观察过程，不必先完成根因分析或设计测试。
+        报告者提供复现与预期即可；开发者实施前补齐影响与验收标准。截图和诊断材料请脱敏，不附凭据或原始生产日志。
+        标准：[需求、开发与 PR 规范](https://github.com/YourTongji/YourTJ-Hub/blob/dev/docs/development/pull-requests.md)。
 
   - type: textarea
+    id: environment
     attributes:
       label: Environment / 环境
-      description: Please provide your device, browser, and page URL. / 请提供您的设备、浏览器和页面地址。
+      description: 设备、系统、浏览器/App 版本、页面/入口、登录状态与角色；版本未知可注明，不提供账号凭据。
       placeholder: |
         Device:
-        Browser:
+        OS / Browser / App version:
         Page URL:
+        Role / login state:
     validations:
       required: true
 
   - type: textarea
+    id: problem
     attributes:
       label: Problem Description / 问题描述
-      description: A clear and concise description of what the bug is. / 清晰简洁地描述这个 Bug 是什么。
+      description: 当前实际结果是什么，与期望差在哪里？说明发生场景、频率（如已知）及依据，避免把推测根因当作事实。
       placeholder: What went wrong?
     validations:
       required: true
 
   - type: textarea
+    id: affected-users
+    attributes:
+      label: Affected users & tasks / 受影响用户与任务
+      description: 哪些角色在完成什么任务时被阻断？是否影响其他用户，有无临时绕行方式？可用“作为…，希望…，从而…”表达。
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected-behavior
     attributes:
       label: Expected Behavior / 预期行为
-      description: What did you expect to happen instead? / 您期望发生什么？
+      description: 期望的可观察结果及依据（产品约定、此前行为或标准）。若期望存在争议，写明待确认问题；明确缺陷无需竞品调研。
       placeholder: What should have happened?
     validations:
       required: true
 
   - type: textarea
+    id: reproduction
     attributes:
       label: Reproduction Steps / 复现步骤
       description: Steps to reproduce the issue. / 复现问题的步骤。
@@ -48,14 +63,27 @@ body:
       required: true
 
   - type: textarea
+    id: acceptance-criteria
     attributes:
-      label: Screenshots / 截图
-      description: If applicable, add screenshots to help explain the problem. / 如果有，添加截图以帮助解释问题。
+      label: Acceptance Criteria / 验收标准
+      description: 可由开发者补齐。关联复现场景，使用 AC-* 描述修复后的结果及必要边界/权限/恢复条件；修复 PR 附先红后绿证据。
+      placeholder: |
+        - [ ] AC-1：在上述环境与前置条件下执行复现步骤，应得到…。
+        - [ ] AC-2（如适用）：相关权限/边界/失败恢复场景应…。
+    validations:
+      required: false
+
+  - type: textarea
+    id: supplementary-materials
+    attributes:
+      label: Screenshots & supplementary materials / 截图与补充材料
+      description: 截图/录屏、脱敏后的最小复现材料、相关 Issue/PR、文档或争议行为的外部参考，提供可访问链接。
       placeholder: Drag and drop images here.
     validations:
       required: false
 
   - type: checkboxes
+    id: conduct
     attributes:
       label: Code of Conduct
       options:

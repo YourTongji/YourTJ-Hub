@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
 	"github.com/glebarez/sqlite"
@@ -275,7 +276,7 @@ func TestTopicRepositoryParity(t *testing.T) {
 // on soft-deleted topics）。
 func TestPagePendingReviewExcludesSoftDeletedTopics(t *testing.T) {
 	conn := dbconnect.Connect()
-	if err := conn.AutoMigrate(&Entity{}); err != nil {
+	if err := conn.AutoMigrate(&Entity{}, &posts.Entity{}, &postRevisions.Entity{}); err != nil {
 		t.Fatalf("migrate pending review tables: %v", err)
 	}
 	conn.Unscoped().Where("id IN ?", []uint64{210, 220, 230}).Delete(&Entity{})

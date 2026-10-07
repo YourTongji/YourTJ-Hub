@@ -5,7 +5,12 @@
         "id": 8810101,
         "contentType": "topic",
         "title": "Contract interaction topic",
-        "createdAt": "2026-08-01T12:00:00Z"
+        "createdAt": "2026-08-01T12:00:00Z",
+        "processStatus": 0,
+        "revisionId": 0,
+        "hasPublishedVersion": true,
+        "images": [],
+        "content": "Topic first post content"
       }
     ],
     "hasMore": false,

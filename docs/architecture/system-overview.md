@@ -6,13 +6,13 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-27
+> Last verified: 2026-10-03
 
 ## System shape
 
 ```mermaid
 flowchart TB
-  mobile["apps/mobile<br/>Flutter (Partial)"]
+  mobile["apps/mobile<br/>Flutter · iOS / Android"]
   credit["services/credit<br/>Planned"]
   subgraph forum["apps/gooseforum — single binary"]
     web["Vue + GoHTML"]
@@ -166,24 +166,28 @@ Wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作�
   `paths/wiki-sync.yaml`），生成 TS 类型 + 手写 Dart mirror
   （`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。
 
-### Independent public status application (Current)
+### Independent public status application (Partial)
 
-`apps/status` is a separate Vue/Vite application on Netlify. The forum only links to
-`https://status.yourtj.de`; the status site does not call the forum API or load its runtime assets.
-Scheduled Functions read public Umami, one Komari node and the independent Uptime Kuma status page.
-An optional server-only Umami account reads joint device/OS/client aggregates; only allowlisted
-categories and counts reach the public Sankey chart. Explicit native App markers remain distinct from WebViews.
-Allowlisted snapshots persist in Netlify Blobs; `/api/status` only reads them, with short CDN caching.
-Production-context deployments share `status-v1` across releases, regardless of an invocation's
-`published` flag. Deploy-preview and branch-deploy contexts use stores isolated by deployment ID;
-conditional writes prevent older collectors overwriting newer data. Current metrics, history and traffic have separate
-freshness, and the browser also evaluates their original timestamps. The forum remains a single binary.
-Collection runs every minute for current health, every fifteen minutes for history/traffic, and hourly
-for devices. Source-specific retention and published-content build skipping bound routine costs; see
-[the collection cost decision](../decisions/0053-status-collection-cost.md).
-See the [status specification](../product/server-status.md),
-[Netlify runbook](../operations/status-netlify.md) and
-[decision](../decisions/0027-independent-status-netlify.md).
+`apps/status` implements a separate Vue/Vite application on Cloudflare Workers Static Assets. Its
+reader is verified in isolated preview; production still points to Netlify, with Cloudflare collection
+and domain cutover awaiting operational acceptance. The forum
+only links to `https://status.yourtj.de`; page delivery and collection do not require the forum API,
+database or runtime assets. GitHub Actions collectors read public Umami, one Komari node and the
+independent Uptime Kuma status page. An optional server-only Umami account reads joint device/OS/client
+aggregates; only allowlisted categories and counts reach the public Sankey chart.
+
+Snapshots persist in a private R2 bucket shared across production deployments. Preview uses a separate
+bucket and has no automatic schedules. Conditional writes prevent older collectors overwriting newer
+snapshots. Collection preassembles range views; the API reads at most one public view and one device
+object, checking source scope fingerprints and original timestamps. Dynamic responses are no-store
+and do not enter the edge cache. Static assets bypass the Worker handler.
+
+Current metrics and history/traffic are collected every fifteen minutes; devices hourly. Worker has no
+collection schedules or upstream credentials. Source timestamps, independent freshness and bounded retention remain authoritative even
+between successful browser polls. Main-branch deployment runs only for status-related input changes and after
+status checks succeed. See the [status specification](../product/server-status.md),
+[Cloudflare runbook](../operations/status-cloudflare.md) and
+[hosting decision](../decisions/0058-status-cloudflare.md).
 
 ### Points
 

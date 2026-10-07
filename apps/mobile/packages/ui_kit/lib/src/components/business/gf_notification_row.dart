@@ -22,6 +22,7 @@ class GfNotificationRow extends StatelessWidget {
     this.onTap,
     this.onMarkRead,
     this.markReadLabel = 'Mark as read',
+    this.subtitleMaxLines = 3,
   });
   final String symbol;
   final GfNotificationTone tone;
@@ -30,6 +31,9 @@ class GfNotificationRow extends StatelessWidget {
   final bool unread;
   final VoidCallback? onTap, onMarkRead, onActorTap;
   final String markReadLabel;
+
+  /// Null shows complete guidance rather than truncating a content preview.
+  final int? subtitleMaxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +62,7 @@ class GfNotificationRow extends StatelessWidget {
             children: [
               SizedBox(
                 width: 28,
-                height: 44,
+                height: 24,
                 child: GfSymbol(symbol, size: 24, color: toneColor),
               ),
               const SizedBox(width: 12),
@@ -66,51 +70,23 @@ class GfNotificationRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        if (avatarUrl != null)
-                          Semantics(
-                            label: actorName,
-                            button: onActorTap != null,
-                            child: InkWell(
-                              onTap: onActorTap,
-                              customBorder: const CircleBorder(),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 4,
-                                  horizontal: 4,
-                                ),
-                                child: GfAvatar(src: avatarUrl!, size: 36),
-                              ),
+                    if (avatarUrl != null)
+                      Semantics(
+                        label: actorName,
+                        button: onActorTap != null,
+                        child: InkWell(
+                          onTap: onActorTap,
+                          customBorder: const CircleBorder(),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 4,
+                              horizontal: 4,
                             ),
+                            child: GfAvatar(src: avatarUrl!, size: 36),
                           ),
-                        const Spacer(),
-                        if (unread)
-                          Container(
-                            width: 7,
-                            height: 7,
-                            decoration: BoxDecoration(
-                              color: colors.primary,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        if (unread && onMarkRead != null)
-                          IconButton(
-                            onPressed: onMarkRead,
-                            tooltip: markReadLabel,
-                            constraints: const BoxConstraints(
-                              minWidth: 44,
-                              minHeight: 44,
-                            ),
-                            icon: GfSymbol(
-                              'circle-check',
-                              size: 18,
-                              color: colors.iconMuted,
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
+                        ),
+                      ),
+                    if (avatarUrl != null) const SizedBox(height: 4),
                     Text.rich(
                       TextSpan(
                         children: [
@@ -152,8 +128,10 @@ class GfNotificationRow extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 5),
                         child: Text(
                           subtitle,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
+                          maxLines: subtitleMaxLines,
+                          overflow: subtitleMaxLines == null
+                              ? TextOverflow.visible
+                              : TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 15,
                             height: 1.4,
@@ -164,6 +142,35 @@ class GfNotificationRow extends StatelessWidget {
                   ],
                 ),
               ),
+              if (unread)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 9,
+                  ),
+                  child: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: colors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              if (unread && onMarkRead != null)
+                IconButton(
+                  onPressed: onMarkRead,
+                  tooltip: markReadLabel,
+                  constraints: const BoxConstraints(
+                    minWidth: 44,
+                    minHeight: 44,
+                  ),
+                  icon: GfSymbol(
+                    'circle-check',
+                    size: 18,
+                    color: colors.iconMuted,
+                  ),
+                ),
             ],
           ),
         ),

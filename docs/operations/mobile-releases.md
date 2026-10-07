@@ -6,79 +6,76 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-07
+> Last verified: 2026-10-03
 
-`Partial`: signed Android APK and iOS archive/export scripts, release validation and update-client
-checks exist. GitHub-hosted signing/upload requires the release workflow on `main`, configured
-`mobile-release` environment secrets, and a successful release run. Apple review and the Android
+`Current`: YourTJ is publicly distributed through the iPhone/iPad App Store and signed Android APKs,
+linked from [the official download page](https://yourtj.de/#download). Public channel status and direct
+links are maintained in [Distribution and updates](../product/mobile-experience.md#distribution-and-updates).
+
+Each new candidate still requires the reviewed release workflow on `main`, configured
+`mobile-release` environment secrets and successful platform execution. Apple review and the Android
 system installer remain independent gates; a completed upload does not mean distribution approval.
+`Partial`: native push delivery and signed upgrade/device journeys need candidate-specific evidence;
+public availability does not establish the full physical-device acceptance matrix.
 
 ## Version and activation
 
-1. Open GitHub Actions → **Release / mobile** → **Run workflow**, choose `patch`, `minor` or
-   `major`, and leave the optional recovery tag empty. Both `dev` and `main` are accepted as the
-   workflow branch. If dev and main differ, the workflow opens/reuses their release PR and stops.
-   Merge it through normal review/CI, then rerun with the intended bump. A dev dispatch forwards
-   to a main run once the trees agree, keeping signing secrets restricted to main.
-2. The workflow increments the highest stable mobile release version (falling back to the pubspec
-   floor) and increments the highest base build number independently. For example, from `1.2.3+8`:
-   `patch` → `1.2.4+9`, `minor` → `1.3.0+9`, `major` → `2.0.0+9`. Server tags and prerelease names
-   are excluded. The bootstrap floor is `1.0.0+1`, matching the existing Apple build; the first
-   patch reservation is therefore `1.0.1+2`.
-3. An annotated `mobile-vX.Y.Z` tag records `{schema: 1, version, buildNumber}` and points at the
-   reviewed main commit. These immutable values are passed to Flutter's build flags for both
-   platforms. No manual pubspec edit or tag push is needed. The source pubspec is a development
-   floor, not the current distributed version. Raising it explicitly raises the next release floor.
-4. The same workflow builds and publishes both channels. There is deliberately no tag-push trigger:
-   automatic tag creation must not start a second upload. A single concurrency group serializes
-   version reservation and distribution. A commit already carrying a mobile tag requires the
-   recovery field instead of silently allocating another version.
+Use [Release / Prepare and the portable release CLI](releases.md). Source must already be in main;
+release preparation does not promote dev. Choose Android, iOS or both. iOS defaults to TestFlight;
+App Store needs an explicitly approved destination or an existing-build promotion request.
 
-```bash
-# Normal release (also available as a dropdown in GitHub Actions):
-gh workflow run release-mobile.yml --ref main -f bump=patch
-# Resume the exact failed version; bump is ignored when tag is supplied:
-gh workflow run release-mobile.yml --ref main -f bump=patch -f tag=mobile-v1.0.1
-# Resume only an already uploaded iOS build; keep the existing App Store review queue:
-gh workflow run release-mobile.yml --ref main -f tag=mobile-v1.0.2 -f recover_ios=true -f testflight_only=true
-```
+Mobile retains `mobile-vX.Y.Z` and a shared monotonically increasing base build number. Android/iOS
+can publish independently and skip versions. The approved source SHA controls the build and tag;
+the Release PR head controls notes and targets. Final-head human review is mandatory. Android
+What's New comes only from `android.zh-CN.md`; iOS store text comes from `ios.zh-Hans.txt`, and
+TestFlight uses separate English testing notes. Static store description/screenshots remain under
+`apps/mobile/store/`; `metadata.json` What's New is not a publishing fallback.
 
-Recovery still checks that the tag's source is reachable from main, but does not require newer dev
-changes to be promoted. Existing lightweight tags from the manual workflow are accepted only if
-their source pubspec exactly matches their version. Annotated tags must carry valid release metadata;
-never move or rewrite a release tag. An uncertain API response after reserving a tag should be
-resolved by inspecting that tag and using recovery, rather than selecting another bump.
+The user-facing app renders structured formal release notes with its own typography and sections;
+it does not display the App Store text file. iOS About history shows only App Store releases, without
+a TestFlight tab. Store-page What's New is a separate plain-text rendering. TestFlight's separate
+plain-text testing instructions are displayed by Apple; see [Apple's test-information guide](https://developer.apple.com/help/app-store-connect/test-a-beta-version/provide-test-information/).
+The app does not show a second automatic beta-notes prompt. Manual update checks from a TestFlight
+build open the existing TestFlight App Store product-page fallback; they do not open a YourTJ beta
+deep link. Missing App Store history is never filled from TestFlight.
 
-Update public store metadata/screenshots under `apps/mobile/store/` through normal product PRs.
-A pending Apple version can block creation of the next App Store version. The default combined
-submission reports the blocking version/state and fails, even if TestFlight succeeded. Select
-`testflight_only=true` to explicitly omit App Store submission; the job summary identifies that
-omission and preserves the existing review queue. It never withdraws another version automatically.
-Apple agreements, review decisions and the system installer are not bypassed.
+New release requests use reviewed structured changelog facts and evidence references to render each
+channel's notes. The status site's `/mobile/releases.json` catalog appears only after a successful
+channel receipt is bound to the merged candidate's source SHA and content digest. App Store submission
+or review is not public availability; TestFlight requires `APPROVED`. Catalog coverage is tracked
+per channel, so old unstructured releases do not claim complete note history. See the
+[catalog contract](../../apps/status/api/openapi.yaml) and [release pipeline decision](../decisions/0059-receipt-backed-mobile-release-catalog.md).
+`completeFromBuild` is an inclusive minimum installed-build threshold for claiming a complete
+upgrade range, not a claim that every build from that number has a structured entry. When no older
+unstructured public build is known, it equals the first structured build; installations below that
+floor have unknown prior history and the client must not claim completeness.
+Release requests allow at most 100 entries per changelog group, the client's per-release limit; a
+build whose merged channel entries exceed it is left out of the catalog. The catalog keeps the newest
+structured builds that fit both the client's 300-release limit and the 1 MiB limit shared by the
+status proxy and the client, measured on the exact published UTF-8 bytes; publishing rechecks the
+size before upload. Coverage lists only retained builds, so the newest dropped public build becomes
+the floor. A required disclosure keeps its
+TestFlight channel as a required entry beside the verbatim testing note; the client shows the required
+copy once, ahead of ordinary notes.
 
-Server tags remain `vX.Y.Z`. **Release / main** opens/reuses the `dev` → `main` PR when the trees
-differ, waits for that PR's checks and branch merge requirements, then merges, tags, publishes
-server binaries and dispatches production deployment in the same run. It stops without a tag
-if the source changes, checks fail, or merge requirements remain unmet until timeout. It never
-pushes to the main branch. See the [server release runbook](deployment.md) for recovery.
-Only exact server version tags participate in server version calculation; mobile releases do not
-replace GitHub's server `latest` release.
+Recovery is channel-specific and uses original signed artifacts or an exact already uploaded Apple
+build. Uncertain uploads are queried before retransmission. A pending other App Store version is
+reported as a blocker, never withdrawn automatically. See the [recovery rules](releases.md#recovery-and-completion).
+Apple agreements, reviews and physical-device/system-installer checks remain independent gates.
 
 ## Signing environment and secrets
 
 GitHub Settings → Environments → **mobile-release** allows branch `main` and tag `mobile-v*`.
 The `mobile-release-tags` ruleset restricts creation, updates and deletion of those tags to repository
 administrators. Keep those policies together: environment tag matching alone does not prove a tag
-contains a reviewed workflow. The existing repository `RELEASE_TOKEN` is used only for PR creation, main workflow dispatch and
-annotated tag/ref creation; its account needs repository administration rights to create protected
-mobile tags, plus Actions write and pull-request write permissions. Pull-request CI uses no
-distribution secrets.
+contains a reviewed workflow. The repository `RELEASE_TOKEN` is used only for annotated tag/ref creation. Grant Contents write;
+its identity must be allowed to create protected mobile tags by the tag ruleset. It needs neither
+Actions write nor Pull requests write. Pull-request CI uses no distribution secrets.
 
-The repository-level release token is intentionally available to dev release preparation. Maintainers
-who can merge workflow/script changes into dev are therefore trusted with its production capabilities.
-The dev → main promotion check validates release source, but does not isolate this credential from dev
-code. This is the accepted operating model; the main-only signing environment protects signing inputs,
-not the repository-level token.
+Release request PRs use a scoped GitHub App installation token so normal CI is triggered. The model
+child receives no GitHub token. The protected main controller uses `RELEASE_TOKEN` only for immutable
+tag creation; signing keys are passed only to selected platform steps. Pull-request CI has no
+signing/Apple keys. Keep main-only environment restrictions and tag rules together.
 
 | Environment secret | Value |
 |---|---|
@@ -123,8 +120,12 @@ regeneration. A store icon update requires a new IPA/build; already submitted bi
 
 Flutter 3.44.9 produces three signed APKs. Their **actual** Android version codes are base build `N`
 plus `1000` (armeabi-v7a), `2000` (arm64-v8a) or `4000` (x86_64). Asset names contain that actual
-code: `YourTJ-X.Y.Z+CODE-ABI.apk`. iOS uses the unmodified base `N`. The publisher verifies package,
-version, ABI and signing certificate before writing `SHA256SUMS.txt` or uploading. Changing Flutter's
+code: `YourTJ-X.Y.Z+CODE-ABI.apk`. iOS uses the unmodified base `N`.
+The Android app exposes that base `N` from its build configuration for catalog matching. The
+download candidate subtracts its selected APK ABI's fixed offset; base builds above 999 retain
+their full identity. APK update/install comparisons still use actual Android version codes.
+The publisher verifies package, version, ABI and signing certificate before writing `SHA256SUMS.txt`
+or uploading. Changing Flutter's
 split-code algorithm requires updating the validator; a mismatch fails the release. Certificate
 validation accepts both numbered signer output and Build Tools 37 scheme labels. Repeated identical
 certificates across schemes represent one identity; conflicting certificates, public-key digests and
@@ -230,7 +231,7 @@ alone does not implement Sign in with Apple or configure notification delivery c
   version/tag environment, or `build_ios.py` with file paths/password supplied via private environment.
 - **Partial Android publication:** download the signed APK artifact from the failed run into
   `apps/mobile/packages/forum_app/build/app/outputs/flutter-apk/` and rerun `publish_android.py`
-  with `MOBILE_VERSION`, `MOBILE_BUILD_NUMBER`, `RELEASE_TAG`, `ANDROID_HOME` and authenticated `gh`.
+  through the reviewed Recover workflow; it supplies the frozen identity, approved Android notes and authenticated `gh`.
   Do not rebuild and overwrite existing assets; signed ZIP bytes may differ even for identical source.
   Verify the artifact belongs to the same tag/commit first.
 - **Uncertain Apple upload:** rerun to query the exact build. Existing uploads are not duplicated.
@@ -241,14 +242,11 @@ alone does not implement Sign in with Apple or configure notification delivery c
   with no uploaded files may be removed using `asc builds uploads delete --id UPLOAD_ID --confirm`;
   first confirm no uploader is active. Never delete a processing upload or existing build. Invalid
   processing fails immediately.
-- **Publisher repair after a tag exists:** the tag and retained signed artifacts remain immutable.
-  With `recover_ios=true` and an existing tag, the workflow skips Android and all iOS build/signing
-  steps. It uses publisher tools from the dispatch's reviewed main commit, store metadata from the
-  original tagged source, and the exact recorded version/build already uploaded to Apple. A missing
-  build fails before any upload; only ASC credentials are installed. Leave `testflight_only=false`
-  to resume both submission channels, or set it to true to preserve a pending App Store version.
-  A normal rebuild still uses tagged source and can produce different signed ZIP bytes. Use retained
-  artifacts for Android recovery; never move a tag or overwrite an existing APK to repair tooling.
+- **Publisher repair after a tag exists:** use Release / Recover with the original candidate and
+  approved channel. Source/tag/notes and signed artifacts remain immutable. The trusted reviewed
+  controller is recorded in each receipt. Apple is queried before selecting an existing build or
+  restoring the original IPA. Android-only recovery cannot change Apple state. Missing original
+  artifacts are an explicit recovery failure, not permission to rebuild the same identity.
 - **Apple validation/rejection:** correct the reported store fields or app behavior. A binary change
   needs a new version/build release; metadata-only corrections can resume against the existing build.
   Already waiting/in-review/approved submissions using the same build are preserved.
@@ -460,7 +458,7 @@ transport and never inject test visitors into the production site. Historical We
 rows cannot be relabelled as App. The status collector refreshes device reports every five minutes
 when its server-only report credentials are configured.
 
-`Partial`: before App distribution, verify the App Store Connect privacy form against the actual
+`Partial`: before each App update, verify the App Store Connect privacy form against the actual
 Umami configuration and retention policy. The source manifest includes analytics use of product
 interaction/other data and IP-derived coarse location, with no advertising tracking. The embedded
 privacy supplement discloses automatic collection without a switch, receive-side IP and regional

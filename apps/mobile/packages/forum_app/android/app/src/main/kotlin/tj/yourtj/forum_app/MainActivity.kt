@@ -131,6 +131,7 @@ class MainActivity : FlutterActivity() {
                             val installed = packageManager.getPackageInfo(packageName, 0)
                             result.success(mapOf("version" to installed.versionName,
                                 "buildNumber" to versionCode(installed),
+                                "catalogBuildNumber" to BuildConfig.RELEASE_BUILD_NUMBER,
                                 "abis" to Build.SUPPORTED_ABIS.toList()))
                         }
                         "install" -> result.success(installUpdate(call.argument<String>("path") ?: ""))

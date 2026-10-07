@@ -22,6 +22,9 @@ func TestCopyTableComplete(t *testing.T) {
 		eventNotification.EventTypeLike,
 		eventNotification.EventTypeWikiUpdated,
 		eventNotification.EventTypeSystem,
+		eventNotification.EventTypeReviewPending,
+		eventNotification.EventTypeReviewApproved,
+		eventNotification.EventTypeReviewRejected,
 	}
 	for _, lang := range langs {
 		if genericTitle(lang) == "" {
@@ -258,5 +261,21 @@ func TestBuildPushContentMention(t *testing.T) {
 				t.Fatalf("mention %s/%d: %#v", lang, postNo, content)
 			}
 		}
+	}
+}
+
+// Approved content links to its floor; rejection links to the owner content manager.
+func TestBuildPushContentReviewResult(t *testing.T) {
+	approved := eventNotification.Entity{Id: 7, EventType: eventNotification.EventTypeReviewApproved,
+		Payload: eventNotification.NotificationPayload{TopicId: 42, PostNo: 3, TopicTitle: "期末复习资料"}}
+	content := buildPushContent(approved, "zh")
+	if content == nil || content.URL != "/p/post/42/3" || content.Title != "期末复习资料" || content.Body != "你的内容已通过审核，现在所有人可见" {
+		t.Fatalf("approved push = %+v", content)
+	}
+	rejected := eventNotification.Entity{Id: 8, EventType: eventNotification.EventTypeReviewRejected,
+		Payload: eventNotification.NotificationPayload{TopicTitle: "被拒的话题"}}
+	content = buildPushContent(rejected, "en")
+	if content == nil || content.URL != "/settings?tab=content" || content.Title != "被******题" || !strings.Contains(content.Body, "wasn’t approved") {
+		t.Fatalf("rejected push = %+v", content)
 	}
 }

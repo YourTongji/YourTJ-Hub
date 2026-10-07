@@ -408,6 +408,12 @@ class GfNetworkImage extends StatefulWidget {
 class _GfNetworkImageState extends State<GfNetworkImage> {
   int _attempt = 0;
   ImageProvider<Object>? _provider;
+  // GfBytesImage has no value equality, so a provider rebuilt on every widget
+  // rebuild makes Image re-resolve, re-read bytes and decode again from scratch
+  // (gaplessPlayback is off, so the frame blanks between decodes). Memoize the
+  // provider per scope/inputs so setState elsewhere does not flicker media.
+  Object? _providerScope;
+  Set<String>? _providerOrigins;
 
   void _retry() {
     final provider = _provider;
@@ -416,20 +422,49 @@ class _GfNetworkImageState extends State<GfNetworkImage> {
       // resolves again only when its provider instance changes.
       unawaited(provider.evict().catchError((Object _) => false));
     }
+    _provider = null;
+    _providerScope = null;
+    _providerOrigins = null;
     setState(() => _attempt++);
+  }
+
+  @override
+  void didUpdateWidget(GfNetworkImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url ||
+        oldWidget.cacheWidth != widget.cacheWidth ||
+        oldWidget.cacheHeight != widget.cacheHeight ||
+        oldWidget.cacheResizePolicy != widget.cacheResizePolicy) {
+      _provider = null;
+      _providerScope = null;
+      _providerOrigins = null;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final GfImageErrorBuilder? host = GfMediaScope.imageErrorBuilderOf(context);
-    final provider = GfMediaScope.imageProvider(
-      context,
-      widget.url,
-      width: widget.cacheWidth,
-      height: widget.cacheHeight,
-      policy: widget.cacheResizePolicy,
-    );
+    final GfMediaScope? scope = context
+        .dependOnInheritedWidgetOfExactType<GfMediaScope>();
+    final Set<String>? origins = context
+        .dependOnInheritedWidgetOfExactType<GfMediaOriginPolicy>()
+        ?.origins;
+    final bool providerReusable =
+        _provider != null &&
+        _providerScope == scope?.identity &&
+        setEquals(_providerOrigins, origins);
+    final provider = providerReusable
+        ? _provider!
+        : GfMediaScope.imageProvider(
+            context,
+            widget.url,
+            width: widget.cacheWidth,
+            height: widget.cacheHeight,
+            policy: widget.cacheResizePolicy,
+          );
     _provider = provider;
+    _providerScope = scope?.identity;
+    _providerOrigins = origins == null ? null : Set<String>.of(origins);
     return Image(
       key: ValueKey<int>(_attempt),
       image: provider,

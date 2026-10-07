@@ -1,0 +1,29 @@
+name: Release / Human review
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+permissions:
+  contents: read
+  pull-requests: read
+  checks: write
+concurrency:
+  group: release-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+  queue: max
+jobs:
+  review:
+    if: github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      # Never execute the PR's version of the controller with check-writing authority.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          persist-credentials: false
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: python3 scripts/release/workflow.py review-check --pr "$PR"

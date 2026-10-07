@@ -34,7 +34,7 @@ const multiImageClass = computed(() => {
   return 'h-32 rounded-md sm:h-56'
 })
 
-// 单图：左侧文字 + 右侧竖幅图（约 4:3，不被裁扁）
+// 单图卡片保持左文右图；窄屏悬停预览堆叠，sm 及以上恢复并排（约 4:3，不被裁扁）
 const singleImageClass = computed(() => {
   if (props.compact) return 'h-24 w-28 rounded-md'
   return 'h-40 w-48 rounded-lg sm:h-48 sm:w-60'
@@ -43,7 +43,7 @@ const singleImageClass = computed(() => {
 
 <template>
   <div :class="compact ? 'p-3.5' : 'p-4 sm:p-5'">
-    <div v-if="singleImage" class="flex gap-3 sm:gap-4">
+    <div v-if="singleImage" :class="compact ? 'flex gap-3 sm:gap-4' : 'flex flex-col gap-3 sm:flex-row sm:gap-4'">
       <TopicFeedMeta
         :topic="topic"
         :compact="compact"

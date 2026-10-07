@@ -899,6 +899,82 @@ adminSaveHttpNotifySettings:
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
 
+adminTestHttpNotifyEndpoint:
+  post:
+    tags: [Admin]
+    summary: Send a test notification to one webhook endpoint
+    operationId: adminTestHttpNotifyEndpoint
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Sends one test delivery synchronously to the submitted (possibly
+      unsaved) endpoint — nothing is persisted, and the result does not
+      count toward the endpoint's failure counter or automatic disabling.
+      The master switch, the endpoint's `enabled` flag and its subscribed
+      events are ignored. `generic` endpoints receive a `webhook.test`
+      envelope with the usual `X-Goose-*` headers and signature; `feishu`
+      endpoints receive a sample approval card whose buttons only open the
+      moderator workbench; `astrbot` endpoints receive the same sample as
+      plain text in the `target` session. URLs without a host fail with a
+      readable reason instead of being sent. An empty `url`, `secret` or
+      `target` reuses the stored value of the endpoint with the same `id`, but only
+      while its channel type is unchanged (a Feishu URL is a credential, and
+      a secret means something different on each channel). Unknown
+      `channelType` values fail with `common.request.invalidParams`. The
+      outcome is reported inside the success envelope (`code` stays 0):
+      `result.success` plus `admin.httpNotify.testSuccess` /
+      `admin.httpNotify.testFailed`, the latter with `params.error`
+      carrying a failure reason that never includes the request URL.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminTestHttpNotifyEndpointRequest
+    responses:
+      '200':
+        description: Test outcome inside a success envelope (`code` is 0 on both success and failure), or `common.request.invalidParams` for an unknown channel type.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminTestHttpNotifyEndpointResponse
+            examples:
+              delivered:
+                externalValue: ../fixtures/admin-test-http-notify-endpoint-success.json
+              receiverRejected:
+                externalValue: ../fixtures/admin-test-http-notify-endpoint-failed.json
+              unknownChannel:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
 adminGetOnesystemSettings:
   get:
     tags: [Admin]

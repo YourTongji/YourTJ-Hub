@@ -33,7 +33,7 @@ it('reads a joint report and only exposes coarse allowlisted visitor aggregates'
   expect(JSON.stringify(data)).not.toMatch(/private|session|token|password|path/)
   const report = fetcher.mock.calls.find(([url]) => String(url).endsWith('/breakdown'))!
   expect(JSON.parse(String(report[1]?.body))).toMatchObject({ filters: {}, parameters: { fields: ['device', 'os', 'browser'], startDate: data.startAt, endDate: data.endAt } })
-  expect(fetcher.mock.calls.every(([, init]) => init?.redirect === 'error')).toBe(true)
+  expect(fetcher.mock.calls.every(([, init]) => init?.redirect === 'manual')).toBe(true)
 })
 
 it('coalesces aliases and preserves unknown types without dropping visitors', async () => {
@@ -77,7 +77,7 @@ it('conserves all visitors through both chart stages, including folded categorie
 it('isolates device freshness, credentials, and range from other snapshots', async () => {
   const values = new Map<string, Stored<unknown>>()
   const store: SnapshotStore = { read: async <T>(key: string) => values.has(key) ? { value: structuredClone(values.get(key)) as Stored<T>, etag: '1' } : null, write: async (key, value) => { values.set(key, structuredClone(value)); return true } }
-  const key = cacheKey(config, 'umami', 'devices-7d')
+  const key = await cacheKey(config, 'umami', 'devices-7d')
   values.set(key, { attemptedAt: now, fetchedAt: new Date(now).toISOString(), failed: false, data: await fetchReport(upstream()) })
   const request = (query = '') => new Request(`https://status.example.com/api/status${query}`)
   const read = async (cfg = config, time = now, query = '') => (await (await serveSnapshot(request(query), store, cfg, time)).json()).result
@@ -87,7 +87,7 @@ it('isolates device freshness, credentials, and range from other snapshots', asy
   expect((await read(config, now, '?deviceRange=30d')).devices.state).toBe('unavailable')
   const revoked = { ...config, umami: { ...config.umami, username: undefined, password: undefined } }
   expect((await read(revoked)).devices.state).toBe('unconfigured')
-  expect(cacheKey(revoked, 'umami', '7d')).toBe(cacheKey(config, 'umami', '7d'))
+  expect(await cacheKey(revoked, 'umami', '7d')).toBe(await cacheKey(config, 'umami', '7d'))
   expect((await read({ ...config, umami: { ...config.umami, password: 'changed' } })).devices.state).toBe('unavailable')
   const offline = vi.fn(async () => { throw new Error('private upstream failure') })
   await collect('devices', store, config, offline, () => now + 1000)

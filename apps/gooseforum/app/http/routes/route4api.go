@@ -115,6 +115,7 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.CourseCatalog)
 	viewRouteApp.GET("/courses/:courseId", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.CourseDetail)
 	viewRouteApp.GET("/moderation/course-reviews", middleware.CheckLogin, forum.CourseReviewModeration)
+	viewRouteApp.GET("/moderation/action", middleware.CheckLogin, forum.ModerationAction)
 	viewRouteApp.GET("/moderation/courses", middleware.CheckLogin, forum.CourseManagement)
 	viewRouteApp.GET("/schedule", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.Schedule)
 	viewRouteApp.GET("/admin", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
@@ -302,6 +303,7 @@ func apiRoute(ginApp *gin.Engine) {
 	pkLoginApi.DELETE("plans", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPkPlans), pkAuthNoReq(pkcontroller.DeletePlans))
 
 	forumApi := baseApi.Group("forum")
+	forumApi.POST("feed/events", middleware.CSRFProtection, middleware.JWTAuthCheck, api.FeedEvents)
 	forumApi.GET("get-site-statistics", ginUpNP(api.GetSiteStatistics))
 	forumApi.GET("search", middleware.JWTAuth, UpQueryReq(forum.SearchJSON))
 	forumApi.GET("courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpQueryReq(forum.CourseListJSON))
@@ -424,6 +426,11 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("moderation/report-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationReportStatus))
 	forumLoginApi.POST("moderation/logs", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationLogList))
 	forumLoginApi.POST("moderation/view-deleted-content", middleware.CheckWritableAccount, UpButterReq(forum.ViewDeletedContent))
+	forumLoginApi.POST("moderation/review-queue", middleware.NoUpdateUserActivity, UpButterReq(api.ModerationReviewQueue))
+	forumLoginApi.POST("moderation/review-action", middleware.CheckWritableAccount, UpButterReq(api.ModerationReviewAction))
+	// 通知卡片快捷审批确认页（issue #1049）：token 只防篡改，权限按当前会话复核。
+	forumLoginApi.POST("moderation/approval-action/preview", middleware.NoUpdateUserActivity, UpButterReq(api.ModerationApprovalActionPreview))
+	forumLoginApi.POST("moderation/approval-action/execute", middleware.CheckWritableAccount, UpButterReq(api.ModerationApprovalActionExecute))
 
 	chatApi := forumApi.Group("chat", middleware.CSRFProtection, middleware.JWTAuthCheck)
 
@@ -445,6 +452,7 @@ func apiRoute(ginApp *gin.Engine) {
 
 	adminApi := baseApi.Group("admin", middleware.CSRFProtection, middleware.JWTAuthCheck, middleware.CheckWritableAccount)
 
+	adminApi.GET("feed/summary", middleware.CheckPermission(permission.Admin), UpButterReq(api.FeedSummary))
 	adminApi.POST("traffic-overview", middleware.CheckPermission(permission.Admin), UpButterReq(api.GetTrafficOverview))
 
 	adminApi.
@@ -530,6 +538,7 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("storage-migrate-tasks", UpButterReq(api.GetStorageMigrateTasks)).
 		GET("http-notify-settings", UpButterReq(api.GetHttpNotifySettings)).
 		POST("save-http-notify-settings", UpButterReq(api.SaveHttpNotifySettings)).
+		POST("test-http-notify-endpoint", UpButterReq(api.TestHttpNotifyEndpoint)).
 		GET("badges", UpButterReq(api.BadgeList)).
 		GET("mcp-settings", UpButterReq(api.GetMCPSettings)).
 		POST("save-mcp-settings", UpButterReq(api.SaveMCPSettings)).
@@ -551,6 +560,12 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("ai-summary-settings", UpButterReq(api.GetAiSummarySettings)).
 		POST("save-ai-summary-settings", UpButterReq(api.SaveAiSummarySettings)).
 		POST("ai-summary-models", UpButterReq(api.ListAiSummaryModels)).
+		GET("ai-moderation-settings", UpButterReq(api.GetAiModerationSettings)).
+		POST("save-ai-moderation-settings", UpButterReq(api.SaveAiModerationSettings)).
+		POST("ai-moderation/decisions", UpButterReq(api.ListAiModerationDecisions)).
+		POST("ai-moderation/decisions/label", UpButterReq(api.LabelAiModerationDecision)).
+		POST("ai-moderation/replay", UpButterReq(api.ReplayAiModerationDecisions)).
+		POST("ai-moderation/test", UpButterReq(api.TestAiModerationConnection)).
 		POST("badge-save", UpButterReq(api.SaveBadge)).
 		POST("badge-delete", UpButterReq(api.DeleteBadge)).
 		GET("stickers", UpButterReq(api.StickerList)).

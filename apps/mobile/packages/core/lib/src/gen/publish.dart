@@ -23,6 +23,7 @@ abstract class PublishTopicPayload with _$PublishTopicPayload {
   const factory PublishTopicPayload({
     required String title,
     required String content,
+    @Default(<String>[]) List<String> images,
     @Default(<int>[]) List<int> categoryIds,
     required int topicStatus,
     @Default(3) int contentType,
@@ -104,6 +105,9 @@ abstract class AnnouncementPayload with _$AnnouncementPayload {
 @freezed
 abstract class HomeProps with _$HomeProps {
   const factory HomeProps({
+    String? actualSort,
+    String? degradeReason,
+    String? feedTrace,
     required String sort,
     required List<TabItemPayload> tabs,
     required List<TopicPayload> topics,

@@ -388,7 +388,7 @@ test.each([
   i18n.global.locale.value = 'zh'
   const { openQuickPublish, closeQuickPublish } = useQuickPublish()
   openQuickPublish(2)
-  const submit = vi.spyOn(api, 'submitTopic').mockRejectedValue(new Error('stop after capture'))
+  const submit = vi.spyOn(api, 'submitTopicResult').mockRejectedValue(new Error('stop after capture'))
   const wrapper = mount(QuickPublishModal, {
     props: { layout: mockLayout },
     global: { plugins: [i18n, router] },
@@ -415,7 +415,7 @@ test('question without title still requires one (no auto-extraction)', async () 
   i18n.global.locale.value = 'zh'
   const { openQuickPublish, closeQuickPublish } = useQuickPublish()
   openQuickPublish(1)
-  const submit = vi.spyOn(api, 'submitTopic').mockRejectedValue(new Error('stop after capture'))
+  const submit = vi.spyOn(api, 'submitTopicResult').mockRejectedValue(new Error('stop after capture'))
   const wrapper = mount(QuickPublishModal, {
     props: { layout: mockLayout },
     global: { plugins: [i18n, router] },

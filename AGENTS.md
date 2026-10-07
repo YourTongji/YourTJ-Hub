@@ -29,7 +29,9 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   MySQL is **not supported**.
 - Search: **Meilisearch** (`config.toml [meilisearch]`, optional); aggregate search (topics/users/
   categories, pinyin/initials) landed (issue #22); event-driven index sync, rebuildable projection.
-- Mobile: **Flutter** (`apps/mobile`, melos workspace, Riverpod, **Partial**).
+- Mobile: **Flutter** (`apps/mobile`, melos workspace, Riverpod). App Store distribution for
+  iPhone/iPad and public Android APK downloads are `Current`; native push and device acceptance
+  remain `Partial`. See `docs/product/mobile-experience.md#distribution-and-updates`.
 - Auth: GitHub OAuth (goth) + **built-in OIDC Provider** (`/api/oauth`, authorization code + PKCE S256,
   RS256 id_token, opaque access tokens, numeric `sub` = users.id); TOTP 2FA and session management
   (`jti` + `user_sessions`) in place.
@@ -76,7 +78,7 @@ apps/
     app/              Go backend (bundles/console/datastruct/http/migration/models/service)
     resource/         Vue 3 frontend + gohtml templates + @gooseforum/client package
     docs/             Fork-owned docs (maintained in this monorepo, not reference-only)
-  status/      Independent Vue status site + Netlify Functions/Blobs (status.yourtj.de)
+  status/      Independent Vue status site + Cloudflare Workers/R2 (status.yourtj.de)
   mobile/      Flutter melos workspace (core/auth/ui_kit/forum_app)
 packages/
   api-contract/  openapi.yaml + gen scripts + fixtures + contract tests (Partial)
@@ -102,8 +104,8 @@ docs/        Docs center (product/architecture/development/operations)
 ## 3. Hard constraints
 
 - Forum deployment shape is a **single binary** (go:embed webdist/static-dist); no nginx/CDN split.
-  The independent public status app (`apps/status`) deploys its Vue assets and Functions to Netlify,
-  with no runtime dependency on the forum. See `docs/operations/status-netlify.md`.
+  The independent public status app (`apps/status`) deploys its Vue assets and Worker to Cloudflare,
+  with no runtime dependency on the forum. See `docs/operations/status-cloudflare.md`.
 - User IDs must be **numeric** (uint64) — credit's `GetID()` only accepts numeric sub; the built-in
   OIDC Provider always issues `sub` = users.id (uint64 decimal string).
 - The forum `users` table is the identity source; the forum JWT is a session credential, not identity
@@ -166,13 +168,19 @@ docs/        Docs center (product/architecture/development/operations)
 
 ## 5. Git & PR discipline
 
+- Issue preparation, product research, target users/stories, acceptance criteria and PR evidence follow
+  [`docs/development/pull-requests.md`](docs/development/pull-requests.md). Product context supplements
+  the existing PR summary, behavior change, verification, docs/contract impact and known gaps.
 - `dev` is the main development line: create `feat/<topic>` / `fix/<topic>` / `docs/<topic>` from
   `origin/dev`, open PRs against `dev`; CI builds and auto-deploys `dev` to the test instance.
-- `main` is the production site: changes reach it through PR + CI. `Release / main` merges the
-  release PR, publishes a server tag and dispatches production deployment on that tag (see
-  `docs/operations/deployment.md`). Never develop directly on `main` or `dev`.
+- `main` is the production source line: changes reach it through PR + CI. `Release / Prepare`
+  opens a release-data PR on fixed main-history source; human approval and merge trigger selected
+  platform publication (see `docs/operations/releases.md`). Never develop directly on `main` or `dev`.
 - The dev instance syncs a consistent snapshot of the main database on each deploy (see
   `docs/operations/deployment.md`), so DB migrations are rehearsed on dev before reaching main.
+- Release-data branches are the explicit exception: `codex/release/<id>` starts from main and
+  targets main, changing only `releases/requests/<id>/`. Use `$yourtj-release`,
+  `$yourtj-release-notes`, and `$yourtj-release-recovery`; final-head human review cannot be supplied by an agent.
 - Stage only files this task owns; leave unrelated dirty/untracked files alone.
 - Commit/push/open a PR only when the user explicitly asks.
 - Never push to protected branches; releases go through PR + CI.

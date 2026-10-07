@@ -13,7 +13,9 @@ Read the diff, the owning docs, the decision log, and enough surrounding code to
 - [docs/AGENTS.md](../../../docs/AGENTS.md): documentation placement and prose discipline.
 - [docs/decisions/](../../../docs/decisions/): durable design rationale. Disagreement with a decision record is a design discussion, not an automatic veto.
 - [docs/specs/](../../../docs/specs/): risk-triggered change contracts.
-- [docs/development/testing.md](../../../docs/development/testing.md): risk-to-layer selection, test topology, evidence rules, and maintenance budget.
+- [docs/development/pull-requests.md](../../../docs/development/pull-requests.md): Issue/PR requirements,
+  product research, affected users/stories, acceptance evidence, proportionality and readiness.
+- [docs/development/testing.md](../../../docs/development/testing.md): verification strategy, test layout and actual commands.
 - [docs/architecture/system-overview.md](../../../docs/architecture/system-overview.md): the module map and seams.
 
 ## Blocking requirements
@@ -22,7 +24,11 @@ Read the diff, the owning docs, the decision log, and enough surrounding code to
 
 1. **New prose receives semantic review.** Critically review every added or changed Markdown passage, JSDoc, comment, prompt, description, diagnostic, and visible string. Verify required coverage, accuracy, placement, and editorial quality against the owning code or behavior; automated checks do not establish those properties.
 2. **Docs match the code.** Config, defaults, errors, wire fields, events, and public behavior update the owning docs and JSDoc in the same diff.
-3. **Contracts and decisions use the right artifact.** A risk-boundary change has an Approved spec; a durable choice with real alternatives has a decision record. Do not demand an ADR as a change log.
+3. **Requirements, contracts and decisions use the right artifact.** Trace the problem, affected users/stories
+   and acceptance criteria into implementation evidence using the Issue/PR standard above. That standard
+   defines what an Approved spec means for this repository's external spec source; do not invent a separate
+   spec file, status label or approval round. A durable choice with real alternatives has a decision record.
+   Do not demand an ADR as a change log or external product research for an unambiguous small fix.
 4. **Tests provide minimum sufficient behavior evidence.** Name the meaningful regression each changed test prevents and place its primary evidence at the lowest sufficiently real boundary. A fix links an existing deterministic reproduction or adds a regression test that fails before the fix and passes afterward; redundant coverage or implementation-only assertions do not satisfy this requirement.
 5. **External-source provenance is retained.** If implementation is materially derived from a paper, article, community post, benchmark, research report, or copied/adapted code, cite it at the closest stable code location or link that location to a decision record whose `## Links` cites the source. A pull request, issue, prompt, or chat-only citation does not count; copied or adapted material also preserves applicable license and NOTICE requirements.
 

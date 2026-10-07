@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed } from 'vue'
-import { Ban, Bookmark, ChevronDown, ChevronUp, CornerDownLeft, Flag, Heart, PencilLine, RotateCcw, Share2, Trash2 } from '@lucide/vue'
+import { Ban, Bookmark, ChevronDown, ChevronUp, Clock, CornerDownLeft, Flag, Heart, PencilLine, RotateCcw, Share2, Trash2 } from '@lucide/vue'
 import type { PostPayload } from '@gooseforum/client'
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { showUserCard } from '@/runtime/user-card-events'
@@ -63,7 +63,9 @@ const { t } = useI18n()
 
 // 展示型判定，与主流楼层同一规则；回复行不可能是首楼。
 const isRemoved = computed(() => props.post.isAuthorDeleted || props.post.isModeratorRemoved)
-const canEdit = computed(() => props.post.isOwnPost && !props.post.isHidden && !isRemoved.value)
+// 作者本人的待审回复照常展示正文（issue #975），由“审核中”标记说明状态。
+const showHiddenPlaceholder = computed(() => props.post.isHidden && !props.post.canModerate && !(props.post.isOwnPost && props.post.processStatus === 2))
+const canEdit = computed(() => props.post.isOwnPost && (!props.post.isHidden || props.post.processStatus === 2) && !isRemoved.value)
 const canDelete = computed(() => props.post.isOwnPost && !props.post.isHidden && !isRemoved.value)
 const canReply = computed(() => (!props.authenticated || props.canPost) && !props.post.isHidden && !isRemoved.value)
 const canLike = computed(() => props.authenticated && !props.post.isHidden && !isRemoved.value)
@@ -104,6 +106,15 @@ function lastEditedLabel(post: PostPayload) {
         <span v-else class="min-w-0 truncate text-sm font-semibold text-base-content/55">{{ t('topic.authorAnonymous') }}</span>
         <span class="shrink-0 text-xs font-semibold tabular-nums text-base-content/55">#{{ formatNumber(post.postNo) }}</span>
         <time class="hidden shrink-0 text-xs text-base-content/55 sm:inline">{{ formatDateTime(post.createdAt) }}</time>
+        <span
+          v-if="post.processStatus === 2"
+          data-test="post-pending-review"
+          class="inline-flex shrink-0 items-center gap-1 rounded-full bg-warning/15 px-1.5 py-0.5 text-[11px] font-semibold text-warning"
+          :title="t('topic.pendingReviewReplyHint')"
+        >
+          <Clock class="h-3 w-3" aria-hidden="true" />
+          {{ t('topic.pendingReviewBadge') }}
+        </span>
           <button v-if="collapsible" type="button" class="inline-flex h-5 shrink-0 items-center gap-0.5 rounded-full bg-base-100 px-1.5 text-[11px] font-medium text-base-content/55 transition hover:text-base-content" :title="collapsed ? t('topic.expandReply') : t('topic.collapseReply')" @click="emit('toggleCollapse')">
             <ChevronDown v-if="collapsed" class="h-3 w-3" />
             <ChevronUp v-else class="h-3 w-3" />
@@ -155,7 +166,7 @@ function lastEditedLabel(post: PostPayload) {
       <div v-else-if="post.isModeratorRemoved" class="mt-2 rounded border border-dashed border-line bg-base-100/60 px-3 py-2 text-sm text-base-content/55">
         {{ t('topic.moderatorRemovedPlaceholder') }}
       </div>
-      <div v-else-if="post.isHidden && !post.canModerate" class="mt-2 rounded border border-line bg-base-100/60 px-3 py-2 text-sm text-base-content/45">
+      <div v-else-if="showHiddenPlaceholder" class="mt-2 rounded border border-line bg-base-100/60 px-3 py-2 text-sm text-base-content/45">
         {{ t('topic.hiddenReplyPlaceholder') }}
       </div>
       <div v-else v-code-copy v-code-highlight v-math-render v-content-enhancements class="gf-prose gf-prose-post mt-1" v-html="post.renderedContent" />

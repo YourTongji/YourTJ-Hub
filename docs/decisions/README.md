@@ -140,3 +140,15 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0051](0051-mobile-automatic-visitor-statistics.md) — 正式移动端自动统计公开页面，移除统计开关与偏好门控，同步升级语义和隐私披露。
 - [0052](0052-campus-daily-entry-refresh.md) — 跨上海日期后首次进入校园页刷新完整快照，以成功提交日期去重，失败保留旧快照并允许重试。
 - [0053](0053-status-collection-cost.md) — Netlify 状态站分级采集、保留期限与正式发布内容比较。
+- [0054](0054-badge-artwork-optical-size.md) — 系统徽章图形按统一光学尺寸归一化并补偿描边，角标图标区改为固定占比。
+- [0055](0055-reviewed-release-pipeline.md) — Reviewed release requests, independent platform notes, Oryn drafting and complete CI aggregation.
+- [0056](0056-ai-image-text-moderation.md) — 发布时 AI 图文审查：视觉证据 + Jev 并行政策概率 + Go resolver，故障一律转人工，待审图片以 PENDING 引用收口。
+- [0057](0057-product-and-engineering-review-evidence.md) — Issue/PR 在保留工程交付栏目的基础上补充产品依据、多角色故事与逐项验收证据，按影响控制流程深度。
+- [0058](0058-status-cloudflare.md) — Cloudflare 静态资源、只读 Worker API、GitHub Actions 定时采集与 R2 条件写快照。
+- [0059](0059-receipt-backed-mobile-release-catalog.md) — Build the public mobile notes catalog from reviewed candidates and successful channel receipts.
+- [0060](0060-status-cron-dispatch.md) — 独立 Cloudflare Cron 触发 main 采集工作流，隔离调度凭据并保留真实数据时间。
+- [0061](0061-versioned-background-moderation.md) — Reuse revisions and durable tasks for background moderation, stable approved versions and editable rejection.
+- [0062](0062-moderation-notification-feedback.md) — Keep automatic approval quiet, notify human review/results, and mask rejected notification subjects.
+- [0063](0063-oryn-review-once-per-version.md) — Keep six-hour Oryn catch-up and deduplicate completed automatic reviews by source version.
+- [0064](0064-moderation-approval-notify-channels.md) — 版主审批通知走 HTTP 通知的通道适配器（通用 JSON／飞书卡片／AstrBot 文本），快捷操作只打开签名确认页并按当前会话复核权限。
+- [0065](0065-bounded-feed-ranking-and-measurement.md) — Bound materialized ranking, finite personalization and account-level measurement with 30-day raw retention.

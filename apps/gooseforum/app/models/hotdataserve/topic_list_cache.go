@@ -1,6 +1,7 @@
 package hotdataserve
 
 import (
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/feedconfig"
 	"strconv"
 	"time"
 
@@ -70,11 +71,11 @@ func shouldCacheTopicPage(page int) bool {
 }
 
 func latestTopicsCacheKey(sort string, page int) string {
-	return "home:GetLatestTopics:" + sort + ":" + strconv.Itoa(page)
+	return strconv.FormatBool(feedconfig.RankReady()) + ":" + feedconfig.Current().RankHash + ":" + "home:GetLatestTopics:" + sort + ":" + strconv.Itoa(page)
 }
 
 func topicsByCategoryCacheKey(categoryID uint64, sort string, page int) string {
-	return "GetTopicsByCategory:" + strconv.FormatUint(categoryID, 10) + ":" + sort + ":" + strconv.Itoa(page)
+	return strconv.FormatBool(feedconfig.RankReady()) + ":" + feedconfig.Current().RankHash + ":" + "GetTopicsByCategory:" + strconv.FormatUint(categoryID, 10) + ":" + sort + ":" + strconv.Itoa(page)
 }
 
 func loadLatestTopicsSimpleVoPaginated(page int, sort string) TopicSimpleVoPage {

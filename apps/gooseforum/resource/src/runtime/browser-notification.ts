@@ -30,6 +30,9 @@ const BODY_KEY_BY_TYPE: Record<string, string> = {
   like: 'notifications.templates.like',
   badge: 'notifications.badgeGeneric',
   wiki_updated: 'notifications.templates.wikiUpdated',
+  review_pending: 'notifications.templates.reviewPending',
+  review_approved: 'notifications.templates.reviewApproved',
+  review_rejected: 'notifications.templates.reviewRejected',
 }
 const DEFAULT_BODY_KEY = 'notifications.newNotification'
 

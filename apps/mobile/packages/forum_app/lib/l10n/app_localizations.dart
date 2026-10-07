@@ -588,6 +588,12 @@ abstract class AppLocalizations {
   /// **'Please enter the captcha'**
   String get authCaptchaRequired;
 
+  /// No description provided for @publishCaptchaExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'The site may require a captcha for frequent posting by newer accounts. This check lifts as recent activity subsides or the account meets the site\'s age condition.'**
+  String get publishCaptchaExplanation;
+
   /// No description provided for @authOidcLogin.
   ///
   /// In en, this message translates to:
@@ -1932,6 +1938,12 @@ abstract class AppLocalizations {
   /// **'Jumped to floor {floor}'**
   String topicFloorSelected(Object floor);
 
+  /// No description provided for @sortForYou.
+  ///
+  /// In en, this message translates to:
+  /// **'For you'**
+  String get sortForYou;
+
   /// No description provided for @sortLatest.
   ///
   /// In en, this message translates to:
@@ -2394,6 +2406,12 @@ abstract class AppLocalizations {
   /// **'Reviews'**
   String get courseDetailReviews;
 
+  /// No description provided for @courseShareThisReview.
+  ///
+  /// In en, this message translates to:
+  /// **'This review'**
+  String get courseShareThisReview;
+
   /// No description provided for @courseDetailOfferings.
   ///
   /// In en, this message translates to:
@@ -2544,23 +2562,95 @@ abstract class AppLocalizations {
   /// **'Code copied'**
   String get richContentCodeCopied;
 
-  /// No description provided for @settingsReadingTextSize.
+  /// No description provided for @textSizeTitle.
   ///
   /// In en, this message translates to:
-  /// **'Reading text size'**
-  String get settingsReadingTextSize;
+  /// **'Text size'**
+  String get textSizeTitle;
 
-  /// No description provided for @settingsReadingTextSizeDesc.
+  /// No description provided for @textSizeReset.
   ///
   /// In en, this message translates to:
-  /// **'Applies to posts, Wiki and course reviews. System font scaling still applies.'**
-  String get settingsReadingTextSizeDesc;
+  /// **'Reset to default'**
+  String get textSizeReset;
 
-  /// No description provided for @settingsReadingTextSizeReset.
+  /// No description provided for @textSizeDefault.
   ///
   /// In en, this message translates to:
-  /// **'Reset to 100%'**
-  String get settingsReadingTextSizeReset;
+  /// **'Default'**
+  String get textSizeDefault;
+
+  /// No description provided for @textSizePercent.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}%'**
+  String textSizePercent(int percent);
+
+  /// No description provided for @textSizeSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'App {appSize} · Reading {readingSize}'**
+  String textSizeSummary(String appSize, String readingSize);
+
+  /// No description provided for @textSizeGlobal.
+  ///
+  /// In en, this message translates to:
+  /// **'App text'**
+  String get textSizeGlobal;
+
+  /// No description provided for @textSizeGlobalDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'All text in the app, including body text'**
+  String get textSizeGlobalDesc;
+
+  /// No description provided for @textSizeReading.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading text'**
+  String get textSizeReading;
+
+  /// No description provided for @textSizeReadingDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjusts body text in posts, Wiki pages and course reviews on top of app text'**
+  String get textSizeReadingDesc;
+
+  /// No description provided for @textSizePreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get textSizePreview;
+
+  /// No description provided for @textSizePreviewTime.
+  ///
+  /// In en, this message translates to:
+  /// **'10m'**
+  String get textSizePreviewTime;
+
+  /// No description provided for @textSizePreviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag a slider below to preview the change'**
+  String get textSizePreviewTitle;
+
+  /// No description provided for @textSizePreviewExcerpt.
+  ///
+  /// In en, this message translates to:
+  /// **'App text changes all text in the app. Reading text adjusts only body text on top of it.'**
+  String get textSizePreviewExcerpt;
+
+  /// No description provided for @textSizePreviewCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Guide'**
+  String get textSizePreviewCategory;
+
+  /// No description provided for @textSizePreviewBody.
+  ///
+  /// In en, this message translates to:
+  /// **'### Body text preview\nReading text changes only this post body. Everything else follows **app text**.\n\n- The default size is adapted to your system text size and screen'**
+  String get textSizePreviewBody;
 
   /// No description provided for @entryCourses.
   ///
@@ -3846,6 +3936,30 @@ abstract class AppLocalizations {
   /// **'Post anonymously (identity hidden from the public)'**
   String get courseCopyAnonymousLabel;
 
+  /// No description provided for @courseCopyAnonymousTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Post anonymously'**
+  String get courseCopyAnonymousTitle;
+
+  /// No description provided for @courseCopyAnonymousHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Your identity stays hidden'**
+  String get courseCopyAnonymousHint;
+
+  /// No description provided for @courseCopyPublishAs.
+  ///
+  /// In en, this message translates to:
+  /// **'Posting as {name}'**
+  String courseCopyPublishAs(String name);
+
+  /// No description provided for @courseCopyPublishPublic.
+  ///
+  /// In en, this message translates to:
+  /// **'Public identity'**
+  String get courseCopyPublishPublic;
+
   /// No description provided for @courseCopySubmitSuccess.
   ///
   /// In en, this message translates to:
@@ -4097,6 +4211,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Retry'**
   String get updateRetry;
+
+  /// No description provided for @updateCancelDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel download'**
+  String get updateCancelDownload;
+
+  /// No description provided for @updateIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'The update didn’t finish. Check your connection and try again.'**
+  String get updateIncomplete;
+
+  /// No description provided for @updateOpenAppStore.
+  ///
+  /// In en, this message translates to:
+  /// **'View on App Store'**
+  String get updateOpenAppStore;
+
+  /// No description provided for @updateOpenTestFlight.
+  ///
+  /// In en, this message translates to:
+  /// **'View TestFlight in App Store'**
+  String get updateOpenTestFlight;
+
+  /// No description provided for @updateTestFlightInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'This opens TestFlight\'s App Store page. If TestFlight is installed, open it and check YourTJ for the beta update.'**
+  String get updateTestFlightInstructions;
+
+  /// No description provided for @updateOpenPermissionSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open install permission settings'**
+  String get updateOpenPermissionSettings;
+
+  /// No description provided for @updateChannelUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Update channel could not be verified. You can still view release history in About.'**
+  String get updateChannelUnknown;
+
+  /// No description provided for @releaseNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'What’s new'**
+  String get releaseNotes;
+
+  /// No description provided for @releaseNotesHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Release history'**
+  String get releaseNotesHistory;
+
+  /// No description provided for @releaseNotesEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No release notes are available right now.'**
+  String get releaseNotesEmpty;
+
+  /// No description provided for @releaseNotesEarlier.
+  ///
+  /// In en, this message translates to:
+  /// **'Includes other improvements from earlier versions.'**
+  String get releaseNotesEarlier;
+
+  /// No description provided for @releaseNotesIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Earlier release notes are incomplete. This prompt shows notes for the target release only.'**
+  String get releaseNotesIncomplete;
+
+  /// No description provided for @releaseHistoryIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'The available history is incomplete for this release channel.'**
+  String get releaseHistoryIncomplete;
+
+  /// No description provided for @releaseNotesMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Show all updates'**
+  String get releaseNotesMore;
+
+  /// No description provided for @releaseNotesFewer.
+  ///
+  /// In en, this message translates to:
+  /// **'Show fewer'**
+  String get releaseNotesFewer;
+
+  /// No description provided for @releaseNotesShowRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Show 1 more update} other{Show {count} more updates}}'**
+  String releaseNotesShowRemaining(int count);
+
+  /// No description provided for @releaseNotesRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Required'**
+  String get releaseNotesRequired;
+
+  /// No description provided for @releaseNotesHistoryError.
+  ///
+  /// In en, this message translates to:
+  /// **'Release history is temporarily unavailable.'**
+  String get releaseNotesHistoryError;
+
+  /// No description provided for @releaseNotesKindFeature.
+  ///
+  /// In en, this message translates to:
+  /// **'New'**
+  String get releaseNotesKindFeature;
+
+  /// No description provided for @releaseNotesKindImprovement.
+  ///
+  /// In en, this message translates to:
+  /// **'Improved'**
+  String get releaseNotesKindImprovement;
+
+  /// No description provided for @releaseNotesKindFix.
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed'**
+  String get releaseNotesKindFix;
+
+  /// No description provided for @releaseNotesKindSecurity.
+  ///
+  /// In en, this message translates to:
+  /// **'Security'**
+  String get releaseNotesKindSecurity;
 
   /// No description provided for @settingsPushConsent.
   ///
@@ -5957,6 +6203,144 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn’t share the image. Try again later.'**
   String get shareImageFailed;
+
+  /// No description provided for @moderationBlockedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Not published'**
+  String get moderationBlockedTitle;
+
+  /// No description provided for @moderationBlockedPolicyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Check that your images and text follow the community guidelines. Remove or replace anything that may be inappropriate, then publish again. If you think this is a mistake, contact an administrator.'**
+  String get moderationBlockedPolicyHint;
+
+  /// No description provided for @moderationBlockedExternalHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This site doesn’t show external images. Save the image, upload it through the editor, then publish again.'**
+  String get moderationBlockedExternalHint;
+
+  /// No description provided for @moderationBlockedDraftKept.
+  ///
+  /// In en, this message translates to:
+  /// **'Your text and images are still in the editor.'**
+  String get moderationBlockedDraftKept;
+
+  /// No description provided for @moderationBlockedBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit post'**
+  String get moderationBlockedBack;
+
+  /// No description provided for @notificationReviewApproved.
+  ///
+  /// In en, this message translates to:
+  /// **'Your post was approved and is now visible to everyone'**
+  String get notificationReviewApproved;
+
+  /// No description provided for @notificationReviewRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Your post wasn’t approved and won’t be shown publicly'**
+  String get notificationReviewRejected;
+
+  /// No description provided for @topicPendingReviewBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'This post is under review. Only you and reviewers can see it until it’s approved.'**
+  String get topicPendingReviewBanner;
+
+  /// No description provided for @topicPendingReviewBannerModerator.
+  ///
+  /// In en, this message translates to:
+  /// **'This post is awaiting review. Other readers can’t see it yet.'**
+  String get topicPendingReviewBannerModerator;
+
+  /// No description provided for @topicPendingReviewReply.
+  ///
+  /// In en, this message translates to:
+  /// **'Under review · Only you and reviewers can see this reply until it’s approved.'**
+  String get topicPendingReviewReply;
+
+  /// No description provided for @contentReviewBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Not approved'**
+  String get contentReviewBlocked;
+
+  /// No description provided for @contentReviewRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit and resubmit'**
+  String get contentReviewRetry;
+
+  /// No description provided for @contentReviewLive.
+  ///
+  /// In en, this message translates to:
+  /// **'Your previous version remains public.'**
+  String get contentReviewLive;
+
+  /// No description provided for @contentReviewView.
+  ///
+  /// In en, this message translates to:
+  /// **'View content'**
+  String get contentReviewView;
+
+  /// No description provided for @contentReviewPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Under review'**
+  String get contentReviewPending;
+
+  /// No description provided for @notificationReviewPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Your post is awaiting manual review'**
+  String get notificationReviewPending;
+
+  /// No description provided for @notificationReviewPendingDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'We’ll review it soon and notify you of the result. You can view or edit it while you wait.'**
+  String get notificationReviewPendingDetail;
+
+  /// No description provided for @notificationReviewRejectedDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions.'**
+  String get notificationReviewRejectedDetail;
+
+  /// No description provided for @feedReasonFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'From someone you follow'**
+  String get feedReasonFollowing;
+
+  /// No description provided for @feedReasonCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'A category you participate in'**
+  String get feedReasonCategory;
+
+  /// No description provided for @feedReasonNewReply.
+  ///
+  /// In en, this message translates to:
+  /// **'New replies'**
+  String get feedReasonNewReply;
+
+  /// No description provided for @feedReasonRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently published'**
+  String get feedReasonRecent;
+
+  /// No description provided for @sortDaily.
+  ///
+  /// In en, this message translates to:
+  /// **'Today\'s top'**
+  String get sortDaily;
 }
 
 class _AppLocalizationsDelegate

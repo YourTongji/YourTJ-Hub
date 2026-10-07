@@ -11,7 +11,8 @@ info:
     (like/bookmark/watch on topics and posts, follow, report), user account and
     profile operations (captcha, user card, profile/email/username/avatar/password
     changes, OAuth bindings), notification reads and read-marking, direct chat
-    (send/messages/mark-read), admin topic/post moderation, Admin-gated operations
+    (send/messages/mark-read), admin topic/post moderation, notification quick-approval
+    confirmation (signed-link preview/execute), Admin-gated operations
     (Agent account management, operation audit log paging, traffic overview),
     admin user management (user list/edit, user badge grants, role options),
     admin role management (permission options, role list/save/delete), admin
@@ -151,6 +152,14 @@ paths:
     $ref: ./paths/forum-moderation.yaml#/moderationUpdateReportStatus
   /api/forum/moderation/logs:
     $ref: ./paths/forum-moderation.yaml#/listModerationLogs
+  /api/forum/moderation/review-queue:
+    $ref: ./paths/forum-moderation.yaml#/listModerationReviewQueue
+  /api/forum/moderation/review-action:
+    $ref: ./paths/forum-moderation.yaml#/moderationReviewAction
+  /api/forum/moderation/approval-action/preview:
+    $ref: ./paths/forum-moderation.yaml#/moderationApprovalActionPreview
+  /api/forum/moderation/approval-action/execute:
+    $ref: ./paths/forum-moderation.yaml#/moderationApprovalActionExecute
   /api/forum/moderation/view-deleted-content:
     $ref: ./paths/forum-moderation.yaml#/viewDeletedContent
   /api/get-captcha:
@@ -193,6 +202,10 @@ paths:
     $ref: ./paths/user-account.yaml#/unbindOAuth
   /api/forum/unread-status:
     $ref: ./paths/forum-notifications.yaml#/getUnreadStatus
+  /api/forum/feed/events:
+    $ref: ./paths/feed.yaml#/captureFeedEvents
+  /api/admin/feed/summary:
+    $ref: ./paths/feed.yaml#/getFeedSummary
   /api/forum/events:
     $ref: ./paths/forum-events.yaml#/streamForumEvents
   /api/forum/notifications:
@@ -442,6 +455,8 @@ paths:
     $ref: ./paths/admin-site-settings.yaml#/adminGetHttpNotifySettings
   /api/admin/save-http-notify-settings:
     $ref: ./paths/admin-site-settings.yaml#/adminSaveHttpNotifySettings
+  /api/admin/test-http-notify-endpoint:
+    $ref: ./paths/admin-site-settings.yaml#/adminTestHttpNotifyEndpoint
   /api/admin/onesystem-settings:
     $ref: ./paths/admin-site-settings.yaml#/adminGetOnesystemSettings
   /api/admin/save-onesystem-settings:
@@ -452,6 +467,18 @@ paths:
     $ref: ./paths/admin-site-settings.yaml#/adminSaveAiSummarySettings
   /api/admin/ai-summary-models:
     $ref: ./paths/admin-site-settings.yaml#/adminListAiSummaryModels
+  /api/admin/ai-moderation-settings:
+    $ref: ./paths/admin-ai-moderation.yaml#/adminGetAiModerationSettings
+  /api/admin/save-ai-moderation-settings:
+    $ref: ./paths/admin-ai-moderation.yaml#/adminSaveAiModerationSettings
+  /api/admin/ai-moderation/decisions:
+    $ref: ./paths/admin-ai-moderation.yaml#/adminListAiModerationDecisions
+  /api/admin/ai-moderation/decisions/label:
+    $ref: ./paths/admin-ai-moderation.yaml#/adminLabelAiModerationDecision
+  /api/admin/ai-moderation/replay:
+    $ref: ./paths/admin-ai-moderation.yaml#/adminReplayAiModerationDecisions
+  /api/admin/ai-moderation/test:
+    $ref: ./paths/admin-ai-moderation.yaml#/adminTestAiModerationConnection
   /api/admin/terms-of-service:
     $ref: ./paths/admin-site-settings.yaml#/adminGetTermsOfService
   /api/admin/save-terms-of-service:

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import {
+  ArrowRight,
   Bell,
   Activity,
   BookOpen,
@@ -28,6 +29,7 @@ import {
   Settings,
   Shield,
   GraduationCap,
+  Hand,
   UserRound,
 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
@@ -48,8 +50,18 @@ import WikiSidebar from './WikiSidebar.vue'
 import WikiSearchPanel from './WikiSearchPanel.vue'
 import PublishMenu from './PublishMenu.vue'
 import { loadQuickPublishModal, useEverOpenedQuickPublish } from '@/site/composables/useQuickPublish'
+import ModerationBlockedDialog from '@/site/components/ModerationBlockedDialog.vue'
 
 import { useShellSidebar } from '@/runtime/shell-sidebar'
+import {
+  canStartDrawerSwipe,
+  drawerSwipeDecision,
+  hasTouchLikePointer,
+  markDrawerGestureHintSeen,
+  mobileDrawerViewportQuery,
+  shouldOfferDrawerGestureHint,
+  type DrawerSwipeState,
+} from '@/runtime/mobile-drawer-gesture'
 
 const route = useRoute()
 const router = useRouter()
@@ -96,6 +108,7 @@ const QuickPublishModal = defineAsyncComponent(() => loadQuickPublishModal())
 const everOpenedQuickPublish = useEverOpenedQuickPublish()
 const UserCard = shallowRef<typeof UserCardComponent | null>(null)
 const drawerOpen = ref(false)
+const drawerGestureHintVisible = ref(false)
 const headerElevated = ref(false)
 const themeMenuOpen = ref(false)
 const langMenuOpen = ref(false)
@@ -140,7 +153,7 @@ watch(wikiSearchOpen, (open) => {
 const browseItems = computed<SidebarNavItem[]>(() => [
   sidebarItem('topics', t('shell.nav.topics'), '/'),
   sidebarItem('hot', t('shell.nav.hot'), '/?sort=hot'),
-  sidebarItem('popular', t('shell.nav.popular'), '/?sort=popular'),
+  sidebarItem('popular', props.layout.dailyRanking ? t('topicList.tabs.daily') : t('shell.nav.popular'), '/?sort=popular'),
 ])
 
 // 功能组：站点能力页。
@@ -272,6 +285,9 @@ const sidebarIconMap = {
   sponsors: Heart,
 } as const
 let userCardLoading: Promise<void> | undefined
+let drawerOpenSwipe: DrawerSwipeState | null = null
+let drawerGestureHintShowTimer: number | undefined
+let drawerGestureHintHideTimer: number | undefined
 
 watch(
   () => props.layout.sidebar.activeKey,
@@ -289,11 +305,13 @@ onMounted(() => {
   updateHeaderElevated()
   window.addEventListener('scroll', updateHeaderElevated, { passive: true })
   window.addEventListener('goose:user-card-show', ensureUserCardForEvent)
+  scheduleDrawerGestureHint()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', updateHeaderElevated)
   window.removeEventListener('goose:user-card-show', ensureUserCardForEvent)
+  clearDrawerGestureHintTimers()
 })
 
 watch(
@@ -312,11 +330,133 @@ function setLang(lang: Locale) {
 }
 
 function openDrawer() {
+  drawerOpenSwipe = null
+  dismissDrawerGestureHint(true)
   drawerOpen.value = true
 }
 
 function closeDrawer() {
   drawerOpen.value = false
+}
+
+function clearDrawerGestureHintTimers() {
+  window.clearTimeout(drawerGestureHintShowTimer)
+  window.clearTimeout(drawerGestureHintHideTimer)
+  drawerGestureHintShowTimer = undefined
+  drawerGestureHintHideTimer = undefined
+}
+
+function dismissDrawerGestureHint(remember = false) {
+  clearDrawerGestureHintTimers()
+  drawerGestureHintVisible.value = false
+  if (remember) markDrawerGestureHintSeen()
+}
+
+function scheduleDrawerGestureHint() {
+  if (
+    !window.matchMedia?.(mobileDrawerViewportQuery).matches ||
+    !hasTouchLikePointer() ||
+    drawerGestureHintPageOptedOut() ||
+    !shouldOfferDrawerGestureHint()
+  ) {
+    return
+  }
+  drawerGestureHintShowTimer = window.setTimeout(() => {
+    if (
+      drawerOpen.value ||
+      !window.matchMedia?.(mobileDrawerViewportQuery).matches ||
+      drawerGestureHintPageOptedOut()
+    ) {
+      return
+    }
+    drawerGestureHintVisible.value = true
+    drawerGestureHintHideTimer = window.setTimeout(() => {
+      drawerGestureHintVisible.value = false
+      markDrawerGestureHintSeen()
+    }, 4000)
+  }, 800)
+}
+
+function drawerGestureHintPageOptedOut() {
+  return document.querySelector('[data-drawer-swipe-ignore="page"]') !== null
+}
+
+watch(
+  () => route?.path,
+  async () => {
+    clearDrawerGestureHintTimers()
+    drawerGestureHintVisible.value = false
+    await nextTick()
+    scheduleDrawerGestureHint()
+  },
+)
+
+function onDrawerGestureTouchStart(event: TouchEvent) {
+  if (event.touches.length !== 1) {
+    drawerOpenSwipe = null
+    return
+  }
+  const touch = event.touches[0]
+  if (
+    drawerOpen.value ||
+    !window.matchMedia?.(mobileDrawerViewportQuery).matches ||
+    !canStartDrawerSwipe(touch.clientX, event.target)
+  ) {
+    return
+  }
+  drawerOpenSwipe = {
+    pointerId: touch.identifier,
+    startX: touch.clientX,
+    startY: touch.clientY,
+    startedAt: event.timeStamp,
+  }
+}
+
+function onDrawerGestureTouchMove(event: TouchEvent) {
+  if (!drawerOpenSwipe) return
+  if (event.touches.length !== 1) {
+    drawerOpenSwipe = null
+    return
+  }
+  const touch = event.touches[0]
+  if (touch.identifier !== drawerOpenSwipe.pointerId) {
+    drawerOpenSwipe = null
+    return
+  }
+  const decision = drawerSwipeDecision(
+    drawerOpenSwipe,
+    { clientX: touch.clientX, clientY: touch.clientY, timeStamp: event.timeStamp },
+    'right',
+  )
+  if (decision === 'cancel') {
+    drawerOpenSwipe = null
+    return
+  }
+  if (decision === 'tracking' || decision === 'trigger') {
+    if (event.cancelable) event.preventDefault()
+  }
+  if (decision === 'trigger') openDrawer()
+}
+
+function onDrawerGestureTouchEnd(event: TouchEvent) {
+  if (!drawerOpenSwipe) return
+  const swipe = drawerOpenSwipe
+  drawerOpenSwipe = null
+  const touch = event.changedTouches[0]
+  if (!touch || touch.identifier !== swipe.pointerId) return
+  if (
+    drawerSwipeDecision(
+      swipe,
+      { clientX: touch.clientX, clientY: touch.clientY, timeStamp: event.timeStamp },
+      'right',
+    ) === 'trigger'
+  ) {
+    openDrawer()
+  }
+}
+
+function cancelDrawerGesture() {
+  drawerOpenSwipe = null
 }
 
 // 搜索提交走客户端路由跳转：与 SearchPage 同策略，复用 router.push 的
@@ -429,7 +569,13 @@ async function loadUserCard() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-base-200 text-base-content">
+  <div
+    class="min-h-screen bg-base-200 text-base-content"
+    @touchstart="onDrawerGestureTouchStart"
+    @touchmove="onDrawerGestureTouchMove"
+    @touchend="onDrawerGestureTouchEnd"
+    @touchcancel="cancelDrawerGesture"
+  >
     <div
       v-show="navigating"
       class="fixed left-0 top-0 z-[100] h-0.5 w-full overflow-hidden bg-info/10"
@@ -830,6 +976,21 @@ async function loadUserCard() {
 
     <GlobalFlash />
 
+    <Transition name="gf-drawer-gesture-hint">
+      <div
+        v-if="drawerGestureHintVisible"
+        class="gf-drawer-gesture-hint lg:hidden"
+        aria-hidden="true"
+      >
+        <div class="gf-drawer-gesture-hint__demo">
+          <Hand class="gf-drawer-gesture-hint__hand h-7 w-7" />
+          <span class="gf-drawer-gesture-hint__track" aria-hidden="true" />
+          <ArrowRight class="gf-drawer-gesture-hint__arrow h-5 w-5" aria-hidden="true" />
+        </div>
+        <div class="gf-drawer-gesture-hint__copy">{{ t('shell.swipeOpenMenu') }}</div>
+      </div>
+    </Transition>
+
     <!-- 桌面网格轨道（含窄屏单列与侧栏折叠态）由 components.css 的 gf-shell-main* 驱动：
          工具层的 grid-cols-* 会盖住组件层的 lg/xl 轨道，因此这里不再挂 Tailwind 轨道类。
          折叠时轨道收到 0 且侧栏仍占第一列，内容列不变列位。 -->
@@ -1009,6 +1170,7 @@ async function loadUserCard() {
     <component :is="UserCard" v-if="UserCard" />
     <WikiSearchPanel v-if="isWikiMode" />
     <QuickPublishModal v-if="layout.viewer.isAuthenticated && everOpenedQuickPublish" :layout="layout" />
+    <ModerationBlockedDialog v-if="layout.viewer.isAuthenticated" />
 
     <!-- 移动端发布 FAB：<sm 显示（navbar 上的发布按钮 sm+ 才渲染）。
          56px 直径（拇指可达），点击向上呼出发布类型菜单，层级低于抽屉 z-[60]。

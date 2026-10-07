@@ -1,7 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M8 20h8" />
-  <path d="M12 13v6" />
-  <path d="M7 4h10v4a5 5 0 0 1-10 0z" />
-  <path d="M7 6H4a2 2 0 0 0 2 4h1" />
-  <path d="M17 6h3a2 2 0 0 1-2 4h-1" />
+  <!-- 光学尺寸归一化：图形按 0.8721 缩到与其它徽章一致的光学大小（墨迹半径 10/24），
+       描边宽度按 1/0.8721 补偿，使渲染粗细不随缩放变化。 -->
+  <g transform="translate(12 12) scale(0.8721) translate(-12 -12)" stroke-width="2.2933">
+    <path d="M8 20h8" />
+    <path d="M12 13v6" />
+    <path d="M7 4h10v4a5 5 0 0 1-10 0z" />
+    <path d="M7 6H4a2 2 0 0 0 2 4h1" />
+    <path d="M17 6h3a2 2 0 0 1-2 4h-1" />
+  </g>
 </svg>

@@ -69,7 +69,7 @@ func TestRegisterTopicInlineImagesOwnedSkipsForeignFiles(t *testing.T) {
 
 	RegisterTopicInlineImagesOwned(topicID, 101,
 		"own ![](/file/img/2026/09/b4-topic-own.webp) foreign ![](/file/img/2026/09/b4-topic-foreign.webp)",
-		[]string{"/file/img/2026/09/b4-topic-own.webp"})
+		[]string{"/file/img/2026/09/b4-topic-own.webp"}, false)
 
 	if !fileUsage.HasActiveReferences("2026/09/b4-topic-own.webp") {
 		t.Fatal("own file should be referenced by the topic")

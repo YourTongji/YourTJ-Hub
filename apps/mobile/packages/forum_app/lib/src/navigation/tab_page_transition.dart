@@ -177,6 +177,41 @@ class _TabPageTransitionState extends State<TabPageTransition> {
     }
   }
 
+  Widget _placePage(
+    int index, {
+    required int origin,
+    required int? target,
+    required bool transitioning,
+    required double offset,
+    required double direction,
+    required double width,
+    required bool tickersEnabled,
+  }) {
+    final bool moving = transitioning && (index == origin || index == target);
+    final bool shown = moving || index == widget.index;
+    final double dx = !moving
+        ? 0
+        : index == origin
+        ? -offset * width
+        : (direction - offset) * width;
+    return Offstage(
+      offstage: !shown,
+      child: TickerMode(
+        enabled: shown && tickersEnabled,
+        child: ExcludeSemantics(
+          excluding: index != widget.index,
+          child: IgnorePointer(
+            ignoring: !shown || moving,
+            child: Transform.translate(
+              offset: Offset(dx, 0),
+              child: _pages[index]!,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _progress?.removeListener(_onProgressChanged);
@@ -212,49 +247,19 @@ class _TabPageTransitionState extends State<TabPageTransition> {
                 Positioned.fill(
                   child: KeyedSubtree(
                     key: _pageKey(index),
-                    child: index == origin && transitioning
-                        ? TickerMode(
-                            enabled: tickersEnabled,
-                            child: ExcludeSemantics(
-                              excluding: widget.index != origin,
-                              child: IgnorePointer(
-                                ignoring: true,
-                                child: Transform.translate(
-                                  offset: Offset(-offset * width, 0),
-                                  child: _pages[index]!,
-                                ),
-                              ),
-                            ),
-                          )
-                        : index == target && transitioning
-                        ? TickerMode(
-                            enabled: tickersEnabled,
-                            child: ExcludeSemantics(
-                              excluding: widget.index != target,
-                              child: IgnorePointer(
-                                ignoring: true,
-                                child: Transform.translate(
-                                  offset: Offset(
-                                    (direction - offset) * width,
-                                    0,
-                                  ),
-                                  child: _pages[index]!,
-                                ),
-                              ),
-                            ),
-                          )
-                        : index == widget.index
-                        ? TickerMode(
-                            enabled: tickersEnabled,
-                            child: _pages[index]!,
-                          )
-                        : Offstage(
-                            offstage: true,
-                            child: TickerMode(
-                              enabled: false,
-                              child: _pages[index]!,
-                            ),
-                          ),
+                    // One wrapper chain for every state, so a retained page
+                    // keeps its elements (scroll position, loaded media) when
+                    // it moves between off-screen, swiping and current.
+                    child: _placePage(
+                      index,
+                      origin: origin,
+                      target: target,
+                      transitioning: transitioning,
+                      offset: offset,
+                      direction: direction,
+                      width: width,
+                      tickersEnabled: tickersEnabled,
+                    ),
                   ),
                 ),
             ],

@@ -127,6 +127,8 @@ func TestFindCoursesByTimeSection6Degraded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FindCoursesByTime(section 6): %v", err)
 	}
+	// 降级查询可能已启动后台重建，先等待完成再在下方同步重建。
+	WaitPkAuxiliaryBuildForTest()
 	if result.AuxiliaryReady {
 		t.Fatal("auxiliaryReady = true, want false (degraded)")
 	}

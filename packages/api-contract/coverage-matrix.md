@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：347
-- /api JSON 路由：281，已入契约：282（100%），已知未覆盖：0
-- 非 API 排除路由：65
+- 快照路由总数：361
+- /api JSON 路由：294，已入契约：295（100%），已知未覆盖：0
+- 非 API 排除路由：66
 
-## 已覆盖（282）
+## 已覆盖（295）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -17,6 +17,7 @@
 | DELETE | `/api/forum/course-reviews/:reviewId/helpful` | `unmarkReviewHelpful` |
 | DELETE | `/api/pk/plan-items` | `pkDeletePlanItem` |
 | DELETE | `/api/pk/plans` | `pkDeletePlans` |
+| GET | `/api/admin/ai-moderation-settings` | `adminGetAiModerationSettings` |
 | GET | `/api/admin/ai-summary-settings` | `adminGetAiSummarySettings` |
 | GET | `/api/admin/announcement` | `adminGetAnnouncement` |
 | GET | `/api/admin/badges` | `adminListBadges` |
@@ -24,6 +25,7 @@
 | GET | `/api/admin/data/export/download/:taskId` | `adminDownloadExportTask` |
 | GET | `/api/admin/data/export/tasks` | `adminListExportTasks` |
 | GET | `/api/admin/data/import/tasks` | `adminListImportTasks` |
+| GET | `/api/admin/feed/summary` | `getFeedSummary` |
 | GET | `/api/admin/friend-links` | `adminGetFriendLinks` |
 | GET | `/api/admin/get-all-role-item` | `adminGetAllRoleItem` |
 | GET | `/api/admin/http-notify-settings` | `adminGetHttpNotifySettings` |
@@ -109,6 +111,10 @@
 | POST | `/api/admin/agent-list` | `adminAgentList` |
 | POST | `/api/admin/agent-rotate-token` | `adminAgentRotateToken` |
 | POST | `/api/admin/agent-update` | `adminAgentUpdate` |
+| POST | `/api/admin/ai-moderation/decisions` | `adminListAiModerationDecisions` |
+| POST | `/api/admin/ai-moderation/decisions/label` | `adminLabelAiModerationDecision` |
+| POST | `/api/admin/ai-moderation/replay` | `adminReplayAiModerationDecisions` |
+| POST | `/api/admin/ai-moderation/test` | `adminTestAiModerationConnection` |
 | POST | `/api/admin/ai-summary-models` | `adminListAiSummaryModels` |
 | POST | `/api/admin/badge-delete` | `adminDeleteBadge` |
 | POST | `/api/admin/badge-save` | `adminSaveBadge` |
@@ -140,6 +146,7 @@
 | POST | `/api/admin/role-delete` | `adminRoleDelete` |
 | POST | `/api/admin/role-list` | `adminRoleList` |
 | POST | `/api/admin/role-save` | `adminRoleSave` |
+| POST | `/api/admin/save-ai-moderation-settings` | `adminSaveAiModerationSettings` |
 | POST | `/api/admin/save-ai-summary-settings` | `adminSaveAiSummarySettings` |
 | POST | `/api/admin/save-announcement` | `adminSaveAnnouncement` |
 | POST | `/api/admin/save-friend-links` | `adminSaveFriendLinks` |
@@ -164,6 +171,7 @@
 | POST | `/api/admin/sticker-import` | `adminStickerImport` |
 | POST | `/api/admin/sticker-save` | `adminStickerSave` |
 | POST | `/api/admin/storage-migrate-task` | `adminCreateStorageMigrateTask` |
+| POST | `/api/admin/test-http-notify-endpoint` | `adminTestHttpNotifyEndpoint` |
 | POST | `/api/admin/test-mail-connection` | `adminTestMailConnection` |
 | POST | `/api/admin/test-storage-connection` | `adminTestStorageConnection` |
 | POST | `/api/admin/topics/categories-edit` | `adminEditTopicCategories` |
@@ -201,7 +209,10 @@
 | POST | `/api/forum/course-reviews` | `createCourseReview` |
 | POST | `/api/forum/course-reviews/:reviewId/reports` | `reportCourseReview` |
 | POST | `/api/forum/courses/bookmark` | `bookmarkCourse` |
+| POST | `/api/forum/feed/events` | `captureFeedEvents` |
 | POST | `/api/forum/follow-user` | `followUser` |
+| POST | `/api/forum/moderation/approval-action/execute` | `moderationApprovalActionExecute` |
+| POST | `/api/forum/moderation/approval-action/preview` | `moderationApprovalActionPreview` |
 | POST | `/api/forum/moderation/course-create` | `adminCourseCreate` |
 | POST | `/api/forum/moderation/course-delete` | `adminCourseDelete` |
 | POST | `/api/forum/moderation/course-list` | `adminCourseList` |
@@ -225,6 +236,8 @@
 | POST | `/api/forum/moderation/post-status` | `moderationUpdatePostStatus` |
 | POST | `/api/forum/moderation/report-status` | `moderationUpdateReportStatus` |
 | POST | `/api/forum/moderation/reports` | `listModerationReports` |
+| POST | `/api/forum/moderation/review-action` | `moderationReviewAction` |
+| POST | `/api/forum/moderation/review-queue` | `listModerationReviewQueue` |
 | POST | `/api/forum/moderation/topic-status` | `moderationUpdateTopicStatus` |
 | POST | `/api/forum/moderation/view-deleted-content` | `viewDeletedContent` |
 | POST | `/api/forum/my-sticker-delete` | `deleteMySticker` |
@@ -300,7 +313,7 @@
 | Method | Path | 归属切片 |
 | --- | --- | --- |
 
-## 排除（非 JSON API，65）
+## 排除（非 JSON API，66）
 
 | Method | Path | 原因 |
 | --- | --- | --- |
@@ -330,6 +343,7 @@
 | GET | `/mcp` | MCP streamable HTTP 端点（Any 展开多方法），走 MCP 自有协议契约 |
 | GET | `/messages` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/moderation` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/moderation/action` | SSR 页面（GoHTML 三模渲染），非 JSON API；审批快捷操作确认页，数据走 moderationApprovalAction* 契约 |
 | GET | `/moderation/course-reviews` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/moderation/courses` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/notifications` | SSR 页面（GoHTML 三模渲染），非 JSON API |

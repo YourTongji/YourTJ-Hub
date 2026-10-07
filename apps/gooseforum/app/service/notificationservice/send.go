@@ -213,6 +213,38 @@ func SendSystemAlert(userID uint64, title string, content string) error {
 	return err
 }
 
+// SendReviewResultNotification notifies the author of a human decision.
+// Rejected content is recoverable in content management; its subject is masked.
+func SendReviewResultNotification(userID uint64, approved bool, topicID uint64, topicTitle string, postID uint64, postNo uint64) error {
+	payload := eventNotification.NotificationPayload{
+		TemplateKey: eventNotification.TemplateReviewRejected,
+		TopicTitle:  topicTitle,
+		TopicId:     topicID,
+		PostId:      postID,
+		PostNo:      postNo,
+	}
+	eventType := eventNotification.EventTypeReviewRejected
+	if approved {
+		payload.TemplateKey = eventNotification.TemplateReviewApproved
+		eventType = eventNotification.EventTypeReviewApproved
+	} else {
+		payload = eventNotification.RedactReviewRejectedPayload(payload)
+	}
+	notification := &eventNotification.Entity{
+		UserId:    userID,
+		EventType: eventType,
+		TopicID:   topicID,
+		Payload:   payload,
+	}
+	err := eventNotification.Create(notification)
+	if err == nil {
+		notificationCommitted(userID)
+		webpushservice.EnqueueNotification(userID, notification.Id)
+		nativepushservice.EnqueueNotification(userID, notification.Id)
+	}
+	return err
+}
+
 // SendLikeNotification 发送楼层点赞通知
 func SendLikeNotification(userId uint64, topicId uint64, topicTitle string, postId uint64, postNo uint64, likerId uint64) error {
 	payload := eventNotification.NotificationPayload{

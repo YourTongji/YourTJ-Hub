@@ -78,6 +78,14 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		"push_device",
 		"sticker_library_owners",
 		"user_stickers",
+		// 站内信域（issue #770）：7 表。
+		"inbox_message",
+		"inbox_message_version",
+		"inbox_campaign",
+		"inbox_campaign_attachment",
+		"inbox_campaign_run",
+		"inbox_delivery",
+		"inbox_claim",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Errorf("table %q missing after postgres migration", table)
@@ -214,6 +222,14 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		"push_device",
 		"sticker_library_owners",
 		"user_stickers",
+		// 站内信域（issue #770）：存量库升级也必须补齐 7 表。
+		"inbox_message",
+		"inbox_message_version",
+		"inbox_campaign",
+		"inbox_campaign_attachment",
+		"inbox_campaign_run",
+		"inbox_delivery",
+		"inbox_claim",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Errorf("table %q missing after upgrade migration", table)

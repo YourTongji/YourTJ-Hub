@@ -30,9 +30,11 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/role"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
@@ -49,17 +51,22 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/filemigrateservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/httpnotifyservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/notificationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/themeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 )
@@ -593,6 +600,9 @@ func EditTopic(req component.BetterRequest[EditTopicReq]) component.Response {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 	topic.ProcessStatus = req.Params.ProcessStatus
+	if topic.ProcessStatus == topics.ProcessStatusNormal {
+		fileusageservice.PromotePendingTopicFiles(topic.Id, topic.FirstPostId)
+	}
 
 	// 记录操作日志
 	statusCode := "unblocked"
@@ -1873,7 +1883,9 @@ type SaveHttpNotifySettingsReq struct {
 
 // SaveHttpNotifySettings 保存 HTTP 通知设置：各端点 secret 明文仅在请求瞬间存在——
 // 非空时 securestore 加密后落库；为空时按 id（无 id 按 url）保留已存密文/存量明文
-// （issue #324 S1）。
+// （issue #324 S1）。飞书通道的 webhook URL 同样按凭据处理：非空时加密落库，为空
+// 时保留同端点已存 URL 密文；缺 id 的端点由服务端补发 id，保证投递状态回写可按 id
+// 匹配（凭据型 URL 不落明文，无法按 url 匹配，issue #1049）。
 func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsReq]) component.Response {
 	input := req.Params.Settings
 	entity := pageConfig.GetByPageType(pageConfig.HttpNotify)
@@ -1888,11 +1900,33 @@ func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsRe
 	}
 	next := make([]pageConfig.HttpNotifyStorageEndpoint, 0, len(input.Endpoints))
 	for _, ep := range input.Endpoints {
+		channel := pageConfig.NormalizeHttpNotifyChannel(ep.ChannelType)
+		if channel == "" {
+			return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+		}
 		key := ep.Id
 		if key == "" {
 			key = ep.URL
 		}
 		orig := existing[key]
+		id := ep.Id
+		if id == "" {
+			id = uuid.NewString()
+		}
+		endpointURL := ep.URL
+		sealedURL := ""
+		if pageConfig.HttpNotifyURLIsSecret(channel) {
+			if plainURL := strings.TrimSpace(ep.URL); plainURL != "" {
+				encrypted, err := securestore.EncryptPurpose(plainURL, securestore.HttpNotifyURLPurpose)
+				if err != nil {
+					return component.FailResponseError(fmt.Errorf("加密 webhook 地址失败（请确认 app.signingKey 已配置）：%w", err))
+				}
+				sealedURL = encrypted
+			} else if pageConfig.HttpNotifyURLIsSecret(orig.ChannelType) {
+				sealedURL = orig.URLEncrypted
+			}
+			endpointURL = ""
+		}
 		sealed := orig.SecretEncrypted
 		legacy := orig.Secret
 		if secret := strings.TrimSpace(ep.Secret); secret != "" {
@@ -1904,10 +1938,13 @@ func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsRe
 			legacy = ""
 		}
 		next = append(next, pageConfig.HttpNotifyStorageEndpoint{
-			Id:                 ep.Id,
+			Id:                 id,
 			Name:               ep.Name,
+			ChannelType:        channel,
 			Enabled:            ep.Enabled,
-			URL:                ep.URL,
+			URL:                endpointURL,
+			URLEncrypted:       sealedURL,
+			Target:             strings.TrimSpace(ep.Target),
 			Secret:             legacy,
 			SecretEncrypted:    sealed,
 			Events:             ep.Events,
@@ -1918,6 +1955,71 @@ func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsRe
 		})
 	}
 	return savePageConfig(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{Enabled: input.Enabled, Endpoints: next}, hotdataserve.ClearHttpNotifyConfigCache)
+}
+
+type TestHttpNotifyEndpointReq struct {
+	Endpoint pageConfig.HttpNotifyEndpointInput `json:"endpoint" validate:"required"`
+}
+
+// TestHttpNotifyEndpoint 用表单中的（可能未保存的）配置向单个回调地址同步发送一条
+// 测试消息，不落库、不计入失败次数（issue #1049）。地址、密钥或接收目标留空时沿用同 id 端点的
+// 已存值，与保存语义一致；只在通道类型未变时沿用（飞书地址是凭据，各通道密钥含义不同）。结果在
+// 成功信封内返回，失败原因不含请求地址。
+func TestHttpNotifyEndpoint(req component.BetterRequest[TestHttpNotifyEndpointReq]) component.Response {
+	input := req.Params.Endpoint
+	channel := pageConfig.NormalizeHttpNotifyChannel(input.ChannelType)
+	if channel == "" {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+	endpoint := pageConfig.HttpNotifyEndpoint{
+		Id:             input.Id,
+		Name:           input.Name,
+		ChannelType:    channel,
+		Enabled:        true,
+		URL:            strings.TrimSpace(input.URL),
+		Target:         strings.TrimSpace(input.Target),
+		Secret:         strings.TrimSpace(input.Secret),
+		TimeoutSeconds: input.TimeoutSeconds,
+	}
+	if input.Id != "" && (endpoint.URL == "" || endpoint.Secret == "" || endpoint.Target == "") {
+		for _, stored := range hotdataserve.GetHttpNotifyConfigCache().Endpoints {
+			if stored.Id != input.Id {
+				continue
+			}
+			// 已存地址和密钥都只在通道类型未变时沿用：切换通道后旧 HMAC 密钥不是
+			// 飞书签名密钥，也不是 AstrBot token，沿用只会得到令人困惑的签名失败。
+			if pageConfig.NormalizeHttpNotifyChannel(stored.ChannelType) != channel {
+				continue
+			}
+			if endpoint.URL == "" {
+				endpoint.URL = stored.URL
+			}
+			if endpoint.Secret == "" {
+				endpoint.Secret = stored.Secret
+			}
+			if endpoint.Target == "" {
+				endpoint.Target = stored.Target
+			}
+		}
+	}
+	failed := func(message string) component.Response {
+		return component.SuccessResponse(TestStorageConnectionResp{
+			Success:     false,
+			MessageCode: component.MessageAdminHttpNotifyTestFailed,
+			Params:      component.MessageParams{"error": message},
+		})
+	}
+	if endpoint.URL == "" {
+		return failed("url is required")
+	}
+	baseURI := strings.TrimRight(hotdataserve.GetSiteSettingsConfigCache().SiteUrl, "/")
+	if err := httpnotifyservice.SendTest(endpoint, baseURI, time.Now()); err != nil {
+		return failed(err.Error())
+	}
+	return component.SuccessResponse(TestStorageConnectionResp{
+		Success:     true,
+		MessageCode: component.MessageAdminHttpNotifyTestSuccess,
+	})
 }
 
 // GetStorageSettings 获取存储设置：仅回显是否已配置凭据，不回显凭据明文/密文
@@ -2179,10 +2281,13 @@ type ReviewQueueReq struct {
 }
 
 type ReviewQueueItem struct {
-	Id      uint64 `json:"id"`
-	Title   string `json:"title"`
-	Excerpt string `json:"excerpt"`
-	UserId  uint64 `json:"userId"`
+	RevisionId   uint64 `json:"revisionId,omitempty"`
+	Content      string `json:"content,omitempty"`
+	ReviewReason string `json:"reviewReason,omitempty"`
+	Id           uint64 `json:"id"`
+	Title        string `json:"title"`
+	Excerpt      string `json:"excerpt"`
+	UserId       uint64 `json:"userId"`
 	// Username/Nickname 作者身份；备注名显示 note(display name) 需要昵称，无昵称时省略。
 	Username      string `json:"username"`
 	Nickname      string `json:"nickname,omitempty"`
@@ -2190,10 +2295,76 @@ type ReviewQueueItem struct {
 	CreatedAt     string `json:"createdAt"`
 	TopicId       uint64 `json:"topicId,omitempty"`
 	PostNo        uint64 `json:"postNo,omitempty"`
+	// Images 待审内容引用的图片（≤9）；PENDING 图片经 /file/img 授权预览读取。
+	Images []string `json:"images"`
+	// AiReview 仅当本条因 AI 图文审查转入待审时返回（issue #975）：触发规则、
+	// 原始概率与截断的图片证据摘要，供审核员理解触因。
+	AiReview *AiModerationDecisionItem `json:"aiReview,omitempty"`
+	// AiChecking 先发后审模式下本条正在后台自动检查：通常很快自动公开或拒绝，
+	// 审核员可以等待结果，也可以直接处理。
+	AiChecking bool `json:"aiChecking,omitempty"`
+}
+
+// notifyReviewResult 审核完成后通知作者结论（issue #975）；通知失败只记日志，
+// 不影响审核动作本身。
+func notifyReviewResult(authorID uint64, approved bool, topicID uint64, title string, postID, postNo uint64) {
+	if authorID == 0 {
+		return
+	}
+	if err := notificationservice.SendReviewResultNotification(authorID, approved, topicID, title, postID, postNo); err != nil {
+		slog.Error("send review result notification failed", "userId", authorID, "topicId", topicID, "postId", postID, "err", err)
+	}
+}
+
+// reviewSubjectTitle 通知里的内容标题：无标题瞬间回落摘要（截断）。
+func reviewSubjectTitle(title, excerpt string) string {
+	if strings.TrimSpace(title) != "" {
+		return title
+	}
+	runes := []rune(strings.TrimSpace(excerpt))
+	if len(runes) > 40 {
+		return string(runes[:40]) + "…"
+	}
+	return string(runes)
+}
+
+// attachAiReview 为审核队列条目附加触发本次待审的 AI 决策。
+func attachAiReview(items []ReviewQueueItem, subjectType string) {
+	ids := make([]uint64, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.Id)
+	}
+	decisions := moderationDecision.LatestForSubjects(subjectType, ids)
+	revisionIDs := make([]uint64, 0, len(items))
+	for _, item := range items {
+		if item.RevisionId != 0 {
+			revisionIDs = append(revisionIDs, item.RevisionId)
+		}
+	}
+	checking := publicationservice.Checking(revisionIDs)
+	for i := range items {
+		if checking[items[i].RevisionId] {
+			// 检查中的条目不展示上一版本的旧结论。
+			items[i].AiChecking = true
+			continue
+		}
+		decision, ok := decisions[items[i].Id]
+		if !ok || decision.AppliedAction != moderationDecision.ActionReview || (items[i].RevisionId != 0 && decision.RevisionId != items[i].RevisionId) {
+			continue
+		}
+		view := aiDecisionItem(decision)
+		items[i].AiReview = &view
+	}
 }
 
 // ReviewQueue 列出待审的主题或回复。
 func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response {
+	return reviewQueue(req, nil)
+}
+
+// reviewQueue 审核队列共享实现：categoryIDs 非空时只列出这些分类内的内容
+// （前台版主工作台按管辖分类审核，issue #975）。
+func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint64) component.Response {
 	page := req.Params.Page
 	if page < 1 {
 		page = 1
@@ -2205,7 +2376,7 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 	items := make([]ReviewQueueItem, 0, pageSize)
 	var total int64
 	if req.Params.Kind == "topic" {
-		result := topics.PagePendingReview(page, pageSize)
+		result := topics.PagePendingReviewInCategories(page, pageSize, categoryIDs)
 		total = result.Total
 		userIDs := make([]uint64, 0, len(result.Data))
 		for _, t := range result.Data {
@@ -2213,6 +2384,15 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 		}
 		userMap := users.GetMapByIds(userIDs)
 		for _, t := range result.Data {
+			post := posts.Get(t.FirstPostId)
+			revision := postRevisions.Get(post.LatestRevisionId)
+			// The author may have submitted another revision after the queue query.
+			if len(categoryIDs) > 0 && revision.Id != 0 && !moderationservice.CanModerateAnyCategory(req.UserId, revision.CategoryIds) {
+				continue
+			}
+			if revision.Id != 0 {
+				publicationservice.ApplySnapshot(&t, &post, revision)
+			}
 			username := ""
 			nickname := ""
 			if u, ok := userMap[t.UserId]; ok {
@@ -2224,14 +2404,16 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 				excerpt = t.Title
 			}
 			items = append(items, ReviewQueueItem{
-				Id: t.Id, Title: t.Title, Excerpt: excerpt,
+				Id: t.Id, Title: t.Title, Excerpt: excerpt, RevisionId: revision.Id, Content: post.Content, ReviewReason: revision.ReviewReason,
 				UserId: t.UserId, Username: username, Nickname: nickname,
 				ProcessStatus: t.ProcessStatus,
 				CreatedAt:     t.CreatedAt.Format(time.RFC3339),
+				Images:        reviewQueueImages(t.ImageUrls),
 			})
 		}
+		attachAiReview(items, moderationDecision.SubjectTopic)
 	} else {
-		result := posts.PagePendingReview(page, pageSize)
+		result := posts.PagePendingReviewInCategories(page, pageSize, categoryIDs)
 		total = result.Total
 		userIDs := make([]uint64, 0, len(result.Data))
 		for _, p := range result.Data {
@@ -2249,6 +2431,11 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 				component.FailDataCode(component.MessageAdminReviewFailed, nil))
 		}
 		for _, p := range result.Data {
+			revision := postRevisions.Get(p.LatestRevisionId)
+			if revision.Id != 0 {
+				dummy := topics.Entity{}
+				publicationservice.ApplySnapshot(&dummy, &p, revision)
+			}
 			username := ""
 			nickname := ""
 			if u, ok := userMap[p.UserId]; ok {
@@ -2264,13 +2451,15 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 				excerpt = excerpt[:120]
 			}
 			items = append(items, ReviewQueueItem{
-				Id: p.Id, Title: title, Excerpt: excerpt,
+				Id: p.Id, Title: title, Excerpt: excerpt, RevisionId: revision.Id, Content: p.Content, ReviewReason: revision.ReviewReason,
 				UserId: p.UserId, Username: username, Nickname: nickname,
 				ProcessStatus: p.ProcessStatus,
 				CreatedAt:     p.CreatedAt.Format(time.RFC3339),
 				TopicId:       p.TopicId, PostNo: p.PostNo,
+				Images: reviewQueuePostImages(p.Content),
 			})
 		}
+		attachAiReview(items, moderationDecision.SubjectPost)
 	}
 	return component.SuccessResponse(map[string]any{
 		"items": items, "total": total, "page": page, "pageSize": pageSize,
@@ -2278,19 +2467,53 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 }
 
 type ReviewActionReq struct {
-	Kind    string `json:"kind" validate:"required,oneof=topic post"`
-	Id      uint64 `json:"id" validate:"required"`
-	Approve bool   `json:"approve"`
+	RevisionId uint64 `json:"revisionId"`
+	Reason     string `json:"reason" validate:"max=512"`
+	Kind       string `json:"kind" validate:"required,oneof=topic post"`
+	Id         uint64 `json:"id" validate:"required"`
+	Approve    bool   `json:"approve"`
 }
 
 // ReviewAction 审核通过（ProcessStatus=0）或拒绝（ProcessStatus=1）。
 func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Response {
+	return reviewContent(requestContext(req.GinContext), req.Params, req.UserId, false)
+}
+
+// reviewContent 审核动作的唯一实现：人工审核（后台队列/前台版主工作台）与先发后审
+// 的自动结论（automatic=true，actorID=0）共用，保证状态、附件、搜索索引与补发事件
+// 完全一致。自动结论不回写人工标签、不记操作日志；自动通过不通知作者（发布时
+// 已告知通过后公开），自动拒绝照常通知。
+func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, automatic bool) component.Response {
+	post := posts.Get(params.Id)
+	if params.Kind == "topic" {
+		post = posts.Get(topics.Get(params.Id).FirstPostId)
+	}
+	if post.LatestRevisionId != 0 {
+		if params.RevisionId == 0 || params.RevisionId != post.LatestRevisionId {
+			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+		}
+		action := moderationDecision.ActionBlock
+		if params.Approve {
+			action = moderationDecision.ActionAllow
+		}
+		if err := publicationservice.Review(ctx, params.RevisionId, action, params.Reason, actorID); err != nil {
+			if errors.Is(err, publicationservice.ErrUnavailable) {
+				return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+			}
+			return component.FailResponseCode(component.MessageOperationFailed, nil)
+		}
+		if !automatic {
+			optlogger.UserOptCode(actorID, optlogger.EditTopic, post.TopicId, "admin.opt.review.post", optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": params.Approve})
+		}
+		return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
+	}
+
 	targetStatus := int8(0)
-	if !req.Params.Approve {
+	if !params.Approve {
 		targetStatus = 1
 	}
-	if req.Params.Kind == "topic" {
-		topic := topics.Get(req.Params.Id)
+	if params.Kind == "topic" {
+		topic := topics.Get(params.Id)
 		if topic.Id == 0 {
 			return component.FailResponseCode(component.MessageAdminReviewNotFound, nil)
 		}
@@ -2302,7 +2525,7 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 		if topic.ProcessStatus != topics.ProcessStatusPending {
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
 		}
-		if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+		if err := db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
 			if err := topics.UpdateProcessStatusTx(tx, topic.Id, targetStatus); err != nil {
 				return err
 			}
@@ -2318,25 +2541,37 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 				component.MessageParams{"error": err.Error()})
 		}
 		topic.ProcessStatus = targetStatus
-		hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
+		if params.Approve {
+			// 待审期间登记为 PENDING 的图片随内容一起公开（issue #975）。
+			fileusageservice.PromotePendingTopicFiles(topic.Id, topic.FirstPostId)
+		}
 		// 审核后无条件重建搜索索引（issue #132）：拒绝（ProcessStatus→blocked）
 		// 时 BuildSingleTopicSearchDocument 会把文档从索引删除，避免被拒话题
 		// 残留在公共搜索；批准时 upsert 恢复（下方事件也会重建，幂等）。
 		firstPost := posts.Get(topic.FirstPostId)
+		if !automatic {
+			moderationservice.RecordAIHumanOutcome(moderationDecision.SubjectTopic, topic.Id, postContentWrittenAt(firstPost), params.Approve, actorID)
+		}
+		if !automatic || !params.Approve {
+			notifyReviewResult(topic.UserId, params.Approve, topic.Id, reviewSubjectTitle(topic.Title, topic.Excerpt), 0, 0)
+		}
+		hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 		// 批准后补发事件：新建主题发完整发布事件（搜索索引/统计/积分/活动/通知），
 		// 编辑主题仅重建索引与通知，避免重复积分。
-		if req.Params.Approve && topic.Status == 1 {
+		if params.Approve && topic.Status == 1 {
 			if userActivities.HasRecord(userActivities.ActionPost, userActivities.SubjectTopic, topic.Id) {
-				eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
+				eventbus.Publish(eventbus.DetachedContext(ctx), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 			} else {
 				userStatistics.WriteTopic(topic.UserId)
-				eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
+				eventbus.Publish(eventbus.DetachedContext(ctx), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 			}
 		}
-		optlogger.UserOptCode(req.UserId, optlogger.EditTopic, topic.Id, "admin.opt.review.topic",
-			optlogger.MessageParams{"id": topic.Id, "approve": req.Params.Approve})
+		if !automatic {
+			optlogger.UserOptCode(actorID, optlogger.EditTopic, topic.Id, "admin.opt.review.topic",
+				optlogger.MessageParams{"id": topic.Id, "approve": params.Approve})
+		}
 	} else {
-		post := posts.Get(req.Params.Id)
+		post := posts.Get(params.Id)
 		if post.Id == 0 {
 			return component.FailResponseCode(component.MessageAdminReviewNotFound, nil)
 		}
@@ -2349,7 +2584,7 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
 		}
 		topicEntity := topics.GetSimple(post.TopicId)
-		if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+		if err := db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
 			if err := posts.UpdateProcessStatusTx(tx, post.Id, targetStatus); err != nil {
 				return err
 			}
@@ -2358,9 +2593,18 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 			return component.FailResponseCode(component.MessageAdminReviewFailed,
 				component.MessageParams{"error": err.Error()})
 		}
+		if params.Approve {
+			fileusageservice.PromotePendingPostFiles(post.Id)
+		}
+		if !automatic {
+			moderationservice.RecordAIHumanOutcome(moderationDecision.SubjectPost, post.Id, postContentWrittenAt(post), params.Approve, actorID)
+		}
+		if !automatic || !params.Approve {
+			notifyReviewResult(post.UserId, params.Approve, topicEntity.Id, reviewSubjectTitle(topicEntity.Title, ""), post.Id, post.PostNo)
+		}
 		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		// 批准后补发事件：仅对新建待审回复补发（编辑场景创建时已发布过事件）。
-		if req.Params.Approve && !userActivities.HasRecord(userActivities.ActionComment, userActivities.SubjectPost, post.Id) {
+		if params.Approve && !userActivities.HasRecord(userActivities.ActionComment, userActivities.SubjectPost, post.Id) {
 			userStatistics.WriteComment(post.UserId)
 			topicEntity := topics.GetSimple(post.TopicId)
 			replyToAuthorID := uint64(0)
@@ -2369,7 +2613,7 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 					replyToAuthorID = parent.UserId
 				}
 			}
-			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.CommentCreatedEvent{
+			eventbus.Publish(eventbus.DetachedContext(ctx), &eventhandlers.CommentCreatedEvent{
 				TopicId:             post.TopicId,
 				PostId:              post.Id,
 				PostNo:              post.PostNo,
@@ -2381,8 +2625,10 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 				IsAnonymous:         post.IsAnonymous,
 			})
 		}
-		optlogger.UserOptCode(req.UserId, optlogger.EditTopic, post.TopicId, "admin.opt.review.post",
-			optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": req.Params.Approve})
+		if !automatic {
+			optlogger.UserOptCode(actorID, optlogger.EditTopic, post.TopicId, "admin.opt.review.post",
+				optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": params.Approve})
+		}
 	}
 	return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
 }

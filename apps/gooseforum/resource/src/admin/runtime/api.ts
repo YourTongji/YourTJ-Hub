@@ -1,4 +1,5 @@
 import { adminText } from '@/admin/runtime/i18n-text'
+import { i18n } from '@/runtime/i18n'
 import { resolveApiMessage } from '@/runtime/api-message'
 import type {
   ApiEnvelope,
@@ -23,6 +24,7 @@ import type {
   DailyTraffic,
   FriendLinkGroup,
   GithubRelease,
+  HttpNotifyEndpoint,
   HttpNotifySettings,
   MailSettings,
   PageResult,
@@ -31,6 +33,12 @@ import type {
   MCPSettings,
   AiSummaryModelItem,
   AiSummarySettings,
+  AiModerationConnectionCheck,
+  AiModerationDecision,
+  AiModerationOptions,
+  AiModerationReplayReport,
+  AiModerationSettingsInput,
+  AiModerationSettingsView,
   OnesystemSettings,
   ScheduleSettings,
   PkSyncStatusItem,
@@ -51,6 +59,8 @@ import type {
   WikiNamespace,
   WikiNamespaceTree,
 } from '@/admin/types'
+
+const t = (key: string) => i18n.global.t(key)
 
 function responseMessage(data: ApiEnvelope<unknown>, fallback: string) {
   return resolveApiMessage(data, fallback)
@@ -424,6 +434,31 @@ export function listAiSummaryModels(params: { baseUrl?: string, apiKey?: string 
   return postJson<{ models: AiSummaryModelItem[] }>('/api/admin/ai-summary-models', params, adminText('k00p8'))
 }
 
+export function getAiModerationSettings() {
+  return getJson<AiModerationSettingsView>('/api/admin/ai-moderation-settings', t('aiModerationAdmin.loadFailed'))
+}
+
+export function saveAiModerationSettings(settings: AiModerationSettingsInput) {
+  return postJson<unknown>('/api/admin/save-ai-moderation-settings', { settings }, t('aiModerationAdmin.saveFailed'))
+}
+
+export function listAiModerationDecisions(params: { page: number, pageSize: number, finalAction?: string, humanAction?: string, mode?: string }) {
+  return postJson<{ items: AiModerationDecision[], total: number, page: number, pageSize: number }>(
+    '/api/admin/ai-moderation/decisions', params, t('aiModerationAdmin.decisionsFailed'))
+}
+
+export function labelAiModerationDecision(id: number, label: 'approved' | 'rejected') {
+  return postJson<unknown>('/api/admin/ai-moderation/decisions/label', { id, label }, t('aiModerationAdmin.labelFailed'))
+}
+
+export function testAiModerationConnection(target: 'jev' | 'vision', settings: AiModerationSettingsInput) {
+  return postJson<AiModerationConnectionCheck>('/api/admin/ai-moderation/test', { target, settings }, t('aiModerationAdmin.testRequestFailed'))
+}
+
+export function replayAiModeration(options?: AiModerationOptions) {
+  return postJson<AiModerationReplayReport>('/api/admin/ai-moderation/replay', options ? { options } : {}, t('aiModerationAdmin.replayFailed'))
+}
+
 export function getOnesystemSettings() {
   return getJson<OnesystemSettings>('/api/admin/onesystem-settings', adminText('k00s0'))
 }
@@ -473,6 +508,15 @@ export function saveScheduleSettings(settings: ScheduleSettings) {
 
 export function saveHttpNotifySettings(settings: HttpNotifySettings) {
   return postJson<unknown>('/api/admin/save-http-notify-settings', { settings }, adminText('k00ci'))
+}
+
+// testHttpNotifyEndpoint 用表单中的（可能未保存的）配置向单个回调地址发送测试消息（issue #1049）。
+export function testHttpNotifyEndpoint(endpoint: HttpNotifyEndpoint) {
+  return postJson<{ success: boolean, messageCode: string, params?: { error?: string } }>(
+    '/api/admin/test-http-notify-endpoint',
+    { endpoint },
+    adminText('k00xi'),
+  )
 }
 
 export function saveAnnouncement(settings: AnnouncementConfig) {
@@ -527,8 +571,8 @@ export function getReviewQueue(kind: 'topic' | 'post', page: number, pageSize: n
   )
 }
 
-export function reviewAction(kind: 'topic' | 'post', id: number, approve: boolean) {
-  return postJson<unknown>('/api/admin/review-action', { kind, id, approve }, adminText('k00gd'))
+export function reviewAction(kind: 'topic' | 'post', id: number, approve: boolean, revisionId = 0) {
+  return postJson<unknown>('/api/admin/review-action', { kind, id, approve, revisionId }, adminText('k00gd'))
 }
 
 export function createExportTask(tables: string[], format: 'json' | 'csv') {
@@ -664,3 +708,6 @@ export function getSearchMaintenance(): Promise<SearchMaintenanceStatus> {
 export function createSearchMaintenance(request: SearchMaintenanceRequest): Promise<SearchMaintenanceSubmission> {
   return postJson('/api/admin/search/maintenance', request, adminText('k004q'))
 }
+
+export type FeedSummary = import('@gooseforum/client').components['schemas']['FeedSummary']
+export function getFeedSummary(): Promise<FeedSummary> {return getJson<FeedSummary>('/api/admin/feed/summary', t('common.loadFailed'))}

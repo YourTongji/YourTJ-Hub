@@ -199,10 +199,7 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
                 onRetry: _load,
               )
             else if (_items.isEmpty)
-              GfEmpty(
-                symbol: 'square-pen',
-                message: l10n.myCourseReviewsEmpty,
-              )
+              GfEmpty(symbol: 'square-pen', message: l10n.myCourseReviewsEmpty)
             else
               for (final item in _items)
                 Container(
@@ -217,18 +214,40 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        item.courseName.isEmpty
-                            ? '#${item.courseId}'
-                            : item.courseName,
-                        style: type.heading,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '${item.courseCode} · ${item.review.createdAt.split('T').first}',
-                        style: type.caption.copyWith(
-                          color: colors.baseContent.withValues(alpha: .55),
-                        ),
+                      // 与详情页课评卡片同一套头部语义：头像 + 课程名 + 右上溢出。
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          reviewAvatar(item.review, size: 40),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.courseName.isEmpty
+                                      ? '#${item.courseId}'
+                                      : item.courseName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: type.heading,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${item.courseCode} · ${item.review.createdAt.split('T').first}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: type.caption.copyWith(
+                                    color: colors.baseContent.withValues(
+                                      alpha: .55,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          _overflowMenu(context, l10n, item),
+                        ],
                       ),
                       const SizedBox(height: 10),
                       Row(
@@ -275,34 +294,6 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
                             ),
                           ),
                         ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 4,
-                        children: [
-                          if (item.canOpenCourse)
-                            TextButton(
-                              onPressed: () => _open(item),
-                              child: Text(l10n.myCourseReviewOpen),
-                            ),
-                          if (item.review.viewer.canEdit)
-                            TextButton(
-                              onPressed: _busy.contains(item.review.id)
-                                  ? null
-                                  : () => _edit(item),
-                              child: Text(l10n.commonEdit),
-                            ),
-                          if (item.review.viewer.canDelete)
-                            TextButton(
-                              onPressed: _busy.contains(item.review.id)
-                                  ? null
-                                  : () => _delete(item),
-                              style: TextButton.styleFrom(
-                                foregroundColor: colors.error,
-                              ),
-                              child: Text(CourseCopy(l10n).delete),
-                            ),
-                        ],
-                      ),
                     ],
                   ),
                 ),
@@ -319,6 +310,56 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
           ],
         ),
       ),
+    );
+  }
+
+  /// 卡片右上溢出菜单（与详情页/话题同一范式）：查看课程 / 编辑 / 删除。
+  Widget _overflowMenu(
+    BuildContext context,
+    AppLocalizations l10n,
+    OwnCourseReviewItem item,
+  ) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    final bool busy = _busy.contains(item.review.id);
+    // 与详情页一致：没有任何可用项时不渲染按钮，避免弹出空菜单。
+    final bool hasMenu =
+        item.canOpenCourse ||
+        item.review.viewer.canEdit ||
+        item.review.viewer.canDelete;
+    if (!hasMenu) return const SizedBox.shrink();
+    return PopupMenuButton<String>(
+      key: ValueKey<String>('own-review-menu-${item.review.id}'),
+      tooltip: l10n.profileMore,
+      icon: const GfSymbol('ellipsis', size: 20),
+      useRootNavigator: true,
+      enabled: !busy,
+      onSelected: (String value) {
+        switch (value) {
+          case 'open':
+            _open(item);
+          case 'edit':
+            _edit(item);
+          case 'delete':
+            _delete(item);
+        }
+      },
+      itemBuilder: (_) => <PopupMenuEntry<String>>[
+        if (item.canOpenCourse)
+          PopupMenuItem<String>(
+            value: 'open',
+            child: Text(l10n.myCourseReviewOpen),
+          ),
+        if (item.review.viewer.canEdit)
+          PopupMenuItem<String>(value: 'edit', child: Text(l10n.commonEdit)),
+        if (item.review.viewer.canDelete)
+          PopupMenuItem<String>(
+            value: 'delete',
+            child: Text(
+              CourseCopy(l10n).delete,
+              style: TextStyle(color: colors.error),
+            ),
+          ),
+      ],
     );
   }
 }

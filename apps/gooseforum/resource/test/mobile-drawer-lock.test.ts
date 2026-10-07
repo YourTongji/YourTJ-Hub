@@ -12,7 +12,7 @@ function mountDrawer(overrides: Record<string, unknown> = {}) {
   return mount(MobileDrawer, {
     props: {
       open: true,
-      primaryItems: [{ key: 'home', label: '首页', url: '/', active: false }],
+      sections: [{ key: 'browse', title: '浏览', items: [{ key: 'home', label: '首页', url: '/', active: false }] }],
       resourceItems: [],
       sidebarGroups: [],
       categoryItems: [],

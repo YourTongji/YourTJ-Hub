@@ -411,9 +411,13 @@ func buildPushContent(notification eventNotification.Entity, lang string) *pushC
 		}
 	case eventNotification.EventTypeComment, eventNotification.EventTypePostReply,
 		eventNotification.EventTypeTopicPost, eventNotification.EventTypeMention,
-		eventNotification.EventTypeLike:
+		eventNotification.EventTypeLike, eventNotification.EventTypeReviewApproved, eventNotification.EventTypeReviewPending:
 		url = topicURL(payload)
 		title = truncateTitle(topicTitle(payload))
+	case eventNotification.EventTypeReviewRejected:
+		// Rejected candidates are editable in the owner content manager.
+		url = "/settings?tab=content"
+		title = truncateTitle(eventNotification.RedactReviewRejectedPayload(payload).TopicTitle)
 	default:
 		url = urlconfig.Notifications()
 	}

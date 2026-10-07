@@ -18,13 +18,17 @@ var ErrReportMessage = errors.New("message unavailable for reporting")
 // ReportMessage discloses only the selected received message, never a conversation.
 // Membership is checked against the database, including archived conversations.
 // Locking the message serializes duplicate reports without locking unrelated chats.
-func ReportMessage(reporterID, messageID uint64, reason, note string) error {
+// It returns the open report and whether this call created it (a duplicate open
+// report from the same reporter is not an error and is not created again).
+func ReportMessage(reporterID, messageID uint64, reason, note string) (reports.Entity, bool, error) {
 	switch reason {
 	case reports.ReasonSpam, reports.ReasonAbuse, reports.ReasonIllegal, reports.ReasonIrrelevant, reports.ReasonOther:
 	default:
-		return ErrReportMessage
+		return reports.Entity{}, false, ErrReportMessage
 	}
-	return db.Connect().Transaction(func(tx *gorm.DB) error {
+	var report reports.Entity
+	var created bool
+	err := db.Connect().Transaction(func(tx *gorm.DB) error {
 		var message messages.Entity
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&message, messageID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -44,7 +48,8 @@ func ReportMessage(reporterID, messageID uint64, reason, note string) error {
 		if count != 1 {
 			return ErrReportMessage
 		}
-		_, _, err := reports.CreateOpenTx(tx, reports.Entity{
+		var err error
+		report, created, err = reports.CreateOpenTx(tx, reports.Entity{
 			TargetType: reports.TargetChatMessage, TargetId: messageID, ReporterId: reporterID,
 			Reason: reason, Note: boundedReportText(note, 300),
 			EvidenceSnapshot: reports.EvidenceSnapshotData{
@@ -55,6 +60,10 @@ func ReportMessage(reporterID, messageID uint64, reason, note string) error {
 		})
 		return err
 	})
+	if err != nil {
+		return reports.Entity{}, false, err
+	}
+	return report, created, nil
 }
 
 func boundedReportText(value string, limit int) string {

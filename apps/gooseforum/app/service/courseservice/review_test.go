@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -325,6 +326,87 @@ func TestReviewHelpfulIdempotent(t *testing.T) {
 	list, _ = ListReviewsByOffering(offeringId, 2001)
 	if list[0].HelpfulCount != 1 {
 		t.Fatalf("expected helpfulCount=1 after unhelpful, got %d", list[0].HelpfulCount)
+	}
+}
+
+func TestReviewHelpfulAndDislikeAreMutuallyExclusive(t *testing.T) {
+	_, offeringId := setupReviewTest(t)
+	review, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 4, Content: "评价"})
+	if err != nil {
+		t.Fatalf("create review: %v", err)
+	}
+
+	assertReaction := func(wantHelpful, wantDisliked bool, wantHelpfulCount, wantDislikeCount int64) {
+		t.Helper()
+		list, err := ListReviewsByOffering(offeringId, 2001)
+		if err != nil {
+			t.Fatalf("list reviews: %v", err)
+		}
+		if len(list) != 1 {
+			t.Fatalf("expected one review, got %d", len(list))
+		}
+		got := list[0]
+		if got.Viewer.IsHelpful != wantHelpful || got.Viewer.IsDisliked != wantDisliked ||
+			got.HelpfulCount != wantHelpfulCount || got.DislikeCount != wantDislikeCount {
+			t.Fatalf("unexpected reaction state: helpful=%v dislike=%v helpfulCount=%d dislikeCount=%d",
+				got.Viewer.IsHelpful, got.Viewer.IsDisliked, got.HelpfulCount, got.DislikeCount)
+		}
+	}
+
+	if err := SetReviewHelpful(2001, review.Id, true); err != nil {
+		t.Fatalf("mark helpful: %v", err)
+	}
+	assertReaction(true, false, 1, 0)
+	if err := SetReviewDislike(2001, review.Id, true); err != nil {
+		t.Fatalf("switch to dislike: %v", err)
+	}
+	assertReaction(false, true, 0, 1)
+	if err := SetReviewHelpful(2001, review.Id, true); err != nil {
+		t.Fatalf("switch to helpful: %v", err)
+	}
+	assertReaction(true, false, 1, 0)
+}
+
+func TestReviewConcurrentReactionsRemainExclusive(t *testing.T) {
+	_, offeringId := setupReviewTest(t)
+	review, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 4, Content: "评价"})
+	if err != nil {
+		t.Fatalf("create review: %v", err)
+	}
+
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	var workers sync.WaitGroup
+	workers.Add(2)
+	go func() {
+		defer workers.Done()
+		<-start
+		results <- SetReviewHelpful(2001, review.Id, true)
+	}()
+	go func() {
+		defer workers.Done()
+		<-start
+		results <- SetReviewDislike(2001, review.Id, true)
+	}()
+	close(start)
+	workers.Wait()
+	close(results)
+
+	successes := 0
+	for err := range results {
+		if err == nil {
+			successes++
+		}
+	}
+	if successes == 0 {
+		t.Fatal("expected at least one reaction write to succeed")
+	}
+	list, err := ListReviewsByOffering(offeringId, 2001)
+	if err != nil {
+		t.Fatalf("list reviews: %v", err)
+	}
+	if len(list) != 1 || list[0].Viewer.IsHelpful == list[0].Viewer.IsDisliked {
+		t.Fatalf("expected exactly one reaction after concurrent writes, got %+v", list)
 	}
 }
 

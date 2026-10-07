@@ -1,0 +1,203 @@
+name: Release / Publish
+on:
+  push:
+    branches: [main]
+    paths: ['releases/requests/**']
+  workflow_dispatch:
+    inputs:
+      candidate:
+        description: Merged approved candidate whose publishers have not started (select main)
+        type: string
+        required: true
+  workflow_call:
+    inputs:
+      candidate:
+        type: string
+        required: true
+      channel:
+        type: string
+        default: ''
+      recover:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+  checks: read
+concurrency:
+  group: release-execute-${{ inputs.candidate || github.sha }}
+  cancel-in-progress: false
+  queue: max
+jobs:
+  discover:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      candidate: ${{ inputs.candidate || steps.discover.outputs.candidate }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: discover
+        if: inputs.candidate == ''
+        run: python3 scripts/release/workflow.py discover
+  authorize:
+    needs: discover
+    if: needs.discover.outputs.candidate != ''
+    runs-on: ubuntu-latest
+    outputs:
+      candidate: ${{ needs.discover.outputs.candidate }}
+      sha: ${{ steps.authorize.outputs.sha }}
+      version: ${{ steps.authorize.outputs.version }}
+      number: ${{ steps.authorize.outputs.number }}
+      tag: ${{ steps.authorize.outputs.tag }}
+      channels: ${{ steps.authorize.outputs.channels }}
+      promotion: ${{ steps.authorize.outputs.promotion }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: authorize
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE: ${{ needs.discover.outputs.candidate }}
+          REQUESTED_CHANNEL: ${{ inputs.channel }}
+          INITIAL_PUBLICATION: ${{ github.event_name == 'workflow_dispatch' && !inputs.recover }}
+        run: python3 scripts/release/workflow.py authorize
+  backend:
+    needs: authorize
+    if: contains(fromJSON(needs.authorize.outputs.channels), 'web') && !inputs.recover
+    uses: ./.github/workflows/ci-backend.yml
+    with:
+      source: ${{ needs.authorize.outputs.sha }}
+      postgres: true
+  frontend:
+    needs: authorize
+    if: contains(fromJSON(needs.authorize.outputs.channels), 'web') && !inputs.recover
+    uses: ./.github/workflows/ci-frontend.yml
+    with:
+      source: ${{ needs.authorize.outputs.sha }}
+  contract:
+    needs: authorize
+    if: contains(fromJSON(needs.authorize.outputs.channels), 'web') && !inputs.recover
+    uses: ./.github/workflows/ci-contract.yml
+    with:
+      source: ${{ needs.authorize.outputs.sha }}
+  govulncheck:
+    needs: authorize
+    if: contains(fromJSON(needs.authorize.outputs.channels), 'web')
+    uses: ./.github/workflows/ci-govulncheck.yml
+    with:
+      source: ${{ needs.authorize.outputs.sha }}
+  mobile:
+    needs: authorize
+    if: '!contains(fromJSON(needs.authorize.outputs.channels), ''web'') && !inputs.recover && needs.authorize.outputs.promotion != ''true'''
+    uses: ./.github/workflows/ci-mobile.yml
+    with:
+      source: ${{ needs.authorize.outputs.sha }}
+  reserve:
+    needs: [authorize, backend, frontend, contract, govulncheck, mobile]
+    if: always() && needs.authorize.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify every selected source check
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          CHANNELS: ${{ needs.authorize.outputs.channels }}
+          RECOVER: ${{ inputs.recover }}
+          PROMOTION: ${{ needs.authorize.outputs.promotion }}
+        run: |
+          python3 - <<'PY'
+          import os,json
+          results=json.loads(os.environ['RESULTS'])
+          web='web' in json.loads(os.environ['CHANNELS'])
+          expected=['govulncheck'] if web else []
+          if os.environ['RECOVER'] != 'true' and os.environ['PROMOTION'] != 'true':
+              expected += ['backend','frontend','contract'] if web else ['mobile']
+          for name in expected:
+              if results.get(name,{}).get('result') != 'success': raise SystemExit('Required source validation failed: '+name)
+          PY
+      - name: Reserve approved immutable tag
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          CANDIDATE: ${{ needs.authorize.outputs.candidate }}
+        run: python3 scripts/release/workflow.py reserve
+  web:
+    needs: [authorize, reserve]
+    # Explicit status function avoids propagating skipped, unselected source checks through reserve.
+    if: ${{ !cancelled() && needs.authorize.result == 'success' && needs.reserve.result == 'success' && contains(fromJSON(needs.authorize.outputs.channels), 'web') && (inputs.channel == '' || inputs.channel == 'web') }}
+    uses: ./.github/workflows/release-web.yml
+    with:
+      candidate: ${{ needs.authorize.outputs.candidate }}
+      source: ${{ needs.authorize.outputs.sha }}
+      tag: ${{ needs.authorize.outputs.tag }}
+      recover: ${{ inputs.recover || false }}
+    secrets: inherit
+    permissions:
+      contents: write
+      packages: write
+      deployments: write
+      actions: read
+      pull-requests: read
+      checks: read
+  android:
+    needs: [authorize, reserve]
+    if: ${{ !cancelled() && needs.authorize.result == 'success' && needs.reserve.result == 'success' && contains(fromJSON(needs.authorize.outputs.channels), 'android') && (inputs.channel == '' || startsWith(inputs.channel, 'android')) }}
+    uses: ./.github/workflows/release-android.yml
+    with:
+      candidate: ${{ needs.authorize.outputs.candidate }}
+      source: ${{ needs.authorize.outputs.sha }}
+      tag: ${{ needs.authorize.outputs.tag }}
+      version: ${{ needs.authorize.outputs.version }}
+      number: ${{ needs.authorize.outputs.number }}
+      recover: ${{ inputs.recover || false }}
+      alias_only: ${{ inputs.channel == 'android-alias' }}
+    secrets: inherit
+    permissions:
+      contents: write
+      deployments: write
+      actions: read
+      pull-requests: read
+      checks: read
+  ios:
+    needs: [authorize, reserve]
+    if: ${{ !cancelled() && needs.authorize.result == 'success' && needs.reserve.result == 'success' && (contains(fromJSON(needs.authorize.outputs.channels), 'ios-testflight') || contains(fromJSON(needs.authorize.outputs.channels), 'ios-app-store')) && (inputs.channel == '' || startsWith(inputs.channel, 'ios-')) }}
+    uses: ./.github/workflows/release-ios.yml
+    with:
+      candidate: ${{ needs.authorize.outputs.candidate }}
+      source: ${{ needs.authorize.outputs.sha }}
+      version: ${{ needs.authorize.outputs.version }}
+      number: ${{ needs.authorize.outputs.number }}
+      channels: ${{ needs.authorize.outputs.channels }}
+      channel: ${{ inputs.channel || '' }}
+      recover: ${{ inputs.recover || false }}
+      promotion: ${{ needs.authorize.outputs.promotion == 'true' }}
+    secrets: inherit
+    permissions:
+      contents: write
+      deployments: write
+      actions: read
+      pull-requests: read
+      checks: read
+
+  published:
+    needs: [authorize, reserve, web, android, ios]
+    if: ${{ !cancelled() && needs.authorize.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Require every selected publisher to succeed
+        env:
+          CHANNELS: ${{ needs.authorize.outputs.channels }}
+          REQUESTED_CHANNEL: ${{ inputs.channel }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: python3 scripts/release/verify_jobs.py

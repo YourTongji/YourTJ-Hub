@@ -46,8 +46,9 @@ type ImageMetadata struct {
 	Variants []ImageVariant `json:"variants,omitempty"`
 }
 
-// ProcessUploadedImage persists intrinsic dimensions and stores smaller
-// derivatives for static JPEG, PNG and BMP uploads. Animated/unsupported
+// ProcessUploadedImage persists display dimensions and stores smaller
+// derivatives for static JPEG, PNG and BMP uploads. JPEG EXIF Orientation is
+// applied to dimensions and derivative pixels. Animated/unsupported
 // formats retain their original bytes and dimensions without a derivative.
 func ProcessUploadedImage(name string, data []byte) (ImageMetadata, error) {
 	var media ImageMetadata
@@ -57,6 +58,13 @@ func ProcessUploadedImage(name string, data []byte) (ImageMetadata, error) {
 	}
 	if config.Width < 1 || config.Height < 1 {
 		return media, errors.New("decoded image has invalid dimensions")
+	}
+	orientation := 1
+	if format == "jpeg" {
+		orientation = jpegOrientation(data)
+		if orientation >= 5 {
+			config.Width, config.Height = config.Height, config.Width
+		}
 	}
 	media = ImageMetadata{URL: accessPath(name), Width: config.Width, Height: config.Height}
 	if err := updateImageMetadata(name, config.Width, config.Height, nil); err != nil {
@@ -72,6 +80,9 @@ func ProcessUploadedImage(name string, data []byte) (ImageMetadata, error) {
 	}
 	if decodedFormat != format {
 		return media, errors.New("image format changed while decoding")
+	}
+	if orientation != 1 {
+		source = orientedImage{Image: source, orientation: orientation}
 	}
 	variantExt, variantType := ".png", "image/png"
 	if format == "jpeg" {

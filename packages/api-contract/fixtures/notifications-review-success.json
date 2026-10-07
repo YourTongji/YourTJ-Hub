@@ -1,0 +1,100 @@
+{
+  "result": {
+    "items": [
+      {
+        "id": 2048,
+        "eventType": "review_pending",
+        "isRead": false,
+        "createdAt": "2026-10-04T08:00:00Z",
+        "title": "",
+        "content": "",
+        "actor": {
+          "id": 0,
+          "username": "",
+          "avatarUrl": ""
+        },
+        "topic": {
+          "id": 512,
+          "title": "校园生活中的一次讨论",
+          "url": "/p/post/512/1"
+        },
+        "payload": {
+          "templateKey": "notifications.templates.reviewPending",
+          "templateParams": {},
+          "actorId": 0,
+          "topicId": 512,
+          "topicTitle": "校园生活中的一次讨论",
+          "postId": 4096,
+          "postNo": 1,
+          "metadata": {
+            "followerName": ""
+          }
+        }
+      },
+      {
+        "id": 2049,
+        "eventType": "review_approved",
+        "isRead": false,
+        "createdAt": "2026-10-04T08:00:00Z",
+        "title": "",
+        "content": "",
+        "actor": {
+          "id": 0,
+          "username": "",
+          "avatarUrl": ""
+        },
+        "topic": {
+          "id": 512,
+          "title": "校园生活中的一次讨论",
+          "url": "/p/post/512/1"
+        },
+        "payload": {
+          "templateKey": "notifications.templates.reviewApproved",
+          "templateParams": {},
+          "actorId": 0,
+          "topicId": 512,
+          "topicTitle": "校园生活中的一次讨论",
+          "postId": 4096,
+          "postNo": 1,
+          "metadata": {
+            "followerName": ""
+          }
+        }
+      },
+      {
+        "id": 2050,
+        "eventType": "review_rejected",
+        "isRead": false,
+        "createdAt": "2026-10-04T08:00:00Z",
+        "title": "",
+        "content": "",
+        "actor": {
+          "id": 0,
+          "username": "",
+          "avatarUrl": ""
+        },
+        "topic": {
+          "id": 512,
+          "title": "校******论",
+          "url": "/settings?tab=content"
+        },
+        "payload": {
+          "templateKey": "notifications.templates.reviewRejected",
+          "templateParams": {},
+          "actorId": 0,
+          "topicId": 512,
+          "topicTitle": "校******论",
+          "postId": 4096,
+          "postNo": 1,
+          "metadata": {
+            "followerName": ""
+          }
+        }
+      }
+    ],
+    "nextCursor": 0,
+    "hasNext": false,
+    "unreadCount": 3
+  },
+  "code": 0
+}

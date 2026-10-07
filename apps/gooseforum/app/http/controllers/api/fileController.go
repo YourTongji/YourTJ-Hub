@@ -11,10 +11,19 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/httputil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/authsessionservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
 )
 
@@ -32,12 +41,18 @@ func GetFileByFileName(c *gin.Context) {
 	// 已删除内容的附件只应在恢复（回 ACTIVE）后重新可见；RECOVERING 只是为清理协调保留引用，
 	// 不构成公开访问授权。
 	referenceName := filedata.ReferenceName(filename)
+	privatePreview := false
 	if fileusageservice.HasAnyReferences(referenceName) && !fileusageservice.HasActiveReferences(referenceName) {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":       "File not found",
-			"messageCode": component.MessagePageNotFound,
-		})
-		return
+		// 待审内容（issue #975）的图片对匿名与其他用户 fail-closed；上传者本人与
+		// 有审核权限的站点管理员可授权预览（不进入任何共享缓存）。
+		privatePreview = fileusageservice.HasPendingReferences(referenceName) && canPreviewPendingFile(c, referenceName)
+		if !privatePreview {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":       "File not found",
+				"messageCode": component.MessagePageNotFound,
+			})
+			return
+		}
 	}
 
 	entity, err := filedata.GetFileByName(filename)
@@ -67,8 +82,93 @@ func GetFileByFileName(c *gin.Context) {
 		}
 		c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": base}))
 	}
-	httputil.SetLongPublic(c)
+	if privatePreview {
+		c.Header("Cache-Control", "private, no-store")
+	} else {
+		httputil.SetLongPublic(c)
+	}
 	c.Data(http.StatusOK, contentType, entity.Data)
+}
+
+// canPreviewPendingFile 待审图片的授权预览：仅在文件已处于待审状态时才解析会话
+// （不刷新令牌、不记活跃），普通公开图片读取路径不受影响。
+func canPreviewPendingFile(c *gin.Context, referenceName string) bool {
+	userID, _, _, ok := authsessionservice.ValidateToken(jwtopt.GetGinAccessToken(c))
+	if !ok || userID == 0 {
+		return false
+	}
+	if owner := filedata.GetByName(referenceName); owner.Id != 0 && owner.UserId == userID {
+		return true
+	}
+	roleID, ok := userservice.GetUserRoleId(userID)
+	if ok && permission.CheckRole(roleID, permission.SiteManager) {
+		return true
+	}
+	if moderationservice.IsAdmin(userID) {
+		return true
+	}
+	// 前台版主工作台同样审核待审内容（issue #975）：版主只能预览管辖分类内的
+	// 待审图片，沿待审引用回溯到所属主题的分类逐一校验。
+	for _, usage := range fileusageservice.ListPendingReferences(referenceName) {
+		if canPreviewPendingUsage(userID, usage) {
+			return true
+		}
+	}
+	return false
+}
+
+// PENDING only marks a private file reference; drafts use it too. Moderator
+// access additionally requires a submitted topic and a review-backed reference.
+func canPreviewPendingUsage(userID uint64, usage fileUsage.Entity) bool {
+	topicID := usage.TargetId
+	var post posts.Entity
+	var revision postRevisions.Entity
+	switch usage.TargetType {
+	case fileUsage.TargetTopic:
+	case fileUsage.TargetPostRevision:
+		revision = postRevisions.Get(usage.TargetId)
+		if revision.Id == 0 {
+			return false
+		}
+		post = posts.Get(revision.PostId)
+		topicID = post.TopicId
+	case fileUsage.TargetPost:
+		post = posts.Get(usage.TargetId)
+		topicID = post.TopicId
+	default:
+		return false
+	}
+	if topicID == 0 {
+		return false
+	}
+	topic := topics.Get(topicID)
+	if topic.Id == 0 || topic.Status != 1 || topic.VisibilityStatus != topics.VisibilityActive {
+		return false
+	}
+	if !moderationservice.CanModerateAnyCategory(userID, topic.CategoryIds) {
+		return false
+	}
+	if usage.TargetType == fileUsage.TargetTopic {
+		post = posts.Get(topic.FirstPostId)
+	}
+	if post.Id == 0 || post.VisibilityStatus != posts.VisibilityActive {
+		return false
+	}
+	if revision.Id != 0 {
+		if post.PostNo == 1 {
+			// Category edits require authority over both the current topic and the
+			// candidate. A match in either category group alone is insufficient.
+			return moderationservice.CanModerateAnyCategory(userID, revision.CategoryIds)
+		}
+		return true
+	}
+	// Versioned submissions authorize their own image snapshot above. Legacy
+	// topic/post refs can retain draft images omitted from that snapshot.
+	if post.LatestRevisionId != 0 {
+		return false
+	}
+	return usage.TargetType == fileUsage.TargetTopic && topic.ProcessStatus != topics.ProcessStatusNormal ||
+		usage.TargetType == fileUsage.TargetPost && post.ProcessStatus != posts.ProcessStatusNormal
 }
 
 // SaveImgByGinContext handles image uploads with size and content checks.

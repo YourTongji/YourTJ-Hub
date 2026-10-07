@@ -45,6 +45,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/ai-moderation-settings"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/ai-summary-settings"
   },
   {
@@ -70,6 +74,10 @@
   {
     "method": "GET",
     "path": "/api/admin/data/import/tasks"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/feed/summary"
   },
   {
     "method": "GET",
@@ -469,6 +477,10 @@
   },
   {
     "method": "GET",
+    "path": "/moderation/action"
+  },
+  {
+    "method": "GET",
     "path": "/moderation/course-reviews"
   },
   {
@@ -633,6 +645,22 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/ai-moderation/decisions"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/ai-moderation/decisions/label"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/ai-moderation/replay"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/ai-moderation/test"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/ai-summary-models"
   },
   {
@@ -757,6 +785,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/save-ai-moderation-settings"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/save-ai-summary-settings"
   },
   {
@@ -850,6 +882,10 @@
   {
     "method": "POST",
     "path": "/api/admin/storage-migrate-task"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/test-http-notify-endpoint"
   },
   {
     "method": "POST",
@@ -1001,7 +1037,19 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/feed/events"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/follow-user"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/approval-action/execute"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/approval-action/preview"
   },
   {
     "method": "POST",
@@ -1094,6 +1142,14 @@
   {
     "method": "POST",
     "path": "/api/forum/moderation/reports"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/review-action"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/review-queue"
   },
   {
     "method": "POST",

@@ -1,6 +1,7 @@
 package nativepushservice
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
@@ -112,6 +113,7 @@ func TestWebRouteToMobile(t *testing.T) {
 		{"/u/7", "/u/7"},
 		{"/wiki/guide/intro", mobileFallbackRoute},
 		{"/notifications", mobileFallbackRoute},
+		{"/settings?tab=content", "/my-content"},
 		{"https://forum.example.com/p/post/1001", mobileFallbackRoute}, // 全 URL 非站内路径
 	}
 	for _, c := range cases {
@@ -126,6 +128,22 @@ func TestBuildNativePayloadMention(t *testing.T) {
 		msg := buildNativePayload(eventNotification.Entity{EventType: eventNotification.EventTypeMention, Payload: eventNotification.NotificationPayload{TopicId: 512, PostId: 4096, PostNo: 8}}, locale)
 		if msg == nil || msg.Body != body || msg.Route != "/p/512?postNo=8" {
 			t.Fatalf("mention %s: %#v", locale, msg)
+		}
+	}
+}
+
+func TestBuildNativePayloadReviewSubject(t *testing.T) {
+	for _, locale := range []string{"zh", "en", "ja", "de"} {
+		for _, event := range []string{eventNotification.EventTypeReviewPending, eventNotification.EventTypeReviewApproved, eventNotification.EventTypeReviewRejected} {
+			notification := eventNotification.Entity{EventType: event, Payload: eventNotification.NotificationPayload{TopicId: 42, PostNo: 1, TopicTitle: "无标题送审正文摘要", Content: "must not expose the raw preview"}}
+			wantTitle, wantRoute := "无标题送审正文摘要", "/p/42?postNo=1"
+			if event == eventNotification.EventTypeReviewRejected {
+				wantTitle, wantRoute = "无******要", "/my-content"
+			}
+			msg := buildNativePayload(notification, locale)
+			if msg == nil || msg.Title != wantTitle || msg.Route != wantRoute || strings.Contains(msg.Body, notification.Payload.Content) {
+				t.Fatalf("%s/%s push=%+v", locale, event, msg)
+			}
 		}
 	}
 }

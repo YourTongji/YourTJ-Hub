@@ -124,11 +124,15 @@
   "serverMessages.oauth.token.failed": "登录凭据生成失败，请稍后重试。",
   "meta.courseReviewModeration": "课评审核",
   "meta.courseReviewModerationDesc": "处理课程评价的举报与隐藏/恢复。",
+  "meta.moderationAction": "处理审批通知",
+  "meta.moderationActionDesc": "确认并处理来自通知卡片的版主审批动作。",
   "meta.courseManagement": "课程管理",
   "meta.courseManagementDesc": "管理课程目录与课程评价。",
   "server.common.request.invalidFormat": "请求格式不正确，请检查后重试。",
   "serverMessages.sticker.libraryFull": "我的表情最多保存 {limit} 个，请先移除一些。",
   "serverMessages.sticker.uploadQuota": "已达到 {limit} 个个人表情素材的上传上限。已发送素材会保留以供历史内容显示。",
   "serverMessages.sticker.imageRequired": "请选择自己已上传的图片或 GIF，单张不超过 {maxSizeMb} MB。",
-  "serverMessages.sticker.unavailable": "该表情已不可用。"
+  "serverMessages.sticker.unavailable": "该表情已不可用。",
+  "forYouFeed": "为你推荐",
+  "dailyFeed": "今日热榜"
 }

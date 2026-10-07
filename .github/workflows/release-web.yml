@@ -1,0 +1,184 @@
+name: Release / Web publisher
+on:
+  workflow_call:
+    inputs:
+      candidate: {type: string, required: true}
+      source: {type: string, required: true}
+      tag: {type: string, required: true}
+      recover: {type: boolean, default: false}
+permissions:
+  contents: write
+  deployments: write
+  packages: write
+  actions: read
+  pull-requests: read
+  checks: read
+concurrency:
+  group: release-web
+  cancel-in-progress: false
+  queue: max
+jobs:
+  assets:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.image.outputs.reference }}
+      version: ${{ steps.identity.outputs.version }}
+      binary: ${{ steps.image.outputs.binary }}
+    env:
+      CANDIDATE: ${{ inputs.candidate }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release/workflow.py authorize
+      - id: start
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANNEL: web
+          RECOVER: ${{ inputs.recover }}
+        run: python3 scripts/release/workflow.py start
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        if: steps.start.outputs.build_required == 'true'
+        with:
+          ref: ${{ inputs.source }}
+          path: .source
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        if: steps.start.outputs.build_required == 'true'
+        with:
+          go-version-file: .source/apps/gooseforum/go.mod
+          cache-dependency-path: .source/apps/gooseforum/go.sum
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+        if: steps.start.outputs.build_required == 'true'
+        with:
+          version: 11
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        if: steps.start.outputs.build_required == 'true'
+        with:
+          node-version: 24
+      - name: Install frontend dependencies
+        if: steps.start.outputs.build_required == 'true'
+        working-directory: .source/apps/gooseforum/resource
+        run: pnpm install --frozen-lockfile
+      - name: Build versioned archives once, without publishing
+        if: steps.start.outputs.build_required == 'true'
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean --skip=publish --release-notes=${{ github.workspace }}/.release-approved/web.zh-CN.md
+          workdir: .source/apps/gooseforum
+        env:
+          GORELEASER_CURRENT_TAG: ${{ inputs.tag }}
+      - name: Preserve original distribution archives
+        if: steps.start.outputs.build_required == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: web-${{ inputs.tag }}
+          path: .source/apps/gooseforum/dist
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: true
+      - name: Stage the exact production binary and its digest
+        if: steps.start.outputs.build_required == 'true'
+        env:
+          SOURCE_SHA: ${{ inputs.source }}
+          VERSION: ${{ steps.identity.outputs.version }}
+        run: python3 scripts/release/web_artifact.py .source/apps/gooseforum/dist bin "$SOURCE_SHA" "$VERSION"
+      - name: Restore original distribution archives
+        if: inputs.recover && steps.start.outputs.build_required != 'true' && steps.start.outputs.image == ''
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: web-${{ inputs.tag }}
+          run-id: ${{ steps.start.outputs.build_run_id }}
+          github-token: ${{ github.token }}
+          path: .source/apps/gooseforum/dist
+      - name: Restore production binary from original build
+        if: inputs.recover && steps.start.outputs.build_required != 'true' && steps.start.outputs.image == ''
+        env:
+          SOURCE_SHA: ${{ inputs.source }}
+          VERSION: ${{ steps.identity.outputs.version }}
+        run: python3 scripts/release/web_artifact.py .source/apps/gooseforum/dist bin "$SOURCE_SHA" "$VERSION"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: steps.start.outputs.image == ''
+        with:
+          name: yourtj-hub
+          path: bin
+          if-no-files-found: error
+      - name: Publish immutable archives with approved web notes
+        if: steps.start.outputs.image == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_NOTES_DIGESTS: ${{ steps.identity.outputs.notes_digests }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          python3 scripts/release/workflow.py verify-publication
+          python3 scripts/release/publish_web.py
+      - id: push
+        if: steps.start.outputs.image == ''
+        uses: ./.github/actions/push-image
+        with:
+          tag: main-${{ inputs.tag }}
+          immutable: 'true'
+          github-token: ${{ github.token }}
+      - id: image
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          TAG: ${{ inputs.tag }}
+          ORIGINAL_IMAGE: ${{ steps.start.outputs.image }}
+          ORIGINAL_BINARY: ${{ steps.start.outputs.binary }}
+        run: |
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          details={'binarySha256':os.environ['ORIGINAL_BINARY']} if os.environ['ORIGINAL_IMAGE'] else json.loads(Path('bin/binary.json').read_text())
+          reference=os.environ['ORIGINAL_IMAGE'] or ('main-'+os.environ['TAG']+'@'+os.environ['DIGEST'])
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out: out.write('reference='+reference+'\n')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out: out.write('binary='+details['binarySha256']+'\n')
+          details.update(image=reference,availability='assets_available')
+          Path('.release-result.json').write_text(json.dumps({'web':details}))
+          PY
+      - name: Record image identity before deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANNEL: web
+          RELEASE_STATE: in_progress
+        run: python3 scripts/release/workflow.py receipt
+  deploy:
+    needs: assets
+    uses: ./.github/workflows/deploy-main.yml
+    with:
+      candidate: ${{ inputs.candidate }}
+      image: ${{ needs.assets.outputs.image }}
+      source: ${{ inputs.source }}
+      version: ${{ needs.assets.outputs.version }}
+      binary: ${{ needs.assets.outputs.binary }}
+    secrets: inherit
+  receipt:
+    needs: [assets, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE: ${{ inputs.candidate }}
+          CHANNEL: web
+          RELEASE_STATE: ${{ needs.deploy.result == 'success' && 'success' || 'failure' }}
+          IMAGE: ${{ needs.assets.outputs.image }}
+        run: |
+          python3 - <<'PY'
+          import os,json
+          from pathlib import Path
+          Path('.release-result.json').write_text(json.dumps({'web':{'image':os.environ['IMAGE'],'availability':'live' if os.environ['RELEASE_STATE']=='success' else 'failed_or_rolled_back'}}))
+          PY
+          python3 scripts/release/workflow.py receipt

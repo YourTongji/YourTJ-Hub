@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import '../gen/page.dart';
 import '../gen/response.dart';
 import '../token/token_storage.dart';
+import 'feed_telemetry.dart';
 import 'api_error.dart';
 
 typedef JsonParser<T> = T Function(Object? json);
@@ -26,6 +27,9 @@ class GfApiClient {
     this.onUnauthorized,
   }) {
     dio.options.baseUrl = baseUrl;
+    FeedTelemetry.instance.send = (body) async {
+      await dio.post('/api/forum/feed/events', data: body);
+    };
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
@@ -35,6 +39,14 @@ class GfApiClient {
               : await tokenStorage.read();
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
+          }
+          if (options.path.startsWith('/api/logout') ||
+              options.path.endsWith('/account-close')) {
+            FeedTelemetry.instance.bindAccount(0);
+          }
+          for (final entry
+              in FeedTelemetry.instance.headers(options.path).entries) {
+            options.headers.putIfAbsent(entry.key, () => entry.value);
           }
           handler.next(options);
         },
@@ -201,6 +213,24 @@ class GfApiClient {
   }) async {
     final response = await _request(
       () => dio.put(
+        path,
+        data: body,
+        options: Options(headers: headers),
+      ),
+    );
+    return _resolve(response, parser);
+  }
+
+  /// [put] 的 PATCH 形态（课评编辑等部分更新契约；后端只注册了 PATCH，
+  /// POST 会落到未定义路由）。
+  Future<T> patch<T>(
+    String path, {
+    Object? body,
+    Map<String, dynamic>? headers,
+    JsonParser<T>? parser,
+  }) async {
+    final response = await _request(
+      () => dio.patch(
         path,
         data: body,
         options: Options(headers: headers),

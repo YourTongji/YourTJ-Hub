@@ -19,7 +19,7 @@ import subprocess
 import tempfile
 import zipfile
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(os.environ.get("RELEASE_SOURCE_ROOT", Path(__file__).resolve().parents[2]))
 APP = ROOT / "apps/mobile/packages/forum_app"
 BUNDLE_ID = "tj.yourtj.forumApp"
 WIDGET_BUNDLE_ID = "tj.yourtj.forumApp.ScheduleWidgets"

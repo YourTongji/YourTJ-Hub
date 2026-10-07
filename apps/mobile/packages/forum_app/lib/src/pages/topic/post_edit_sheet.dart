@@ -6,17 +6,31 @@ import '../../../l10n/app_localizations.dart';
 import '../../images/image_upload.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
+import '../../widgets/moderation_blocked_dialog.dart';
+
+Future<bool?> showPostEditSheet(
+  BuildContext context, {
+  required int postId,
+  required String content,
+}) => showGfBottomSheet<bool>(
+  context,
+  barrierDismissible: false,
+  keyboardAware: true,
+  enableDrag: false,
+  builder: (_) => PostEditSheet(postId: postId, content: content),
+);
 
 class PostEditSheet extends ConsumerStatefulWidget {
-  const PostEditSheet({super.key, required this.post});
-  final PostPayload post;
+  const PostEditSheet({super.key, required this.postId, required this.content});
+  final int postId;
+  final String content;
   @override
   ConsumerState<PostEditSheet> createState() => _PostEditSheetState();
 }
 
 class _PostEditSheetState extends ConsumerState<PostEditSheet> {
   late final TextEditingController _text = TextEditingController(
-    text: widget.post.content,
+    text: widget.content,
   );
   bool _busy = false;
   bool _uploading = false;
@@ -31,7 +45,7 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
   Future<void> _close() async {
     if (_busy || _uploading) return;
     final l10n = AppLocalizations.of(context);
-    if (_text.text != widget.post.content) {
+    if (_text.text != widget.content) {
       final discard = await showDialog<bool>(
         context: context,
         animationStyle: GfMotion.dialogStyle(context),
@@ -70,10 +84,17 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
       _error = null;
     });
     try {
-      await ref
+      final UpdatePostResult updated = await ref
           .read(postRepositoryProvider)
-          .updatePost(postId: widget.post.id, content: _text.text.trim());
+          .updatePost(postId: widget.postId, content: _text.text.trim());
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (updated.pendingReview) {
+        final AppLocalizations l10n = AppLocalizations.of(context);
+        showGfToast(
+          context,
+          pendingReviewMessage(l10n, checking: updated.checking),
+        );
+      }
       _pop(true);
     } catch (error) {
       if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
@@ -81,6 +102,8 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
           () =>
               _error = resolveErrorMessage(AppLocalizations.of(context), error),
         );
+        // AI 图文审查拦截(issue #975):弹出友好提示,编辑内容保持不变。
+        await showModerationBlockedDialog(context, error);
       }
     } finally {
       if (mounted) setState(() => _busy = false);

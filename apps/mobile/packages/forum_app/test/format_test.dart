@@ -53,6 +53,22 @@ void main() {
     });
   });
 
+  group('formatReviewDate', () {
+    test('7 天内用相对时间', () {
+      final now = DateTime(2026, 8, 7, 12, 0, 0);
+      final iso = DateTime(2026, 8, 4, 12, 0, 0).toUtc().toIso8601String();
+      expect(formatReviewDate(iso, now: now, l10n: zh), '3 天前');
+    });
+
+    test('更早用 M月D日，跨年用 YYYY年M月D日', () {
+      final now = DateTime(2026, 8, 7, 12, 0, 0);
+      final iso = DateTime(2026, 1, 16, 20, 26).toUtc().toIso8601String();
+      expect(formatReviewDate(iso, now: now, l10n: zh), '1月16日');
+      final crossYear = DateTime(2025, 12, 25, 10, 0).toUtc().toIso8601String();
+      expect(formatReviewDate(crossYear, now: now, l10n: zh), '2025年12月25日');
+    });
+  });
+
   group('formatDate', () {
     test('返回 YYYY-MM-DD', () {
       expect(

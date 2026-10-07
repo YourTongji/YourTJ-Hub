@@ -65,6 +65,7 @@ export interface ResetPasswordPageProps {
 }
 
 export interface LayoutPayload {
+  dailyRanking?: boolean
   site: SitePayload
   viewer: ViewerPayload
   header?: NavItemPayload[]
@@ -313,6 +314,9 @@ export interface PaginationPayload {
 }
 
 export interface HomeProps {
+  actualSort?: string
+  degradeReason?: string
+  feedTrace?: string
   /** Server-defined sort keys include following (sign-in required). */
   sort: string
   tabs: Array<{ key: string; label?: string; url: string; active: boolean }>
@@ -451,6 +455,9 @@ export interface PostWindowPayload {
 }
 
 export interface TopicPayload {
+  feedTrace?: string
+  feedPosition?: number
+  feedReason?: string
   id: number
   title: string
   description: string
@@ -557,6 +564,26 @@ export interface ModerationReportListResponse {
   items: ModerationReportItem[]
   nextCursor: number
   hasNext: boolean
+}
+
+export interface ModerationActionPageProps {
+  // 快捷审批确认页（issue #1049）：token 只在前端读取并 POST 给 preview/execute，SSR 仅提供空壳。
+}
+
+/** 快捷审批确认页视图（issue #1049）：无权限、token 无效或过期时不含目标内容。 */
+export interface ModerationApprovalActionView {
+  state: 'ready' | 'done' | 'processed' | 'changed' | 'expired' | 'invalid' | 'forbidden' | 'notFound' | 'failed'
+  subject?: 'review.topic' | 'review.post' | 'report'
+  action?: 'approve' | 'reject' | 'ban' | 'hide' | 'dismiss'
+  targetType?: 'topic' | 'post' | 'chat_message' | 'course_review'
+  targetId?: number
+  reportId?: number
+  title?: string
+  excerpt?: string
+  anonymous?: boolean
+  targetUrl?: string
+  workbenchUrl: string
+  expiresAt?: string
 }
 
 export interface ModerationDeletedContentView {
@@ -817,6 +844,9 @@ export type NotificationTemplateKey =
   | 'notifications.templates.follow'
   | 'notifications.templates.badge'
   | 'notifications.templates.wikiUpdated'
+  | 'notifications.templates.reviewPending'
+  | 'notifications.templates.reviewApproved'
+  | 'notifications.templates.reviewRejected'
 
 export interface DraftsPageProps {
   total: number
@@ -842,6 +872,8 @@ export interface DraftPayload {
   categories: Array<{ id: number; name: string; url: string; color: string }>
 }
 
+// review_pending links to the author's candidate; review_approved is human-only.
+// review_rejected links to content management; payload.topicTitle is masked by the server.
 export interface NotificationPayload {
   id: number
   eventType: string
@@ -954,6 +986,7 @@ export interface PublishPageProps {
   isEditing: boolean
   categories: PublishCategoryPayload[]
   topic: {
+    images?: string[]
     title: string
     content: string
     categoryIds: number[]

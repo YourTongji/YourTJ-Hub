@@ -1,6 +1,7 @@
 package forum
 
 import (
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/feedservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicaccessservice"
@@ -68,6 +70,7 @@ func TopicDetail(c *gin.Context) {
 		renderNotFound(c)
 		return
 	}
+	publicationservice.OwnerSnapshot(&topic, &firstPost, loginUser.UserId, false)
 	postservice.EnsureRenderedHTML(&firstPost)
 	if loginUser.UserId > 0 {
 		if err := topicunseenservice.MarkVisited(loginUser.UserId, topic.Id, topic.LastPostId, time.Now()); err != nil {
@@ -86,6 +89,11 @@ func TopicDetail(c *gin.Context) {
 	renderPage(c, "topic.gohtml", payload)
 	if shouldCountTopicView(&topic) {
 		topicviewservice.RecordView(topic.Id)
+		if foregroundPage(c) && topic.VisibilityStatus == topics.VisibilityActive && firstPost.ProcessStatus == posts.ProcessStatusNormal && firstPost.VisibilityStatus == posts.VisibilityActive {
+			feedservice.CaptureView(loginUser.UserId, topic.Id, topic.UserId)
+			feedservice.CaptureOpened(loginUser.UserId, topic.Id, c.GetHeader("X-Goose-Feed-Trace"), cast.ToInt(c.GetHeader("X-Goose-Feed-Position")))
+			feedservice.CaptureActivity(loginUser.UserId)
+		}
 	}
 }
 
@@ -111,7 +119,7 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 	if topicEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
-	if !CanViewTopicSimple(&topicEntity, req.UserId) {
+	if !canViewTopic(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
 
@@ -239,10 +247,10 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 	))
 }
 
-// canViewTopic 为历史别名，委托共享可见性谓词 CanViewTopicSimple，避免两处
-// 安全边界实现漂移。调用方：TopicDetail（读路径）。
+// canViewTopic 话题详情读路径的可见性：在共享谓词之上允许作者阅读自己待审中的
+// 话题（topicaccessservice.CanRead）。调用方：TopicDetail、PostWindow。
 func canViewTopic(entity *topics.Entity, userID uint64) bool {
-	return CanViewTopicSimple(entity, userID)
+	return topicaccessservice.CanRead(entity, userID)
 }
 
 // CanViewTopicSimple is the shared read-path visibility predicate for topics
@@ -375,12 +383,16 @@ func PostRevisions(req component.BetterRequest[PostRevisionsReq]) component.Resp
 		// 编辑者身份一并匿名化，避免泄露「该内容在审核/已删、被谁编辑过、
 		// 何时编辑」的元数据——楼层窗口刻意不提供这些信息（review 发现）。
 		masked := false
+		canReviewVersion := canModerate
+		if postEntity.PostNo == 1 && postEntity.LatestRevisionId != 0 {
+			canReviewVersion = canReviewVersion && moderationservice.CanModerateAnyCategory(req.UserId, v.CategoryIds)
+		}
 		if postDeleted {
 			// 删除/匿名化帖的版本快照不得绕过删除留存原文
 			content = ""
 			rendered = ""
 			masked = true
-		} else if (v.ProcessStatus != posts.ProcessStatusNormal || postModerated) && !canModerate {
+		} else if (v.ProcessStatus != posts.ProcessStatusNormal || postModerated) && !canReviewVersion {
 			// 非正常状态版本（待审/封禁）与封禁/待审帖正文对非版主屏蔽，
 			// 与楼层窗口过滤同语义；封禁版正文在帖子解封后也不得泄露
 			// 给非版主（此前只屏蔽 Pending 版本，漏掉 Blocked）。

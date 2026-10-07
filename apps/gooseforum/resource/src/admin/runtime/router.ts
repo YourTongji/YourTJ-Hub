@@ -91,6 +91,7 @@ export const adminRouter = createRouter({
       component: () => import('@/admin/pages/management/SiteChromeManagementPage.vue'),
     },
     { path: '/admin/settings/campus-calendar', component: () => import('@/admin/pages/CampusCalendarRulesPage.vue') },
+    { path: '/admin/settings/ai-moderation', component: () => import('@/admin/pages/AiModerationSettingsPage.vue') },
     ...Object.entries(settingsPages).map(([path, kind]) => ({
       path,
       component: () => import('@/admin/pages/AdminSettingsPage.vue'),

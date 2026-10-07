@@ -939,7 +939,16 @@ void main() {
         .widget<MarkdownWidget>(find.byType(MarkdownWidget))
         .config!;
     expect(config.p.textStyle.fontSize, closeTo(17 * 1.4, .001));
-    expect(config.h1.style.fontSize, closeTo(17 * 1.45 * 1.4, .001));
+    // Headings grow with the body but keep less of their extra emphasis.
+    final double emphasis = GfRichContentTypography.headingEmphasisFor(
+      renderedScale: 1.4,
+      width: 800,
+    );
+    expect(
+      config.h1.style.fontSize,
+      closeTo(17 * (1 + .45 * emphasis) * 1.4, .001),
+    );
+    expect(config.h1.style.fontSize, lessThan(17 * 1.45 * 1.4));
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });

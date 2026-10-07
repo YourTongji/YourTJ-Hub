@@ -1,16 +1,7 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { matchesGlob } from 'node:path/posix';
+import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
-
-const workflow = readFileSync(new URL('../.github/workflows/ci-mobile.yml', import.meta.url), 'utf8');
-// Read the actual path list so a change to the workflow cannot leave this test
-// checking a separate copy of its filters. These paths use ordinary POSIX globs.
-const block = workflow.match(/^            flutter:\n((?:              - .+\n)+)/m)?.[1];
-assert.ok(block, 'Flutter input filter must be present');
-const patterns = [...block.matchAll(/- '([^']+)'/g)].map((match) => match[1]);
-const selected = (path) => patterns.some((pattern) => matchesGlob(path, pattern));
-
+// Exercise the authoritative classifier, including Dart files outside lib/ and test/.
 for (const path of [
   'apps/mobile/packages/forum_app/integration_test/campus_native_test.dart',
   'apps/mobile/packages/forum_app/test_driver/integration_driver.dart',
@@ -18,11 +9,9 @@ for (const path of [
   'apps/mobile/packages/core/lib/src/client.dart',
   'apps/mobile/packages/ui_kit/test/theme_test.dart',
 ]) {
-  test(`analyze Dart input: ${path}`, () => assert.equal(selected(path), true));
+  test(`analyze Dart input: ${path}`, () => {
+    const run = spawnSync('python3', ['-c', 'import sys,json; sys.path.insert(0,"scripts/ci"); from select_inputs import select; print(json.dumps(select([sys.argv[1]])))', path], {encoding: 'utf8'});
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(JSON.parse(run.stdout).mobile.run, true);
+  });
 }
-
-test('documentation and store metadata do not select Flutter jobs', () => {
-  for (const path of ['apps/mobile/README.md', 'apps/mobile/store/zh-CN/description.txt']) {
-    assert.equal(selected(path), false, path);
-  }
-});

@@ -77,6 +77,34 @@ import Darwin
         }
       }
     }
+    if let updatesRegistrar = engineBridge.pluginRegistry.registrar(forPlugin: "YourTJAppUpdates") {
+      let channel = FlutterMethodChannel(name: "yourtj/app_updates", binaryMessenger: updatesRegistrar.messenger())
+      channel.setMethodCallHandler { call, result in
+        guard call.method == "getInfo" else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        let bundle = Bundle.main
+        let receiptName = bundle.appStoreReceiptURL?.lastPathComponent
+        let distributionChannel: String
+        #if DEBUG || targetEnvironment(simulator)
+          distributionChannel = "unknown"
+        #else
+          if receiptName == "sandboxReceipt" {
+            distributionChannel = "ios-testflight"
+          } else if receiptName == "receipt" {
+            distributionChannel = "ios-app-store"
+          } else {
+            distributionChannel = "unknown"
+          }
+        #endif
+        result([
+          "version": bundle.infoDictionary?["CFBundleShortVersionString"] as? String ?? "",
+          "buildNumber": Int(bundle.infoDictionary?["CFBundleVersion"] as? String ?? "") ?? 0,
+          "channel": distributionChannel
+        ])
+      }
+    }
     guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "YourTJPush") else { return }
     let channel = FlutterMethodChannel(name: "yourtj/push", binaryMessenger: registrar.messenger())
     pushChannel = channel

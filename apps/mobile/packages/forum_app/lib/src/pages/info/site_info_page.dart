@@ -12,6 +12,7 @@ import '../../asset_url.dart';
 import '../../providers.dart';
 import '../../widgets/status_views.dart';
 import '../../updates/update_host.dart';
+import '../../updates/release_notes_page.dart';
 
 enum SiteInfoKind { links, sponsors, terms, privacy }
 
@@ -39,11 +40,20 @@ class SiteInfoIndexPage extends StatelessWidget {
       appBar: GfAppBar(title: Text(l10n.siteInfoTitle)),
       body: ListView(
         children: [
-          if (supportsApkUpdates)
+          if (supportsMobileReleaseNotes)
             ListTile(
               leading: const GfSymbol('download'),
               title: Text(l10n.updateCheck),
               onTap: () => appUpdateHostKey.currentState?.check(force: true),
+            ),
+          if (supportsMobileReleaseNotes)
+            ListTile(
+              leading: const GfSymbol('history'),
+              title: Text(l10n.releaseNotesHistory),
+              trailing: const GfSymbol('chevron-right'),
+              onTap: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(builder: (_) => const ReleaseNotesPage()),
+              ),
             ),
           for (final kind in SiteInfoKind.values)
             ListTile(

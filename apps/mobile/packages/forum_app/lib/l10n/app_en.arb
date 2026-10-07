@@ -141,6 +141,7 @@
   "authGetCode": "Get code",
   "authRefreshCaptcha": "Refresh captcha",
   "authCaptchaRequired": "Please enter the captcha",
+  "publishCaptchaExplanation": "The site may require a captcha for frequent posting by newer accounts. This check lifts as recent activity subsides or the account meets the site's age condition.",
   "authOidcLogin": "Sign in with yourtj",
   "authRegisterEmailVerify": "Registration successful. A verification email was sent; check your inbox.",
   "authRegisterSuccess": "Registered successfully, please sign in",
@@ -589,6 +590,7 @@
     }
   },
   "topicFloorSelected": "Jumped to floor {floor}",
+  "sortForYou": "For you",
   "sortLatest": "Latest",
   "sortHot": "Hot",
   "sortPopular": "Popular",
@@ -725,6 +727,7 @@
   },
   "coursesNoRating": "No rating",
   "courseDetailReviews": "Reviews",
+  "courseShareThisReview": "This review",
   "courseDetailOfferings": "Classes",
   "courseDetailLineage": "History",
   "courseDetailRelated": "Related courses",
@@ -757,9 +760,38 @@
   "settingsFollowSiteThemeDesc": "Use server-issued site colors",
   "richContentCopyCode": "Copy code",
   "richContentCodeCopied": "Code copied",
-  "settingsReadingTextSize": "Reading text size",
-  "settingsReadingTextSizeDesc": "Applies to posts, Wiki and course reviews. System font scaling still applies.",
-  "settingsReadingTextSizeReset": "Reset to 100%",
+  "textSizeTitle": "Text size",
+  "textSizeReset": "Reset to default",
+  "textSizeDefault": "Default",
+  "textSizePercent": "{percent}%",
+  "@textSizePercent": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "textSizeSummary": "App {appSize} · Reading {readingSize}",
+  "@textSizeSummary": {
+    "placeholders": {
+      "appSize": {
+        "type": "String"
+      },
+      "readingSize": {
+        "type": "String"
+      }
+    }
+  },
+  "textSizeGlobal": "App text",
+  "textSizeGlobalDesc": "All text in the app, including body text",
+  "textSizeReading": "Reading text",
+  "textSizeReadingDesc": "Adjusts body text in posts, Wiki pages and course reviews on top of app text",
+  "textSizePreview": "Preview",
+  "textSizePreviewTime": "10m",
+  "textSizePreviewTitle": "Drag a slider below to preview the change",
+  "textSizePreviewExcerpt": "App text changes all text in the app. Reading text adjusts only body text on top of it.",
+  "textSizePreviewCategory": "Guide",
+  "textSizePreviewBody": "### Body text preview\nReading text changes only this post body. Everything else follows **app text**.\n\n- The default size is adapted to your system text size and screen",
   "entryCourses": "Courses",
   "entrySchedule": "Schedule",
   "entryWiki": "Wiki",
@@ -1086,6 +1118,17 @@
   "courseCopyRatingRequired": "Please choose a 1–5 star rating.",
   "courseCopyContentRequired": "Review content cannot be empty.",
   "courseCopyAnonymousLabel": "Post anonymously (identity hidden from the public)",
+  "courseCopyAnonymousTitle": "Post anonymously",
+  "courseCopyAnonymousHint": "Your identity stays hidden",
+  "courseCopyPublishAs": "Posting as {name}",
+  "@courseCopyPublishAs": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "courseCopyPublishPublic": "Public identity",
   "courseCopySubmitSuccess": "Submitted",
   "courseCopyUpdateSuccess": "Updated",
   "courseCopyDelete": "Delete",
@@ -1128,6 +1171,35 @@
   "updateInstall": "Install update",
   "updatePermission": "Allow YourTJ to install apps, then return and tap Install again.",
   "updateRetry": "Retry",
+  "updateCancelDownload": "Cancel download",
+  "updateIncomplete": "The update didn’t finish. Check your connection and try again.",
+  "updateOpenAppStore": "View on App Store",
+  "updateOpenTestFlight": "View TestFlight in App Store",
+  "updateTestFlightInstructions": "This opens TestFlight's App Store page. If TestFlight is installed, open it and check YourTJ for the beta update.",
+  "updateOpenPermissionSettings": "Open install permission settings",
+  "updateChannelUnknown": "Update channel could not be verified. You can still view release history in About.",
+  "releaseNotes": "What’s new",
+  "releaseNotesHistory": "Release history",
+  "releaseNotesEmpty": "No release notes are available right now.",
+  "releaseNotesEarlier": "Includes other improvements from earlier versions.",
+  "releaseNotesIncomplete": "Earlier release notes are incomplete. This prompt shows notes for the target release only.",
+  "releaseHistoryIncomplete": "The available history is incomplete for this release channel.",
+  "releaseNotesMore": "Show all updates",
+  "releaseNotesFewer": "Show fewer",
+  "releaseNotesShowRemaining": "{count, plural, =1{Show 1 more update} other{Show {count} more updates}}",
+  "@releaseNotesShowRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "releaseNotesRequired": "Required",
+  "releaseNotesHistoryError": "Release history is temporarily unavailable.",
+  "releaseNotesKindFeature": "New",
+  "releaseNotesKindImprovement": "Improved",
+  "releaseNotesKindFix": "Fixed",
+  "releaseNotesKindSecurity": "Security",
   "settingsPushConsent": "Enable system notifications via Apple (iOS) or JPush and device vendors (Android). These services process push identifiers and notification content.",
   "settingsPushUnsupported": "Push is not configured in this build",
   "settingsPushServerDisabled": "The server has not enabled this delivery channel. Tap to retry.",
@@ -1572,5 +1644,28 @@
   "courseReviewContentLimitError": "Reviews can contain up to 2,000 characters.",
   "courseReviewCharacterCount": "{count}/2000",
   "shareImageTooLong": "This post is too long to turn into one image.",
-  "shareImageFailed": "Couldn’t share the image. Try again later."
+  "shareImageFailed": "Couldn’t share the image. Try again later.",
+  "moderationBlockedTitle": "Not published",
+  "moderationBlockedPolicyHint": "Check that your images and text follow the community guidelines. Remove or replace anything that may be inappropriate, then publish again. If you think this is a mistake, contact an administrator.",
+  "moderationBlockedExternalHint": "This site doesn’t show external images. Save the image, upload it through the editor, then publish again.",
+  "moderationBlockedDraftKept": "Your text and images are still in the editor.",
+  "moderationBlockedBack": "Edit post",
+  "notificationReviewApproved": "Your post was approved and is now visible to everyone",
+  "notificationReviewRejected": "Your post wasn’t approved and won’t be shown publicly",
+  "topicPendingReviewBanner": "This post is under review. Only you and reviewers can see it until it’s approved.",
+  "topicPendingReviewBannerModerator": "This post is awaiting review. Other readers can’t see it yet.",
+  "topicPendingReviewReply": "Under review · Only you and reviewers can see this reply until it’s approved.",
+  "contentReviewBlocked": "Not approved",
+  "contentReviewRetry": "Edit and resubmit",
+  "contentReviewLive": "Your previous version remains public.",
+  "contentReviewView": "View content",
+  "contentReviewPending": "Under review",
+  "notificationReviewPending": "Your post is awaiting manual review",
+  "notificationReviewPendingDetail": "We’ll review it soon and notify you of the result. You can view or edit it while you wait.",
+  "notificationReviewRejectedDetail": "This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions.",
+  "feedReasonFollowing": "From someone you follow",
+  "feedReasonCategory": "A category you participate in",
+  "feedReasonNewReply": "New replies",
+  "feedReasonRecent": "Recently published",
+  "sortDaily": "Today's top"
 }

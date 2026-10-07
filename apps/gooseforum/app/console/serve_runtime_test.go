@@ -1,17 +1,63 @@
 package console
 
 import (
+	"bytes"
 	"errors"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/migration"
 	"github.com/gin-gonic/gin"
 )
+
+func TestDebugGinLoggerSkipsAuthenticationCallbackQueries(t *testing.T) {
+	previousDebug := preferences.GetBool("app.debug", false)
+	previousMode := gin.Mode()
+	preferences.Set("app.debug", true)
+	previousWriter := gin.DefaultWriter
+	var output bytes.Buffer
+	gin.DefaultWriter = &output
+	t.Cleanup(func() {
+		preferences.Set("app.debug", previousDebug)
+		gin.DefaultWriter = previousWriter
+		gin.SetMode(previousMode)
+	})
+
+	engine := newGinEngine()
+	engine.GET("/api/campus/tongji/callback", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	engine.GET("/api/auth/:provider/callback", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	engine.GET("/api/oauth/authorize/callback", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	engine.GET("/login", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	engine.GET("/search", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	for _, target := range []string{
+		"/api/campus/tongji/callback?code=fake-campus-code&state=fake-campus-state",
+		"/api/campus/tongji/callback/?code=fake-campus-slash-code&state=fake-campus-slash-state",
+		"/api/auth/future-provider/callback?code=fake-goth-code&state=fake-goth-state",
+		"/api/auth/future-provider/callback/?code=fake-goth-slash-code&state=fake-goth-slash-state",
+		"/api/oauth/authorize/callback?id=fake-oidc-id",
+		"/api/oauth/authorize/callback/?id=fake-oidc-slash-id",
+		"/login?redirect=%2Fapi%2Foauth%2Fauthorize%2Fcallback%3Fid%3Dfake-resume-id",
+	} {
+		engine.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, target, nil))
+	}
+	engine.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/search?q=hello", nil))
+	engine.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/search/?q=hello", nil))
+
+	for _, secret := range []string{"fake-campus-code", "fake-campus-state", "fake-campus-slash-code", "fake-campus-slash-state", "fake-goth-code", "fake-goth-state", "fake-goth-slash-code", "fake-goth-slash-state", "fake-oidc-id", "fake-oidc-slash-id", "fake-resume-id"} {
+		if bytes.Contains(output.Bytes(), []byte(secret)) {
+			t.Errorf("debug Gin log contains %q", secret)
+		}
+	}
+	if !bytes.Contains(output.Bytes(), []byte("q=hello")) {
+		t.Error("debug Gin logger did not preserve ordinary query")
+	}
+}
 
 // newTestServeRuntime builds a serveRuntime bound to an ephemeral port so
 // tests do not collide with the running instance or each other. The migration

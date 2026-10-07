@@ -35,6 +35,7 @@ import 'password_edit_page.dart';
 import 'session_device_label.dart';
 import '../../widgets/stickers/sticker_library_page.dart';
 import '../../widgets/stickers/sticker_strings.dart';
+import 'text_size_settings_page.dart';
 import 'username_edit_dialog.dart';
 import 'badge_display_dialog.dart';
 import 'profile_image_editor.dart';
@@ -227,7 +228,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             for (final b in wearable)
               GfSettingRow(
                 leading: GfBadgeMedallion(
-                  icon: UserBadgeArtwork(b, size: 24),
+                  icon: UserBadgeArtwork.medallion(b, 40),
                   color: userBadgeColor(b),
                   size: 40,
                 ),
@@ -1122,7 +1123,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ]
             else if (_signedIn == false)
               _categoryRow(
-                symbol: 'log-out',
+                symbol: 'login4',
                 title: l10n.authLoginTitle,
                 onTap: () => context.push(
                   authLoginLocation(
@@ -1197,8 +1198,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final mode = ref.watch(themeModeProvider);
     final siteTheme = ref.watch(siteThemeProvider);
     final double readingScale = ref.watch(contentFontScaleProvider);
-    final GfColors colors = GfTheme.colorsOf(context);
-    final GfTypography type = GfTheme.typographyOf(context);
+    final double appScale = ref.watch(appFontScaleProvider);
     return ListView(
       controller: controller,
       padding: const EdgeInsets.all(16),
@@ -1231,74 +1231,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         const SizedBox(height: 12),
         _settingsSection(
           context,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        l10n.settingsReadingTextSize,
-                        style: type.body.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      '${(readingScale * 100).round()}%',
-                      key: const ValueKey('settings-reading-scale-label'),
-                      style: type.body.copyWith(
-                        color: colors.iconMuted,
-                        fontFeatures: const <FontFeature>[
-                          FontFeature.tabularFigures(),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                Slider(
-                  key: const ValueKey('settings-reading-scale'),
-                  value: readingScale,
-                  min: GfRichContentTypography.minUserScale,
-                  max: GfRichContentTypography.maxUserScale,
-                  divisions: 12,
-                  label: '${(readingScale * 100).round()}%',
-                  // 拖动只更新会话内状态(notifier 内部防抖),松手立即落盘;
-                  // 若页面在拖动中途被销毁,onChangeEnd 不会触发,由防抖计时器
-                  // 兜底写入。
-                  onChanged: (double value) => ref
-                      .read(contentFontScaleProvider.notifier)
-                      .setScale(value),
-                  onChangeEnd: (double _) => ref
-                      .read(contentFontScaleProvider.notifier)
-                      .persistScale(),
-                ),
-                // Wrap so the description and the reset action reflow onto
-                // separate lines under large system text instead of squeezing.
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: <Widget>[
-                    Text(
-                      l10n.settingsReadingTextSizeDesc,
-                      style: type.caption.copyWith(color: colors.iconMuted),
-                    ),
-                    TextButton(
-                      key: const ValueKey('settings-reading-scale-reset'),
-                      onPressed: readingScale == 1
-                          ? null
-                          : () => ref
-                                .read(contentFontScaleProvider.notifier)
-                                .resetToDefault(),
-                      child: Text(l10n.settingsReadingTextSizeReset),
-                    ),
-                  ],
-                ),
-              ],
+          child: GfSettingRow(
+            key: const ValueKey('settings-text-size'),
+            symbol: 'type',
+            title: l10n.textSizeTitle,
+            description: l10n.textSizeSummary(
+              textSizeLabel(l10n, appScale),
+              textSizeLabel(l10n, readingScale),
             ),
+            onTap: () => context.push('/settings/text-size'),
           ),
         ),
         const SizedBox(height: 12),

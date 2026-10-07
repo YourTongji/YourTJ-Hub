@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+import 'dart:ui' show lerpDouble;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -5,6 +8,7 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../l10n/app_localizations.dart';
 import '../navigation/reading_chrome.dart';
 import '../navigation/reading_window.dart';
+import '../navigation/tab_scroll_registry.dart';
 import '../navigation/tab_swipe_surface.dart';
 import '../navigation/tab_page_transition.dart';
 import 'account_drawer.dart';
@@ -53,9 +57,32 @@ class RootSurface extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final hidden = ref.watch(readingChromeProvider).hidden;
     final colors = GfTheme.colorsOf(context);
-    final duration = GfMotion.duration(context, GfMotion.layout);
     final bottom = MediaQuery.paddingOf(context).bottom;
     final hasRail = ReadingWindowScope.hasRailOf(context);
+    final l10n = AppLocalizations.of(context);
+    // Mirror the labels of the shell's own bottom bar so the precomputed
+    // content insets stay in lockstep with the measured bar height.
+    final navigationHeight = GfBottomNavigation.heightFor(
+      context,
+      labels: GfShellDestination.values.map(
+        (destination) => destination.label(l10n),
+      ),
+      availableWidth: math.max(
+        1,
+        ReadingWindowScope.navigationWidthOf(context) -
+            MediaQuery.paddingOf(context).horizontal,
+      ),
+      showLabels: shellNavigationShowsLabels,
+    );
+    final navMetrics = GfBottomNavigation.metrics(
+      safeAreaBottom: bottom,
+      barHeight: navigationHeight,
+    );
+    // Insets stay fixed while chrome slides, so content never jumps.
+    final top = 56 + toolbarHeight;
+    final contentBottom = hasRail
+        ? 24.0 + bottom
+        : navMetrics.contentBottomInset;
     final surface = Scaffold(
       body: SafeArea(
         bottom: false,
@@ -72,30 +99,23 @@ class RootSurface extends ConsumerWidget {
                         length: swipeTabCount,
                         chromeHidden: hidden,
                         pageKey: swipePageKey,
-                        pageBuilder: (index, chromeHidden) {
-                          final top = chromeHidden ? 0.0 : 56 + toolbarHeight;
-                          final pageBottom =
-                              (hasRail
-                                  ? 24
-                                  : chromeHidden
-                                  ? 0
-                                  : 80) +
-                              bottom;
-                          return index == swipeTabIndex
-                              ? body(top, pageBottom)
-                              : swipePageBuilder!(index, top, pageBottom);
-                        },
+                        pageBuilder: (index, chromeHidden) => ChromeAlignedPage(
+                          topInset: top,
+                          chromeHidden: chromeHidden,
+                          current: index == swipeTabIndex,
+                          child: index == swipeTabIndex
+                              ? body(top, contentBottom)
+                              : swipePageBuilder!(index, top, contentBottom),
+                        ),
                       )
-                    : body(56 + toolbarHeight, (hasRail ? 24 : 80) + bottom),
+                    : body(top, contentBottom),
               ),
               Positioned(
                 top: 0,
                 left: 0,
                 right: 0,
-                child: AnimatedSlide(
-                  offset: hidden ? const Offset(0, -1) : Offset.zero,
-                  duration: duration,
-                  curve: GfMotion.layoutCurve,
+                child: ReadingChromeSlide(
+                  direction: -1,
                   child: IgnorePointer(
                     ignoring: hidden,
                     child: ExcludeSemantics(
@@ -146,7 +166,7 @@ class RootSurface extends ConsumerWidget {
                             ),
                             if (toolbar != null)
                               SizedBox(height: toolbarHeight, child: toolbar),
-                            const Divider(height: 1),
+                            const Divider(height: 1, thickness: 0),
                           ],
                         ),
                       ),
@@ -155,11 +175,23 @@ class RootSurface extends ConsumerWidget {
                 ),
               ),
               if (showComposeAction)
-                AnimatedPositioned(
-                  duration: duration,
-                  curve: GfMotion.layoutCurve,
-                  right: 16,
-                  bottom: (hidden || hasRail ? 16 : 72) + bottom,
+                ValueListenableBuilder<ChromeReveal>(
+                  valueListenable: ref.watch(readingChromeProvider).reveal,
+                  builder: (context, reveal, child) => AnimatedPositioned(
+                    duration: readingChromeDuration(context, reveal),
+                    curve: GfMotion.enterCurve,
+                    right: 16,
+                    bottom:
+                        (hasRail
+                            ? 16
+                            : lerpDouble(
+                                16,
+                                navMetrics.actionBottomInset,
+                                reveal.value,
+                              )!) +
+                        bottom,
+                    child: child!,
+                  ),
                   child: FloatingActionButton(
                     heroTag: null,
                     tooltip:
@@ -168,7 +200,9 @@ class RootSurface extends ConsumerWidget {
                         onAction ??
                         () => showComposeMenu(
                           context,
-                          bottom: hidden || hasRail ? 16 : 72,
+                          bottom: hidden || hasRail
+                              ? 16
+                              : navMetrics.actionBottomInset,
                         ),
                     child: GfSymbol(
                       actionSymbol,

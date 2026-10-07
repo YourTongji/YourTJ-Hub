@@ -2,16 +2,53 @@ import '../gf_api_client.dart';
 import '../../gen/post_revision.dart';
 
 /// 创建/编辑帖子的成功结果。
+/// 成功信封上的待审 messageCode(issue #975):敏感词转审与 AI 图文审查转审
+/// 共用,不暴露触因。内容在人工审核通过前不公开。
+const String pendingReviewMessageCode = 'content.moderation.pendingReview';
+
+/// 发布后检查的成功码:内容已保存但暂不公开,正在后台自动检查。
+const String checkingMessageCode = 'content.moderation.checking';
+
+/// 成功信封的 messageCode 是否表示内容暂不公开(人工审核或自动检查中)。
+bool isPendingReviewCode(String? messageCode) =>
+    messageCode == pendingReviewMessageCode ||
+    messageCode == checkingMessageCode;
+
+/// 创建/编辑话题的成功结果。
+class WriteTopicResult {
+  const WriteTopicResult({
+    required this.id,
+    this.pendingReview = false,
+    this.checking = false,
+  });
+
+  final int id;
+
+  /// 话题已转入人工审核,通过前不公开。
+  final bool pendingReview;
+
+  /// 发布后检查:正在后台自动检查(此时 [pendingReview] 也为 true)。
+  final bool checking;
+}
+
 class CreatePostResult {
   const CreatePostResult({
     required this.id,
     this.postNo,
     required this.renderedContent,
+    this.pendingReview = false,
+    this.checking = false,
   });
 
   final int id;
   final int? postNo;
   final String renderedContent;
+
+  /// 回复已转入人工审核,通过前不公开。
+  final bool pendingReview;
+
+  /// 发布后检查:正在后台自动检查(此时 [pendingReview] 也为 true)。
+  final bool checking;
 }
 
 /// 更新帖子的成功结果。
@@ -25,6 +62,8 @@ class UpdatePostResult {
     this.lastEditorId,
     this.lastEditedAt,
     this.revisionCount,
+    this.pendingReview = false,
+    this.checking = false,
   });
 
   final int id;
@@ -37,6 +76,12 @@ class UpdatePostResult {
   final int? lastEditorId;
   final String? lastEditedAt;
   final int? revisionCount;
+
+  /// 编辑后的内容已转入人工审核,通过前不公开。
+  final bool pendingReview;
+
+  /// 发布后检查:正在后台自动检查(此时 [pendingReview] 也为 true)。
+  final bool checking;
 }
 
 /// 帖子相关接口:创建/更新/删除/点赞/收藏/举报。
@@ -53,8 +98,8 @@ class PostRepository {
     int replyToPostId = 0,
     String? captchaId,
     String? captchaCode,
-  }) {
-    return _client.post<CreatePostResult>(
+  }) async {
+    final response = await _client.postEnvelope<CreatePostResult>(
       '/api/forum/posts/create',
       body: {
         'topicId': topicId,
@@ -70,13 +115,21 @@ class PostRepository {
         renderedContent: (json['renderedContent'] as String?) ?? '',
       ),
     );
+    final CreatePostResult created = response.result!;
+    return CreatePostResult(
+      id: created.id,
+      postNo: created.postNo,
+      renderedContent: created.renderedContent,
+      pendingReview: isPendingReviewCode(response.messageCode),
+      checking: response.messageCode == checkingMessageCode,
+    );
   }
 
   Future<UpdatePostResult> updatePost({
     required int postId,
     required String content,
-  }) {
-    return _client.post<UpdatePostResult>(
+  }) async {
+    final response = await _client.postEnvelope<UpdatePostResult>(
       '/api/forum/posts/update',
       body: {'postId': postId, 'content': content},
       parser: (json) => UpdatePostResult(
@@ -89,6 +142,19 @@ class PostRepository {
         lastEditedAt: json['lastEditedAt'] as String?,
         revisionCount: (json['revisionCount'] as num?)?.toInt(),
       ),
+    );
+    final UpdatePostResult updated = response.result!;
+    return UpdatePostResult(
+      id: updated.id,
+      postNo: updated.postNo,
+      content: updated.content,
+      renderedContent: updated.renderedContent,
+      updatedAt: updated.updatedAt,
+      lastEditorId: updated.lastEditorId,
+      lastEditedAt: updated.lastEditedAt,
+      revisionCount: updated.revisionCount,
+      pendingReview: isPendingReviewCode(response.messageCode),
+      checking: response.messageCode == checkingMessageCode,
     );
   }
 

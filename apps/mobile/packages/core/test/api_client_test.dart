@@ -59,6 +59,48 @@ void main() {
       expect(adapter.requests.single.path, '/api/forum/topics/status');
     });
 
+    test('feed card action owns its request attribution', () async {
+      setupClient(initialToken: 'tok-1');
+      final telemetry = FeedTelemetry.instance;
+      telemetry.bindAccount(12);
+      addTearDown(() => telemetry.bindAccount(0));
+      TopicPayload topic(int id, String trace, int position) =>
+          TopicPayload.fromJson({
+            'id': id,
+            'title': 'topic',
+            'description': '',
+            'participants': [],
+            'categories': [],
+            'replyCount': 0,
+            'viewCount': 0,
+            'pinWeight': 0,
+            'processStatus': 0,
+            'activityText': '',
+            'lastUpdateTime': '',
+            'url': '/p/post/$id',
+            'author': {'id': 1, 'username': 'author', 'avatarUrl': ''},
+            'feedTrace': trace,
+            'feedPosition': position,
+          });
+      telemetry.select(topic(31, 'selected-detail', 0));
+      final adapter = MockAdapter((request) async {
+        expect(request.headers['X-Goose-Feed-Trace'], 'card-trace');
+        expect(request.headers['X-Goose-Feed-Position'], '2');
+        expect(request.headers['X-Goose-Feed-Topic'], '32');
+        return ResponseData(200, {'code': 0, 'result': true});
+      });
+      dio.httpClientAdapter = adapter;
+      final repository = TopicRepository(client);
+      final card = topic(32, 'card-trace', 2);
+      await repository.likeTopic(topicId: 32, action: 1, feedTopic: card);
+      await repository.bookmarkTopic(topicId: 32, action: 1, feedTopic: card);
+      expect(adapter.requests, hasLength(2));
+      expect(
+        telemetry.headers('/p/post/31')['X-Goose-Feed-Trace'],
+        'selected-detail',
+      );
+    });
+
     test(
       'own course reviews sends session and pagination without author selector',
       () async {
@@ -96,11 +138,7 @@ void main() {
         expect(
           await CourseRepository(
             client,
-          ).reportReview(
-            reviewId: 42,
-            reason: 'spam',
-            note: '  duplicate  ',
-          ),
+          ).reportReview(reviewId: 42, reason: 'spam', note: '  duplicate  '),
           isTrue,
         );
       },
@@ -145,34 +183,37 @@ void main() {
       },
     );
 
-    test('course review mirror parses new interaction and member avatar fields', () {
-      final review = ReviewPayload.fromJson({
-        'id': 43,
-        'offeringId': 4,
-        'rating': 4,
-        'content': 'Helpful details',
-        'contentHtml': '<p>Helpful details</p>',
-        'author': {
-          'kind': 'member',
-          'label': 'Member',
-          'avatarUrl': 'https://example.test/avatar.png',
-        },
-        'viewer': {
-          'canEdit': false,
-          'canDelete': false,
-          'isHelpful': false,
-          'isDisliked': true,
-        },
-        'helpfulCount': 2,
-        'dislikeCount': 3,
-        'createdAt': '2026-09-30T00:00:00Z',
-        'updatedAt': '2026-09-30T00:00:00Z',
-      });
+    test(
+      'course review mirror parses new interaction and member avatar fields',
+      () {
+        final review = ReviewPayload.fromJson({
+          'id': 43,
+          'offeringId': 4,
+          'rating': 4,
+          'content': 'Helpful details',
+          'contentHtml': '<p>Helpful details</p>',
+          'author': {
+            'kind': 'member',
+            'label': 'Member',
+            'avatarUrl': 'https://example.test/avatar.png',
+          },
+          'viewer': {
+            'canEdit': false,
+            'canDelete': false,
+            'isHelpful': false,
+            'isDisliked': true,
+          },
+          'helpfulCount': 2,
+          'dislikeCount': 3,
+          'createdAt': '2026-09-30T00:00:00Z',
+          'updatedAt': '2026-09-30T00:00:00Z',
+        });
 
-      expect(review.viewer.isDisliked, isTrue);
-      expect(review.dislikeCount, 3);
-      expect(review.author.avatarUrl, 'https://example.test/avatar.png');
-    });
+        expect(review.viewer.isDisliked, isTrue);
+        expect(review.dislikeCount, 3);
+        expect(review.author.avatarUrl, 'https://example.test/avatar.png');
+      },
+    );
 
     test('无令牌时不带 Authorization 头', () async {
       setupClient();
@@ -733,6 +774,63 @@ void main() {
       expect(capturedBody.containsKey('website'), isFalse);
       expect(capturedBody['categoryId'], [1]);
     });
+
+    for (final String code in <String>[
+      pendingReviewMessageCode,
+      checkingMessageCode,
+    ]) {
+      test('待审成功信封映射为 pendingReview(issue #975): $code', () async {
+        final storage = _MemoryTokenStorage();
+        final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+        final client = GfApiClient(dio: dio, tokenStorage: storage);
+        dio.httpClientAdapter = MockAdapter((request) async {
+          final Map<String, dynamic> envelope = {
+            'code': 0,
+            'messageCode': code,
+          };
+          switch (request.path) {
+            case '/api/forum/topics/write':
+              envelope['result'] = 975;
+            case '/api/forum/posts/create':
+              envelope['result'] = {
+                'id': 9,
+                'postNo': 2,
+                'renderedContent': '',
+              };
+            default:
+              envelope['result'] = {
+                'id': 9,
+                'content': 'x',
+                'renderedContent': '',
+                'updatedAt': '',
+              };
+          }
+          return ResponseData(200, envelope);
+        });
+
+        final written = await TopicRepository(client).writeTopicResult(
+          topicId: 0,
+          title: '标题',
+          content: '内容',
+          categoryIds: [1],
+          topicStatus: 1,
+        );
+        expect(written.id, 975);
+        final bool checking = code == checkingMessageCode;
+        expect(written.pendingReview, isTrue);
+        expect(written.checking, checking);
+        final created = await PostRepository(
+          client,
+        ).createPost(topicId: 1, content: '回复');
+        expect(created.pendingReview, isTrue);
+        expect(created.checking, checking);
+        final updated = await PostRepository(
+          client,
+        ).updatePost(postId: 9, content: 'x');
+        expect(updated.pendingReview, isTrue);
+        expect(updated.checking, checking);
+      });
+    }
 
     test('NotificationRepository.fetchNotifications 游标参数', () async {
       final storage = _MemoryTokenStorage();

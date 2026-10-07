@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-25
+> Last verified: 2026-10-04
 
 ## Deployment shape
 
@@ -112,9 +112,9 @@ curl -sS -D - -o /dev/null https://f.yourtj.de/                               # 
 
 ### Status data sources
 
-**Current**：运行状态应用由 Netlify 独立提供，论坛侧栏链接到 `https://status.yourtj.de`。
-来源配置属于 Netlify 项目的 Functions 环境变量，不属于论坛实例 TOML 或部署渲染流程。
-完整设置、发布与故障验收见 [Netlify 状态站部署](status-netlify.md)。
+**Current**：运行状态应用由 Cloudflare 独立提供，论坛侧栏链接到 `https://status.yourtj.de`。
+来源配置属于 Worker 的服务端环境变量，不属于论坛实例 TOML 或部署渲染流程。
+完整设置、发布与故障验收见 [Cloudflare 状态站部署](status-cloudflare.md)。
 
 ### Umami 访问统计与会话回放
 
@@ -234,53 +234,24 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
 
 ## Branch model & CI/CD
 
-- `dev` is the default branch and the main development line; merges to `dev` trigger
-  `.github/workflows/deploy-dev.yml`:
-  1. Build single binary (frontend + go build) and push GHCR image `dev-<sha>` on GitHub Actions.
-  2. SSH: `sync-db-from-main.sh` (auto-detects mode: SQLite `.backup` snapshot
-     or PG `pg_dump|psql` rebuild of dev db).
-  3. SSH: `deploy.sh dev dev-<sha> 5235` → pull image, compose up, health check, rollback;
-     after a successful deploy the script prunes old images (keeps the newest
-     `IMAGE_KEEP_N` tags of the instance prefix including the current one, plus the `prev`
-     rollback tag).
-     The dev workflow sets `IMAGE_KEEP_N=3` because dev deploys frequently.
-- `main` is the production site. `Release / main` explicitly dispatches
-  `.github/workflows/deploy-main.yml` on the published server tag; merging main alone does not deploy:
-  1. Build single binary and push GHCR image `main-<sha>` on GitHub Actions.
-  2. SSH: `backup-db.sh main` (pre-deploy consistent snapshot, keep 7).
-  3. SSH: `deploy.sh main main-<sha> 5234` → pull image, compose up, health check,
-     auto-rollback to previous image tag on failure; same post-deploy image pruning as dev
-     (`IMAGE_KEEP_N=5`, keeps more rollback candidates for production).
-- **Release gate — Current**: run `.github/workflows/release-to-main.yml` (`Release / main`)
-  once on `dev` or `main` and select `patch`, `minor` or `major`. It captures the dev/main commits,
-  opens or reuses a `dev` → `main` PR when their trees differ, waits for PR CI, merges with a merge
-  commit, tags that exact commit as `vX.Y.Z`, publishes server binaries and dispatches deployment.
-  The dev branch is retained. Content already promoted to main can be released without another PR;
-  an existing server tag on that commit prevents a second version reservation.
-  - The script requires successful PR runs of `ci-backend.yml`, `ci-frontend.yml`, `ci-contract.yml`
-    and `ci-govulncheck.yml`, and waits for every other reported `ci-*.yml` workflow. It waits for
-    entire workflows, including backend race/PG jobs. Missing core workflows remain pending;
-    failure, cancellation or a skipped whole workflow stops release. Dev push checks, checks for
-    another head, and runs older than the PR or main base commit do not satisfy this gate.
-  - CI is checked explicitly even without repository required-check settings. The merge uses the
-    captured head SHA and respects GitHub merge requirements, including required reviews when
-    configured; it does not use an admin bypass. A draft/closed PR, conflict or changed dev/main
-    snapshot stops release. CI and merge requirements have a 60-minute wait limit. Resolve the
-    reported problem, then start a new run for the intended snapshot.
-  - Tagging uses the returned merge SHA and verifies its parents against the captured main/dev
-    commits. Deployment runs on the published tag, so its binary, image, scripts and rendered
-    config all come from the released source even when main advances. Production deployments are
-    serialized; the deploy workflow rejects branch refs, mobile tags and tags outside main history.
-  - If publishing fails after tagging, rerun the failed publish job so it reuses the prepared tag.
-    For deployment recovery or rollback, dispatch the deploy workflow on the desired existing
-    server tag: `gh workflow run deploy-main.yml --ref vX.Y.Z` (replace with the actual tag).
-    Selecting `main` directly is rejected. Production environment deployment policies must permit
-    server tags if branch/tag restrictions are configured.
-  - `RELEASE_TOKEN` creates and merges PRs and creates tags through GitHub APIs; it needs repository
-    Contents and Pull requests write permissions plus Actions read permission for CI polling
-    (classic PATs need equivalent repository/workflow access). The workflow's `GITHUB_TOKEN`
-    publishes assets and dispatches deployment using its existing Contents/Actions write permissions.
-  Mobile tags use a separate namespace and workflow; see [mobile releases](mobile-releases.md).
+- `dev` is the default development branch. [CI / Verify](../../.github/workflows/ci.yml) selects
+  affected domains and requires their complete results. Deploy dev accepts only a successful,
+  current, same-repository dev push run; its CI plan must select forum deployment inputs.
+  Mobile, status and release-note-only changes do not sync the forum database or deploy it.
+  The workflow builds the binary/image, checks staleness again before mutation, syncs a consistent
+  main DB snapshot, and deploys with health checks. It keeps three recent instance image tags.
+- Production release preparation and approval are owned by the [release runbook](releases.md).
+  A source SHA already in main is built once by GoReleaser. The same Linux binary is used in GHCR;
+  production consumes `main-vX.Y.Z@sha256:<digest>`, backs up the DB, applies configuration and
+  waits for health plus exact running binary/image identity. The deployment is a reusable job,
+  not an arbitrary tag-dispatch entry. It keeps five recent instance tags and the previous image.
+- Source merges alone do not deploy production. The reviewed release-data PR authorizes its frozen
+  source, notes and targets; metadata merge SHA and application source SHA are separate.
+- Image/config failures restore the previous image/config transaction. This is not a DB rollback;
+  assess migration compatibility before any explicit production rollback, and never automatically
+  overwrite production data. Release Recover resumes the same approved image.
+- Deploy and config apply use the same `instance-mutate-<instance>` concurrency group, queued without
+  cancelling an active transaction. The server config lock covers the entire deployment as well.
 - Why dev syncs main's db: migrations (`app/migration` AutoMigrate + versioned data migrations) run at
   startup, so each dev deploy rehearses the exact migration the next main deploy will run.
 - Config is rendered in CI from `deploy/config.toml.tmpl` + `deploy/instances/<env>.json`
@@ -320,7 +291,7 @@ Deploy/apply/drift workflows 的 job 声明对应 `environment:`，自动获得�
 | `GH_CLIENT_ID` / `GH_CLIENT_SECRET` | production only | GitHub OAuth（dev 因 DB siteUrl 无环境隔离保持空，渲染 allow-empty） |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | both（可选） | Google OAuth；为空时登录入口保持关闭 |
 | `AI_API_KEY` | both（可空） | `[ai_summary].api_key`（AI 总结默认关闭） |
-| `RELEASE_TOKEN` | repo-level | release-to-main 创建/合并 dev→main PR、读取 CI 和发布 tag 用 PAT |
+| `RELEASE_TOKEN` | repo-level | 仅可信 main 发布控制器预留受保护 tag；PR 起草使用权限收窄的 GitHub App |
 
 > 命名注意：GitHub 保留 `GITHUB_` 前缀 secret 名，故 GitHub OAuth 凭据用 `GH_CLIENT_ID/SECRET`。
 
@@ -602,6 +573,53 @@ instance:
   GET 仅回显是否已配置，绝不回显明文或密文；保存时密钥字段留空表示保留已存值。
 - 升级到包含 v25 数据迁移的版本后，存量明文密钥会在下次启动时自动加密迁移
   （幂等；迁移失败不推进版本，下次启动重试）。
+
+## AI 图文审查（issue #975）
+
+- 管理端「设置 → AI 图文审查」（SiteManager）配置 Jev Decisions API（OpenRouter
+  `https://openrouter.ai/api/alpha/decisions` + `typesafe/jev-1.13`，或 TypeSafe
+  `https://api.typesafe.ai/v1/systemone`）与 OpenAI 兼容视觉模型（如
+  `inclusionai/ling-3.0-flash-vl`）。两个 API key 分别以 securestore 密文落库，GET 只回显是否已配置，
+  可显式清除。配置保存后 5 秒内热生效。各区「测试连接」用当前表单值（无需保存）真实调用一次：视觉用内置
+  合成测试图走完整证据提取，Jev 问一个 Noul；结果只含分类、HTTP 状态码与耗时。视觉模型必须支持图片
+  输入——OpenRouter 上纯文本模型（如 `inclusionai/ling-3.0-flash`）返回 404，导致所有图片转人工。
+- 视觉提示词要求证件、银行卡、票据、聊天截图等不转录姓名/号码/日期，只标注“personal data visible”；
+  OCR 另有 800 字服务端截断。推理型视觉模型的 reasoning 计入输出上限（当前 4096 token）。
+- 分数线：低于人工审核线发布；达到人工审核线进入人工审核；规则设为“直接拦截”时达到拦截线才拦截，
+  介于两线之间仍进入人工审核（严重程度达到提级线时例外）。每条决策记录保存结论原因（如
+  `between_thresholds`），管理端决策记录与审核队列直接显示“为什么是这个结果”。
+- 运行方式：“仅记录”（`shadow`，默认）与“异步审核”（`deferred`）；已有 `enforce` 配置兼容映射为
+  后台审核，发布请求不再等待模型。仅记录不影响发布。用人工标注样本与离线阈值回放校准规则后再启用审核。
+  AI 决策携带 `revision_id`，人工结果只标注同一版本的决策，旧任务不能覆盖作者的新稿。
+- 内容与 `content-review` 任务在同一事务保存，然后返回 `content.moderation.checking`（Web/App 文案“发送成功”）。
+  敏感词与站外图片策略同样在保存后判定。`task_queue` worker 每 5 秒取任务，模型判定有 2 分钟上限；
+  重启后排队任务继续，崩溃时的 running 任务在 10 分钟租约到期后回收。数据库错误按现有队列最多重试 3 次；
+  终止失败的任务仍保留 pending 内容供人工处理。查看 `type=content-review` 的 status/last_error 排障，
+  不在日志中复制正文或证据。模型故障正常产生 review，由人工处理，不作为任务基础设施错误无限重试。
+- AI 通过静默公开；转人工及人工通过分别通知作者并链接内容，转人工后不再接受延迟的自动结果；拒绝产生一次站内通知，链接 `/settings?tab=content`（App 转至内容管理）。推送和发布副作用
+  经 `content-published` 任务投递。SSE `content.changed` 通知作者重读，连接恢复的 hello 同样触发重读。
+  已公开内容改稿期间旧版保留，拒绝改稿不会撤掉旧版。草稿保存不送审，发布草稿不能绕过审核。
+- schema 先自动迁移，数据迁移 31 将活跃的旧 pending 内容分批纳入版本和任务队列；成功后才推进迁移版本。
+  中途失败可重启重试；已有版本记录不会重复送审。旧实现已覆盖的公开正文无法可靠还原，不从历史猜测。
+- 任何模型故障、拒答、无效 JSON、未配置、超出每分钟护栏、图片数超限或标题超过 300 字／可见正文超过
+  4000 字（超出部分未送审，证据状态 `text_truncated`）都转人工审核，审核队列负担会
+  随之上升；服务器从不抓取站外图片，含站外图片按配置转审或拦截。
+- 隐私：待发布图片与正文会在推理期间发给所配置的 provider。生产须在 OpenRouter 工作区开启 Zero Data
+  Retention、关闭 prompt/completion 日志并限定 provider 白名单；没有合规 provider 时保持关闭。
+- 作者收到拒绝结果后，在内容管理查看原因、完整正文和图片，修改后可重新提交；Blocked 不代表账号被封禁。
+  账号写权限限制独立生效。通知使用作者可理解的原因，不展示模型概率或原始证据。
+- 观测：失败另输出 `ai_moderation_vision_failed` / `ai_moderation_jev_failed`（只含分类与状态码，如
+  `http_404`、`jev_config_401`）；每次判定输出结构化日志 `ai_moderation_decision`（动作、证据状态、错误类型、触发政策、
+  延迟、provider 返回的 cost），不含正文、OCR 或 key；待审决策只在库内保留截断的证据摘要供审核员查看。
+- 审核入口：前台“版主管理 → 待审核”（`/api/forum/moderation/review-queue|review-action`）与后台相同。
+  队列返回候选版本全文和 `revisionId`；版本化内容的处理请求必须带所见版本 ID，过期或遗漏返回已处理提示。
+  版主须有当前分类和候选分类的管理权限。通过不通知；拒绝通知带可编辑入口。
+- 待审图片登记为私有 `post_revision` 引用；`/file/img` 对匿名和他人返回 404，作者、站点管理员、相关版主
+  以 `private, no-store` 预览。批准仅切换有效公开引用，旧版保留期间其图片继续公开，历史候选引用始终私有。
+  App 对本站图片匿名 404 后用登录态重试一次，不跟随重定向，不将授权响应写入磁盘缓存。
+  尚未绑定到内容的旧上传兼容行为不变；此机制不撤销浏览器此前取得的公开文件副本。
+- 删除/恢复不把版本化 pending 或 blocked 状态重置为正常；已删除内容不再被旧审核任务发布，附件引用按
+  原有删除保留规则处理。恢复后未完成的内容可由作者重提或审核员处理。
 
 ## 一系统排课同步（course-pk-sync，issue #186）
 

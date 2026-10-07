@@ -26,7 +26,7 @@ func ReplaceTopic(topicID uint64, userID uint64, content string) {
 func ReplaceTopicWithImages(topicID uint64, userID uint64, content string, extraImages []string) {
 	urls := markdown2html.ExtractImageURLs(content)
 	urls = append(urls, extraImages...)
-	replace(fileUsage.TargetTopic, topicID, []string{fileUsage.UsageInlineImage}, userID, namesToUsages(urls, fileUsage.UsageInlineImage))
+	replace(fileUsage.TargetTopic, topicID, []string{fileUsage.UsageInlineImage}, userID, namesToUsages(urls, fileUsage.UsageInlineImage), false)
 }
 
 // MaxGalleryImagesPerTopicWrite caps how many explicit gallery images one
@@ -71,16 +71,18 @@ func FilterOwnedImageURLs(userID uint64, urls []string) []string {
 // explicit gallery list, keeping only files owned by userID (see
 // FilterOwnedImageURLs). It is the ownership-checked write path for user
 // content; unowned markdown URLs are skipped instead of being pinned.
-func RegisterTopicInlineImagesOwned(topicID uint64, userID uint64, content string, gallery []string) {
+// pending=true registers private PENDING rows for drafts or review candidates.
+// This alone does not authorize moderator preview; readers check the content.
+func RegisterTopicInlineImagesOwned(topicID uint64, userID uint64, content string, gallery []string, pending bool) {
 	urls := markdown2html.ExtractImageURLs(content)
 	urls = append(urls, gallery...)
-	replace(fileUsage.TargetTopic, topicID, []string{fileUsage.UsageInlineImage}, userID, ownedUsages(userID, urls))
+	replace(fileUsage.TargetTopic, topicID, []string{fileUsage.UsageInlineImage}, userID, ownedUsages(userID, urls), pending)
 }
 
 // RegisterPostInlineImagesOwned is the ownership-checked reply/post variant
 // of RegisterTopicInlineImagesOwned for a single post's markdown content.
-func RegisterPostInlineImagesOwned(postID uint64, userID uint64, content string) {
-	replace(fileUsage.TargetPost, postID, []string{fileUsage.UsageInlineImage}, userID, ownedUsages(userID, markdown2html.ExtractImageURLs(content)))
+func RegisterPostInlineImagesOwned(postID uint64, userID uint64, content string, pending bool) {
+	replace(fileUsage.TargetPost, postID, []string{fileUsage.UsageInlineImage}, userID, ownedUsages(userID, markdown2html.ExtractImageURLs(content)), pending)
 }
 
 // ownedUsages converts owned, ready image URLs into inline_image usage rows,
@@ -101,7 +103,7 @@ func ownedUsages(userID uint64, urls []string) []Usage {
 }
 
 func ReplaceAvatar(userId uint64, fileNames []string) {
-	replace(fileUsage.TargetUser, userId, []string{fileUsage.UsageAvatar}, userId, namesToUsages(fileNames, fileUsage.UsageAvatar))
+	replace(fileUsage.TargetUser, userId, []string{fileUsage.UsageAvatar}, userId, namesToUsages(fileNames, fileUsage.UsageAvatar), false)
 }
 
 func AddAdminUpload(userId uint64, fileName string) {
@@ -172,7 +174,11 @@ func namesToUsages(values []string, usageType string) []Usage {
 	return usages
 }
 
-func replace(targetType string, targetId uint64, usageTypes []string, userId uint64, usages []Usage) {
+func replace(targetType string, targetId uint64, usageTypes []string, userId uint64, usages []Usage, pending bool) {
+	status := fileUsage.UsageStatusActive
+	if pending {
+		status = fileUsage.UsageStatusPending
+	}
 	rows := make([]fileUsage.Entity, 0, len(usages))
 	for _, usage := range usages {
 		if usage.FileName == "" || usage.UsageType == "" {
@@ -184,6 +190,7 @@ func replace(targetType string, targetId uint64, usageTypes []string, userId uin
 			TargetId:   targetId,
 			UsageType:  usage.UsageType,
 			UserId:     userId,
+			Status:     status,
 		})
 	}
 	if err := fileUsage.ReplaceTargetUsages(targetType, targetId, usageTypes, rows); err != nil {
@@ -254,4 +261,57 @@ func fileNameFromPublicURL(value, publicPrefix string) string {
 // SetStickerUsageTx replaces a sticker reference in the definition transaction.
 func SetStickerUsageTx(tx *gorm.DB, stickerID, userID uint64, fileName string) error {
 	return fileUsage.ReplaceStickerTx(tx, stickerID, userID, fileName)
+}
+
+// RegisterRevisionImagesTx retains private candidate images without replacing
+// the currently public topic/post references. A save failure rolls back all refs.
+func RegisterRevisionImagesTx(tx *gorm.DB, revisionID, userID uint64, content string, gallery []string) error {
+	urls := append(markdown2html.ExtractImageURLs(content), gallery...)
+	for _, usage := range ownedUsages(userID, urls) {
+		if err := tx.Create(&fileUsage.Entity{FileName: usage.FileName, TargetType: fileUsage.TargetPostRevision, TargetId: revisionID, UsageType: usage.UsageType, UserId: userID, Status: fileUsage.UsageStatusPending}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PublishRevisionImagesTx replaces only the effective content refs. Revision
+// refs stay private, so superseded/rejected attachments never become public.
+func PublishRevisionImagesTx(tx *gorm.DB, revisionID, topicID, postID uint64, first bool) error {
+	target, id := fileUsage.TargetPost, postID
+	if first {
+		target, id = fileUsage.TargetTopic, topicID
+	}
+	if err := tx.Where("target_type = ? AND target_id = ? AND usage_type = ?", target, id, fileUsage.UsageInlineImage).Delete(&fileUsage.Entity{}).Error; err != nil {
+		return err
+	}
+	// First-post edits historically also registered post refs; revoke both sets.
+	if first {
+		if err := tx.Where("target_type = ? AND target_id = ? AND usage_type = ?", fileUsage.TargetPost, postID, fileUsage.UsageInlineImage).Delete(&fileUsage.Entity{}).Error; err != nil {
+			return err
+		}
+	}
+	var refs []fileUsage.Entity
+	if err := tx.Where("target_type = ? AND target_id = ?", fileUsage.TargetPostRevision, revisionID).Find(&refs).Error; err != nil {
+		return err
+	}
+	for _, ref := range refs {
+		ref.Id, ref.TargetType, ref.TargetId, ref.Status = 0, target, id, fileUsage.UsageStatusActive
+		if err := tx.Create(&ref).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PrivatizeUnpublishedImagesTx closes effective references left by a draft or
+// blocked public row before its next candidate is submitted.
+func PrivatizeUnpublishedImagesTx(tx *gorm.DB, topicID, postID uint64, first bool) error {
+	q := tx.Model(&fileUsage.Entity{}).Where("usage_type = ? AND status = ?", fileUsage.UsageInlineImage, fileUsage.UsageStatusActive)
+	if first {
+		q = q.Where("(target_type = ? AND target_id = ?) OR (target_type = ? AND target_id = ?)", fileUsage.TargetTopic, topicID, fileUsage.TargetPost, postID)
+	} else {
+		q = q.Where("target_type = ? AND target_id = ?", fileUsage.TargetPost, postID)
+	}
+	return q.Update("status", fileUsage.UsageStatusPending).Error
 }

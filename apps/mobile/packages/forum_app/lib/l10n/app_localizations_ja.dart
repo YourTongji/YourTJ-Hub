@@ -270,6 +270,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authCaptchaRequired => '認証コードを入力してください';
 
   @override
+  String get publishCaptchaExplanation =>
+      '新しいアカウントでは、投稿や返信が多い場合に認証コードが必要になることがあります。最近の利用が落ち着くか、アカウントがサイト所定の期間に達すると解除されます。';
+
+  @override
   String get authOidcLogin => 'YourTJでログイン';
 
   @override
@@ -1007,6 +1011,9 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get sortForYou => 'おすすめ';
+
+  @override
   String get sortLatest => '最新';
 
   @override
@@ -1254,6 +1261,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get courseDetailReviews => '評価';
 
   @override
+  String get courseShareThisReview => 'このレビュー';
+
+  @override
   String get courseDetailOfferings => 'クラス';
 
   @override
@@ -1331,14 +1341,55 @@ class AppLocalizationsJa extends AppLocalizations {
   String get richContentCodeCopied => 'コードをコピーしました';
 
   @override
-  String get settingsReadingTextSize => '本文の文字サイズ';
+  String get textSizeTitle => '文字サイズ';
 
   @override
-  String get settingsReadingTextSizeDesc =>
-      '投稿・Wiki・授業レビューの本文に適用されます。端末の文字サイズ設定も引き続き反映されます。';
+  String get textSizeReset => 'デフォルトに戻す';
 
   @override
-  String get settingsReadingTextSizeReset => '100% に戻す';
+  String get textSizeDefault => '標準';
+
+  @override
+  String textSizePercent(int percent) {
+    return '$percent%';
+  }
+
+  @override
+  String textSizeSummary(String appSize, String readingSize) {
+    return '全体 $appSize・本文 $readingSize';
+  }
+
+  @override
+  String get textSizeGlobal => '全体の文字';
+
+  @override
+  String get textSizeGlobalDesc => 'アプリ内のすべての文字（本文を含む）';
+
+  @override
+  String get textSizeReading => '本文の文字';
+
+  @override
+  String get textSizeReadingDesc => '全体の文字をもとに、投稿・Wiki・授業レビューの本文だけを調整します';
+
+  @override
+  String get textSizePreview => 'プレビュー';
+
+  @override
+  String get textSizePreviewTime => '10分前';
+
+  @override
+  String get textSizePreviewTitle => '下のスライダーを動かすと、ここにすぐ反映されます';
+
+  @override
+  String get textSizePreviewExcerpt =>
+      '全体の文字はアプリ内のすべての文字に、本文の文字はそのうえで本文だけに反映されます。';
+
+  @override
+  String get textSizePreviewCategory => 'ガイド';
+
+  @override
+  String get textSizePreviewBody =>
+      '### 本文のプレビュー\n本文の文字はこの投稿本文だけを変更します。ほかの文字は**全体の文字**に従います。\n\n- 標準サイズは端末の文字サイズ設定と画面幅に合わせて調整済みです';
 
   @override
   String get entryCourses => 'コース';
@@ -2021,6 +2072,20 @@ class AppLocalizationsJa extends AppLocalizations {
   String get courseCopyAnonymousLabel => '匿名で投稿（一般公開では身元を隠す）';
 
   @override
+  String get courseCopyAnonymousTitle => '匿名で投稿';
+
+  @override
+  String get courseCopyAnonymousHint => '身元は公開されません';
+
+  @override
+  String courseCopyPublishAs(String name) {
+    return '$name として投稿';
+  }
+
+  @override
+  String get courseCopyPublishPublic => '公開プロフィール';
+
+  @override
   String get courseCopySubmitSuccess => '送信しました';
 
   @override
@@ -2150,6 +2215,76 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get updateRetry => '再試行';
+
+  @override
+  String get updateCancelDownload => 'ダウンロードをキャンセル';
+
+  @override
+  String get updateIncomplete => 'アップデートを完了できませんでした。接続を確認して、もう一度お試しください。';
+
+  @override
+  String get updateOpenAppStore => 'App Store で表示';
+
+  @override
+  String get updateOpenTestFlight => 'App Store で TestFlight を表示';
+
+  @override
+  String get updateTestFlightInstructions =>
+      'このリンクは TestFlight の App Store ページを開きます。インストール済みの場合は TestFlight を開き、YourTJ のベータ版更新を確認してください。';
+
+  @override
+  String get updateOpenPermissionSettings => 'インストール権限の設定を開く';
+
+  @override
+  String get updateChannelUnknown => '現在の配信経路を確認できません。「アプリ情報」から更新履歴を確認できます。';
+
+  @override
+  String get releaseNotes => '今回の更新';
+
+  @override
+  String get releaseNotesHistory => '更新履歴';
+
+  @override
+  String get releaseNotesEmpty => '現在、更新内容はありません。';
+
+  @override
+  String get releaseNotesEarlier => '以前のバージョンの改善も含まれます。';
+
+  @override
+  String get releaseNotesIncomplete =>
+      '以前の更新履歴は不完全なため、この案内には対象バージョンの内容のみ表示します。';
+
+  @override
+  String get releaseHistoryIncomplete => 'この配信経路で確認できる更新履歴は不完全です。';
+
+  @override
+  String get releaseNotesMore => 'すべての更新内容を表示';
+
+  @override
+  String get releaseNotesFewer => '折りたたむ';
+
+  @override
+  String releaseNotesShowRemaining(int count) {
+    return '残り $count 件の更新を表示';
+  }
+
+  @override
+  String get releaseNotesRequired => '重要';
+
+  @override
+  String get releaseNotesHistoryError => '更新履歴を読み込めません。';
+
+  @override
+  String get releaseNotesKindFeature => '新機能';
+
+  @override
+  String get releaseNotesKindImprovement => '改善';
+
+  @override
+  String get releaseNotesKindFix => '修正';
+
+  @override
+  String get releaseNotesKindSecurity => 'セキュリティ';
 
   @override
   String get settingsPushConsent =>
@@ -3154,4 +3289,80 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get shareImageFailed => '画像を共有できませんでした。後でもう一度お試しください。';
+
+  @override
+  String get moderationBlockedTitle => '公開されませんでした';
+
+  @override
+  String get moderationBlockedPolicyHint =>
+      '画像と文章がコミュニティガイドラインに沿っているか確認し、不適切な可能性がある部分を削除または差し替えてから再度公開してください。判定に誤りがあると思われる場合は管理者にお問い合わせください。';
+
+  @override
+  String get moderationBlockedExternalHint =>
+      'このサイトでは外部画像を表示しません。画像を保存してエディターからアップロードし、再度公開してください。';
+
+  @override
+  String get moderationBlockedDraftKept => '文章と画像はエディターに残っています。';
+
+  @override
+  String get moderationBlockedBack => '投稿を編集';
+
+  @override
+  String get notificationReviewApproved => '投稿が承認され、すべての人に表示されるようになりました';
+
+  @override
+  String get notificationReviewRejected => '投稿は承認されなかったため、公開されません';
+
+  @override
+  String get topicPendingReviewBanner =>
+      'この投稿は審査中です。承認されるまで、表示されるのはあなたと審査担当者だけです。';
+
+  @override
+  String get topicPendingReviewBannerModerator =>
+      'この投稿は審査待ちです。ほかの読者にはまだ表示されません。';
+
+  @override
+  String get topicPendingReviewReply =>
+      '審査中 · 承認されるまで、この返信はあなたと審査担当者だけに表示されます。';
+
+  @override
+  String get contentReviewBlocked => '承認されませんでした';
+
+  @override
+  String get contentReviewRetry => '編集して再送信';
+
+  @override
+  String get contentReviewLive => '以前の公開版は引き続き表示されます。';
+
+  @override
+  String get contentReviewView => '内容を見る';
+
+  @override
+  String get contentReviewPending => '審査中';
+
+  @override
+  String get notificationReviewPending => '投稿は手動確認を待っています';
+
+  @override
+  String get notificationReviewPendingDetail =>
+      '確認結果をお知らせします。待っている間も内容を確認・編集できます。';
+
+  @override
+  String get notificationReviewRejectedDetail =>
+      '今回の投稿は公開されません。コンテンツ管理で内容を確認・修正して再送信してください。ご不明な点は管理者にお問い合わせください。';
+
+  @override
+  String get feedReasonFollowing => 'フォロー中の人から';
+
+  @override
+  String get feedReasonCategory => '参加したカテゴリ';
+
+  @override
+  String get feedReasonNewReply => '新しい返信';
+
+  @override
+  String get feedReasonRecent => '最近の投稿';
+
+  @override
+  String get sortDaily => '今日の人気';
 }

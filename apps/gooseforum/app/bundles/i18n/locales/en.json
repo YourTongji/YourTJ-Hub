@@ -124,11 +124,15 @@
   "serverMessages.oauth.token.failed": "Failed to create sign-in credentials. Please try again later.",
   "meta.courseReviewModeration": "Course review moderation",
   "meta.courseReviewModerationDesc": "Handle course review reports and hide/restore reviews.",
+  "meta.moderationAction": "Moderation action",
+  "meta.moderationActionDesc": "Confirm a moderation action opened from a notification card.",
   "meta.courseManagement": "Course management",
   "meta.courseManagementDesc": "Manage the course catalog and course reviews.",
   "server.common.request.invalidFormat": "The request format is invalid. Please check and try again.",
   "serverMessages.sticker.libraryFull": "Your library can hold {limit} stickers. Remove some before adding more.",
   "serverMessages.sticker.uploadQuota": "You have reached the limit of {limit} uploaded stickers. Sent assets are retained for message history.",
   "serverMessages.sticker.imageRequired": "Choose an image or GIF you uploaded, up to {maxSizeMb} MB.",
-  "serverMessages.sticker.unavailable": "This sticker is unavailable."
+  "serverMessages.sticker.unavailable": "This sticker is unavailable.",
+  "forYouFeed": "For You",
+  "dailyFeed": "Today's top"
 }

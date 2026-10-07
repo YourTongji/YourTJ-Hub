@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"log/slog"
 	"maps"
 	"net/url"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/feedconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
@@ -145,6 +147,7 @@ type ResetPasswordPageProps struct {
 }
 
 type LayoutPayload struct {
+	DailyRanking bool                `json:"dailyRanking,omitempty"`
 	Site         SitePayload         `json:"site"`
 	Viewer       ViewerPayload       `json:"viewer"`
 	Header       []NavItemPayload    `json:"header,omitempty"`
@@ -257,11 +260,14 @@ type FooterPayload struct {
 }
 
 type HomeProps struct {
-	Sort         string              `json:"sort"`
-	Tabs         []TabPayload        `json:"tabs"`
-	Topics       []TopicPayload      `json:"topics"`
-	Pagination   PaginationPayload   `json:"pagination"`
-	Announcement AnnouncementPayload `json:"announcement"`
+	ActualSort    string              `json:"actualSort,omitempty"`
+	DegradeReason string              `json:"degradeReason,omitempty"`
+	FeedTrace     string              `json:"feedTrace,omitempty"`
+	Sort          string              `json:"sort"`
+	Tabs          []TabPayload        `json:"tabs"`
+	Topics        []TopicPayload      `json:"topics"`
+	Pagination    PaginationPayload   `json:"pagination"`
+	Announcement  AnnouncementPayload `json:"announcement"`
 }
 
 type TabPayload struct {
@@ -292,6 +298,9 @@ type AnnouncementItemPayload struct {
 }
 
 type TopicPayload struct {
+	FeedTrace      string                   `json:"feedTrace,omitempty"`
+	FeedPosition   *int                     `json:"feedPosition,omitempty"`
+	FeedReason     string                   `json:"feedReason,omitempty"`
 	ID             uint64                   `json:"id"`
 	Title          string                   `json:"title"`
 	Description    string                   `json:"description"`
@@ -650,6 +659,7 @@ type ModerationPageProps struct {
 }
 
 type PublishTopicPayload struct {
+	Images      []string `json:"images"`
 	Title       string   `json:"title"`
 	Content     string   `json:"content"`
 	CategoryIDs []uint64 `json:"categoryIds"`
@@ -759,8 +769,9 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 			BrandText:     brandText,
 			BrandImage:    brandImage,
 		},
-		Viewer: viewer,
-		Header: buildChromeNavItems(chrome.Header),
+		Viewer:       viewer,
+		DailyRanking: feedconfig.RankReady(),
+		Header:       buildChromeNavItems(chrome.Header),
 		Sidebar: buildSidebarPayload(
 			hotdataserve.GetCategory(),
 			activeKey,
@@ -1051,7 +1062,7 @@ func buildHomeTabs(sort string, userID uint64, lang string) []TabPayload {
 	}
 	return append(tabs,
 		TabPayload{Key: "hot", URL: "/?sort=hot", Active: sort == "hot"},
-		TabPayload{Key: "popular", URL: "/?sort=popular", Active: sort == "popular"},
+		TabPayload{Key: "popular", Label: dailyTabLabel(lang), URL: "/?sort=popular", Active: sort == "popular"},
 	)
 }
 
@@ -1289,8 +1300,10 @@ func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *post
 		),
 		HotTopics: buildTopicHotTopics(topic.Id),
 		Permissions: TopicPermissions{
-			IsOwnTopic:       currentUserID == topic.UserId,
-			CanPost:          currentUserID > 0 && (firstPost.ContentType == posts.ContentTypeRegular || firstPost.ContentType == posts.ContentTypeQuestion || firstPost.ContentType == posts.ContentTypeThought || firstPost.ContentType == posts.ContentTypeArticle),
+			IsOwnTopic: currentUserID == topic.UserId,
+			// 待审话题只有作者与审核员能看到：通过前不开放回复（回复接口同样拒绝）。
+			CanPost: currentUserID > 0 && (topic.ProcessStatus == topics.ProcessStatusNormal || canModerate) &&
+				(firstPost.ContentType == posts.ContentTypeRegular || firstPost.ContentType == posts.ContentTypeQuestion || firstPost.ContentType == posts.ContentTypeThought || firstPost.ContentType == posts.ContentTypeArticle),
 			CanModerateTopic: canModerate,
 		},
 	}
@@ -1312,11 +1325,12 @@ func topicInitialPosts(topic *topics.Entity, anchorPostNo uint64) ([]*posts.Enti
 
 func buildPostWindowPayloadFromEntities(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool, hasBefore bool, hasAfter bool, total int64, maxPostNo uint64, anchorPostID uint64, firstPost *posts.Entity) PostWindowPayload {
 	// 对非版主过滤待审（ProcessStatus=2）帖子：待审内容不应出现在普通用户流中，
-	// 避免渲染为空占位；封禁帖（ProcessStatus=1）保留现有"已处理"占位语义。
+	// 避免渲染为空占位；作者自己的待审帖保留（issue #975：作者能看到自己审核中的
+	// 内容）。封禁帖（ProcessStatus=1）保留现有"已处理"占位语义。
 	if !canModerate {
 		filtered := make([]*posts.Entity, 0, len(postEntities))
 		for _, item := range postEntities {
-			if item == nil || item.ProcessStatus == posts.ProcessStatusPending {
+			if item == nil || (item.ProcessStatus == posts.ProcessStatusPending && !ownPendingPost(item, currentUserID)) {
 				continue
 			}
 			filtered = append(filtered, item)
@@ -1344,6 +1358,17 @@ func buildPostWindowPayloadFromEntities(postEntities []*posts.Entity, userMap ma
 }
 
 func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool, firstPost *posts.Entity) ([]PostPayload, []ReplyTargetPayload) {
+	owned := make([]*posts.Entity, 0, len(postEntities))
+	for _, item := range postEntities {
+		if item == nil {
+			continue
+		}
+		copy := *item
+		dummy := topics.Entity{VisibilityStatus: topics.VisibilityActive}
+		publicationservice.OwnerSnapshot(&dummy, &copy, currentUserID, false)
+		owned = append(owned, &copy)
+	}
+	postEntities = owned
 	postMap := make(map[uint64]*posts.Entity, len(postEntities))
 	for _, item := range postEntities {
 		if item != nil {
@@ -1443,7 +1468,7 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 		isHidden := item.ProcessStatus != 0
 		isAuthorDeleted := isAuthorDeletedVisibility(item.VisibilityStatus)
 		isModeratorRemoved := isModeratorRemovedVisibility(item.VisibilityStatus)
-		if isHidden && !canModerate {
+		if isHidden && !canModerate && !ownPendingPost(item, currentUserID) {
 			content = ""
 			renderedContent = ""
 		}
@@ -1940,12 +1965,16 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 		switch activityTab {
 		case userProfileActivityTopics:
 			cursor := positiveUint(c.Query("cursor"))
-			topicPage, _ := topics.GetPublishedByUserBeforeId(user.Id, cursor, userProfileTopicPageSize+1)
+			topicPage, _ := topics.GetProfileTopicsBeforeID(user.Id, cursor, userProfileTopicPageSize+1, currentUserID == user.Id)
 			hasNext := len(topicPage) > userProfileTopicPageSize
 			if hasNext {
 				topicPage = topicPage[:userProfileTopicPageSize]
 			}
-			topicPayloads = buildTrackedTopicPayloads(currentUserID, transform.Topics2Vo(topicPage, hotdataserve.CategoryMap()))
+			topicViews := transform.Topics2Vo(topicPage, hotdataserve.CategoryMap())
+			if currentUserID == user.Id {
+				topicViews = ownerTopicViews(topicPage, currentUserID)
+			}
+			topicPayloads = buildTrackedTopicPayloads(currentUserID, topicViews)
 			pagination = buildUserActivityTopicPagination(user.Id, topicPage, hasNext)
 		case userProfileActivityLikes:
 			refs, nextCursor := topicUserAction.ListLikedTopicRefsBefore(user.Id, c.Query("cursor"), userProfileTimelinePageSize)
@@ -2957,6 +2986,9 @@ func BuildNotificationPayloads(notifications []*eventNotification.Entity) []Noti
 
 func BuildNotificationPayload(notification *eventNotification.Entity) NotificationPayload {
 	payload := notification.Payload
+	if notification.EventType == eventNotification.EventTypeReviewRejected {
+		payload = eventNotification.RedactReviewRejectedPayload(payload)
+	}
 	item := NotificationPayload{
 		ID:        notification.Id,
 		EventType: notification.EventType,
@@ -2976,7 +3008,9 @@ func BuildNotificationPayload(notification *eventNotification.Entity) Notificati
 	if payload.TopicId > 0 {
 		topicURL := urlconfig.PostDetail(payload.TopicId)
 		// wiki 页面更新通知：目标 URL 为 wiki 页面而非帖子详情（review P2）。
-		if notification.EventType == eventNotification.EventTypeWikiUpdated && payload.Extra.ProfileURL != "" {
+		if notification.EventType == eventNotification.EventTypeReviewRejected {
+			topicURL = "/settings?tab=content"
+		} else if notification.EventType == eventNotification.EventTypeWikiUpdated && payload.Extra.ProfileURL != "" {
 			topicURL = payload.Extra.ProfileURL
 		} else if payload.PostNo > 0 {
 			// 楼层号链接：删除/重建索引后仍稳定落到正确楼层，不依赖 post ID。
@@ -3077,14 +3111,16 @@ func buildPublishPageProps(c *gin.Context, topicID uint64) (PublishPageProps, er
 	}
 
 	topic := topics.Get(topicID)
-	if topic.Id == 0 || topic.UserId != component.LoginUserId(c) {
+	if topic.Id == 0 || topic.UserId != component.LoginUserId(c) || topic.VisibilityStatus != topics.VisibilityActive {
 		return props, errors.New("topic not found")
 	}
 	firstPost := posts.Get(topic.FirstPostId)
 	if firstPost.Id == 0 {
 		firstPost, _ = posts.GetByTopicPostNoAtOrAfter(topic.Id, 1)
 	}
+	publicationservice.OwnerSnapshot(&topic, &firstPost, component.LoginUserId(c), true)
 	props.Topic = PublishTopicPayload{
+		Images:      append([]string{}, topic.ImageUrls...),
 		Title:       topic.Title,
 		Content:     firstPost.Content,
 		CategoryIDs: topic.CategoryIds,
@@ -3261,4 +3297,17 @@ func parsePositiveInt(value string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+// ownPendingPost 作者本人的待审楼层：作者可以看到自己审核中的正文（issue #975），
+// 其他非版主读者仍看不到。被拒（封禁）的楼层不在此列。
+func ownPendingPost(item *posts.Entity, currentUserID uint64) bool {
+	return item != nil && currentUserID != 0 && item.UserId == currentUserID && item.ProcessStatus == posts.ProcessStatusPending
+}
+
+func dailyTabLabel(lang string) string {
+	if feedconfig.RankReady() {
+		return i18n.T(lang, "dailyFeed")
+	}
+	return ""
 }

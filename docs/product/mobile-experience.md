@@ -6,12 +6,16 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-30
+> Last verified: 2026-10-03
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
 Web inside an authenticated in-app browser. The navigation and management boundary are recorded in
 [0012](../decisions/0012-unified-mobile-reading-navigation.md).
+
+The released app is available from the [YourTJ download page](https://yourtj.de/#download):
+iPhone/iPad through the App Store and Android through public APK downloads. See
+[distribution and updates](#distribution-and-updates) for channel status and remaining device evidence.
 
 The [interaction and layout standard](mobile-design-system.md) defines the shared visual and
 behavioral acceptance rules. Its `Planned` requirements are tracked separately from the implemented
@@ -34,6 +38,12 @@ each page switch. Request and account guards still apply after prefetching. Star
 route-aware fallback resumes when the launch surface leaves.
 
 ## Navigation and reading
+
+`Current`: Home negotiates feed capability v2, keeps explicit Latest separate from the default root,
+restarts expired recommendation snapshots and reports foreground visible rows/detail dwell. Attribution
+traces stay in memory and are stripped from offline pages. Recommendation reasons use four localized
+labels. See [feed ranking and measurement](feed-ranking.md) for the shared behavior and retention.
+
 
 `Current`: root layout uses the available window width. Below 600 logical pixels it retains bottom
 destinations; at 600 and above it uses a persistent, scrollable 72-pixel navigation rail. Forum,
@@ -87,13 +97,27 @@ ordered after the active route in the accessibility tree so iOS does not hide it
 - `Current`: feed body text uses 17 logical pixels. Post Markdown, server-rendered Wiki HTML and
   course-review HTML all derive their reading typography from one shared rich-content profile rather
   than from per-surface hard-coded sizes: body text keeps the 17-pixel design baseline, headings are
-  relative ratios (H1–H4 ≈ 1.45/1.30/1.18/1.08 × body), inline code and code blocks are one step
+  relative ratios (H1–H4 ≈ 1.45/1.30/1.18/1.08 × body at the design size; as the painted body grows
+  with the system font scale and reading size the levels move closer, down to 40% of the extra size
+  at 2×, and windows under 360 logical pixels tighten them one more step), inline code and code blocks are one step
   smaller, tables inherit the body size, and course reviews use the same profile at a compact
   ~15.5-pixel baseline. The first post supports text selection.
-- `Current`: reading text size is a user preference (Settings → Appearance, 80%–140%, default 100%)
-  that only affects rich content — posts, Wiki and course reviews — and is applied before the system
-  font scale, which still applies on top instead of being replaced or clamped. Repository code never
-  pins `TextScaler.noScaling` or a fixed text scale factor.
+- `Current`: Settings → Appearance → Text size opens a live preview page with two layered sliders
+  in 10% steps. App text (90%–130%) scales every text in the app, rich content included; reading
+  text (80%–140%) then adjusts only rich content bodies — posts, Wiki and course reviews — on top of
+  it. The preview is a small app screen built from the real components: tab bar, feed row, a post
+  with a Markdown body (heading, bold text, list), action row with a button, and bottom navigation.
+  It updates, together with the app behind it, while either thumb is dragged. Dragging app text
+  outlines the whole preview; dragging reading text outlines the post body, dims everything else and
+  scrolls the body into view, and the highlight fades shortly after release. The control panel stays
+  at the default size so the slider never moves away from the finger; Reset to default restores both
+  values and is disabled at the default.
+- `Current`: 100% is a device-adapted default rather than the raw design size. Design sizes are iOS
+  points; Android starts at 16/17 of them, matching its 16sp reading body, and windows whose
+  shortest side is under 360 logical pixels take one more 5% step. Rotation never changes text size.
+  The default, both preferences and the system font scale multiply; the system scaler applies last
+  instead of being replaced or clamped. Repository code never pins `TextScaler.noScaling` or a fixed
+  text scale factor.
 - `Current`: fenced code and server-rendered `<pre>` blocks render through one shared code block with
   syntax highlighting (light and dark themes), a language label, a copy action, and horizontal
   scrolling inside the block itself; unknown languages or a failed highlight fall back to plain
@@ -122,9 +146,16 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   left edge. Android keeps the shared mobile fade/rise transition. Horizontal
   scroll rails keep working; the back gesture only claims the narrow left-edge
   band.
-- `Current`: four persistent destinations — Home, Campus, Notifications and Messages — use icon-only
-  navigation with accessible labels. Search is a pushed page, reachable from Home. Campus links to
-  the native course catalog, scheduler and Wiki; returning preserves the selected destination.
+- `Current`: four persistent destinations — Home, Campus, Notifications and Messages — use an
+  icon-only bottom bar on compact windows, with the selected Filled icon, indicator and unread state
+  kept together at a fixed compact height, so labels never add height or grow with text size. Each
+  destination keeps its localized name for screen readers and shows it as a long-press tooltip.
+  The iOS bottom bar uses a restrained Flutter blur and translucent surface over
+  the existing theme; Android, high-contrast mode, reduced motion and accessible-navigation mode
+  use the opaque theme surface. This is a Flutter material treatment and does not adopt a native
+  iOS Liquid Glass API. Search is a pushed
+  page, reachable from Home. Campus links to the native course catalog, scheduler and Wiki;
+  returning preserves the selected destination.
   About links to native friend links, sponsors, terms and privacy pages using the site’s published
   configuration; disabled policies remain hidden.
 - `Current`: Home cards retain both images for two-image topics. A portrait single image sits beside
@@ -178,21 +209,34 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   band. Categories retain separate 44-pixel targets and a horizontal rail; long metadata moves the
   rail onto a new line rather than reducing text size. Dividers do not add a blank footer. Question,
   moment and article labels are localized, and enlarged text allows the title/excerpt to grow.
-  Home's unfiltered list groups pinned topics into a 48-pixel-minimum expandable summary, initially
-  collapsed. Category streams and Following retain the server's ordering; cards keep pins in place.
+  Home's unfiltered stream, in both list and card mode, folds pinned topics into one initially
+  collapsed announcement-style line: pin mark, "Pinned" badge, the first pinned title and, with
+  several pins, their count. A single pin opens directly; several unfold into one-line titles led by
+  a small author avatar (with unread dot and relative time) inside the same strip, each opening its
+  topic. At large text the badge and time yield to the title. Category streams and Following retain
+  the server's ordering.
   Expanding pins neither reloads the stream nor changes its pagination cursor.
 - `Current`: Home sort, Campus section and notification filter rails share a scrollable tab bar.
   The page-swipe recognizer feeds the shared tab controller's live drag offset, so the selected
   underline follows a held slow swipe and stretches evenly toward the adjacent tab. After release,
   the extended segment contracts with a logarithmic ease-out curve. Home, Campus and Notifications
   move both content panes with the same drag or tap transition while retaining each visited page's
-  scroll state. A pending pane uses the transparent animated YourTJ mark until its data is ready.
+  elements and scroll state. A pane drag reports the touch slop it travelled before winning the
+  gesture arena, so the page stays under the finger; release settles with a spring that keeps the
+  swipe's velocity, and a fling back toward the origin cancels the switch. A pending pane uses the
+  transparent animated YourTJ mark until its data is ready.
   Profile stream tabs use the same drag progress; the bar reveals selected tabs outside its viewport
   and honors reduced-motion settings.
-- `Current`: root headers, filter rails and bottom navigation overlay the reading viewport. They
-  hide after 48 logical pixels downward and return after 12 pixels upward, with 220 ms transitions.
-  Hidden headers are clipped at the system safe-area edge; the reading viewport stays stable.
-  Reaching the top, changing destination or opening the account drawer restores the controls.
+- `Current`: root headers, filter rails and bottom navigation overlay the reading viewport and
+  follow the finger: they slide out over 64 logical pixels of downward scroll, any upward scroll
+  pulls them back, and a partial state settles in the last direction within 180 ms once scrolling
+  stops. Near the top they stay attached to the content; edge bounce is ignored. Content insets
+  never change, so the feed does not jump. Hidden headers are clipped at the system safe-area edge;
+  the compose button follows the bottom bar. Header and bottom-bar borders are one physical pixel.
+  While controls are hidden, off-screen tab panes scroll their reserved header band away, so a pane
+  swiped or tapped into shows content rather than a blank band; the pane on screen never moves and
+  returning controls restore those offsets. Reaching the top or changing destination restores the
+  controls; the account drawer overlays the page and leaves their state unchanged.
   Reduced motion removes the transition; keyboard/modal interaction keeps controls visible.
   Editors and scheduler grids are pushed pages outside this behavior.
 - `Current`: Home, Campus and Notifications have a compose button that first expands three smaller
@@ -220,8 +264,11 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   clearing them; the reply appears once approved. Deep-link windows — such as a notification
   pointing at one reply — keep both continuation controls on the anchored floors.
 - `Current`: replies offer a compact sort capsule beside the reply count — oldest first, newest
-  first, author only. Oldest and newest flip the loaded window locally without refetching; in
-  newest-first order the list footer loads earlier floors and the top control loads newer ones.
+  first, author only. Entering newest-first fetches one bounded tail window through the existing
+  post-window endpoint — including on deep-linked topics — and refreshing the default window does
+  the same, so both the first page and deep links reach the latest floor once newest-first is
+  chosen; the list footer loads earlier floors and the top control retries a failed tail request or
+  loads newer floors. Oldest-first keeps the loaded window locally.
   Author-only filters the loaded window to the topic author and automatically scans the remaining
   stream — later windows first, then earlier ones — for at most five windows per automatic scan.
   Loading more continues the search. While windows remain, an empty filtered view invites further
@@ -360,7 +407,9 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   (`@username`, or a localized self label when the page payload carries no viewer username); a
   failed send re-attaches the quote only while its draft and reply selection are unchanged, so
   sending again retries the same entry instead of posting an unquoted duplicate. A successful
-  bubble retry clears that draft's quote without discarding a newer reply selection.
+  bubble retry clears that draft's quote without discarding a newer reply selection. Activating a
+  quote reference reveals the lazy-loaded target with the normal short easing; reduced motion jumps
+  directly after the target is mounted and settles the highlight through the shared motion policy.
   The emoji accessory replaces the current
   selection and leaves the caret after insertion. Replacing the draft with text that has no valid
   selection resets insertion to the end. Opening it dismisses the software keyboard and keeps focus
@@ -601,6 +650,9 @@ identity survive this layout change. The header keeps a small outer margin for i
   server's title, body and classification requirements. Moments can derive their title from the first text line.
 - `Current`: publishing limits, captcha requests and other API failures use the Web error catalog
   in the selected language, including server-provided parameters.
+- `Current`: server-required captcha challenges on publishing and replies explain that newer accounts
+  may be asked to complete a captcha after frequent posting, and that the requirement lifts as
+  activity subsides or the account meets the site age condition.
 - `Current`: changed editors debounce local recovery saves by 700 ms and flush when leaving or
   the app becomes inactive. Title, Markdown/simple text, type, category IDs and uploaded image URLs
   survive reopening, including when the page metadata request fails. Save progress, success and
@@ -752,34 +804,101 @@ identity survive this layout change. The header keeps a small outer margin for i
   with a persistent Done action. Session/site invalidation clears the old catalog, permissions and filters, then loads the new
   session’s catalog; queued searches and late results cannot cross identities. These interactions use the existing
   course API and SSR filter options; search service failures remain errors rather than empty results.
+- `Current`: each catalog row shows the most recent term first. When more terms exist, the first term,
+  a `+N` counter and a chevron live in **one** disclosure chip (the term keeps the same muted colour as
+  a single-term row, so colour never implies selection); expanding swaps the counter for the localized
+  collapse action and an up chevron and lays the remaining terms out in an inner 6dp wrap, so wrapping
+  happens per group rather than one stray chip per line. Info chips (course code, terms) share one
+  spec — `type.meta` text with 4dp vertical padding, a 6% `baseContent` fill that stays visible on
+  white and dark surfaces, and the `--gf-radius-selector` (8) radius — while the metric row keeps a
+  12dp group gap against the 6dp intra-term gap (2×). Term chips keep at least a 44dp target and only
+  change the row's local disclosure state. Every metric row is laid out at the 44dp target height
+  (visible chips centred) whether or not it has a disclosure chip, so single-term and multi-term
+  cards are the same height; title and teacher lines trim their outer leading, and on device the
+  visible gaps are even (about 13dp top, title→teacher, teacher→chips and bottom) at 100%, 130% and
+  200% text scale.
+- `Current`: course filter chips are flat 32dp pills (the `--gf-radius-selector` radius, not stadium
+  pills) inside a 44dp target; the visible pill carries the label, an optional selected-count badge, a
+  chevron-down affordance for the multi-select pickers and a check for the reviews-only toggle. The row
+  scrolls horizontally with a 12dp edge fade hinting at more chips; selection updates the query
+  immediately and uses a short color transition that settles immediately when reduced motion is enabled.
+  While any search or filter is active, a 32dp square × chip (same radius, labelled “reset search and
+  filters”) leads the same row instead of a separate text button row, so the list never shifts down.
 - `Current`: course details retain offering-specific five-star reviews and existing review fields;
-  bookmark and write-review actions stay in a bottom dock. Scores share a baseline with their
-  five-point denominator. The signed-in user’s own reviews (including anonymous reviews) appear
-  first across pagination; edit/delete controls remain on those rows. Review bodies use the shared
-  Markdown renderer, and the editor uses the app’s rich Markdown surface with six Web-matched templates.
-- `Current`: review rows offer helpful/dislike, image sharing and reporting for other authors’ reviews.
-  Guests are sent to sign-in for reactions and reports. Reports require an explicit reason and limit
-  supplemental notes to 300 characters; a failed submission keeps the entered values visible. A
-  reaction switch deletes the old reaction before adding the new one, updates counts after success,
-  and attempts cleanup plus a list reload when the second request fails.
-- `Partial`: the review API stores helpful and dislike records independently, so cross-device
-  concurrent changes are not atomically mutually exclusive. Flutter serializes changes per review
-  and reconciles failures from the server, but the API contract has no atomic switch operation.
+  bookmark and write-review actions stay in a bottom bar that reserves its own layout space, so the
+  scrollable review list never renders (or taps) beneath it. Scores share a baseline with their
+  five-point denominator. The rating summary draws the average as a 104dp progress ring whose arc
+  carries the Web ring's linear `warning → primary` gradient (bottom-right to top-left, the same
+  geometry as the rotated SVG), which has no angular seam at the arc start, with a primary end dot
+  ringed in the card background; the
+  5→1 distribution bars use the same warning hue with a brightness ladder that is brightest for 5★
+  (0.95) and dimmest for 1★ (0.24). The signed-in user’s own reviews (including anonymous reviews) appear
+  first across pagination. Every review card shows a 40-pixel avatar: member reviews use the server
+  `avatarUrl`, anonymous and legacy reviews (and a member avatar that fails to load) use the shared
+  generated face seeded from the public author label plus the review id, so one review keeps the same
+  face as the Web card. Server-provided relative avatar paths are resolved against the API origin
+  before loading, for the detail card, My course reviews and the share card alike. Review metadata
+  is one wrapping run per card: term, class, instructors and the short review date (relative inside a
+  week, `M月D日` after, year only across years); class code, campus and faculty stay in the page header
+  and offering list instead of repeating on every card. Review bodies use the shared
+  Markdown renderer, and the editor uses the app’s rich Markdown surface with six Web-matched
+  templates rendered at the compact reading profile.
+  The editor toolbar can pick an image from the gallery, upload it through the shared
+  `/file/img-upload` pipeline and insert the resulting Markdown image at the caret, so a review
+  body can carry the same image content as Web without a second upload implementation; while a
+  pick or upload is pending, Publish/Save stays disabled so the image cannot be dropped. The write
+  sheet pairs the offering selector and the five 48dp rating targets on one row (selector at the
+  start, rating at the end) and keeps the publishing identity on the next full-width row: the
+  current user’s avatar and nickname with “posting as …”, or the anonymous placeholder with a
+  separate “post anonymously” title and “identity stays hidden” hint, next to the anonymity
+  switch; the copy stays complete at 320dp and 200% text scale, wraps the selector/rating pair when
+  they cannot fit, and collapses to a single scrollable row when the keyboard leaves too little height.
+- `Current`: the review action bar is one row of at least 44-pixel hit targets — helpful count,
+  dislike count and image sharing — whose visible pill is only 32dp tall (13pt label, 16pt icon,
+  12dp side padding) so the card stays reading-dense; the row scrolls horizontally on narrow
+  screens or at large text instead of wrapping. Edit and delete live in the card’s top-right overflow menu, which also carries reporting
+  for other authors’ reviews; a guest sees no report entry, and reactions send guests to sign-in.
+  Reports require an explicit reason and limit supplemental notes to 300 characters; a failed
+  submission keeps the entered values visible. The server switches a reaction in one transaction
+  (removing the opposite state and writing the selected one) and serializes concurrent changes per
+  review. A reaction toggle keeps the list mounted with no loading state or re-read and applies the
+  mutual-exclusion rule locally in the same frame: it clears an already-selected opposite side
+  first (idempotent) and then writes the target state, so older server builds still yield
+  exclusion. On failure Flutter shows a localized error; if the opposite side was already cleared
+  but the target write failed it rolls back to neither side selected (matching the server),
+  otherwise it restores the previous counts.
 - `Current`: course reviews and forum posts/replies can open a shared image preview with themes,
   fixed-width Markdown cards, save and system-share actions. Cards render at 375 logical pixels,
-  2× capture scale, and a fixed text scale; compact Markdown styles keep long posts within bounds.
+  3× capture scale, and a fixed text scale; compact Markdown styles keep long posts within bounds.
   The five palettes include paper, dark and three pastel themes; pastels are mobile-only and derive
   their surfaces from GF color tokens. Long captures are tiled at 4096 physical pixels and
   capped at 48 MiB of RGBA output (about 12.6 megapixels at the fixed width); CPU stitching and PNG
   encoding run in an isolate. Network images settle or use a stable placeholder after 20 seconds.
-  Review cards keep the public author label rules for member, anonymous and legacy reviews.
+  Review cards keep the public author label rules for member, anonymous and legacy reviews and are
+  a single white card (20dp radius, hairline border, two soft shadows tinted from the text colour)
+  floating on a deeper canvas (`base300` on light palettes, `base200` on dark): the course name
+  (22pt) with “teacher · faculty · code”, a stat bar that reads in one line (this review's score with
+  its stars | course rating | review count, hairline-divided), the server-normalized `contentHtml`
+  at a 16/1.7 reading profile with a narrow heading scale (19/18/17/16), and after a hairline the
+  signature (avatar, author, “offering · date”). Every text may wrap; nothing is ellipsized. Small
+  journal-style details live only in the outer margin and on the card edge, never over text: a
+  translucent striped washi tape across the top-left corner in the palette accent, two four-point
+  sparkles in the star colour, a halftone dot grid and a thin ring peeking from behind the card;
+  there are no gradients, glows or colour bars. Unlit stars are outlined so all five slots stay
+  visible; dark palettes use a black shadow and a lighter stat-bar fill. Body images use the reading
+  card's centred, bordered shell. The theme picker shows each palette as a 32dp swatch split
+  diagonally into the card colour and the palette accent (pastel surfaces alone are almost white;
+  Paper uses a slate accent so it stays distinct from Blue),
+  with a primary ring and label emphasis on the selected one. Secondary text and the stat bar are contrast-checked across all
+  five palettes; the preview is the exact exported card.
 - `Partial`: automated tests cover PNG capture and tiled stitching; native save/share behavior and
   visual layout still need simulator and device acceptance.
 - `Current`: Profile includes a private My course reviews entry for paginated management across
-  courses, including anonymous reviews. Each visible review can be edited, deleted or opened at
-  its offering and review position. Hidden reviews remain listed for deletion, with no edit or
-  public-detail action; deleted reviews are omitted. Course detail and management share the same
-  editor and a rounded delete confirmation with the target review excerpt and explicit cancel.
+  courses, including anonymous reviews. Management rows reuse the detail card’s avatar and top-right
+  overflow menu (open course / edit / delete) instead of a wrapping action row. Hidden reviews remain
+  listed for deletion, with no edit or public-detail action; deleted reviews are omitted. Course
+  detail and management share the same editor and a rounded delete confirmation with the target
+  review excerpt and explicit cancel.
 - `Current`: shared transient feedback appears in dismissible top banners above sheets, below
   the system safe area. Course review failures show localized server reasons and preserve the
   draft; success and error messages use the same surface with distinct semantic icons.
@@ -1080,13 +1199,37 @@ The approved permission/privacy/failure boundaries for optional analytics are re
 
 ## Distribution and updates
 
+- `Current`: iPhone/iPad distribution is live on the
+  [App Store](https://apps.apple.com/cn/app/yourtj/id6809457637), and Android has a public
+  [ARM64 APK](https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-latest/YourTJ-arm64-v8a.apk)
+  plus [other architectures](https://github.com/YourTongji/YourTJ-Hub/releases/tag/mobile-latest).
+  These are the formal distribution channels linked from [yourtj.de](https://yourtj.de/#download).
+  Public availability was checked on 2026-10-03; it is separate from candidate-specific device validation.
 - `Partial`: Android checks GitHub mobile releases at startup/resume with a six-hour limit and a
-  manual About action. Update prompts support defer, ignore, progress and cancellation. Public APK
+  manual About action. Update prompts support defer, ignore, progress and cancellation. The prompt is
+  a bottom sheet that tapping outside or dragging does not dismiss: notes are grouped as required,
+  security, new, improved and fixed under labels smaller than the note titles, and no note level
+  exceeds the sheet title. The header shows the installed-to-target version; notes beyond the
+  required items and the first five expand in place. The primary action stays pinned; cancelling a
+  download keeps the prompt open. About history lists versions on a timeline, newest first. Release notes match Android split-ABI version codes by their shared build number. Public APK
   mirrors are ranked with bounded probes; SHA-256, package and signing-certificate checks precede
-  the system installer. Unit tests and signed native builds cover the implemented paths; the first
-  GitHub-hosted release and an installed-to-updated device journey remain distribution validation.
-- `Partial`: iOS uses TestFlight and App Store distribution through the same versioned release job.
-  Apple processing/review is independent of CI. The app does not offer APK-style updates on iOS.
+  the system installer. Prompts show the installed-to-target release notes, including required actions,
+  and the About page provides Android release history. Notes are optional cached display data;
+  they do not affect APK verification or installation. Unit tests and signed native builds cover the
+  implemented paths; an installed-to-updated physical-device journey remains separate acceptance evidence.
+- `Current`: released iOS builds are distributed and updated through the App Store; TestFlight is
+  the candidate testing channel. Apple processing/review for each new version is independent of CI.
+  The app does not offer APK-style updates on iOS.
+- `Partial`: App Store builds check Apple's public listing and offer a link when a newer version is
+  available. The App Store update prompt and About history render structured formal release notes;
+  iOS history has no channel picker and never substitutes TestFlight testing instructions when
+  public notes are missing. Missing public history keeps its empty or incomplete-history state.
+  TestFlight handles beta update notices and the separate plain-text testing instructions. The app
+  does not duplicate them in an automatic beta prompt; a tester's manual update check opens the
+  TestFlight App Store product page, where they can open or install TestFlight. This fallback does
+  not deep-link into the YourTJ beta. Unknown distribution receipts do not trigger channel-specific
+  update prompts. Formal update prompts use receipt-backed channel coverage; incomplete history
+  falls back to the target release summary.
   Signing, metadata, failure recovery and environment secrets are documented in the
   [mobile release runbook](../operations/mobile-releases.md).
 
@@ -1254,7 +1397,17 @@ move actions. Saved edits retain their input until the server succeeds.
 
 `Current`: course reviews keep changed input behind an explicit discard confirmation, block dismissal
 while saving and retain the form on failure. Rating stars expose selected semantics and 48-pixel touch
-targets. Cached AI summaries start collapsed, with refresh available inside the expanded section.
+targets. The write/edit sheet is editor-first: the title, a compact meta block (offering chip and
+anonymous switch, then the rating stars), a pinned formatting toolbar and a pinned action row
+(counter plus cancel and submit) surround a body that scrolls inside its own bounded region, so long
+reviews never push the toolbar or the actions out of reach. The meta block shows every control without
+a hidden horizontal scroll while the panel has room, and falls back to one scrollable row — stars and
+anonymous switch first — only when the keyboard plus a large text scale squeeze the panel below 300
+pixels. The sheet keeps the panel above the keyboard at every supported
+text scale. Applying a template inserts into the existing controller in place — focus, selection and
+undo history survive, the caret lands after a leading heading or label (typed text does not inherit the label's bold), and a non-empty body still asks before
+being replaced. Templates convert line by line so the Quick template's bare `-` placeholders become
+empty bullet items instead of swallowing the Pros/Cons labels above them. Cached AI summaries start collapsed, with refresh available inside the expanded section.
 Settings show current device preferences, readable device/browser session names and platform-specific
 push disclosure; account closure remains inside account settings rather than the main index.
 

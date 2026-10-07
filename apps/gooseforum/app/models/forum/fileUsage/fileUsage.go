@@ -5,12 +5,13 @@ import "time"
 const tableName = "file_usages"
 
 const (
-	TargetTopic       = "topic"
-	TargetPost        = "post"
-	TargetUser        = "user"
-	TargetAdminUpload = "admin_upload"
-	TargetUploadOwner = "upload_owner"
-	TargetSticker     = "sticker"
+	TargetTopic        = "topic"
+	TargetPostRevision = "post_revision"
+	TargetPost         = "post"
+	TargetUser         = "user"
+	TargetAdminUpload  = "admin_upload"
+	TargetUploadOwner  = "upload_owner"
+	TargetSticker      = "sticker"
 )
 
 const (
@@ -22,10 +23,13 @@ const (
 )
 
 // 附件生命周期状态（Issue #94）：删除时转 RECOVERING，恢复时回 ACTIVE，永久删除置 PURGED。
+// PENDING（issue #975）：内容处于待审（ProcessStatus=2）时登记的引用，不构成公开
+// 下载授权；人工批准后转 ACTIVE，拒绝时保持 PENDING（仍不公开）。
 const (
 	UsageStatusActive     = "ACTIVE"
 	UsageStatusRecovering = "RECOVERING"
 	UsageStatusPurged     = "PURGED"
+	UsageStatusPending    = "PENDING"
 )
 
 type Entity struct {

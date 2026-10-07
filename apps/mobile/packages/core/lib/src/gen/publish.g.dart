@@ -27,6 +27,9 @@ _$PublishTopicPayloadImpl _$$PublishTopicPayloadImplFromJson(
 ) => _$PublishTopicPayloadImpl(
   title: json['title'] as String,
   content: json['content'] as String,
+  images:
+      (json['images'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+      const <String>[],
   categoryIds:
       (json['categoryIds'] as List<dynamic>?)
           ?.map((e) => (e as num).toInt())
@@ -41,6 +44,7 @@ Map<String, dynamic> _$$PublishTopicPayloadImplToJson(
 ) => <String, dynamic>{
   'title': instance.title,
   'content': instance.content,
+  'images': instance.images,
   'categoryIds': instance.categoryIds,
   'topicStatus': instance.topicStatus,
   'contentType': instance.contentType,
@@ -154,6 +158,9 @@ Map<String, dynamic> _$$AnnouncementPayloadImplToJson(
 
 _$HomePropsImpl _$$HomePropsImplFromJson(Map<String, dynamic> json) =>
     _$HomePropsImpl(
+      actualSort: json['actualSort'] as String?,
+      degradeReason: json['degradeReason'] as String?,
+      feedTrace: json['feedTrace'] as String?,
       sort: json['sort'] as String,
       tabs: (json['tabs'] as List<dynamic>)
           .map((e) => TabItemPayload.fromJson(e as Map<String, dynamic>))
@@ -171,6 +178,9 @@ _$HomePropsImpl _$$HomePropsImplFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$$HomePropsImplToJson(_$HomePropsImpl instance) =>
     <String, dynamic>{
+      'actualSort': instance.actualSort,
+      'degradeReason': instance.degradeReason,
+      'feedTrace': instance.feedTrace,
       'sort': instance.sort,
       'tabs': instance.tabs,
       'topics': instance.topics,

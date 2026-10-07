@@ -2,8 +2,11 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { AlertTriangle, BookOpen, Check, FileText, HelpCircle, Lightbulb, ListChecks, Loader2, MessageSquare, Send, X } from '@lucide/vue'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle, PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
-import { submitTopic, sensitiveWordsFromError, uploadImage } from '@/runtime/api'
+import { pendingReviewMessage, submitTopicResult, sensitiveWordsFromError, uploadImage } from '@/runtime/api'
+import { queueFlashMessage } from '@/runtime/flash-message'
+import { showModerationBlocked } from '@/runtime/moderation-blocked'
 import { processImageFile, validateImageFile } from '@/runtime/image'
+import { markdownPreview } from '@/runtime/markdown'
 import { useUnsavedDraftGuard } from '@/site/composables/useUnsavedDraftGuard'
 import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
 import PageHeader from '@/site/components/PageHeader.vue'
@@ -24,6 +27,7 @@ const page = defineProps<{
 const { t } = useI18n()
 const {
   captchaRequired: captchaRequired,
+  showPublishCaptchaExplanation: showPublishCaptchaExplanation,
   captchaId: captchaId,
   captchaImg: captchaImg,
   captchaCode: captchaCode,
@@ -35,6 +39,10 @@ const {
 
 const title = ref(page.props.topic.title || '')
 const content = ref(page.props.topic.content || '')
+// Body images follow the editor; only gallery-only attachments need separate controls.
+const initialBodyImages = new Set(bodyImageUrls(content.value))
+const galleryImages = ref([...(page.props.topic.images ?? [])].filter(url => !initialBodyImages.has(url)))
+const submissionImages = computed(() => [...new Set([...galleryImages.value, ...bodyImageUrls(content.value)])])
 const categoryIds = ref<number[]>([...(page.props.topic.categoryIds || [])])
 const currentTopicId = ref(page.props.topicId)
 const submitting = ref(false)
@@ -219,8 +227,17 @@ function editorSnapshot() {
     // pipeline, so reading it directly avoids a full DOM→Markdown
     // serialization on every unsaved-changes check.
     content: content.value.trim(),
+    images: submissionImages.value,
     categoryIds: [...categoryIds.value].sort((a, b) => a - b),
   })
+}
+
+function bodyImageUrls(source: string): string[] {
+  return markdownPreview.parse(source, {})
+    .flatMap(block => block.children ?? [])
+    .filter(token => token.type === 'image')
+    .map(token => token.attrGet('src') ?? '')
+    .filter(Boolean)
 }
 
 function syncSavedSnapshot() {
@@ -378,10 +395,11 @@ async function save() {
   message.value = ''
   clearSensitiveHighlight()
   try {
-    const id = await submitTopic({
+    const { id, pendingReview, checking } = await submitTopicResult({
       topicId: currentTopicId.value,
       title: title.value.trim(),
       content: content.value.trim(),
+      images: submissionImages.value,
       categoryId: categoryIds.value,
       topicStatus: 1,
       website: website.value,
@@ -394,6 +412,8 @@ async function save() {
     syncSavedSnapshot()
     forceNextNavigation()
     message.value = page.props.isEditing ? t('publish.topicUpdated') : t('publish.topicPublished')
+    // 待审（issue #975）：明确告知“已提交审核，通过后可见”，跨整页跳转保留提示。
+    if (pendingReview) queueFlashMessage(pendingReviewMessage({ checking }), 'info')
     window.location.href = `/p/post/${id}`
   } catch (err) {
     if (challengeFromError(err)) {
@@ -402,6 +422,7 @@ async function save() {
     } else {
       sensitiveWords.value = sensitiveWordsFromError(err)
       error.value = err instanceof Error ? err.message : t('publish.saveFailed')
+      showModerationBlocked(err)
     }
   } finally {
     submitting.value = false
@@ -420,10 +441,11 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
   message.value = ''
   clearSensitiveHighlight()
   try {
-    const id = await submitTopic({
+    const { id, pendingReview, checking } = await submitTopicResult({
       topicId: currentTopicId.value,
       title: title.value.trim(),
       content: content.value.trim(),
+      images: submissionImages.value,
       categoryId: categoryIds.value,
       topicStatus: 0,
       website: website.value,
@@ -435,6 +457,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
     currentTopicId.value = id
     syncSavedSnapshot()
     forceNextNavigation()
+    if (pendingReview) queueFlashMessage(pendingReviewMessage({ checking }), 'info')
     if (redirect) window.location.href = nextUrl || '/drafts'
     return true
   } catch (err) {
@@ -443,6 +466,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
     } else {
       sensitiveWords.value = sensitiveWordsFromError(err)
       error.value = err instanceof Error ? err.message : t('publish.draftSaveFailed')
+      showModerationBlocked(err)
     }
     return false
   } finally {
@@ -618,11 +642,25 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
             </div>
           </div>
 
+          <div v-if="galleryImages.length" class="flex flex-wrap gap-3" data-test="editable-gallery">
+            <div v-for="(url, index) in galleryImages" :key="url" class="relative h-24 w-24" data-test="gallery-image">
+              <img :src="url" alt="" class="h-full w-full rounded-lg object-cover" />
+              <button
+                type="button"
+                class="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white hover:bg-error"
+                :aria-label="t('publish.modal.deleteImage')"
+                :disabled="submitting || uploading"
+                @click="galleryImages.splice(index, 1)"
+              ><X class="h-4 w-4" /></button>
+            </div>
+          </div>
+
           <p v-if="validationError" class="gf-status-message gf-status-message-error">{{ validationError }}</p>
           <p v-if="error" class="gf-status-message gf-status-message-error">{{ error }}</p>
           <p v-if="message" class="gf-status-message gf-status-message-success">{{ message }}</p>
 
           <div v-if="captchaRequired" class="gf-card flex flex-wrap items-center gap-3 p-3">
+            <p v-if="showPublishCaptchaExplanation" class="w-full text-xs text-base-content/65">{{ t('auth.publishCaptchaExplanation') }}</p>
             <button
               type="button"
               class="relative h-10 w-28 shrink-0 overflow-hidden rounded-md border border-line"

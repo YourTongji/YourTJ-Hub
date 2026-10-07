@@ -40,24 +40,29 @@ const (
 )
 
 type Entity struct {
-	Id              uint64    `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_posts_topic_id,priority:2;" json:"id"`
-	TopicId         uint64    `gorm:"column:topic_id;not null;default:0;index:idx_posts_topic_created,priority:1;uniqueIndex:idx_posts_topic_no,priority:1;index:idx_posts_topic_id,priority:1;index:idx_posts_topic_process,priority:1;" json:"topicId"`
-	PostNo          uint64    `gorm:"column:post_no;not null;default:0;uniqueIndex:idx_posts_topic_no,priority:2;" json:"postNo"`
-	UserId          uint64    `gorm:"column:user_id;not null;default:0;index;" json:"userId"`
-	ReplyToPostId   uint64    `gorm:"column:reply_to_post_id;not null;default:0;" json:"replyToPostId"`
-	Content         string    `gorm:"column:content;type:text;" json:"content"`
-	RenderedHTML    string    `gorm:"column:rendered_html;type:text;" json:"renderedHTML"`
-	RenderedVersion uint32    `gorm:"column:rendered_version;not null;default:0;" json:"renderedVersion"`
-	ProcessStatus   int8      `gorm:"column:process_status;not null;default:0;index:idx_posts_topic_process,priority:2;" json:"processStatus"`
-	CreatedAt       time.Time `gorm:"column:created_at;autoCreateTime;<-:create;index:idx_posts_topic_created,priority:2;" json:"createdAt"`
-	UpdatedAt       time.Time `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`
+	FirstPublicAt        *time.Time `gorm:"index;index:idx_posts_topic_public,priority:2" json:"-"`
+	FirstPublicEstimated bool       `gorm:"not null;default:false" json:"-"`
+	// Revision pointers fence asynchronous outcomes; zero denotes legacy content.
+	LatestRevisionId    uint64    `gorm:"column:latest_revision_id;not null;default:0;index;" json:"-"`
+	PublishedRevisionId uint64    `gorm:"column:published_revision_id;not null;default:0;" json:"-"`
+	Id                  uint64    `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_posts_topic_public,priority:4;index:idx_posts_topic_id,priority:2;" json:"id"`
+	TopicId             uint64    `gorm:"column:topic_id;not null;default:0;index:idx_posts_topic_created,priority:1;uniqueIndex:idx_posts_topic_no,priority:1;index:idx_posts_topic_id,priority:1;index:idx_posts_topic_process,priority:1;index:idx_posts_topic_public,priority:1;" json:"topicId"`
+	PostNo              uint64    `gorm:"column:post_no;not null;default:0;uniqueIndex:idx_posts_topic_no,priority:2;" json:"postNo"`
+	UserId              uint64    `gorm:"column:user_id;not null;default:0;index;index:idx_posts_actor_topics,priority:1;index:idx_posts_topic_public,priority:3;" json:"userId"`
+	ReplyToPostId       uint64    `gorm:"column:reply_to_post_id;not null;default:0;" json:"replyToPostId"`
+	Content             string    `gorm:"column:content;type:text;" json:"content"`
+	RenderedHTML        string    `gorm:"column:rendered_html;type:text;" json:"renderedHTML"`
+	RenderedVersion     uint32    `gorm:"column:rendered_version;not null;default:0;" json:"renderedVersion"`
+	ProcessStatus       int8      `gorm:"column:process_status;not null;default:0;index:idx_posts_topic_process,priority:2;" json:"processStatus"`
+	CreatedAt           time.Time `gorm:"column:created_at;autoCreateTime;<-:create;index:idx_posts_topic_created,priority:2;" json:"createdAt"`
+	UpdatedAt           time.Time `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`
 	// 最后编辑者/时间（首楼与回复编辑均记录；未编辑过则为 0/NULL，
 	// 展示层据此渲染"最后编辑于 …"）
 	LastEditorId uint64     `gorm:"column:last_editor_id;not null;default:0;" json:"lastEditorId"`
 	LastEditedAt *time.Time `gorm:"column:last_edited_at;" json:"lastEditedAt"`
 	// wiki 页首楼的物化水印：本行内容对应 wiki 页面第几版（单一事件源架构）。
 	// synced < wiki_pages.published_revision_no 时表示快照过期，读取前需重物化。
-	WikiSyncedRevisionNo int            `gorm:"column:wiki_synced_revision_no;type:int;not null;default:0;" json:"wikiSyncedRevisionNo"`
+	WikiSyncedRevisionNo int `gorm:"column:wiki_synced_revision_no;type:int;not null;default:0;" json:"wikiSyncedRevisionNo"`
 	// IsAnonymous 楼层是否匿名发布（wiki 评论区，issue #524）。user_id 恒存真实作者，
 	// 匿名只是展示层掩码：公开 DTO 隐藏用户名/头像/主页链接，作者本人经 IsOwnPost
 	// 管理自己的楼层；治理侧（举报/版主）不泄露作者，仅 Admin 填理由可揭示并留审计。

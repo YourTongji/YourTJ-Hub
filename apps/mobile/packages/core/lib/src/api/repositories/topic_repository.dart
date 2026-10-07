@@ -1,6 +1,8 @@
 import '../../gen/search.dart';
 import '../../gen/topic.dart';
 import '../gf_api_client.dart';
+import '../feed_telemetry.dart';
+import 'post_repository.dart';
 
 import 'package:dio/dio.dart';
 
@@ -64,8 +66,35 @@ class TopicRepository {
     List<String>? images,
     String? captchaId,
     String? captchaCode,
-  }) {
-    return _client.post<int>(
+  }) async {
+    final WriteTopicResult result = await writeTopicResult(
+      topicId: topicId,
+      title: title,
+      content: content,
+      categoryIds: categoryIds,
+      topicStatus: topicStatus,
+      contentType: contentType,
+      images: images,
+      captchaId: captchaId,
+      captchaCode: captchaCode,
+    );
+    return result.id;
+  }
+
+  /// 创建/编辑话题并保留成功信封元数据:内容转入人工审核(敏感词或 AI 图文
+  /// 审查,issue #975)时 [WriteTopicResult.pendingReview] 为 true。
+  Future<WriteTopicResult> writeTopicResult({
+    required int topicId,
+    required String title,
+    required String content,
+    required List<int> categoryIds,
+    required int topicStatus,
+    int contentType = 3,
+    List<String>? images,
+    String? captchaId,
+    String? captchaCode,
+  }) async {
+    final response = await _client.postEnvelope<int>(
       '/api/forum/topics/write',
       body: {
         'topicId': topicId,
@@ -80,6 +109,11 @@ class TopicRepository {
           'captchaCode': captchaCode,
       },
       parser: (json) => json is int ? json : (json as num?)?.toInt() ?? topicId,
+    );
+    return WriteTopicResult(
+      id: response.result ?? topicId,
+      pendingReview: isPendingReviewCode(response.messageCode),
+      checking: response.messageCode == checkingMessageCode,
     );
   }
 
@@ -110,10 +144,20 @@ class TopicRepository {
   }
 
   /// action: 1 点赞, 2 取消点赞。
-  Future<bool> likeTopic({required int topicId, required int action}) async {
+  Future<bool> likeTopic({
+    required int topicId,
+    required int action,
+    TopicPayload? feedTopic,
+  }) async {
     await _client.post<Object?>(
       '/api/forum/topics/like',
       body: {'topicId': topicId, 'action': action},
+      headers: feedTopic == null
+          ? null
+          : FeedTelemetry.instance.headers(
+              '/api/forum/topics/like',
+              topic: feedTopic,
+            ),
     );
     return true;
   }
@@ -122,10 +166,17 @@ class TopicRepository {
   Future<bool> bookmarkTopic({
     required int topicId,
     required int action,
+    TopicPayload? feedTopic,
   }) async {
     await _client.post<Object?>(
       '/api/forum/topics/bookmark',
       body: {'topicId': topicId, 'action': action},
+      headers: feedTopic == null
+          ? null
+          : FeedTelemetry.instance.headers(
+              '/api/forum/topics/bookmark',
+              topic: feedTopic,
+            ),
     );
     return true;
   }

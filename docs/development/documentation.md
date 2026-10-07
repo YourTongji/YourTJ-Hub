@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-06
+> Last verified: 2026-10-03
 
 ## Docs are code's neighbors
 
@@ -23,6 +23,19 @@
 - Planned capabilities are marked with implementation status words (below), not "phase N".
 - Historical narrative (retired schemas, old processes, drafts) does not belong in the current doc
   tree; git history owns archival.
+
+## Requirement and delivery records
+
+The [Issue/PR standard](pull-requests.md) owns the reusable process for problem evidence, external
+research, target users, user stories and acceptance criteria. Task-specific requirements and verification
+results belong in the relevant Issue/PR; they do not replace the maintained product, architecture or
+operations specification. A PR retains its engineering delivery sections alongside product context.
+Development guides may describe reusable readiness and review criteria; the current-model rule excludes
+one-off delivery plans and execution diaries, not the process itself.
+
+Keep raw research artifacts in untracked `research/`. Preserve concise conclusions and accessible source
+links in Issue/PR descriptions; when external evidence materially informs a durable choice, cite it in
+the owning MADR or stable implementation location. Mark assumptions and access limitations explicitly.
 
 ## Status words (mandatory)
 

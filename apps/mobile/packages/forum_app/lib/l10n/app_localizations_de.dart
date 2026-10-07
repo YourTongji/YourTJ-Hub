@@ -280,6 +280,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get authCaptchaRequired => 'Bitte Captcha eingeben';
 
   @override
+  String get publishCaptchaExplanation =>
+      'Das Forum kann bei vielen Beiträgen und Antworten von neuen Konten ein Captcha verlangen. Bei nachlassender Aktivität oder sobald das Konto das festgelegte Alter erreicht, entfällt diese Anforderung.';
+
+  @override
   String get authOidcLogin => 'Mit YourTJ anmelden';
 
   @override
@@ -1031,6 +1035,9 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get sortForYou => 'Für dich';
+
+  @override
   String get sortLatest => 'Neueste';
 
   @override
@@ -1283,6 +1290,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get courseDetailReviews => 'Bewertungen';
 
   @override
+  String get courseShareThisReview => 'Diese Bewertung';
+
+  @override
   String get courseDetailOfferings => 'Lehrveranstaltungen';
 
   @override
@@ -1362,14 +1372,58 @@ class AppLocalizationsDe extends AppLocalizations {
   String get richContentCodeCopied => 'Code kopiert';
 
   @override
-  String get settingsReadingTextSize => 'Lesegröße';
+  String get textSizeTitle => 'Textgröße';
 
   @override
-  String get settingsReadingTextSizeDesc =>
-      'Gilt für Beiträge, Wiki und Kursbewertungen. Die Systemschriftgröße bleibt wirksam.';
+  String get textSizeReset => 'Zurücksetzen';
 
   @override
-  String get settingsReadingTextSizeReset => 'Auf 100 % zurücksetzen';
+  String get textSizeDefault => 'Standard';
+
+  @override
+  String textSizePercent(int percent) {
+    return '$percent %';
+  }
+
+  @override
+  String textSizeSummary(String appSize, String readingSize) {
+    return 'App $appSize · Lesen $readingSize';
+  }
+
+  @override
+  String get textSizeGlobal => 'App-Text';
+
+  @override
+  String get textSizeGlobalDesc =>
+      'Alle Texte der App, einschließlich Fließtext';
+
+  @override
+  String get textSizeReading => 'Lesetext';
+
+  @override
+  String get textSizeReadingDesc =>
+      'Passt darauf aufbauend nur den Fließtext in Beiträgen, Wiki-Seiten und Kursbewertungen an';
+
+  @override
+  String get textSizePreview => 'Vorschau';
+
+  @override
+  String get textSizePreviewTime => 'vor 10 Min.';
+
+  @override
+  String get textSizePreviewTitle =>
+      'Bewege einen Regler unten, um die Änderung hier zu sehen';
+
+  @override
+  String get textSizePreviewExcerpt =>
+      'App-Text ändert alle Texte der App. Lesetext passt darauf aufbauend nur den Fließtext an.';
+
+  @override
+  String get textSizePreviewCategory => 'Anleitung';
+
+  @override
+  String get textSizePreviewBody =>
+      '### Vorschau des Fließtexts\nLesetext ändert nur diesen Beitragstext. Alles andere folgt dem **App-Text**.\n\n- Die Standardgröße ist an die Textgröße deines Systems und deinen Bildschirm angepasst';
 
   @override
   String get entryCourses => 'Kurse';
@@ -2089,6 +2143,20 @@ class AppLocalizationsDe extends AppLocalizations {
       'Anonym veröffentlichen (Identität der Öffentlichkeit verborgen)';
 
   @override
+  String get courseCopyAnonymousTitle => 'Anonym posten';
+
+  @override
+  String get courseCopyAnonymousHint => 'Deine Identität bleibt verborgen';
+
+  @override
+  String courseCopyPublishAs(String name) {
+    return 'Posten als $name';
+  }
+
+  @override
+  String get courseCopyPublishPublic => 'Öffentliche Identität';
+
+  @override
   String get courseCopySubmitSuccess => 'Gesendet';
 
   @override
@@ -2225,6 +2293,89 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get updateRetry => 'Erneut versuchen';
+
+  @override
+  String get updateCancelDownload => 'Download abbrechen';
+
+  @override
+  String get updateIncomplete =>
+      'Das Update wurde nicht abgeschlossen. Bitte Verbindung prüfen und erneut versuchen.';
+
+  @override
+  String get updateOpenAppStore => 'Im App Store ansehen';
+
+  @override
+  String get updateOpenTestFlight => 'TestFlight im App Store ansehen';
+
+  @override
+  String get updateTestFlightInstructions =>
+      'Dieser Link öffnet die App-Store-Seite von TestFlight. Wenn TestFlight installiert ist, öffne die App und prüfe das YourTJ-Beta-Update.';
+
+  @override
+  String get updateOpenPermissionSettings =>
+      'Einstellungen zur Installationsberechtigung öffnen';
+
+  @override
+  String get updateChannelUnknown =>
+      'Der Update-Kanal konnte nicht bestätigt werden. Der Versionsverlauf ist weiterhin unter Info verfügbar.';
+
+  @override
+  String get releaseNotes => 'Neu in dieser Version';
+
+  @override
+  String get releaseNotesHistory => 'Versionsverlauf';
+
+  @override
+  String get releaseNotesEmpty =>
+      'Derzeit sind keine Versionshinweise verfügbar.';
+
+  @override
+  String get releaseNotesEarlier =>
+      'Enthält weitere Verbesserungen aus früheren Versionen.';
+
+  @override
+  String get releaseNotesIncomplete =>
+      'Der frühere Versionsverlauf ist unvollständig. Dieser Hinweis zeigt nur Änderungen der Zielversion.';
+
+  @override
+  String get releaseHistoryIncomplete =>
+      'Der verfügbare Verlauf dieses Release-Kanals ist unvollständig.';
+
+  @override
+  String get releaseNotesMore => 'Alle Änderungen anzeigen';
+
+  @override
+  String get releaseNotesFewer => 'Weniger anzeigen';
+
+  @override
+  String releaseNotesShowRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count weitere Updates anzeigen',
+      one: '1 weiteres Update anzeigen',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get releaseNotesRequired => 'Wichtig';
+
+  @override
+  String get releaseNotesHistoryError =>
+      'Der Versionsverlauf ist vorübergehend nicht verfügbar.';
+
+  @override
+  String get releaseNotesKindFeature => 'Neu';
+
+  @override
+  String get releaseNotesKindImprovement => 'Verbessert';
+
+  @override
+  String get releaseNotesKindFix => 'Behoben';
+
+  @override
+  String get releaseNotesKindSecurity => 'Sicherheit';
 
   @override
   String get settingsPushConsent =>
@@ -3292,4 +3443,84 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get shareImageFailed =>
       'Das Bild konnte nicht geteilt werden. Bitte später erneut versuchen.';
+
+  @override
+  String get moderationBlockedTitle => 'Nicht veröffentlicht';
+
+  @override
+  String get moderationBlockedPolicyHint =>
+      'Prüfe, ob Bilder und Text den Community-Richtlinien entsprechen. Entferne oder ersetze möglicherweise Unpassendes und veröffentliche erneut. Hältst du das für einen Fehler, wende dich an die Administration.';
+
+  @override
+  String get moderationBlockedExternalHint =>
+      'Diese Website zeigt keine externen Bilder an. Speichere das Bild, lade es über den Editor hoch und veröffentliche erneut.';
+
+  @override
+  String get moderationBlockedDraftKept =>
+      'Text und Bilder sind weiterhin im Editor.';
+
+  @override
+  String get moderationBlockedBack => 'Beitrag bearbeiten';
+
+  @override
+  String get notificationReviewApproved =>
+      'Dein Beitrag wurde freigegeben und ist jetzt für alle sichtbar';
+
+  @override
+  String get notificationReviewRejected =>
+      'Dein Beitrag wurde nicht freigegeben und wird nicht öffentlich angezeigt';
+
+  @override
+  String get topicPendingReviewBanner =>
+      'Dieser Beitrag wird geprüft. Bis zur Freigabe sehen ihn nur du und die Prüfenden.';
+
+  @override
+  String get topicPendingReviewBannerModerator =>
+      'Dieser Beitrag wartet auf Prüfung. Andere Lesende sehen ihn noch nicht.';
+
+  @override
+  String get topicPendingReviewReply =>
+      'In Prüfung · Bis zur Freigabe sehen diese Antwort nur du und die Prüfenden.';
+
+  @override
+  String get contentReviewBlocked => 'Nicht freigegeben';
+
+  @override
+  String get contentReviewRetry => 'Bearbeiten und erneut senden';
+
+  @override
+  String get contentReviewLive => 'Die bisherige Version bleibt öffentlich.';
+
+  @override
+  String get contentReviewView => 'Inhalt ansehen';
+
+  @override
+  String get contentReviewPending => 'In Prüfung';
+
+  @override
+  String get notificationReviewPending =>
+      'Dein Beitrag wartet auf manuelle Prüfung';
+
+  @override
+  String get notificationReviewPendingDetail =>
+      'Wir prüfen ihn bald und informieren dich über das Ergebnis. Bis dahin kannst du ihn ansehen oder bearbeiten.';
+
+  @override
+  String get notificationReviewRejectedDetail =>
+      'Diese Einreichung wird nicht öffentlich angezeigt. Bitte prüfe, bearbeite und sende sie über die Inhaltsverwaltung erneut. Bei Fragen wende dich an die Administration.';
+
+  @override
+  String get feedReasonFollowing => 'Von einer Person, der du folgst';
+
+  @override
+  String get feedReasonCategory => 'Eine Kategorie, an der du teilnimmst';
+
+  @override
+  String get feedReasonNewReply => 'Neue Antworten';
+
+  @override
+  String get feedReasonRecent => 'Kürzlich veröffentlicht';
+
+  @override
+  String get sortDaily => 'Top-Themen heute';
 }

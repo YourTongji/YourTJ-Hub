@@ -1,5 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#047857" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-  <path d="M8 9h8" />
-  <path d="M8 13h5" />
+  <!-- 光学尺寸归一化：图形按 0.6691 缩到与其它徽章一致的光学大小（墨迹半径 10/24），
+       描边宽度按 1/0.6691 补偿，使渲染粗细不随缩放变化。 -->
+  <g transform="translate(12 12) scale(0.6691) translate(-12 -12)" stroke-width="2.9891">
+    <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+    <path d="M8 9h8" />
+    <path d="M8 13h5" />
+  </g>
 </svg>

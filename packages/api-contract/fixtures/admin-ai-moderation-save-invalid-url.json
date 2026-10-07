@@ -1,0 +1,8 @@
+{
+  "result": null,
+  "code": 1,
+  "messageCode": "admin.aiModeration.saveFailed",
+  "params": {
+    "error": "请填写以 http:// 或 https:// 开头的 Jev 地址"
+  }
+}

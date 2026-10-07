@@ -98,7 +98,7 @@ func WikiDetail(c *gin.Context) {
 		renderNotFound(c)
 		return
 	}
-	if !canViewTopic(&topic, component.LoginUserId(c)) {
+	if !CanViewTopicSimple(&topic, component.LoginUserId(c)) {
 		renderNotFound(c)
 		return
 	}
@@ -283,10 +283,10 @@ type WikiSearchJSONReq struct {
 
 // WikiSearchJSONResp wiki 站内搜索响应。
 type WikiSearchJSONResp struct {
-	Query             string                        `json:"query"`
-	Total             int64                         `json:"total"`
+	Query             string                         `json:"query"`
+	Total             int64                          `json:"total"`
 	Items             []wikiservice.PageSearchResult `json:"items"`
-	SearchUnavailable bool                          `json:"searchUnavailable"`
+	SearchUnavailable bool                           `json:"searchUnavailable"`
 }
 
 // WikiSearchJSON 提供 wiki 站内局内搜索 JSON API（复用段落级 Meilisearch 索引，

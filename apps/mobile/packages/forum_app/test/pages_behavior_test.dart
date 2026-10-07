@@ -1271,6 +1271,22 @@ class WindowTopicRepository extends TopicRepository {
     int? afterPostNo,
     int? limit,
   }) async {
+    if (beforePostNo != null && beforePostNo >= 0x7fffffffffffffff) {
+      beforeCursors.add(beforePostNo);
+      return PostWindowPayload(
+        posts: <PostPayload>[
+          makePostPayload(9002, 2, '独立回复'),
+          makePostPayload(9003, 3, '嵌套回复'),
+        ],
+        replyTargets: const <ReplyTargetPayload>[],
+        beforePostNo: 2,
+        afterPostNo: 3,
+        hasBefore: false,
+        hasAfter: false,
+        total: 5,
+        maxPostNo: 5,
+      );
+    }
     if (beforePostNo != null) {
       beforeCursors.add(beforePostNo);
       return PostWindowPayload(
@@ -1985,6 +2001,45 @@ void main() {
       },
     );
   }
+
+  testWidgets('pending topic and reply explain who can see them (issue #975)', (
+    tester,
+  ) async {
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: MemTokenStorage(),
+      baseUrl: 'http://fake.local',
+    );
+    final Map<String, dynamic> payload = topicDetailPayloadJson();
+    final Map<String, dynamic> props = payload['props'] as Map<String, dynamic>;
+    (props['topic'] as Map<String, dynamic>)['processStatus'] = 2;
+    (props['permissions'] as Map<String, dynamic>)
+      ..['isOwnTopic'] = true
+      ..['canPost'] = false;
+    final List<dynamic> posts =
+        (props['postStream'] as Map<String, dynamic>)['posts'] as List<dynamic>;
+    // 与服务端一致：作者本人的待审楼层带正文，但 isHidden 仍为 true。
+    for (final post in posts.take(2)) {
+      (post as Map<String, dynamic>)
+        ..['processStatus'] = 2
+        ..['isHidden'] = true
+        ..['isOwnPost'] = true;
+    }
+    final container = await makeContainer(
+      pageRepo: RedesignPageRepository(client, topicPayload: payload),
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('topic-pending-review')), findsOneWidget);
+    expect(find.text('这篇内容正在审核，目前只有你和审核员能看到。通过后所有人可见。'), findsOneWidget);
+    expect(find.byKey(const Key('post-pending-review-9002')), findsOneWidget);
+    expect(find.byKey(const Key('post-pending-review-9003')), findsNothing);
+    expect(find.textContaining('独立回复'), findsWidgets);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
 
   testWidgets('mention panel fits above the keyboard on a short phone', (
     tester,
@@ -3451,7 +3506,7 @@ void main() {
       },
     );
 
-    testWidgets('倒序胶囊本地翻转楼层顺序且不重新请求', (tester) async {
+    testWidgets('倒序胶囊读取尾窗并按楼层倒序', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -3465,7 +3520,11 @@ void main() {
         client,
         topicPayload: topicDetailPayloadJson(),
       );
-      final ProviderContainer container = await makeContainer(pageRepo: repo);
+      final WindowTopicRepository windowRepo = WindowTopicRepository(client);
+      final ProviderContainer container = await makeContainer(
+        pageRepo: repo,
+        topicRepo: windowRepo,
+      );
       await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
       await tester.pumpAndSettle();
 
@@ -3479,12 +3538,13 @@ void main() {
       await tester.tap(find.text('倒序'));
       await tester.pumpAndSettle();
 
-      // 倒序:三楼翻到二楼之上,且没有发起新的 page 请求。
+      // 倒序:三楼位于二楼之上,并请求了尾窗。
       expect(
         tester.getTopLeft(find.text('嵌套回复')).dy,
         lessThan(tester.getTopLeft(find.text('独立回复')).dy),
       );
       expect(repo.paths.length, fetchesBefore);
+      expect(windowRepo.beforeCursors.last, 0x7fffffffffffffff);
 
       await tester.tap(find.text('正序'));
       await tester.pumpAndSettle();

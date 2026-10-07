@@ -324,4 +324,49 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('GfNetworkImage keeps one provider across unrelated rebuilds', (
+    tester,
+  ) async {
+    var factories = 0;
+    var url = 'https://example.test/a.gif';
+    late StateSetter rebuild;
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: StatefulBuilder(
+          builder: (context, setState) {
+            rebuild = setState;
+            return GfMediaScope(
+              identity: 'scope',
+              factory:
+                  (
+                    url, {
+                    int? width,
+                    int? height,
+                    Set<String>? allowedOrigins,
+                    ResizeImagePolicy policy = ResizeImagePolicy.exact,
+                  }) {
+                    factories++;
+                    return MemoryImage(_gif);
+                  },
+              child: GfNetworkImage(url, width: 40, height: 40),
+            );
+          },
+        ),
+      ),
+    );
+    expect(factories, 1);
+
+    // A setState elsewhere (reaction counts, list recycling) must not recreate
+    // the provider: a new GfBytesImage instance would re-read and re-decode.
+    rebuild(() {});
+    await tester.pump();
+    expect(factories, 1);
+
+    // Real input changes still produce a fresh provider.
+    rebuild(() => url = 'https://example.test/b.gif');
+    await tester.pump();
+    expect(factories, 2);
+  });
 }

@@ -15,6 +15,7 @@ import 'app_locale.dart';
 import 'site_theme.dart';
 import 'theme_mode.dart';
 import 'push/push_service.dart';
+import 'reading_preferences.dart';
 import 'startup_experience.dart';
 import 'updates/update_host.dart';
 import 'providers.dart';
@@ -65,11 +66,13 @@ class GfApp extends ConsumerWidget {
       themeAnimationDuration: GfMotion.duration(context, GfMotion.layout),
       themeAnimationCurve: GfMotion.layoutCurve,
       routerConfig: appRouter,
-      builder: (context, child) => AppSystemUiOverlay(
-        child: StorageGate(
-          child: _AppBusinessHosts(
-            locale: locale,
-            child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => AppTextScaleScope(
+        child: AppSystemUiOverlay(
+          child: StorageGate(
+            child: _AppBusinessHosts(
+              locale: locale,
+              child: child ?? const SizedBox.shrink(),
+            ),
           ),
         ),
       ),
@@ -127,6 +130,7 @@ class _AppBusinessHosts extends ConsumerWidget {
       repository: mediaRepository,
       scopeKey: mediaScope,
       apiOrigin: origin,
+      readAccessToken: ref.read(tokenStorageProvider).read,
       imageErrorBuilder: mediaImageFailure,
       child: StartupExperience(
         child: MobileUpdateHost(

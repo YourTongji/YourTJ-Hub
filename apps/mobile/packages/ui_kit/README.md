@@ -24,6 +24,8 @@ YourTJ 移动端设计系统(Flutter):设计 token、`ThemeData` 与 Gf* 组件�
 描边与图片各占自己的区域，使小尺寸私信头像保留图片边缘，加载占位与失败占位沿用相同边界。
 
 `Current`: `GfBadgeMedallion` 统一徽章的圆形外圈、高光和内盘；暗色主题保留浅色内盘以呈现服务端固定颜色图案。
+徽章牌面尺寸由 `GfBadgeMedallion.defaultSize`、`GfUserCard.badgeMedallionSize` 和
+`GfAchievementCard.medallionSize` 提供，调用方据此匹配牌面艺术尺寸。
 `GfUserCard` 的 `coloredBadges` 使用纯图标入口，保留名称语义、提示和详情回调；
 `GfAchievementCard` 使用同一徽章图案、居中名称与说明，随字号增高，点击详情由应用层处理。
 

@@ -17,16 +17,21 @@ func TestMessageReportMembershipSnapshotAndRetry(t *testing.T) {
 	}
 	t.Cleanup(func() { conn.Where("target_type = ?", reports.TargetChatMessage).Delete(&reports.Entity{}) })
 	for _, reporter := range []uint64{0, markReadTestSender, markReadTestNonUser} {
-		if err := ReportMessage(reporter, markReadTestMsgID, "abuse", "note"); err == nil {
+		if _, _, err := ReportMessage(reporter, markReadTestMsgID, "abuse", "note"); err == nil {
 			t.Fatalf("reporter %d could disclose a message", reporter)
 		}
 	}
-	if err := ReportMessage(markReadTestMember, markReadTestMsgID, "中文说明", ""); err == nil {
+	if _, _, err := ReportMessage(markReadTestMember, markReadTestMsgID, "中文说明", ""); err == nil {
 		t.Fatal("invalid reason accepted")
 	}
-	for range 2 {
-		if err := ReportMessage(markReadTestMember, markReadTestMsgID, "abuse", strings.Repeat("字", 400)); err != nil {
+	for attempt := range 2 {
+		report, created, err := ReportMessage(markReadTestMember, markReadTestMsgID, "abuse", strings.Repeat("字", 400))
+		if err != nil {
 			t.Fatal(err)
+		}
+		// 仅首次创建返回 created=true（举报通知只为新举报发送，issue #1049）。
+		if created != (attempt == 0) || report.Id == 0 {
+			t.Fatalf("attempt %d: created=%v report=%d", attempt, created, report.Id)
 		}
 	}
 	var rows []reports.Entity
@@ -54,7 +59,7 @@ func TestForwardReportUsesReadableSnapshotAndForwarder(t *testing.T) {
 	t.Cleanup(func() { conn.Where("target_type = ?", reports.TargetChatMessage).Delete(&reports.Entity{}) })
 	raw, _ := (&messages.ForwardedBundle{Version: 1, Messages: []messages.ForwardedEntry{{SenderName: "Original", Content: "Selected body", MsgType: 1}}}).Encode()
 	conn.Model(&messages.Entity{}).Where("id = ?", markReadTestMsgID).Updates(map[string]any{"content": raw, "msg_type": messages.ForwardType})
-	if err := ReportMessage(markReadTestMember, markReadTestMsgID, "abuse", ""); err != nil {
+	if _, _, err := ReportMessage(markReadTestMember, markReadTestMsgID, "abuse", ""); err != nil {
 		t.Fatal(err)
 	}
 	var got reports.Entity

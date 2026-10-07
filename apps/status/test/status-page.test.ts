@@ -44,7 +44,7 @@ it('keeps missing or stale sources out of the live state', async () => {
   const wrapper = await open()
   expect(wrapper.get('#status-signal').text()).toBe('暂无法确认状态')
   expect(wrapper.get('.metric-active strong').text()).toBe('—')
-  expect(wrapper.text()).toContain('配置数据源后将在此显示实时数据')
+  expect(wrapper.text()).toContain('配置数据源后将在此显示采集数据')
   expect(wrapper.text()).toContain('数据已过期')
 })
 it('does not keep a healthy headline after a failed refresh', async () => {
@@ -56,7 +56,7 @@ it('does not keep a healthy headline after a failed refresh', async () => {
   expect(wrapper.get('[role="alert"]').text()).toContain('刷新失败')
 })
 it('marks an old probe sample as missing signal without claiming host downtime', async () => {
-  const data = connected(); data.server.data!.current!.observedAt = '2026-09-14T11:55:00Z'
+  const data = connected(); data.server.data!.current!.observedAt = '2026-09-14T11:39:00Z'
   vi.mocked(getStatus).mockResolvedValue(data)
   const wrapper = await open()
   expect(wrapper.get('#status-signal').text()).toBe('服务器探针暂无新数据')
@@ -102,6 +102,9 @@ it('shows resource chart tooltips to keyboard users', async () => {
 })
 
 it('keeps resource history after current readings expire during an API outage, then expires it independently', async () => {
+  const data = connected()
+  data.server.fetchedAt = new Date(Date.now() - 45 * 60_000).toISOString()
+  vi.mocked(getStatus).mockResolvedValue(data)
   const wrapper = await open()
   vi.mocked(getStatus).mockRejectedValue(new Error('offline'))
   await vi.advanceTimersByTimeAsync(16 * 60_000)
@@ -253,6 +256,8 @@ it('polls once a minute and ages analytics independently of live health', async 
   await vi.advanceTimersByTimeAsync(6 * 60_000)
   expect(wrapper.get('.status-traffic .source-badge').classes()).not.toContain('connected')
   expect(wrapper.get('.status-devices .source-badge').classes()).not.toContain('connected')
+  expect(wrapper.get('#status-signal').text()).toBe('服务器探针正常')
+  await vi.advanceTimersByTimeAsync(14 * 60_000)
   expect(wrapper.get('#status-signal').text()).toBe('暂无法确认状态')
   vi.mocked(getStatus).mockRejectedValue(new Error('offline'))
   await vi.advanceTimersByTimeAsync(120 * 60_000)
