@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { authorURL } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
 import { BookOpen, Eye, HelpCircle, MessageSquare, Pin, Sparkles } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
@@ -39,6 +40,7 @@ function feedReason(reason?: string) { switch(reason) {case 'following': return 
         <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span class="inline-flex max-w-full min-w-0 items-center gap-1.5 text-sm font-semibold leading-5 text-base-content">
             <span class="min-w-0 truncate">{{ userDisplayName(topic.author.id, topic.author.username, topic.author.nickname) }}</span>
+            <span v-if="topic.author.publicUid" class="shrink-0 text-xs font-normal text-base-content/55">{{ t('anonymous.identity') }}</span>
             <span
               v-if="!topic.title && !topic.description && topic.unseen"
               class="unread-meta-dot inline-block h-2 w-2 shrink-0 rounded-full bg-primary"

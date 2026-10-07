@@ -1,6 +1,7 @@
 package httpnotifyservice
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -11,6 +12,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 )
 
@@ -192,17 +195,23 @@ func TestDeliveryDeduperClaimsOncePerTTL(t *testing.T) {
 	}
 }
 
-// 飞书返回 HTTP 200 + code!=0 时必须计入失败计数，且 lastError 不含 webhook 地址。
-func TestFeishuBusinessFailureCountsTowardCircuitBreaker(t *testing.T) {
+// 飞书业务失败要排队重试；成功后保留审批去重名额，且任务不含 webhook 地址。
+func TestFeishuFailureQueuesRetryAndSuccessfulRetryDedupes(t *testing.T) {
 	old := preferences.GetString("app.signingKey", "")
 	preferences.Set("app.signingKey", "httpnotify-feishu-test-key-0123456789")
 	t.Cleanup(func() { preferences.Set("app.signingKey", old) })
 
-	received := make(chan []byte, 1)
+	received := make(chan []byte, 8)
+	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		received <- body
-		_, _ = w.Write([]byte(`{"code":19021,"msg":"sign match fail"}`))
+		call := calls.Add(1)
+		if call == 1 || call >= 3 {
+			_, _ = w.Write([]byte(`{"code":19021,"msg":"sign match fail"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"code":0,"msg":"ok"}`))
 	}))
 	t.Cleanup(server.Close)
 	hookURL := server.URL + "/open-apis/bot/v2/hook/secret-hook-token"
@@ -210,9 +219,13 @@ func TestFeishuBusinessFailureCountsTowardCircuitBreaker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := dbconnect.Connect().AutoMigrate(&pageConfig.Entity{}); err != nil {
+	if err := dbconnect.Connect().AutoMigrate(&pageConfig.Entity{}, &taskQueue.Entity{}); err != nil {
 		t.Fatal(err)
 	}
+	dbconnect.Connect().Unscoped().Where("type LIKE ?", "http-notify.delivery-retry.%").Delete(&taskQueue.Entity{})
+	t.Cleanup(func() {
+		dbconnect.Connect().Unscoped().Where("type LIKE ?", "http-notify.delivery-retry.%").Delete(&taskQueue.Entity{})
+	})
 	entity := pageConfig.GetByPageType(pageConfig.HttpNotify)
 	entity.PageType = pageConfig.HttpNotify
 	entity.Config = jsonopt.Encode(pageConfig.HttpNotifyStorageConfig{Enabled: true, Endpoints: []pageConfig.HttpNotifyStorageEndpoint{{
@@ -228,7 +241,7 @@ func TestFeishuBusinessFailureCountsTowardCircuitBreaker(t *testing.T) {
 	})
 
 	approval := testApproval()
-	approval.Approval.ID = "report:feishu-failure-test"
+	approval.Approval.ID = "report:feishu-failure-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	Publish(Message{Alternatives: []Alternative{{Event: EventReportPostCreated, Data: approval}}, Approval: approval, DedupeKey: approval.Approval.ID})
 	select {
 	case body := <-received:
@@ -241,13 +254,93 @@ func TestFeishuBusinessFailureCountsTowardCircuitBreaker(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	for {
 		stored := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{})
-		if len(stored.Endpoints) == 1 && stored.Endpoints[0].FailureCount == 1 {
+		tasks := taskQueue.GetPendingTasksByType(TaskTypeDeliveryRetry, 10)
+		if len(stored.Endpoints) == 1 && stored.Endpoints[0].FailureCount == 1 && len(tasks) == 1 {
 			ep := stored.Endpoints[0]
 			if strings.Contains(ep.LastError, "secret-hook-token") || !strings.Contains(ep.LastError, "19021") {
 				t.Fatalf("lastError = %q", ep.LastError)
 			}
 			if ep.URL != "" || ep.URLEncrypted != sealedURL {
 				t.Fatalf("delivery state write-back must keep the sealed url: %+v", ep)
+			}
+			if strings.Contains(tasks[0].TaskJson, hookURL) || strings.Contains(tasks[0].TaskJson, "secret-hook-token") {
+				t.Fatal("retry task persisted the webhook URL")
+			}
+			storage := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{})
+			storage.Endpoints[0].Events = []string{EventReportTopicCreated}
+			entity.Config = jsonopt.Encode(storage)
+			pageConfig.CreateOrSave(&entity)
+			hotdataserve.ClearHttpNotifyConfigCache()
+			if err := RunDeliveryRetryTask(context.Background(), tasks[0]); err != nil {
+				t.Fatalf("retry after unsubscribe: %v", err)
+			}
+			if calls.Load() != 1 {
+				t.Fatalf("unsubscribed retry reached endpoint; calls = %d", calls.Load())
+			}
+			storage.Endpoints[0].Events = []string{EventReportPostCreated}
+			entity.Config = jsonopt.Encode(storage)
+			pageConfig.CreateOrSave(&entity)
+			hotdataserve.ClearHttpNotifyConfigCache()
+			if err := RunDeliveryRetryTask(context.Background(), tasks[0]); err != nil {
+				t.Fatalf("retry delivery: %v", err)
+			}
+			select {
+			case <-received:
+			case <-time.After(time.Second):
+				t.Fatal("retry did not reach Feishu endpoint")
+			}
+			stored = pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{})
+			if stored.Endpoints[0].FailureCount != 0 {
+				t.Fatalf("successful retry left failure count at %d", stored.Endpoints[0].FailureCount)
+			}
+			Publish(Message{Alternatives: []Alternative{{Event: EventReportPostCreated, Data: approval}}, Approval: approval, DedupeKey: approval.Approval.ID})
+			select {
+			case <-received:
+				t.Fatal("successful retry did not preserve the approval dedupe claim")
+			case <-time.After(100 * time.Millisecond):
+			}
+			if calls.Load() != 2 {
+				t.Fatalf("endpoint calls = %d, want 2", calls.Load())
+			}
+			if err := dbconnect.Connect().Model(&taskQueue.Entity{}).Where("id = ?", tasks[0].Id).Update("status", taskQueue.StatusSuccess).Error; err != nil {
+				t.Fatal(err)
+			}
+
+			secondApproval := testApproval()
+			secondApproval.Approval.ID += "-breaker"
+			Publish(Message{Alternatives: []Alternative{{Event: EventReportPostCreated, Data: secondApproval}}, Approval: secondApproval, DedupeKey: secondApproval.Approval.ID})
+			select {
+			case <-received:
+			case <-time.After(time.Second):
+				t.Fatal("second approval was not delivered")
+			}
+			deadline = time.Now().Add(time.Second)
+			for len(taskQueue.GetPendingTasksByType(TaskTypeDeliveryRetry, 10)) == 0 {
+				if time.Now().After(deadline) {
+					t.Fatal("second failed delivery was not queued")
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			tasks = taskQueue.GetPendingTasksByType(TaskTypeDeliveryRetry, 10)
+			for range 2 {
+				if err := RunDeliveryRetryTask(context.Background(), tasks[0]); err == nil {
+					t.Fatal("failed retry unexpectedly succeeded")
+				}
+				select {
+				case <-received:
+				case <-time.After(time.Second):
+					t.Fatal("failed retry did not reach Feishu endpoint")
+				}
+			}
+			stored = pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{})
+			if stored.Endpoints[0].FailureCount != disableAfterFailures || stored.Endpoints[0].Enabled || !stored.Endpoints[0].AbnormalTerminated {
+				t.Fatalf("failure breaker state after retries = %+v", stored.Endpoints[0])
+			}
+			if err := RunDeliveryRetryTask(context.Background(), tasks[0]); err != nil {
+				t.Fatalf("disabled endpoint should stop retrying: %v", err)
+			}
+			if calls.Load() != 5 {
+				t.Fatalf("endpoint calls after breaker = %d, want 5", calls.Load())
 			}
 			return
 		}

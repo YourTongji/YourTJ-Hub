@@ -26,6 +26,7 @@ _$PublishTopicPayloadImpl _$$PublishTopicPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$PublishTopicPayloadImpl(
   agentRepliesDisabled: json['agentRepliesDisabled'] as bool? ?? false,
+  identity: json['identity'] as String? ?? "member",
   title: json['title'] as String,
   content: json['content'] as String,
   images:
@@ -44,6 +45,7 @@ Map<String, dynamic> _$$PublishTopicPayloadImplToJson(
   _$PublishTopicPayloadImpl instance,
 ) => <String, dynamic>{
   'agentRepliesDisabled': instance.agentRepliesDisabled,
+  'identity': instance.identity,
   'title': instance.title,
   'content': instance.content,
   'images': instance.images,

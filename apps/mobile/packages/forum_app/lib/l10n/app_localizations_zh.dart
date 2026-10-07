@@ -1018,9 +1018,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get sortForYou => '为你推荐';
-
-  @override
   String get sortLatest => '最新';
 
   @override
@@ -3320,6 +3317,73 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get notificationReviewRejectedDetail =>
       '它不会公开显示，请前往内容管理自查修改后重新提交。如有疑问，请联系管理员。';
+
+  @override
+  String get anonymousLockDate => '可改名时间：';
+
+  @override
+  String get anonymousRemaining => '今日剩余批次：';
+
+  @override
+  String get anonymousIdentity => '匿名身份';
+
+  @override
+  String get anonymousBoundary =>
+      '每个账号仅有一个匿名身份，花名一年内不可更改。公众和普通版主无法查看主账号；仅获受限权限的管理员可填写理由并审计揭示。账号关闭后私有绑定和审计长期保留。';
+
+  @override
+  String get anonymousRetry => '重新加载';
+
+  @override
+  String get anonymousUnavailable => '匿名身份当前不可用';
+
+  @override
+  String get anonymousEnable => '恢复匿名身份';
+
+  @override
+  String get anonymousDisable => '停用匿名身份';
+
+  @override
+  String get anonymousRandomize => '随机 10 个花名';
+
+  @override
+  String get anonymousPublishAs => '发布身份';
+
+  @override
+  String get anonymousMember => '主身份';
+
+  @override
+  String get anonymousSetup => '设置匿名身份';
+
+  @override
+  String get anonymousConfirm => '确认花名（锁定一年）';
+
+  @override
+  String get anonymousCancel => '取消';
+
+  @override
+  String get anonymousNext => '下一页';
+
+  @override
+  String get anonymousPersonaLabel => '匿名身份';
+
+  @override
+  String get anonymousManage => '管理匿名身份';
+
+  @override
+  String get anonymousReason => '处置理由（必填）';
+
+  @override
+  String get anonymousBan => '限制该账号发言';
+
+  @override
+  String get anonymousRestore => '解除此项发言限制';
+
+  @override
+  String get anonymousReveal => '审计揭示身份';
+
+  @override
+  String get sortForYou => '为你推荐';
 
   @override
   String get feedReasonFollowing => '来自你关注的人';

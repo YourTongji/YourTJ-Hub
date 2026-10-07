@@ -7,6 +7,9 @@ part 'topic.g.dart';
 abstract class UserBriefPayload with _$UserBriefPayload {
   const factory UserBriefPayload({
     required int id,
+    String? kind,
+    String? publicUid,
+    String? profileUrl,
     required String username,
     String? nickname,
     required String avatarUrl,

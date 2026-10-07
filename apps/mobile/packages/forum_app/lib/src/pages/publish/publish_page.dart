@@ -1,4 +1,5 @@
 import '../../widgets/stickers/sticker_draft_preview.dart';
+import '../../widgets/identity_picker.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
 import 'dart:async';
@@ -118,6 +119,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
   double? _editScrollOffset;
   bool _restoreEditorFocus = false;
   int _modeRevision = 0;
+  String _identity = "member";
   bool _loading = true;
   bool _submitting = false;
   late final ComposerUploadQueue _uploads;
@@ -266,6 +268,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     try {
       final draft = LocalDraft(
         agentRepliesDisabled: _agentRepliesDisabled,
+        identity: _identity,
         key: _draftKey,
         kind: _draftKind ?? DraftKind.newTopic,
         title: _title.text,
@@ -335,6 +338,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     _draftKind ??= draft.kind;
     _contentType = draft.contentType;
     _currentTopicId = draft.topicId;
+    _identity = draft.identity;
     _title.text = draft.title;
     _simple.text = draft.content;
     _images
@@ -514,6 +518,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       }
       final keepEditing = _dirty;
       if (!keepEditing) {
+        _identity = props.topic.identity;
         _contentType = props.isEditing
             ? (props.topic.contentType == 0 ? 3 : props.topic.contentType)
             : widget.initialContentType;
@@ -1114,6 +1119,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
           .writeTopicResult(
             captchaId: _captcha?.captchaId,
             captchaCode: _captchaCode.text.trim(),
+            identity: _currentTopicId > 0 ? null : _identity,
             topicId: _currentTopicId,
             title: title,
             content: content,
@@ -1433,6 +1439,17 @@ class _PublishPageState extends ConsumerState<PublishPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
+                    IdentityPicker(
+                      value: _identity,
+                      disabled: _submitting || _currentTopicId > 0,
+                      onChanged: (v) {
+                        setState(() {
+                          _identity = v;
+                          _markDirty();
+                        });
+                      },
+                    ),
+
                     if (_localStatus.isNotEmpty) ...[
                       Row(
                         children: [

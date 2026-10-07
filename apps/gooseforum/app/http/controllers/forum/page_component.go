@@ -6,6 +6,7 @@ const (
 	PageComponentHome                   PageComponent = "home.index"
 	PageComponentTopic                  PageComponent = "topic.detail"
 	PageComponentUser                   PageComponent = "user.profile"
+	PageComponentAnonymous              PageComponent = "anonymous.profile"
 	PageComponentCategory               PageComponent = "category.index"
 	PageComponentLinks                  PageComponent = "links.index"
 	PageComponentSponsors               PageComponent = "sponsors.index"

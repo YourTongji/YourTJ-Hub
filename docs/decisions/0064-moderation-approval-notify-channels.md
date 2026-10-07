@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [0067](0067-bounded-http-notification-retries.md)
 Class: feature
 
 ## Context and Problem Statement

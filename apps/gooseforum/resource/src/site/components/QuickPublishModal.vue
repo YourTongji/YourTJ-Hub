@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import IdentityPicker from '@/site/components/IdentityPicker.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -63,6 +64,7 @@ const {
 
 const agentRepliesDisabled = ref(false)
 const title = ref('')
+const identity = ref<'member' | 'persona'>('member')
 const content = ref('')
 const categoryIds = ref<number[]>([])
 const categoryPickerOpen = ref(false)
@@ -227,7 +229,7 @@ async function saveDraftAndClose() {
       content: content.value.trim(),
       categoryId: [...categoryIds.value],
       agentRepliesDisabled: agentRepliesDisabled.value,
-      topicStatus: 0,
+      topicStatus: 0, identity: identity.value,
       contentType: quickPublishType.value,
       images: uploadedImageUrls.value,
       captchaId: captchaRequired.value ? (captchaId.value || undefined) : undefined,
@@ -317,6 +319,7 @@ watch(
       draftRestored.value = false
       clearCaptcha()
       draftUserId.value = viewerId.value
+      identity.value = quickPublishEditPayload.value?.identity ?? 'member'
 
       agentRepliesDisabled.value = false
       const stash = readQuickPublishDraft(draftUserId.value, quickPublishType.value, quickPublishEditPayload.value?.topicId)
@@ -325,6 +328,7 @@ watch(
         agentRepliesDisabled.value = stash.agentRepliesDisabled ?? false
         title.value = stash.title
         content.value = stash.content
+        identity.value = quickPublishEditPayload.value?.identity ?? stash.identity ?? 'member'
         categoryIds.value = [...stash.categoryIds]
         uploadedImages.value = stash.images.map((url, idx) => ({
           id: `stash-${idx}-${Date.now()}`,
@@ -394,14 +398,14 @@ function stashCurrentDraft() {
   }
   writeQuickPublishDraft(draftUserId.value, quickPublishType.value, {
     title: title.value,
-    content: content.value,
+    content: content.value, identity: identity.value,
     categoryIds: [...categoryIds.value],
     images: uploadedImageUrls.value,
     agentRepliesDisabled: agentRepliesDisabled.value,
   }, quickPublishEditPayload.value?.topicId)
 }
 
-watch([title, content, agentRepliesDisabled, categoryIds, uploadedImages, quickPublishOpen], () => {
+watch([title, content, identity, agentRepliesDisabled, categoryIds, uploadedImages, quickPublishOpen], () => {
   if (!quickPublishOpen.value) return
   if (stashTimer) window.clearTimeout(stashTimer)
   stashTimer = window.setTimeout(stashCurrentDraft, 500)
@@ -598,7 +602,7 @@ async function handleSubmit() {
       content: finalContent,
       categoryId: categoryIds.value,
       agentRepliesDisabled: agentRepliesDisabled.value,
-      topicStatus: 1,
+      topicStatus: 1, identity: quickPublishEditPayload.value ? undefined : identity.value,
       contentType: quickPublishType.value,
       images: uploadedImages.value.filter((i) => !i.uploading && i.url).map((i) => i.url),
       captchaId: captchaId.value || undefined,
@@ -660,6 +664,7 @@ async function handleSubmit() {
         @keydown.meta.enter="handleSubmit"
         @keydown.ctrl.enter="handleSubmit"
       >
+        <IdentityPicker :key="props.layout.viewer.id" :viewer="props.layout.viewer" v-model="identity" :disabled="!!quickPublishEditPayload" class="px-4 py-2" />
         <!-- 弹层顶栏：类型徽章与关闭按钮（具有平滑悬停微交互） -->
         <div class="flex items-center justify-between px-4 sm:px-6 pt-3.5 sm:pt-4 pb-2 shrink-0 border-b border-line/40">
           <div class="flex items-center gap-2">
@@ -1281,6 +1286,7 @@ async function handleSubmit() {
 
 .gf-modal-editor.is-mention-picking .gf-mention-panel.is-docked {
   flex-shrink: 0;
-  max-height: min(234px, 38vh);
+  /* Reserve space for the identity row and toolbar in short viewports. */
+  max-height: min(234px, 30vh);
 }
 </style>

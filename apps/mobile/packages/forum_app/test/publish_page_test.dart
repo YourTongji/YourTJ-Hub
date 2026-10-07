@@ -140,6 +140,7 @@ class _RecordingTopicRepository extends TopicRepository {
     List<String>? images,
     String? captchaId,
     String? captchaCode,
+    String? identity,
   }) async {
     if (requireCaptcha &&
         (captchaId != 'challenge' ||
@@ -308,6 +309,7 @@ void main() {
     WritingStore? localStore,
     bool withStickers = false,
     bool fromContentManagement = false,
+    ImageProvider<Object>? imageProvider,
   }) async {
     final _MemoryTokenStorage storage = _MemoryTokenStorage();
     final GfApiClient client = GfApiClient(
@@ -372,6 +374,28 @@ void main() {
       ],
     );
 
+    Widget app = MaterialApp.router(
+      theme: gfThemeData(Brightness.light),
+      routerConfig: router,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      locale: locale,
+    );
+    if (imageProvider != null) {
+      app = GfMediaScope(
+        identity: imageProvider,
+        factory:
+            (
+              _, {
+              int? width,
+              int? height,
+              Set<String>? allowedOrigins,
+              ResizeImagePolicy policy = ResizeImagePolicy.exact,
+            }) => imageProvider,
+        child: app,
+      );
+    }
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: <Override>[
@@ -404,13 +428,7 @@ void main() {
           pageRepositoryProvider.overrideWithValue(pageRepository),
           topicRepositoryProvider.overrideWithValue(topicRepository),
         ],
-        child: MaterialApp.router(
-          theme: gfThemeData(Brightness.light),
-          routerConfig: router,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          locale: locale,
-        ),
+        child: app,
       ),
     );
     await tester.pumpAndSettle();
@@ -2098,12 +2116,25 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
+    // Use a decoded image rather than depending on an HTTP failure icon and
+    // whether the current test command includes the package's SVG assets.
+    final imageProvider = MemoryImage(
+      img.encodePng(img.Image(width: 120, height: 60)),
+    );
     await pumpPublishPage(
       tester,
       editing: true,
       contentType: 3,
       content: '第一段\n\n![image](u1)\n\n第三段\n',
+      imageProvider: imageProvider,
     );
+    await tester.runAsync(
+      () => precacheImage(
+        imageProvider,
+        tester.element(find.byType(QuillEditor)),
+      ),
+    );
+    await tester.pumpAndSettle();
     expect(find.text('长按正文图片，可拖动到任意段落位置'), findsOneWidget);
 
     QuillController controllerOfEditor() =>
@@ -2125,12 +2156,21 @@ void main() {
       matching: find.byType(LongPressDraggable<ComposerImageDragPayload>),
     );
     expect(draggable, findsOneWidget);
+    expect(draggable.hitTestable(), findsOneWidget);
+    final Finder targetParagraph = find.descendant(
+      of: find.byType(QuillEditor),
+      matching: find.textContaining('第三段', findRichText: true),
+    );
+    expect(targetParagraph, findsOneWidget);
+    expect(targetParagraph.hitTestable(), findsOneWidget);
 
     final TestGesture gesture = await tester.startGesture(
       tester.getCenter(draggable),
     );
     await tester.pump(const Duration(milliseconds: 600));
-    await gesture.moveBy(const Offset(0, 140));
+    // Drop onto the actual paragraph instead of assuming a fixed image height
+    // and pixel distance to the next line.
+    await gesture.moveTo(tester.getCenter(targetParagraph));
     await tester.pump();
     await gesture.up();
     await tester.pumpAndSettle();

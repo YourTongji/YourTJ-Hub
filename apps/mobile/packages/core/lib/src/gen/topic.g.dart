@@ -10,6 +10,9 @@ _$UserBriefPayloadImpl _$$UserBriefPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$UserBriefPayloadImpl(
   id: (json['id'] as num).toInt(),
+  kind: json['kind'] as String?,
+  publicUid: json['publicUid'] as String?,
+  profileUrl: json['profileUrl'] as String?,
   username: json['username'] as String,
   nickname: json['nickname'] as String?,
   avatarUrl: json['avatarUrl'] as String,
@@ -22,6 +25,9 @@ Map<String, dynamic> _$$UserBriefPayloadImplToJson(
   _$UserBriefPayloadImpl instance,
 ) => <String, dynamic>{
   'id': instance.id,
+  'kind': instance.kind,
+  'publicUid': instance.publicUid,
+  'profileUrl': instance.profileUrl,
   'username': instance.username,
   'nickname': instance.nickname,
   'avatarUrl': instance.avatarUrl,

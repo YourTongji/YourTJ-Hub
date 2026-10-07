@@ -15,10 +15,12 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/networkAccessLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/anonymousidentityservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/httpnotifyservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pkservice"
@@ -63,6 +65,14 @@ func Run() {
 
 func registerJobs() {
 	slog.Info("start cron")
+	_, errAnonymous := scheduler.AddFunc("13 * * * *", upCmd(func() {
+		if err := anonymousidentityservice.Default(context.Background()).Cleanup(); err != nil {
+			slog.Warn("anonymous candidate cleanup failed", "err", err)
+		}
+	}))
+	if errAnonymous != nil {
+		slog.Error("register anonymous cleanup failed", "err", errAnonymous)
+	}
 	backupSpec := preferences.Get("db.spec", "0 3 * * *")
 	entryID, err := scheduler.AddFunc(backupSpec, upCmd(func() {
 		dbconnect.BackupSQLiteHandle()
@@ -142,10 +152,12 @@ func registerJobs() {
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", "11 3 * * *", "err", err)
 	entryID, err = scheduler.AddFunc("12 3 * * *", upCmd(func() {
-		// 清理超过 7 天保留期的终态（Success/Failed）原生推送任务行：
-		// nativepush 同样每条通知一行 outbox，与 webpush 共用同一保留策略。
+		// 清理超过 7 天保留期的终态（Success/Failed）原生推送与 HTTP 通知重试任务行。
 		if _, cleanupErr := nativepushservice.CleanupTerminalTasks(time.Now().Add(-7*24*time.Hour), 500); cleanupErr != nil {
 			slog.Error("cleanup terminal nativepush tasks failed", "err", cleanupErr)
+		}
+		if _, cleanupErr := httpnotifyservice.CleanupTerminalTasks(time.Now().Add(-7*24*time.Hour), 500); cleanupErr != nil {
+			slog.Error("cleanup terminal HTTP notification retry tasks failed", "err", cleanupErr)
 		}
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", "12 3 * * *", "err", err)

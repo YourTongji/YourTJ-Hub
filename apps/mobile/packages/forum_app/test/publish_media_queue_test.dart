@@ -97,7 +97,9 @@ class _CaptureUploadsAdapter implements HttpClientAdapter {
     return ResponseBody.fromString(
       jsonEncode({'code': 0, 'result': 'https://example.com/photo.jpg'}),
       200,
-      headers: {Headers.contentTypeHeader: ['application/json']},
+      headers: {
+        Headers.contentTypeHeader: ['application/json'],
+      },
     );
   }
 
@@ -197,6 +199,8 @@ void main() {
     final l10n = AppLocalizations.of(tester.element(find.byType(PublishPage)));
     final gallery = find.text(l10n.publishGallery);
     if (gallery.evaluate().isNotEmpty) {
+      await tester.ensureVisible(gallery);
+      await tester.pumpAndSettle();
       await tester.tap(gallery);
     } else {
       await tester.tap(find.byTooltip(l10n.publishToolImage));

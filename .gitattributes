@@ -27,3 +27,6 @@
 *.zip binary
 *.db binary
 *.sqlite binary
+
+# Preserve the licensed THUOCL source bytes, including CR line endings and empty DF fields.
+apps/gooseforum/app/bundles/anonymousnames/data/*.txt -text -whitespace linguist-vendored

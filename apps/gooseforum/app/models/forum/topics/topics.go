@@ -10,6 +10,7 @@ const tableName = "topics"
 
 type Entity struct {
 	AgentRepliesDisabled bool       `gorm:"column:agent_replies_disabled;not null;default:false" json:"agentRepliesDisabled"`
+	PersonaUID           string     `gorm:"column:persona_uid;type:varchar(32);not null;default:'';index" json:"personaUid,omitempty"`
 	LastPublicReplyAt    *time.Time `gorm:"index" json:"-"`
 	RankDueAt            *time.Time `gorm:"index" json:"-"`
 	RankScore            int64      `gorm:"not null;default:0;index:idx_topics_rank,priority:2,sort:desc" json:"-"`
@@ -97,6 +98,9 @@ func (itself *Entity) TableName() string {
 
 func (itself *Entity) GetPosters() []Poster {
 	if len(itself.Posters) == 0 {
+		if itself.PersonaUID != "" {
+			return nil
+		}
 		return []Poster{{UserID: itself.UserId}}
 	}
 	return itself.Posters

@@ -85,6 +85,7 @@ func setupCourseReviewContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	forumLoginAPI.PUT("course-reviews/:reviewId/dislike", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewDislike), UpUriReq(forum.MarkReviewDislike))
 	forumLoginAPI.DELETE("course-reviews/:reviewId/dislike", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewDislike), UpUriReq(forum.UnmarkReviewDislike))
 	forumLoginAPI.POST("course-reviews/:reviewId/reports", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewReport), UpUriJsonReq(forum.ReportCourseReview))
+	forumLoginAPI.POST("moderation/report-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationReportStatus))
 	forumLoginAPI.POST("moderation/course-review-status", middleware.CheckWritableAccount, middleware.CheckPermission(permission.CourseManager), middleware.RateLimit(middleware.RateLimitReviewModerate), UpButterReq(forum.ModerationCourseReviewStatus))
 	forumLoginAPI.POST("moderation/course-review-reports", middleware.NoUpdateUserActivity, middleware.CheckPermission(permission.CourseManager), middleware.RateLimit(middleware.RateLimitReviewModerate), UpButterReq(forum.ModerationCourseReviewReportList))
 	forumLoginAPI.POST("moderation/course-review-reveal", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewReveal), UpButterReq(forum.ModerationCourseReviewReveal))
@@ -859,6 +860,47 @@ func TestCourseReviewModerationReportListHTTPContract(t *testing.T) {
 		env := decodeContractEnvelope(t, rec)
 		if env.MessageCode != "permission.denied" {
 			t.Fatalf("denied report list messageCode = %q, want permission.denied", env.MessageCode)
+		}
+	})
+
+	t.Run("report status atomically hides and restores a course review", func(t *testing.T) {
+		hide := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/report-status",
+			`{"id":5001,"action":"ban"}`, managerToken)
+		if hide.Code != http.StatusOK {
+			t.Fatalf("hide report status = %d, want 200: %s", hide.Code, hide.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, hide), contractFixture(t, "result-true.json"))
+		var review course.ReviewEntity
+		if err := conn.First(&review, 303).Error; err != nil {
+			t.Fatal(err)
+		}
+		if review.Status != course.ReviewStatusHidden {
+			t.Fatalf("review status after report ban = %d, want hidden", review.Status)
+		}
+		if report := reports.Get(5001); report.Status != reports.StatusResolved || report.Resolution != reports.ResolutionBanned || report.HandlerId != manager.Id {
+			t.Fatalf("report after hide = %+v, want resolved and handled by course manager", report)
+		}
+
+		if err := conn.Create(&reports.Entity{
+			Id: 5002, TargetType: reports.TargetCourseReview, TargetId: 303,
+			ReporterId: regular.Id, Reason: "spam", Status: reports.StatusOpen,
+		}).Error; err != nil {
+			t.Fatalf("create report for restored review: %v", err)
+		}
+		show := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/report-status",
+			`{"id":5002,"action":"show"}`, managerToken)
+		if show.Code != http.StatusOK {
+			t.Fatalf("show report status = %d, want 200: %s", show.Code, show.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, show), contractFixture(t, "result-true.json"))
+		if err := conn.First(&review, 303).Error; err != nil {
+			t.Fatal(err)
+		}
+		if review.Status != course.ReviewStatusVisible {
+			t.Fatalf("review status after report show = %d, want visible", review.Status)
+		}
+		if report := reports.Get(5002); report.Status != reports.StatusResolved || report.Resolution != "" || report.HandlerId != manager.Id {
+			t.Fatalf("report after show = %+v, want resolved and handled by course manager", report)
 		}
 	})
 }

@@ -119,6 +119,7 @@ func Publish(msg Message) {
 		go func() {
 			if !deliver(endpoint, channel, alt.Event, now.Unix(), body) {
 				releaseClaim()
+				enqueueDeliveryRetry(endpoint, alt.Event, now.Unix(), body, msg.DedupeKey)
 			}
 		}()
 	}
@@ -166,7 +167,9 @@ func endpointKey(endpoint pageConfig.HttpNotifyEndpoint) string {
 	if endpoint.Id != "" {
 		return "id:" + endpoint.Id
 	}
-	return "url:" + endpoint.URL
+	// Feishu webhook URLs contain credentials; only retain a digest in retry tasks.
+	urlDigest := sha256.Sum256([]byte(endpoint.URL))
+	return "url:" + hex.EncodeToString(urlDigest[:])
 }
 
 // deliver 发送一次投递并记录结果，返回是否成功。

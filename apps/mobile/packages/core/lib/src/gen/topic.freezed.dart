@@ -22,6 +22,9 @@ UserBriefPayload _$UserBriefPayloadFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$UserBriefPayload {
   int get id => throw _privateConstructorUsedError;
+  String? get kind => throw _privateConstructorUsedError;
+  String? get publicUid => throw _privateConstructorUsedError;
+  String? get profileUrl => throw _privateConstructorUsedError;
   String get username => throw _privateConstructorUsedError;
   String? get nickname => throw _privateConstructorUsedError;
   String get avatarUrl => throw _privateConstructorUsedError;
@@ -46,6 +49,9 @@ abstract class $UserBriefPayloadCopyWith<$Res> {
   @useResult
   $Res call({
     int id,
+    String? kind,
+    String? publicUid,
+    String? profileUrl,
     String username,
     String? nickname,
     String avatarUrl,
@@ -71,6 +77,9 @@ class _$UserBriefPayloadCopyWithImpl<$Res, $Val extends UserBriefPayload>
   @override
   $Res call({
     Object? id = null,
+    Object? kind = freezed,
+    Object? publicUid = freezed,
+    Object? profileUrl = freezed,
     Object? username = null,
     Object? nickname = freezed,
     Object? avatarUrl = null,
@@ -82,6 +91,18 @@ class _$UserBriefPayloadCopyWithImpl<$Res, $Val extends UserBriefPayload>
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
                       as int,
+            kind: freezed == kind
+                ? _value.kind
+                : kind // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            publicUid: freezed == publicUid
+                ? _value.publicUid
+                : publicUid // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            profileUrl: freezed == profileUrl
+                ? _value.profileUrl
+                : profileUrl // ignore: cast_nullable_to_non_nullable
+                      as String?,
             username: null == username
                 ? _value.username
                 : username // ignore: cast_nullable_to_non_nullable
@@ -129,6 +150,9 @@ abstract class _$$UserBriefPayloadImplCopyWith<$Res>
   @useResult
   $Res call({
     int id,
+    String? kind,
+    String? publicUid,
+    String? profileUrl,
     String username,
     String? nickname,
     String avatarUrl,
@@ -154,6 +178,9 @@ class __$$UserBriefPayloadImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? id = null,
+    Object? kind = freezed,
+    Object? publicUid = freezed,
+    Object? profileUrl = freezed,
     Object? username = null,
     Object? nickname = freezed,
     Object? avatarUrl = null,
@@ -165,6 +192,18 @@ class __$$UserBriefPayloadImplCopyWithImpl<$Res>
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
                   as int,
+        kind: freezed == kind
+            ? _value.kind
+            : kind // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        publicUid: freezed == publicUid
+            ? _value.publicUid
+            : publicUid // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        profileUrl: freezed == profileUrl
+            ? _value.profileUrl
+            : profileUrl // ignore: cast_nullable_to_non_nullable
+                  as String?,
         username: null == username
             ? _value.username
             : username // ignore: cast_nullable_to_non_nullable
@@ -191,6 +230,9 @@ class __$$UserBriefPayloadImplCopyWithImpl<$Res>
 class _$UserBriefPayloadImpl implements _UserBriefPayload {
   const _$UserBriefPayloadImpl({
     required this.id,
+    this.kind,
+    this.publicUid,
+    this.profileUrl,
     required this.username,
     this.nickname,
     required this.avatarUrl,
@@ -203,6 +245,12 @@ class _$UserBriefPayloadImpl implements _UserBriefPayload {
   @override
   final int id;
   @override
+  final String? kind;
+  @override
+  final String? publicUid;
+  @override
+  final String? profileUrl;
+  @override
   final String username;
   @override
   final String? nickname;
@@ -213,7 +261,7 @@ class _$UserBriefPayloadImpl implements _UserBriefPayload {
 
   @override
   String toString() {
-    return 'UserBriefPayload(id: $id, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, wornBadge: $wornBadge)';
+    return 'UserBriefPayload(id: $id, kind: $kind, publicUid: $publicUid, profileUrl: $profileUrl, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, wornBadge: $wornBadge)';
   }
 
   @override
@@ -222,6 +270,11 @@ class _$UserBriefPayloadImpl implements _UserBriefPayload {
         (other.runtimeType == runtimeType &&
             other is _$UserBriefPayloadImpl &&
             (identical(other.id, id) || other.id == id) &&
+            (identical(other.kind, kind) || other.kind == kind) &&
+            (identical(other.publicUid, publicUid) ||
+                other.publicUid == publicUid) &&
+            (identical(other.profileUrl, profileUrl) ||
+                other.profileUrl == profileUrl) &&
             (identical(other.username, username) ||
                 other.username == username) &&
             (identical(other.nickname, nickname) ||
@@ -234,8 +287,17 @@ class _$UserBriefPayloadImpl implements _UserBriefPayload {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, username, nickname, avatarUrl, wornBadge);
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    kind,
+    publicUid,
+    profileUrl,
+    username,
+    nickname,
+    avatarUrl,
+    wornBadge,
+  );
 
   /// Create a copy of UserBriefPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -257,6 +319,9 @@ class _$UserBriefPayloadImpl implements _UserBriefPayload {
 abstract class _UserBriefPayload implements UserBriefPayload {
   const factory _UserBriefPayload({
     required final int id,
+    final String? kind,
+    final String? publicUid,
+    final String? profileUrl,
     required final String username,
     final String? nickname,
     required final String avatarUrl,
@@ -268,6 +333,12 @@ abstract class _UserBriefPayload implements UserBriefPayload {
 
   @override
   int get id;
+  @override
+  String? get kind;
+  @override
+  String? get publicUid;
+  @override
+  String? get profileUrl;
   @override
   String get username;
   @override

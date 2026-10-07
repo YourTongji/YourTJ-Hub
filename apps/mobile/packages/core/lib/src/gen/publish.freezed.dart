@@ -219,6 +219,7 @@ PublishTopicPayload _$PublishTopicPayloadFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$PublishTopicPayload {
   bool get agentRepliesDisabled => throw _privateConstructorUsedError;
+  String get identity => throw _privateConstructorUsedError;
   String get title => throw _privateConstructorUsedError;
   String get content => throw _privateConstructorUsedError;
   List<String> get images => throw _privateConstructorUsedError;
@@ -245,6 +246,7 @@ abstract class $PublishTopicPayloadCopyWith<$Res> {
   @useResult
   $Res call({
     bool agentRepliesDisabled,
+    String identity,
     String title,
     String content,
     List<String> images,
@@ -270,6 +272,7 @@ class _$PublishTopicPayloadCopyWithImpl<$Res, $Val extends PublishTopicPayload>
   @override
   $Res call({
     Object? agentRepliesDisabled = null,
+    Object? identity = null,
     Object? title = null,
     Object? content = null,
     Object? images = null,
@@ -283,6 +286,10 @@ class _$PublishTopicPayloadCopyWithImpl<$Res, $Val extends PublishTopicPayload>
                 ? _value.agentRepliesDisabled
                 : agentRepliesDisabled // ignore: cast_nullable_to_non_nullable
                       as bool,
+            identity: null == identity
+                ? _value.identity
+                : identity // ignore: cast_nullable_to_non_nullable
+                      as String,
             title: null == title
                 ? _value.title
                 : title // ignore: cast_nullable_to_non_nullable
@@ -324,6 +331,7 @@ abstract class _$$PublishTopicPayloadImplCopyWith<$Res>
   @useResult
   $Res call({
     bool agentRepliesDisabled,
+    String identity,
     String title,
     String content,
     List<String> images,
@@ -348,6 +356,7 @@ class __$$PublishTopicPayloadImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? agentRepliesDisabled = null,
+    Object? identity = null,
     Object? title = null,
     Object? content = null,
     Object? images = null,
@@ -361,6 +370,10 @@ class __$$PublishTopicPayloadImplCopyWithImpl<$Res>
             ? _value.agentRepliesDisabled
             : agentRepliesDisabled // ignore: cast_nullable_to_non_nullable
                   as bool,
+        identity: null == identity
+            ? _value.identity
+            : identity // ignore: cast_nullable_to_non_nullable
+                  as String,
         title: null == title
             ? _value.title
             : title // ignore: cast_nullable_to_non_nullable
@@ -395,6 +408,7 @@ class __$$PublishTopicPayloadImplCopyWithImpl<$Res>
 class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
   const _$PublishTopicPayloadImpl({
     this.agentRepliesDisabled = false,
+    this.identity = "member",
     required this.title,
     required this.content,
     final List<String> images = const <String>[],
@@ -410,6 +424,9 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
   @override
   @JsonKey()
   final bool agentRepliesDisabled;
+  @override
+  @JsonKey()
+  final String identity;
   @override
   final String title;
   @override
@@ -440,7 +457,7 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
 
   @override
   String toString() {
-    return 'PublishTopicPayload(agentRepliesDisabled: $agentRepliesDisabled, title: $title, content: $content, images: $images, categoryIds: $categoryIds, topicStatus: $topicStatus, contentType: $contentType)';
+    return 'PublishTopicPayload(agentRepliesDisabled: $agentRepliesDisabled, identity: $identity, title: $title, content: $content, images: $images, categoryIds: $categoryIds, topicStatus: $topicStatus, contentType: $contentType)';
   }
 
   @override
@@ -450,6 +467,8 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
             other is _$PublishTopicPayloadImpl &&
             (identical(other.agentRepliesDisabled, agentRepliesDisabled) ||
                 other.agentRepliesDisabled == agentRepliesDisabled) &&
+            (identical(other.identity, identity) ||
+                other.identity == identity) &&
             (identical(other.title, title) || other.title == title) &&
             (identical(other.content, content) || other.content == content) &&
             const DeepCollectionEquality().equals(other._images, _images) &&
@@ -468,6 +487,7 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
   int get hashCode => Object.hash(
     runtimeType,
     agentRepliesDisabled,
+    identity,
     title,
     content,
     const DeepCollectionEquality().hash(_images),
@@ -496,6 +516,7 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
 abstract class _PublishTopicPayload implements PublishTopicPayload {
   const factory _PublishTopicPayload({
     final bool agentRepliesDisabled,
+    final String identity,
     required final String title,
     required final String content,
     final List<String> images,
@@ -509,6 +530,8 @@ abstract class _PublishTopicPayload implements PublishTopicPayload {
 
   @override
   bool get agentRepliesDisabled;
+  @override
+  String get identity;
   @override
   String get title;
   @override

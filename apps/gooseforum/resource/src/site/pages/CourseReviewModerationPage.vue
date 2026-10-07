@@ -5,9 +5,9 @@ import { useI18n } from 'vue-i18n'
 import { Ban, Eye, Flag, Loader2, X, XCircle } from '@lucide/vue'
 import {
   fetchModerationCourseReviewReports,
-  moderationCourseReviewStatus,
   revealCourseReviewAuthor,
   updateModerationReportStatus,
+  ApiResponseError,
   type ModerationCourseReviewReportItem,
 } from '@/runtime/api'
 import { formatDateTime } from '@/runtime/format'
@@ -76,15 +76,21 @@ function reasonLabel(item: ModerationCourseReviewReportItem) {
   return te(key) ? t(key) : item.reason
 }
 
+async function refreshAfterProcessedReport(error: unknown) {
+  if (error instanceof ApiResponseError && error.messageCode === 'report.alreadyProcessed') {
+    await loadReports(true)
+  }
+}
+
 async function hideReview(item: ModerationCourseReviewReportItem) {
   if (reportBusy(item.id)) return
   reportBusyIds.value = [...reportBusyIds.value, item.id]
   reportError.value = ''
   try {
-    await moderationCourseReviewStatus(item.reviewId, 'hide')
     await updateModerationReportStatus(item.id, 'ban')
     reportItems.value = reportItems.value.filter((report) => report.id !== item.id)
   } catch (error) {
+    await refreshAfterProcessedReport(error)
     reportError.value = error instanceof Error ? error.message : t('api.moderationActionFailed')
   } finally {
     reportBusyIds.value = reportBusyIds.value.filter((id) => id !== item.id)
@@ -97,10 +103,10 @@ async function showReview(item: ModerationCourseReviewReportItem) {
   reportBusyIds.value = [...reportBusyIds.value, item.id]
   reportError.value = ''
   try {
-    await moderationCourseReviewStatus(item.reviewId, 'show')
-    await updateModerationReportStatus(item.id, 'resolve')
+    await updateModerationReportStatus(item.id, 'show')
     reportItems.value = reportItems.value.filter((report) => report.id !== item.id)
   } catch (error) {
+    await refreshAfterProcessedReport(error)
     reportError.value = error instanceof Error ? error.message : t('api.moderationActionFailed')
   } finally {
     reportBusyIds.value = reportBusyIds.value.filter((id) => id !== item.id)
@@ -116,6 +122,7 @@ async function rejectReport(item: ModerationCourseReviewReportItem) {
     await updateModerationReportStatus(item.id, 'reject')
     reportItems.value = reportItems.value.filter((report) => report.id !== item.id)
   } catch (error) {
+    await refreshAfterProcessedReport(error)
     reportError.value = error instanceof Error ? error.message : t('api.moderationActionFailed')
   } finally {
     reportBusyIds.value = reportBusyIds.value.filter((id) => id !== item.id)

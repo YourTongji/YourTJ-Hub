@@ -1036,9 +1036,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get sortForYou => 'For you';
-
-  @override
   String get sortLatest => 'Latest';
 
   @override
@@ -3482,6 +3479,73 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get notificationReviewRejectedDetail =>
       'This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions.';
+
+  @override
+  String get anonymousLockDate => 'Name available from: ';
+
+  @override
+  String get anonymousRemaining => 'Batches remaining today: ';
+
+  @override
+  String get anonymousIdentity => 'Anonymous identity';
+
+  @override
+  String get anonymousBoundary =>
+      'One anonymous identity per account. A chosen name is locked for one year. The public and ordinary moderators cannot see your main account. Restricted administrators can reveal it with a reason and audit. Private bindings and audits remain after account closure.';
+
+  @override
+  String get anonymousRetry => 'Reload';
+
+  @override
+  String get anonymousUnavailable => 'Anonymous identity is unavailable';
+
+  @override
+  String get anonymousEnable => 'Reactivate identity';
+
+  @override
+  String get anonymousDisable => 'Deactivate identity';
+
+  @override
+  String get anonymousRandomize => 'Draw 10 names';
+
+  @override
+  String get anonymousPublishAs => 'Publish as';
+
+  @override
+  String get anonymousMember => 'Main identity';
+
+  @override
+  String get anonymousSetup => 'Set up anonymous identity';
+
+  @override
+  String get anonymousConfirm => 'Confirm name (locked for one year)';
+
+  @override
+  String get anonymousCancel => 'Cancel';
+
+  @override
+  String get anonymousNext => 'Next page';
+
+  @override
+  String get anonymousPersonaLabel => 'Anonymous identity';
+
+  @override
+  String get anonymousManage => 'Manage anonymous identity';
+
+  @override
+  String get anonymousReason => 'Reason (required)';
+
+  @override
+  String get anonymousBan => 'Restrict account writing';
+
+  @override
+  String get anonymousRestore => 'Remove this writing restriction';
+
+  @override
+  String get anonymousReveal => 'Reveal with audit';
+
+  @override
+  String get sortForYou => 'For you';
 
   @override
   String get feedReasonFollowing => 'From someone you follow';

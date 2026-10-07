@@ -3,6 +3,7 @@ package posts
 import (
 	"context"
 	"errors"
+	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"time"
 
@@ -31,6 +32,9 @@ func Create(entity *Entity) error {
 
 // CreateTx 事务内创建帖子。
 func CreateTx(tx *gorm.DB, entity *Entity) error {
+	if err := identity.ValidateWriterTx(tx, entity.UserId, entity.PersonaUID); err != nil {
+		return err
+	}
 	return tx.Table(tableName).Create(entity).Error
 }
 
@@ -40,6 +44,9 @@ func Save(entity *Entity) error {
 
 // SaveTx 事务内保存帖子。
 func SaveTx(tx *gorm.DB, entity *Entity) error {
+	if err := identity.ValidateWriterTx(tx, entity.UserId, entity.PersonaUID); err != nil {
+		return err
+	}
 	return tx.Table(tableName).Save(entity).Error
 }
 
@@ -103,10 +110,15 @@ func UpdateProcessStatus(id uint64, processStatus int8) error {
 // UpdateProcessStatusTx updates moderation state inside a caller-owned
 // transaction.
 func UpdateProcessStatusTx(tx *gorm.DB, id uint64, processStatus int8) error {
-	if err := tx.Table(tableName).Where(queryopt.Eq("id", id)).Update("process_status", processStatus).Error; err != nil {
-		return err
+	result := tx.Table(tableName).Where(queryopt.Eq("id", id)).Update("process_status", processStatus)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
 	}
 	return markPostProjectionTx(tx, id)
+
 }
 
 // ResetPendingReview 作废待审状态：将 process_status 复位为正常。

@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-04
+> Last verified: 2026-10-07
 
 ## Content and publishing
 
@@ -43,7 +43,14 @@ Web、SSR 与 Flutter 的列表和详情均不展示标题（普通列表与首�
 以现有审核拒绝终态保留原因；重新允许回复不会自动复活已拒绝的版本。
 
 设置独立于正文版本，正文编辑与审核不能重置它。AI 总结、内容审核和人类账号粘贴的 AI 文本
-不属于这个开关的识别范围。实现边界见[决策 0065](../decisions/0068-topic-agent-replies.md)。
+不属于这个开关的识别范围。实现边界见[决策 0068](../decisions/0068-topic-agent-replies.md)。
+## Persistent anonymous identity
+
+`Current`: ordinary topic and reply composers offer a persistent anonymous persona alongside the
+main identity. It has its own fixed avatar and public history, with one persona per human account.
+Naming, yearly lock, quota, privacy, governance and retention are owned by
+[anonymous identity](anonymous-identity.md). Legacy Wiki anonymous replies and course reviews retain
+their separate rules.
 
 ## Feed and reading
 
@@ -75,6 +82,13 @@ PWA standalone 触摸设备在页顶支持下拉刷新，以第一页替换列�
 折叠公告整行可点击展开，悬停反馈仅着色箭头，键盘聚焦显示整行轮廓；公告标题为空时显示展开提示。
 交互过渡尊重减少动态效果设置。友链描述截断时，鼠标悬停和键盘聚焦均可查看全文。
 
+`Current`：话题详情的回复数、阅读数只在标题元数据中展示，点赞数显示在标题元数据和游客态胶囊登录入口；右栏保留参与者信息。
+话题操作栏与悬浮胶囊共享话题级操作状态和处理器；首楼不重复提供同一组楼层操作。
+首楼底部话题操作栏与悬浮胶囊互为镜像：胶囊提供同一组话题级操作（点赞、收藏、关注及管理/删除），与操作栏共用同一状态，任何视口下保持同步；
+胶囊挂载在楼层流之外，首楼不在当前窗口（锚点直达深链、窗口跳转）时话题级操作仍可通过胶囊使用，并补充话题分享和举报入口（举报仍遵循登录、非作者及未删除门控）。
+游客态胶囊显示带当前点赞数的点赞入口和"登录参与讨论"入口（均引导登录），不展示其余需登录的操作。
+举报需要登录后使用；移动端回复入口固定悬浮，桌面端话题操作栏与胶囊均可回复；后续回复仍保留针对该楼层的操作。
+
 `Current`：楼层默认按楼号平铺，也可切换树状视图；Web 视图偏好全站共享，Wiki 评论使用同一规则。
 树状视图按真实回复关系组织，缩进最多四级，可折叠子链；循环、缺失目标和过深祖先链安全回落到根层。
 平铺视图保留回复引用，提问的回答楼层仍有标记。树状孤根以简短回复对象提示上下文，
@@ -88,7 +102,7 @@ PWA standalone 触摸设备在页顶支持下拉刷新，以第一页替换列�
 Web 与 Flutter 编辑器提供本地上下文候选和防抖用户搜索，插入普通 Markdown；错误及过期请求不能
 覆盖当前候选，键盘选择不夺走编辑器输入。移动端布局与辅助功能见[移动端体验](mobile-experience.md)。
 
-`Current`：公开首楼与回复向符合条件的提及用户发通知；自提及、匿名内容、草稿、待审及删除内容不发送。
+`Current`：公开首楼与回复向符合条件的提及用户发通知；自提及、既有 Wiki 单条匿名、草稿、待审及删除内容不发送；持久匿名 persona 的公开回复可发送匿名署名通知。
 编辑只通知相对旧正文新增的提及用户。收件人优先级为 `post_reply > mention > comment > topic_post`，
 每次事件最多 20 个 mention 收件人，其余已订阅者仍可收到普通话题通知。
 重新发布不重复通知已有 mention 收件人；待审回复编辑获批时因缺少旧正文快照，不补发 mention。
@@ -153,6 +167,8 @@ Web 编辑时，正文图片跟随正文修改，独立图库图片可单独删�
 不在这套论坛审核范围。推理与发布机制见[决策 0061](../decisions/0061-versioned-background-moderation.md)
 及[运维说明](../operations/deployment.md#ai-图文审查issue-975)。
 
+`Current`：举报结案采用 compare-and-set，只允许一个版主处理仍处于 open 的举报；封禁／隐藏／恢复目标状态与举报结论在同一事务提交，目标更新失败时两者一起回滚。后到的处理请求收到 `report.alreadyProcessed`，界面刷新队列并提示查看最新状态。
+
 `Partial`：版主审批通知（issue #1049）。HTTP 通知新增审批事件：话题／回复的送审版本转入人工审核（命中敏感词、AI
 存疑或审查失败；自动检查期间不通知，同一版本只通知一次），以及话题、回复、聊天消息与课评被举报；原「举报创建」聚合
 事件与载荷保持不变，同一地址同时订阅时每条举报只投递一次。载荷为安全摘要：匿名内容不含作者，聊天消息举报不含
@@ -161,6 +177,8 @@ Web 编辑时，正文图片跟随正文修改，独立图库图片可单独删�
 范围再执行（审核通过／拒绝、封禁／隐藏／驳回举报），已处理或作者已改稿（快捷操作绑定送审版本）时不执行。链接 24 小时过期，不作为登录凭据。
 Web 与 API 已由契约测试验证；作者已在真实飞书群与 AstrBot 会话完成端到端验收和视觉核对，待维护者复核。`Planned`：课评待审状态机与对应审批事件，私信举报快捷处理。
 规则见[决策 0064](../decisions/0064-moderation-approval-notify-channels.md)。
+
+HTTP 通知发送失败后复用数据库任务队列有限重试：每次检查通知开关、端点和订阅，任务在 24 小时窗口后过期；连续三次投递失败会触发端点熔断。队列任务只保存安全摘要及端点标识，不保存回调地址或密钥。决策见[0067](../decisions/0067-bounded-http-notification-retries.md)。
 
 服务条款与隐私政策由管理端发布，注册只要求同意已发布的内容；政策也控制生产统计脚本加载。
 账号、匿名内容、删除恢复和清除规则见[身份与账号生命周期](identity-and-access.md)。

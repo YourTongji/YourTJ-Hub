@@ -133,6 +133,12 @@
   "serverMessages.sticker.uploadQuota": "You have reached the limit of {limit} uploaded stickers. Sent assets are retained for message history.",
   "serverMessages.sticker.imageRequired": "Choose an image or GIF you uploaded, up to {maxSizeMb} MB.",
   "serverMessages.sticker.unavailable": "This sticker is unavailable.",
+  "permission.revealAnonymousIdentity": "Reveal anonymous identity (restricted audit)",
+  "anonymous.identity": "Anonymous identity",
+  "anonymous.nameLocked": "This name is locked for one year.",
+  "anonymous.dailyLimit": "All 10 daily draws are used. You can still select an existing batch today.",
+  "anonymous.candidateExpired": "Candidates expired or are invalid. Reload today’s batches.",
+  "anonymous.unavailable": "Anonymous identity is unavailable",
   "forYouFeed": "For You",
   "dailyFeed": "Today's top"
 }

@@ -1020,9 +1020,6 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get sortForYou => 'おすすめ';
-
-  @override
   String get sortLatest => '最新';
 
   @override
@@ -3359,6 +3356,73 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get notificationReviewRejectedDetail =>
       '今回の投稿は公開されません。コンテンツ管理で内容を確認・修正して再送信してください。ご不明な点は管理者にお問い合わせください。';
+
+  @override
+  String get anonymousLockDate => '名前変更可能日：';
+
+  @override
+  String get anonymousRemaining => '本日の残り回数：';
+
+  @override
+  String get anonymousIdentity => '匿名の身元';
+
+  @override
+  String get anonymousBoundary =>
+      'アカウントごとに匿名の身元は1つです。名前は1年間変更できません。公開閲覧者と通常のモデレーターには本アカウントを非表示にします。専用権限を持つ管理者のみ、理由と監査記録を伴って開示できます。退会後も非公開の紐付けと監査を長期保存します。';
+
+  @override
+  String get anonymousRetry => '再読み込み';
+
+  @override
+  String get anonymousUnavailable => '匿名の身元は利用できません';
+
+  @override
+  String get anonymousEnable => '再開';
+
+  @override
+  String get anonymousDisable => '停止';
+
+  @override
+  String get anonymousRandomize => '名前を10個抽選';
+
+  @override
+  String get anonymousPublishAs => '投稿する身元';
+
+  @override
+  String get anonymousMember => '本アカウント';
+
+  @override
+  String get anonymousSetup => '匿名の身元を設定';
+
+  @override
+  String get anonymousConfirm => '名前を確定（1年間固定）';
+
+  @override
+  String get anonymousCancel => 'キャンセル';
+
+  @override
+  String get anonymousNext => '次のページ';
+
+  @override
+  String get anonymousPersonaLabel => '匿名の身分';
+
+  @override
+  String get anonymousManage => '匿名の身分を管理';
+
+  @override
+  String get anonymousReason => '理由（必須）';
+
+  @override
+  String get anonymousBan => 'アカウントの投稿を制限';
+
+  @override
+  String get anonymousRestore => 'この投稿制限を解除';
+
+  @override
+  String get anonymousReveal => '監査して身分を開示';
+
+  @override
+  String get sortForYou => 'おすすめ';
 
   @override
   String get feedReasonFollowing => 'フォロー中の人から';

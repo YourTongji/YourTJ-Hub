@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import IdentityPicker from '@/site/components/IdentityPicker.vue'
 import { computed, nextTick, ref, watch } from 'vue'
 import { AlertTriangle, BookOpen, Check, FileText, HelpCircle, Lightbulb, ListChecks, Loader2, MessageSquare, Send, X } from '@lucide/vue'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle, PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
@@ -39,6 +40,7 @@ const {
 
 const agentRepliesDisabled = ref(false)
 const title = ref(page.props.topic.title || '')
+const identity = ref<'member' | 'persona'>(page.props.topic.identity ?? 'member')
 const content = ref(page.props.topic.content || '')
 // Body images follow the editor; only gallery-only attachments need separate controls.
 const initialBodyImages = new Set(bodyImageUrls(content.value))
@@ -404,7 +406,7 @@ async function save() {
       images: submissionImages.value,
       categoryId: categoryIds.value,
       agentRepliesDisabled: agentRepliesDisabled.value,
-      topicStatus: 1,
+      topicStatus: 1, identity: page.props.isEditing ? undefined : identity.value,
       website: website.value,
       captchaId: captchaId.value,
       captchaCode: captchaCode.value,
@@ -451,7 +453,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
       images: submissionImages.value,
       categoryId: categoryIds.value,
       agentRepliesDisabled: agentRepliesDisabled.value,
-      topicStatus: 0,
+      topicStatus: 0, identity: currentTopicId.value ? undefined : identity.value,
       website: website.value,
       captchaId: captchaId.value,
       captchaCode: captchaCode.value,
@@ -481,6 +483,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
 
 <template>
     <main class="min-w-0 pb-8">
+      <IdentityPicker :key="page.layout.viewer.id" :viewer="page.layout.viewer" v-model="identity" :disabled="page.props.isEditing || submitting" />
       <PageHeader
         :title="props.isEditing ? currentTypeEditTitle : currentTypeCreateTitle"
         :description="currentTypeMeta.desc"
