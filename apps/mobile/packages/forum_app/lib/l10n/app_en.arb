@@ -1692,5 +1692,52 @@
   "feedReasonCategory": "A category you participate in",
   "feedReasonNewReply": "New replies",
   "feedReasonRecent": "Recently published",
-  "sortDaily": "Today's top"
+  "sortDaily": "Today's top",
+  "anonymousPurpose": "Use a fixed alias for posts and replies, hiding your main-account association from the public.",
+  "anonymousSettingsHint": "Manage the alias and identity used for anonymous posts",
+  "anonymousIntroTitle": "Your anonymous identity has its own name and history",
+  "anonymousHistoryHint": "Posts from the same anonymous identity are linked. Their content may still reveal who you are.",
+  "anonymousConfirmHint": "One anonymous identity per account. Once confirmed, the name cannot change for one year.",
+  "anonymousPrivacySummary": "The public and ordinary moderators cannot see the main-account association. Specially authorized administrators can reveal it with a recorded reason and audit. Bindings and audit records remain after account closure.",
+  "anonymousRules": "About anonymous identities",
+  "anonymousChooseName": "Choose a name",
+  "anonymousRefreshNames": "Draw another batch",
+  "anonymousDrawsRemaining": "{remaining} batches left today",
+  "anonymousBatchNumber": "Batch {number}",
+  "anonymousPreviousBatches": "Previously generated candidates",
+  "anonymousNamePreview": "Your chosen name",
+  "anonymousConfirmName": "Confirm name",
+  "anonymousInactive": "Inactive",
+  "anonymousReady": "Available",
+  "anonymousLockedUntil": "You can change the name after {date}",
+  "anonymousResetAt": "Draws reset at {date}",
+  "@anonymousDrawsRemaining": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      }
+    }
+  },
+  "@anonymousBatchNumber": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "@anonymousLockedUntil": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "@anonymousResetAt": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "anonymousNameLockHint": "Name locked for one year."
 }

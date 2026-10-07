@@ -38,6 +38,39 @@ keeps the UID, avatar, profile and historical attribution and starts another yea
 name does not restart the lock. Nothing forces a name change. Dynamic author projections use the
 current name; delivered notifications, screenshots and copied text are not recalled.
 
+## Settings and first use
+
+`Current`: Web exposes a compact anonymous-identity row under Settings → Privacy, separate from
+public-profile editing. It shows the current alias and availability or an unconfigured state. The
+legacy `/settings#anonymous-identity` entry selects the Privacy tab. Native mobile retains its
+account-settings entry, with a compact description separating persona management from
+public-profile editing.
+
+`Current`: Web topic, quick-publish and reply composers expose a compact identity menu. Choosing
+setup opens the same accessible dialog as Settings without navigating away from the draft. Choosing
+a candidate only previews it; explicit successful confirmation selects the persona in that composer
+and closes the dialog. Cancelling or failed requests retain the draft and selected publishing identity.
+A disabled persona can be managed but cannot be chosen for publishing.
+
+`Current`: the dialog introduces the persona before drawing names, shows one candidate batch at a
+time, and permits returning to previously generated same-day batches without spending quota. The
+one-year lock, restricted audited reveal and post-closure retention are visible before confirmation;
+full rules can be expanded. Reset time appears when the daily draw quota is exhausted. Failed draw
+responses retain the request key, so retries recover the same batch.
+
+`Current`: native topic and reply composers open a shared bottom sheet from their identity menu,
+keeping the active writing route and draft mounted. Account settings reuses the same content on a
+page. Both show one batch at a time, permit returning to earlier same-day batches and preview a
+candidate before explicit confirmation. The one-year lock and confirmation button remain in the
+bottom action area while explanatory text scrolls. Successful setup selects the returned persona
+in the invoking composer; cancellation, failure and late responses after a session change do not.
+Self-disabled identities retain a reactivation action; governance restrictions remain unavailable.
+The sheet follows the native component foundation's safe-area, keyboard-inset and width boundaries,
+using [Flutter's modal-sheet semantics](https://api.flutter.dev/flutter/material/showModalBottomSheet.html).
+
+The contextual entry and progressive disclosure follow
+[NN/g guidance on contextual help](https://www.nngroup.com/articles/onboarding-tutorials/).
+
 ## Writing and public attribution
 
 `Current`: topic and reply composers choose `member` or `persona`. A fresh composition defaults to

@@ -10,6 +10,9 @@ import type { LayoutPayload, SettingsPageProps } from '@gooseforum/client'
 
 // 设置页 onMounted 会拉取绑定/会话/TOTP 状态并初始化 Web Push / 浏览器通知；
 // 统一 mock 为安静值，聚焦 canSetPassword 表单分支本身。
+vi.mock('../src/runtime/anonymous-identity', () => ({
+  getIdentityState: vi.fn(async () => ({ persona: null, disabled: false, governanceDisabled: false, batches: [] })),
+}))
 vi.mock('../src/runtime/api', () => ({
   ApiResponseError: class ApiResponseError extends Error {},
   batchDeleteContent: vi.fn(async () => true),
@@ -288,5 +291,30 @@ describe('Apple binding management on Web', () => {
     await flushPromises()
     expect(wrapper.findAll('h3').some(item => item.text() === 'Apple')).toBe(false)
     wrapper.unmount()
+  })
+})
+
+
+describe('anonymous identity belongs to private settings', () => {
+  test('profile editing has no identity setup; Privacy reveals the compact management row', async () => {
+    const wrapper = mountPage(false)
+    await flushPromises()
+    expect(wrapper.find('#anonymous-identity').exists()).toBe(false)
+    const tab = wrapper.findAll('nav button').find(button => button.text() === i18n.global.t('settings.tabs.privacy'))!
+    await tab.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('#anonymous-identity').exists()).toBe(true)
+    expect(wrapper.find('#anonymous-identity').text()).toContain(i18n.global.t('anonymous.notSet'))
+    expect(wrapper.find('#anonymous-identity').text()).not.toContain(i18n.global.t('anonymous.boundary'))
+    wrapper.unmount()
+  })
+  test('the old anonymous-identity anchor opens Privacy instead of the public profile tab', async () => {
+    const original = location.href
+    history.replaceState(null, '', '/settings#anonymous-identity')
+    const wrapper = mountPage(false)
+    await flushPromises()
+    expect(wrapper.find('#anonymous-identity').exists()).toBe(true)
+    wrapper.unmount()
+    history.replaceState(null, '', original)
   })
 })

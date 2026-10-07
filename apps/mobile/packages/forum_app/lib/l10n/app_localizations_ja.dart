@@ -3441,4 +3441,70 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get sortDaily => '今日の人気';
+
+  @override
+  String get anonymousPurpose => '固定の名前で投稿・返信し、本アカウントとの関連を公開しません。';
+
+  @override
+  String get anonymousSettingsHint => '匿名投稿で使う名前と身元を管理';
+
+  @override
+  String get anonymousIntroTitle => '匿名の身元には専用の名前と投稿履歴があります';
+
+  @override
+  String get anonymousHistoryHint => '同じ匿名の身元の投稿は関連付けられます。内容から本人が推測される場合があります。';
+
+  @override
+  String get anonymousConfirmHint => 'アカウントごとに匿名の身元は1つです。確定後、名前は1年間変更できません。';
+
+  @override
+  String get anonymousPrivacySummary =>
+      '一般の閲覧者と通常のモデレーターは本アカウントとの関連を確認できません。専用権限を持つ管理者は理由と監査記録を伴って開示できます。退会後も紐付けと監査記録を長期保存します。';
+
+  @override
+  String get anonymousRules => '匿名のルール';
+
+  @override
+  String get anonymousChooseName => '名前を選ぶ';
+
+  @override
+  String get anonymousRefreshNames => '別の候補を抽選';
+
+  @override
+  String anonymousDrawsRemaining(int remaining) {
+    return '本日はあと $remaining 回抽選できます';
+  }
+
+  @override
+  String anonymousBatchNumber(int number) {
+    return '候補 $number';
+  }
+
+  @override
+  String get anonymousPreviousBatches => '抽選済みの候補を見る';
+
+  @override
+  String get anonymousNamePreview => '使用する名前';
+
+  @override
+  String get anonymousConfirmName => 'この名前で確定';
+
+  @override
+  String get anonymousInactive => '停止中';
+
+  @override
+  String get anonymousReady => '利用可能';
+
+  @override
+  String anonymousLockedUntil(String date) {
+    return '$date 以降に名前を変更できます';
+  }
+
+  @override
+  String anonymousResetAt(String date) {
+    return '抽選回数は $date にリセットされます';
+  }
+
+  @override
+  String get anonymousNameLockHint => '確定後、名前は1年間固定です。';
 }
