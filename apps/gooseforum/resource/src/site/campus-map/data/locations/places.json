@@ -1,0 +1,304 @@
+{
+  "schema_version": "campus-place-catalog/v1",
+  "campuses": {
+    "jiading": [
+      {
+        "name": "安楼",
+        "aliases": [
+          "安楼（A楼）",
+          "A",
+          "A楼"
+        ],
+        "featureId": "way/266167562",
+        "evidence": "jiading.geojson: 安楼（A楼） (source name/alias only)"
+      },
+      {
+        "name": "博楼",
+        "aliases": [
+          "博楼（B楼）",
+          "B",
+          "B楼"
+        ],
+        "featureId": "way/263922904",
+        "evidence": "jiading.geojson: 博楼（B楼） (source name/alias only)"
+      },
+      {
+        "name": "诚楼",
+        "aliases": [
+          "诚楼（C楼）",
+          "C",
+          "C楼"
+        ],
+        "featureId": "way/263922903",
+        "evidence": "jiading.geojson: 诚楼（C楼） (source name/alias only)"
+      },
+      {
+        "name": "德楼",
+        "aliases": [
+          "德楼（D楼）",
+          "D",
+          "D楼"
+        ],
+        "featureId": "way/266169310",
+        "evidence": "jiading.geojson: 德楼（D楼） (source name/alias only)"
+      },
+      {
+        "name": "复楼",
+        "aliases": [
+          "复楼（F楼）",
+          "F",
+          "F楼"
+        ],
+        "featureId": "way/266160342",
+        "evidence": "jiading.geojson: 复楼（F楼） (source name/alias only)"
+      },
+      {
+        "name": "广楼",
+        "aliases": [
+          "广楼（G楼）",
+          "G",
+          "G楼"
+        ],
+        "featureId": "way/263922908",
+        "evidence": "jiading.geojson: 广楼（G楼） (source name/alias only)"
+      },
+      {
+        "name": "华楼",
+        "aliases": [
+          "华楼（H楼）",
+          "H",
+          "H楼"
+        ],
+        "featureId": "way/263922907",
+        "evidence": "jiading.geojson: 华楼（H楼） (source name/alias only)"
+      },
+      {
+        "name": "济人楼",
+        "aliases": [
+          "济人楼（中德学院）"
+        ],
+        "featureId": "way/135405204",
+        "evidence": "jiading.geojson: 济人楼（中德学院） (source name/alias only)"
+      },
+      {
+        "name": "济事楼",
+        "aliases": [
+          "济事南楼",
+          "济事北楼",
+          "济事楼（软件学院）"
+        ],
+        "featureId": "way/135405205",
+        "evidence": "Existing project mapping documented in campus-map data README; building-level only"
+      },
+      {
+        "name": "开物馆",
+        "aliases": [
+          "开物馆（机械与能源工程学院）"
+        ],
+        "featureId": "way/384612822",
+        "evidence": "jiading.geojson: 开物馆（机械与能源工程学院） (source name/alias only)"
+      },
+      {
+        "name": "宁远馆",
+        "aliases": [
+          "宁远馆（汽车学院）"
+        ],
+        "featureId": "way/384612824",
+        "evidence": "jiading.geojson: 宁远馆（汽车学院） (source name/alias only)"
+      },
+      {
+        "name": "体育中心",
+        "aliases": [
+          "同济大学嘉定校区体育中心"
+        ],
+        "featureId": "way/263927456",
+        "evidence": "jiading.geojson: 同济大学嘉定校区体育中心 (source name/alias only)"
+      },
+      {
+        "name": "体育中心篮球馆",
+        "aliases": [],
+        "featureId": "way/1456432428",
+        "evidence": "Existing project mapping documented in campus-map data README; building-level only"
+      },
+      {
+        "name": "体育中心乒乓馆",
+        "aliases": [],
+        "featureId": "way/1456432428",
+        "evidence": "Existing project mapping documented in campus-map data README; building-level only"
+      },
+      {
+        "name": "体育中心游泳馆",
+        "aliases": [],
+        "featureId": "way/1456432428",
+        "evidence": "Existing project mapping documented in campus-map data README; building-level only"
+      },
+      {
+        "name": "通达馆",
+        "aliases": [
+          "通达馆（交通运输工程学院）"
+        ],
+        "featureId": "way/263927458",
+        "evidence": "jiading.geojson: 通达馆（交通运输工程学院） (source name/alias only)"
+      },
+      {
+        "name": "网球场",
+        "aliases": [],
+        "featureId": "way/263914852",
+        "evidence": "jiading.geojson: 网球场 (source name/alias only)"
+      },
+      {
+        "name": "惟新馆",
+        "aliases": [
+          "惟新馆（艺术与传媒学院）"
+        ],
+        "featureId": "way/263927461",
+        "evidence": "jiading.geojson: 惟新馆（艺术与传媒学院） (source name/alias only)"
+      },
+      {
+        "name": "艺嘉楼",
+        "aliases": [
+          "艺嘉楼（学生活动中心）"
+        ],
+        "featureId": "way/1456310339",
+        "evidence": "jiading.geojson: 艺嘉楼（学生活动中心） (source name/alias only)"
+      },
+      {
+        "name": "游泳馆",
+        "aliases": [
+          "同济大学嘉定校区游泳馆"
+        ],
+        "featureId": "way/442185664",
+        "evidence": "jiading.geojson: 同济大学嘉定校区游泳馆 (source name/alias only)"
+      },
+      {
+        "name": "致臻楼",
+        "aliases": [
+          "致臻楼（工程实践教育中心）"
+        ],
+        "featureId": "way/1459780531",
+        "evidence": "jiading.geojson: 致臻楼（工程实践教育中心） (source name/alias only)"
+      },
+      {
+        "name": "智信馆",
+        "aliases": [
+          "智信馆（电子与信息工程学院）"
+        ],
+        "featureId": "way/266205932",
+        "evidence": "jiading.geojson: 智信馆（电子与信息工程学院） (source name/alias only)"
+      }
+    ],
+    "siping": [
+      {
+        "name": "北教学楼",
+        "aliases": [
+          "北楼",
+          "教学北楼",
+          "北"
+        ],
+        "featureId": "way/183383474",
+        "evidence": "Existing user-confirmed north/south teaching-building mapping; prompt.system.zh.txt"
+      },
+      {
+        "name": "城规学院D楼",
+        "aliases": [],
+        "featureId": "way/183383475",
+        "evidence": "siping.geojson: 城规学院D楼 (source name/alias only)"
+      },
+      {
+        "name": "工程试验馆",
+        "aliases": [],
+        "featureId": "relation/20672267",
+        "evidence": "siping.geojson: 工程试验馆 (source name/alias only)"
+      },
+      {
+        "name": "化学馆",
+        "aliases": [],
+        "featureId": "way/183383951",
+        "evidence": "siping.geojson: 化学馆 (source name/alias only)"
+      },
+      {
+        "name": "汇文楼",
+        "aliases": [],
+        "featureId": "way/183383480",
+        "evidence": "siping.geojson: 汇文楼 (source name/alias only)"
+      },
+      {
+        "name": "南教学楼",
+        "aliases": [
+          "南楼",
+          "教学南楼",
+          "南"
+        ],
+        "featureId": "way/183383472",
+        "evidence": "Existing user-confirmed north/south teaching-building mapping; prompt.system.zh.txt"
+      },
+      {
+        "name": "瑞安楼",
+        "aliases": [],
+        "featureId": "way/183383954",
+        "evidence": "siping.geojson: 瑞安楼 (source name/alias only)"
+      },
+      {
+        "name": "体育馆",
+        "aliases": [
+          "同济大学四平路校区体育馆"
+        ],
+        "featureId": "way/380537314",
+        "evidence": "siping.geojson: 同济大学四平路校区体育馆 (source name/alias only)"
+      },
+      {
+        "name": "物理馆",
+        "aliases": [],
+        "featureId": "way/183383958",
+        "evidence": "siping.geojson: 物理馆 (source name/alias only)"
+      },
+      {
+        "name": "医学楼",
+        "aliases": [
+          "同济大学医学楼"
+        ],
+        "featureId": "way/184542420",
+        "evidence": "siping.geojson: 同济大学医学楼 (source name/alias only)"
+      },
+      {
+        "name": "游泳馆",
+        "aliases": [
+          "同济大学游泳馆"
+        ],
+        "featureId": "way/125465017",
+        "evidence": "siping.geojson: 同济大学游泳馆 (source name/alias only)"
+      },
+      {
+        "name": "中法中心",
+        "aliases": [
+          "同济大学中法中心"
+        ],
+        "featureId": "way/183383464",
+        "evidence": "siping.geojson: 同济大学中法中心 (source name/alias only)"
+      },
+      {
+        "name": "衷和楼",
+        "aliases": [
+          "综合楼",
+          "教学科研综合楼"
+        ],
+        "featureId": "way/181555253",
+        "evidence": "siping.geojson: 衷和楼 (source name/alias only)"
+      }
+    ],
+    "huxi": [
+      {
+        "name": "体育馆",
+        "aliases": [],
+        "featureId": "way/1361142662",
+        "evidence": "huxi.geojson: 体育馆 (source name/alias only)"
+      },
+      {
+        "name": "小礼堂",
+        "aliases": [],
+        "featureId": "way/1361142668",
+        "evidence": "huxi.geojson: 小礼堂 (source name/alias only)"
+      }
+    ]
+  }
+}

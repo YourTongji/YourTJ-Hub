@@ -9,6 +9,13 @@ import type { CampusDatasetKey, CampusStatus, LayoutPayload } from '@gooseforum/
 
 const { focusLocation } = vi.hoisted(() => ({ focusLocation: vi.fn() }))
 const campusApi = vi.hoisted(() => ({ status: vi.fn(), dataset: vi.fn() }))
+const pkApi = vi.hoisted(() => ({ calendars: vi.fn(), byTime: vi.fn(), details: vi.fn(), latest: vi.fn() }))
+vi.mock('../src/runtime/pk-api', () => ({
+  getPkCalendars: pkApi.calendars,
+  getPkCoursesByTime: pkApi.byTime,
+  getPkCourseDetails: pkApi.details,
+  getPkLatestUpdate: pkApi.latest,
+}))
 vi.mock('../src/runtime/campus-api', async (original) => ({
   ...await original<typeof import('../src/runtime/campus-api')>(),
   campusAPI: campusApi,
@@ -102,6 +109,37 @@ it('does not offer navigation for Zhangjiang schematic buildings', async () => {
   expect(page.get('.atlas-detail h2').exists()).toBe(true)
   expect(page.find('.atlas-detail a.atlas-share').exists()).toBe(false)
 })
+it('offers course schedules for outdoor sports places without a building tag', async () => {
+  const feature = dataset.features.find((item) => item.properties.category === 'sport' &&
+    item.properties.campus && !item.properties.building)
+  window.history.replaceState({}, '', `/map#place=${encodeURIComponent(String(feature.id))}`)
+  const page = await openPage()
+  expect(page.get('.atlas-detail h2').exists()).toBe(true)
+  expect(page.get('.atlas-schedule-open').text()).toBe("View this place's schedule")
+})
+it('keeps a scoped schedule and its multiple location choices open when a map pin changes', async () => {
+  window.history.replaceState({}, '', '/map#place=way%2F183383954')
+  pkApi.calendars.mockResolvedValue([{ calendarId: 122, calendarName: 'Test term' }])
+  pkApi.latest.mockResolvedValue({ latestSyncAt: null })
+  pkApi.byTime.mockResolvedValue({ courses: [{ courseCode: 'MULTI101', courseName: 'Scoped multi-location course' }] })
+  pkApi.details.mockResolvedValue({ MULTI101: [{ campus: '四平路校区', teachingClassId: 1, arrangementInfo: [
+    { occupyDay: 1, occupyTime: [1, 2], occupyWeek: [1], occupyRoom: '瑞安楼403、505、507，物理馆319、301、302', arrangementText: 'Mon 1-2' },
+  ] }] })
+  const page = await openPage()
+  await page.get('.atlas-schedule-open').trigger('click')
+  await flushPromises()
+  const originalScope = page.get('.atlas-schedule__scope').text()
+  await page.get('.atlas-schedule__submit').trigger('click')
+  await flushPromises()
+  await page.get('.atlas-schedule__list button').trigger('click')
+  await flushPromises()
+  expect(page.findAll('.atlas-location-choices button')).toHaveLength(6)
+  await page.findAll('.atlas-location-choices button')[3]!.trigger('click')
+  await flushPromises()
+  expect(window.location.hash).toBe('#place=way%2F183383958')
+  expect(page.findAll('.atlas-location-choices button')).toHaveLength(6)
+  expect(page.get('.atlas-schedule__scope').text()).toBe(originalScope)
+})
 it('reports an outside-campus fix from the uncalibrated plan without promising an overlay', async () => {
   window.history.replaceState({}, '', '/map?campus=zhangjiang')
   const page = await openPage()
@@ -163,7 +201,7 @@ it('locates a confirmed timetable building using only the generic map feature id
     key,
     status: 'ready',
     updatedAt: '2026-09-23T00:00:00Z',
-    metrics: key === 'calendar' ? [{ label: '教学周', value: '3', unit: '周' }, { label: '学期周数', value: '18', unit: '周' }] : [],
+    metrics: key === 'calendar' ? [{ label: '当前学期', value: '2026-2027学年第1学期', unit: '' }, { label: '教学周', value: '3', unit: '周' }, { label: '学期周数', value: '18', unit: '周' }] : [],
     columns: [], rows: [], series: [],
     events: key === 'today' || key === 'timetable' ? [event] : [],
     ...(key === 'today' ? { teachingDay: { date: shanghaiDate, sourceDate: shanghaiDate, kind: 'none', label: '', sectionCount: 11 } } : {}),
@@ -174,8 +212,8 @@ it('locates a confirmed timetable building using only the generic map feature id
   expect(campusApi.dataset.mock.calls.map(([key]) => key).sort()).toEqual(['calendar', 'timetable', 'today'])
   await page.get('.atlas-mine__course').trigger('click')
   await flushPromises()
-  expect(page.get('.atlas-mine__selected').text()).toContain('四平路校区 · 北 · 115')
-  expect(page.get('.atlas-mine__selected').text()).not.toContain('Building location could not be verified')
+  expect(page.get('.atlas-mine__selected').text()).toContain('四平路校区 · 北115')
+  expect(page.get('.atlas-mine__selected').text()).not.toContain('Place location could not be verified')
   expect(page.findComponent({ name: 'CampusCanvas' }).props('selected').id).toBe('way/183383474')
   expect(window.location.hash).toBe('#place=way%2F183383474')
   expect(page.find('.atlas-place').exists()).toBe(false)
@@ -195,7 +233,7 @@ it('waits for the current campus map data when a course is clicked first', async
   const event = { name: '数学分析', room: '北115', campus: '四平路校区', day: 2, start: 3, end: 4, weeks: [3], teacher: '', credits: '' }
   campusApi.dataset.mockImplementation(async (key: CampusDatasetKey) => ({
     key, status: 'ready', updatedAt: '',
-    metrics: key === 'calendar' ? [{ label: '教学周', value: '3', unit: '周' }, { label: '学期周数', value: '18', unit: '周' }] : [],
+    metrics: key === 'calendar' ? [{ label: '当前学期', value: '2026-2027学年第1学期', unit: '' }, { label: '教学周', value: '3', unit: '周' }, { label: '学期周数', value: '18', unit: '周' }] : [],
     columns: [], rows: [], series: [], events: key === 'today' ? [event] : [],
     ...(key === 'today' ? { teachingDay: { date: shanghaiDate, sourceDate: shanghaiDate, kind: 'none', label: '', sectionCount: 11 } } : {}),
   }))
@@ -224,7 +262,7 @@ it('keeps an unconfirmed campus/building combination unpinned', async () => {
   } satisfies CampusStatus)
   const event = { name: '数学分析', room: '北115', campus: '嘉定校区', day: 2, start: 3, end: 4, weeks: [3], teacher: '', credits: '' }
   campusApi.dataset.mockImplementation(async (key: CampusDatasetKey) => ({
-    key, status: 'ready', updatedAt: '', metrics: [], columns: [], rows: [], series: [],
+    key, status: 'ready', updatedAt: '', metrics: key === 'calendar' ? [{ label: '当前学期', value: '2026-2027学年第1学期', unit: '' }] : [], columns: [], rows: [], series: [],
     events: key === 'today' ? [event] : [],
     ...(key === 'today' ? { teachingDay: { date: shanghaiDate, sourceDate: shanghaiDate, kind: 'none', label: '', sectionCount: 11 } } : {}),
   }))
@@ -232,7 +270,7 @@ it('keeps an unconfirmed campus/building combination unpinned', async () => {
   const page = await openPage()
   await page.get('.atlas-mine__course').trigger('click')
   await flushPromises()
-  expect(page.get('.atlas-mine__selected').text()).toContain('Building location could not be verified')
+  expect(page.get('.atlas-mine__selected').text()).toContain('Place location could not be verified')
   expect(page.findComponent({ name: 'CampusCanvas' }).props('selected')).toBeNull()
   expect(window.location.hash).toBe('')
 })
@@ -244,9 +282,9 @@ it('switches to Jiading and selects its single Jishi Building feature', async ()
     binding: { maskedId: '***01', revision: 'revision-1', needsAuthorization: false },
     candidate: null,
   } satisfies CampusStatus)
-  const event = { name: '线性代数', room: '济事北楼 A101', campus: '嘉定校区', day: 2, start: 1, end: 2, weeks: [3], teacher: '', credits: '' }
+  const event = { name: '线性代数', room: '济事楼126', campus: '嘉定校区', day: 2, start: 1, end: 2, weeks: [3], teacher: '', credits: '' }
   campusApi.dataset.mockImplementation(async (key: CampusDatasetKey) => ({
-    key, status: 'ready', updatedAt: '', metrics: [], columns: [], rows: [], series: [],
+    key, status: 'ready', updatedAt: '', metrics: key === 'calendar' ? [{ label: '当前学期', value: '2026-2027学年第1学期', unit: '' }] : [], columns: [], rows: [], series: [],
     events: key === 'today' ? [event] : [],
     ...(key === 'today' ? { teachingDay: { date: shanghaiDate, sourceDate: shanghaiDate, kind: 'none', label: '', sectionCount: 11 } } : {}),
   }))
@@ -276,12 +314,12 @@ it('ignores an older campus switch when a later course is selected', async () =>
     candidate: null,
   } satisfies CampusStatus)
   const events = [
-    { name: '济事课程', room: '济事北楼 A101', campus: '嘉定校区', day: 2, start: 1, end: 2, weeks: [3], teacher: '', credits: '' },
-    { name: '南楼课程', room: '南楼203', campus: '四平路校区', day: 2, start: 3, end: 4, weeks: [3], teacher: '', credits: '' },
+    { name: '济事课程', room: '济事楼126', campus: '嘉定校区', day: 2, start: 1, end: 2, weeks: [3], teacher: '', credits: '' },
+    { name: '南楼课程', room: '南115', campus: '四平路校区', day: 2, start: 3, end: 4, weeks: [3], teacher: '', credits: '' },
   ]
   campusApi.dataset.mockImplementation(async (key: CampusDatasetKey) => ({
     key, status: 'ready', updatedAt: '',
-    metrics: key === 'calendar' ? [{ label: '教学周', value: '3', unit: '周' }, { label: '学期周数', value: '18', unit: '周' }] : [],
+    metrics: key === 'calendar' ? [{ label: '当前学期', value: '2026-2027学年第1学期', unit: '' }, { label: '教学周', value: '3', unit: '周' }, { label: '学期周数', value: '18', unit: '周' }] : [],
     columns: [], rows: [], series: [], events: key === 'today' || key === 'timetable' ? events : [],
     ...(key === 'today' ? { teachingDay: { date: shanghaiDate, sourceDate: shanghaiDate, kind: 'none', label: '', sectionCount: 11 } } : {}),
   }))
@@ -314,7 +352,7 @@ it('clears the mapped feature when the course scope changes or private data clea
   const event = { name: '数学分析', room: '北115', campus: '四平路校区', day: 2, start: 3, end: 4, weeks: [3], teacher: '', credits: '' }
   campusApi.dataset.mockImplementation(async (key: CampusDatasetKey) => ({
     key, status: 'ready', updatedAt: '',
-    metrics: key === 'calendar' ? [{ label: '教学周', value: '3', unit: '周' }, { label: '学期周数', value: '18', unit: '周' }] : [],
+    metrics: key === 'calendar' ? [{ label: '当前学期', value: '2026-2027学年第1学期', unit: '' }, { label: '教学周', value: '3', unit: '周' }, { label: '学期周数', value: '18', unit: '周' }] : [],
     columns: [], rows: [], series: [], events: key === 'today' || key === 'timetable' ? [event] : [],
     ...(key === 'today' ? { teachingDay: { date: shanghaiDate, sourceDate: shanghaiDate, kind: 'none', label: '', sectionCount: 11 } } : {}),
   }))
@@ -358,7 +396,7 @@ it('clears the private course list when revalidation fails and aborts requests o
   } satisfies CampusStatus)
   const event = { name: '线性代数', room: '济事楼201', campus: '嘉定校区', day: 2, start: 1, end: 2, weeks: [3], teacher: '', credits: '' }
   campusApi.dataset.mockImplementation(async (key: CampusDatasetKey) => ({
-    key, status: 'ready', updatedAt: '', metrics: [], columns: [], rows: [], series: [],
+    key, status: 'ready', updatedAt: '', metrics: key === 'calendar' ? [{ label: '当前学期', value: '2026-2027学年第1学期', unit: '' }] : [], columns: [], rows: [], series: [],
     events: key === 'today' ? [event] : [],
     ...(key === 'today' ? { teachingDay: { date: shanghaiDate, sourceDate: shanghaiDate, kind: 'none', label: '', sectionCount: 11 } } : {}),
   }))
@@ -384,7 +422,7 @@ it('clears the timetable immediately on session clear and ignores late responses
   let resolveToday!: (value: unknown) => void
   campusApi.dataset.mockImplementation((key: CampusDatasetKey) => key === 'today'
     ? new Promise(resolve => { resolveToday = resolve })
-    : Promise.resolve({ key, status: 'ready', updatedAt: '', metrics: [], columns: [], rows: [], series: [], events: [] }))
+    : Promise.resolve({ key, status: 'ready', updatedAt: '', metrics: key === 'calendar' ? [{ label: '当前学期', value: '2026-2027学年第1学期', unit: '' }] : [], columns: [], rows: [], series: [], events: [] }))
   const page = await openPage()
   await flushPromises()
   window.dispatchEvent(new Event('goose:session-cleared'))
@@ -403,7 +441,7 @@ it('discards timetable responses when the official binding revision changes mid-
     .mockResolvedValueOnce({ enabled: true, binding: { maskedId: '***02', revision: 'revision-2', needsAuthorization: false }, candidate: null })
   campusApi.dataset.mockImplementation(async (key: CampusDatasetKey) => ({
     key, status: 'ready', updatedAt: '',
-    metrics: key === 'calendar' ? [{ label: '教学周', value: '3', unit: '周' }, { label: '学期周数', value: '18', unit: '周' }] : [],
+    metrics: key === 'calendar' ? [{ label: '当前学期', value: '2026-2027学年第1学期', unit: '' }, { label: '教学周', value: '3', unit: '周' }, { label: '学期周数', value: '18', unit: '周' }] : [],
     columns: [], rows: [], series: [],
     events: key === 'today' ? [{ name: 'must not cross bindings', room: '北115', campus: '四平路校区', day: 2, start: 1, end: 2, weeks: [3], teacher: '', credits: '' }] : [],
     ...(key === 'today' ? { teachingDay: { date: shanghaiDate, sourceDate: shanghaiDate, kind: 'none', label: '', sectionCount: 11 } } : {}),

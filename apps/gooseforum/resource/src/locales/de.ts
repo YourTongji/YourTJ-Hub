@@ -671,6 +671,25 @@ export default {
 },
   campusMap: {
     menu: { label: "Kartenmenü", places: "Orte", courses: "Mein Stundenplan" },
+    locations: {
+      reviewPending: "Die Ortsangaben werden noch geprüft. Maßgeblich ist die ursprüngliche Kursangabe.",
+      unassigned: "Bedingungen mit unklarem Bezug: {conditions}",
+      hints: {
+        named: "Benannter Ort, noch nicht zugeordnet.",
+        generic: "Allgemeine Ortsangabe; genauer Ort unbestätigt.",
+        online: "Onlinekurs ohne physischen Ort.",
+        pending: "Ort wird noch festgelegt.",
+        no_room: "Kein Unterrichtsraum zugewiesen.",
+        unknown: "Ort unklar.",
+        missing: "Der Ort lässt sich nicht zuverlässig deuten; der Originaltext bleibt sichtbar.",
+        review: "Dieser Ort muss geprüft werden und kann noch nicht markiert werden.",
+        campus: "Der angegebene Campus ist auf dieser Karte nicht bestätigt.",
+        unmapped: "Kein eindeutiger Treffer auf der Karte.",
+      },
+      label: "Kursorte",
+      choose: "Wählen Sie einen Ort aus. Wochenangaben und andere Bedingungen bleiben im Original erhalten.",
+      unmapped: "Nicht gefunden: Der Name hat keine eindeutige Zuordnung auf der Karte.",
+    },
     mine: {
       source: "Dein offizieller Tongji-Stundenplan",
       personalTab: "Mein Stundenplan",
@@ -690,7 +709,7 @@ export default {
       search: "Kurse oder Raumnummern suchen",
       noCourses: "In dieser Unterrichtswoche gibt es keine Kurse.",
       noMatches: "Kein passender Kurs oder Raum gefunden.",
-      locationUnverified: "Der Gebäudestandort konnte nicht bestätigt werden; es wird keine Markierung angezeigt.",
+      locationUnverified: "Der Ort konnte nicht bestätigt werden; es wird keine Markierung angezeigt.",
     },
     schedule: {
       source: "Synchronisierter Kursplan",
@@ -709,7 +728,7 @@ export default {
       unavailable: "Lehrveranstaltungen sind vorübergehend nicht verfügbar.",
       noCourses: "Keine synchronisierten Lehrveranstaltungen zu dieser Zeit.",
       noMatches: "Keine passenden Kurse.",
-      openBuilding: "Stundenplan dieses Gebäudes anzeigen",
+      openBuilding: "Stundenplan dieses Ortes anzeigen",
       buildingScope: "Kurse für „{building}“ auf der Karte.",
       queryDate: "Suchdatum: {date}",
       lastSynced: "Letzte Synchronisierung des Kursmoduls: {date}",

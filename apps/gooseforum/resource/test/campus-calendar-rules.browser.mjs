@@ -56,6 +56,11 @@ const translations = {
 for (const [locale, text] of Object.entries(translations)) for (const width of [375, 1280]) {
   test(`admin reviews AI rules before applying and retains failed drafts at ${width}px in ${locale}`, async () => {
     const page = await browser.newPage({ viewport: { width, height: 1000 } })
+    const browserErrors = []
+    page.on('pageerror', error => browserErrors.push(error.message))
+    page.on('response', response => {
+      if (response.status() >= 400) browserErrors.push(`${response.status()} ${response.url()}`)
+    })
     let saved = 0, parseInput, savedInput
     const initial = { revision: '0'.repeat(64), rules: { holidays: [], moves: [] } }
     try {
@@ -91,6 +96,9 @@ for (const [locale, text] of Object.entries(translations)) for (const width of [
       assert.equal(savedInput.rules.moves[0].toDate, '2026-09-21')
       assert.equal(await page.getByRole('button', { name: text.adminApply, exact: true }).isDisabled(), true)
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'no horizontal overflow')
+    } catch (error) {
+      error.message += `\nBrowser errors: ${JSON.stringify(browserErrors)}`
+      throw error
     } finally { await page.close() }
   })
 }

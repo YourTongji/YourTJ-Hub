@@ -672,6 +672,25 @@ export default {
 },
   campusMap: {
     menu: { label: "Map menu", places: "Places", courses: "My timetable" },
+    locations: {
+      reviewPending: "Location details are awaiting review. Follow the original course arrangement.",
+      unassigned: "Conditions with unclear scope: {conditions}",
+      hints: {
+        named: "Named place; not located.",
+        generic: "Generic place; exact location unconfirmed.",
+        online: "Online class; no physical location.",
+        pending: "Location to be arranged.",
+        no_room: "No classroom assigned.",
+        unknown: "Location unclear.",
+        missing: "This location cannot be reliably interpreted; original text retained.",
+        review: "This location needs review and cannot be pinned yet.",
+        campus: "The stated campus cannot be confirmed on this map.",
+        unmapped: "Not located: no unique map match.",
+      },
+      label: "Course locations",
+      choose: "Choose a location to view. Week and other conditions retain their original wording.",
+      unmapped: "Not located: the name has no unique map match.",
+    },
     mine: {
       source: "Your official Tongji timetable",
       personalTab: "My timetable",
@@ -691,7 +710,7 @@ export default {
       search: "Search courses or room numbers",
       noCourses: "There are no classes in this teaching week.",
       noMatches: "No matching course or room number.",
-      locationUnverified: "Building location could not be verified; no map pin is shown.",
+      locationUnverified: "Place location could not be verified; no map pin is shown.",
     },
     schedule: {
       source: "Synced course schedule",
@@ -710,7 +729,7 @@ export default {
       unavailable: "Course arrangements are temporarily unavailable.",
       noCourses: "No synced course arrangements for this time.",
       noMatches: "No matching courses.",
-      openBuilding: "View this building's schedule",
+      openBuilding: "View this place's schedule",
       buildingScope: "Showing courses matched to “{building}” on the map.",
       queryDate: "Query date: {date}",
       lastSynced: "Course module last synced: {date}",

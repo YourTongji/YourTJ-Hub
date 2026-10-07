@@ -1,0 +1,98 @@
+[
+  {
+    "role": "user",
+    "content": "{\"entries\": [{\"id\": \"L802a3d86d7a5dcf2\", \"course_campus\": \"嘉定校区\", \"raw\": \"诚楼C408A\"}]}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\"L802a3d86d7a5dcf2\":{\"relation\":\"single\",\"locations\":[{\"source_text\":\"诚楼C408A\",\"kind\":\"named\",\"place\":\"诚楼\",\"detail\":\"C408A\",\"campus_text\":null,\"address\":null,\"conditions\":[],\"time\":null}],\"unassigned_conditions\":[],\"needs_review\":false,\"review_reasons\":[]}}"
+  },
+  {
+    "role": "user",
+    "content": "{\"entries\": [{\"id\": \"Ld74b199bb332348c\", \"course_campus\": \"四平路校区\", \"raw\": \"工程试验馆303、307\"}]}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\"Ld74b199bb332348c\":{\"relation\":\"list\",\"locations\":[{\"source_text\":\"工程试验馆303\",\"kind\":\"named\",\"place\":\"工程试验馆\",\"detail\":\"303\",\"campus_text\":null,\"address\":null,\"conditions\":[],\"time\":null},{\"source_text\":\"307\",\"kind\":\"named\",\"place\":\"工程试验馆\",\"detail\":\"307\",\"campus_text\":null,\"address\":null,\"conditions\":[],\"time\":null}],\"unassigned_conditions\":[],\"needs_review\":false,\"review_reasons\":[]}}"
+  },
+  {
+    "role": "user",
+    "content": "{\"entries\": [{\"id\": \"L75741c66a26551d9\", \"course_campus\": \"嘉定校区\", \"raw\": \"安楼A402-A405-A407-A409\"}]}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\"L75741c66a26551d9\":{\"relation\":\"list\",\"locations\":[{\"source_text\":\"安楼A402\",\"kind\":\"named\",\"place\":\"安楼\",\"detail\":\"A402\",\"campus_text\":null,\"address\":null,\"conditions\":[],\"time\":null},{\"source_text\":\"A405\",\"kind\":\"named\",\"place\":\"安楼\",\"detail\":\"A405\",\"campus_text\":null,\"address\":null,\"conditions\":[],\"time\":null},{\"source_text\":\"A407\",\"kind\":\"named\",\"place\":\"安楼\",\"detail\":\"A407\",\"campus_text\":null,\"address\":null,\"conditions\":[],\"time\":null},{\"source_text\":\"A409\",\"kind\":\"named\",\"place\":\"安楼\",\"detail\":\"A409\",\"campus_text\":null,\"address\":null,\"conditions\":[],\"time\":null}],\"unassigned_conditions\":[],\"needs_review\":true,\"review_reasons\":[\"连续连字符暂按四个完整房间号列举；是否是范围需人工确认。\"]}}"
+  },
+  {
+    "role": "user",
+    "content": "{\"entries\": [{\"id\": \"L1ae30c84325ece11\", \"course_campus\": \"四平路校区\", \"raw\": \"数学学院机房(一二九大楼B区109)\"}]}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\"L1ae30c84325ece11\":{\"relation\":\"single\",\"locations\":[{\"source_text\":\"数学学院机房(一二九大楼B区109)\",\"kind\":\"named\",\"place\":\"一二九大楼\",\"detail\":\"B区109\",\"campus_text\":null,\"address\":null,\"conditions\":[],\"time\":null}],\"unassigned_conditions\":[],\"needs_review\":false,\"review_reasons\":[]}}"
+  },
+  {
+    "role": "user",
+    "content": "{\"entries\": [{\"id\": \"L6d83a34685a0b4d5\", \"course_campus\": \"四平路校区\", \"raw\": \"土木学院B102机房\"}]}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\"L6d83a34685a0b4d5\":{\"relation\":\"single\",\"locations\":[{\"source_text\":\"土木学院B102机房\",\"kind\":\"generic\",\"place\":\"土木学院\",\"detail\":\"B102机房\",\"campus_text\":null,\"address\":null,\"conditions\":[],\"time\":null}],\"unassigned_conditions\":[],\"needs_review\":true,\"review_reasons\":[\"土木学院是机构名称，没有明确哪栋建筑。\"]}}"
+  },
+  {
+    "role": "user",
+    "content": "{\"entries\": [{\"id\": \"L7eae56a3d19f3a84\", \"course_campus\": \"嘉定校区\", \"raw\": \"单周致臻楼414，双周致臻楼416\"}]}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\"L7eae56a3d19f3a84\":{\"relation\":\"conditional\",\"locations\":[{\"source_text\":\"单周致臻楼414\",\"kind\":\"named\",\"place\":\"致臻楼\",\"detail\":\"414\",\"campus_text\":null,\"address\":null,\"conditions\":[],\"time\":[\"单周\"]},{\"source_text\":\"双周致臻楼416\",\"kind\":\"named\",\"place\":\"致臻楼\",\"detail\":\"416\",\"campus_text\":null,\"address\":null,\"conditions\":[],\"time\":[\"双周\"]}],\"unassigned_conditions\":[],\"needs_review\":false,\"review_reasons\":[]}}"
+  },
+  {
+    "role": "user",
+    "content": "{\"entries\": [{\"id\": \"Lbd85d9c1ad7eff32\", \"course_campus\": \"四平路校区\", \"raw\": \"沪北泰禾楼505\"}]}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\"Lbd85d9c1ad7eff32\":{\"relation\":\"single\",\"locations\":[{\"source_text\":\"沪北泰禾楼505\",\"kind\":\"named\",\"place\":\"泰禾楼\",\"detail\":\"505\",\"campus_text\":\"沪北\",\"address\":null,\"conditions\":[],\"time\":null}],\"unassigned_conditions\":[],\"needs_review\":true,\"review_reasons\":[\"显式地点校区沪北与课程校区四平路校区不同。\"]}}"
+  },
+  {
+    "role": "user",
+    "content": "{\"entries\": [{\"id\": \"Lfd9880bb14d23cc3\", \"course_campus\": \"四平路校区\", \"raw\": \"彰武路100号，工程实践中心A楼、B楼\"}]}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\"Lfd9880bb14d23cc3\":{\"relation\":\"list\",\"locations\":[{\"source_text\":\"工程实践中心A楼\",\"kind\":\"named\",\"place\":\"工程实践中心A楼\",\"detail\":null,\"campus_text\":null,\"address\":\"彰武路100号\",\"conditions\":[],\"time\":null},{\"source_text\":\"B楼\",\"kind\":\"named\",\"place\":\"工程实践中心B楼\",\"detail\":null,\"campus_text\":null,\"address\":\"彰武路100号\",\"conditions\":[],\"time\":null}],\"unassigned_conditions\":[],\"needs_review\":true,\"review_reasons\":[\"工程实践中心B楼从明确共享前缀补全，需确认；地址限定两个成员，不另算地点。\"]}}"
+  },
+  {
+    "role": "user",
+    "content": "{\"entries\": [{\"id\": \"L2e41e55fa5c8d936\", \"course_campus\": \"四平路校区\", \"raw\": \"复旦大学邯郸校区【单周】二教214；【双周】在线；【15:25～17:05，第一周自2026年9月7日始】\"}]}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\"L2e41e55fa5c8d936\":{\"relation\":\"conditional\",\"locations\":[{\"source_text\":\"复旦大学邯郸校区【单周】二教214\",\"kind\":\"named\",\"place\":\"二教\",\"detail\":\"214\",\"campus_text\":\"复旦大学邯郸校区\",\"address\":null,\"conditions\":[],\"time\":[\"单周\"]},{\"source_text\":\"【双周】在线\",\"kind\":\"online\",\"place\":null,\"detail\":null,\"campus_text\":null,\"address\":null,\"conditions\":[],\"time\":[\"双周\"]}],\"unassigned_conditions\":[\"15:25～17:05，第一周自2026年9月7日始\"],\"needs_review\":true,\"review_reasons\":[\"末尾时间与学期起始说明归属不明，保存在unassigned_conditions；实体地点为外校。\"]}}"
+  },
+  {
+    "role": "user",
+    "content": "{\"entries\": [{\"id\": \"Lca4862d812235d60\", \"course_campus\": \"嘉定校区\", \"raw\": \"在线体育课，开学关注Canvas公告\"}]}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\"Lca4862d812235d60\":{\"relation\":\"single\",\"locations\":[{\"source_text\":\"在线体育课，开学关注Canvas公告\",\"kind\":\"online\",\"place\":null,\"detail\":null,\"campus_text\":null,\"address\":null,\"conditions\":[],\"time\":null}],\"unassigned_conditions\":[],\"needs_review\":false,\"review_reasons\":[]}}"
+  },
+  {
+    "role": "user",
+    "content": "{\"entries\": [{\"id\": \"Lbd8ca37a59b5aad9\", \"course_campus\": \"四平路校区\", \"raw\": \"学院安排\"}]}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\"Lbd8ca37a59b5aad9\":{\"relation\":\"single\",\"locations\":[{\"source_text\":\"学院安排\",\"kind\":\"pending\",\"place\":null,\"detail\":null,\"campus_text\":null,\"address\":null,\"conditions\":[],\"time\":null}],\"unassigned_conditions\":[],\"needs_review\":false,\"review_reasons\":[]}}"
+  },
+  {
+    "role": "user",
+    "content": "{\"entries\": [{\"id\": \"Lbd451b6c803f5ca9\", \"course_campus\": \"四平路校区\", \"raw\": \"不排教室\"}]}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\"Lbd451b6c803f5ca9\":{\"relation\":\"single\",\"locations\":[{\"source_text\":\"不排教室\",\"kind\":\"no_room\",\"place\":null,\"detail\":null,\"campus_text\":null,\"address\":null,\"conditions\":[],\"time\":null}],\"unassigned_conditions\":[],\"needs_review\":false,\"review_reasons\":[]}}"
+  }
+]

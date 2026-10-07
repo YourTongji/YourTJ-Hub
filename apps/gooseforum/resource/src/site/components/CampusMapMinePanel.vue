@@ -3,13 +3,13 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CampusDataset, CampusEvent } from '@gooseforum/client'
 import { campusAPI } from '@/runtime/campus-api'
-import type { CampusMapTarget } from '@/site/campus-map/official-location'
-import { parseOfficialLocation } from '@/site/campus-map/official-location'
+import type { CampusMapTarget, OfficialMapLocation, LocationLookupContext } from '@/site/campus-map/official-location'
 import CampusMapSchedulePanel from './CampusMapSchedulePanel.vue'
+import CampusMapLocationChoices from './CampusMapLocationChoices.vue'
 
 const props = defineProps<{
   authenticated: boolean
-  resolveLocation: (campus: string, room: string) => Promise<CampusMapTarget | undefined>
+  resolveLocation: (campus: string, room: string, context?: LocationLookupContext) => Promise<OfficialMapLocation[]>
 }>()
 const emit = defineEmits<{ select: [target: CampusMapTarget | null] }>()
 const { t } = useI18n()
@@ -22,10 +22,12 @@ const scope = ref<'today' | 'week'>('today')
 const week = ref(1)
 const search = ref('')
 const selected = ref<CampusEvent | null>(null)
-const selectedLocationMapped = ref(false)
 const selectedLocationResolved = ref(false)
+const selectedLocations = ref<OfficialMapLocation[]>([])
+const selectedLocationIndex = ref<number | null>(null)
 let controller: AbortController | undefined
 let requestVersion = 0
+let selectionVersion = 0
 let clockTimer: number | undefined
 let activeBindingRevision: string | undefined
 let attemptedTodayRefresh = ''
@@ -53,26 +55,39 @@ function shanghaiDate() {
 }
 
 function displayLocation(campus: string, room: string) {
-  const parsed = parseOfficialLocation(room, campus)
-  return [campus, parsed?.building, parsed?.room || (!parsed ? room : '') || t('campus.roomPending')]
-    .filter(Boolean)
-    .join(' · ')
+  return [campus, room || t('campus.roomPending')].filter(Boolean).join(' · ')
+}
+
+function clearLocation() {
+  selectionVersion++
+  selectedLocations.value = []
+  selectedLocationIndex.value = null
+  selectedLocationResolved.value = false
+}
+
+function chooseLocation(location: OfficialMapLocation, index: number) {
+  if (!location.target) return
+  selectedLocationIndex.value = selectedLocationIndex.value === index ? null : index
+  emit('select', selectedLocationIndex.value !== null ? location.target : null)
 }
 
 async function chooseCourse(course: CampusEvent) {
   if (selected.value === course) {
     selected.value = null
-    selectedLocationMapped.value = false
-    selectedLocationResolved.value = false
+    clearLocation()
     emit('select', null)
     return
   }
   selected.value = course
-  selectedLocationMapped.value = false
-  selectedLocationResolved.value = false
-  const target = await props.resolveLocation(course.campus, course.room)
-  if (selected.value !== course) return
-  selectedLocationMapped.value = Boolean(target)
+  clearLocation()
+  const version = selectionVersion
+  emit('select', null)
+  const term = calendar.value?.metrics.find(metric => metric.label === '当前学期')?.value
+  const locations = await props.resolveLocation(course.campus, course.room, { term })
+  if (version !== selectionVersion || selected.value !== course) return
+  selectedLocations.value = locations
+  const target = locations.length === 1 ? locations[0]?.target : undefined
+  selectedLocationIndex.value = target ? 0 : null
   selectedLocationResolved.value = true
   emit('select', target ?? null)
 }
@@ -84,16 +99,14 @@ function clearData() {
   timetable.value = null
   if (selected.value) emit('select', null)
   selected.value = null
-  selectedLocationMapped.value = false
-  selectedLocationResolved.value = false
+  clearLocation()
   search.value = ''
 }
 
 function changeScope(nextScope: 'today' | 'week') {
   scope.value = nextScope
   selected.value = null
-  selectedLocationMapped.value = false
-  selectedLocationResolved.value = false
+  clearLocation()
   emit('select', null)
 }
 
@@ -302,7 +315,13 @@ onBeforeUnmount(() => {
       <div v-if="selected" class="atlas-mine__selected" role="status">
         <strong>{{ selected.name }}</strong>
         <p>{{ displayLocation(selected.campus, selected.room) }}</p>
-        <p v-if="selectedLocationResolved && !selectedLocationMapped" class="atlas-mine__unverified">{{ t('campusMap.mine.locationUnverified') }}</p>
+        <CampusMapLocationChoices
+          v-if="selectedLocationResolved"
+          :locations="selectedLocations"
+          :selected-index="selectedLocationIndex"
+          @select="chooseLocation"
+        />
+        <p v-if="selectedLocationResolved && !selectedLocations.some(location => location.target)" class="atlas-mine__unverified">{{ t('campusMap.mine.locationUnverified') }}</p>
       </div>
     </template>
     </template>

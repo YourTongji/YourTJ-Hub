@@ -672,6 +672,25 @@ export default {
 },
   campusMap: {
     menu: { label: "地图菜单", places: "地点", courses: "本人课表" },
+    locations: {
+      reviewPending: "地点资料仍待复核，请以课程原始安排为准。",
+      unassigned: "未确认归属的条件：{conditions}",
+      hints: {
+        named: "命名地点，尚未定位。",
+        generic: "地点为泛称，尚未确认具体位置。",
+        online: "线上课程，无实体位置。",
+        pending: "地点待安排。",
+        no_room: "不排教室。",
+        unknown: "地点尚不明确。",
+        missing: "此地点无法可靠解析，保留原文。",
+        review: "此地点有待复核的疑点，暂不定位。",
+        campus: "地点校区无法与当前地图确认对应。",
+        unmapped: "未定位：名称无法唯一匹配地图地点。",
+      },
+      label: "课程地点",
+      choose: "包含多个地点，请选择要查看的位置；周次等条件按原文显示。",
+      unmapped: "未定位：名称无法唯一匹配地图地点。",
+    },
     mine: {
       source: "本人同济官方课表",
       personalTab: "本人课表",
@@ -691,7 +710,7 @@ export default {
       search: "搜索课程或教室号",
       noCourses: "所选教学周暂无课程。",
       noMatches: "没有匹配的课程或教室号。",
-      locationUnverified: "无法核对建筑位置，地图未标点。",
+      locationUnverified: "无法核对地点位置，地图未标点。",
     },
     schedule: {
       source: "课程模块同步课表",
@@ -710,7 +729,7 @@ export default {
       unavailable: "课程安排暂时无法查询。",
       noCourses: "该时间没有已同步的课程安排。",
       noMatches: "没有匹配的课程。",
-      openBuilding: "查看这栋楼的课表",
+      openBuilding: "查看此地点排课",
       buildingScope: "仅显示地图地点“{building}”对应的课程。",
       queryDate: "查询日期：{date}",
       lastSynced: "课程模块最近同步：{date}",

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:yourtj:campus-location-runtime:v1",
+  "$defs": {
+    "text": { "type": "string", "minLength": 1 },
+    "campus": { "enum": ["siping", "jiading", "huxi", "hubei", "zhangjiang", "lingang"] },
+    "place": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "aliases", "featureId", "evidence"],
+      "properties": {
+        "name": { "$ref": "#/$defs/text" }, "featureId": { "$ref": "#/$defs/text" }, "evidence": { "$ref": "#/$defs/text" },
+        "aliases": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/text" } }
+      }
+    },
+    "catalog": {
+      "type": "object", "additionalProperties": false, "required": ["schema_version", "campuses"],
+      "properties": {
+        "schema_version": { "const": "campus-place-catalog/v1" },
+        "campuses": { "type": "object", "minProperties": 1, "propertyNames": { "$ref": "#/$defs/campus" },
+          "additionalProperties": { "type": "array", "items": { "$ref": "#/$defs/place" } } }
+      }
+    },
+    "overrides": {
+      "type": "object", "additionalProperties": false, "required": ["schema_version", "rules"],
+      "properties": {
+        "schema_version": { "const": "campus-location-overrides/v1" },
+        "rules": { "type": "array", "items": {
+          "type": "object", "additionalProperties": false,
+          "required": ["campusId", "raw", "action", "result", "reviewPending", "reason", "source"],
+          "properties": {
+            "campusId": { "$ref": "#/$defs/campus" }, "raw": { "$ref": "#/$defs/text" },
+            "action": { "enum": ["replace", "block"] }, "result": { "$ref": "urn:yourtj:campus-location-extraction:v2" },
+            "reviewPending": { "type": "boolean" }, "reason": { "$ref": "#/$defs/text" }, "source": { "$ref": "#/$defs/text" },
+            "scope": { "type": "object", "additionalProperties": false, "required": ["calendarId", "termNames"],
+              "properties": { "calendarId": { "type": "integer", "minimum": 1 },
+                "termNames": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/text" } } } }
+          }
+        } }
+      }
+    }
+  }
+}

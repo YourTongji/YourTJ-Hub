@@ -11,11 +11,11 @@ const selected = ref<number | null>(null)
 function choose(index: number) {
   selected.value = selected.value === index ? null : index
   const course = campusMapDemoEvents[index]!
-  emit('select', selected.value === null ? null : officialLocationTarget(course.campus, course.room) ?? null)
+  emit('select', selected.value === null ? null : officialLocationTarget(course.campus, course.room, null, { calendarId: 122 }) ?? null)
 }
 
 function location(campus: string, room: string) {
-  const parsed = parseOfficialLocation(room)
+  const parsed = parseOfficialLocation(room, campus, { calendarId: 122 })
   return [campus, parsed?.building, parsed?.room || (!parsed ? room : '')].filter(Boolean).join(' · ')
 }
 </script>

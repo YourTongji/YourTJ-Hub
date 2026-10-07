@@ -671,6 +671,25 @@ export default {
 },
   campusMap: {
     menu: { label: "地図メニュー", places: "場所", courses: "自分の時間割" },
+    locations: {
+      reviewPending: "場所の情報は確認待ちです。元の授業案内を確認してください。",
+      unassigned: "適用先が不明な条件：{conditions}",
+      hints: {
+        named: "名称のある場所ですが、未特定です。",
+        generic: "一般的な名称のため、場所は未確認です。",
+        online: "オンライン授業です。",
+        pending: "場所は未定です。",
+        no_room: "教室の割り当てはありません。",
+        unknown: "場所が不明です。",
+        missing: "場所を確実に解釈できないため、原文を表示します。",
+        review: "確認が必要なため、場所を表示できません。",
+        campus: "記載されたキャンパスと地図の対応が未確認です。",
+        unmapped: "地図上の場所を一意に特定できません。",
+      },
+      label: "授業の場所",
+      choose: "表示する場所を選んでください。週などの条件は原文で表示します。",
+      unmapped: "未特定：地図上の場所を一意に特定できません。",
+    },
     mine: {
       source: "同済大学の公式時間割",
       personalTab: "自分の時間割",
@@ -690,7 +709,7 @@ export default {
       search: "授業名または教室番号を検索",
       noCourses: "選択した週に授業はありません。",
       noMatches: "一致する授業または教室番号はありません。",
-      locationUnverified: "建物の場所を確認できないため、地図上にピンを表示しません。",
+      locationUnverified: "場所を確認できないため、地図上にピンを表示しません。",
     },
     schedule: {
       source: "コース機能の同期時間割",
@@ -709,7 +728,7 @@ export default {
       unavailable: "授業予定を一時的に取得できません。",
       noCourses: "この時間に同期済みの授業予定はありません。",
       noMatches: "一致する授業はありません。",
-      openBuilding: "この建物の時間割を見る",
+      openBuilding: "この場所の時間割を見る",
       buildingScope: "地図上の「{building}」に一致する授業を表示します。",
       queryDate: "検索日：{date}",
       lastSynced: "コース機能の最終同期：{date}",

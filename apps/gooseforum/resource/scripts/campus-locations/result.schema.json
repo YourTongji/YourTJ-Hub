@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Campus location extraction result v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "relation",
+    "locations",
+    "unassigned_conditions",
+    "needs_review",
+    "review_reasons"
+  ],
+  "properties": {
+    "relation": {
+      "type": "string",
+      "enum": [
+        "single",
+        "list",
+        "conditional",
+        "alternative",
+        "mixed",
+        "unclear"
+      ]
+    },
+    "locations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_text",
+          "kind",
+          "place",
+          "detail",
+          "campus_text",
+          "address",
+          "conditions",
+          "time"
+        ],
+        "properties": {
+          "source_text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "named",
+              "generic",
+              "online",
+              "pending",
+              "no_room",
+              "unknown"
+            ]
+          },
+          "place": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "campus_text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "time": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "default": null,
+            "description": "Raw time/week/day/date conditions for this location; null when none are assigned.",
+            "minItems": 1
+          }
+        }
+      }
+    },
+    "unassigned_conditions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "needs_review": {
+      "type": "boolean"
+    },
+    "review_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

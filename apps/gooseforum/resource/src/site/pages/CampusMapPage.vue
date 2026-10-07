@@ -13,8 +13,11 @@ import CampusMapMinePanel from '@/site/components/CampusMapMinePanel.vue'
 import CampusMapSchedulePanel from '@/site/components/CampusMapSchedulePanel.vue'
 import {
   officialCampusId,
-  officialLocationTarget,
+  officialLocationTargets,
+  parseOfficialLocations,
   type CampusMapTarget,
+  type OfficialMapLocation,
+  type LocationLookupContext,
 } from '@/site/campus-map/official-location'
 import {
   ArrowLeft,
@@ -101,6 +104,7 @@ const showAll = ref(false)
 const infoDialog = ref<HTMLDialogElement>()
 const buildingScheduleDialog = ref<HTMLDialogElement>()
 const buildingScheduleOpen = ref(false)
+const buildingScheduleScope = ref<{ campusId: string; featureId: string; name: string } | null>(null)
 const shareFallback = ref(false)
 const shareInput = ref<HTMLInputElement>()
 const shareUrl = ref('')
@@ -205,9 +209,9 @@ function select(id: string, fromTimetable = false) {
   url.hash = `place=${encodeURIComponent(id)}`
   window.history.replaceState(window.history.state, '', url)
 }
-async function resolveMineLocation(campusName: string, room: string): Promise<CampusMapTarget | undefined> {
+async function resolveMineLocation(campusName: string, room: string, context: LocationLookupContext = {}): Promise<OfficialMapLocation[]> {
   const campusId = officialCampusId(campusName)
-  if (!campusId) return undefined
+  if (!campusId) return parseOfficialLocations(room, campusName, context)
   let pending: Promise<void> | undefined
   if (campus.value.id !== campusId) pending = switchCampus(campusId, false, false)
   else {
@@ -216,8 +220,8 @@ async function resolveMineLocation(campusName: string, room: string): Promise<Ca
   }
   const version = mineSelectionVersion
   await pending
-  if (version !== mineSelectionVersion || campus.value.id !== campusId) return undefined
-  return officialLocationTarget(campusName, room, data.value)
+  if (version !== mineSelectionVersion || campus.value.id !== campusId) return []
+  return officialLocationTargets(campusName, room, data.value, { ...context, dataCampusId: campus.value.id })
 }
 function selectMinePlace(target: CampusMapTarget | null | undefined) {
   const version = ++mineSelectionVersion
@@ -229,16 +233,29 @@ function selectMinePlace(target: CampusMapTarget | null | undefined) {
   select(target.featureId, true)
 }
 function selectBuildingScheduleTarget(target: CampusMapTarget | null) {
-  if (!target) return
-  buildingScheduleDialog.value?.close()
+  if (!target) {
+    closePlace()
+    return
+  }
+  if (campus.value.id !== target.campusId) return
   select(target.featureId)
 }
 function openBuildingSchedule() {
+  if (!selected.value) return
+  buildingScheduleScope.value = { campusId: campus.value.id, featureId: selected.value.id, name: nameFor(selected.value) }
   buildingScheduleOpen.value = true
   nextTick(() => buildingScheduleDialog.value?.showModal())
 }
-function matchMapLocation(campusName: string, room: string): CampusMapTarget | undefined {
-  return officialLocationTarget(campusName, room, data.value)
+function closeBuildingSchedule() {
+  buildingScheduleOpen.value = false
+  buildingScheduleScope.value = null
+}
+async function resolveBuildingScheduleLocation(campusName: string, room: string, context: LocationLookupContext = {}): Promise<OfficialMapLocation[]> {
+  // The dialog owns its query scope independently of the selected map pin.
+  return matchMapLocations(campusName, room, context)
+}
+function matchMapLocations(campusName: string, room: string, context: LocationLookupContext = {}): OfficialMapLocation[] {
+  return officialLocationTargets(campusName, room, data.value, { ...context, dataCampusId: campus.value.id })
 }
 function closePlace() {
   mineSelectionVersion++
@@ -263,6 +280,8 @@ function menuHref(showMine: boolean) {
   return `/map?${params}`
 }
 function switchCampus(id: string, fromLocation = false, invalidateMineSelection = true): Promise<void> {
+  buildingScheduleDialog.value?.close()
+  closeBuildingSchedule()
   if (invalidateMineSelection) mineSelectionVersion++
   if (!fromLocation) {
     locationNotice.value = false
@@ -798,7 +817,7 @@ onBeforeUnmount(() => {
                   : t('campusMap.placeNote')
               }}
             </p>
-            <button v-if="selected.indoor && selected.category === 'academic'" type="button" class="atlas-schedule-open" @click="openBuildingSchedule">
+            <button v-if="(selected.indoor && selected.category === 'academic') || selected.category === 'sport'" type="button" class="atlas-schedule-open" @click="openBuildingSchedule">
               <CalendarDays :size="16" />{{ t('campusMap.schedule.openBuilding') }}
             </button>
             <a
@@ -830,16 +849,16 @@ onBeforeUnmount(() => {
           </div></section
       ></Transition>
 
-      <dialog ref="buildingScheduleDialog" class="atlas-building-schedule" :aria-label="t('campusMap.schedule.title')" @close="buildingScheduleOpen = false">
+      <dialog ref="buildingScheduleDialog" class="atlas-building-schedule" :aria-label="t('campusMap.schedule.title')" @close="closeBuildingSchedule">
         <div class="atlas-building-schedule__header">
           <h2>{{ t('campusMap.schedule.title') }}</h2>
           <button type="button" :aria-label="t('campusMap.close')" @click="buildingScheduleDialog?.close()"><X :size="18" /></button>
         </div>
         <CampusMapSchedulePanel
-          v-if="buildingScheduleOpen && selected"
-          :building="{ campusId: campus.id, featureId: selected.id, name: nameFor(selected) }"
-          :match-location="matchMapLocation"
-          :resolve-location="resolveMineLocation"
+          v-if="buildingScheduleOpen && buildingScheduleScope"
+          :building="buildingScheduleScope"
+          :match-location="matchMapLocations"
+          :resolve-location="resolveBuildingScheduleLocation"
           @select="selectBuildingScheduleTarget"
         />
       </dialog>

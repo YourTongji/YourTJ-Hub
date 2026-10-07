@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-28
+> Last verified: 2026-10-07
 
 ## Principles
 
@@ -109,6 +109,18 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   which checks the public component registry against Go, including order and exclusion of `admin.shell`.
   Browser regressions live in `resource/test/*.browser.mjs`, render the production Vue components
   and CSS through Vite, and stub API responses. These are separate from happy-dom component tests.
+  The campus-map suite uses a separate temporary Vite `cacheDir` and removes it after closing its
+  server, because its dependency optimizer differs from the other suites. The Node runner caps concurrent suites at two because each suite starts its own Vite server
+  and Chromium, and the map uses software WebGL rendering in CI. This bounds process/memory and
+  screenshot contention without removing cases or extending assertion timeouts. Atlas screenshots
+  capture the viewport with a separate 60-second software-rendering budget; interactive assertions
+  still use 15 seconds. Concurrent suites
+  still need separate caches when optimizer configurations differ: sharing the default cache can
+  replace Vue chunks during imports and prevent another fixture from mounting.
+  The campus-map location regression checks unknown text, pending override status, cross-semester stable matching, scoped prefix/suffix time conditions and multiple-member choices with synthetic public course responses. Place-text candidate recognition is measured separately from map coverage in `resource/test/place-text-match.test.ts`. It writes desktop/375px screenshots and a source receipt
+  to `CAMPUS_MAP_BROWSER_EVIDENCE_DIR` (a temporary directory by default). CI uploads
+  `campus-map-browser-evidence-<workflow SHA>` for 30 days; link the current run's artifact in a PR
+  when reviewing those flows. Captures remain outside Git and are browser evidence, not dev acceptance.
 - ci-contract.yml: changed contract inputs install the locked `packages/api-contract` pnpm tooling, run OpenAPI
   lint + bundle + TypeScript generation, then rejects an uncommitted diff below
   `apps/gooseforum/resource/packages/client/src/gen`. Its inputs are the contract package, generated
