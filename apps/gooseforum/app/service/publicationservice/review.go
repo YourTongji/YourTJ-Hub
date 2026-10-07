@@ -166,6 +166,7 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 		if action != moderationDecision.ActionAllow && action != moderationDecision.ActionBlock {
 			return errors.New("invalid review action")
 		}
+		var capturePlan *agenteventservice.WriteCapturePlan
 		// Submission may precede an operator ban. Recheck only first publication
 		// of bot replies; an existing public reply remains editable.
 		if action == moderationDecision.ActionAllow && post.PostNo > 1 && post.PublishedRevisionId == 0 && post.ProcessStatus != posts.ProcessStatusNormal {
@@ -174,6 +175,13 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 				return err
 			}
 			if author.IsBot() {
+				// Match Agent writes: content -> participants -> global policy.
+				// Holding policy before capture could deadlock a concurrent write
+				// on another topic that already holds this bot's participant rows.
+				capturePlan, err = agenteventservice.PrepareWriteCaptureTx(tx, post.UserId, topic.Id, "")
+				if err != nil {
+					return err
+				}
 				if err := agentcommentservice.CheckNewCommentTx(tx, topic.Id); errors.Is(err, agentcommentservice.ErrAgentCommentDisabled) {
 					action, reason = moderationDecision.ActionBlock, "该话题或站点已禁止机器人回复。"
 				} else if err != nil {
@@ -233,7 +241,7 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 			}
 			// The public projection and durable Agent intent commit together. Effects
 			// may run later or retry without losing or recapturing the publication.
-			if err := agenteventservice.CapturePublicTx(tx, &post); err != nil {
+			if err := agenteventservice.CapturePublicTx(tx, &post, capturePlan); err != nil {
 				return err
 			}
 		} else if !wasPublic {
