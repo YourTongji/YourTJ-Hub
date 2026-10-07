@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'common.dart';
+import 'feed.dart';
 import 'topic.dart';
 
 part 'publish.freezed.dart';
@@ -107,6 +108,8 @@ abstract class AnnouncementPayload with _$AnnouncementPayload {
 @freezed
 abstract class HomeProps with _$HomeProps {
   const factory HomeProps({
+    String? snapshotId,
+    @Default([]) List<FeedSeenProof> seenProofs,
     String? actualSort,
     String? degradeReason,
     String? feedTrace,

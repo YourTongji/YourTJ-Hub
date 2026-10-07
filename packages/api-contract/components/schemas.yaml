@@ -986,6 +986,10 @@ TopicPayload:
   type: object
   required: [id, title, description, url, pinWeight, processStatus, author, participants, categories, replyCount, viewCount, likeCount, activityText, lastUpdateTime]
   properties:
+    feedTrace: { type: string, maxLength: 2048 }
+    feedPosition: { type: integer, minimum: 0, maximum: 19 }
+    feedReason: { type: string }
+    contentType: { type: integer }
     id:
       type: integer
       format: uint64
@@ -11394,18 +11398,24 @@ FeedEventPatch:
       additionalProperties: { type: integer, minimum: 0, maximum: 600, multipleOf: 5 }
 FeedEventsRequest:
   type: object
-  required: [patches]
   properties:
     patches:
       type: array
       maxItems: 50
       items: { $ref: '#/FeedEventPatch' }
+    seenPatches:
+      type: array
+      maxItems: 50
+      items: { $ref: '#/FeedSeenPatch' }
 FeedEventsResponse:
   type: object
   required: [code, result]
   properties:
     code: { type: integer, const: 0 }
-    result: { type: boolean, const: true }
+    result:
+      oneOf:
+        - { type: boolean, const: true }
+        - { $ref: '#/FeedSeenAck' }
     message: { type: string }
     messageCode: { type: string }
 FeedMetricRow:
@@ -11460,5 +11470,85 @@ FeedSummaryResponse:
   properties:
     code: { type: integer, const: 0 }
     result: { $ref: '#/FeedSummary' }
+    message: { type: string }
+    messageCode: { type: string }
+
+FeedSeenProof:
+  type: object
+  required: [token, topicIds, issuedAt, expiresAt]
+  properties:
+    token: { type: string, minLength: 1, maxLength: 2048 }
+    topicIds:
+      type: array
+      minItems: 1
+      maxItems: 20
+      uniqueItems: true
+      items: { type: integer, format: uint64, minimum: 1 }
+    issuedAt: { type: integer, format: int64 }
+    expiresAt: { type: integer, format: int64 }
+  additionalProperties: false
+FeedSeenPatch:
+  type: object
+  required: [proof, seen]
+  properties:
+    proof: { type: string, minLength: 1, maxLength: 2048 }
+    seen:
+      type: object
+      maxProperties: 20
+      propertyNames: { pattern: '^(0|[1-9]|1[0-9])$' }
+      additionalProperties: { type: integer, minimum: 1000, maximum: 1799999 }
+  additionalProperties: false
+FeedSeenAck:
+  type: object
+  required: [seenConfirmed]
+  properties:
+    seenConfirmed: { type: boolean, const: true }
+  additionalProperties: false
+FeedRefreshRequest:
+  type: object
+  properties:
+    seenPatches:
+      type: array
+      maxItems: 50
+      items: { $ref: '#/FeedSeenPatch' }
+FeedReconcileRequest:
+  type: object
+  required: [topicIds]
+  properties:
+    topicIds:
+      type: array
+      minItems: 1
+      maxItems: 120
+      uniqueItems: true
+      items: { type: integer, format: uint64, minimum: 1 }
+FeedSessionResult:
+  type: object
+  required: [viewerId, topics, removedIds, seenProofs, snapshotId, available, seenConfirmed]
+  properties:
+    viewerId: { type: integer, format: uint64, minimum: 1 }
+    topics:
+      type: array
+      maxItems: 120
+      items: { $ref: '#/TopicPayload' }
+    removedIds:
+      type: array
+      maxItems: 120
+      uniqueItems: true
+      items: { type: integer, format: uint64, minimum: 1 }
+    seenProofs:
+      type: array
+      maxItems: 6
+      items: { $ref: '#/FeedSeenProof' }
+    snapshotId: { type: string }
+    pagination: { $ref: '#/PaginationPayload' }
+    available: { type: boolean }
+    seenConfirmed: { type: boolean }
+  additionalProperties: false
+FeedSessionResponse:
+  type: object
+  required: [code, result]
+  properties:
+    code: { type: integer, const: 0 }
+    result: { $ref: '#/FeedSessionResult' }
     message: { type: string }
     messageCode: { type: string }

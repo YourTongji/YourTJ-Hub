@@ -2,10 +2,12 @@ package forum
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/anonymousidentityservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/feedservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"log/slog"
 	"maps"
@@ -262,14 +264,16 @@ type FooterPayload struct {
 }
 
 type HomeProps struct {
-	ActualSort    string              `json:"actualSort,omitempty"`
-	DegradeReason string              `json:"degradeReason,omitempty"`
-	FeedTrace     string              `json:"feedTrace,omitempty"`
-	Sort          string              `json:"sort"`
-	Tabs          []TabPayload        `json:"tabs"`
-	Topics        []TopicPayload      `json:"topics"`
-	Pagination    PaginationPayload   `json:"pagination"`
-	Announcement  AnnouncementPayload `json:"announcement"`
+	SnapshotID    string                  `json:"snapshotId,omitempty"`
+	SeenProofs    []feedservice.SeenProof `json:"seenProofs,omitempty"`
+	ActualSort    string                  `json:"actualSort,omitempty"`
+	DegradeReason string                  `json:"degradeReason,omitempty"`
+	FeedTrace     string                  `json:"feedTrace,omitempty"`
+	Sort          string                  `json:"sort"`
+	Tabs          []TabPayload            `json:"tabs"`
+	Topics        []TopicPayload          `json:"topics"`
+	Pagination    PaginationPayload       `json:"pagination"`
+	Announcement  AnnouncementPayload     `json:"announcement"`
 }
 
 type TabPayload struct {
@@ -936,7 +940,7 @@ func buildHomeProps(c *gin.Context, page int, sort string, topics []*vo.TopicsSi
 	return HomeProps{
 		Sort:   sort,
 		Tabs:   buildHomeTabs(sort, userID, requestLang(c)),
-		Topics: buildTrackedTopicPayloads(userID, topics),
+		Topics: buildTrackedTopicPayloadsContext(c.Request.Context(), userID, topics),
 		Pagination: PaginationPayload{
 			Page:     page,
 			NextPage: nextPage,
@@ -959,7 +963,11 @@ func buildHomeProps(c *gin.Context, page int, sort string, topics []*vo.TopicsSi
 }
 
 func buildTrackedTopicPayloads(userID uint64, topics []*vo.TopicsSimpleVo) []TopicPayload {
-	payloads := buildTopicPayloads(topics)
+	return buildTrackedTopicPayloadsContext(context.Background(), userID, topics)
+}
+
+func buildTrackedTopicPayloadsContext(ctx context.Context, userID uint64, topics []*vo.TopicsSimpleVo) []TopicPayload {
+	payloads := buildTopicPayloadsContext(ctx, topics)
 	if userID == 0 || len(payloads) == 0 {
 		return payloads
 	}
@@ -967,7 +975,7 @@ func buildTrackedTopicPayloads(userID uint64, topics []*vo.TopicsSimpleVo) []Top
 	for _, topic := range payloads {
 		topicIDs = append(topicIDs, topic.ID)
 	}
-	states, stateErr := topicUserAction.GetByTopicIDs(userID, topicIDs)
+	states, stateErr := topicUserAction.GetByTopicIDsContext(ctx, userID, topicIDs)
 	if stateErr != nil {
 		slog.Warn("resolve topic interaction state failed", "userId", userID, "error", stateErr)
 	} else {
@@ -1073,6 +1081,10 @@ func buildHomeTabs(sort string, userID uint64, lang string) []TabPayload {
 }
 
 func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
+	return buildTopicPayloadsContext(context.Background(), topics)
+}
+
+func buildTopicPayloadsContext(ctx context.Context, topics []*vo.TopicsSimpleVo) []TopicPayload {
 	categoryMap := hotdataserve.CategoryMap()
 	res := make([]TopicPayload, 0, len(topics))
 	imageNames := make([]string, 0, len(topics)*2)
@@ -1094,12 +1106,12 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 			imageNames = append(imageNames, fileusageservice.FileNameFromURL(imageURL))
 		}
 	}
-	publicRows, _ := posts.PersonaParticipants(dbconnect.Connect(), topicIDs)
+	publicRows, _ := posts.PersonaParticipants(dbconnect.ConnectContext(ctx), topicIDs)
 	for _, p := range publicRows {
 		uids = append(uids, p.PersonaUID)
 	}
-	personaMap := anonymousidentityservice.Lookup(uids)
-	imageMetadata, err := filedata.ImageMetadataByNames(imageNames)
+	personaMap := anonymousidentityservice.LookupContext(ctx, uids)
+	imageMetadata, err := filedata.ImageMetadataByNamesContext(ctx, imageNames)
 	if err != nil {
 		slog.Warn("resolve feed image metadata failed", "error", err)
 		imageMetadata = nil

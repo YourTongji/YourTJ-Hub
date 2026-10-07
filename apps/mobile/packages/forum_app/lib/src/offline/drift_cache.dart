@@ -792,6 +792,8 @@ Map<String, dynamic>? _pageProjection(PagePayload page) {
   void stripTrace(dynamic value) {
     if (value is Map) {
       value.remove('feedTrace');
+      value.remove('seenProofs');
+      value.remove('snapshotId');
       value.remove('feedPosition');
       for (final child in value.values) {
         stripTrace(child);

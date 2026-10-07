@@ -1154,6 +1154,11 @@ export default {
     semicolon: '；',
   },
   topicList: {
+    forYouEmptyTitle: '現在のおすすめ候補に未表示の投稿はありません',
+    forYouEmptyDescription: '後で更新して新しい投稿や返信を確認するか、最新をご覧ください。',
+    forYouExpired: 'このおすすめは期限切れです。表示済みの投稿は保持されます。更新で新しい候補を取得できます。',
+    forYouSessionLost: '前回の閲覧セッションを復元できません。更新で新しい候補を取得できます。',
+    forYouSeenConfirmationLost: '一部の表示済み記録を保存できませんでした。更新後に同じトピックが再表示される場合があります。',
     newTopic: '新規トピック',
     pinned: '固定',
     pinnedTopics: '固定トピック',

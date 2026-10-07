@@ -1,0 +1,18 @@
+{
+  "code": 0,
+  "result": {
+    "viewerId": 12,
+    "topics": [],
+    "removedIds": [],
+    "seenProofs": [],
+    "snapshotId": "fresh-batch",
+    "available": true,
+    "seenConfirmed": true,
+    "pagination": {
+      "page": 1,
+      "nextPage": 2,
+      "hasNext": false,
+      "nextUrl": ""
+    }
+  }
+}

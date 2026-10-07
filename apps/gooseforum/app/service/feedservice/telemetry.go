@@ -234,6 +234,9 @@ func allowEvents(uid uint64, now time.Time) bool {
 	return true
 }
 func CapturePatches(uid uint64, patches []Patch) error {
+	return capturePatches(uid, patches, true)
+}
+func capturePatches(uid uint64, patches []Patch, rateLimit bool) error {
 	if !feedconfig.Current().Metrics {
 		return nil
 	}
@@ -241,7 +244,7 @@ func CapturePatches(uid uint64, patches []Patch) error {
 		return ErrInvalidTrace
 	}
 	now := time.Now()
-	if !allowEvents(uid, now) {
+	if rateLimit && !allowEvents(uid, now) {
 		return ErrRateLimited
 	}
 	validated := make([]observationPatch, 0, len(patches))
@@ -580,7 +583,12 @@ func Cleanup(ctx context.Context, now time.Time) error {
 	for _, table := range feed.RawTables {
 		keys := rawKeys(table)
 		tuple := "(" + strings.Join(keys, ",") + ")"
-		sub := conn.Table(table).Select(strings.Join(keys, ",")).Where("expires_at <= ?", now).Limit(500)
+		cutoff := now
+		if table == "feed_seen_state" {
+			// Seen proofs store UTC instants; SQLite compares bound timestamp strings.
+			cutoff = now.UTC()
+		}
+		sub := conn.Table(table).Select(strings.Join(keys, ",")).Where("expires_at <= ?", cutoff).Limit(500)
 		result := conn.Table(table).Where(tuple+" IN (?)", sub).Delete(map[string]any{})
 		if result.Error != nil {
 			return result.Error
@@ -596,7 +604,7 @@ func rawKeys(table string) []string {
 		return []string{"topic_id"}
 	case "feed_actor_work", "feed_owner":
 		return []string{"user_id"}
-	case "topic_view_fact":
+	case "feed_seen_state", "topic_view_fact":
 		return []string{"topic_id", "user_id"}
 	case "topic_action_credit":
 		return []string{"topic_id", "user_id", "kind"}

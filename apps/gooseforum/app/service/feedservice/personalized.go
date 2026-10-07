@@ -20,15 +20,12 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicunseenservice"
-	"golang.org/x/sync/singleflight"
 )
 
 var ErrSnapshotExpired = errors.New("feed_snapshot_expired")
 var ErrInvalidCursor = errors.New("invalid feed cursor")
 var ErrUnavailable = errors.New("personalized feed unavailable")
 var builds = make(chan struct{}, 2)
-var flights singleflight.Group
 
 type snapshot struct {
 	Config       feedconfig.Config
@@ -57,6 +54,8 @@ type cursor struct {
 	Expires int64  `json:"x"`
 }
 type Page struct {
+	SnapshotID   string
+	ContentAt    time.Time
 	Config       feedconfig.Config
 	EntryVariant string
 	Topics       []topics.Entity
@@ -132,19 +131,10 @@ func storeSnapshot(s *snapshot) bool {
 	snapshotsBytes += s.Bytes
 	return true
 }
-func recentSnapshot(uid uint64, hash string) *snapshot {
-	snapshotsMu.Lock()
-	defer snapshotsMu.Unlock()
-	var newest *snapshot
-	for _, s := range snapshots {
-		if s.User == uid && s.Hash == hash && s.Expires.After(time.Now()) && time.Since(s.Created) < 30*time.Second && (newest == nil || s.Created.After(newest.Created)) {
-			newest = s
-		}
-	}
-	return newest
-}
 
 func ForYou(ctx context.Context, uid uint64, token string) (Page, error) {
+	ctx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+	defer cancel()
 	cfg := feedconfig.Current()
 	if uid == 0 || !cfg.Enabled || !feedconfig.RankReady() {
 		return Page{}, ErrUnavailable
@@ -159,42 +149,29 @@ func ForYou(ctx context.Context, uid uint64, token string) (Page, error) {
 		snapshotsMu.Lock()
 		s = snapshots[c.ID]
 		snapshotsMu.Unlock()
-		if s == nil || s.User != uid || s.Hash != c.Hash || !s.Expires.After(time.Now()) || c.Expires != s.Expires.Unix() {
+		if s == nil || s.User != uid || s.Hash != c.Hash || s.Hash != cfg.Hash || !s.Expires.After(time.Now()) || c.Expires != s.Expires.Unix() {
 			return Page{}, ErrSnapshotExpired
 		}
 		offset = c.Offset
 	} else {
-		s = recentSnapshot(uid, cfg.Hash)
-		if s == nil {
-			ch := flights.DoChan(strconv.FormatUint(uid, 10), func() (any, error) {
-				if reuse := recentSnapshot(uid, cfg.Hash); reuse != nil {
-					return reuse, nil
-				}
-				select {
-				case builds <- struct{}{}:
-					defer func() { <-builds }()
-				default:
-					return nil, ErrUnavailable
-				}
-				buildCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
-				defer cancel()
-				return buildSnapshot(buildCtx, uid, cfg)
-			})
-			select {
-			case r := <-ch:
-				if r.Err != nil {
-					return Page{}, r.Err
-				}
-				s = r.Val.(*snapshot)
-			case <-ctx.Done():
-				return Page{}, ctx.Err()
-			}
+		select {
+		case builds <- struct{}{}:
+			defer func() { <-builds }()
+		default:
+			return Page{}, ErrUnavailable
+		}
+		var err error
+		s, err = buildSnapshot(ctx, uid, cfg)
+		if err != nil {
+			return Page{}, err
 		}
 	}
+
 	return snapshotPage(ctx, s, offset)
 }
 
 func snapshotPage(ctx context.Context, s *snapshot, offset int) (Page, error) {
+	contentAt := time.Now()
 	if offset > len(s.Items) {
 		return Page{}, ErrInvalidCursor
 	}
@@ -216,6 +193,10 @@ func snapshotPage(ctx context.Context, s *snapshot, offset int) (Page, error) {
 	if err != nil {
 		return Page{}, err
 	}
+	excluded, _, err := seenEligibility(ctx, s.User, ids)
+	if err != nil {
+		return Page{}, err
+	}
 	present := map[uint64]uint64{}
 	for _, row := range rows {
 		present[row.Id] = row.UserId
@@ -225,7 +206,7 @@ func snapshotPage(ctx context.Context, s *snapshot, offset int) (Page, error) {
 	for scan < len(s.Items) && len(items) < 20 {
 		item := s.Items[scan]
 		scan++
-		if author, exists := present[item.ID]; exists && allowed[author] && author != s.User {
+		if author, exists := present[item.ID]; exists && allowed[author] && author != s.User && !excluded[item.ID] {
 			item.Author = author
 			items = append(items, item)
 		}
@@ -250,7 +231,7 @@ func snapshotPage(ctx context.Context, s *snapshot, offset int) (Page, error) {
 			actual = append(actual, i)
 		}
 	}
-	page := Page{Config: s.Config, EntryVariant: s.EntryVariant, Topics: ordered, Items: actual, Variant: s.Variant, Hash: s.Hash}
+	page := Page{SnapshotID: s.ID, ContentAt: contentAt, Config: s.Config, EntryVariant: s.EntryVariant, Topics: ordered, Items: actual, Variant: s.Variant, Hash: s.Hash}
 	if scan < len(s.Items) {
 		page.NextCursor = sign(cursor{1, s.User, s.ID, scan, s.Hash, s.Expires.Unix()}, cursorKey)
 	}
@@ -462,21 +443,21 @@ func buildSnapshot(ctx context.Context, uid uint64, cfg feedconfig.Config) (*sna
 	if err != nil {
 		return nil, err
 	}
-	visited, err := topicunseenservice.Visited(uid, ids)
+	excluded, replies, err := seenEligibility(ctx, uid, ids)
 	if err != nil {
 		return nil, err
 	}
-	actions, err := topicUserAction.GetByTopicIDs(uid, ids)
+	actions, err := topicUserAction.GetByTopicIDsContext(ctx, uid, ids)
 	if err != nil {
 		return nil, err
 	}
 	pool := []Candidate{}
 	for _, r := range rows {
-		if r.UserId == uid || !allowed[r.UserId] || r.FirstPublicAt == nil {
+		if r.UserId == uid || !allowed[r.UserId] || r.FirstPublicAt == nil || excluded[r.Id] {
 			continue
 		}
 		age := max(0, now.Sub(*r.FirstPublicAt).Hours())
-		c := Candidate{Repeat: wasRepeated(uid, r.Id, r.LastPublicReplyAt, now), ID: r.Id, Author: r.UserId, Sources: sources[r.Id], Reason: "recent", Fallback: sources[r.Id] == 0}
+		c := Candidate{Repeat: !replies[r.Id] && wasRepeated(uid, r.Id, r.LastPublicReplyAt, now), ID: r.Id, Author: r.UserId, Sources: sources[r.Id], Reason: "recent", Fallback: sources[r.Id] == 0}
 		if r.PersonaUID == "" && followed[r.UserId] {
 			c.Features[0] = 10000
 			c.Reason = "following"
@@ -493,19 +474,15 @@ func buildSnapshot(ctx context.Context, uid uint64, cfg feedconfig.Config) (*sna
 		if r.PersonaUID == "" && !followed[r.UserId] {
 			c.Features[5] = Quantize(p.Authors[r.UserId])
 		}
-		if visit, ok := visited[r.Id]; ok {
-			if r.LastPublicReplyAt != nil && r.LastPublicReplyAt.After(visit) {
-				c.Features[6] = 10000
-				c.Reason = "newreply"
-			} else {
-				c.SoftFiltered = true
-			}
+		if replies[r.Id] {
+			c.Features[6] = 10000
+			c.Reason = "newreply"
 		}
-		if age > 7*24 && r.DailyScore == 0 {
+		if age > 7*24 && r.DailyScore == 0 && !replies[r.Id] {
 			c.SoftFiltered = true
 		}
 		state := actions[r.Id]
-		if state.LikedAt != nil || state.BookmarkedAt != nil {
+		if !replies[r.Id] && (state.LikedAt != nil || state.BookmarkedAt != nil) {
 			c.SoftFiltered = true
 		}
 		pool = append(pool, c)

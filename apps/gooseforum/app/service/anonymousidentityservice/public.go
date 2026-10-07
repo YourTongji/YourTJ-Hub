@@ -8,13 +8,17 @@ import (
 
 // Lookup reads only public persona rows. Missing identities stay anonymous.
 func Lookup(uids []string) map[string]PublicPersona {
+	return LookupContext(context.Background(), uids)
+}
+
+func LookupContext(ctx context.Context, uids []string) map[string]PublicPersona {
 	result := make(map[string]PublicPersona, len(uids))
 	for _, uid := range uids {
 		if uid != "" {
 			result[uid] = PublicPersona{Kind: "persona", PublicUID: uid, Name: "匿名同学", ProfileURL: "/a/" + uid}
 		}
 	}
-	rows, err := identity.GetMap(db.ConnectContext(context.Background()), uids)
+	rows, err := identity.GetMap(db.ConnectContext(ctx), uids)
 	if err != nil {
 		return result
 	}

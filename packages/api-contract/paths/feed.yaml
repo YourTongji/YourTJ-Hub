@@ -1,18 +1,25 @@
 captureFeedEvents:
   post:
     tags: [Forum]
-    summary: Merge authenticated visible and foreground dwell observations
+    summary: Confirm viewport seen state and merge feed observations
     operationId: captureFeedEvents
     description: |
-      Maximum body 32 KiB and 50 patches; account-bound HMAC trace expires within
+      Maximum body 32 KiB and 50 combined patches/seenPatches; account-bound HMAC trace expires within
       six hours. Only its 20 server-served positions are valid. Visible masks
       merge with OR and foreground dwell with max, in five-second steps capped
       at 600 seconds. The server alone records a successful public detail open.
       Client observations are measurement proxies, never points or global rank
       credits. Cookie requests require same-origin CSRF validation. Each account
       gets 12 batches/minute, burst 24; a global 200/s, burst 400 cap also applies.
-      HTTP 200 confirms bounded queue acceptance, not durable storage. When
-      metrics are disabled it is a no-op. Fields unknown to JSON binding are ignored.
+      Legacy patches return boolean true for bounded queue acceptance and are a
+      no-op when metrics are disabled. seenPatches use a separate account-bound
+      30-minute proof with displayed-content cutoff and elapsed milliseconds
+      after receipt (50% visible for one continuous foreground second).
+      At most 120 distinct topic claims are committed synchronously, independent
+      of metrics; seenConfirmed is returned only after commit. Duplicate/older
+      proofs cannot extend 30-day retention or regress the cutoff. A full metrics
+      queue cannot undo a seen ACK. No client opened/rank/points credit is minted.
+      Fields unknown to JSON binding are ignored.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -29,6 +36,7 @@ captureFeedEvents:
             schema: { $ref: ../components/schemas.yaml#/FeedEventsResponse }
             examples:
               success: { externalValue: ../fixtures/feed-events-success.json }
+              seen: { externalValue: ../fixtures/feed-seen-success.json }
       '400':
         description: Malformed/oversized body, invalid trace, mask or dwell value.
         content:
@@ -48,6 +56,11 @@ captureFeedEvents:
         description: Rate limit or queue full; retry at most once after five seconds.
         headers:
           Retry-After: { schema: { type: string } }
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '503':
+        description: Seen-state storage failed or deadline expired; keep pending claims.
         content:
           application/json:
             schema: { $ref: ../components/schemas.yaml#/ApiFailure }
@@ -82,6 +95,103 @@ getFeedSummary:
             schema: { $ref: ../components/schemas.yaml#/ApiFailure }
       '403':
         description: Admin permission required.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+
+refreshForYou:
+  post:
+    tags: [Forum]
+    summary: Build a fresh For You batch after confirming pending seen state
+    operationId: refreshForYou
+    description: >
+      Confirms pending seen claims before a new bounded 300-candidate build. Returns a fresh snapshot and at most 20 cards. Strictly excludes seen topics unless an eligible current public reply by another account first became public after the displayed cutoff. Failure preserves the caller browsing batch; no fallback/latest batch is returned. Shares the 200 ms total deadline and event rate limit.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: ../components/schemas.yaml#/FeedRefreshRequest }
+    responses:
+      '200':
+        description: Owner-bound successful result.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/FeedSessionResponse }
+            examples:
+              success: { externalValue: ../fixtures/feed-refresh-success.json }
+      '400':
+        description: Invalid body, proof or IDs.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '403':
+        description: Cookie CSRF validation failed.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '429':
+        description: Shared event rate limit reached.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '503':
+        description: Feed unavailable, deadline or storage failure; keep existing batch.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+reconcileForYou:
+  post:
+    tags: [Forum]
+    summary: Reconcile only loaded For You cards in caller order
+    operationId: reconcileForYou
+    description: >
+      Rechecks at most 120 unique IDs and returns current public eligible survivors plus removedIds. Does not recall, rerank, apply seen suppression, create a cursor or record served. available signals whether continuation is enabled. Returns current displayed-content proofs, independent of metrics. A transient failure is not an authoritative deletion.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: ../components/schemas.yaml#/FeedReconcileRequest }
+    responses:
+      '200':
+        description: Owner-bound successful result.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/FeedSessionResponse }
+            examples:
+              success: { externalValue: ../fixtures/feed-reconcile-success.json }
+      '400':
+        description: Invalid body, proof or IDs.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '403':
+        description: Cookie CSRF validation failed.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '429':
+        description: Shared event rate limit reached.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '503':
+        description: Feed unavailable, deadline or storage failure; keep existing batch.
         content:
           application/json:
             schema: { $ref: ../components/schemas.yaml#/ApiFailure }

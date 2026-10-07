@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/feedconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
@@ -83,6 +84,24 @@ func decorateFeedProps(c *gin.Context, props *HomeProps, items []feedservice.Can
 	if !foregroundPage(c) {
 		return
 	}
+	if uid := component.LoginUserId(c); uid > 0 && feedconfig.Current().Enabled {
+		contentAt, _ := c.Get("feed.contentAt")
+		if at, ok := contentAt.(time.Time); ok {
+			ids := []uint64{}
+			for _, item := range items {
+				ids = append(ids, item.ID)
+			}
+			// Pending/private cards added for their author are never signed.
+			public, err := topics.RankTopics(c.Request.Context(), ids)
+			if err == nil {
+				ids = ids[:0]
+				for _, row := range public {
+					ids = append(ids, row.Id)
+				}
+				props.SeenProofs = feedservice.MintSeenProof(uid, ids, at)
+			}
+		}
+	}
 	variant := "unassigned"
 	if v, ok := c.Get("feed.entryVariant"); ok {
 		variant, _ = v.(string)
@@ -145,6 +164,8 @@ func forYouHome(c *gin.Context, page int) {
 		props.Pagination.NextURL = "/?sort=latest"
 		props.Pagination.HasNext = false
 	}
+	props.SnapshotID = result.SnapshotID
+	c.Set("feed.contentAt", result.ContentAt)
 	if result.EntryVariant != "" {
 		c.Set("feed.entryVariant", result.EntryVariant)
 	}

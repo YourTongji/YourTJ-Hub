@@ -313,7 +313,32 @@ export interface PaginationPayload {
   nextUrl: string
 }
 
+export interface SeenProof {
+  token: string
+  topicIds: number[]
+  issuedAt: number
+  expiresAt: number
+}
+export interface SeenPatch {
+  proof: string
+  seen: Record<number, number>
+}
+export interface FeedSessionResponse {
+  viewerId: number
+  topics: TopicPayload[]
+  removedIds: number[]
+  seenProofs: SeenProof[]
+  snapshotId: string
+  pagination?: PaginationPayload
+  available: boolean
+  seenConfirmed: boolean
+}
 export interface HomeProps {
+  /** Browser-only recovery marker; never serialized by the server. */
+  sessionLost?: boolean
+  sessionCursorExpired?: boolean
+  snapshotId?: string
+  seenProofs?: SeenProof[]
   actualSort?: string
   degradeReason?: string
   feedTrace?: string
