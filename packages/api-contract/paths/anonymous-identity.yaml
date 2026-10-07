@@ -285,3 +285,45 @@ governAnonymousIdentity:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
+
+updateAnonymousProfilePrivacy:
+  post:
+    tags: [Forum]
+    summary: Update anonymous profile content visibility
+    operationId: updateAnonymousProfilePrivacy
+    description: >-
+      Requires the current authenticated live human owner; no caller-supplied persona UID is accepted.
+      Persists the independent showContent preference. Frozen or governance-restricted owners may manage profile privacy without restoring publishing rights.
+      When false, the public profile omits topic/reply streams, counts and pagination for all viewers; existing forum content remains accessible through its normal routes.
+      Private no-store response. Missing/null showContent is a business validation failure; false is accepted.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: ../components/anonymous-identity.yaml#/AnonymousProfilePrivacyRequest }
+    responses:
+      '200':
+        description: Success or business failure
+        content:
+          application/json:
+            schema: { $ref: ../components/anonymous-identity.yaml#/disableAnonymousIdentityResponse }
+            examples:
+              success: { externalValue: ../fixtures/anonymous-disable-success.json }
+      '401':
+        description: Authentication required
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '403':
+        description: CSRF rejected
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '429':
+        description: Interaction rate limited
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/RateLimitedFailure }

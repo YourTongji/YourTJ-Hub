@@ -14,7 +14,8 @@
 random 128-bit public UID, an independently generated fixed Beam avatar and a public `/a/:publicUid`
 profile. It cannot log in, receive private messages, follow people, hold a separate wallet or gain
 permissions. Numeric users remain the authentication, moderation, posting quota and credit subjects.
-The anonymous profile links only its public forum topics and replies, with their visible counts.
+The anonymous profile links only its public forum topics and replies, with their visible counts,
+when its owner enables profile content display.
 Main profiles, Following, participation records and public author statistics exclude persona content.
 
 `Current`: new names freely combine a two-Han-character action, a two-Han-character
@@ -55,6 +56,17 @@ shared profile management button in the ordinary edit-action position, opening t
 setup/management dialog or sheet. Other viewers receive no private binding or management action.
 Web SVG avatars keep their original URL at comment, quote, list and profile sizes; no medium
 raster derivative is requested for the public persona SVG endpoint.
+
+`Current`: the shared identity management dialog/sheet includes an independent “Show anonymous
+profile content” preference. It is stored on the server for the authenticated live owner, with
+no caller-supplied persona UID. New and existing personas default to enabled. Disabling it hides
+the profile's topics, replies, counts, tabs and pagination for all viewers, including the owner;
+the public name/avatar and owner management action remain. The public page payload and crawler
+HTML omit the content, and native refresh/pagination cannot retain old streams. Original forum
+posts/replies keep their ordinary visibility and remain manageable through content management.
+The main profile's local display preference does not control the persona. Frozen or governance-
+restricted owners can change this privacy preference without restoring publishing; closed
+accounts cannot change it. Failed updates retain the last confirmed control value.
 
 ## Settings and first use
 
@@ -126,8 +138,9 @@ they do for legacy anonymous replies.
 `Current`: persona reply, mention and watched-topic notifications use the persona author and link.
 Anonymous content's likes carry counts without a public liker identity; public main-account like
 history excludes those targets. Eligibility and private blocking still use numeric account IDs.
-One account cannot gain another vote or like by switching a composer identity, and persona content
-cannot be liked by its own owner. Public main-account activity and badges exclude persona publishing.
+One account cannot gain another vote or like by switching a composer identity. Owners can like
+their own persona topics and replies, consistent with ordinary member content; repeated requests
+remain idempotent and cancelling the like remains available. Public main-account activity and badges exclude persona publishing.
 
 `Current`: Web authenticated layouts load neither Umami analytics/session replay nor configured
 injected scripts, because composer identity choices and audited reveal results are private. Native
@@ -174,5 +187,6 @@ anonymous display and legacy Wiki per-post anonymous replies remain separate and
 - [MADR 0074](../decisions/0074-six-character-persona-names.md) owns the current naming policy and carries forward the persona boundaries from [0066](../decisions/0066-persistent-anonymous-forum-persona.md).
 - [Issue 1068](https://github.com/YourTongji/YourTJ-Hub/issues/1068) owns research and acceptance evidence.
 - [Six-character name component source](../../apps/gooseforum/app/bundles/anonymousnames/README.md).
+- [MADR 0076](../decisions/0076-anonymous-profile-content-privacy.md) defines the independent profile visibility preference.
 - [MADR 0075](../decisions/0075-restricted-anonymous-administration.md) defines the central administration boundary.
 - [Contracts and data](../architecture/contracts-and-data.md#persistent-anonymous-personas).

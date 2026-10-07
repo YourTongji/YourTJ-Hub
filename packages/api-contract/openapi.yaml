@@ -90,6 +90,8 @@ paths:
     $ref: ./paths/anonymous-identity.yaml#/confirmAnonymousName
   /api/forum/anonymous/disable:
     $ref: ./paths/anonymous-identity.yaml#/disableAnonymousIdentity
+  /api/forum/anonymous/privacy:
+    $ref: ./paths/anonymous-identity.yaml#/updateAnonymousProfilePrivacy
   /api/forum/anonymous/reveal:
     $ref: ./paths/anonymous-identity.yaml#/revealAnonymousIdentity
   /api/campus/calendar-rules:

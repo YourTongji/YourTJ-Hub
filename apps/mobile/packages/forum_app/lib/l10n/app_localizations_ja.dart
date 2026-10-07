@@ -3507,4 +3507,14 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get anonymousNameLockHint => '確定後、名前は1年間固定です。';
+
+  @override
+  String get anonymousShowContent => '匿名プロフィールの内容を表示';
+
+  @override
+  String get anonymousShowContentDescription =>
+      '匿名プロフィールに投稿、返信、件数を表示します。オフにすると名前とアバターのみ表示され、フォーラムの元の内容は引き続き閲覧できます。';
+
+  @override
+  String get anonymousProfileContentHidden => '匿名プロフィールの内容は非表示です';
 }

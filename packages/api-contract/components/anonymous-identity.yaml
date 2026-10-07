@@ -57,6 +57,7 @@ AnonymousState:
   - nameChangeAvailableAt
   - disabled
   - governanceDisabled
+  - showContent
   - day
   - remaining
   - resetsAt
@@ -81,6 +82,9 @@ AnonymousState:
       type: boolean
     governanceDisabled:
       type: boolean
+    showContent:
+      type: boolean
+      description: Server-persisted preference for listing public topics, replies and counts on the persona profile. Defaults to true; independent of member settings and publishing restrictions.
     day:
       type: string
     remaining:
@@ -158,6 +162,12 @@ AnonymousRevealRequest:
       type: string
       minLength: 1
       maxLength: 512
+  additionalProperties: false
+AnonymousProfilePrivacyRequest:
+  type: object
+  required: [showContent]
+  properties:
+    showContent: { type: boolean }
   additionalProperties: false
 getAnonymousIdentityStateResponse:
   oneOf:

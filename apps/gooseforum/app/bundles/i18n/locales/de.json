@@ -134,6 +134,7 @@
   "serverMessages.sticker.imageRequired": "Wähle ein selbst hochgeladenes Bild oder GIF mit höchstens {maxSizeMb} MB.",
   "serverMessages.sticker.unavailable": "Dieser Sticker ist nicht verfügbar.",
   "permission.revealAnonymousIdentity": "Anonyme Identität offenlegen (beschränkte Prüfung)",
+  "anonymous.profileContentHidden": "Die Inhalte dieses anonymen Profils sind ausgeblendet",
   "anonymous.identity": "Anonyme Identität",
   "anonymous.nameLocked": "Dieser Name bleibt ein Jahr fest.",
   "anonymous.dailyLimit": "Alle 10 täglichen Ziehungen verbraucht. Vorhandene Kandidaten bleiben heute auswählbar.",

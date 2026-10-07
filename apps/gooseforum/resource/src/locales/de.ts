@@ -2956,6 +2956,9 @@ export default {
     contentPurgeFailed: 'Inhalt kann nicht endgültig gelöscht werden',
   },
   anonymous: {
+    showContent: "Inhalte im anonymen Profil anzeigen",
+    showContentDescription: "Themen, Antworten und Zahlen im anonymen Profil anzeigen. Ausgeschaltet bleiben nur Name und Avatar sichtbar; die ursprünglichen Foreninhalte sind weiterhin zugänglich.",
+    profileContentHidden: "Die Inhalte dieses anonymen Profils sind ausgeblendet",
     purpose: "Mit einem festen Alias posten und antworten, ohne das Hauptkonto öffentlich zu verknüpfen.",
     settingsHint: "Alias und Identität für anonyme Beiträge verwalten",
     introTitle: "Die anonyme Identität hat einen eigenen Alias und Beitragsverlauf",

@@ -662,7 +662,11 @@ OpenAPI、TypeScript 和 Dart 镜像同步维护，路由覆盖包含此操作�
 
 ## Persistent anonymous personas
 
-`Current`: `anonymous_personas` owns public UID/name and private avatar seed/lock/status.
+`Current`: `anonymous_personas` owns public UID/name, server-persisted `show_content` (default true),
+and private avatar seed/lock/status. The owner-only `POST /api/forum/anonymous/privacy` accepts
+a required boolean `showContent`, infers the persona through the authenticated binding and keeps
+privacy management available under publishing restrictions. `/a/` exposes the display flag but
+omits streams, counts and pagination when false; its public query never joins private bindings.
 `anonymous_bindings` maps a numeric owner primary key to a unique persona UID.
 `anonymous_name_quotas` uses owner/day as its composite key; batches have a unique owner/day/request
 key and persist the exact ten-word sample. Owner-row write locks serialize quota and confirmation

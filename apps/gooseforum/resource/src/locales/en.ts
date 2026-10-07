@@ -2957,6 +2957,9 @@ export default {
     pkCourseReviewBriefFailed: 'Failed to load reviews',
   },
   anonymous: {
+    showContent: "Show anonymous profile content",
+    showContentDescription: "Show topics, replies and counts on the anonymous profile. When off, only the name and avatar remain; the original forum content stays accessible.",
+    profileContentHidden: "Content on this anonymous profile is hidden",
     purpose: "Post and reply with a fixed alias, hiding your main-account association from the public.",
     settingsHint: "Manage the alias and identity used for anonymous posts",
     introTitle: "Your anonymous identity has its own alias and post history",

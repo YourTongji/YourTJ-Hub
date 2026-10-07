@@ -37,6 +37,15 @@ test('guests do not fetch private state or get management controls', async () =>
   expect(getIdentityState).not.toHaveBeenCalled()
   expect(wrapper.findComponent(ProfileManageButton).exists()).toBe(false)
 })
+test('hidden profile omits streams, counts and pagination even with stale props', async () => {
+  wrapper = mount(AnonymousProfilePage, { props: { layout, props: { ...anonymousProfile, showContent: false, page: 2, hasNext: true } }, global })
+  await flushPromises()
+  expect(wrapper.text()).toContain('匿名主页的内容已隐藏')
+  expect(wrapper.text()).not.toContain(anonymousProfile.topics[0].title)
+  expect(wrapper.text()).not.toContain(anonymousProfile.replies[0].excerpt)
+  expect(wrapper.find('nav').exists()).toBe(false)
+  expect(wrapper.findComponent(ProfileManageButton).exists()).toBe(true)
+})
 test('another signed-in persona does not get management controls', async () => {
   vi.mocked(getIdentityState).mockResolvedValue({ ...identityState, persona: { ...identityState.persona, publicUid: 'b'.repeat(32) } })
   wrapper = mount(AnonymousProfilePage, { props: { layout, props: anonymousProfile }, global })

@@ -40,6 +40,14 @@ void main() {
         fixture('anonymous-state-success'),
       );
       expect(state.lexiconVersion, 'phrase6-v1');
+      expect(state.showContent, true);
+      expect(
+        AnonymousIdentityState.fromJson({
+          ...fixture('anonymous-state-success'),
+          'showContent': false,
+        }).showContent,
+        false,
+      );
       // Existing names/batches remain valid across generator versions.
       expect(state.persona!.name, 'C++');
       expect(state.batches.first.words.first, 'C++');

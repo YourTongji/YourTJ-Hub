@@ -1089,6 +1089,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/anonymous/privacy"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/anonymous/reveal"
   },
   {

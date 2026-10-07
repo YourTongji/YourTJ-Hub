@@ -2956,6 +2956,9 @@ export default {
     courseDetailLoadFailed: 'コース詳細の読み込みに失敗しました',
   },
   anonymous: {
+    showContent: "匿名プロフィールの内容を表示",
+    showContentDescription: "匿名プロフィールに投稿、返信、件数を表示します。オフにすると名前とアバターのみ表示され、フォーラムの元の内容は引き続き閲覧できます。",
+    profileContentHidden: "匿名プロフィールの内容は非表示です",
     purpose: "固定の名前で投稿・返信し、本アカウントとの関連を公開しません。",
     settingsHint: "匿名投稿の名前と身元を管理",
     introTitle: "匿名の身元には独自の名前と投稿履歴があります",

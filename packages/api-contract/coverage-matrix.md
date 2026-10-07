@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：386
-- /api JSON 路由：317，已入契约：318（100%），已知未覆盖：0
+- 快照路由总数：387
+- /api JSON 路由：318，已入契约：319（100%），已知未覆盖：0
 - 非 API 排除路由：68
 
-## 已覆盖（318）
+## 已覆盖（319）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -220,6 +220,7 @@
 | POST | `/api/forum/anonymous/confirm` | `confirmAnonymousName` |
 | POST | `/api/forum/anonymous/disable` | `disableAnonymousIdentity` |
 | POST | `/api/forum/anonymous/govern` | `governAnonymousIdentity` |
+| POST | `/api/forum/anonymous/privacy` | `updateAnonymousProfilePrivacy` |
 | POST | `/api/forum/anonymous/reveal` | `revealAnonymousIdentity` |
 | POST | `/api/forum/chat/forward` | `forwardChatMessages` |
 | POST | `/api/forum/chat/mark-read` | `markChatRead` |

@@ -164,3 +164,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0073](0073-stable-campus-places-and-overrides.md) — 跨学期核验地点目录、保守简单房间解析与优先执行的 JSON 例外覆盖，离线提取仅供维护与回归。
 - [0074](0074-six-character-persona-names.md) — 六汉字花名自由组合；保留既有身份、候选、配额与一年锁定。
 - [0075](0075-restricted-anonymous-administration.md) — 受限的匿名身份后台管理；显式身份揭示与用户管理权限、逐页私有审计。
+- [0076](0076-anonymous-profile-content-privacy.md) — 匿名主页独立的服务端内容展示偏好；关闭时隐藏聚合历史与数量。

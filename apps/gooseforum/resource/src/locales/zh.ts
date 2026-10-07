@@ -2959,6 +2959,9 @@ export default {
     pkCourseReviewBriefFailed: '课评信息加载失败',
   },
   anonymous: {
+    showContent: "展示匿名主页内容",
+    showContentDescription: "允许从匿名主页查看帖子、评论和数量。关闭后仅保留花名与头像，论坛中的原内容仍可正常访问。",
+    profileContentHidden: "匿名主页的内容已隐藏",
     purpose: "使用固定花名发帖和回复，对公众隐藏主账号关联。",
     settingsHint: "管理匿名发言使用的花名与身份",
     introTitle: "匿名身份有自己的花名和发言记录",

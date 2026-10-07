@@ -3635,4 +3635,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get anonymousNameLockHint => 'Name locked for one year.';
+
+  @override
+  String get anonymousShowContent => 'Show anonymous profile content';
+
+  @override
+  String get anonymousShowContentDescription =>
+      'Show topics, replies and counts on the anonymous profile. When off, only the name and avatar remain; the original forum content stays accessible.';
+
+  @override
+  String get anonymousProfileContentHidden =>
+      'Content on this anonymous profile is hidden';
 }

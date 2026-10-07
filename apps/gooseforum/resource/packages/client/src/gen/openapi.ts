@@ -398,6 +398,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/anonymous/privacy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update anonymous profile content visibility
+         * @description Requires the current authenticated live human owner; no caller-supplied persona UID is accepted. Persists the independent showContent preference. Frozen or governance-restricted owners may manage profile privacy without restoring publishing rights. When false, the public profile omits topic/reply streams, counts and pagination for all viewers; existing forum content remains accessible through its normal routes. Private no-store response. Missing/null showContent is a business validation failure; false is accepted.
+         */
+        post: operations["updateAnonymousProfilePrivacy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/anonymous/reveal": {
         parameters: {
             query?: never;
@@ -13164,6 +13184,8 @@ export interface components {
             nameChangeAvailableAt: string | null;
             disabled: boolean;
             governanceDisabled: boolean;
+            /** @description Server-persisted preference for listing public topics, replies and counts on the persona profile. Defaults to true; independent of member settings and publishing restrictions. */
+            showContent: boolean;
             day: string;
             remaining: number;
             /** Format: date-time */
@@ -13481,6 +13503,9 @@ export interface components {
         disableAnonymousIdentityResponse: (components["schemas"]["ApiSuccess"] & {
             result: boolean;
         }) | components["schemas"]["ApiFailure"];
+        AnonymousProfilePrivacyRequest: {
+            showContent: boolean;
+        };
         revealAnonymousIdentityResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["AnonymousRevealedOwner"];
         }) | components["schemas"]["ApiFailure"];
@@ -15148,6 +15173,57 @@ export interface operations {
                 };
             };
             /** @description Frozen account, write eligibility or CSRF rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    updateAnonymousProfilePrivacy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnonymousProfilePrivacyRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["disableAnonymousIdentityResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description CSRF rejected */
             403: {
                 headers: {
                     [name: string]: unknown;

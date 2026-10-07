@@ -1739,5 +1739,8 @@
       }
     }
   },
-  "anonymousNameLockHint": "Name locked for one year."
+  "anonymousNameLockHint": "Name locked for one year.",
+  "anonymousShowContent": "Show anonymous profile content",
+  "anonymousShowContentDescription": "Show topics, replies and counts on the anonymous profile. When off, only the name and avatar remain; the original forum content stays accessible.",
+  "anonymousProfileContentHidden": "Content on this anonymous profile is hidden"
 }

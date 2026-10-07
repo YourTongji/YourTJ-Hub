@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/pages/settings/anonymous_identity_page.dart';
 import 'package:forum_app/src/widgets/identity_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -20,6 +21,7 @@ class Fixture {
     'nameSelectedAt': null,
     'nameChangeAvailableAt': null,
     'disabled': false,
+    'showContent': true,
     'governanceDisabled': false,
     'lexiconVersion': 'test',
     'batches': <Map<String, dynamic>>[],
@@ -27,7 +29,7 @@ class Fixture {
   final keys = <String>[];
   final stored = <String, Map<String, dynamic>>{};
   int confirms = 0;
-  bool failDraw = false, failConfirm = false;
+  bool failDraw = false, failConfirm = false, failPrivacy = false;
   Completer<void>? confirmWait;
   late final client = GfApiClient(
     dio: dio,
@@ -39,7 +41,19 @@ class Fixture {
       InterceptorsWrapper(
         onRequest: (o, h) async {
           Object? result = state;
-          if (o.path.endsWith('/batches')) {
+          if (o.path.endsWith('/privacy')) {
+            if (failPrivacy) {
+              h.reject(
+                DioException(
+                  requestOptions: o,
+                  type: DioExceptionType.connectionError,
+                ),
+              );
+              return;
+            }
+            state['showContent'] = (o.data as Map)['showContent'];
+            result = true;
+          } else if (o.path.endsWith('/batches')) {
             final body = o.data as Map;
             final key = body['requestKey'] as String;
             keys.add(key);
@@ -187,6 +201,57 @@ Future<void> tap(WidgetTester tester, String text) async {
 }
 
 void main() {
+  testWidgets(
+    'profile visibility keeps its saved value on failure and persists on success',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 1100);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final f = Fixture();
+      f.state['persona'] = {
+        'kind': 'persona',
+        'publicUid': 'a' * 32,
+        'name': '躲进云里的猫',
+        'avatarUrl': '',
+        'profileUrl': '/a/${'a' * 32}',
+      };
+      f.state['nameChangeAvailableAt'] = '2099-10-07T00:00:00Z';
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [apiClientProvider.overrideWithValue(f.client)],
+          child: MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            theme: gfThemeData(Brightness.light),
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: const TextScaler.linear(2)),
+              child: child!,
+            ),
+            home: const AnonymousIdentityPage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+      f.failPrivacy = true;
+      await tester.ensureVisible(find.byType(Switch));
+      await tester.tap(find.byType(Switch));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+      expect(f.state['showContent'], true);
+      f.failPrivacy = false;
+      await tester.ensureVisible(find.byType(Switch));
+      await tester.tap(find.byType(Switch));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+      expect(f.state['showContent'], false);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets('profile navigation does not refocus the composer', (
     tester,
   ) async {

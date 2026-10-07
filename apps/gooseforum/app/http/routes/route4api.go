@@ -362,6 +362,7 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("push/device/register", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.RegisterPushDevice))
 	forumLoginApi.POST("push/device/unregister", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.UnregisterPushDevice))
 	forumLoginApi.GET("anonymous/state", middleware.NoUpdateUserActivity, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousState))
+	forumLoginApi.POST("anonymous/privacy", middleware.AnonymousPrivateResponse, middleware.NoUpdateUserActivity, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousPrivacy))
 	forumLoginApi.POST("anonymous/batches", middleware.NoUpdateUserActivity, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousGenerate))
 	forumLoginApi.POST("anonymous/confirm", middleware.NoUpdateUserActivity, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousConfirm))
 	forumLoginApi.POST("anonymous/disable", middleware.NoUpdateUserActivity, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousDisable))

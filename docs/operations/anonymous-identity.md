@@ -46,6 +46,13 @@ Existing numeric user IDs, OIDC subjects and legacy anonymous content remain unc
 phrase6-v1 name components are embedded in the same binary; no runtime download is required.
 A source update does not rewrite confirmed names or persisted candidate batches.
 
+`Current`: the schema upgrade adds `anonymous_personas.show_content BOOLEAN NOT NULL DEFAULT TRUE`
+before AutoMigrate when the column is absent. SQLite and PostgreSQL preserve existing identities,
+avatar seeds and name-lock dates. Repeating the upgrade preserves a saved false value. The default
+keeps existing public profiles visible until the owner changes the preference. Backups include this
+column; restoring or serving an older binary without privacy support can expose hidden profile
+history, so keep the binary and preference schema consistent.
+
 Back up the complete main database with restricted access before upgrading. A complete database
 backup must preserve the five anonymous tables, content persona UIDs, notification actor projection
 and the account restriction together. Restore them as one consistent database snapshot and verify
@@ -64,7 +71,7 @@ pre-feature snapshot with its corresponding binary, with the usual loss of subse
 
 ## Cache and logging boundary
 
-`Current`: anonymous settings, candidate, confirmation, toggle, governance and reveal responses send
+`Current`: anonymous settings, candidate, confirmation, privacy, toggle, governance and reveal responses send
 `Cache-Control: private, no-store`, including the restricted admin list and governance responses.
 Reverse proxies must preserve it. Anonymous API and `/a/` access and panic logs omit account and IP,
 use the route pattern and discard query values. Restricted evidence never
@@ -74,6 +81,9 @@ Identity settings/legacy governance routes live under `/api/forum/anonymous/`, r
 operations under `/api/admin/anonymous-identities/`, and public personas under `/a/`. Extensions
 to these namespaces preserve this logging boundary. The admin page does not export mappings or
 persist them in browser storage; each revisit requires a new viewing reason.
+
+`Current`: `/a/` HTML and page payloads also return `private, no-store` so a previous visible
+history or authenticated layout is not reused after a privacy change.
 
 An avatar URL is immutable and publicly cacheable for one year. Public name/profile payloads must
 be refreshed after a rename; clients must not publish private settings state to a shared cache.
