@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import IdentityPicker from '@/site/components/IdentityPicker.vue'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Check, Loader2, LockKeyhole, LockKeyholeOpen, Send, X } from '@lucide/vue'
@@ -14,6 +15,7 @@ import type { PostPayload } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
+  viewer?: {id?:number;username:string;avatarUrl:string}
   authenticated: boolean
   errorMessage: string
   mode?: 'create' | 'edit'
@@ -46,6 +48,7 @@ const emit = defineEmits<{
 
 const captchaCode = defineModel<string>('captchaCode', { default: '' })
 const content = defineModel<string>({ default: '' })
+const identity = defineModel<'member' | 'persona'>('identity', {default:'member'})
 const anonymous = defineModel<boolean>('anonymous', { default: false })
 const { t } = useI18n()
 // 软键盘弹出时抬高浮动面板，确保输入内容不被输入法遮挡
@@ -394,6 +397,7 @@ function submit() {
                 maxlength="8"
               />
             </div>
+            <IdentityPicker :key="viewer?.id" :viewer="viewer" v-if="authenticated && !allowAnonymous" v-model="identity" :disabled="composerBusy || editing" />
             <label v-if="allowAnonymous && !editing" class="mt-2 flex shrink-0 cursor-pointer items-center gap-2 text-[13px] text-base-content/75">
               <input v-model="anonymous" type="checkbox" class="checkbox checkbox-sm" />
               {{ t('topic.publishAnonymous') }}

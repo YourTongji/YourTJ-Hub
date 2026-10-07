@@ -12,6 +12,8 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
@@ -23,6 +25,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/anonymousidentityservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/feedservice"
@@ -134,6 +137,7 @@ func postSourceLimit(maxPostLength int) int {
 }
 
 type WriteTopicReq struct {
+	Identity    string   `json:"identity,omitempty"`
 	TopicId     uint64   `json:"topicId"`
 	Content     string   `json:"content" validate:"required"`
 	Title       string   `json:"title"` // 瞬间（contentType=2）可留空，其余类型由 writeTopic 强制非空
@@ -148,6 +152,12 @@ type WriteTopicReq struct {
 
 // WriteTopic creates or updates a topic and its first post.
 func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
+	if req.Params.Identity == "persona" {
+		req.GinContext.Set(middleware.SkipUpdateUserActivity, true)
+	}
+	if req.Params.Identity != "" && req.Params.Identity != "member" && req.Params.Identity != "persona" {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	return writeTopic(req, false)
 }
 
@@ -309,6 +319,23 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		}
 		topic.UserId = req.UserId
 	}
+	if req.Params.TopicId == 0 {
+		if agent && req.Params.Identity != "" && req.Params.Identity != "member" {
+			return component.FailResponseCode(component.MessageCommentAnonymousNotAllowed, nil)
+		}
+		uid, err := anonymousidentityservice.Default(betterRequestContext(req)).Resolve(req.UserId, req.Params.Identity)
+		if err != nil {
+			return component.FailResponseCode(component.MessageCode(anonymousidentityservice.ErrorCode(err)), nil)
+		}
+		topic.PersonaUID = uid
+		firstPost.PersonaUID = uid
+		firstPost.IsAnonymous = uid != ""
+	} else if req.Params.Identity != "" && ((req.Params.Identity == "persona") != (topic.PersonaUID != "")) {
+		return component.FailResponseCode(component.MessageCommentAnonymousNotAllowed, nil)
+	}
+	if topic.PersonaUID != "" {
+		req.GinContext.Set(middleware.SkipUpdateUserActivity, true)
+	}
 	topic.CategoryIds = req.Params.CategoryId
 	topic.Status = req.Params.TopicStatus
 	topic.Title = req.Params.Title
@@ -372,6 +399,9 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	// 单事务原子提交：话题 + 首帖 + 指针（首/末帖 ID、最后回复时间）+ 分类索引。
 	// 任一步失败整体回滚，不留孤立话题/缺首帖/缺分类索引；事件与缓存失效仅在提交后执行。
 	err = db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
+		if err := identity.ValidateWriterTx(tx, req.UserId, topic.PersonaUID); err != nil {
+			return err
+		}
 		if isEdit {
 			// 锁序与 UpdatePost 首楼分支保持一致（posts → topics）：先写
 			// firstPost 行、再写 topic 派生字段。若这里先锁 topics 再锁
@@ -397,10 +427,14 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			topic.PostCount = 1
 			topic.PostSeq = 1
 			topic.Posters = []topics.Poster{{UserID: req.UserId}}
+			if topic.PersonaUID != "" {
+				topic.Posters = nil
+			}
 			if err := topics.CreateTx(tx, &topic); err != nil {
 				return err
 			}
 			firstPost = posts.Entity{
+				PersonaUID: topic.PersonaUID, IsAnonymous: topic.PersonaUID != "",
 				TopicId:         topic.Id,
 				PostNo:          1,
 				UserId:          req.UserId,
@@ -457,11 +491,11 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.PostUpdatedEvent{
 				TopicId: topic.Id, PostId: firstPost.Id, PostNo: firstPost.PostNo, UserId: req.UserId,
-				OldContent: oldContent, NewContent: firstPost.Content, IsAnonymous: firstPost.IsAnonymous,
+				OldContent: oldContent, NewContent: firstPost.Content, IsAnonymous: firstPost.IsAnonymous, PersonaUID: firstPost.PersonaUID,
 			})
 		}
 	} else {
-		if topic.Status == 1 && !pendingReview {
+		if topic.Status == 1 && !pendingReview && topic.PersonaUID == "" {
 			userStatistics.WriteTopic(req.UserId)
 		}
 		userservice.InvalidateUserPublicProfileCache(req.UserId)
@@ -539,6 +573,7 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 }
 
 type CreatePostReq struct {
+	Identity      string `json:"identity,omitempty"`
 	TopicId       uint64 `json:"topicId"`
 	Content       string `json:"content"`
 	ReplyToPostId uint64 `json:"replyToPostId"`
@@ -665,6 +700,20 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		return component.FailResponseCode(component.MessageCommentAnonymousNotAllowed, nil)
 	}
 
+	personaUID := ""
+	if req.Params.Identity == "persona" {
+		req.GinContext.Set(middleware.SkipUpdateUserActivity, true)
+	}
+	if req.Params.Identity != "" && req.Params.Identity != "member" {
+		if agent || topicEntity.TopicType != topics.TopicTypeForum || req.Params.IsAnonymous {
+			return component.FailResponseCode(component.MessageCommentAnonymousNotAllowed, nil)
+		}
+		var resolveErr error
+		personaUID, resolveErr = anonymousidentityservice.Default(betterRequestContext(req)).Resolve(req.UserId, req.Params.Identity)
+		if resolveErr != nil {
+			return component.FailResponseCode(component.MessageCode(anonymousidentityservice.ErrorCode(resolveErr)), nil)
+		}
+	}
 	postEntity := &posts.Entity{
 		TopicId:         req.Params.TopicId,
 		Content:         content,
@@ -672,7 +721,8 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		RenderedVersion: markdown2html.GetPostVersion(),
 		UserId:          req.UserId,
 		ReplyToPostId:   req.Params.ReplyToPostId,
-		IsAnonymous:     req.Params.IsAnonymous,
+		IsAnonymous:     req.Params.IsAnonymous || personaUID != "",
+		PersonaUID:      personaUID,
 	}
 
 	// 敏感词检查
@@ -709,7 +759,9 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		finishAIModeration(aiCheck, postEntity.Id)
 	}
 	if !pendingReview {
-		userStatistics.WriteComment(req.UserId)
+		if !postEntity.IsAnonymous {
+			userStatistics.WriteComment(req.UserId)
+		}
 	}
 	userservice.InvalidateUserPublicProfileCache(req.UserId)
 	hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
@@ -732,7 +784,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 			TopicAuthorId:       topicEntity.UserId,
 			ReplyToPostId:       req.Params.ReplyToPostId,
 			ReplyToPostAuthorId: parentPostAuthorID,
-			IsAnonymous:         postEntity.IsAnonymous,
+			IsAnonymous:         postEntity.IsAnonymous, PersonaUID: postEntity.PersonaUID,
 		})
 	}
 	// 发帖计数无条件累加（与 WriteTopic 的 topic.write 一致），
@@ -768,6 +820,9 @@ type UpdatePostReq struct {
 func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	postingConfig := hotdataserve.GetPostingSettingsConfigCache()
 	postEntity := posts.Get(req.Params.PostId)
+	if postEntity.PersonaUID != "" {
+		req.GinContext.Set(middleware.SkipUpdateUserActivity, true)
+	}
 	if postEntity.Id == 0 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
@@ -885,6 +940,9 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 
 	now := time.Now()
 	if err := db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
+		if err := identity.ValidateWriterTx(tx, req.UserId, postEntity.PersonaUID); err != nil {
+			return err
+		}
 		if err := posts.SaveTx(tx, &postEntity); err != nil {
 			return err
 		}
@@ -944,7 +1002,7 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 			UserId:      req.UserId,
 			OldContent:  oldContent,
 			NewContent:  postEntity.Content,
-			IsAnonymous: postEntity.IsAnonymous,
+			IsAnonymous: postEntity.IsAnonymous, PersonaUID: postEntity.PersonaUID,
 		})
 	}
 
@@ -1011,6 +1069,9 @@ func LikeTopic(req component.BetterRequest[LikeTopicReq]) component.Response {
 	if topicEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
+	if topicEntity.PersonaUID != "" && topicEntity.UserId == req.UserId && req.Params.Action == 1 {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	state := topicUserAction.GetByTopicId(req.UserId, topicEntity.Id)
 	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）清理对已隐藏/封禁话题的
 	// 既有点赞，避免 like_count 与 user_action 行被永久卡住（无状态者仍按不可见拒绝）。
@@ -1032,8 +1093,10 @@ func LikeTopic(req component.BetterRequest[LikeTopicReq]) component.Response {
 		// 仅状态迁移时执行统计与事件副作用（并发重复请求不会重复计数）
 		if targetLiked {
 			topics.IncrementLike(topicEntity)
-			userStatistics.LikeTopic(topicEntity.UserId)
-			userStatistics.GivenLike(req.UserId)
+			if topicEntity.PersonaUID == "" {
+				userStatistics.LikeTopic(topicEntity.UserId)
+				userStatistics.GivenLike(req.UserId)
+			}
 			userservice.InvalidateUserPublicProfileCache(topicEntity.UserId)
 			userservice.InvalidateUserPublicProfileCache(req.UserId)
 			hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
@@ -1047,8 +1110,10 @@ func LikeTopic(req component.BetterRequest[LikeTopicReq]) component.Response {
 			})
 		} else {
 			topics.DecrementLike(topicEntity)
-			userStatistics.CancelLikeTopic(topicEntity.UserId)
-			userStatistics.CancelGivenLike(req.UserId)
+			if topicEntity.PersonaUID == "" {
+				userStatistics.CancelLikeTopic(topicEntity.UserId)
+				userStatistics.CancelGivenLike(req.UserId)
+			}
 			userservice.InvalidateUserPublicProfileCache(topicEntity.UserId)
 			userservice.InvalidateUserPublicProfileCache(req.UserId)
 			hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
@@ -1143,6 +1208,9 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 	if topicEntity.Id == 0 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
+	if postEntity.PersonaUID != "" && postEntity.UserId == req.UserId && req.Params.Action == 1 {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	state := postUserAction.GetByPostId(req.UserId, postEntity.Id)
 	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）清理对已隐藏/封禁话题的既有点赞。
 	if !forum.CanViewTopicSimple(&topicEntity, req.UserId) && !(req.Params.Action == 2 && state.Id != 0) {
@@ -1164,9 +1232,13 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 	if changed {
 		// 仅状态迁移时执行统计与事件副作用（并发重复请求不会重复计数）
 		if targetLiked {
-			userStatistics.GivenLike(req.UserId)
+			if postEntity.PersonaUID == "" {
+				userStatistics.GivenLike(req.UserId)
+			}
 			// 楼层点赞计入作者"获赞"统计，并发布点赞事件（动态/徽章/通知）
-			userStatistics.LikeTopic(postEntity.UserId)
+			if postEntity.PersonaUID == "" {
+				userStatistics.LikeTopic(postEntity.UserId)
+			}
 			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.PostLikedEvent{
 				UserId:     postEntity.UserId,
 				PostId:     postEntity.Id,
@@ -1176,8 +1248,10 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 				LikerId:    req.UserId,
 			})
 		} else {
-			userStatistics.CancelGivenLike(req.UserId)
-			userStatistics.CancelLikeTopic(postEntity.UserId)
+			if postEntity.PersonaUID == "" {
+				userStatistics.CancelGivenLike(req.UserId)
+				userStatistics.CancelLikeTopic(postEntity.UserId)
+			}
 		}
 		userservice.InvalidateUserPublicProfileCache(postEntity.UserId)
 		userservice.InvalidateUserPublicProfileCache(req.UserId)

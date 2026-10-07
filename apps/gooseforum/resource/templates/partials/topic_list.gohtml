@@ -15,7 +15,7 @@
             <h2 class="gf-crawler-topic-title"><a href="{{.URL}}" rel="bookmark">{{topicListLabel .Title .Description}}</a></h2>
             {{if or .Author.Username .Categories}}
             <p class="gf-crawler-topic-meta">
-                {{if .Author.Username}}<a href="/u/{{.Author.ID}}" rel="author">{{.Author.Username}}</a>{{end}}
+                {{if .Author.Username}}<a href="{{if .Author.ProfileURL}}{{.Author.ProfileURL}}{{else if .Author.ID}}/u/{{.Author.ID}}{{else}}#{{end}}" rel="author">{{.Author.Username}}</a>{{if .Author.PublicUID}} <span>{{t $.Lang "anonymous.identity"}}</span>{{end}}{{end}}
                 {{range .Categories}}<a href="{{.URL}}" rel="tag">{{.Name}}</a> {{end}}
             </p>
             {{end}}

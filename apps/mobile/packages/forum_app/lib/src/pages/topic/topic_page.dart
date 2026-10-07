@@ -1,6 +1,7 @@
 import '../../realtime/realtime_updates.dart';
 import '../../report_content.dart';
 import '../../widgets/stickers/sticker_draft_preview.dart';
+import '../../widgets/identity_picker.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
 import '../../private_notes.dart';
@@ -85,6 +86,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
 
   AsyncValue<TopicDetailProps> _page = const AsyncValue.loading();
   bool _viewerAuthenticated = false;
+  bool _canRevealAnonymous = false;
   bool _fromCache = false;
   bool _cacheRefreshing = false;
   bool _cacheCleared = false;
@@ -152,6 +154,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
   // 账号切换)时,页面先丢弃旧会话数据再按新世代重载,而不是永久置空。
   late int _writingEpoch;
   late Future<String?> _replyOwner;
+  String _replyIdentity = "member";
   Timer? _replyAutosave;
   int _replyRevision = 0, _replySavedRevision = 0, _replyDraftGeneration = 0;
   bool _restoringReply = false;
@@ -264,6 +267,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
           .firstOrNull;
       if (draft == null) return;
       _restoringReply = true;
+      _replyIdentity = draft.identity;
       _replyToPostId = draft.replyToPostId;
       _replyTargetName = draft.replyTargetName;
       _replyMentionPrefix = draft.replyMentionPrefix;
@@ -292,6 +296,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
     // Capture before awaiting identity/storage: disposal and navigation can
     // replace the live controllers, but this copy always belongs to this topic.
     final draft = LocalDraft(
+      identity: _replyIdentity,
       key: replyDraftKey(id),
       kind: DraftKind.reply,
       title: _page.valueOrNull?.topic.title ?? '',
@@ -388,8 +393,18 @@ class _TopicPageState extends ConsumerState<TopicPage>
     setState(() {
       _fromCache = cached;
       _page = AsyncValue.data(props);
+      if (_replyRevision == 0 &&
+          _replyController.text.isEmpty &&
+          props.postStream.posts.any(
+            (p) => p.postNo == 1 && p.isOwnPost && p.author.publicUid != null,
+          )) {
+        _replyIdentity = "persona";
+      }
       _viewerAuthenticated = !cached && payload.layout.viewer.isAuthenticated;
       _viewerId = cached ? 0 : payload.layout.viewer.id;
+      _canRevealAnonymous =
+          !cached &&
+          (payload.layout.viewer.adminPermissions?.contains(7) ?? false);
       _posts.clear();
       _posts.addAll(props.postStream.posts);
       _replyTargets
@@ -708,10 +723,18 @@ class _TopicPageState extends ConsumerState<TopicPage>
 
   bool _hasOpReply() {
     final int authorId = _page.valueOrNull?.topic.author.id ?? 0;
-    if (authorId <= 0) return false;
+    if (authorId <= 0 && _page.valueOrNull?.topic.author.publicUid == null) {
+      return false;
+    }
     for (final PostPayload post in _posts) {
       // 主帖(postNo 1)总是楼主所发,只看回复楼层,否则扫描永远提前退出。
-      if (post.postNo > 1 && post.author.id == authorId) return true;
+      if (post.postNo > 1 &&
+          (post.author.publicUid != null
+              ? post.author.publicUid ==
+                    _page.valueOrNull?.topic.author.publicUid
+              : authorId > 0 && post.author.id == authorId)) {
+        return true;
+      }
     }
     return false;
   }
@@ -1186,6 +1209,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
       final result = await ref
           .read(postRepositoryProvider)
           .createPost(
+            identity: _replyIdentity,
             topicId: topicId,
             content: content,
             replyToPostId: target,
@@ -1446,7 +1470,12 @@ class _TopicPageState extends ConsumerState<TopicPage>
         <PostPayload>[
           for (final PostPayload post in _posts)
             if (post.id != mainPost?.id)
-              if (authorId <= 0 || post.author.id == authorId) post,
+              if (_sort != CommentSort.onlyOp ||
+                  (post.author.publicUid != null
+                      ? post.author.publicUid ==
+                            _page.valueOrNull?.topic.author.publicUid
+                      : authorId > 0 && post.author.id == authorId))
+                post,
         ]..sort(
           (PostPayload a, PostPayload b) => _sort == CommentSort.desc
               ? b.postNo.compareTo(a.postNo)
@@ -1541,6 +1570,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
     _replyToPostId = 0;
     _replyTargetName = null;
     _replyMentionPrefix = null;
+    _replyIdentity = 'member';
     _restoringReply = false;
     _replyRevision = _replySavedRevision = 0;
     _replySaveStatus = '';
@@ -1630,6 +1660,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
           if (!_fromCache && _page.valueOrNull != null)
             TopicActions(
               props: _page.valueOrNull!,
+              canRevealAnonymous: _canRevealAnonymous,
               firstPostId: _mainPost(_posts)?.id,
               onChanged: () => _load(silent: true, postNo: _currentFloor),
             ),
@@ -1745,6 +1776,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                       children: <Widget>[
                                         _PostCard(
                                           post: post,
+                                          canRevealAnonymous:
+                                              _canRevealAnonymous,
                                           topicTitle: topicTitle,
                                           topicAvailable: _topicAvailable,
                                           readOnly: _fromCache,
@@ -1814,6 +1847,19 @@ class _TopicPageState extends ConsumerState<TopicPage>
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: <Widget>[
+                          if (_composerOpen)
+                            IdentityPicker(
+                              value: _replyIdentity,
+                              disabled: _replying,
+                              onChanged: (v) {
+                                setState(() {
+                                  _replyIdentity = v;
+                                  _replyRevision++;
+                                });
+                                unawaited(_saveReplyDraft());
+                              },
+                            ),
+
                           if (_composerOpen && !_replyStickerOpen)
                             Flexible(
                               child: ConstrainedBox(
@@ -2163,7 +2209,9 @@ class _TopicHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               InkWell(
-                onTap: topic.author.id > 0
+                onTap: topic.author.publicUid != null
+                    ? () => context.push('/a/${topic.author.publicUid}')
+                    : topic.author.id > 0
                     ? () => showUserProfilePreview(
                         context,
                         userId: topic.author.id,
@@ -2188,7 +2236,9 @@ class _TopicHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     InkWell(
-                      onTap: topic.author.id > 0
+                      onTap: topic.author.publicUid != null
+                          ? () => context.push('/a/${topic.author.publicUid}')
+                          : topic.author.id > 0
                           ? () => context.push('/u/${topic.author.id}')
                           : null,
                       child: Text(
@@ -2198,7 +2248,7 @@ class _TopicHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '@${topic.author.username} · ${timeAgo(topic.createdAt, l10n: l10n)}',
+                      '${topic.author.publicUid != null ? l10n.anonymousPersonaLabel : '@${topic.author.username}'} · ${timeAgo(topic.createdAt, l10n: l10n)}',
                       style: GfTheme.typographyOf(
                         context,
                       ).caption.copyWith(color: colors.iconMuted),
@@ -2420,6 +2470,7 @@ class _TopicStat extends StatelessWidget {
 class _PostCard extends StatelessWidget {
   const _PostCard({
     this.readOnly = false,
+    this.canRevealAnonymous = false,
     required this.post,
     required this.topicTitle,
     required this.topicAvailable,
@@ -2431,6 +2482,7 @@ class _PostCard extends StatelessWidget {
   });
 
   final bool readOnly;
+  final bool canRevealAnonymous;
   final PostPayload post;
   final String topicTitle;
   final bool topicAvailable;
@@ -2456,7 +2508,9 @@ class _PostCard extends StatelessWidget {
           Row(
             children: <Widget>[
               InkWell(
-                onTap: post.author.id > 0 && !post.isAnonymous
+                onTap: post.author.publicUid != null
+                    ? () => context.push('/a/${post.author.publicUid}')
+                    : post.author.id > 0 && !post.isAnonymous
                     ? () => showUserProfilePreview(
                         context,
                         userId: post.author.id,
@@ -2478,7 +2532,9 @@ class _PostCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: InkWell(
-                  onTap: post.author.id > 0 && !post.isAnonymous
+                  onTap: post.author.publicUid != null
+                      ? () => context.push('/a/${post.author.publicUid}')
+                      : post.author.id > 0 && !post.isAnonymous
                       ? () => context.push('/u/${post.author.id}')
                       : null,
                   child: Text(
@@ -2494,6 +2550,8 @@ class _PostCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (post.author.publicUid != null)
+                Text(l10n.anonymousPersonaLabel, style: GfTheme.typographyOf(context).caption),
               if (post.postNo > 0)
                 Text(
                   '#${post.postNo}',
@@ -2556,6 +2614,7 @@ class _PostCard extends StatelessWidget {
               width: double.infinity,
               child: PostActions(
                 post: post,
+                canRevealAnonymous: canRevealAnonymous,
                 topicTitle: topicTitle,
                 topicAvailable: topicAvailable,
                 onChanged: onChanged,

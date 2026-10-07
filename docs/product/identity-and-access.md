@@ -21,6 +21,14 @@
 - The forum JWT is only a **session credential** (HS256, self-signed, 7-day TTL, carries a `jti`); it
   is not identity truth and is never issued to external OIDC clients — those receive opaque access
   tokens scoped to the built-in provider.
+## Forum anonymous personas
+
+`Current`: numeric accounts privately own one persistent anonymous forum persona. It is a display
+identity with no separate login, OIDC subject or credentials. Public authors and profiles hide the
+owner; a separately granted, audited permission reveals the binding. Account closure retains the
+private binding and restricted audits indefinitely and prevents subsequent persona writes. See
+[anonymous identity](anonymous-identity.md) for the supported naming, publishing and governance rules.
+
 ## Login flows
 
 ### Web

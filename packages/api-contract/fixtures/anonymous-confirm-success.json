@@ -1,0 +1,10 @@
+{
+  "code": 0,
+  "result": {
+    "kind": "persona",
+    "publicUid": "0123456789abcdef0123456789abcdef",
+    "name": "C++",
+    "avatarUrl": "/a/0123456789abcdef0123456789abcdef/avatar.svg",
+    "profileUrl": "/a/0123456789abcdef0123456789abcdef"
+  }
+}

@@ -205,7 +205,12 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 		return nil
 	}
 	// Recheck blocks at delivery: this job may predate the block.
-	if blocked, err := users.InteractionBlocked(payload.UserId, notification.Payload.ActorId); err != nil || blocked {
+	if blocked, err := users.InteractionBlocked(payload.UserId, func() uint64 {
+		if notification.PrivateActorID != 0 {
+			return notification.PrivateActorID
+		}
+		return notification.Payload.ActorId
+	}()); err != nil || blocked {
 		return err
 	}
 	// 注销账号（软删）不再推送。

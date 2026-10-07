@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/anonymousidentityservice"
 	"log/slog"
 	"net/http"
 
@@ -238,19 +239,20 @@ type AgentTopicListReq struct {
 
 // AgentTopicItem is the published-topic view for Agents.
 type AgentTopicItem struct {
-	Id            uint64   `json:"id"`
-	Title         string   `json:"title"`
-	Excerpt       string   `json:"excerpt"`
-	CategoryIds   []uint64 `json:"categoryIds"`
-	UserId        uint64   `json:"userId"`
-	Status        int8     `json:"status"`
-	ProcessStatus int8     `json:"processStatus"`
-	ReplyCount    uint64   `json:"replyCount"`
-	ViewCount     uint64   `json:"viewCount"`
-	PostCount     uint64   `json:"postCount"`
-	LastPostedAt  *int64   `json:"lastPostedAt,omitempty"`
-	CreatedAt     int64    `json:"createdAt"`
-	UpdatedAt     int64    `json:"updatedAt"`
+	Author        *forum.TopicAuthorPayload `json:"author,omitempty"`
+	Id            uint64                    `json:"id"`
+	Title         string                    `json:"title"`
+	Excerpt       string                    `json:"excerpt"`
+	CategoryIds   []uint64                  `json:"categoryIds"`
+	UserId        uint64                    `json:"userId"`
+	Status        int8                      `json:"status"`
+	ProcessStatus int8                      `json:"processStatus"`
+	ReplyCount    uint64                    `json:"replyCount"`
+	ViewCount     uint64                    `json:"viewCount"`
+	PostCount     uint64                    `json:"postCount"`
+	LastPostedAt  *int64                    `json:"lastPostedAt,omitempty"`
+	CreatedAt     int64                     `json:"createdAt"`
+	UpdatedAt     int64                     `json:"updatedAt"`
 }
 
 type AgentTopicListResponse struct {
@@ -289,7 +291,13 @@ func toAgentTopicItem(entity topics.Entity) AgentTopicItem {
 		value := entity.LastPostedAt.UnixMilli()
 		lastPostedAt = &value
 	}
-	return AgentTopicItem{
+	var publicAuthor *forum.TopicAuthorPayload
+	if entity.PersonaUID != "" {
+		p := anonymousidentityservice.Lookup([]string{entity.PersonaUID})[entity.PersonaUID]
+		publicAuthor = &forum.TopicAuthorPayload{Kind: "persona", PublicUID: p.PublicUID, ProfileURL: p.ProfileURL, Username: p.Name, AvatarURL: p.AvatarURL}
+		entity.UserId = 0
+	}
+	return AgentTopicItem{Author: publicAuthor,
 		Id:            entity.Id,
 		Title:         entity.Title,
 		Excerpt:       entity.Excerpt,

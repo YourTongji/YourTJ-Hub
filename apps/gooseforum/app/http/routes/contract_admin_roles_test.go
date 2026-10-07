@@ -122,7 +122,7 @@ func prepareContractRoleListData(t *testing.T, conn *gorm.DB) {
 func TestAdminGetPermissionListHTTPContract(t *testing.T) {
 	path := "/api/admin/get-permission-list"
 
-	t.Run("success returns all seven localized permission options", func(t *testing.T) {
+	t.Run("success returns all eight localized permission options", func(t *testing.T) {
 		conn, router := setupAdminRolesContractTest(t)
 		serveAdminRolesOK(t, conn, router, path, `{}`, "admin-get-permission-list-success.json")
 	})

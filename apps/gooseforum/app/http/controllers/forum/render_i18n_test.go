@@ -82,8 +82,10 @@ func TestTopicListPartialLocalized(t *testing.T) {
 
 	type category struct{ URL, Name string }
 	type author struct {
-		ID       uint64
-		Username string
+		PublicUID  string
+		ProfileURL string
+		ID         uint64
+		Username   string
 	}
 	type topic struct {
 		URL, Title, Description string

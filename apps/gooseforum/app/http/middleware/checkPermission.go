@@ -76,7 +76,7 @@ func checkWritableAccount(c *gin.Context, allowPendingActivation bool) {
 		c.Abort()
 		return
 	}
-	if user.IsFrozen == users.StatusFrozen {
+	if user.IsFrozen == users.StatusFrozen || user.AnonymousGovernanceBlocked {
 		abortGuardFailure(c, http.StatusForbidden, component.FailDataCode(
 			component.MessagePermissionUserFrozen,
 			component.MessageParams{

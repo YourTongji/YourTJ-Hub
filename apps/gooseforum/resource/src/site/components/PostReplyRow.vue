@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { authorURL } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed } from 'vue'
 import { Ban, Bookmark, ChevronDown, ChevronUp, Clock, CornerDownLeft, Flag, Heart, PencilLine, RotateCcw, Share2, Trash2 } from '@lucide/vue'
@@ -96,13 +97,14 @@ function lastEditedLabel(post: PostPayload) {
       :class="{ 'bg-info/10': highlighted }"
     >
       <div class="mb-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-        <a v-if="!post.isAnonymous" :href="`/u/${post.author.id}`" class="shrink-0" @click="showUserCard(post.author, $event)">
+        <a v-if="(!post.isAnonymous || !!post.author.publicUid)" :href="authorURL(post.author)" class="shrink-0" @click="showUserCard(post.author, $event)">
           <UserAvatar :src="post.author.avatarUrl" :alt="post.author.username" :badge="post.author.wornBadge" class="h-6 w-6 rounded-full ring-1 ring-line" img-class="rounded-full" />
         </a>
         <span v-else class="shrink-0">
           <UserAvatar :src="anonymousAvatarSrc(post)" :alt="t('topic.authorAnonymous')" class="h-6 w-6 rounded-full ring-1 ring-line" img-class="rounded-full" />
         </span>
-        <a v-if="!post.isAnonymous" :href="`/u/${post.author.id}`" class="min-w-0 truncate text-sm font-semibold text-base-content hover:text-primary" @click="showUserCard(post.author, $event)">{{ authorDisplayName(post.author) }}</a>
+        <span v-if="post.author.publicUid" class="text-xs text-base-content/55">{{ t('anonymous.identity') }}</span>
+        <a v-if="(!post.isAnonymous || !!post.author.publicUid)" :href="authorURL(post.author)" class="min-w-0 truncate text-sm font-semibold text-base-content hover:text-primary" @click="showUserCard(post.author, $event)">{{ authorDisplayName(post.author) }}</a>
         <span v-else class="min-w-0 truncate text-sm font-semibold text-base-content/55">{{ t('topic.authorAnonymous') }}</span>
         <span class="shrink-0 text-xs font-semibold tabular-nums text-base-content/55">#{{ formatNumber(post.postNo) }}</span>
         <time class="hidden shrink-0 text-xs text-base-content/55 sm:inline">{{ formatDateTime(post.createdAt) }}</time>

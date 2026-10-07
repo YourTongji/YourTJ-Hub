@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { authorURL } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
 import { ChevronDown, ChevronUp } from '@lucide/vue'
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -58,7 +59,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   <aside class="mb-2 border-l-2 border-primary/45 bg-base-200/40 py-2">
     <div class="flex min-h-7 items-center gap-2 px-3 text-sm text-base-content/55">
       <UserAvatar
-        v-if="target && !target.unavailable && !target.isAnonymous"
+        v-if="target && !target.unavailable && (!target.isAnonymous || !!target.author.publicUid)"
         :src="target.author.avatarUrl"
         :alt="target.author.username"
         class="h-6 w-6 rounded-full object-cover ring-1 ring-line"
@@ -69,7 +70,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
         :alt="t('topic.authorAnonymous')"
         class="h-6 w-6 rounded-full object-cover ring-1 ring-line"
       />
-      <span v-if="target?.author.username && !target.isAnonymous" class="min-w-0 truncate font-medium text-base-content/75">{{ userDisplayName(target.author.id, target.author.username, target.author.nickname) }}</span>
+      <span v-if="target?.author.username && (!target.isAnonymous || !!target.author.publicUid)" class="min-w-0 truncate font-medium text-base-content/75">{{ userDisplayName(target.author.id, target.author.username, target.author.nickname) }}</span>
       <span v-else-if="target?.isAnonymous" class="min-w-0 truncate font-medium text-base-content/75">{{ t('topic.authorAnonymous') }}</span>
       <span v-if="target?.postNo" class="shrink-0 text-xs text-base-content/45">#{{ target.postNo }}</span>
     </div>

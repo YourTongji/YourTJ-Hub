@@ -8,15 +8,18 @@ import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
 import 'post_history_sheet.dart';
+import 'anonymous_moderation_dialog.dart';
 
 class TopicActions extends ConsumerStatefulWidget {
   const TopicActions({
     super.key,
+    this.canRevealAnonymous = false,
     required this.props,
     required this.onChanged,
     this.firstPostId,
   });
   final TopicDetailProps props;
+  final bool canRevealAnonymous;
   final int? firstPostId;
   final Future<void> Function() onChanged;
   @override
@@ -30,6 +33,15 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
     final l10n = AppLocalizations.of(context);
     final epoch = ref.read(offlineCacheEpochProvider);
     final topic = widget.props.topic;
+    if (action == 'anonymous') {
+      await showAnonymousModeration(
+        context,
+        postId: widget.firstPostId!,
+        publicUid: topic.author.publicUid!,
+        canReveal: widget.canRevealAnonymous,
+      );
+      return;
+    }
     if (action == 'edit') {
       await context.push('/publish?id=${topic.id}');
       if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
@@ -144,6 +156,10 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
         if (widget.firstPostId != null)
           PopupMenuItem(value: 'history', child: Text(l10n.topicHistory)),
         PopupMenuItem(value: 'share', child: Text(l10n.topicShare)),
+        if (props.permissions.canModerateTopic &&
+            widget.firstPostId != null &&
+            props.topic.author.publicUid != null)
+          PopupMenuItem(value: 'anonymous', child: Text(l10n.anonymousManage)),
         if (props.permissions.canModerateTopic &&
             props.topic.processStatus == 0)
           PopupMenuItem(value: 'ban', child: Text(l10n.topicModerateBan)),

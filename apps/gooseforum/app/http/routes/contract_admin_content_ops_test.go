@@ -457,7 +457,7 @@ func TestAdminReviewActionHTTPContract(t *testing.T) {
 func TestAdminListFileResourcesHTTPContract(t *testing.T) {
 	path := "/api/admin/file-resources"
 
-	t.Run("success lists the seeded file with the uploader username", func(t *testing.T) {
+	t.Run("success lists the seeded file without private uploader attribution", func(t *testing.T) {
 		conn, router := setupAdminContentOpsContractTest(t)
 		manager := createContractSiteManager(t, conn)
 		fileName := fmt.Sprintf("contract/%d.png", contractTestID())
@@ -493,8 +493,8 @@ func TestAdminListFileResourcesHTTPContract(t *testing.T) {
 		if item["url"] != "/file/img/"+fileName {
 			t.Fatalf("item url = %#v, want /file/img/%s", item["url"], fileName)
 		}
-		if item["uploaderUsername"] != manager.Username {
-			t.Fatalf("item uploaderUsername = %#v, want %q", item["uploaderUsername"], manager.Username)
+		if item["uploaderUsername"] != "" || item["userId"] != float64(0) {
+			t.Fatalf("private uploader attribution: %#v", item)
 		}
 		if item["size"] != float64(len(contractTinyPNG)) || item["type"] != "image/png" {
 			t.Fatalf("item size/type = %#v/%#v, want %d/image/png", item["size"], item["type"], len(contractTinyPNG))

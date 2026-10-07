@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/anonymousidentityservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"log/slog"
 	"maps"
@@ -326,11 +328,14 @@ type TopicPayload struct {
 }
 
 type TopicAuthorPayload struct {
-	ID        uint64                  `json:"id"`
-	Username  string                  `json:"username"`
-	Nickname  string                  `json:"nickname,omitempty"`
-	AvatarURL string                  `json:"avatarUrl"`
-	WornBadge *badgeservice.UserBadge `json:"wornBadge,omitempty"`
+	Kind       string                  `json:"kind,omitempty"`
+	PublicUID  string                  `json:"publicUid,omitempty"`
+	ProfileURL string                  `json:"profileUrl,omitempty"`
+	ID         uint64                  `json:"id"`
+	Username   string                  `json:"username"`
+	Nickname   string                  `json:"nickname,omitempty"`
+	AvatarURL  string                  `json:"avatarUrl"`
+	WornBadge  *badgeservice.UserBadge `json:"wornBadge,omitempty"`
 }
 
 type TopicCategoryPayload struct {
@@ -659,6 +664,7 @@ type ModerationPageProps struct {
 }
 
 type PublishTopicPayload struct {
+	Identity    string   `json:"identity"`
 	Images      []string `json:"images"`
 	Title       string   `json:"title"`
 	Content     string   `json:"content"`
@@ -757,14 +763,14 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 	brandImage := urlutil.Clean(urlutil.Image, chrome.BrandImage)
 
 	return LayoutPayload{
-		UmamiEnabled: setting.IsProduction() && hotdataserve.GetPrivacyPolicyConfigCache().Enabled,
+		UmamiEnabled: !viewer.IsAuthenticated && setting.IsProduction() && hotdataserve.GetPrivacyPolicyConfigCache().Enabled,
 		Site: SitePayload{
 			Name:          siteConfig.SiteName,
 			Description:   siteConfig.SiteDescription,
 			URL:           urlutil.Clean(urlutil.External, siteConfig.SiteUrl),
 			Logo:          urlutil.Clean(urlutil.Image, siteConfig.SiteLogo),
 			Favicon:       urlutil.Clean(urlutil.Image, siteConfig.SiteLogo),
-			ExternalLinks: siteConfig.ExternalLinks,
+			ExternalLinks: publicLayoutScripts(viewer.IsAuthenticated, siteConfig.ExternalLinks),
 			BrandType:     brandType,
 			BrandText:     brandText,
 			BrandImage:    brandImage,
@@ -832,13 +838,10 @@ func buildAdminPermissions(userID uint64) []uint64 {
 	if !ok || roleID == 0 {
 		return []uint64{}
 	}
-	items := permission.GetPermissionByRoleId(roleID)
-	if slices.Contains(items, permission.Admin) {
-		items = permission.All()
-	}
-	all := permission.All()
-	items = lo.Filter(items, func(item permission.Enum, _ int) bool {
-		return slices.Contains(all, item)
+	granted := permission.GetPermissionByRoleId(roleID)
+	admin := slices.Contains(granted, permission.Admin)
+	items := lo.Filter(permission.All(), func(item permission.Enum, _ int) bool {
+		return slices.Contains(granted, item) || (admin && item != permission.RevealAnonymousIdentity)
 	})
 	return lo.Map(items, func(item permission.Enum, _ int) uint64 {
 		return item.Id()
@@ -1070,9 +1073,15 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 	categoryMap := hotdataserve.CategoryMap()
 	res := make([]TopicPayload, 0, len(topics))
 	imageNames := make([]string, 0, len(topics)*2)
+	topicIDs := make([]uint64, 0, len(topics))
+	uids := make([]string, 0, len(topics))
 	for _, topic := range topics {
 		if topic == nil {
 			continue
+		}
+		topicIDs = append(topicIDs, topic.Id)
+		if topic.PersonaUID != "" {
+			uids = append(uids, topic.PersonaUID)
 		}
 		imageURLs := topic.ImageUrls
 		if len(imageURLs) == 0 && topic.FirstImageURL != "" {
@@ -1082,6 +1091,11 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 			imageNames = append(imageNames, fileusageservice.FileNameFromURL(imageURL))
 		}
 	}
+	publicRows, _ := posts.PersonaParticipants(dbconnect.Connect(), topicIDs)
+	for _, p := range publicRows {
+		uids = append(uids, p.PersonaUID)
+	}
+	personaMap := anonymousidentityservice.Lookup(uids)
 	imageMetadata, err := filedata.ImageMetadataByNames(imageNames)
 	if err != nil {
 		slog.Warn("resolve feed image metadata failed", "error", err)
@@ -1130,22 +1144,23 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 			}
 		}
 
+		author := TopicAuthorPayload{Kind: "member", ID: topic.AuthorId, Username: topic.Username, Nickname: topic.Nickname, AvatarURL: topic.AvatarUrl}
+		if topic.PersonaUID != "" {
+			// Public boundaries project from the persona row independently of
+			// upstream transforms, including when that public row is missing.
+			author = personaAuthorPayload(topic.PersonaUID, personaMap[topic.PersonaUID])
+		}
 		res = append(res, TopicPayload{
-			ID:            topic.Id,
-			Title:         topic.Title,
-			Description:   topic.Description,
-			FirstImageURL: topic.FirstImageURL,
-			Images:        topic.ImageUrls,
-			ImageMetadata: images,
-			URL:           urlconfig.PostDetail(topic.Id),
-			PinWeight:     topic.PinWeight,
-			ProcessStatus: topic.ProcessStatus,
-			Author: TopicAuthorPayload{
-				ID:        topic.AuthorId,
-				Username:  topic.Username,
-				Nickname:  topic.Nickname,
-				AvatarURL: topic.AvatarUrl,
-			},
+			ID:             topic.Id,
+			Title:          topic.Title,
+			Description:    topic.Description,
+			FirstImageURL:  topic.FirstImageURL,
+			Images:         topic.ImageUrls,
+			ImageMetadata:  images,
+			URL:            urlconfig.PostDetail(topic.Id),
+			PinWeight:      topic.PinWeight,
+			ProcessStatus:  topic.ProcessStatus,
+			Author:         author,
 			Participants:   buildParticipants(topic),
 			Categories:     categories,
 			ReplyCount:     topic.CommentCount,
@@ -1155,6 +1170,16 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 			LastUpdateTime: topic.LastUpdateTime,
 			ContentType:    topic.ContentType,
 		})
+	}
+	byTopic := map[uint64][]TopicAuthorPayload{}
+	for _, p := range publicRows {
+		byTopic[p.TopicID] = append(byTopic[p.TopicID], personaAuthorPayload(p.PersonaUID, personaMap[p.PersonaUID]))
+	}
+	for i := range res {
+		res[i].Participants = append(res[i].Participants, byTopic[res[i].ID]...)
+		if len(res[i].Participants) > 4 {
+			res[i].Participants = res[i].Participants[:4]
+		}
 	}
 	return res
 }
@@ -1170,9 +1195,14 @@ func buildParticipants(topic *vo.TopicsSimpleVo) []TopicAuthorPayload {
 		participants = append(participants, user)
 	}
 	for _, poster := range topic.Posters {
+		if poster.PersonaUID != "" {
+			continue // Persona participants are projected from public post rows above.
+		}
 		add(TopicAuthorPayload{ID: poster.Id, Username: poster.Username, Nickname: poster.Nickname, AvatarURL: poster.AvatarUrl})
 	}
-	add(TopicAuthorPayload{ID: topic.AuthorId, Username: topic.Username, Nickname: topic.Nickname, AvatarURL: topic.AvatarUrl})
+	if topic.PersonaUID == "" {
+		add(TopicAuthorPayload{ID: topic.AuthorId, Username: topic.Username, Nickname: topic.Nickname, AvatarURL: topic.AvatarUrl})
+	}
 	if len(participants) > 4 {
 		return participants[:4]
 	}
@@ -1262,7 +1292,7 @@ func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *post
 	}
 	userIDs := make([]uint64, 0, len(postEntities)+1)
 	seenUserIDs := make(map[uint64]struct{}, len(postEntities)+1)
-	if topic.UserId > 0 {
+	if topic.UserId > 0 && topic.PersonaUID == "" {
 		seenUserIDs[topic.UserId] = struct{}{}
 		userIDs = append(userIDs, topic.UserId)
 	}
@@ -1396,6 +1426,14 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 		}
 	}
 
+	personaUIDs := make([]string, 0, len(postMap))
+	for _, post := range postMap {
+		if post.PersonaUID != "" {
+			personaUIDs = append(personaUIDs, post.PersonaUID)
+		}
+	}
+	personaMap := anonymousidentityservice.Lookup(personaUIDs)
+	personaAuthor := func(uid string) TopicAuthorPayload { return personaAuthorPayload(uid, personaMap[uid]) }
 	missingUserIDs := make([]uint64, 0, len(postMap))
 	seenMissingUserIDs := make(map[uint64]struct{}, len(postMap))
 	for _, parent := range postMap {
@@ -1441,7 +1479,9 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 			continue
 		}
 		var author TopicAuthorPayload
-		if item.IsAnonymous {
+		if item.PersonaUID != "" {
+			author = personaAuthor(item.PersonaUID)
+		} else if item.IsAnonymous {
 			author = anonymousPostAuthor()
 		} else {
 			author = authorPayload(item.UserId)
@@ -1452,6 +1492,9 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 				// 回复对象为匿名楼层时，不暴露其真实作者（issue #524）。
 				if parent.IsAnonymous {
 					replyToName = "匿名同学"
+					if parent.PersonaUID != "" {
+						replyToName = personaAuthor(parent.PersonaUID).Username
+					}
 				} else {
 					parentAuthor := authorPayload(parent.UserId)
 					replyToName = parentAuthor.Username
@@ -1478,6 +1521,13 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 		}
 		var lastEditor *TopicAuthorPayload
 		lastEditedAt := ""
+		if item.PersonaUID != "" && item.LastEditorId > 0 {
+			editor := personaAuthor(item.PersonaUID)
+			lastEditor = &editor
+			if item.LastEditedAt != nil {
+				lastEditedAt = item.LastEditedAt.Format(time.RFC3339)
+			}
+		}
 		// 匿名楼层（issue #524）：last_editor_id 即真实作者（一次自编辑即暴露），
 		// 公开载荷不回显编辑者身份；编辑事实仍可经 updatedAt/revisionCount 感知。
 		if item.LastEditorId > 0 && !item.IsAnonymous {
@@ -1561,6 +1611,9 @@ func buildReplyTargetPayload(topicID, postID uint64, postMap map[uint64]*posts.E
 	target.PostNo = parent.PostNo
 	if parent.IsAnonymous {
 		target.Author = anonymousPostAuthor()
+		if parent.PersonaUID != "" {
+			target.Author = personaAuthor(parent.PersonaUID)
+		}
 		target.IsAnonymous = true
 	} else {
 		target.Author = userPayloadWithWornBadge(parent.UserId, userMap, wornBadges[parent.UserId])
@@ -1605,9 +1658,23 @@ func buildTopicDetailPayload(c *gin.Context, topic *topics.Entity, firstPost *po
 		seen[userID] = true
 		participants = append(participants, authorPayload(userID))
 	}
-	addParticipant(topic.UserId)
+	if topic.PersonaUID == "" {
+		addParticipant(topic.UserId)
+	} else {
+		participants = append(participants, personaAuthor(topic.PersonaUID))
+	}
 	for userID := range userMap {
 		addParticipant(userID)
+	}
+	publicRows, _ := posts.PersonaParticipants(dbconnect.Connect(), []uint64{topic.Id})
+	uids := []string{}
+	for _, p := range publicRows {
+		if p.PersonaUID != topic.PersonaUID {
+			uids = append(uids, p.PersonaUID)
+		}
+	}
+	for _, p := range anonymousidentityservice.Lookup(uids) {
+		participants = append(participants, personaAuthorPayload(p.PublicUID, p))
 	}
 	if len(participants) > 12 {
 		participants = participants[:12]
@@ -1642,19 +1709,24 @@ func buildTopicDetailPayload(c *gin.Context, topic *topics.Entity, firstPost *po
 		ProcessStatus:    topic.ProcessStatus,
 		AuthorDeleted:    isAuthorDeletedVisibility(topic.VisibilityStatus),
 		ModeratorRemoved: isModeratorRemovedVisibility(topic.VisibilityStatus),
-		Author:           authorPayload(topic.UserId),
-		Participants:     participants,
-		Categories:       categoryPayloads(topic.CategoryIds),
-		ReplyCount:       topic.ReplyCount,
-		MaxPostNo:        topic.PostSeq,
-		ViewCount:        topic.ViewCount,
-		LikeCount:        topic.LikeCount,
-		IsLiked:          isLiked,
-		IsBookmarked:     isBookmarked,
-		IsWatched:        isWatched,
-		CreatedAt:        createdAt.Format(time.RFC3339),
-		UpdatedAt:        updatedAt.Format(time.RFC3339),
-		ContentType:      resolveTopicContentType(firstPost.ContentType),
+		Author: func() TopicAuthorPayload {
+			if topic.PersonaUID != "" {
+				return personaAuthor(topic.PersonaUID)
+			}
+			return authorPayload(topic.UserId)
+		}(),
+		Participants: participants,
+		Categories:   categoryPayloads(topic.CategoryIds),
+		ReplyCount:   topic.ReplyCount,
+		MaxPostNo:    topic.PostSeq,
+		ViewCount:    topic.ViewCount,
+		LikeCount:    topic.LikeCount,
+		IsLiked:      isLiked,
+		IsBookmarked: isBookmarked,
+		IsWatched:    isWatched,
+		CreatedAt:    createdAt.Format(time.RFC3339),
+		UpdatedAt:    updatedAt.Format(time.RFC3339),
+		ContentType:  resolveTopicContentType(firstPost.ContentType),
 	}
 }
 
@@ -1769,7 +1841,7 @@ func buildTopicMeta(c *gin.Context, topic TopicDetailPayload, postStream ...[]Po
 		Description:      description,
 		Text:             topicPlainText(requestLang(c), topic),
 		Image:            inlineImages,
-		Author:           vo.Person{Type: "Person", Name: topic.Author.Username, URL: baseURL + "/u/" + strconv.FormatUint(topic.Author.ID, 10)},
+		Author:           vo.Person{Type: "Person", Name: topic.Author.Username, URL: baseURL + publicAuthorProfilePath(topic.Author)},
 		Publisher:        vo.Organization{Type: "Organization", Name: siteTitle(), URL: baseURL},
 		DatePublished:    publishedTime,
 		DateModified:     modifiedTime,
@@ -1837,7 +1909,7 @@ func buildTopicJSONLDComments(posts []PostPayload, canonical string) []vo.Commen
 		comments = append(comments, vo.Comment{
 			Type:          "Comment",
 			Text:          text,
-			Author:        vo.Person{Type: "Person", Name: post.Author.Username},
+			Author:        vo.Person{Type: "Person", Name: post.Author.Username, URL: post.Author.ProfileURL},
 			DatePublished: publishedTime,
 			URL:           canonical + "#post-" + strconv.FormatUint(post.ID, 10),
 		})
@@ -2224,14 +2296,14 @@ func buildUserLikes(refs []topicUserAction.LikedTopicRef) []UserLikePayload {
 	res := make([]UserLikePayload, 0, len(refs))
 	for _, ref := range refs {
 		topic := topicMap[ref.TopicID]
-		if topic == nil {
+		if topic == nil || topic.PersonaUID != "" {
 			continue
 		}
 		res = append(res, UserLikePayload{
 			ID:           ref.ID,
 			TopicID:      ref.TopicID,
 			Title:        topic.Title,
-			Author:       authors[topic.UserId],
+			Author:       previewTopicAuthor(topic, authors),
 			Excerpt:      topic.Excerpt,
 			ThumbnailURL: urlutil.Clean(urlutil.Image, topic.FirstImageURL),
 			URL:          urlconfig.PostDetail(ref.TopicID),
@@ -2261,7 +2333,7 @@ func buildUserBookmarks(refs []topicUserAction.BookmarkedTopicRef) []UserBookmar
 			Type:         "topic",
 			TopicID:      ref.TopicID,
 			Title:        topic.Title,
-			Author:       authors[topic.UserId],
+			Author:       previewTopicAuthor(topic, authors),
 			Excerpt:      topic.Excerpt,
 			ThumbnailURL: urlutil.Clean(urlutil.Image, topic.FirstImageURL),
 			URL:          urlconfig.PostDetail(ref.TopicID),
@@ -2402,7 +2474,7 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 				Type:         "topic",
 				TopicID:      ref.topicID,
 				Title:        topic.Title,
-				Author:       authors[topic.UserId],
+				Author:       previewTopicAuthor(topic, authors),
 				Excerpt:      topic.Excerpt,
 				ThumbnailURL: urlutil.Clean(urlutil.Image, topic.FirstImageURL),
 				URL:          urlconfig.PostDetail(ref.topicID),
@@ -2420,6 +2492,10 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 			author := authors[post.UserId]
 			if post.IsAnonymous {
 				author = nil
+				if post.PersonaUID != "" {
+					p := personaAuthor(post.PersonaUID)
+					author = &p
+				}
 			}
 			payloads = append(payloads, UserBookmarkPayload{
 				Author:       author,
@@ -2443,7 +2519,7 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 func profilePreviewAuthors(topicMap map[uint64]*topics.Entity, replies []*posts.Entity) map[uint64]*TopicAuthorPayload {
 	ids := make([]uint64, 0, len(topicMap)+len(replies))
 	for _, topic := range topicMap {
-		if topic != nil {
+		if topic != nil && topic.PersonaUID == "" {
 			ids = append(ids, topic.UserId)
 		}
 	}
@@ -2997,10 +3073,20 @@ func BuildNotificationPayload(notification *eventNotification.Entity) Notificati
 		Title:     notificationTitle(notification.EventType, payload),
 		Content:   payload.Content,
 		Actor: TopicAuthorPayload{
+			Kind: func() string {
+				if payload.ActorPersonaUID != "" {
+					return "persona"
+				}
+				return ""
+			}(),
+			PublicUID: payload.ActorPersonaUID, ProfileURL: payload.Extra.ProfileURL,
 			ID:       payload.ActorId,
 			Username: payload.ActorName,
 		},
 		Payload: payload,
+	}
+	if payload.ActorPersonaUID != "" {
+		item.Actor = personaAuthor(payload.ActorPersonaUID)
 	}
 	if item.Actor.Username == "" && payload.Extra.FollowerName != "" {
 		item.Actor.Username = payload.Extra.FollowerName
@@ -3120,6 +3206,12 @@ func buildPublishPageProps(c *gin.Context, topicID uint64) (PublishPageProps, er
 	}
 	publicationservice.OwnerSnapshot(&topic, &firstPost, component.LoginUserId(c), true)
 	props.Topic = PublishTopicPayload{
+		Identity: func() string {
+			if topic.PersonaUID != "" {
+				return "persona"
+			}
+			return "member"
+		}(),
 		Images:      append([]string{}, topic.ImageUrls...),
 		Title:       topic.Title,
 		Content:     firstPost.Content,
@@ -3303,6 +3395,23 @@ func parsePositiveInt(value string, fallback int) int {
 // 其他非版主读者仍看不到。被拒（封禁）的楼层不在此列。
 func ownPendingPost(item *posts.Entity, currentUserID uint64) bool {
 	return item != nil && currentUserID != 0 && item.UserId == currentUserID && item.ProcessStatus == posts.ProcessStatusPending
+}
+
+func previewTopicAuthor(topic *topics.Entity, authors map[uint64]*TopicAuthorPayload) *TopicAuthorPayload {
+	if topic.PersonaUID != "" {
+		p := personaAuthor(topic.PersonaUID)
+		return &p
+	}
+	return authors[topic.UserId]
+}
+
+// Authenticated composers and settings contain private persona choices. Never
+// send them to analytics, session replay or administrator-injected scripts.
+func publicLayoutScripts(authenticated bool, scripts string) string {
+	if authenticated {
+		return ""
+	}
+	return scripts
 }
 
 func dailyTabLabel(lang string) string {

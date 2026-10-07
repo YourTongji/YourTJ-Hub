@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AnonymousIdentitySettings from '@/site/components/AnonymousIdentitySettings.vue'
 import ManagedContent from '@/site/components/ManagedContent.vue'
 import { useContentUpdates } from '@/runtime/content-updates'
 import BadgeDisplayEditor from '@/site/components/BadgeDisplayEditor.vue'
@@ -1384,6 +1385,7 @@ async function toggleBinding(provider: string) {
 
 <template>
     <main class="min-w-0 pb-8">
+      <AnonymousIdentitySettings :key="page.layout.viewer.id" />
       <section class="gf-card overflow-visible">
         <!-- 编辑资料页：封面右上角「设置封面」；选图后在封面区浮层编辑（非弹层） -->
         <!-- overflow-visible 保持悬浮 tooltip 不被卡片裁剪；封面图由自身圆角裁剪，封面编辑浮层不裁剪 -->

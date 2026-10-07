@@ -1,6 +1,8 @@
 package moderationservice
 
 import (
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"log/slog"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
@@ -113,6 +115,32 @@ func ReportStatusChanged(actorUserId uint64, snapshot ReportSnapshot, status str
 }
 
 func create(entity moderationLog.Entity) {
+	var owner uint64
+	switch entity.SubjectType {
+	case moderationLog.SubjectTopic:
+		t := topics.UnscopedGet(entity.SubjectId)
+		if t.PersonaUID != "" {
+			owner = t.UserId
+		}
+	case moderationLog.SubjectPost:
+		p := posts.GetMapByIdsUnscoped([]uint64{entity.SubjectId})[entity.SubjectId]
+		if p != nil && p.IsAnonymous {
+			owner = p.UserId
+		}
+	}
+	if owner != 0 {
+		if entity.ActorUserId == owner {
+			entity.ActorUserId = 0
+			delete(entity.Payload.Params, "deletedBy")
+			delete(entity.Payload.Params, "deletedByUser")
+		}
+		for key := range entity.Payload.Params {
+			if key == "postAuthorId" || key == "postAuthor" {
+				delete(entity.Payload.Params, key)
+			}
+		}
+	}
+
 	if err := moderationLog.Create(&entity); err != nil {
 		slog.Error("create moderation log failed", "action", entity.Action, "subjectType", entity.SubjectType, "subjectId", entity.SubjectId, "err", err)
 	}
