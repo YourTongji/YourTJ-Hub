@@ -41,7 +41,7 @@ func Save(ctx context.Context, userID uint64, input SaveInput) error {
 	if !ValidateName(input.Name) {
 		return ErrNameInvalid
 	}
-	return db.Connect().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := db.Connect().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		row := sticker.Entity{CreatedBy: userID, IsOfficial: true, Pack: "official"}
 		if input.Id != 0 {
 			existing, err := sticker.GetByIDTx(tx, input.Id)
@@ -104,10 +104,14 @@ func Save(ctx context.Context, userID uint64, input SaveInput) error {
 		}
 		return fileusageservice.SetStickerUsageTx(tx, row.Id, row.CreatedBy, row.FileName)
 	})
+	if err == nil {
+		InvalidateCache()
+	}
+	return err
 }
 
 func Delete(ctx context.Context, id uint64) error {
-	return db.Connect().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := db.Connect().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		row, err := sticker.GetByIDTx(tx, id)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -123,6 +127,10 @@ func Delete(ctx context.Context, id uint64) error {
 		}
 		return sticker.DeleteTx(tx, id)
 	})
+	if err == nil {
+		InvalidateCache()
+	}
+	return err
 }
 
 // ImportImage is the shared ZIP/preset path. File storage is a separate database:
@@ -182,6 +190,9 @@ func ImportImage(ctx context.Context, userID uint64, data []byte, fileName, rawN
 	}
 	if err != nil {
 		return false, fmt.Errorf("saveFailed: %w", err)
+	}
+	if !skipped {
+		InvalidateCache()
 	}
 	return skipped, nil
 }

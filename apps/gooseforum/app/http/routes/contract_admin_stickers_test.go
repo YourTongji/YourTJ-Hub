@@ -74,6 +74,8 @@ func setupAdminStickersContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	}
 	conn.Where("1 = 1").Delete(&sticker.Entity{})
 	conn.Where("1 = 1").Delete(&fileUsage.Entity{})
+	stickerservice.InvalidateCache()
+	t.Cleanup(stickerservice.InvalidateCache)
 	hotdataserve.ClearStorageSettingsConfigCache()
 	t.Cleanup(hotdataserve.ClearStorageSettingsConfigCache)
 

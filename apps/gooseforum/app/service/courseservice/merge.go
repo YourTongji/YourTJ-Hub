@@ -266,6 +266,7 @@ func MergeCourses(relationId uint64) (MergeResult, error) {
 	if err != nil {
 		return MergeResult{}, err
 	}
+	InvalidateCatalogFacetsCache()
 	return result, nil
 }
 
@@ -382,6 +383,7 @@ func UndoMergeCourse(relationId uint64) (MergeResult, error) {
 	if err != nil {
 		return MergeResult{}, err
 	}
+	InvalidateCatalogFacetsCache()
 	return result, nil
 }
 

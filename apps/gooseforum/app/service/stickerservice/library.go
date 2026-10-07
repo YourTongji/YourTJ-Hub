@@ -286,5 +286,9 @@ func OrderLibrary(ctx context.Context, userID uint64, names []string) error {
 }
 
 func CloseLibrary(ctx context.Context, userID uint64) error {
-	return db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error { return sticker.CloseLibraryTx(tx, userID) })
+	err := db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error { return sticker.CloseLibraryTx(tx, userID) })
+	if err == nil {
+		InvalidateCache()
+	}
+	return err
 }

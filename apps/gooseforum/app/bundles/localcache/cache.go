@@ -122,6 +122,12 @@ func (c *Cache[V]) GetOrLoadE(
 	return *new(V), errCacheInvalidated
 }
 
+// Get returns the cached value for key if present and valid under the current epoch.
+func (c *Cache[V]) Get(key string) (V, bool) {
+	c.init()
+	return c.getValid(key)
+}
+
 // getValid returns the cached value for key when it was produced under the
 // current cache epoch, dropping the entry otherwise.
 func (c *Cache[V]) getValid(key string) (V, bool) {

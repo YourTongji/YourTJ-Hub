@@ -241,6 +241,7 @@ func CreateCourse(input CourseCreateInput) (AdminCourseItem, error) {
 	if err != nil {
 		return AdminCourseItem{}, err
 	}
+	InvalidateCatalogFacetsCache()
 	return item, nil
 }
 
@@ -326,6 +327,7 @@ func UpdateCourse(courseId uint64, input CourseUpdateInput) (AdminCourseItem, er
 	if err != nil {
 		return AdminCourseItem{}, err
 	}
+	InvalidateCatalogFacetsCache()
 	// 事务提交后再回填别名/教师/统计：adminCourseItemForSingle 走独立连接，
 	// 在 SQLite 单连接测试环境下事务内调用会死锁（与 CreateReview 回填作者名同理）。
 	return adminCourseItemForSingle(course.GetCourse(courseId)), nil
@@ -479,6 +481,7 @@ func DeleteCourse(courseId uint64) (DeletedCourseInfo, error) {
 	if err != nil {
 		return DeletedCourseInfo{}, err
 	}
+	InvalidateCatalogFacetsCache()
 	return info, nil
 }
 

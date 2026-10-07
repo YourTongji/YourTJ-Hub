@@ -34,3 +34,23 @@ func builder() *gorm.DB {
 func (itself *Entity) TableName() string {
 	return tableName
 }
+
+func (itself *Entity) AfterCreate(tx *gorm.DB) error {
+	notifyMutation()
+	return nil
+}
+
+func (itself *Entity) AfterUpdate(tx *gorm.DB) error {
+	notifyMutation()
+	return nil
+}
+
+func (itself *Entity) AfterDelete(tx *gorm.DB) error {
+	notifyMutation()
+	return nil
+}
+
+func (itself *Entity) AfterSave(tx *gorm.DB) error {
+	notifyMutation()
+	return nil
+}
