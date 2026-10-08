@@ -181,11 +181,13 @@ describe('首页公告栏折叠/展开（issue #799，方案 A：localStorage �
     await wrapper.get('[data-testid="announcement-collapse-button"]').trigger('click')
     expect(wrapper.find('[data-testid="announcement-unread-dot"]').exists()).toBe(true)
     // 铃铛仍处于「未读提醒」态
-    expect(wrapper.get('.gf-announcement-panel button[aria-pressed="true"]').exists()).toBe(true)
+    const bellBtn = wrapper.get('.gf-announcement-panel button[aria-pressed="true"]')
+    expect(bellBtn.find('.announcement-unread-bell').exists()).toBe(true)
 
     // 直接收起状态下点铃铛标记已读：不重新展开，只熄灭提示
-    await wrapper.get('.gf-announcement-panel button[aria-pressed="true"]').trigger('click')
+    await bellBtn.trigger('click')
     expect(wrapper.find('[data-testid="announcement-unread-dot"]').exists()).toBe(false)
+    expect(wrapper.find('.announcement-unread-bell').exists()).toBe(false)
     expect(wrapper.find('[data-testid="announcement-expand-button"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="announcement-expand-button"]').attributes('aria-expanded')).toBe('false')
     expect(storage.getItem(READ_KEY)).not.toBeNull()
