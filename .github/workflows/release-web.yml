@@ -78,7 +78,7 @@ jobs:
           GORELEASER_CURRENT_TAG: ${{ inputs.tag }}
       - name: Preserve original distribution archives
         if: steps.start.outputs.build_required == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: web-${{ inputs.tag }}
           path: .source/apps/gooseforum/dist
@@ -105,7 +105,7 @@ jobs:
           SOURCE_SHA: ${{ inputs.source }}
           VERSION: ${{ steps.identity.outputs.version }}
         run: python3 scripts/release/web_artifact.py .source/apps/gooseforum/dist bin "$SOURCE_SHA" "$VERSION"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: steps.start.outputs.image == ''
         with:
           name: yourtj-hub
