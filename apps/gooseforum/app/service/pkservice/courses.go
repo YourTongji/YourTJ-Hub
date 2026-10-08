@@ -2,6 +2,7 @@ package pkservice
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 	"strconv"
 
@@ -38,6 +39,17 @@ type CourseByMajorItem struct {
 
 // FindCoursesByMajor P5：按专业查计划内课程（含更早年级），教学班按 classCode 合并。
 func FindCoursesByMajor(grade int, code string, calendarId int) ([]CourseByMajorItem, error) {
+	cacheKey := fmt.Sprintf("%d:%s:%d", calendarId, code, grade)
+	items, err := coursesByMajorCache.GetOrLoadE(cacheKey, func() ([]CourseByMajorItem, error) {
+		return loadCoursesByMajor(grade, code, calendarId)
+	}, catalogCacheTTL)
+	if err != nil {
+		return nil, err
+	}
+	return cloneCourseByMajorItems(items), nil
+}
+
+func loadCoursesByMajor(grade int, code string, calendarId int) ([]CourseByMajorItem, error) {
 	targetMajorId, err := pk.GetTargetMajorId(code, grade, calendarId)
 	if err != nil {
 		return nil, err

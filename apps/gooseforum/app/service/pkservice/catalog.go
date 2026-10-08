@@ -8,18 +8,20 @@ import (
 )
 
 var (
-	calendarsCache = &localcache.Cache[[]CalendarItem]{MaxEntries: 1}
-	campusesCache  = &localcache.Cache[[]CampusItem]{MaxEntries: 1}
-	facultiesCache = &localcache.Cache[[]FacultyItem]{MaxEntries: 1}
+	calendarsCache      = &localcache.Cache[[]CalendarItem]{MaxEntries: 1}
+	campusesCache       = &localcache.Cache[[]CampusItem]{MaxEntries: 1}
+	facultiesCache      = &localcache.Cache[[]FacultyItem]{MaxEntries: 1}
+	coursesByMajorCache = &localcache.Cache[[]CourseByMajorItem]{MaxEntries: 200}
 )
 
 const catalogCacheTTL = 10 * time.Minute
 
-// InvalidateCatalogCache clears in-memory caches for PK calendars, campuses, and faculties.
+// InvalidateCatalogCache clears in-memory caches for PK calendars, campuses, faculties, and courses-by-major queries.
 func InvalidateCatalogCache() {
 	calendarsCache.Clear()
 	campusesCache.Clear()
 	facultiesCache.Clear()
+	coursesByMajorCache.Clear()
 }
 
 // cloneSlice returns a shallow copy of items. Safe for structs composed solely of value types (e.g. CampusItem, FacultyItem).
@@ -38,6 +40,70 @@ func cloneStringPtr(s *string) *string {
 	}
 	cp := *s
 	return &cp
+}
+
+func cloneIntPtr(i *int) *int {
+	if i == nil {
+		return nil
+	}
+	cp := *i
+	return &cp
+}
+
+func cloneArrangementInfo(items []ArrangementInfo) []ArrangementInfo {
+	if items == nil {
+		return nil
+	}
+	out := make([]ArrangementInfo, len(items))
+	for i, item := range items {
+		out[i] = ArrangementInfo{
+			ArrangementText: item.ArrangementText,
+			OccupyDay:       cloneIntPtr(item.OccupyDay),
+			OccupyTime:      cloneSlice(item.OccupyTime),
+			OccupyWeek:      cloneSlice(item.OccupyWeek),
+			OccupyRoom:      cloneStringPtr(item.OccupyRoom),
+			TeacherAndCode:  cloneStringPtr(item.TeacherAndCode),
+		}
+	}
+	return out
+}
+
+func cloneCourseClassItems(items []CourseClassItem) []CourseClassItem {
+	if items == nil {
+		return nil
+	}
+	out := make([]CourseClassItem, len(items))
+	for i, item := range items {
+		out[i] = CourseClassItem{
+			Code:             item.Code,
+			Teachers:         cloneSlice(item.Teachers),
+			Campus:           item.Campus,
+			TeachingLanguage: item.TeachingLanguage,
+			ArrangementInfo:  cloneArrangementInfo(item.ArrangementInfo),
+			IsExclusive:      item.IsExclusive,
+		}
+	}
+	return out
+}
+
+func cloneCourseByMajorItems(items []CourseByMajorItem) []CourseByMajorItem {
+	if items == nil {
+		return nil
+	}
+	out := make([]CourseByMajorItem, len(items))
+	for i, item := range items {
+		out[i] = CourseByMajorItem{
+			CourseCode:   item.CourseCode,
+			CourseName:   item.CourseName,
+			Faculty:      item.Faculty,
+			FacultyI18n:  item.FacultyI18n,
+			Credit:       item.Credit,
+			Grade:        item.Grade,
+			CourseNature: cloneSlice(item.CourseNature),
+			Courses:      cloneCourseClassItems(item.Courses),
+		}
+	}
+	return out
 }
 
 // cloneCalendars returns a deep copy of items, allocating fresh string pointers
