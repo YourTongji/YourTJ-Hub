@@ -257,6 +257,10 @@ func ListCampuses() ([]string, error) {
 
 var courseDetailCache = &localcache.Cache[CourseDetail]{MaxEntries: 1000}
 
+func init() {
+	course.OnRebuildAllCourseStats = InvalidateAllCourseDetailCache
+}
+
 const courseDetailCacheTTL = 10 * time.Minute
 
 // InvalidateCourseDetailCache clears the cached course detail for the given course ID.
