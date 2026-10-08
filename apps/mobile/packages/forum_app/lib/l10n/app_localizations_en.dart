@@ -1477,6 +1477,21 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get publishCategoryPickOne => 'Choose a category';
+
+  @override
+  String get publishImageOrderTitle => 'Image order';
+
+  @override
+  String get publishImageOrderHint =>
+      'Long-press and drag to change where each image appears';
+
+  @override
+  String publishImageOrderPosition(int index) {
+    return 'Image $index';
+  }
+
+  @override
   String publishStepOf(int current, int total) {
     return 'Step $current of $total';
   }

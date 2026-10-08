@@ -68,10 +68,14 @@ enum _ComposeMode { edit, preview }
 
 class _PublishPageState extends ConsumerState<PublishPage>
     with WidgetsBindingObserver {
-  static const int _maxCategories = 3;
+  /// Articles take up to three categories; moments and questions take one,
+  /// matching the web quick composer.
+  static const int _maxArticleCategories = 3;
   static const double _wideWorkspaceBreakpoint = 760;
   static const Duration _previewDebounceDuration = Duration(milliseconds: 200);
   static const double _dragAutoscrollEdge = 56;
+
+  int get _categoryLimit => _contentType == 3 ? _maxArticleCategories : 1;
   static const double _dragAutoscrollStep = 18;
 
   final TextEditingController _simple = TextEditingController();
@@ -547,7 +551,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
         if (!keepEditing) {
           _categoryIds
             ..clear()
-            ..addAll(payloadCategoryIds.take(_maxCategories));
+            ..addAll(payloadCategoryIds.take(_maxArticleCategories));
           _title.text = payloadTitle;
         }
       });
@@ -763,6 +767,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
       _stickerSelection = null;
       _quill.skipRequestKeyboard = false;
       _contentType = value;
+      // Short types hold a single category; keep the first pick.
+      if (_categoryIds.length > _categoryLimit) {
+        _categoryIds.removeRange(_categoryLimit, _categoryIds.length);
+      }
       _simple.text = markdown;
       _previewMarkdown = _markdownFromEditor();
       _markDirty();
@@ -822,11 +830,29 @@ class _PublishPageState extends ConsumerState<PublishPage>
         _categoryIds.remove(category.id);
         return;
       }
-      if (_categoryIds.length < _maxCategories &&
+      if (_categoryLimit == 1) {
+        _categoryIds
+          ..clear()
+          ..add(category.id);
+        return;
+      }
+      if (_categoryIds.length < _categoryLimit &&
           !_categoryIds.contains(category.id)) {
         _categoryIds.add(category.id);
       }
     });
+  }
+
+  /// Moves an article image to another position from the preview step; one
+  /// composed Delta, so a single undo restores the previous order.
+  void _reorderArticleImages(int from, int to) {
+    final delta = reorderDocumentImages(_quill.document, from, to);
+    if (delta == null) return;
+    _quill.compose(delta, _quill.selection, ChangeSource.local);
+    _previewDebounce?.cancel();
+    _refreshPreview();
+    HapticFeedback.selectionClick();
+    unawaited(_saveLocal());
   }
 
   Future<void> _pickAndInsertImage() async {
@@ -1464,6 +1490,9 @@ class _PublishPageState extends ConsumerState<PublishPage>
         final bool wide = constraints.maxWidth >= _wideWorkspaceBreakpoint;
         final typing =
             _mode == _ComposeMode.edit && (keyboardOpen || _stickerOpen);
+        final articleImages = _mode == _ComposeMode.preview && _contentType == 3
+            ? documentImageUrls(_quill.document)
+            : const <String>[];
         final EdgeInsets pagePadding = EdgeInsets.symmetric(
           horizontal: wide ? 24 : 20,
           vertical: typing ? 8 : 20,
@@ -1567,6 +1596,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
                             _uploads.hasPending)) ...[
                       const SizedBox(height: 12),
                       _buildGallery(l10n, editing: true),
+                    ],
+                    if (articleImages.length > 1) ...[
+                      const SizedBox(height: 12),
+                      _StepEntrance(
+                        delay: const Duration(milliseconds: 30),
+                        child: _buildArticleImageOrder(l10n, articleImages),
+                      ),
                     ],
                     if (_mode == _ComposeMode.preview) ...[
                       const SizedBox(height: 16),
@@ -1784,147 +1820,361 @@ class _PublishPageState extends ConsumerState<PublishPage>
     );
   }
 
-  /// Category choice as a dropdown anchored to its row: up to three picks,
-  /// each with the category's colour, and the menu stays open while picking.
+  /// Category choice as a dropdown the width of its row. Moments and
+  /// questions take one category and the menu closes on pick; articles take
+  /// up to three with the menu left open. Each category shows its colour as a
+  /// soft swatch so the list scans by colour before name.
   Widget _buildCategoryMenu(AppLocalizations l10n) {
     final colors = GfTheme.colorsOf(context);
     final type = GfTheme.typographyOf(context);
     final duration = GfMotion.duration(context, GfMotion.selection);
+    final limit = _categoryLimit;
+    final multi = limit > 1;
     final picked = [
       for (final id in _categoryIds)
         ?_categories.where((c) => c.id == id).firstOrNull,
     ];
-    final full = _categoryIds.length >= _maxCategories;
-    Widget dot(String color) => Container(
-      width: 8,
-      height: 8,
-      decoration: BoxDecoration(
-        color: colorFromHex(color),
-        shape: BoxShape.circle,
-      ),
-    );
-    return MenuAnchor(
-      controller: _categoryMenu,
-      onOpen: () => setState(() => _categoryMenuOpen = true),
-      onClose: () => setState(() => _categoryMenuOpen = false),
-      alignmentOffset: const Offset(16, 0),
-      style: MenuStyle(
-        backgroundColor: WidgetStatePropertyAll(colors.base100),
-        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-        elevation: const WidgetStatePropertyAll(6),
-        shadowColor: WidgetStatePropertyAll(
-          Colors.black.withValues(alpha: .18),
+    final full = _categoryIds.length >= limit;
+    // Dark surfaces read elevation from lightness, not shadow.
+    final menuColor = Theme.of(context).brightness == Brightness.dark
+        ? Color.alphaBlend(
+            colors.baseContent.withValues(alpha: .06),
+            colors.base100,
+          )
+        : colors.base100;
+    Widget swatch(String hex) {
+      final color = colorFromHex(hex);
+      return Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .14),
+          borderRadius: BorderRadius.circular(9),
         ),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: colors.line),
-          ),
+        alignment: Alignment.center,
+        child: Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        padding: const WidgetStatePropertyAll(
-          EdgeInsets.symmetric(vertical: 6),
-        ),
-        maximumSize: const WidgetStatePropertyAll(Size(320, 360)),
-      ),
-      menuChildren: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  l10n.publishCategoryLimit(_maxCategories),
-                  style: type.caption.copyWith(color: colors.iconMuted),
-                ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // The menu hangs 8dp inside the settings card on both sides.
+        final menuWidth = constraints.maxWidth - 16;
+        return MenuAnchor(
+          controller: _categoryMenu,
+          onOpen: () => setState(() => _categoryMenuOpen = true),
+          onClose: () => setState(() => _categoryMenuOpen = false),
+          alignmentOffset: const Offset(8, 4),
+          style: MenuStyle(
+            backgroundColor: WidgetStatePropertyAll(menuColor),
+            surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+            elevation: const WidgetStatePropertyAll(10),
+            shadowColor: WidgetStatePropertyAll(
+              Colors.black.withValues(alpha: .14),
+            ),
+            shape: WidgetStatePropertyAll(
+              RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+                side: BorderSide(color: colors.line.withValues(alpha: .6)),
               ),
-              Text(
-                '${_categoryIds.length}/$_maxCategories',
-                style: type.caption.copyWith(
-                  color: _categoryIds.isEmpty
-                      ? colors.iconMuted
-                      : colors.primary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-            ],
+            ),
+            padding: const WidgetStatePropertyAll(EdgeInsets.all(6)),
+            minimumSize: WidgetStatePropertyAll(Size(menuWidth, 0)),
+            maximumSize: WidgetStatePropertyAll(Size(menuWidth, 380)),
           ),
-        ),
-        for (final category in _categories)
-          Builder(
-            builder: (context) {
-              final selected = _categoryIds.contains(category.id);
-              return MenuItemButton(
-                key: ValueKey('publish-category-${category.id}'),
-                closeOnActivate: false,
-                onPressed: !selected && full
-                    ? null
-                    : () => _toggleCategory(category, !selected),
-                leadingIcon: dot(category.color),
-                trailingIcon: AnimatedOpacity(
-                  opacity: selected ? 1 : 0,
-                  duration: duration,
-                  child: GfSymbol('check', size: 18, color: colors.primary),
-                ),
-                style: MenuItemButton.styleFrom(
-                  minimumSize: const Size(220, 48),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  foregroundColor: selected
-                      ? colors.primary
-                      : colors.baseContent,
-                  disabledForegroundColor: colors.baseContent.withValues(
-                    alpha: .38,
-                  ),
-                  textStyle: type.body.copyWith(
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-                child: Semantics(
-                  selected: selected,
-                  child: Text(category.name),
-                ),
-              );
-            },
-          ),
-      ],
-      builder: (context, controller, _) => Semantics(
-        expanded: _categoryMenuOpen,
-        child: GfSettingRow(
-          key: const Key('publish-category-menu'),
-          symbol: 'folder',
-          iconColor: colors.iconMuted,
-          title: l10n.publishCategoryLabel,
-          subtitleWidget: picked.isEmpty
-              ? Text(l10n.publishClassification)
-              : Wrap(
-                  spacing: 12,
-                  runSpacing: 4,
+          menuChildren: [
+            if (multi)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+                child: Row(
                   children: [
-                    for (final category in picked)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          dot(category.color),
-                          const SizedBox(width: 6),
-                          Text(
-                            category.name,
-                            style: TextStyle(
-                              color: colors.baseContent.withValues(alpha: .8),
-                            ),
-                          ),
-                        ],
+                    Expanded(
+                      child: Text(
+                        l10n.publishCategoryLimit(limit),
+                        style: type.caption.copyWith(color: colors.iconMuted),
                       ),
+                    ),
+                    Text(
+                      '${_categoryIds.length}/$limit',
+                      style: type.caption.copyWith(
+                        color: _categoryIds.isEmpty
+                            ? colors.iconMuted
+                            : colors.primary,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
                   ],
                 ),
-          trailing: AnimatedRotation(
-            turns: _categoryMenuOpen ? .5 : 0,
-            duration: duration,
-            child: GfSymbol('chevron-down', size: 18, color: colors.iconMuted),
+              ),
+            for (final category in _categories)
+              Builder(
+                builder: (context) {
+                  final selected = _categoryIds.contains(category.id);
+                  return MenuItemButton(
+                    key: ValueKey('publish-category-${category.id}'),
+                    closeOnActivate: !multi,
+                    onPressed: multi && !selected && full
+                        ? null
+                        : () => _toggleCategory(category, !multi || !selected),
+                    leadingIcon: swatch(category.color),
+                    trailingIcon: AnimatedScale(
+                      scale: selected ? 1 : .25,
+                      duration: duration,
+                      curve: GfMotion.enterCurve,
+                      child: AnimatedOpacity(
+                        opacity: selected ? 1 : 0,
+                        duration: duration,
+                        child: GfSymbol(
+                          'check',
+                          size: 18,
+                          color: colors.primary,
+                        ),
+                      ),
+                    ),
+                    style: MenuItemButton.styleFrom(
+                      minimumSize: Size(menuWidth - 12, 52),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      backgroundColor: selected
+                          ? colors.primary.withValues(alpha: .08)
+                          : Colors.transparent,
+                      foregroundColor: colors.baseContent,
+                      disabledForegroundColor: colors.baseContent.withValues(
+                        alpha: .38,
+                      ),
+                      textStyle: type.body.copyWith(
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                      ),
+                    ),
+                    child: Semantics(
+                      selected: selected,
+                      child: Text(
+                        category.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  );
+                },
+              ),
+          ],
+          builder: (context, controller, _) => Semantics(
+            expanded: _categoryMenuOpen,
+            child: GfSettingRow(
+              key: const Key('publish-category-menu'),
+              symbol: 'folder',
+              iconColor: colors.iconMuted,
+              title: l10n.publishCategoryLabel,
+              subtitleWidget: picked.isEmpty
+                  ? Text(
+                      multi
+                          ? l10n.publishClassification
+                          : l10n.publishCategoryPickOne,
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (final category in picked)
+                            Container(
+                              padding: const EdgeInsetsDirectional.fromSTEB(
+                                8,
+                                3,
+                                10,
+                                3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: colors.base100,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 7,
+                                    height: 7,
+                                    decoration: BoxDecoration(
+                                      color: colorFromHex(category.color),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    category.name,
+                                    style: type.small.copyWith(
+                                      color: colors.baseContent.withValues(
+                                        alpha: .85,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+              trailing: AnimatedRotation(
+                turns: _categoryMenuOpen ? .5 : 0,
+                duration: duration,
+                child: GfSymbol(
+                  'chevron-down',
+                  size: 18,
+                  color: colors.iconMuted,
+                ),
+              ),
+              onTap: _submitting
+                  ? null
+                  : () => controller.isOpen
+                        ? controller.close()
+                        : controller.open(),
+            ),
           ),
-          onTap: _submitting
-              ? null
-              : () =>
-                    controller.isOpen ? controller.close() : controller.open(),
-        ),
+        );
+      },
+    );
+  }
+
+  /// Article images in reading order, reorderable from the preview step. A
+  /// long-press drag changes which image fills each slot of the body; the
+  /// numbers match the order readers will meet them.
+  Widget _buildArticleImageOrder(AppLocalizations l10n, List<String> urls) {
+    final colors = GfTheme.colorsOf(context);
+    final type = GfTheme.typographyOf(context);
+    const double tile = 64;
+    final cacheWidth = (tile * 2 * MediaQuery.devicePixelRatioOf(context))
+        .round();
+    return Material(
+      key: const Key('publish-image-order'),
+      color: colors.base200.withValues(alpha: .6),
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 24,
+                  child: GfSymbol('images', size: 22, color: colors.iconMuted),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.publishImageOrderTitle,
+                        style: const TextStyle(fontSize: 16, height: 1.35),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        l10n.publishImageOrderHint,
+                        style: type.caption.copyWith(color: colors.iconMuted),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: tile,
+            child: ReorderableListView.builder(
+              key: const Key('publish-image-order-strip'),
+              scrollDirection: Axis.horizontal,
+              // The strip starts on the text edge and runs to the card's
+              // edge, so a longer row peeks past it.
+              padding: const EdgeInsetsDirectional.only(
+                start: 54,
+                end: 8,
+              ).resolve(Directionality.of(context)),
+              itemCount: urls.length,
+              proxyDecorator: (child, _, _) => Material(
+                color: Colors.transparent,
+                elevation: 6,
+                borderRadius: BorderRadius.circular(10),
+                child: child,
+              ),
+              onReorderItem: _reorderArticleImages,
+              itemBuilder: (context, index) => Padding(
+                key: ValueKey('publish-image-order-$index:${urls[index]}'),
+                padding: const EdgeInsetsDirectional.only(end: 8),
+                child: Semantics(
+                  label: l10n.publishImageOrderPosition(index + 1),
+                  image: true,
+                  child: SizedBox.square(
+                    dimension: tile,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: ColoredBox(
+                            color: colors.base200,
+                            child: GfNetworkImage(
+                              resolveApiAssetUrl(urls[index]),
+                              fit: BoxFit.cover,
+                              cacheWidth: cacheWidth,
+                              errorBuilder: (_, _, _) => Center(
+                                child: GfSymbol(
+                                  'image-off',
+                                  size: 20,
+                                  color: colors.iconMuted,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        PositionedDirectional(
+                          start: 4,
+                          bottom: 4,
+                          child: ExcludeSemantics(
+                            child: Container(
+                              constraints: const BoxConstraints(minWidth: 18),
+                              height: 18,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                              ),
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: .55),
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                              child: Text(
+                                '${index + 1}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  height: 1,
+                                  fontWeight: FontWeight.w600,
+                                  fontFeatures: [FontFeature.tabularFigures()],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
       ),
     );
   }

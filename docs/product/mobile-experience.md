@@ -606,9 +606,15 @@ identity survive this layout change. The header keeps a small outer margin for i
   with a small clock, check, history or alert mark.
 - `Current`: the preview step reads as the finished post: a card headed by the type's symbol and
   label rises in, followed by one settings group whose rows lead with their own symbols. Category is
-  a dropdown anchored to its row: each category shows its colour, up to three can be picked with the
-  menu staying open, and the row then lists the picks. Publishing identity and the bot-reply switch
-  follow. Save draft is an app-bar icon in both steps.
+  a dropdown the width of its row; each category leads with a soft colour swatch and a picked one is
+  tinted with a check. As in Web's quick composer, moments and questions take one category and the
+  menu closes on pick; articles take up to three with the menu staying open and a count. Switching
+  an article to a short type keeps its first category. The row lists the picks as small pills.
+  Publishing identity and the bot-reply switch follow. Save draft is an app-bar icon in both steps.
+- `Current`: an article preview with two or more body images adds an image-order card above the
+  settings: numbered thumbnails in reading order that long-press dragging reorders. The move swaps
+  which image fills each existing slot, leaves the text untouched, refreshes the preview at once and
+  is a single undo step.
 - `Current`: one writing row sits above the software keyboard. Image and sticker controls stay
   pinned at its start; for articles, a horizontally scrolling formatting toolbar follows them
   without an expand step, preserving the editor selection and body focus. Format buttons reflect

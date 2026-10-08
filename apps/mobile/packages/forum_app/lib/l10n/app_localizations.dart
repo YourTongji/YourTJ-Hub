@@ -2772,6 +2772,30 @@ abstract class AppLocalizations {
   /// **'Up to {count}'**
   String publishCategoryLimit(int count);
 
+  /// No description provided for @publishCategoryPickOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a category'**
+  String get publishCategoryPickOne;
+
+  /// No description provided for @publishImageOrderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Image order'**
+  String get publishImageOrderTitle;
+
+  /// No description provided for @publishImageOrderHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Long-press and drag to change where each image appears'**
+  String get publishImageOrderHint;
+
+  /// No description provided for @publishImageOrderPosition.
+  ///
+  /// In en, this message translates to:
+  /// **'Image {index}'**
+  String publishImageOrderPosition(int index);
+
   /// No description provided for @publishStepOf.
   ///
   /// In en, this message translates to:

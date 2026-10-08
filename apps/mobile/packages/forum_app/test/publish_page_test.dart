@@ -1752,9 +1752,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
-  testWidgets('category dropdown picks up to three and stays open', (
-    tester,
-  ) async {
+  testWidgets('moments pick one category and the menu closes', (tester) async {
     usePhoneViewport(tester);
     final result = await pumpPublishPage(
       tester,
@@ -1765,11 +1763,43 @@ void main() {
     await tester.tap(find.byKey(const Key('publish-appbar-submit')));
     await tester.pumpAndSettle();
     final menu = find.byKey(const Key('publish-category-menu'));
-    expect(find.text('选择分区与标签'), findsOneWidget);
+    expect(find.text('选择一个分区'), findsOneWidget);
+    await tester.ensureVisible(menu);
+    for (final (id, name) in [(1, '校园'), (3, '生活')]) {
+      await tester.tap(menu);
+      await tester.pumpAndSettle();
+      // Single choice: no "up to" header in the menu.
+      expect(find.textContaining('最多选'), findsNothing);
+      await tester.tap(find.byKey(ValueKey('publish-category-$id')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(ValueKey('publish-category-$id')), findsNothing);
+      expect(
+        find.descendant(of: menu, matching: find.text(name)),
+        findsOneWidget,
+      );
+    }
+    expect(find.descendant(of: menu, matching: find.text('校园')), findsNothing);
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    expect(result.topicRepository.writes.single.categoryIds, <int>[3]);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('articles pick up to three categories with the menu open', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    final result = await pumpPublishPage(tester, editing: true);
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    final menu = find.byKey(const Key('publish-category-menu'));
     await tester.ensureVisible(menu);
     await tester.tap(menu);
     await tester.pumpAndSettle();
-    for (final id in [1, 2, 3]) {
+    expect(find.text('最多选 3 个'), findsOneWidget);
+    expect(find.text('1/3'), findsOneWidget);
+    for (final id in [1, 3]) {
       await tester.tap(find.byKey(ValueKey('publish-category-$id')));
       await tester.pumpAndSettle();
     }
@@ -1783,19 +1813,65 @@ void main() {
           .onPressed,
       isNull,
     );
-    await tester.tap(find.byKey(const ValueKey('publish-category-1')));
+    await tester.tap(find.byKey(const ValueKey('publish-category-2')));
     await tester.pumpAndSettle();
     expect(find.text('2/3'), findsOneWidget);
     await tester.tap(menu);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('publish-category-1')), findsNothing);
     expect(
-      find.descendant(of: menu, matching: find.text('开发')),
+      find.descendant(of: menu, matching: find.text('生活')),
       findsOneWidget,
     );
     await tester.tap(find.byKey(const Key('publish-appbar-submit')));
     await tester.pumpAndSettle();
-    expect(result.topicRepository.writes.single.categoryIds, <int>[2, 3]);
+    expect(result.topicRepository.writes.single.categoryIds, <int>[1, 3]);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('article preview reorders body images in one undo step', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    final result = await pumpPublishPage(
+      tester,
+      editing: true,
+      content:
+          '开头\n\n![image](/a.png)\n\n中间\n\n![image](/b.png)\n\n![image](/c.png)\n',
+    );
+    final controller = tester
+        .widget<QuillEditor>(find.byType(QuillEditor))
+        .controller;
+    expect(find.byKey(const Key('publish-image-order')), findsNothing);
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    final strip = find.byKey(const Key('publish-image-order-strip'));
+    await tester.ensureVisible(strip);
+    expect(find.text('图片顺序'), findsOneWidget);
+    expect(find.bySemanticsLabel('第 3 张图片'), findsOneWidget);
+    tester.widget<ReorderableListView>(strip).onReorderItem!(0, 2);
+    await tester.pumpAndSettle();
+    expect(documentImageUrls(controller.document), <String>[
+      '/b.png',
+      '/c.png',
+      '/a.png',
+    ]);
+    expect(controller.document.toPlainText(), contains('中间'));
+    controller.undo();
+    await tester.pumpAndSettle();
+    expect(documentImageUrls(controller.document), <String>[
+      '/a.png',
+      '/b.png',
+      '/c.png',
+    ]);
+    controller.redo();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    final content = result.topicRepository.writes.single.content;
+    expect(content.indexOf('/b.png'), lessThan(content.indexOf('/c.png')));
+    expect(content.indexOf('/c.png'), lessThan(content.indexOf('/a.png')));
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });

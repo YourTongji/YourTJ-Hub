@@ -1495,6 +1495,21 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get publishCategoryPickOne => 'Eine Kategorie auswählen';
+
+  @override
+  String get publishImageOrderTitle => 'Bildreihenfolge';
+
+  @override
+  String get publishImageOrderHint =>
+      'Lange drücken und ziehen, um die Reihenfolge der Bilder im Text zu ändern';
+
+  @override
+  String publishImageOrderPosition(int index) {
+    return 'Bild $index';
+  }
+
+  @override
   String publishStepOf(int current, int total) {
     return 'Schritt $current von $total';
   }

@@ -1454,6 +1454,20 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get publishCategoryPickOne => 'カテゴリを1つ選択';
+
+  @override
+  String get publishImageOrderTitle => '画像の順序';
+
+  @override
+  String get publishImageOrderHint => '長押ししてドラッグすると、本文中の画像の順序を変更できます';
+
+  @override
+  String publishImageOrderPosition(int index) {
+    return '$index 枚目の画像';
+  }
+
+  @override
   String publishStepOf(int current, int total) {
     return 'ステップ $current/$total';
   }

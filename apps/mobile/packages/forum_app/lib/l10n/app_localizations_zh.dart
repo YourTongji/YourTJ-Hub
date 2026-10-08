@@ -1451,6 +1451,20 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get publishCategoryPickOne => '选择一个分区';
+
+  @override
+  String get publishImageOrderTitle => '图片顺序';
+
+  @override
+  String get publishImageOrderHint => '长按拖动，调整图片在正文中的先后';
+
+  @override
+  String publishImageOrderPosition(int index) {
+    return '第 $index 张图片';
+  }
+
+  @override
   String publishStepOf(int current, int total) {
     return '第 $current 步，共 $total 步';
   }
@@ -1459,7 +1473,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get publishFormatting => '文字格式';
 
   @override
-  String get publishClassification => '选择分区与标签';
+  String get publishClassification => '选择分区';
 
   @override
   String get publishLeaveTitle => '保留这次创作？';
