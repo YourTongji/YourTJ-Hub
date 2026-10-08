@@ -123,6 +123,43 @@ test('session expiry removes revealed rows and private action dialogs', async ()
     false,
   )
 })
+test('governance on the last page converges to the new last page when the row leaves the filter', async () => {
+  const pageOneRows = Array.from({ length: 10 }, (_, i) => ({
+    ...row,
+    publicUid: 'b'.repeat(32) + i,
+    owner: { ...row.owner, username: `owner-${i}` },
+  }))
+  const lastRow = {
+    ...row,
+    publicUid: 'c'.repeat(32),
+    owner: { ...row.owner, username: 'last-page-owner' },
+  }
+  vi.mocked(listAnonymousIdentities)
+    .mockResolvedValueOnce({ items: pageOneRows, total: 11, page: 1, pageSize: 10 })
+    .mockResolvedValueOnce({ items: [lastRow], total: 11, page: 2, pageSize: 10 })
+    // The governed row is excluded after the ban, so page 2 no longer exists.
+    .mockResolvedValueOnce({ items: [], total: 10, page: 2, pageSize: 10 })
+    .mockResolvedValue({ items: pageOneRows, total: 10, page: 1, pageSize: 10 })
+  vi.mocked(governAnonymousIdentity).mockResolvedValue(true)
+  start()
+  await reveal()
+  await wrapper.get('button[aria-label="下一页"]').trigger('click')
+  await flushPromises()
+  expect(wrapper.text()).toContain('last-page-owner')
+  await wrapper
+    .findAll('button')
+    .find((b) => b.text() === '封禁')!
+    .trigger('click')
+  await flushPromises()
+  const body = new DOMWrapper(document.body)
+  await body.get('#anonymous-action-reason').setValue('持续违规')
+  await body.get('[role="dialog"] form').trigger('submit')
+  await flushPromises()
+  const calls = vi.mocked(listAnonymousIdentities).mock.calls
+  expect(calls[calls.length - 1]![0]).toMatchObject({ page: 1 })
+  expect(wrapper.text()).toContain('owner-0')
+  expect(wrapper.text()).not.toContain('last-page-owner')
+})
 test('governance uses the UID and action reason and reloads the audited list', async () => {
   vi.mocked(listAnonymousIdentities).mockResolvedValue({
     items: [row],
