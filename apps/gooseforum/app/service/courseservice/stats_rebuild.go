@@ -55,7 +55,11 @@ func EnqueueCourseStatsRebuildTaskTx(tx *gorm.DB) error {
 // RunCourseStatsRebuildTask worker 处理：全量重建课程/offering 统计投影。
 // 以 review 事实表为准重新聚合，事务内清空后重插，中途失败整体回滚。
 func RunCourseStatsRebuildTask(_ context.Context, _ *taskQueue.Entity) error {
-	return course.RebuildAllCourseStats()
+	if err := course.RebuildAllCourseStats(); err != nil {
+		return err
+	}
+	InvalidateAllCourseDetailCache()
+	return nil
 }
 
 // RecoverCourseStatsRebuildTasks 启动时恢复统计重建 worker 前缀下崩溃遗留的 Running 任务。
