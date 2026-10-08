@@ -1466,6 +1466,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Long-press an image in the body to drag it to any paragraph.';
 
   @override
+  String get publishMomentTitleHint => 'Title (optional)';
+
+  @override
+  String get publishCategoryLabel => 'Category';
+
+  @override
+  String publishCategoryLimit(int count) {
+    return 'Up to $count';
+  }
+
+  @override
+  String publishStepOf(int current, int total) {
+    return 'Step $current of $total';
+  }
+
+  @override
   String get publishFormatting => 'Formatting';
 
   @override

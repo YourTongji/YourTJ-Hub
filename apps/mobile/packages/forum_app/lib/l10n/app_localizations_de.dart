@@ -1484,6 +1484,22 @@ class AppLocalizationsDe extends AppLocalizations {
       'Bild im Text gedrückt halten und in einen beliebigen Absatz ziehen.';
 
   @override
+  String get publishMomentTitleHint => 'Titel (optional)';
+
+  @override
+  String get publishCategoryLabel => 'Kategorie';
+
+  @override
+  String publishCategoryLimit(int count) {
+    return 'Bis zu $count';
+  }
+
+  @override
+  String publishStepOf(int current, int total) {
+    return 'Schritt $current von $total';
+  }
+
+  @override
   String get publishFormatting => 'Formatierung';
 
   @override

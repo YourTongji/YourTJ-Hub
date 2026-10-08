@@ -1440,6 +1440,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get publishBodyDragHint => '长按正文图片，可拖动到任意段落位置';
 
   @override
+  String get publishMomentTitleHint => '标题（可留空）';
+
+  @override
+  String get publishCategoryLabel => '分区';
+
+  @override
+  String publishCategoryLimit(int count) {
+    return '最多选 $count 个';
+  }
+
+  @override
+  String publishStepOf(int current, int total) {
+    return '第 $current 步，共 $total 步';
+  }
+
+  @override
   String get publishFormatting => '文字格式';
 
   @override

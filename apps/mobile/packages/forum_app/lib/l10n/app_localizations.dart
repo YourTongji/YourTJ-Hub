@@ -2754,6 +2754,30 @@ abstract class AppLocalizations {
   /// **'Long-press an image in the body to drag it to any paragraph.'**
   String get publishBodyDragHint;
 
+  /// No description provided for @publishMomentTitleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Title (optional)'**
+  String get publishMomentTitleHint;
+
+  /// No description provided for @publishCategoryLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Category'**
+  String get publishCategoryLabel;
+
+  /// No description provided for @publishCategoryLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Up to {count}'**
+  String publishCategoryLimit(int count);
+
+  /// No description provided for @publishStepOf.
+  ///
+  /// In en, this message translates to:
+  /// **'Step {current} of {total}'**
+  String publishStepOf(int current, int total);
+
   /// No description provided for @publishFormatting.
   ///
   /// In en, this message translates to:

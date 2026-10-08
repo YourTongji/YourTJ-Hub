@@ -436,11 +436,12 @@ class _ToolButton extends StatelessWidget {
     return MergeSemantics(
       child: Semantics(
         toggled: selected,
-        child: DecoratedBox(
+        child: AnimatedContainer(
+          duration: GfMotion.duration(context, GfMotion.selection),
           decoration: BoxDecoration(
             color: selected == true
                 ? colors.primary.withValues(alpha: 0.12)
-                : Colors.transparent,
+                : colors.primary.withValues(alpha: 0),
             borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).field),
           ),
           child: GfIconButton(

@@ -18,6 +18,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../local/writing_store.dart';
 import '../../asset_url.dart';
+import '../../format.dart';
 import '../../images/image_upload.dart';
 import '../../images/composer_upload_queue.dart';
 import '../../server_messages.dart';
@@ -98,8 +99,9 @@ class _PublishPageState extends ConsumerState<PublishPage>
   bool _allowPop = false;
   final TextEditingController _title = TextEditingController();
   final FocusNode _titleFocusNode = FocusNode(debugLabel: 'topic-title');
-  bool _momentTitleExpanded = false;
   final List<int> _categoryIds = <int>[];
+  final MenuController _categoryMenu = MenuController();
+  bool _categoryMenuOpen = false;
   final List<PublishCategoryPayload> _categories = <PublishCategoryPayload>[];
   late final MarkdownConverter _converter;
 
@@ -217,9 +219,6 @@ class _PublishPageState extends ConsumerState<PublishPage>
   // Controller notifications include selection and IME composition changes.
   // Only changed text is new user work; merely focusing must not save a draft.
   void _textChanged() {
-    // Existing drafts and other composition types keep their explicit title.
-    // Once shown, clearing the field must not remove it beneath the cursor.
-    if (_title.text.trim().isNotEmpty) _momentTitleExpanded = true;
     final changed =
         _lastTitleText != _title.text || _lastSimpleText != _simple.text;
     _lastTitleText = _title.text;
@@ -1301,6 +1300,15 @@ class _PublishPageState extends ConsumerState<PublishPage>
       child: Scaffold(
         backgroundColor: GfTheme.colorsOf(context).base100,
         appBar: GfAppBar(
+          bottom: _loading || _loadError.isNotEmpty && !_localRestored
+              ? null
+              : _StepProgress(
+                  step: _mode == _ComposeMode.edit ? 1 : 2,
+                  label: l10n.publishStepOf(
+                    _mode == _ComposeMode.edit ? 1 : 2,
+                    2,
+                  ),
+                ),
           leading: GfIconButton(
             symbol: 'chevron-left',
             tooltip: l10n.commonBack,
@@ -1364,7 +1372,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
                                         MediaQuery.viewPaddingOf(
                                           context,
                                         ).vertical -
-                                        kToolbarHeight) *
+                                        kToolbarHeight -
+                                        _StepProgress.height) *
                                     .65)
                                 .clamp(0.0, double.infinity)
                           : double.infinity,
@@ -1480,6 +1489,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
                     if (_localStatus.isNotEmpty) ...[
                       Row(
                         children: [
+                          _buildSaveStatusMark(l10n),
+                          const SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               _localStatus,
@@ -1548,7 +1559,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                     else if (_mode == _ComposeMode.edit)
                       _buildEditor(l10n)
                     else
-                      _buildPreview(l10n),
+                      _StepEntrance(child: _buildPreview(l10n)),
                     if (_mode == _ComposeMode.edit &&
                         _contentType == 1 &&
                         (!typing ||
@@ -1558,8 +1569,11 @@ class _PublishPageState extends ConsumerState<PublishPage>
                       _buildGallery(l10n, editing: true),
                     ],
                     if (_mode == _ComposeMode.preview) ...[
-                      const SizedBox(height: 24),
-                      _buildPublishSettings(l10n),
+                      const SizedBox(height: 16),
+                      _StepEntrance(
+                        delay: const Duration(milliseconds: 60),
+                        child: _buildPublishSettings(l10n),
+                      ),
                       const SizedBox(height: 16),
                     ],
                     if (_captcha != null) ...[
@@ -1617,52 +1631,27 @@ class _PublishPageState extends ConsumerState<PublishPage>
     );
   }
 
-  Widget _buildTopicFields(
-    AppLocalizations l10n, {
-    bool classification = false,
-  }) {
+  Widget _buildTopicFields(AppLocalizations l10n) {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography type = GfTheme.typographyOf(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        if (!classification && _contentType == 2 && !_momentTitleExpanded)
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: TextButton.icon(
-              key: const Key('publish-add-title'),
-              onPressed: _submitting
-                  ? null
-                  : () {
-                      // Revealing a field is a view preference, not new work.
-                      setState(() => _momentTitleExpanded = true);
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted && _sessionCurrent) {
-                          _titleFocusNode.requestFocus();
-                        }
-                      });
-                    },
-              style: TextButton.styleFrom(
-                foregroundColor: colors.iconMuted,
-                minimumSize: const Size(44, 44),
-                padding: const EdgeInsetsDirectional.only(end: 8),
-                textStyle: type.small.copyWith(fontWeight: FontWeight.w600),
-              ),
-              icon: const GfSymbol('plus', size: 16),
-              label: Text(l10n.publishAddTitle),
-            ),
-          ),
-        if (!classification && (_contentType != 2 || _momentTitleExpanded))
+        ...[
           TextField(
             key: const Key('publish-title'),
             controller: _title,
             focusNode: _titleFocusNode,
-            maxLength: 100,
+            maxLength: _titleMaxLength,
             minLines: 1,
             maxLines: 3,
             decoration: InputDecoration(
-              hintText: l10n.publishTitleField,
+              // Moments may stay untitled; the hint says so instead of
+              // hiding the field behind an extra tap.
+              hintText: _contentType == 2
+                  ? l10n.publishMomentTitleHint
+                  : l10n.publishTitleField,
               hintStyle: TextStyle(
                 color: colors.iconMuted.withValues(alpha: 0.75),
                 fontWeight: FontWeight.w500,
@@ -1690,99 +1679,96 @@ class _PublishPageState extends ConsumerState<PublishPage>
               }
             },
           ),
-        if (classification) ...[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  l10n.publishClassification,
-                  style: type.small.copyWith(
-                    color: colors.baseContent.withValues(alpha: 0.75),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Text(
-                '${_categoryIds.length}/$_maxCategories',
-                style: type.caption.copyWith(
-                  color: _categoryIds.isEmpty
-                      ? colors.iconMuted
-                      : colors.primary,
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              for (final PublishCategoryPayload category in _categories)
-                GfSelectTag(
-                  label: category.name,
-                  selected: _categoryIds.contains(category.id),
-                  onChanged:
-                      !_categoryIds.contains(category.id) &&
-                          _categoryIds.length >= _maxCategories
-                      ? null
-                      : (bool selected) => _toggleCategory(category, selected),
-                ),
-            ],
-          ),
+          _buildTitleRule(),
         ],
       ],
     );
   }
 
-  /// Preview step settings in one quiet group: where the post goes, who
-  /// publishes it, and whether bots may reply.
-  Widget _buildPublishSettings(AppLocalizations l10n) {
+  static const int _titleMaxLength = 100;
+
+  /// Small mark before the local save status: a clock while writing, a
+  /// check once stored, history after a restore and an alert on failure.
+  Widget _buildSaveStatusMark(AppLocalizations l10n) {
+    final colors = GfTheme.colorsOf(context);
+    final (String symbol, Color color) = _localSaveFailed
+        ? ('circle-alert', colors.error)
+        : _localStatus == l10n.draftLocalSaving
+        ? ('clock', colors.iconMuted)
+        : _localStatus == l10n.draftLocalRestored
+        ? ('history', colors.iconMuted)
+        : ('check', colors.iconMuted);
+    return GfSymbol(symbol, size: 14, color: color);
+  }
+
+  /// Hairline between title and body that takes the accent while the title
+  /// is focused, with the length counter shown only while typing in it.
+  Widget _buildTitleRule() {
     final colors = GfTheme.colorsOf(context);
     final type = GfTheme.typographyOf(context);
-    return DecoratedBox(
+    final duration = GfMotion.duration(context, GfMotion.selection);
+    return ListenableBuilder(
+      listenable: Listenable.merge([_titleFocusNode, _title]),
+      builder: (context, _) {
+        final focused = _titleFocusNode.hasFocus;
+        // The counter takes room only while the title is being written, so
+        // short screens keep every line for the body.
+        return AnimatedSize(
+          duration: duration,
+          alignment: AlignmentDirectional.topStart,
+          child: Row(
+            children: [
+              Expanded(
+                child: AnimatedContainer(
+                  duration: duration,
+                  height: 1,
+                  color: focused
+                      ? colors.primary.withValues(alpha: .55)
+                      : colors.line,
+                ),
+              ),
+              if (focused)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 10),
+                  child: Text(
+                    '${_title.text.characters.length}/$_titleMaxLength',
+                    style: type.caption.copyWith(
+                      color: colors.iconMuted,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Preview step settings in one quiet group: where the post goes, who
+  /// publishes it, and whether bots may reply. Each row leads with its own
+  /// symbol so the group scans as a list of decisions.
+  Widget _buildPublishSettings(AppLocalizations l10n) {
+    final colors = GfTheme.colorsOf(context);
+    return Material(
       key: const Key('publish-settings'),
-      decoration: BoxDecoration(
-        color: colors.base200.withValues(alpha: .6),
-        borderRadius: BorderRadius.circular(20),
-      ),
+      color: colors.base200.withValues(alpha: .6),
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: _buildTopicFields(l10n, classification: true),
-          ),
-          Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 8, 0),
-            child: Text(
-              l10n.anonymousPublishAs,
-              style: type.small.copyWith(
-                color: colors.baseContent.withValues(alpha: 0.75),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(10, 0, 8, 0),
-            child: IdentityPicker(
-              value: _identity,
-              disabled: _submitting || _currentTopicId > 0,
-              onChanged: (v) {
-                setState(() {
-                  _identity = v;
-                  _markDirty();
-                });
-              },
-            ),
-          ),
-          if (_currentTopicId == 0)
+          _buildCategoryMenu(l10n),
+          const GfDivider(inset: 16),
+          _buildIdentityRow(l10n),
+          if (_currentTopicId == 0) ...[
+            const GfDivider(inset: 16),
             IgnorePointer(
               ignoring: _submitting,
               child: GfSwitchRow(
                 key: const Key('publish-agent-replies'),
+                symbol: 'message-circle',
+                iconColor: colors.iconMuted,
                 title: l10n.agentRepliesAllow,
                 description: l10n.agentRepliesHelp,
                 value: !_agentRepliesDisabled,
@@ -1791,9 +1777,201 @@ class _PublishPageState extends ConsumerState<PublishPage>
                   _markDirty();
                 },
               ),
-            )
-          else
-            const SizedBox(height: 12),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Category choice as a dropdown anchored to its row: up to three picks,
+  /// each with the category's colour, and the menu stays open while picking.
+  Widget _buildCategoryMenu(AppLocalizations l10n) {
+    final colors = GfTheme.colorsOf(context);
+    final type = GfTheme.typographyOf(context);
+    final duration = GfMotion.duration(context, GfMotion.selection);
+    final picked = [
+      for (final id in _categoryIds)
+        ?_categories.where((c) => c.id == id).firstOrNull,
+    ];
+    final full = _categoryIds.length >= _maxCategories;
+    Widget dot(String color) => Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: colorFromHex(color),
+        shape: BoxShape.circle,
+      ),
+    );
+    return MenuAnchor(
+      controller: _categoryMenu,
+      onOpen: () => setState(() => _categoryMenuOpen = true),
+      onClose: () => setState(() => _categoryMenuOpen = false),
+      alignmentOffset: const Offset(16, 0),
+      style: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(colors.base100),
+        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        elevation: const WidgetStatePropertyAll(6),
+        shadowColor: WidgetStatePropertyAll(
+          Colors.black.withValues(alpha: .18),
+        ),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: colors.line),
+          ),
+        ),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(vertical: 6),
+        ),
+        maximumSize: const WidgetStatePropertyAll(Size(320, 360)),
+      ),
+      menuChildren: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.publishCategoryLimit(_maxCategories),
+                  style: type.caption.copyWith(color: colors.iconMuted),
+                ),
+              ),
+              Text(
+                '${_categoryIds.length}/$_maxCategories',
+                style: type.caption.copyWith(
+                  color: _categoryIds.isEmpty
+                      ? colors.iconMuted
+                      : colors.primary,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+        ),
+        for (final category in _categories)
+          Builder(
+            builder: (context) {
+              final selected = _categoryIds.contains(category.id);
+              return MenuItemButton(
+                key: ValueKey('publish-category-${category.id}'),
+                closeOnActivate: false,
+                onPressed: !selected && full
+                    ? null
+                    : () => _toggleCategory(category, !selected),
+                leadingIcon: dot(category.color),
+                trailingIcon: AnimatedOpacity(
+                  opacity: selected ? 1 : 0,
+                  duration: duration,
+                  child: GfSymbol('check', size: 18, color: colors.primary),
+                ),
+                style: MenuItemButton.styleFrom(
+                  minimumSize: const Size(220, 48),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  foregroundColor: selected
+                      ? colors.primary
+                      : colors.baseContent,
+                  disabledForegroundColor: colors.baseContent.withValues(
+                    alpha: .38,
+                  ),
+                  textStyle: type.body.copyWith(
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+                child: Semantics(
+                  selected: selected,
+                  child: Text(category.name),
+                ),
+              );
+            },
+          ),
+      ],
+      builder: (context, controller, _) => Semantics(
+        expanded: _categoryMenuOpen,
+        child: GfSettingRow(
+          key: const Key('publish-category-menu'),
+          symbol: 'folder',
+          iconColor: colors.iconMuted,
+          title: l10n.publishCategoryLabel,
+          subtitleWidget: picked.isEmpty
+              ? Text(l10n.publishClassification)
+              : Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
+                  children: [
+                    for (final category in picked)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          dot(category.color),
+                          const SizedBox(width: 6),
+                          Text(
+                            category.name,
+                            style: TextStyle(
+                              color: colors.baseContent.withValues(alpha: .8),
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+          trailing: AnimatedRotation(
+            turns: _categoryMenuOpen ? .5 : 0,
+            duration: duration,
+            child: GfSymbol('chevron-down', size: 18, color: colors.iconMuted),
+          ),
+          onTap: _submitting
+              ? null
+              : () =>
+                    controller.isOpen ? controller.close() : controller.open(),
+        ),
+      ),
+    );
+  }
+
+  /// "Post as" row; the picker's own pill inset is pulled back so its avatar
+  /// shares the text edge of the other rows.
+  Widget _buildIdentityRow(AppLocalizations l10n) {
+    final colors = GfTheme.colorsOf(context);
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 24,
+            child: GfSymbol('user-round', size: 22, color: colors.iconMuted),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.anonymousPublishAs,
+                  style: TextStyle(
+                    fontSize: 16,
+                    height: 1.35,
+                    color: colors.baseContent,
+                  ),
+                ),
+                Transform.translate(
+                  offset: Offset(rtl ? 6 : -6, 0),
+                  child: IdentityPicker(
+                    value: _identity,
+                    disabled: _submitting || _currentTopicId > 0,
+                    onChanged: (v) {
+                      setState(() {
+                        _identity = v;
+                        _markDirty();
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -2002,17 +2180,26 @@ class _PublishPageState extends ConsumerState<PublishPage>
                   ),
                 ),
               ),
+            // The move hint only matters once the body holds an image.
             if (!_stickerOpen &&
                 _contentType == 3 &&
                 MediaQuery.viewInsetsOf(context).bottom == 0)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                child: Text(
-                  l10n.publishBodyDragHint,
-                  style: GfTheme.typographyOf(context).caption.copyWith(
-                    color: GfTheme.colorsOf(context).iconMuted,
-                  ),
-                ),
+              ListenableBuilder(
+                listenable: _quill,
+                builder: (context, _) =>
+                    _quill.document.toDelta().toList().any(
+                      (op) => op.data is Map,
+                    )
+                    ? Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                        child: Text(
+                          l10n.publishBodyDragHint,
+                          style: GfTheme.typographyOf(context).caption.copyWith(
+                            color: GfTheme.colorsOf(context).iconMuted,
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
               ),
           ],
         ),
@@ -2088,11 +2275,12 @@ class _PublishPageState extends ConsumerState<PublishPage>
     return MergeSemantics(
       child: Semantics(
         toggled: selected,
-        child: DecoratedBox(
+        child: AnimatedContainer(
+          duration: GfMotion.duration(context, GfMotion.selection),
           decoration: BoxDecoration(
             color: selected == true
                 ? colors.primary.withValues(alpha: 0.12)
-                : Colors.transparent,
+                : colors.primary.withValues(alpha: 0),
             borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).field),
           ),
           child: GfIconButton(
@@ -2119,16 +2307,17 @@ class _PublishPageState extends ConsumerState<PublishPage>
     final GfBorders borders = GfTheme.bordersOf(context);
     final GfTypography type = GfTheme.typographyOf(context);
 
+    final publishType = PublishType.fromValue(_contentType);
+    // Preview reads as the finished post: a card headed by its type, so the
+    // second step looks unlike the open writing canvas of the first.
     return Container(
       key: const Key('publish-preview'),
-      constraints: BoxConstraints(minHeight: framed ? 390 : 120),
-      padding: framed ? const EdgeInsets.all(16) : EdgeInsets.zero,
+      constraints: BoxConstraints(minHeight: framed ? 390 : 160),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.base100,
-        border: framed
-            ? Border.all(color: colors.line, width: borders.width)
-            : null,
-        borderRadius: BorderRadius.circular(radii.box),
+        border: Border.all(color: colors.line, width: borders.width),
+        borderRadius: BorderRadius.circular(framed ? radii.box : 20),
       ),
       child: _previewMarkdown.isEmpty && _images.isEmpty
           ? Center(
@@ -2148,6 +2337,28 @@ class _PublishPageState extends ConsumerState<PublishPage>
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Row(
+                  children: [
+                    GfSymbol(
+                      publishType.symbol,
+                      size: 16,
+                      color: publishType.color(context),
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        publishType.label(l10n),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: type.small.copyWith(
+                          color: publishType.color(context),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 if (_images.isNotEmpty)
                   GfMediaCarousel(
                     images: _images.map(resolveApiAssetUrl).toList(),
@@ -2197,20 +2408,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
           const SizedBox(height: 12),
         ],
         if (_images.isEmpty && add != null)
-          Row(
-            children: [
-              add,
-              if (_contentType == 2) ...[
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(
-                    l10n.publishGallery,
-                    style: type.small.copyWith(color: colors.iconMuted),
-                  ),
-                ),
-              ],
-            ],
-          )
+          _buildGalleryAddTile(l10n, empty: true)
         else if (_images.isNotEmpty)
           SizedBox(
             height: _galleryTile,
@@ -2313,49 +2511,79 @@ class _PublishPageState extends ConsumerState<PublishPage>
     );
   }
 
-  Widget _buildGalleryAddTile(AppLocalizations l10n) {
+  /// Photo entry in the type's colour. Empty, it is a full-width card that
+  /// explains the strip; with photos, it becomes the strip's trailing tile.
+  Widget _buildGalleryAddTile(AppLocalizations l10n, {bool empty = false}) {
     final colors = GfTheme.colorsOf(context);
     final type = GfTheme.typographyOf(context);
     final busy = _activelyUploading || _pickingImage;
     final count = _images.length + _uploads.items.length;
+    final accent = _pickingImage
+        ? colors.iconMuted
+        : PublishType.fromValue(_contentType).color(context);
+    final title = _contentType == 2
+        ? l10n.publishGallery
+        : l10n.publishToolImage;
+    final Widget icon = busy
+        ? SizedBox.square(
+            dimension: empty ? 24 : 20,
+            child: const GfProgressIndicator(strokeWidth: 2),
+          )
+        : GfSymbol('gallery-duotone', size: empty ? 28 : 24, color: accent);
+    final countLabel = Text(
+      '$count/9',
+      style: type.caption.copyWith(
+        color: colors.iconMuted,
+        fontFeatures: const [FontFeature.tabularFigures()],
+      ),
+    );
     return Semantics(
       key: const Key('publish-gallery-add'),
       button: true,
       enabled: !_pickingImage,
-      label: '${l10n.publishToolImage} $count/9',
+      label: empty ? title : '${l10n.publishToolImage} $count/9',
       excludeSemantics: true,
       onTap: _pickingImage ? null : _pickAndInsertImage,
       child: Material(
         color: colors.base200,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: colors.line),
+          borderRadius: BorderRadius.circular(empty ? 16 : 12),
         ),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
           onTap: _pickingImage ? null : _pickAndInsertImage,
-          child: SizedBox.square(
-            dimension: _galleryTile,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                busy
-                    ? const SizedBox.square(
-                        dimension: 20,
-                        child: GfProgressIndicator(strokeWidth: 2),
-                      )
-                    : GfSymbol('plus', size: 22, color: colors.iconMuted),
-                const SizedBox(height: 6),
-                Text(
-                  '$count/9',
-                  style: type.caption.copyWith(
-                    color: colors.iconMuted,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+          child: empty
+              ? Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      icon,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(title, style: type.bodyStrong),
+                            const SizedBox(height: 4),
+                            Text(
+                              l10n.publishGalleryHint,
+                              style: type.caption.copyWith(
+                                color: colors.iconMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : SizedBox.square(
+                  dimension: _galleryTile,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [icon, const SizedBox(height: 6), countLabel],
                   ),
                 ),
-              ],
-            ),
-          ),
         ),
       ),
     );
@@ -2595,6 +2823,71 @@ class _PublishPageState extends ConsumerState<PublishPage>
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Two-step position under the app bar: half the hairline while writing,
+/// the full line on preview.
+class _StepProgress extends StatelessWidget implements PreferredSizeWidget {
+  const _StepProgress({required this.step, required this.label});
+
+  final int step;
+  final String label;
+
+  static const double height = 2;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(height);
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = GfTheme.colorsOf(context);
+    return Semantics(
+      label: label,
+      child: SizedBox(
+        height: height,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(end: step / 2),
+          duration: GfMotion.duration(context, GfMotion.layout),
+          curve: GfMotion.layoutCurve,
+          builder: (context, value, _) => Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: FractionallySizedBox(
+              widthFactor: value,
+              child: ColoredBox(color: colors.primary),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One short rise-and-fade when a step's content first appears.
+class _StepEntrance extends StatelessWidget {
+  const _StepEntrance({required this.child, this.delay = Duration.zero});
+
+  final Widget child;
+  final Duration delay;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = GfMotion.duration(context, GfMotion.layout + delay);
+    if (duration == Duration.zero) return child;
+    final start = delay.inMicroseconds / duration.inMicroseconds;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: duration,
+      curve: Interval(start, 1, curve: GfMotion.enterCurve),
+      child: child,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child: Transform.translate(
+          offset: Offset(0, GfMotion.rise * (1 - t)),
+          child: child,
+        ),
       ),
     );
   }

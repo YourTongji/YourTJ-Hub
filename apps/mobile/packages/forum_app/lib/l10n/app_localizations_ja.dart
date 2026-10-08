@@ -1443,6 +1443,22 @@ class AppLocalizationsJa extends AppLocalizations {
   String get publishBodyDragHint => '本文の画像を長押しして、任意の段落位置へドラッグできます';
 
   @override
+  String get publishMomentTitleHint => 'タイトル（任意）';
+
+  @override
+  String get publishCategoryLabel => 'カテゴリ';
+
+  @override
+  String publishCategoryLimit(int count) {
+    return '$count 個まで';
+  }
+
+  @override
+  String publishStepOf(int current, int total) {
+    return 'ステップ $current/$total';
+  }
+
+  @override
   String get publishFormatting => '書式設定';
 
   @override

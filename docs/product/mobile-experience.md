@@ -591,15 +591,24 @@ identity survive this layout change. The header keeps a small outer margin for i
 
 
 - `Current`: new topics choose moment, question or article from a segmented switcher above the
-  fields; it hides while the keyboard is open, and the app bar then names the type. The body
-  placeholder carries the type's writing hint. Moments lead with a square photo strip (an add tile
-  showing the n/9 count, long-press reordering, a remove control per photo) before an optional Add
-  title action; questions keep their required title and attach photos after the body. Opening the
-  title field alone does not create unsaved work. Existing nonempty titles remain visible in topic
-  edits and restored drafts. Type switches retain title input. Moment previews show only a manually
-  entered title, while title-free publishing/server drafts use the existing body-derived API summary.
-  The preview step gathers classification, publishing identity and the bot-reply switch in one
-  rounded settings panel below the preview. Save draft is an app-bar icon in both steps.
+  fields; its raised pill slides to the chosen type. The switcher hides while the keyboard is open,
+  and the app bar then names the type. A hairline under the app bar shows the two-step position
+  (half while writing, full on preview) and announces the step. The body placeholder carries the
+  type's writing hint. Moments lead with photos: with none yet, a full-width card with the
+  type-coloured gallery symbol, a prompt and the nine-photo/reorder hint; with photos, a square strip
+  (long-press reordering, a remove control per photo) ending in a gallery tile with the n/9 count.
+  Questions attach photos after the body. Every type shows its title field; the moment title
+  placeholder says it may stay empty, and opening the field alone does not create unsaved work. A
+  hairline below the title takes the accent while it is focused, with the length counter shown only
+  then. Existing titles remain visible in topic edits and restored drafts, and type switches retain
+  title input. Moment previews show only a manually entered title, while title-free
+  publishing/server drafts use the existing body-derived API summary. The local save status leads
+  with a small clock, check, history or alert mark.
+- `Current`: the preview step reads as the finished post: a card headed by the type's symbol and
+  label rises in, followed by one settings group whose rows lead with their own symbols. Category is
+  a dropdown anchored to its row: each category shows its colour, up to three can be picked with the
+  menu staying open, and the row then lists the picks. Publishing identity and the bot-reply switch
+  follow. Save draft is an app-bar icon in both steps.
 - `Current`: one writing row sits above the software keyboard. Image and sticker controls stay
   pinned at its start; for articles, a horizontally scrolling formatting toolbar follows them
   without an expand step, preserving the editor selection and body focus. Format buttons reflect
@@ -616,7 +625,7 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: a long-pressed article image lifts as a small card above the fingertip; a drop line
   marks the slot below the paragraph under the finger, with a light haptic tick when that slot
   changes. Near the viewport edges the page auto-scrolls faster the deeper the finger sits. The move
-  is one undo step.
+  is one undo step. The move hint under the writing row appears only once the body holds an image.
 - `Current`: leaving with unsaved work opens a bottom sheet with Keep and leave, Discard changes and
   Continue editing as full-width actions; dismissing it continues editing.
 

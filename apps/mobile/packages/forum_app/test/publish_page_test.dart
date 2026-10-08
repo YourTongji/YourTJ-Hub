@@ -564,7 +564,7 @@ void main() {
     }
   }
 
-  testWidgets('a new moment starts with body only and can opt into a title', (
+  testWidgets('a new moment shows an optional title without creating work', (
     tester,
   ) async {
     usePhoneViewport(tester);
@@ -573,13 +573,14 @@ void main() {
       editing: false,
       contentType: 2,
     );
-    expect(find.byType(TextField), findsOneWidget);
-    expect(find.byKey(const Key('publish-title')), findsNothing);
-    await tester.tap(find.byKey(const Key('publish-add-title')));
-    await tester.pumpAndSettle();
     final title = find.byKey(const Key('publish-title'));
     expect(title, findsOneWidget);
+    expect(find.text('标题（可留空）'), findsOneWidget);
+    await tester.tap(title);
+    await tester.pumpAndSettle();
     expect(tester.widget<TextField>(title).focusNode!.hasFocus, isTrue);
+    // The length counter appears only while the title is focused.
+    expect(find.text('0/100'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 800));
     await tester.pumpAndSettle();
     expect(
@@ -685,11 +686,8 @@ void main() {
       );
       expect(find.text('恢复的正文'), findsOneWidget);
       final titleField = find.byKey(const Key('publish-title'));
-      if (title.isEmpty) {
-        expect(titleField, findsNothing);
-      } else {
-        expect(tester.widget<TextField>(titleField).controller!.text, title);
-      }
+      // The optional title stays visible, empty or restored.
+      expect(tester.widget<TextField>(titleField).controller!.text, title);
     });
   }
 
@@ -704,8 +702,6 @@ void main() {
         categoryIds: [2],
       );
       await tester.enterText(find.byKey(const Key('publish-editor')), '这一刻的正文');
-      await tester.tap(find.byKey(const Key('publish-add-title')));
-      await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('publish-title')), '自定义标题');
       await tester.pump();
       await tester.tap(find.byKey(const Key('publish-appbar-submit')));
@@ -734,7 +730,6 @@ void main() {
         contentType: type,
       );
       expect(find.byKey(const Key('publish-title')), findsOneWidget);
-      expect(find.byKey(const Key('publish-add-title')), findsNothing);
       await tester.tap(find.byKey(const Key('publish-appbar-submit')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('publish-appbar-submit')));
@@ -765,7 +760,6 @@ void main() {
             .text,
         '原始标题',
       );
-      expect(find.byKey(const Key('publish-add-title')), findsNothing);
       await tester.tap(find.byKey(const Key('publish-appbar-submit')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('publish-agent-replies')), findsNothing);
@@ -778,8 +772,6 @@ void main() {
     usePhoneViewport(tester);
     await pumpPublishPage(tester, editing: false, contentType: 2);
     await tester.enterText(find.byKey(const Key('publish-editor')), '保留正文');
-    await tester.tap(find.byKey(const Key('publish-add-title')));
-    await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('publish-title')), '保留标题');
     for (final (type, value) in [('文章', 3), ('提问', 1), ('瞬间', 2)]) {
       await tester.tap(find.byKey(Key('publish-type-$value')));
@@ -1736,7 +1728,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(result.topicRepository.writes, isEmpty);
-    expect(find.text('选择分区与标签'), findsOneWidget);
+    expect(find.byKey(const Key('publish-category-menu')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('publish-category-menu')),
+        matching: find.text('开发'),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const Key('publish-appbar-submit')));
     await tester.pumpAndSettle();
 
@@ -1750,6 +1749,54 @@ void main() {
     expect(result.router.state.uri.path, '/p/99');
     expect(find.text('topic-99'), findsOneWidget);
 
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('category dropdown picks up to three and stays open', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    final result = await pumpPublishPage(
+      tester,
+      editing: false,
+      contentType: 2,
+    );
+    await tester.enterText(find.byKey(const Key('publish-editor')), '正文');
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    final menu = find.byKey(const Key('publish-category-menu'));
+    expect(find.text('选择分区与标签'), findsOneWidget);
+    await tester.ensureVisible(menu);
+    await tester.tap(menu);
+    await tester.pumpAndSettle();
+    for (final id in [1, 2, 3]) {
+      await tester.tap(find.byKey(ValueKey('publish-category-$id')));
+      await tester.pumpAndSettle();
+    }
+    // The menu stays open while picking; a fourth choice is unavailable.
+    expect(find.text('3/3'), findsOneWidget);
+    expect(
+      tester
+          .widget<MenuItemButton>(
+            find.byKey(const ValueKey('publish-category-4')),
+          )
+          .onPressed,
+      isNull,
+    );
+    await tester.tap(find.byKey(const ValueKey('publish-category-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('2/3'), findsOneWidget);
+    await tester.tap(menu);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('publish-category-1')), findsNothing);
+    expect(
+      find.descendant(of: menu, matching: find.text('开发')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    expect(result.topicRepository.writes.single.categoryIds, <int>[2, 3]);
+    await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });
 
