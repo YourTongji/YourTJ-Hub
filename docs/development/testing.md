@@ -38,6 +38,10 @@ export YOURTJ_TEST_PG_URL="host=127.0.0.1 port=5432 user=postgres password=postg
 export TEST_PG_DSN="$YOURTJ_TEST_PG_URL"
 go test -p 1 -parallel 1 ./app/... -run 'PostgreSQL|Postgres' -count=1 -v
 
+# Release archive licenses (from repository root): shipping config with a tiny executable fixture.
+# Install GoReleaser on PATH or set YOURTJ_GORELEASER to its executable path; absent tooling skips this test.
+python3 -m unittest discover -s scripts/release -p test_archive_licenses.py -v
+
 # Full
 make test
 
@@ -77,6 +81,10 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 | 生成 TS 类型 | `apps/gooseforum/resource/packages/client/src/gen/`（`index.ts` / `openapi.ts`） | OpenAPI 生成并提交的输出，契约变更时随 PR 同步 |
 
 模型/迁移测试必须同时满足 PG 门禁（见下方 CI mapping 的 `ci-backend-pg`）。
+
+测试模式的 SQLite 内存库固定使用一个保留的连接，连接生命周期设为无限；
+关闭或轮换唯一连接会丢失全部表，长时间运行的整包测试也必须保留该连接。
+`sqlconnect` 的虚拟时间回归覆盖超过一分钟后仍能读取测试数据的行为。
 
 ## CI mapping
 

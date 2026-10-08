@@ -61,6 +61,12 @@ make test       # 后端 vet+test、契约检查、前端 typecheck+test+i18n；
 - 修 bug 先写最小失败测试（先红后绿），机械改动（重命名/格式化/依赖升级/纯文档）豁免；红测保留为回归测试。
 - 代码内 TODO 标记分三档：`FIXME`（阻塞发布）/ `TODO`（近期）/ `XXX`（远期），
   见 [coding-conventions.md](docs/development/coding-conventions.md)。
+- 向本仓库提交原创代码或文档，即表示你授权项目按 GPL-3.0-only 发布该贡献。
+  通过 Hub 课评功能提交课程评价，或向独立的 [YourTongji/YourTJ-Wiki 仓库](https://github.com/YourTongji/YourTJ-Wiki)
+  提交 Wiki 页面时，即表示你授权相应内容按 CC BY-NC-SA 4.0 发布。
+  提交前请确认自己有权授予对应许可，并保留第三方内容原有的许可证和署名。
+- 新增第三方依赖或资源时，提交说明应列出来源、版本和许可证；将其与 GPLv3 代码组合前，确认许可证兼容。
+  具体范围见[许可说明](docs/development/licensing.md)。
 
 ## 提问与讨论
 

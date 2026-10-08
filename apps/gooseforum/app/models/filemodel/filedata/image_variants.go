@@ -178,6 +178,10 @@ func updateImageMetadata(name string, width, height int, variants []storedImageV
 // ImageMetadataByNames returns only ready original rows; legacy files with no
 // dimensions are omitted so clients keep their URL-based fallback.
 func ImageMetadataByNames(names []string) (map[string]ImageMetadata, error) {
+	return ImageMetadataByNamesContext(context.Background(), names)
+}
+
+func ImageMetadataByNamesContext(ctx context.Context, names []string) (map[string]ImageMetadata, error) {
 	unique := make([]string, 0, len(names))
 	seen := make(map[string]bool, len(names))
 	for _, name := range names {
@@ -191,7 +195,7 @@ func ImageMetadataByNames(names []string) (map[string]ImageMetadata, error) {
 		return result, nil
 	}
 	var entities []Entity
-	if err := builder().Select("name", "image_width", "image_height", "image_variants").
+	if err := builder().WithContext(ctx).Select("name", "image_width", "image_height", "image_variants").
 		Where("name IN ? AND parent_name = '' AND storage_status = ?", unique, StorageStatusReady).
 		Find(&entities).Error; err != nil {
 		return nil, err

@@ -10,7 +10,6 @@ import '../../providers.dart';
 import '../../server_messages.dart';
 import 'post_edit_sheet.dart';
 import 'post_history_sheet.dart';
-import 'anonymous_moderation_dialog.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/share/share_image_preview.dart';
 
@@ -19,7 +18,6 @@ const double _postActionIconSize = 20;
 class PostActions extends ConsumerStatefulWidget {
   const PostActions({
     super.key,
-    this.canRevealAnonymous = false,
     required this.post,
     this.topicTitle = '',
     this.topicAvailable = true,
@@ -28,7 +26,6 @@ class PostActions extends ConsumerStatefulWidget {
     required this.onReport,
   });
   final PostPayload post;
-  final bool canRevealAnonymous;
   final String topicTitle;
   final bool topicAvailable;
   final Future<void> Function() onChanged;
@@ -100,15 +97,6 @@ class _PostActionsState extends ConsumerState<PostActions> {
     final post = widget.post;
     final epoch = ref.read(offlineCacheEpochProvider);
     if ((action == 'share' || action == 'shareImage') && !_available) return;
-    if (action == 'anonymous') {
-      await showAnonymousModeration(
-        context,
-        postId: post.id,
-        publicUid: post.author.publicUid!,
-        canReveal: widget.canRevealAnonymous,
-      );
-      return;
-    }
     if (action == 'history') {
       await showGfBottomSheet<void>(
         context,
@@ -427,11 +415,6 @@ class _PostActionsState extends ConsumerState<PostActions> {
               child: Text(l10n.topicShareImage),
             ),
           ],
-          if (post.canModerate && post.author.publicUid != null)
-            PopupMenuItem(
-              value: 'anonymous',
-              child: Text(l10n.anonymousManage),
-            ),
           if (post.canModerate && post.processStatus == 0)
             PopupMenuItem(value: 'ban', child: Text(l10n.topicModerateBan)),
           if (post.canModerate && post.processStatus == 1)

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeft, BookOpen, Building2, CalendarDays, Check, Download, FileText, Flag, GraduationCap, Hash, Loader2, MessageSquareText, Pencil, Share2, Star, ThumbsDown, ThumbsUp, Trash2, UsersRound, X } from '@lucide/vue'
 import {
@@ -21,7 +21,7 @@ import { formatDateTime } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
 import { processImageFile, validateImageFile } from '@/runtime/image'
 import CourseReviewTemplateSelector from '@/site/components/CourseReviewTemplateSelector.vue'
-import VditorOfficial from '@/site/components/VditorOfficial.vue'
+import type VditorOfficialComponent from '@/site/components/VditorOfficial.vue'
 import AISummaryCard from '@/site/components/AISummaryCard.vue'
 import RatingSummaryCard from '@/site/components/RatingSummaryCard.vue'
 import EmptyState from '@/site/components/EmptyState.vue'
@@ -44,6 +44,14 @@ import { readCourseCatalogReturn } from '@/site/utils/course-catalog-return'
 import { shortTerm } from '@/site/utils/term'
 import PageHeader from '@/site/components/PageHeader.vue'
 import type { CourseDetailPageProps, LayoutPayload } from '@gooseforum/client'
+
+const VditorOfficial = defineAsyncComponent({
+  loader: () => import('@/site/components/VditorOfficial.vue'),
+  onError(_error, _retry, fail) {
+    reviewEditorFailed.value = true
+    fail()
+  },
+})
 
 // SSR 透传的新字段（后端 CourseDetail 扩展，仅显示层读取）：
 // reviewScope 课评范围三档（teacher/team/course，缺省按 teacher 处理）、teamKey 团队键、
@@ -295,7 +303,7 @@ const templateSelectorOpen = ref(false)
 const formTemplateId = ref('')
 
 // —— 富文本编辑器（与帖子/回复同款 Vditor，紧凑工具栏）：异步就绪遮罩 + 图片上传 ——
-const reviewEditor = ref<InstanceType<typeof VditorOfficial> | null>(null)
+const reviewEditor = ref<InstanceType<typeof VditorOfficialComponent> | null>(null)
 const reviewEditorReady = ref(false)
 const reviewEditorFailed = ref(false)
 const uploadingReviewImages = ref(false)
@@ -1021,7 +1029,7 @@ onBeforeUnmount(() => {
             <span class="mb-1.5 block text-[13px] text-base-content/70">{{ t('courseDetailPage.content') }}</span>
             <!-- 不用 overflow-hidden 裁圆角：那会把 more 下拉（.vditor-hint）一并裁掉；
                  改为让内层 .vditor 继承圆角，下拉可自然溢出覆盖到下方表单 -->
-            <div class="relative rounded-[var(--gf-radius-box)] border border-line/70 bg-base-100 [&_.vditor]:rounded-[inherit]">
+            <div class="relative min-h-[380px] rounded-[var(--gf-radius-box)] border border-line/70 bg-base-100 [&_.vditor]:rounded-[inherit]">
               <!-- 与发布/回复同款富文本编辑器；slim-mobile：课评表单嵌套层级多（vw-64），
                    移动端用 7 项精简行，≤320px 视口也单行完整（10 项会在 320px 裁掉 more） -->
               <VditorOfficial
@@ -1038,7 +1046,7 @@ onBeforeUnmount(() => {
               />
               <div
                 v-if="!reviewEditorReady"
-                class="absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-[inherit] bg-base-100/60 text-sm"
+                class="absolute inset-0 z-10 flex min-h-[380px] items-center justify-center gap-2 rounded-[inherit] bg-base-100/60 text-sm"
                 :class="reviewEditorFailed ? 'text-error' : 'text-base-content/55'"
                 :role="reviewEditorFailed ? 'alert' : 'status'"
                 aria-live="polite"

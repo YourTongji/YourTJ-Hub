@@ -378,12 +378,18 @@ func deleteCalendarData(log *pk.FetchLogEntity, calendarId uint64) error {
 }
 
 func deleteCalendarDataForAudience(log *pk.FetchLogEntity, audience Audience, calendarId uint64) error {
-	return db.Connect().Transaction(func(tx *gorm.DB) error {
-		if err := pk.RenewFetchLogLeaseTx(tx, log); err != nil {
-			return err
+	err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		if log != nil {
+			if err := pk.RenewFetchLogLeaseTx(tx, log); err != nil {
+				return err
+			}
 		}
 		return pk.DeleteCalendarDataForAudienceTx(tx, audience, calendarId)
 	})
+	if err == nil {
+		InvalidateCatalogCache()
+	}
+	return err
 }
 
 // writeBatchTx 是写入转换的无租约测试入口；同步流程必须使用 writeBatchWithLeaseTx。
@@ -411,5 +417,8 @@ func writeBatchWithLeaseTxForAudience(log *pk.FetchLogEntity, audience Audience,
 		n = written
 		return nil
 	})
+	if err == nil {
+		InvalidateCatalogCache()
+	}
 	return n, err
 }

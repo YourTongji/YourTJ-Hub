@@ -1,4 +1,5 @@
-import { beginFeedDetail, endFeedDetail, feedRequestHeaders, resetFeedAccount } from './feed-telemetry'
+import { activeForYouSession, forYouSessionLost, historySessionKey, isForYou, restoreForYouSession, saveForYouSession, saveSessionAnchor, sessionAnchor, restoreFeedAnchor, lostForYouPage } from './for-you-sessions'
+import { beginFeedDetail, endFeedDetail, feedRequestHeaders, resetFeedAccount, feedAccountRevision, StaleFeedAccountError } from './feed-telemetry'
 import { useNavigationState } from './navigation-state'
 import { homeFeedNavigation } from './home-feed-navigation'
 import { resolvePageComponent } from './page-registry'
@@ -17,6 +18,8 @@ export interface PreparedPage {
 export function installNavigation(initialPage: PreparedPage, routeComponent: Component, onPage: (page: PreparedPage) => void): Router {
   resetFeedAccount(initialPage.payload.layout?.viewer?.id ?? 0)
  const navigation = useNavigationState()
+  let committedPosition = window.history.state?.position
+  let restoringKey = ""
   let initialNavigation = true
   const pagesByRoute = new Map<string, { page: PreparedPage; feedRequest?: number }>()
 
@@ -34,6 +37,12 @@ export function installNavigation(initialPage: PreparedPage, routeComponent: Com
       if (to.path === '/map') return false
       return new Promise((resolve) => {
         requestAnimationFrame(() => {
+          if (restoringKey) {
+            restoreFeedAnchor(sessionAnchor(restoringKey))
+            restoringKey = ''
+            resolve(false)
+            return
+          }
           if (savedPosition) {
             resolve(savedPosition)
             return
@@ -67,6 +76,29 @@ export function installNavigation(initialPage: PreparedPage, routeComponent: Com
       return false
     }
 
+    saveSessionAnchor()
+    const targetPosition = window.history.state?.position
+    if (targetPosition !== committedPosition && targetPosition != null) {
+      const key = historySessionKey(targetPosition)
+      const restored = restoreForYouSession(key)
+      if (restored && restored.payload.url === to.fullPath) {
+        endFeedDetail()
+        homeFeedNavigation.cancel()
+        restoringKey = key
+        pagesByRoute.set(to.fullPath, { page: restored })
+        return true
+      }
+      if (to.path === '/' && (to.query.sort === 'for_you' || window.history.state?.gooseForYou)) {
+        // An evicted history entry must not silently start another batch.
+        const lost = lostForYouPage(to.fullPath)
+        if (lost) {
+          endFeedDetail()
+          homeFeedNavigation.cancel()
+          pagesByRoute.set(to.fullPath, { page: lost })
+          return true
+        }
+      }
+    }
     const isHomeFeedNavigation = from.path === '/' && to.path === '/'
     const feedRequest = isHomeFeedNavigation ? homeFeedNavigation.begin(to.fullPath) : undefined
     if (!isHomeFeedNavigation) {
@@ -78,7 +110,8 @@ export function installNavigation(initialPage: PreparedPage, routeComponent: Com
       const page = await getPreparedPage(url)
       pagesByRoute.set(to.fullPath, { page, feedRequest })
       return true
-    } catch {
+    } catch (error) {
+      if (error instanceof StaleFeedAccountError) return false
       if (feedRequest !== undefined) {
         homeFeedNavigation.fail(feedRequest, to.fullPath)
         return false
@@ -99,6 +132,14 @@ export function installNavigation(initialPage: PreparedPage, routeComponent: Com
     pagesByRoute.delete(_to.fullPath)
     if (result) {
       if (result.feedRequest !== undefined) homeFeedNavigation.complete(result.feedRequest)
+      committedPosition = window.history.state?.position
+      if (isForYou(result.page.payload)) {
+        window.history.replaceState({ ...window.history.state, gooseForYou: true }, "")
+        const key = historySessionKey(committedPosition)
+        forYouSessionLost.value = Boolean((result.page.payload.props as import("@gooseforum/client").HomeProps).sessionLost)
+        saveForYouSession(key, result.page)
+        activeForYouSession.value = key
+      } else { activeForYouSession.value = ''; forYouSessionLost.value = false }
       onPage(result.page)
     }
     if (!isHomeFeedNavigation) navigation.setNavigating(false)
@@ -168,7 +209,9 @@ async function getPreparedPage(url: URL): Promise<PreparedPage> {
 }
 
 export async function fetchPage(url: URL, prefetch = false): Promise<PagePayload> {
+ const revision = feedAccountRevision()
  const payload = await client.pages.fetch(url, {headers: { ...feedRequestHeaders(url), ...(prefetch ? {'X-Goose-Prefetch': '1'} : {}) }})
+ if (revision !== feedAccountRevision()) throw new StaleFeedAccountError("feed account changed")
  resetFeedAccount(payload.layout?.viewer?.id ?? 0)
  if (!prefetch && payload.component === 'topic.detail') {
  const match = url.pathname.match(/^\/p\/post\/(\d+)/)

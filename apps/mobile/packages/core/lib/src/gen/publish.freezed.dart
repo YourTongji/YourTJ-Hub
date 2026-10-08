@@ -1828,6 +1828,8 @@ HomeProps _$HomePropsFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$HomeProps {
+  String? get snapshotId => throw _privateConstructorUsedError;
+  List<FeedSeenProof> get seenProofs => throw _privateConstructorUsedError;
   String? get actualSort => throw _privateConstructorUsedError;
   String? get degradeReason => throw _privateConstructorUsedError;
   String? get feedTrace => throw _privateConstructorUsedError;
@@ -1853,6 +1855,8 @@ abstract class $HomePropsCopyWith<$Res> {
       _$HomePropsCopyWithImpl<$Res, HomeProps>;
   @useResult
   $Res call({
+    String? snapshotId,
+    List<FeedSeenProof> seenProofs,
     String? actualSort,
     String? degradeReason,
     String? feedTrace,
@@ -1882,6 +1886,8 @@ class _$HomePropsCopyWithImpl<$Res, $Val extends HomeProps>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? snapshotId = freezed,
+    Object? seenProofs = null,
     Object? actualSort = freezed,
     Object? degradeReason = freezed,
     Object? feedTrace = freezed,
@@ -1893,6 +1899,14 @@ class _$HomePropsCopyWithImpl<$Res, $Val extends HomeProps>
   }) {
     return _then(
       _value.copyWith(
+            snapshotId: freezed == snapshotId
+                ? _value.snapshotId
+                : snapshotId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            seenProofs: null == seenProofs
+                ? _value.seenProofs
+                : seenProofs // ignore: cast_nullable_to_non_nullable
+                      as List<FeedSeenProof>,
             actualSort: freezed == actualSort
                 ? _value.actualSort
                 : actualSort // ignore: cast_nullable_to_non_nullable
@@ -1961,6 +1975,8 @@ abstract class _$$HomePropsImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    String? snapshotId,
+    List<FeedSeenProof> seenProofs,
     String? actualSort,
     String? degradeReason,
     String? feedTrace,
@@ -1991,6 +2007,8 @@ class __$$HomePropsImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? snapshotId = freezed,
+    Object? seenProofs = null,
     Object? actualSort = freezed,
     Object? degradeReason = freezed,
     Object? feedTrace = freezed,
@@ -2002,6 +2020,14 @@ class __$$HomePropsImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$HomePropsImpl(
+        snapshotId: freezed == snapshotId
+            ? _value.snapshotId
+            : snapshotId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        seenProofs: null == seenProofs
+            ? _value._seenProofs
+            : seenProofs // ignore: cast_nullable_to_non_nullable
+                  as List<FeedSeenProof>,
         actualSort: freezed == actualSort
             ? _value.actualSort
             : actualSort // ignore: cast_nullable_to_non_nullable
@@ -2043,6 +2069,8 @@ class __$$HomePropsImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$HomePropsImpl implements _HomeProps {
   const _$HomePropsImpl({
+    this.snapshotId,
+    final List<FeedSeenProof> seenProofs = const [],
     this.actualSort,
     this.degradeReason,
     this.feedTrace,
@@ -2051,11 +2079,23 @@ class _$HomePropsImpl implements _HomeProps {
     required final List<TopicPayload> topics,
     required this.pagination,
     required this.announcement,
-  }) : _tabs = tabs,
+  }) : _seenProofs = seenProofs,
+       _tabs = tabs,
        _topics = topics;
 
   factory _$HomePropsImpl.fromJson(Map<String, dynamic> json) =>
       _$$HomePropsImplFromJson(json);
+
+  @override
+  final String? snapshotId;
+  final List<FeedSeenProof> _seenProofs;
+  @override
+  @JsonKey()
+  List<FeedSeenProof> get seenProofs {
+    if (_seenProofs is EqualUnmodifiableListView) return _seenProofs;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_seenProofs);
+  }
 
   @override
   final String? actualSort;
@@ -2088,7 +2128,7 @@ class _$HomePropsImpl implements _HomeProps {
 
   @override
   String toString() {
-    return 'HomeProps(actualSort: $actualSort, degradeReason: $degradeReason, feedTrace: $feedTrace, sort: $sort, tabs: $tabs, topics: $topics, pagination: $pagination, announcement: $announcement)';
+    return 'HomeProps(snapshotId: $snapshotId, seenProofs: $seenProofs, actualSort: $actualSort, degradeReason: $degradeReason, feedTrace: $feedTrace, sort: $sort, tabs: $tabs, topics: $topics, pagination: $pagination, announcement: $announcement)';
   }
 
   @override
@@ -2096,6 +2136,12 @@ class _$HomePropsImpl implements _HomeProps {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$HomePropsImpl &&
+            (identical(other.snapshotId, snapshotId) ||
+                other.snapshotId == snapshotId) &&
+            const DeepCollectionEquality().equals(
+              other._seenProofs,
+              _seenProofs,
+            ) &&
             (identical(other.actualSort, actualSort) ||
                 other.actualSort == actualSort) &&
             (identical(other.degradeReason, degradeReason) ||
@@ -2115,6 +2161,8 @@ class _$HomePropsImpl implements _HomeProps {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    snapshotId,
+    const DeepCollectionEquality().hash(_seenProofs),
     actualSort,
     degradeReason,
     feedTrace,
@@ -2141,6 +2189,8 @@ class _$HomePropsImpl implements _HomeProps {
 
 abstract class _HomeProps implements HomeProps {
   const factory _HomeProps({
+    final String? snapshotId,
+    final List<FeedSeenProof> seenProofs,
     final String? actualSort,
     final String? degradeReason,
     final String? feedTrace,
@@ -2154,6 +2204,10 @@ abstract class _HomeProps implements HomeProps {
   factory _HomeProps.fromJson(Map<String, dynamic> json) =
       _$HomePropsImpl.fromJson;
 
+  @override
+  String? get snapshotId;
+  @override
+  List<FeedSeenProof> get seenProofs;
   @override
   String? get actualSort;
   @override

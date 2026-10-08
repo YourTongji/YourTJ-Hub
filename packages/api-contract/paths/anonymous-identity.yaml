@@ -6,7 +6,7 @@ getAnonymousIdentityState:
     description: >-
       Private, no-store response. One persona per numeric owner, shared across clients.
       State reads share the configurable interaction rate limit with persona writes.
-      Names come from the complete embedded THUOCL pool without content filters.
+      New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged.
       Shanghai calendar day allows ten idempotent batches of ten distinct words.
       Confirmation preserves UID and avatar and locks the name until the next calendar anniversary.
       Reveal requires an explicit permission 7 grant, a reason, and a committed private audit;
@@ -49,7 +49,7 @@ generateAnonymousNames:
     operationId: generateAnonymousNames
     description: >-
       Private, no-store response. One persona per numeric owner, shared across clients.
-      Names come from the complete embedded THUOCL pool without content filters.
+      New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged.
       Shanghai calendar day allows ten idempotent batches of ten distinct words.
       Confirmation preserves UID and avatar and locks the name until the next calendar anniversary.
       Reveal requires an explicit permission 7 grant, a reason, and a committed private audit;
@@ -98,7 +98,7 @@ confirmAnonymousName:
     operationId: confirmAnonymousName
     description: >-
       Private, no-store response. One persona per numeric owner, shared across clients.
-      Names come from the complete embedded THUOCL pool without content filters.
+      New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged.
       Shanghai calendar day allows ten idempotent batches of ten distinct words.
       Confirmation preserves UID and avatar and locks the name until the next calendar anniversary.
       Reveal requires an explicit permission 7 grant, a reason, and a committed private audit;
@@ -147,7 +147,7 @@ disableAnonymousIdentity:
     operationId: disableAnonymousIdentity
     description: >-
       Private, no-store response. One persona per numeric owner, shared across clients.
-      Names come from the complete embedded THUOCL pool without content filters.
+      New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged.
       Shanghai calendar day allows ten idempotent batches of ten distinct words.
       Confirmation preserves UID and avatar and locks the name until the next calendar anniversary.
       Reveal requires an explicit permission 7 grant, a reason, and a committed private audit;
@@ -196,7 +196,7 @@ revealAnonymousIdentity:
     operationId: revealAnonymousIdentity
     description: >-
       Private, no-store response. One persona per numeric owner, shared across clients.
-      Names come from the complete embedded THUOCL pool without content filters.
+      New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged.
       Shanghai calendar day allows ten idempotent batches of ten distinct words.
       Confirmation preserves UID and avatar and locks the name until the next calendar anniversary.
       Reveal requires an explicit permission 7 grant, a reason, and a committed private audit;
@@ -285,3 +285,45 @@ governAnonymousIdentity:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
+
+updateAnonymousProfilePrivacy:
+  post:
+    tags: [Forum]
+    summary: Update anonymous profile content visibility
+    operationId: updateAnonymousProfilePrivacy
+    description: >-
+      Requires the current authenticated live human owner; no caller-supplied persona UID is accepted.
+      Persists the independent showContent preference. Frozen or governance-restricted owners may manage profile privacy without restoring publishing rights.
+      When false, the public profile omits topic/reply streams, counts and pagination for all viewers; existing forum content remains accessible through its normal routes.
+      Private no-store response. Missing/null showContent is a business validation failure; false is accepted.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: ../components/anonymous-identity.yaml#/AnonymousProfilePrivacyRequest }
+    responses:
+      '200':
+        description: Success or business failure
+        content:
+          application/json:
+            schema: { $ref: ../components/anonymous-identity.yaml#/disableAnonymousIdentityResponse }
+            examples:
+              success: { externalValue: ../fixtures/anonymous-disable-success.json }
+      '401':
+        description: Authentication required
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '403':
+        description: CSRF rejected
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '429':
+        description: Interaction rate limited
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/RateLimitedFailure }

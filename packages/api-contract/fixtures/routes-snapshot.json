@@ -721,6 +721,14 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/anonymous-identities/govern"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/anonymous-identities/list"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/badge-delete"
   },
   {
@@ -1081,6 +1089,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/anonymous/privacy"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/anonymous/reveal"
   },
   {
@@ -1122,6 +1134,14 @@
   {
     "method": "POST",
     "path": "/api/forum/feed/events"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/feed/reconcile"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/feed/refresh"
   },
   {
     "method": "POST",

@@ -3402,4 +3402,80 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sortDaily => '今日热榜';
+
+  @override
+  String get anonymousPurpose => '使用固定花名发帖和回复，对公众隐藏主账号关联。';
+
+  @override
+  String get anonymousSettingsHint => '管理匿名发言使用的花名与身份';
+
+  @override
+  String get anonymousIntroTitle => '匿名身份有自己的花名和发言记录';
+
+  @override
+  String get anonymousHistoryHint => '同一匿名身份的历史内容可以互相关联。内容本身仍可能透露你的身份。';
+
+  @override
+  String get anonymousConfirmHint => '每个账号只有一个匿名身份；确认后，花名一年内不可更改。';
+
+  @override
+  String get anonymousPrivacySummary =>
+      '公众和普通版主无法查看主账号关联。获专门权限的管理员可填写理由并留痕揭示；账号关闭后，绑定与审计记录仍长期保留。';
+
+  @override
+  String get anonymousRules => '了解匿名规则';
+
+  @override
+  String get anonymousChooseName => '选择花名';
+
+  @override
+  String get anonymousRefreshNames => '换一批';
+
+  @override
+  String anonymousDrawsRemaining(int remaining) {
+    return '今日还可抽取 $remaining 批';
+  }
+
+  @override
+  String anonymousBatchNumber(int number) {
+    return '第 $number 批';
+  }
+
+  @override
+  String get anonymousPreviousBatches => '查看已生成的候选';
+
+  @override
+  String get anonymousNamePreview => '你将使用的花名';
+
+  @override
+  String get anonymousConfirmName => '确认使用此花名';
+
+  @override
+  String get anonymousInactive => '已停用';
+
+  @override
+  String get anonymousReady => '可使用';
+
+  @override
+  String anonymousLockedUntil(String date) {
+    return '$date 后可更改花名';
+  }
+
+  @override
+  String anonymousResetAt(String date) {
+    return '$date 重置抽取次数';
+  }
+
+  @override
+  String get anonymousNameLockHint => '确认后，花名一年内不可更改。';
+
+  @override
+  String get anonymousShowContent => '展示匿名主页内容';
+
+  @override
+  String get anonymousShowContentDescription =>
+      '允许从匿名主页查看帖子、评论和数量。关闭后仅保留花名与头像，论坛中的原内容仍可正常访问。';
+
+  @override
+  String get anonymousProfileContentHidden => '匿名主页的内容已隐藏';
 }

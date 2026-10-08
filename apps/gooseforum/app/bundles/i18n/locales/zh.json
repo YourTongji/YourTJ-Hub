@@ -134,6 +134,7 @@
   "serverMessages.sticker.imageRequired": "请选择自己已上传的图片或 GIF，单张不超过 {maxSizeMb} MB。",
   "serverMessages.sticker.unavailable": "该表情已不可用。",
   "permission.revealAnonymousIdentity": "揭示匿名身份（受限审计）",
+  "anonymous.profileContentHidden": "匿名主页的内容已隐藏",
   "anonymous.identity": "匿名身份",
   "anonymous.nameLocked": "花名一年内不可更改。",
   "anonymous.dailyLimit": "今日 10 次随机额度已用完，仍可选择当天已生成候选。",

@@ -991,14 +991,29 @@ identity survive this layout change. The header keeps a small outer margin for i
 
 ## Persistent forum anonymous identity
 
-`Current`: native settings offer the same complete THUOCL candidates, ten words per batch and ten
-batches per Shanghai day as Web. Candidates wrap without truncation and require a confirmation
-dialog explaining the one-year name lock and restricted audit boundary. An ambiguous draw retains
-its request key for retry. Self-disable/enable keeps the persona UID, avatar and slot; a governance
+`Current`: persona profiles reuse the member profile's collapsing cover/avatar/navigation,
+user card, edit button, animated tabs and content components, with public topic/reply streams.
+The own-profile menu opens the persona profile when configured, or setup otherwise. Only the
+owner's private identity state enables the shared management action. No main-account cover,
+badges, relationships or profile fields are copied into the persona presentation. New candidate
+names freely combine action, scene/object and animal components into six Han characters;
+existing selected names and persisted batches remain valid under their original lock/expiry.
+
+`Current`: native settings offer the same six-character candidates, ten names per batch and ten
+batches per Shanghai day as Web. Account settings keeps a compact anonymous-identity entry;
+its page and the composer's contextual bottom sheet reuse the same setup content. One candidate
+batch appears at a time, and previously generated same-day batches remain selectable without a
+new draw. Candidates wrap without truncation. Tapping a name previews it; a pinned action area
+keeps the one-year lock notice and explicit confirmation visible. Introductory and privacy text
+scroll with the contents, and full rules remain expandable. An ambiguous draw retains its request
+key for retry. Self-disable/enable keeps the persona UID, avatar and slot; a governance
 restriction cannot be cleared from settings. Private state follows the current session epoch.
 
-`Current`: native topic and reply composers show the current name/avatar and a main/persona choice,
-retained in local writing recovery and failed/captcha submissions. Editing a published topic retains
+`Current`: native topic and reply composers show a compact current-name/avatar identity menu.
+Setup opens a bottom sheet over the active writing route, preserving the draft. Successful explicit
+confirmation closes the sheet and selects the persona; cancelling, failure or a session change never
+silently changes publishing identity. Main/persona choices are retained in local writing recovery
+and failed/captcha submissions. Editing a published topic retains
 its author. A continuation in an owned anonymous topic defaults to persona. Persona names and
 notification actors open the native `/a/:publicUid` profile with only visible topic/reply history
 and counts; author-only reply filtering compares public identities. The common avatar component

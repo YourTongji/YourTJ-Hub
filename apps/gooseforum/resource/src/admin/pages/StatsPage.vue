@@ -25,7 +25,6 @@ defineProps<{
 
 const DateRangePicker = defineAsyncComponent(() => import('@/admin/pages/stats/DateRangePicker.vue'))
 const ProjectVersion = defineAsyncComponent(() => import('@/admin/pages/stats/ProjectVersion.vue'))
-const FeedStatistics = defineAsyncComponent(() => import('@/admin/pages/stats/FeedStatistics.vue'))
 const TrafficOverview = defineAsyncComponent(() => import('@/admin/pages/stats/TrafficOverview.vue'))
 
 const stats = ref<SiteStatistics>()
@@ -203,7 +202,6 @@ onMounted(() => {
 
       <div class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div class="min-w-0">
-          <FeedStatistics />
  <TrafficOverview :data="traffic" :loading="trafficLoading">
             <template #headerAction>
               <DateRangePicker

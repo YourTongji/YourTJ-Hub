@@ -42,6 +42,7 @@ type State struct {
 	NameChangeAvailableAt *time.Time       `json:"nameChangeAvailableAt"`
 	Disabled              bool             `json:"disabled"`
 	GovernanceDisabled    bool             `json:"governanceDisabled"`
+	ShowContent           bool             `json:"showContent"`
 	Day                   string           `json:"day"`
 	Remaining             int              `json:"remaining"`
 	ResetsAt              time.Time        `json:"resetsAt"`
@@ -75,7 +76,7 @@ func personaForOwner(tx *gorm.DB, owner uint64) (identity.Persona, error) {
 	return persona, err
 }
 func (s Service) State(owner uint64) (State, error) {
-	state := State{Remaining: 10, Batches: []identity.Batch{}, LexiconVersion: anonymousnames.Version}
+	state := State{Remaining: 10, Batches: []identity.Batch{}, LexiconVersion: anonymousnames.Version, ShowContent: true}
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		// Reads serialize with writes to return a consistent remaining/batch snapshot.
 		if _, err := users.LockAnonymousOwnerForReadTx(tx, owner); err != nil {
@@ -94,6 +95,7 @@ func (s Service) State(owner uint64) (State, error) {
 			state.NameChangeAvailableAt = &p.NameChangeAvailableAt
 			state.Disabled = p.Disabled
 			state.GovernanceDisabled = p.GovernanceDisabled
+			state.ShowContent = p.ShowContent
 		}
 		var q identity.Quota
 		if err := tx.First(&q, "owner_id = ? AND day = ?", owner, day).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -248,6 +250,21 @@ func (s Service) SetDisabled(owner uint64, disabled bool) error {
 			return ErrUnavailable
 		}
 		return tx.Model(&p).Update("disabled", disabled).Error
+	})
+}
+
+// Profile privacy remains manageable during a publishing restriction. Only the
+// current live human owner is accepted, and no caller-supplied persona UID is used.
+func (s Service) SetShowContent(owner uint64, show bool) error {
+	return s.DB.Transaction(func(tx *gorm.DB) error {
+		if _, err := users.LockAnonymousOwnerForReadTx(tx, owner); err != nil {
+			return err
+		}
+		p, err := personaForOwner(tx, owner)
+		if err != nil {
+			return err
+		}
+		return tx.Model(&p).Update("show_content", show).Error
 	})
 }
 

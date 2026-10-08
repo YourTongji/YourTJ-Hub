@@ -6491,6 +6491,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Today\'s top'**
   String get sortDaily;
+
+  /// No description provided for @anonymousPurpose.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a fixed alias for posts and replies, hiding your main-account association from the public.'**
+  String get anonymousPurpose;
+
+  /// No description provided for @anonymousSettingsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage the alias and identity used for anonymous posts'**
+  String get anonymousSettingsHint;
+
+  /// No description provided for @anonymousIntroTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your anonymous identity has its own name and history'**
+  String get anonymousIntroTitle;
+
+  /// No description provided for @anonymousHistoryHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts from the same anonymous identity are linked. Their content may still reveal who you are.'**
+  String get anonymousHistoryHint;
+
+  /// No description provided for @anonymousConfirmHint.
+  ///
+  /// In en, this message translates to:
+  /// **'One anonymous identity per account. Once confirmed, the name cannot change for one year.'**
+  String get anonymousConfirmHint;
+
+  /// No description provided for @anonymousPrivacySummary.
+  ///
+  /// In en, this message translates to:
+  /// **'The public and ordinary moderators cannot see the main-account association. Specially authorized administrators can reveal it with a recorded reason and audit. Bindings and audit records remain after account closure.'**
+  String get anonymousPrivacySummary;
+
+  /// No description provided for @anonymousRules.
+  ///
+  /// In en, this message translates to:
+  /// **'About anonymous identities'**
+  String get anonymousRules;
+
+  /// No description provided for @anonymousChooseName.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a name'**
+  String get anonymousChooseName;
+
+  /// No description provided for @anonymousRefreshNames.
+  ///
+  /// In en, this message translates to:
+  /// **'Draw another batch'**
+  String get anonymousRefreshNames;
+
+  /// No description provided for @anonymousDrawsRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'{remaining} batches left today'**
+  String anonymousDrawsRemaining(int remaining);
+
+  /// No description provided for @anonymousBatchNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Batch {number}'**
+  String anonymousBatchNumber(int number);
+
+  /// No description provided for @anonymousPreviousBatches.
+  ///
+  /// In en, this message translates to:
+  /// **'Previously generated candidates'**
+  String get anonymousPreviousBatches;
+
+  /// No description provided for @anonymousNamePreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Your chosen name'**
+  String get anonymousNamePreview;
+
+  /// No description provided for @anonymousConfirmName.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm name'**
+  String get anonymousConfirmName;
+
+  /// No description provided for @anonymousInactive.
+  ///
+  /// In en, this message translates to:
+  /// **'Inactive'**
+  String get anonymousInactive;
+
+  /// No description provided for @anonymousReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Available'**
+  String get anonymousReady;
+
+  /// No description provided for @anonymousLockedUntil.
+  ///
+  /// In en, this message translates to:
+  /// **'You can change the name after {date}'**
+  String anonymousLockedUntil(String date);
+
+  /// No description provided for @anonymousResetAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Draws reset at {date}'**
+  String anonymousResetAt(String date);
+
+  /// No description provided for @anonymousNameLockHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Name locked for one year.'**
+  String get anonymousNameLockHint;
+
+  /// No description provided for @anonymousShowContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Show anonymous profile content'**
+  String get anonymousShowContent;
+
+  /// No description provided for @anonymousShowContentDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Show topics, replies and counts on the anonymous profile. When off, only the name and avatar remain; the original forum content stays accessible.'**
+  String get anonymousShowContentDescription;
+
+  /// No description provided for @anonymousProfileContentHidden.
+  ///
+  /// In en, this message translates to:
+  /// **'Content on this anonymous profile is hidden'**
+  String get anonymousProfileContentHidden;
 }
 
 class _AppLocalizationsDelegate

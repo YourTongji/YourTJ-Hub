@@ -1,0 +1,11 @@
+{{define "partials/profile_header.gohtml"}}
+<header class="gf-crawler-user-head">
+    <img class="gf-crawler-user-avatar" src="{{.AvatarUrl}}" alt="{{.Name}}" width="96" height="96">
+    <div>
+        <h1>{{.Name}}</h1>
+        {{if .Username}}<p class="gf-crawler-user-meta">@{{.Username}}</p>{{end}}
+        {{if .Label}}<p class="gf-crawler-user-meta">{{.Label}}</p>{{end}}
+        {{if .Bio}}<p class="gf-crawler-user-bio">{{.Bio}}</p>{{end}}
+    </div>
+</header>
+{{end}}

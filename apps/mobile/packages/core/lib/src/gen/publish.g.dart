@@ -162,6 +162,12 @@ Map<String, dynamic> _$$AnnouncementPayloadImplToJson(
 
 _$HomePropsImpl _$$HomePropsImplFromJson(Map<String, dynamic> json) =>
     _$HomePropsImpl(
+      snapshotId: json['snapshotId'] as String?,
+      seenProofs:
+          (json['seenProofs'] as List<dynamic>?)
+              ?.map((e) => FeedSeenProof.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
       actualSort: json['actualSort'] as String?,
       degradeReason: json['degradeReason'] as String?,
       feedTrace: json['feedTrace'] as String?,
@@ -182,6 +188,8 @@ _$HomePropsImpl _$$HomePropsImplFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$$HomePropsImplToJson(_$HomePropsImpl instance) =>
     <String, dynamic>{
+      'snapshotId': instance.snapshotId,
+      'seenProofs': instance.seenProofs,
       'actualSort': instance.actualSort,
       'degradeReason': instance.degradeReason,
       'feedTrace': instance.feedTrace,

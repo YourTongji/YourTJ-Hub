@@ -86,7 +86,6 @@ class _TopicPageState extends ConsumerState<TopicPage>
 
   AsyncValue<TopicDetailProps> _page = const AsyncValue.loading();
   bool _viewerAuthenticated = false;
-  bool _canRevealAnonymous = false;
   bool _fromCache = false;
   bool _cacheRefreshing = false;
   bool _cacheCleared = false;
@@ -402,9 +401,6 @@ class _TopicPageState extends ConsumerState<TopicPage>
       }
       _viewerAuthenticated = !cached && payload.layout.viewer.isAuthenticated;
       _viewerId = cached ? 0 : payload.layout.viewer.id;
-      _canRevealAnonymous =
-          !cached &&
-          (payload.layout.viewer.adminPermissions?.contains(7) ?? false);
       _posts.clear();
       _posts.addAll(props.postStream.posts);
       _replyTargets
@@ -1660,7 +1656,6 @@ class _TopicPageState extends ConsumerState<TopicPage>
           if (!_fromCache && _page.valueOrNull != null)
             TopicActions(
               props: _page.valueOrNull!,
-              canRevealAnonymous: _canRevealAnonymous,
               firstPostId: _mainPost(_posts)?.id,
               onChanged: () => _load(silent: true, postNo: _currentFloor),
             ),
@@ -1786,8 +1781,6 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                       children: <Widget>[
                                         _PostCard(
                                           post: post,
-                                          canRevealAnonymous:
-                                              _canRevealAnonymous,
                                           topicTitle: topicTitle,
                                           topicAvailable: _topicAvailable,
                                           readOnly: _fromCache,
@@ -2481,7 +2474,6 @@ class _TopicStat extends StatelessWidget {
 class _PostCard extends StatelessWidget {
   const _PostCard({
     this.readOnly = false,
-    this.canRevealAnonymous = false,
     required this.post,
     required this.topicTitle,
     required this.topicAvailable,
@@ -2493,7 +2485,6 @@ class _PostCard extends StatelessWidget {
   });
 
   final bool readOnly;
-  final bool canRevealAnonymous;
   final PostPayload post;
   final String topicTitle;
   final bool topicAvailable;
@@ -2562,7 +2553,10 @@ class _PostCard extends StatelessWidget {
                 ),
               ),
               if (post.author.publicUid != null)
-                Text(l10n.anonymousPersonaLabel, style: GfTheme.typographyOf(context).caption),
+                Text(
+                  l10n.anonymousPersonaLabel,
+                  style: GfTheme.typographyOf(context).caption,
+                ),
               if (post.postNo > 0)
                 Text(
                   '#${post.postNo}',
@@ -2625,7 +2619,6 @@ class _PostCard extends StatelessWidget {
               width: double.infinity,
               child: PostActions(
                 post: post,
-                canRevealAnonymous: canRevealAnonymous,
                 topicTitle: topicTitle,
                 topicAvailable: topicAvailable,
                 onChanged: onChanged,

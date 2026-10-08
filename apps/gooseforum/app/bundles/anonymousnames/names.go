@@ -1,72 +1,89 @@
-// Package anonymousnames embeds the unfiltered THUOCL lexicon for persona names.
+// Package anonymousnames generates six-character persona names from curated components.
 package anonymousnames
 
 import (
-	"bufio"
 	"crypto/rand"
-	"embed"
+	_ "embed"
+	"encoding/json"
 	"fmt"
 	"math/big"
-	"strings"
 	"sync"
+	"unicode"
+	"unicode/utf8"
 )
 
-const Version = "THUOCL-a30ce79d895d01ab5132a5c74c29703ff7efb4cc"
+const Version = "phrase6-v1"
 
-//go:embed data/*.txt LICENSE README.md
-var source embed.FS
+//go:embed data/phrases.json
+var phrasesJSON []byte
 
-var load = sync.OnceValues(func() ([]string, error) {
-	files, err := source.ReadDir("data")
-	if err != nil {
-		return nil, err
+type namePool struct {
+	Actions []string `json:"actions"`
+	Objects []string `json:"objects"`
+	Animals []string `json:"animals"`
+}
+
+func (p namePool) size() int { return len(p.Actions) * len(p.Objects) * len(p.Animals) }
+func (p namePool) name(index int) string {
+	animal := index % len(p.Animals)
+	index /= len(p.Animals)
+	object := index % len(p.Objects)
+	action := index / len(p.Objects)
+	return p.Actions[action] + p.Objects[object] + "的" + p.Animals[animal]
+}
+
+var load = sync.OnceValues(func() (namePool, error) {
+	var pool namePool
+	if err := json.Unmarshal(phrasesJSON, &pool); err != nil {
+		return namePool{}, err
 	}
-	seen := make(map[string]bool)
-	words := make([]string, 0, 156289)
-	for _, file := range files {
-		data, err := source.ReadFile("data/" + file.Name())
-		if err != nil {
-			return nil, err
+	for _, component := range []struct {
+		words  []string
+		length int
+	}{
+		{pool.Actions, 2}, {pool.Objects, 2}, {pool.Animals, 1},
+	} {
+		if len(component.words) == 0 {
+			return namePool{}, fmt.Errorf("empty anonymous name component")
 		}
-		// The place-name file uses bare CR; three files pad the tab fields.
-		text := strings.ReplaceAll(strings.TrimPrefix(string(data), "\ufeff"), "\r", "\n")
-		scanner := bufio.NewScanner(strings.NewReader(text))
-		for scanner.Scan() {
-			word, _, _ := strings.Cut(scanner.Text(), "\t")
-			word = strings.TrimSpace(word)
-			if word == "" || seen[word] {
-				continue
+		seen := make(map[string]bool)
+		for _, word := range component.words {
+			if seen[word] || utf8.RuneCountInString(word) != component.length {
+				return namePool{}, fmt.Errorf("invalid anonymous name component: %q", word)
+			}
+			for _, r := range word {
+				if !unicode.Is(unicode.Han, r) {
+					return namePool{}, fmt.Errorf("non-Han component: %q", word)
+				}
 			}
 			seen[word] = true
-			words = append(words, word)
-		}
-		if err := scanner.Err(); err != nil {
-			return nil, err
 		}
 	}
-	if len(words) < 10 {
-		return nil, fmt.Errorf("anonymous lexicon has fewer than ten words")
+	if pool.size() < 10 {
+		return namePool{}, fmt.Errorf("anonymous name pool has fewer than ten names")
 	}
-	return words, nil
+	return pool, nil
 })
 
-// Batch draws ten distinct words uniformly. Separate batches may repeat words.
+// Batch uniformly draws ten distinct combinations with cryptographic randomness.
+// Components combine freely, including playful phrases. Existing persisted names
+// and batches are not regenerated; separate new batches may repeat a name.
 func Batch() ([]string, error) {
-	words, err := load()
+	pool, err := load()
 	if err != nil {
 		return nil, err
 	}
 	selected := make(map[int]bool, 10)
 	result := make([]string, 0, 10)
 	for len(result) < 10 {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(words))))
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(pool.size())))
 		if err != nil {
 			return nil, err
 		}
 		index := int(n.Int64())
 		if !selected[index] {
 			selected[index] = true
-			result = append(result, words[index])
+			result = append(result, pool.name(index))
 		}
 	}
 	return result, nil

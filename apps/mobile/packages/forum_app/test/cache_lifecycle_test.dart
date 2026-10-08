@@ -113,9 +113,9 @@ void lifecycleCases() {
       await guest.putMessages(1, [message(1)]);
       await guest.put(100, topic);
       await scoped().putConversations([conversation(2)]);
-      await scoped(site: 'https://prod.example').putConversations([
-        conversation(3),
-      ]);
+      await scoped(
+        site: 'https://prod.example',
+      ).putConversations([conversation(3)]);
       await db.customStatement(
         "INSERT INTO cache_entries VALUES ('not-json','forum','topic:9','{}',0,0,2,1)",
       );
@@ -220,6 +220,15 @@ void lifecycleCases() {
       final payload = topicDetailPayloadJson();
       (payload['props'] as Map)['topic']['topicStatus'] = 1;
       (payload['layout'] as Map)['viewer']['email'] = 'private@example.test';
+      (payload['props'] as Map)['seenProofs'] = [
+        {
+          'token': 'private-seen-proof',
+          'topicIds': [100],
+          'issuedAt': 1,
+          'expiresAt': 2,
+        },
+      ];
+      (payload['props'] as Map)['snapshotId'] = 'private-feed-session';
       await cache.put(100, payload);
       final stored = await db
           .customSelect(
@@ -231,6 +240,14 @@ void lifecycleCases() {
         isNot(contains('private@example.test')),
       );
       expect(stored.read<String>('payload'), isNot(contains('canAccessAdmin')));
+      expect(
+        stored.read<String>('payload'),
+        isNot(contains('private-seen-proof')),
+      );
+      expect(
+        stored.read<String>('payload'),
+        isNot(contains('private-feed-session')),
+      );
       final restored = await cache.get(100);
       expect(restored, isNotNull);
       expect(restored!.layout.viewer.isAuthenticated, isFalse);

@@ -11,17 +11,20 @@
 ## Identity and naming
 
 `Current`: each human account can create one persistent forum persona. It has a cryptographically
-random 128-bit public UID, an independently generated fixed Beam avatar and a read-only `/a/:publicUid`
+random 128-bit public UID, an independently generated fixed Beam avatar and a public `/a/:publicUid`
 profile. It cannot log in, receive private messages, follow people, hold a separate wallet or gain
 permissions. Numeric users remain the authentication, moderation, posting quota and credit subjects.
-The anonymous profile links only its public forum topics and replies, with their visible counts.
+The anonymous profile links only its public forum topics and replies, with their visible counts,
+when its owner enables profile content display.
 Main profiles, Following, participation records and public author statistics exclude persona content.
 
-`Current`: names are exact words from all eleven embedded THUOCL files at commit
-`a30ce79d895d01ab5132a5c74c29703ff7efb4cc`. The pool contains 156,289 distinct words; identical
-records are deduplicated. Length, characters, category, frequency and meaning do not filter this pool.
-There is no nickname validation, truncation or generated suffix. Different personas can have the
-same name; their UIDs, avatars and profiles distinguish them. A name confers no official badge.
+`Current`: new names freely combine a two-Han-character action, a two-Han-character
+scene/object, `的`, and a one-Han-character animal: 躲进云里的猫 or 抱着松果的熊.
+The repository-authored component pool is embedded as `phrase6-v1`, with 187,776 distinct
+six-character combinations. Components combine without grammar or semantic filtering, so
+playful phrases such as 躲进松果的猫 are eligible. Confirmed names and already persisted
+candidate batches retain their exact text across generator versions. Different personas can
+have the same name; their UIDs, avatars and profiles distinguish them. A name confers no badge.
 
 `Current`: Web Settings and the native mobile settings page expose ten distinct candidates per
 batch, at most ten new batches per account per Shanghai calendar day. The initial batch counts.
@@ -37,6 +40,69 @@ The locked period prevents both new draws and changes. After the anniversary, se
 keeps the UID, avatar, profile and historical attribution and starts another year. Selecting the same
 name does not restart the lock. Nothing forces a name change. Dynamic author projections use the
 current name; delivered notifications, screenshots and copied text are not recalled.
+
+## Public profile and management entry
+
+`Current`: Web member and persona profiles reuse the same cover/avatar header, responsive
+action area, navigation tabs, statistics and forum topic list components. Native profiles
+reuse the collapsing cover/navigation sliver, user card, edit button, animated tabs and topic
+cards/content rows. Persona profiles show their own public topic/reply streams and counts;
+they do not copy a main account's cover, badges, bio, relationships or activity.
+
+`Current`: the signed-in user's ordinary profile menu includes the anonymous identity entry.
+An existing persona opens its public profile; an unconfigured persona opens setup. The public
+persona page determines ownership only from the viewer's private state. Its owner sees the
+shared profile management button in the ordinary edit-action position, opening the shared
+setup/management dialog or sheet. Other viewers receive no private binding or management action.
+Web SVG avatars keep their original URL at comment, quote, list and profile sizes; no medium
+raster derivative is requested for the public persona SVG endpoint.
+
+`Current`: the shared identity management dialog/sheet includes an independent “Show anonymous
+profile content” preference. It is stored on the server for the authenticated live owner, with
+no caller-supplied persona UID. New and existing personas default to enabled. Disabling it hides
+the profile's topics, replies, counts, tabs and pagination for all viewers, including the owner;
+the public name/avatar and owner management action remain. The public page payload and crawler
+HTML omit the content, and native refresh/pagination cannot retain old streams. Original forum
+posts/replies keep their ordinary visibility and remain manageable through content management.
+The main profile's local display preference does not control the persona. Frozen or governance-
+restricted owners can change this privacy preference without restoring publishing; closed
+accounts cannot change it. Failed updates retain the last confirmed control value.
+
+## Settings and first use
+
+`Current`: Web exposes a compact anonymous-identity row under Settings → Privacy, separate from
+public-profile editing. It shows the current alias and availability or an unconfigured state. The
+legacy `/settings#anonymous-identity` entry selects the Privacy tab; choosing a tab clears that
+legacy anchor so reloading keeps the explicit tab selection. Native mobile retains its
+account-settings entry, with a compact description separating persona management from
+public-profile editing.
+
+`Current`: Web topic, quick-publish and reply composers expose a compact identity menu. Choosing
+setup opens the same accessible dialog as Settings without navigating away from the draft. Choosing
+a candidate only previews it; explicit successful confirmation selects the persona in that composer
+and closes the dialog. Cancelling or failed requests retain the draft and selected publishing identity.
+A disabled persona can be managed but cannot be chosen for publishing.
+
+`Current`: the dialog introduces the persona before drawing names, shows one candidate batch at a
+time, and permits returning to previously generated same-day batches without spending quota. The
+one-year lock, restricted audited reveal and post-closure retention are visible before confirmation;
+full rules can be expanded. Reset time appears when the daily draw quota is exhausted. Failed draw
+responses retain the request key, so retries recover the same batch.
+
+`Current`: native topic and reply composers open a shared bottom sheet from their identity menu,
+keeping the active writing route and draft mounted. Account settings reuses the same content on a
+page. Both show one batch at a time, permit returning to earlier same-day batches and preview a
+candidate before explicit confirmation. The one-year lock and confirmation button remain in the
+bottom action area while explanatory text scrolls. Successful setup selects the returned persona
+in the invoking composer; cancellation, failure and late responses after a session change do not.
+Self-disabled identities retain a reactivation action; governance restrictions remain unavailable.
+Opening the persona profile from the sheet leaves the writing field unfocused; returning through
+normal cancellation or successful confirmation restores its focus.
+The sheet follows the native component foundation's safe-area, keyboard-inset and width boundaries,
+using [Flutter's modal-sheet semantics](https://api.flutter.dev/flutter/material/showModalBottomSheet.html).
+
+The contextual entry and progressive disclosure follow
+[NN/g guidance on contextual help](https://www.nngroup.com/articles/onboarding-tutorials/).
 
 ## Writing and public attribution
 
@@ -72,8 +138,9 @@ they do for legacy anonymous replies.
 `Current`: persona reply, mention and watched-topic notifications use the persona author and link.
 Anonymous content's likes carry counts without a public liker identity; public main-account like
 history excludes those targets. Eligibility and private blocking still use numeric account IDs.
-One account cannot gain another vote or like by switching a composer identity, and persona content
-cannot be liked by its own owner. Public main-account activity and badges exclude persona publishing.
+One account cannot gain another vote or like by switching a composer identity. Owners can like
+their own persona topics and replies, consistent with ordinary member content; repeated requests
+remain idempotent and cancelling the like remains available. Public main-account activity and badges exclude persona publishing.
 
 `Current`: Web authenticated layouts load neither Umami analytics/session replay nor configured
 injected scripts, because composer identity choices and audited reveal results are private. Native
@@ -82,12 +149,22 @@ and audit APIs return `private, no-store`; persona public views do not update ma
 
 ## Governance and retention
 
-`Current`: readers and ordinary moderators cannot obtain the owner binding. Moderators can restrict
-an anonymous author's account through a post in their category scope, with a required reason. The
-private transaction disables the persona and the owner's writing together and records a governance
-audit. Both member and persona topic/reply publishing are blocked. Restoration uses the same
-moderator action and preserves independent account freezes. Self-disable and self-enable
-retain the UID, name lock and occupied slot and cannot clear a governance restriction.
+`Current`: Web and native topic/reply surfaces do not expose a private identity-management
+control. Content moderation remains in its ordinary action area. Identity auditors use
+Admin → Anonymous identities, a dedicated paginated list of personas and their private owners.
+It supports search by name/UID, owner username or exact numeric ID, and persona-state filters.
+Desktop uses table rows; narrow screens use identity cards. User management and an explicit
+`anonymous.identity.reveal` grant are both required. Every page requires a nonempty viewing
+reason and commits a restricted audit for each returned mapping before releasing it. Audit
+failure or permission revocation returns no mapping; the client clears previous rows on failure.
+Bindings for closed owners remain visible to these authorized operators. No avatar seed is returned.
+
+`Current`: the restricted admin page bans/restores by persona UID without requiring an existing
+post, with a separate action reason. The private transaction restricts persona and owner publishing
+together and records a governance audit. Both member and persona topic/reply publishing are blocked.
+Restoration preserves independent account freezes and self-disabled status. The existing
+content-scoped governance API remains compatible but has no topic/reply UI entry.
+Self-disable and self-enable retain the UID, name lock and occupied slot and cannot clear governance.
 
 `Current`: reveal requires an explicit `anonymous.identity.reveal` permission (ID 7), a nonempty
 reason and a committed restricted audit. Admin is not a wildcard for this permission. Audit failure
@@ -107,7 +184,9 @@ anonymous display and legacy Wiki per-post anonymous replies remain separate and
 
 ## Sources
 
-- [MADR 0066](../decisions/0066-persistent-anonymous-forum-persona.md) records the alternatives.
+- [MADR 0074](../decisions/0074-six-character-persona-names.md) owns the current naming policy and carries forward the persona boundaries from [0066](../decisions/0066-persistent-anonymous-forum-persona.md).
 - [Issue 1068](https://github.com/YourTongji/YourTJ-Hub/issues/1068) owns research and acceptance evidence.
-- [THUOCL provenance and license](../../apps/gooseforum/app/bundles/anonymousnames/README.md).
+- [Six-character name component source](../../apps/gooseforum/app/bundles/anonymousnames/README.md).
+- [MADR 0076](../decisions/0076-anonymous-profile-content-privacy.md) defines the independent profile visibility preference.
+- [MADR 0075](../decisions/0075-restricted-anonymous-administration.md) defines the central administration boundary.
 - [Contracts and data](../architecture/contracts-and-data.md#persistent-anonymous-personas).

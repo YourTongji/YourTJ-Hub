@@ -306,6 +306,8 @@ func apiRoute(ginApp *gin.Engine) {
 
 	forumApi := baseApi.Group("forum")
 	forumApi.POST("feed/events", middleware.CSRFProtection, middleware.JWTAuthCheck, api.FeedEvents)
+	forumApi.POST("feed/refresh", middleware.CSRFProtection, middleware.JWTAuthCheck, forum.FeedRefresh)
+	forumApi.POST("feed/reconcile", middleware.CSRFProtection, middleware.JWTAuthCheck, forum.FeedReconcile)
 	forumApi.GET("get-site-statistics", ginUpNP(api.GetSiteStatistics))
 	forumApi.GET("search", middleware.JWTAuth, UpQueryReq(forum.SearchJSON))
 	forumApi.GET("courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpQueryReq(forum.CourseListJSON))
@@ -362,6 +364,7 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("push/device/register", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.RegisterPushDevice))
 	forumLoginApi.POST("push/device/unregister", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.UnregisterPushDevice))
 	forumLoginApi.GET("anonymous/state", middleware.NoUpdateUserActivity, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousState))
+	forumLoginApi.POST("anonymous/privacy", middleware.AnonymousPrivateResponse, middleware.NoUpdateUserActivity, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousPrivacy))
 	forumLoginApi.POST("anonymous/batches", middleware.NoUpdateUserActivity, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousGenerate))
 	forumLoginApi.POST("anonymous/confirm", middleware.NoUpdateUserActivity, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousConfirm))
 	forumLoginApi.POST("anonymous/disable", middleware.NoUpdateUserActivity, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousDisable))
@@ -466,6 +469,9 @@ func apiRoute(ginApp *gin.Engine) {
 	adminApi := baseApi.Group("admin", middleware.CSRFProtection, middleware.JWTAuthCheck, middleware.CheckWritableAccount)
 
 	adminApi.GET("feed/summary", middleware.CheckPermission(permission.Admin), UpButterReq(api.FeedSummary))
+	anonymousAdmin := adminApi.Group("anonymous-identities", middleware.AnonymousPrivateResponse, middleware.NoUpdateUserActivity, middleware.CheckPermission(permission.UserManager), middleware.CheckPermission(permission.RevealAnonymousIdentity))
+	anonymousAdmin.POST("list", UpButterReq(api.AdminAnonymousList))
+	anonymousAdmin.POST("govern", UpButterReq(api.AdminAnonymousGovern))
 	adminApi.POST("traffic-overview", middleware.CheckPermission(permission.Admin), UpButterReq(api.GetTrafficOverview))
 
 	adminApi.

@@ -134,6 +134,7 @@
   "serverMessages.sticker.imageRequired": "Choose an image or GIF you uploaded, up to {maxSizeMb} MB.",
   "serverMessages.sticker.unavailable": "This sticker is unavailable.",
   "permission.revealAnonymousIdentity": "Reveal anonymous identity (restricted audit)",
+  "anonymous.profileContentHidden": "Content on this anonymous profile is hidden",
   "anonymous.identity": "Anonymous identity",
   "anonymous.nameLocked": "This name is locked for one year.",
   "anonymous.dailyLimit": "All 10 daily draws are used. You can still select an existing batch today.",

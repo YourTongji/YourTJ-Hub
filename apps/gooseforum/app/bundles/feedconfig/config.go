@@ -56,7 +56,7 @@ type Config struct {
 
 func Default() Config {
 	w := Weights{1, .8, 1, .5, .6, .5, .4}
-	return Config{Personalization: DefaultPolicy(), Rules: DefaultRules(), Limits: HardLimits(), Algorithm: "rules-v3-hot-daily-v1", Rollout: 20, RetentionDays: 30, JobsPerSecond: 20, QueryTimeoutMS: 250, SampleRate: .05, Experiment: "default-entry-v1", Salt: "default-entry-v1", Weights: w, Alternative: w}
+	return Config{Personalization: DefaultPolicy(), Rules: DefaultRules(), Limits: HardLimits(), Algorithm: "rules-v4-hot-daily-v1-seen", Rollout: 20, RetentionDays: 30, JobsPerSecond: 20, QueryTimeoutMS: 250, SampleRate: .05, Experiment: "default-entry-v1", Salt: "default-entry-v1", Weights: w, Alternative: w}
 }
 
 func Decode(settings map[string]any) (Config, error) {

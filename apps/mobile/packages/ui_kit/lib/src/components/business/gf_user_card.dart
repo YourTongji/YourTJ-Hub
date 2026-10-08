@@ -148,6 +148,7 @@ class GfUserCard extends StatelessWidget {
     required this.avatarUrl,
     required this.name,
     required this.username,
+    this.showUsername = true,
     this.nameBadges = const <Widget>[],
     this.usernameAction,
     this.bio,
@@ -173,6 +174,7 @@ class GfUserCard extends StatelessWidget {
   final String avatarUrl;
   final String name;
   final String username;
+  final bool showUsername;
   final List<Widget> nameBadges;
 
   /// Compact action kept beside the handle, away from the name badges.
@@ -319,7 +321,7 @@ class GfUserCard extends StatelessWidget {
             children: <Widget>[
               nameRow,
               const SizedBox(height: 2),
-              usernameRow,
+              if (showUsername) usernameRow,
               if (bio != null && bio!.trim().isNotEmpty) ...<Widget>[
                 SizedBox(height: sectionGap),
                 Text(

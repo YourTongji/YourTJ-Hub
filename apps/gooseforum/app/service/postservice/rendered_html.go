@@ -17,7 +17,11 @@ func RenderPostHTML(content string) string {
 	return renderPostHTML(content, nil)
 }
 
-func renderPostHTML(content string, stickerURLs map[string]string) string {
+func renderPostHTML(content string, stickerURLs map[string]string, mentionTargets ...map[string]uint64) string {
+	var explicitTargets map[string]uint64
+	if len(mentionTargets) > 0 {
+		explicitTargets = mentionTargets[0]
+	}
 	if names := markdown2html.ExtractStickerNames(content); len(names) > 0 {
 		if stickerURLs == nil {
 			var err error
@@ -35,7 +39,10 @@ func renderPostHTML(content string, stickerURLs map[string]string) string {
 		if len(usernames) == 0 {
 			return markdown2html.PostMarkdownToHTML(expanded)
 		}
-		targets := users.GetMentionTargetIds(usernames)
+		targets := explicitTargets
+		if targets == nil {
+			targets = users.GetMentionTargetIds(usernames)
+		}
 		if len(targets) == 0 {
 			return markdown2html.PostMarkdownToHTML(expanded)
 		}
@@ -46,6 +53,9 @@ func renderPostHTML(content string, stickerURLs map[string]string) string {
 func EnsureRenderedHTMLBatch(entities []*posts.Entity) {
 	names := make([]string, 0)
 	seen := make(map[string]struct{})
+	allUsernames := make([]string, 0)
+	seenUsernames := make(map[string]struct{})
+
 	for _, entity := range entities {
 		if entity == nil {
 			continue
@@ -56,25 +66,45 @@ func EnsureRenderedHTMLBatch(entities []*posts.Entity) {
 				names = append(names, name)
 			}
 		}
-	}
-	if len(names) == 0 {
-		for _, entity := range entities {
-			EnsureRenderedHTML(entity)
+		// If post needs rendering, collect mention usernames across the batch
+		needsRender := strings.Contains(entity.Content, "[:sticker:") ||
+			entity.ProcessStatus == posts.ProcessStatusPending ||
+			entity.RenderedVersion < markdown2html.GetPostVersion() ||
+			entity.RenderedHTML == ""
+		if needsRender {
+			for _, u := range markdown2html.ExtractUsernames(entity.Content) {
+				if _, ok := seenUsernames[u]; !ok {
+					seenUsernames[u] = struct{}{}
+					allUsernames = append(allUsernames, u)
+				}
+			}
 		}
-		return
 	}
-	urls, err := stickerservice.ResolveURLs(names)
-	if err != nil {
-		slog.Warn("resolve sticker images failed", "error", err)
+
+	var mentionTargets map[string]uint64
+	if len(allUsernames) > 0 {
+		mentionTargets = users.GetMentionTargetIds(allUsernames)
 	}
+
+	var urls map[string]string
+	if len(names) > 0 {
+		var err error
+		urls, err = stickerservice.ResolveURLs(names)
+		if err != nil {
+			slog.Warn("resolve sticker images failed", "error", err)
+		}
+	}
+
 	for _, entity := range entities {
 		if entity == nil || entity.Id == 0 {
 			continue
 		}
 		if strings.Contains(entity.Content, "[:sticker:") {
-			refreshStickerHTMLInPlace(entity, urls)
+			refreshStickerHTMLInPlace(entity, urls, mentionTargets)
 		} else {
-			EnsureRenderedHTML(entity)
+			if _, err := ensureRenderedHTMLWithMentions(entity, posts.SaveNoUpdate, mentionTargets); err != nil {
+				slog.Warn("save rebuilt post html failed", "postId", entity.Id, "error", err)
+			}
 		}
 	}
 }
@@ -83,8 +113,8 @@ func EnsureRenderedHTMLBatch(entities []*posts.Entity) {
 // payload-scoped sticker URL map (nil resolves just for this entity), refreshing the
 // in-place copy consumed by payload builders. Mutable sticker definitions are never
 // persisted into the HTML cache.
-func refreshStickerHTMLInPlace(entity *posts.Entity, stickerURLs map[string]string) {
-	entity.RenderedHTML = renderPostHTML(entity.Content, stickerURLs)
+func refreshStickerHTMLInPlace(entity *posts.Entity, stickerURLs map[string]string, mentionTargets ...map[string]uint64) {
+	entity.RenderedHTML = renderPostHTML(entity.Content, stickerURLs, mentionTargets...)
 	entity.RenderedVersion = markdown2html.GetPostVersion()
 }
 
@@ -97,13 +127,17 @@ func EnsureRenderedHTML(entity *posts.Entity) string {
 }
 
 func ensureRenderedHTML(entity *posts.Entity, save func(*posts.Entity) error) (string, error) {
+	return ensureRenderedHTMLWithMentions(entity, save, nil)
+}
+
+func ensureRenderedHTMLWithMentions(entity *posts.Entity, save func(*posts.Entity) error, mentionTargets map[string]uint64) (string, error) {
 	if entity == nil || entity.Id == 0 {
 		return "", nil
 	}
 	// Pending entities may be owner-only revision projections over a live row.
 	// A cache rebuild must never persist that candidate over the public version.
 	if entity.ProcessStatus == posts.ProcessStatusPending {
-		entity.RenderedHTML = RenderPostHTML(entity.Content)
+		entity.RenderedHTML = renderPostHTML(entity.Content, nil, mentionTargets)
 		entity.RenderedVersion = markdown2html.GetPostVersion()
 		return entity.RenderedHTML, nil
 	}
@@ -112,14 +146,14 @@ func ensureRenderedHTML(entity *posts.Entity, save func(*posts.Entity) error) (s
 	if strings.Contains(entity.Content, "[:sticker:") {
 		// Payload builders also consume the entity in place. Refresh that request's
 		// copy without persisting mutable sticker definitions into the HTML cache.
-		refreshStickerHTMLInPlace(entity, nil)
+		refreshStickerHTMLInPlace(entity, nil, mentionTargets)
 		return entity.RenderedHTML, nil
 	}
 	if entity.RenderedVersion >= markdown2html.GetPostVersion() && entity.RenderedHTML != "" {
 		return entity.RenderedHTML, nil
 	}
 
-	entity.RenderedHTML = RenderPostHTML(entity.Content)
+	entity.RenderedHTML = renderPostHTML(entity.Content, nil, mentionTargets)
 	entity.RenderedVersion = markdown2html.GetPostVersion()
 	if err := save(entity); err != nil {
 		return entity.RenderedHTML, err

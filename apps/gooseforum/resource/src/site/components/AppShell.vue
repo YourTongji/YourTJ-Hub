@@ -45,6 +45,7 @@ import { useWikiSearchPanel } from '@/runtime/use-wiki-search'
 import type { LayoutPayload } from '@gooseforum/client'
 import type { UserCardShowDetail } from '@/runtime/user-card-events'
 import UserAvatar from './UserAvatar.vue'
+import AnonymousProfileLink from './AnonymousProfileLink.vue'
 import type UserCardComponent from './UserCard.vue'
 import WikiSidebar from './WikiSidebar.vue'
 import WikiSearchPanel from './WikiSearchPanel.vue'
@@ -899,6 +900,7 @@ async function loadUserCard() {
                       <a :href="`/u/${layout.viewer.id}`" class="gf-menu-item">
                         <UserRound class="h-4 w-4 text-icon-muted" /> {{ t('shell.profile') }}
                       </a>
+                      <AnonymousProfileLink :viewer-id="layout.viewer.id" />
                       <!-- 移动端从 navbar 收进的入口：sm 起隐藏（navbar 已有直达按钮） -->
                       <a href="/notifications" class="gf-menu-item sm:hidden">
                         <Bell class="h-4 w-4 text-icon-muted" />

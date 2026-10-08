@@ -26,6 +26,8 @@ export const adminRouter = createRouter({
       path: '/admin',
       component: () => import('@/admin/pages/StatsPage.vue'),
     },
+    { path: '/admin/anonymous-identities', component: () => import('@/admin/pages/management/AnonymousManagementPage.vue') },
+    { path: '/admin/feed-statistics', component: () => import('@/admin/pages/FeedStatisticsPage.vue') },
     {
       path: '/admin/users',
       component: () => import('@/admin/pages/management/UsersManagementPage.vue'),

@@ -14,6 +14,7 @@ type Persona struct {
 	NameChangeAvailableAt time.Time `json:"-"`
 	Disabled              bool      `gorm:"not null;default:false" json:"-"`
 	GovernanceDisabled    bool      `gorm:"not null;default:false" json:"-"`
+	ShowContent           bool      `gorm:"not null;default:true" json:"-"`
 }
 
 func (Persona) TableName() string { return "anonymous_personas" }

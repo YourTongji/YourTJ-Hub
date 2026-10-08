@@ -3564,4 +3564,86 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sortDaily => 'Today\'s top';
+
+  @override
+  String get anonymousPurpose =>
+      'Use a fixed alias for posts and replies, hiding your main-account association from the public.';
+
+  @override
+  String get anonymousSettingsHint =>
+      'Manage the alias and identity used for anonymous posts';
+
+  @override
+  String get anonymousIntroTitle =>
+      'Your anonymous identity has its own name and history';
+
+  @override
+  String get anonymousHistoryHint =>
+      'Posts from the same anonymous identity are linked. Their content may still reveal who you are.';
+
+  @override
+  String get anonymousConfirmHint =>
+      'One anonymous identity per account. Once confirmed, the name cannot change for one year.';
+
+  @override
+  String get anonymousPrivacySummary =>
+      'The public and ordinary moderators cannot see the main-account association. Specially authorized administrators can reveal it with a recorded reason and audit. Bindings and audit records remain after account closure.';
+
+  @override
+  String get anonymousRules => 'About anonymous identities';
+
+  @override
+  String get anonymousChooseName => 'Choose a name';
+
+  @override
+  String get anonymousRefreshNames => 'Draw another batch';
+
+  @override
+  String anonymousDrawsRemaining(int remaining) {
+    return '$remaining batches left today';
+  }
+
+  @override
+  String anonymousBatchNumber(int number) {
+    return 'Batch $number';
+  }
+
+  @override
+  String get anonymousPreviousBatches => 'Previously generated candidates';
+
+  @override
+  String get anonymousNamePreview => 'Your chosen name';
+
+  @override
+  String get anonymousConfirmName => 'Confirm name';
+
+  @override
+  String get anonymousInactive => 'Inactive';
+
+  @override
+  String get anonymousReady => 'Available';
+
+  @override
+  String anonymousLockedUntil(String date) {
+    return 'You can change the name after $date';
+  }
+
+  @override
+  String anonymousResetAt(String date) {
+    return 'Draws reset at $date';
+  }
+
+  @override
+  String get anonymousNameLockHint => 'Name locked for one year.';
+
+  @override
+  String get anonymousShowContent => 'Show anonymous profile content';
+
+  @override
+  String get anonymousShowContentDescription =>
+      'Show topics, replies and counts on the anonymous profile. When off, only the name and avatar remain; the original forum content stays accessible.';
+
+  @override
+  String get anonymousProfileContentHidden =>
+      'Content on this anonymous profile is hidden';
 }

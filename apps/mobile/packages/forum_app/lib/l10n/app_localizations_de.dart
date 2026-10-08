@@ -3601,4 +3601,86 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get sortDaily => 'Top-Themen heute';
+
+  @override
+  String get anonymousPurpose =>
+      'Mit einem festen Alias posten und antworten; die Verbindung zum Hauptkonto bleibt öffentlich verborgen.';
+
+  @override
+  String get anonymousSettingsHint =>
+      'Alias und Identität für anonyme Beiträge verwalten';
+
+  @override
+  String get anonymousIntroTitle =>
+      'Ihre anonyme Identität hat einen eigenen Namen und Verlauf';
+
+  @override
+  String get anonymousHistoryHint =>
+      'Beiträge derselben anonymen Identität sind verknüpft. Ihr Inhalt kann Sie dennoch erkennbar machen.';
+
+  @override
+  String get anonymousConfirmHint =>
+      'Eine anonyme Identität pro Konto. Nach der Bestätigung bleibt der Name ein Jahr lang unveränderbar.';
+
+  @override
+  String get anonymousPrivacySummary =>
+      'Öffentlichkeit und normale Moderatoren sehen die Verbindung zum Hauptkonto nicht. Besonders berechtigte Administratoren können sie mit dokumentiertem Grund und Audit offenlegen. Verknüpfungen und Auditdaten bleiben nach Kontoschließung erhalten.';
+
+  @override
+  String get anonymousRules => 'Regeln zur Anonymität';
+
+  @override
+  String get anonymousChooseName => 'Namen wählen';
+
+  @override
+  String get anonymousRefreshNames => 'Neue Auswahl ziehen';
+
+  @override
+  String anonymousDrawsRemaining(int remaining) {
+    return 'Heute noch $remaining Ziehungen';
+  }
+
+  @override
+  String anonymousBatchNumber(int number) {
+    return 'Auswahl $number';
+  }
+
+  @override
+  String get anonymousPreviousBatches => 'Bereits gezogene Namen ansehen';
+
+  @override
+  String get anonymousNamePreview => 'Ihr gewählter Name';
+
+  @override
+  String get anonymousConfirmName => 'Name bestätigen';
+
+  @override
+  String get anonymousInactive => 'Deaktiviert';
+
+  @override
+  String get anonymousReady => 'Verfügbar';
+
+  @override
+  String anonymousLockedUntil(String date) {
+    return 'Namensänderung möglich ab $date';
+  }
+
+  @override
+  String anonymousResetAt(String date) {
+    return 'Ziehungen werden am $date zurückgesetzt';
+  }
+
+  @override
+  String get anonymousNameLockHint => 'Name für ein Jahr gesperrt.';
+
+  @override
+  String get anonymousShowContent => 'Inhalte im anonymen Profil anzeigen';
+
+  @override
+  String get anonymousShowContentDescription =>
+      'Themen, Antworten und Zahlen im anonymen Profil anzeigen. Ausgeschaltet bleiben nur Name und Avatar sichtbar; die ursprünglichen Foreninhalte sind weiterhin zugänglich.';
+
+  @override
+  String get anonymousProfileContentHidden =>
+      'Die Inhalte dieses anonymen Profils sind ausgeblendet';
 }

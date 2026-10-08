@@ -1,101 +1,70 @@
-import 'dart:async';
-
 import 'package:core/core.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
-import 'package:forum_app/src/pages/topic/anonymous_moderation_dialog.dart';
-import 'package:forum_app/src/providers.dart';
-import 'pages_smoke_test.dart' show MemoryTokenStorage;
+import 'package:forum_app/src/pages/topic/post_actions.dart';
+import 'package:forum_app/src/pages/topic/topic_actions.dart';
+import 'package:ui_kit/ui_kit.dart';
+import 'fixtures/page_fixtures.dart';
 
 void main() {
-  for (final canReveal in [false, true]) {
-    testWidgets('anonymous governance separates reveal permission $canReveal', (
-      tester,
-    ) async {
-      final pending = Completer<Map<String, dynamic>>();
-      var requests = 0;
-      final dio = Dio();
-      dio.interceptors.add(
-        InterceptorsWrapper(
-          onRequest: (options, handler) async {
-            requests++;
-            expect(options.path, endsWith('/reveal'));
-            expect(options.data['reason'], '处理举报');
-            handler.resolve(
-              Response(
-                requestOptions: options,
-                statusCode: 200,
-                data: await pending.future,
-              ),
-            );
-          },
-        ),
-      );
-      final container = ProviderContainer(
-        overrides: [
-          apiClientProvider.overrideWithValue(
-            GfApiClient(
-              dio: dio,
-              tokenStorage: MemoryTokenStorage(),
-              baseUrl: 'http://fake.local',
-            ),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: MaterialApp(
-            locale: const Locale('zh'),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Builder(
-              builder: (context) => Scaffold(
-                body: TextButton(
-                  onPressed: () => showAnonymousModeration(
-                    context,
-                    postId: 1,
-                    publicUid: 'a' * 32,
-                    canReveal: canReveal,
-                  ),
-                  child: const Text('管理'),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('管理'));
-      await tester.pumpAndSettle();
-      expect(find.text('限制该账号发言'), findsOneWidget);
-      expect(find.text('审计揭示身份'), canReveal ? findsOneWidget : findsNothing);
-      if (!canReveal) return;
-      final reveal = find.widgetWithText(TextButton, '审计揭示身份');
-      expect(tester.widget<TextButton>(reveal).onPressed, isNull);
-      await tester.enterText(find.byType(TextField), '处理举报');
-      await tester.pump();
-      await tester.tap(reveal);
-      await tester.pumpAndSettle();
-      expect(requests, 1);
-      // Logout/account switch closes the private dialog even before the response arrives.
-      container.read(offlineCacheEpochProvider.notifier).invalidate();
-      await tester.pumpAndSettle();
-      expect(find.byType(AlertDialog), findsNothing);
-      pending.complete({
-        'code': 0,
-        'result': {
+  for (final topicMenu in [true, false]) {
+    testWidgets(
+      'private identity management is absent from ${topicMenu ? 'topic' : 'reply'} menu',
+      (tester) async {
+        final json = topicDetailPayloadJson()['props'] as Map<String, dynamic>;
+        final author = {
+          'id': 0,
+          'username': '躲进云里的猫',
+          'avatarUrl': '/a/${'a' * 32}/avatar.svg',
           'publicUid': 'a' * 32,
-          'userId': 123,
-          'username': 'private-owner',
-        },
-      });
-      await tester.pumpAndSettle();
-      expect(find.textContaining('private-owner'), findsNothing);
-      expect(tester.takeException(), isNull);
-    });
+          'kind': 'persona',
+          'profileUrl': '/a/${'a' * 32}',
+        };
+        json['topic']['author'] = author;
+        final props = TopicDetailProps.fromJson(json);
+        final post = PostPayload.fromJson({
+          ...json['postStream']['posts'][0] as Map<String, dynamic>,
+          'author': author,
+          'canModerate': true,
+        });
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp(
+              theme: gfThemeData(Brightness.light),
+              locale: const Locale('zh'),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(
+                body: topicMenu
+                    ? TopicActions(
+                        props: props.copyWith(
+                          permissions: props.permissions.copyWith(
+                            canModerateTopic: true,
+                          ),
+                        ),
+                        firstPostId: post.id,
+                        onChanged: () async {},
+                      )
+                    : PostActions(
+                        post: post,
+                        onChanged: () async {},
+                        onReply: () {},
+                        onReport: () {},
+                      ),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.byType(PopupMenuButton<String>));
+        await tester.pumpAndSettle();
+        expect(find.text('管理匿名身份'), findsNothing);
+        expect(find.byType(PopupMenuItem<String>), findsWidgets);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+      },
+    );
   }
 }

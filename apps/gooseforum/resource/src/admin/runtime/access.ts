@@ -5,11 +5,14 @@ export enum AdminPermission {
   PageManager = 3,
   RoleManager = 4,
   SiteManager = 5,
+  RevealAnonymousIdentity = 7,
 }
 
 const adminPathPermissions: Record<string, AdminPermission> = {
   '/admin': AdminPermission.Admin,
   '/admin/users': AdminPermission.UserManager,
+  '/admin/anonymous-identities': AdminPermission.RevealAnonymousIdentity,
+  '/admin/feed-statistics': AdminPermission.Admin,
   '/admin/agents': AdminPermission.Admin,
   '/admin/agent-comment-policy': AdminPermission.Admin,
   '/admin/roles': AdminPermission.RoleManager,
@@ -48,6 +51,8 @@ const adminPathPermissions: Record<string, AdminPermission> = {
 const adminEntryPaths = [
   '/admin',
   '/admin/users',
+  '/admin/anonymous-identities',
+  '/admin/feed-statistics',
   '/admin/agents',
   '/admin/agent-comment-policy',
   '/admin/posts',
@@ -90,10 +95,13 @@ export function configureAdminAccess(values: number[] = []) {
 }
 
 export function hasAdminPermission(permission: AdminPermission) {
-  return permissions.has(AdminPermission.Admin) || permissions.has(permission)
+  return permissions.has(permission) || (permission !== AdminPermission.RevealAnonymousIdentity && permissions.has(AdminPermission.Admin))
 }
 
 export function canVisitAdminPath(path: string) {
+  if (path === '/admin/anonymous-identities') {
+    return hasAdminPermission(AdminPermission.UserManager) && hasAdminPermission(AdminPermission.RevealAnonymousIdentity)
+  }
   const permission = adminPathPermissions[path]
   return permission !== undefined && hasAdminPermission(permission)
 }

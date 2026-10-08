@@ -1,10 +1,71 @@
-import type { TopicPayload } from '@gooseforum/client'
+import { shallowRef } from 'vue'
+import { setSessionOwner } from './for-you-sessions'
+import type { SeenPatch, SeenProof, TopicPayload } from '@gooseforum/client'
 
 type Context = { trace: string; position: number; topic: number }
 type Patch = { trace: string; visibleMask: number; dwell: Record<number, number> }
 let selected: Context | undefined
 const patches = new Map<string, Patch>()
+const seen = new Map<string, { patch: SeenPatch; expiresAt: number }>()
+const received = new Map<string, number>()
+let seenCount = 0
+const invalidSeenProofs = new Map<string, number>()
+export const seenConfirmationLost = shallowRef(false)
+
+export function pendingSeenPatches(): SeenPatch[] {
+  const result: SeenPatch[] = []
+  for (const { patch, expiresAt } of seen.values()) {
+    if (expiresAt <= Date.now()) {
+      seen.delete(patch.proof)
+      seenCount -= Object.keys(patch.seen).length
+      seenConfirmationLost.value = true
+      continue
+    }
+    result.push({ proof: patch.proof, seen: { ...patch.seen } })
+  }
+  return result
+}
+export function acknowledgeSeen(rows: SeenPatch[]) {
+  for (const row of rows) {
+    const pending = seen.get(row.proof)
+    if (!pending) continue
+    for (const [pos, elapsed] of Object.entries(row.seen)) {
+      if (pending.patch.seen[Number(pos)] === elapsed) {
+        delete pending.patch.seen[Number(pos)]
+        seenCount--
+      }
+    }
+    if (!Object.keys(pending.patch.seen).length) seen.delete(row.proof)
+  }
+}
+// Invalid process-epoch proofs cannot be repaired by retiming old observations.
+export function invalidateSeen(rows: SeenPatch[]) {
+  for (const row of rows) {
+    const pending = seen.get(row.proof)
+    if (!pending) continue
+    invalidSeenProofs.set(row.proof, pending.expiresAt)
+    seenCount -= Object.keys(pending.patch.seen).length
+    seen.delete(row.proof)
+  }
+  while (invalidSeenProofs.size > 120) invalidSeenProofs.delete(invalidSeenProofs.keys().next().value!)
+  seenConfirmationLost.value = true
+}
+function recordSeen(proof: SeenProof, position: number) {
+  for (const [token, expiresAt] of invalidSeenProofs) if (expiresAt <= Date.now()) invalidSeenProofs.delete(token)
+  if (seenCount >= 120 || proof.expiresAt <= Date.now() || invalidSeenProofs.has(proof.token)) return false
+  let row = seen.get(proof.token)
+  if (!row) { row = { patch: { proof: proof.token, seen: {} }, expiresAt: proof.expiresAt }; seen.set(proof.token, row) }
+  if (row.patch.seen[position] == null) {
+    row.patch.seen[position] = Math.max(1000, Math.floor(performance.now() - (received.get(proof.token) ?? performance.now())))
+    seenCount++
+  }
+  return true
+}
+export async function confirmPendingSeen() {
+  while (seenCount) await flushFeedEvents(false, true)
+}
 let account = 0
+let accountRevision = 0
 let retry = false
 let flushing = false
 let timer: ReturnType<typeof setInterval> | undefined
@@ -13,17 +74,28 @@ let detail:
   | { context: Context; started: number; elapsed: number; running: boolean; reported: number }
   | undefined
 
+export function feedAccount() { return account }
+export function feedAccountRevision() { return accountRevision }
+export class StaleFeedAccountError extends Error {}
+
 export function resetFeedAccount(id: number) {
   if (id === account) return
+  accountRevision++
   retry = false
   if (timer) {
     clearInterval(timer)
     timer = undefined
   }
   account = id
+  setSessionOwner(id)
   selected = undefined
   detail = undefined
   patches.clear()
+  seen.clear()
+  received.clear()
+  seenCount = 0
+  invalidSeenProofs.clear()
+  seenConfirmationLost.value = false
 }
 
 export function selectFeedTopic(topic: TopicPayload) {
@@ -139,19 +211,32 @@ export function endFeedDetail() {
   selected = undefined
 }
 
-export async function flushFeedEvents(keepalive = false) {
-  if (flushing || !patches.size) return
+let currentFlush: Promise<void> | undefined
+export async function flushFeedEvents(keepalive = false, required = false): Promise<void> {
+  if (currentFlush) { await currentFlush; if (required && seenCount) return flushFeedEvents(keepalive, required); return }
+  currentFlush = sendFeedEvents(keepalive, required)
+  try { await currentFlush } finally { currentFlush = undefined }
+}
+async function sendFeedEvents(keepalive: boolean, required: boolean) {
+  if (flushing || (!patches.size && !seenCount)) return
   const currentAccount = account
+  const currentRevision = accountRevision
   const data: Patch[] = []
+  const seenData: SeenPatch[] = []
+  try {
+    for (const row of pendingSeenPatches()) {
+      if (seenData.length >= 50) break
+      if (new TextEncoder().encode(JSON.stringify({ patches: [], seenPatches: [...seenData, row] })).length > 30000) break
+      seenData.push(row)
+    }
+  } catch (error) { if (required) throw error }
   for (const patch of patches.values()) {
+    if (seenData.length + data.length >= 50) break
     const row = { ...patch, dwell: { ...patch.dwell } }
-    if (new TextEncoder().encode(JSON.stringify({ patches: [...data, row] })).length > 32768) break
+    if (new TextEncoder().encode(JSON.stringify({ patches: [...data, row], seenPatches: seenData })).length > 32768) break
     data.push(row)
   }
-  if (!data.length) {
-    patches.clear()
-    return
-  }
+  if (!data.length && !seenData.length) { if (required && seenCount) throw new Error("seen confirmation unavailable"); return }
   for (const row of data) patches.delete(row.trace)
   flushing = true
   try {
@@ -159,14 +244,20 @@ export async function flushFeedEvents(keepalive = false) {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ patches: data }),
+      body: JSON.stringify({ patches: data, ...(seenData.length ? { seenPatches: seenData } : {}) }),
       keepalive,
     })
+    if (response.status === 400 && currentRevision === accountRevision && seenData.length) invalidateSeen(seenData)
     if (!response.ok) throw new Error('feed events unavailable')
+    if (seenData.length) {
+      const body = await response.json()
+      if (body.code !== 0 || !body.result?.seenConfirmed) throw new Error('seen confirmation unavailable')
+      if (currentAccount === account && currentRevision === accountRevision) acknowledgeSeen(seenData)
+    }
     retry = false
-  } catch {
+  } catch (error) {
     // One bounded in-memory retry. Never persist traces or block navigation.
-    if (currentAccount === account && !retry) {
+    if (currentAccount === account && currentRevision === accountRevision && !retry) {
       retry = true
       for (const p of data) {
         const existing = patches.get(p.trace)
@@ -177,6 +268,7 @@ export async function flushFeedEvents(keepalive = false) {
         } else if (patches.size < 50) patches.set(p.trace, p)
       }
     }
+    if (required) throw error
   } finally {
     flushing = false
   }
@@ -184,7 +276,7 @@ export async function flushFeedEvents(keepalive = false) {
 
 /** Each mounted row may be reused: cancel its one-second timer whenever its
  * trace/position changes, leaves the viewport, or the document goes backstage. */
-export function observeFeedRows(root: HTMLElement, topics: () => TopicPayload[]) {
+export function observeFeedRows(root: HTMLElement, topics: () => TopicPayload[], proofs: () => SeenProof[] = () => []) {
   startTimer()
   const pending = new Map<Element, ReturnType<typeof setTimeout>>()
   const visible = new Set<Element>()
@@ -194,34 +286,46 @@ export function observeFeedRows(root: HTMLElement, topics: () => TopicPayload[])
     if (t) clearTimeout(t)
     pending.delete(element)
   }
+  const proofFor = (id: number) => {
+    for (const proof of proofs()) {
+      if (!received.has(proof.token)) {
+        if (received.size >= 120) received.delete(received.keys().next().value!)
+        received.set(proof.token, performance.now())
+      }
+      const position = proof.topicIds.indexOf(id)
+      if (position >= 0) return { proof, position }
+    }
+  }
+  const observerAccount = account
+  const observerRevision = accountRevision
+  const active = () => account === observerAccount && accountRevision === observerRevision && account > 0 && !document.hidden && root.isConnected &&
+    !root.closest('[inert], [aria-hidden="true"]') &&
+    !document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')
   const begin = (element: Element) => {
     cancel(element)
-    if (document.hidden) return
+    if (!active()) return
     const id = Number((element as HTMLElement).dataset.feedId)
     const topic = topics().find((t) => t.id === id)
-    if (!topic?.feedTrace || topic.feedPosition == null) return
-    const context = { trace: topic.feedTrace, position: topic.feedPosition, topic: id }
-    const key = `${context.trace}:${context.position}`
-    if (reported.has(key)) return
-    pending.set(
-      element,
-      setTimeout(() => {
-        pending.delete(element)
-        const current = topics().find((t) => t.id === id)
-        if (
-          !document.hidden &&
-          visible.has(element) &&
-          current?.feedTrace === context.trace &&
-          current.feedPosition === context.position
-        ) {
-          const patch = patchFor(context)
-          if (patch) {
-            patch.visibleMask |= 1 << context.position
-            reported.add(key)
-          }
-        }
-      }, 1000),
-    )
+    if (!topic) return
+    const claim = proofFor(id)
+    const context = topic.feedTrace && topic.feedPosition != null
+      ? { trace: topic.feedTrace, position: topic.feedPosition, topic: id } : undefined
+    const statsKey = context ? `${context.trace}:${context.position}` : ''
+    const seenKey = claim ? `seen:${claim.proof.token}:${claim.position}` : ''
+    if ((!statsKey || reported.has(statsKey)) && (!seenKey || reported.has(seenKey))) return
+    pending.set(element, setTimeout(() => {
+      pending.delete(element)
+      const current = topics().find((t) => t.id === id)
+      if (!active() || !visible.has(element) || !current) return
+      if (context && current.feedTrace === context.trace && current.feedPosition === context.position) {
+        const patch = patchFor(context)
+        if (patch) { patch.visibleMask |= 1 << context.position; reported.add(statsKey) }
+      }
+      if (claim && proofFor(id)?.proof.token === claim.proof.token) {
+        if (recordSeen(claim.proof, claim.position)) reported.add(seenKey)
+        else if (seenCount >= 120) pending.set(element, setTimeout(() => begin(element), 1000))
+      }
+    }, 1000))
   }
   const observer = new IntersectionObserver(
     (entries) => {
@@ -235,7 +339,7 @@ export function observeFeedRows(root: HTMLElement, topics: () => TopicPayload[])
         }
       }
     },
-    { threshold: [0, 0.5] },
+    { threshold: [0, 0.5], rootMargin: `-${Math.max(0, document.querySelector('header')?.getBoundingClientRect().bottom ?? 0)}px 0px 0px` },
   )
   const scan = () => {
     for (const element of root.querySelectorAll('[data-feed-id]')) {
@@ -253,10 +357,12 @@ export function observeFeedRows(root: HTMLElement, topics: () => TopicPayload[])
   })
   const visibility = () => {
     for (const element of visible) {
-      if (document.hidden) cancel(element)
+      if (!active()) cancel(element)
       else begin(element)
     }
   }
+  const overlays = new MutationObserver(visibility)
+  overlays.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['open', 'aria-modal', 'inert', 'aria-hidden'] })
   const click = (event: Event) => {
     const mouse = event as MouseEvent
     const link = (event.target as Element)?.closest<HTMLAnchorElement>('a[href]')
@@ -273,6 +379,7 @@ export function observeFeedRows(root: HTMLElement, topics: () => TopicPayload[])
   return () => {
     observer.disconnect()
     mutation.disconnect()
+    overlays.disconnect()
     for (const e of pending.keys()) cancel(e)
     visible.clear()
     root.removeEventListener('click', click, true)

@@ -327,7 +327,7 @@ export interface paths {
         };
         /**
          * getAnonymousIdentityState
-         * @description Private, no-store response. One persona per numeric owner, shared across clients. State reads share the configurable interaction rate limit with persona writes. Names come from the complete embedded THUOCL pool without content filters. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. State reads share the configurable interaction rate limit with persona writes. New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
          */
         get: operations["getAnonymousIdentityState"];
         put?: never;
@@ -349,7 +349,7 @@ export interface paths {
         put?: never;
         /**
          * generateAnonymousNames
-         * @description Private, no-store response. One persona per numeric owner, shared across clients. Names come from the complete embedded THUOCL pool without content filters. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
          */
         post: operations["generateAnonymousNames"];
         delete?: never;
@@ -369,7 +369,7 @@ export interface paths {
         put?: never;
         /**
          * confirmAnonymousName
-         * @description Private, no-store response. One persona per numeric owner, shared across clients. Names come from the complete embedded THUOCL pool without content filters. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
          */
         post: operations["confirmAnonymousName"];
         delete?: never;
@@ -389,9 +389,29 @@ export interface paths {
         put?: never;
         /**
          * disableAnonymousIdentity
-         * @description Private, no-store response. One persona per numeric owner, shared across clients. Names come from the complete embedded THUOCL pool without content filters. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
          */
         post: operations["disableAnonymousIdentity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/anonymous/privacy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update anonymous profile content visibility
+         * @description Requires the current authenticated live human owner; no caller-supplied persona UID is accepted. Persists the independent showContent preference. Frozen or governance-restricted owners may manage profile privacy without restoring publishing rights. When false, the public profile omits topic/reply streams, counts and pagination for all viewers; existing forum content remains accessible through its normal routes. Private no-store response. Missing/null showContent is a business validation failure; false is accepted.
+         */
+        post: operations["updateAnonymousProfilePrivacy"];
         delete?: never;
         options?: never;
         head?: never;
@@ -409,7 +429,7 @@ export interface paths {
         put?: never;
         /**
          * revealAnonymousIdentity
-         * @description Private, no-store response. One persona per numeric owner, shared across clients. Names come from the complete embedded THUOCL pool without content filters. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
          */
         post: operations["revealAnonymousIdentity"];
         delete?: never;
@@ -2454,6 +2474,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/feed/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Build a fresh For You batch after confirming pending seen state
+         * @description Confirms pending seen claims before a new bounded 300-candidate build. Returns a fresh snapshot and at most 20 cards. Publishes only after the complete response is prepared, replacing the identified owner-bound snapshot rather than another live history session. Strictly excludes seen topics unless an eligible current public reply by another account first became public after the displayed cutoff. Failure preserves the caller browsing batch and valid continuation; no fallback/latest batch is returned. Shares the 200 ms total deadline and event rate limit.
+         */
+        post: operations["refreshForYou"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/feed/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reconcile only loaded For You cards in caller order
+         * @description Rechecks at most 120 unique IDs and returns current public eligible survivors plus removedIds. Does not recall, rerank, apply seen suppression, create a cursor or record served. available signals whether continuation is enabled. Returns current displayed-content proofs, independent of metrics. A transient failure is not an authoritative deletion.
+         */
+        post: operations["reconcileForYou"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/feed/events": {
         parameters: {
             query?: never;
@@ -2464,18 +2524,65 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Merge authenticated visible and foreground dwell observations
-         * @description Maximum body 32 KiB and 50 patches; account-bound HMAC trace expires within
+         * Confirm viewport seen state and merge feed observations
+         * @description Maximum body 32 KiB and 50 combined patches/seenPatches; account-bound HMAC trace expires within
          *     six hours. Only its 20 server-served positions are valid. Visible masks
          *     merge with OR and foreground dwell with max, in five-second steps capped
          *     at 600 seconds. The server alone records a successful public detail open.
          *     Client observations are measurement proxies, never points or global rank
          *     credits. Cookie requests require same-origin CSRF validation. Each account
          *     gets 12 batches/minute, burst 24; a global 200/s, burst 400 cap also applies.
-         *     HTTP 200 confirms bounded queue acceptance, not durable storage. When
-         *     metrics are disabled it is a no-op. Fields unknown to JSON binding are ignored.
+         *     Legacy patches return boolean true for bounded queue acceptance and are a
+         *     no-op when metrics are disabled. seenPatches use a separate account-bound
+         *     30-minute proof with displayed-content cutoff and elapsed milliseconds
+         *     after receipt (50% visible for one continuous foreground second).
+         *     At most 120 distinct topic claims are committed synchronously, independent
+         *     of metrics; seenConfirmed is returned only after commit. Duplicate/older
+         *     proofs cannot extend 30-day retention or regress the cutoff. A full metrics
+         *     queue cannot undo a seen ACK. No client opened/rank/points credit is minted.
+         *     Fields unknown to JSON binding are ignored.
          */
         post: operations["captureFeedEvents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/anonymous-identities/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List restricted anonymous identity mappings
+         * @description Requires user management permission plus an explicit anonymous.identity.reveal grant; Admin wildcard never implies reveal. Nonempty reason is required. Permissions are checked against the current role inside the audit transaction. Private no-store response; audit failure or permission revocation fails closed. Every returned mapping is privately audited. Search matches persona name/UID, owner username or exact ID. Closed owners are retained. Status filters apply to persona state; account freezes remain separate.
+         */
+        post: operations["listAdminAnonymousIdentities"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/anonymous-identities/govern": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ban or restore an anonymous identity
+         * @description Requires user management permission plus an explicit anonymous.identity.reveal grant; Admin wildcard never implies reveal. Nonempty reason is required. Permissions are checked against the current role inside the audit transaction. Private no-store response; audit failure or permission revocation fails closed. No post is required. Restricts the persona and owner publishing atomically with a private audit. Restore preserves independent account freezes and self-disabled status. Returns only a boolean.
+         */
+        post: operations["governAdminAnonymousIdentity"];
         delete?: never;
         options?: never;
         head?: never;
@@ -12812,6 +12919,10 @@ export interface components {
             color: string;
         };
         TopicPayload: {
+            feedTrace?: string;
+            feedPosition?: number;
+            feedReason?: string;
+            contentType?: number;
             /** Format: uint64 */
             id: number;
             title: string;
@@ -13111,7 +13222,7 @@ export interface components {
             /** @constant */
             kind: "persona";
             publicUid: string;
-            /** @description Unmodified full THUOCL entry; escaped as plain text. */
+            /** @description New names freely combine two-character action + two-character scene/object + 的 + one-character animal (six Han characters). Existing names remain unchanged; escaped as plain text. */
             name: string;
             avatarUrl: string;
             profileUrl: string;
@@ -13124,6 +13235,8 @@ export interface components {
             nameChangeAvailableAt: string | null;
             disabled: boolean;
             governanceDisabled: boolean;
+            /** @description Server-persisted preference for listing public topics, replies and counts on the persona profile. Defaults to true; independent of member settings and publishing restrictions. */
+            showContent: boolean;
             day: string;
             remaining: number;
             /** Format: date-time */
@@ -13135,6 +13248,7 @@ export interface components {
             id: string;
             /** Format: date */
             day: string;
+            /** @description New draws use six Han characters in the phrase6-v1 form. Persisted earlier batches retain their exact words until expiry. */
             words: string[];
             /** Format: date-time */
             expiresAt: string;
@@ -13440,6 +13554,9 @@ export interface components {
         disableAnonymousIdentityResponse: (components["schemas"]["ApiSuccess"] & {
             result: boolean;
         }) | components["schemas"]["ApiFailure"];
+        AnonymousProfilePrivacyRequest: {
+            showContent: boolean;
+        };
         revealAnonymousIdentityResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["AnonymousRevealedOwner"];
         }) | components["schemas"]["ApiFailure"];
@@ -13639,6 +13756,46 @@ export interface components {
         DisplayBadgesRequest: {
             badgeCodes: string[];
         };
+        FeedSeenPatch: {
+            proof: string;
+            seen: {
+                [key: string]: number;
+            };
+        };
+        FeedRefreshRequest: {
+            /** @description Current owner-bound browsing snapshot to replace after successful hydration. Optional for a new or expired session; never replaces another live session when this ID was already consumed. */
+            replaceSnapshotId?: string;
+            seenPatches?: components["schemas"]["FeedSeenPatch"][];
+        };
+        FeedSeenProof: {
+            token: string;
+            topicIds: number[];
+            /** Format: int64 */
+            issuedAt: number;
+            /** Format: int64 */
+            expiresAt: number;
+        };
+        FeedSessionResult: {
+            /** Format: uint64 */
+            viewerId: number;
+            topics: components["schemas"]["TopicPayload"][];
+            removedIds: number[];
+            seenProofs: components["schemas"]["FeedSeenProof"][];
+            snapshotId: string;
+            pagination?: components["schemas"]["PaginationPayload"];
+            available: boolean;
+            seenConfirmed: boolean;
+        };
+        FeedSessionResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["FeedSessionResult"];
+            message?: string;
+            messageCode?: string;
+        };
+        FeedReconcileRequest: {
+            topicIds: number[];
+        };
         FeedEventPatch: {
             trace: string;
             visibleMask: number;
@@ -13647,15 +13804,65 @@ export interface components {
             };
         };
         FeedEventsRequest: {
-            patches: components["schemas"]["FeedEventPatch"][];
+            patches?: components["schemas"]["FeedEventPatch"][];
+            seenPatches?: components["schemas"]["FeedSeenPatch"][];
+        };
+        FeedSeenAck: {
+            /** @constant */
+            seenConfirmed: true;
         };
         FeedEventsResponse: {
             /** @constant */
             code: 0;
-            /** @constant */
-            result: true;
+            result: true | components["schemas"]["FeedSeenAck"];
             message?: string;
             messageCode?: string;
+        };
+        AdminAnonymousListRequest: {
+            page: number;
+            pageSize: number;
+            search?: string;
+            /** @enum {string} */
+            status: "all" | "active" | "disabled" | "banned";
+            reason: string;
+        };
+        AdminAnonymousOwner: {
+            userId: number;
+            username: string;
+            closed: boolean;
+            frozen: boolean;
+        };
+        /** @description Restricted private mapping. Never persist in client caches or expose in public projections or exports. */
+        AdminAnonymousIdentity: {
+            /** @constant */
+            kind: "persona";
+            publicUid: string;
+            name: string;
+            avatarUrl: string;
+            profileUrl: string;
+            owner: components["schemas"]["AdminAnonymousOwner"];
+            disabled: boolean;
+            governanceDisabled: boolean;
+            /** Format: date-time */
+            selectedAt: string;
+        };
+        AdminAnonymousList: {
+            items: components["schemas"]["AdminAnonymousIdentity"][];
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        AdminAnonymousListResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["AdminAnonymousList"];
+            message?: string;
+            messageCode?: string;
+        };
+        AdminAnonymousGovernRequest: {
+            publicUid: string;
+            disabled: boolean;
+            reason: string;
         };
         FeedMetricRow: {
             day: string;
@@ -15061,6 +15268,57 @@ export interface operations {
                 };
             };
             /** @description Frozen account, write eligibility or CSRF rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    updateAnonymousProfilePrivacy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnonymousProfilePrivacyRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["disableAnonymousIdentityResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description CSRF rejected */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -18726,6 +18984,144 @@ export interface operations {
             };
         };
     };
+    refreshForYou: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedRefreshRequest"];
+            };
+        };
+        responses: {
+            /** @description Owner-bound successful result. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedSessionResponse"];
+                };
+            };
+            /** @description Invalid body, proof or IDs. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cookie CSRF validation failed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared event rate limit reached. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Feed unavailable, deadline or storage failure; keep existing batch. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    reconcileForYou: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedReconcileRequest"];
+            };
+        };
+        responses: {
+            /** @description Owner-bound successful result. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedSessionResponse"];
+                };
+            };
+            /** @description Invalid body, proof or IDs. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cookie CSRF validation failed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared event rate limit reached. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Feed unavailable, deadline or storage failure; keep existing batch. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     captureFeedEvents: {
         parameters: {
             query?: never;
@@ -18779,6 +19175,99 @@ export interface operations {
             429: {
                 headers: {
                     "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Seen-state storage failed or deadline expired; keep pending claims. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listAdminAnonymousIdentities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAnonymousListRequest"];
+            };
+        };
+        responses: {
+            /** @description Audited result or business failure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAnonymousListResponse"] | components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Permission denied, frozen account or CSRF failure */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    governAdminAnonymousIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAnonymousGovernRequest"];
+            };
+        };
+        responses: {
+            /** @description Audited result or business failure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["governAnonymousIdentityResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Permission denied, frozen account or CSRF failure */
+            403: {
+                headers: {
                     [name: string]: unknown;
                 };
                 content: {

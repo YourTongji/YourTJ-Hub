@@ -54,8 +54,8 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 - [Vision & principles](product/vision-and-principles.md)
 - [Current state & gaps](product/current-state.md)
 - [Forum experience](product/forum.md)
-- [Persistent anonymous identity](product/anonymous-identity.md)
-- [Feed ranking and measurement](product/feed-ranking.md)
+- [Persistent anonymous identity and restricted administration](product/anonymous-identity.md)
+- [Feed ranking, measurement and admin statistics](product/feed-ranking.md)
 - [Courses, reviews & scheduling](product/courses-and-scheduling.md)
 - [Mobile experience](product/mobile-experience.md)
 - [Mobile interaction and layout standard](product/mobile-design-system.md)
@@ -79,6 +79,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 - [Testing strategy & commands](development/testing.md)
 - [Issues, requirements, review & pull requests](development/pull-requests.md)
 - [Documentation governance](development/documentation.md)
+- [Licensing](development/licensing.md)
 - [Newcomer orientation (repo-seed)](development.md)
 - [Go dependency vulnerability scanning](development/dependency-scanning.md)
 
