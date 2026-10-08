@@ -8,6 +8,44 @@ const numericContinuation = /^\d+[A-Za-z]?(?:室|教室|实验室)?$/u
 const timePrefix = /^(?:上课)?(单周|双周|周[一二三四五六日天]|第?\d+(?:[-~～至]\d+)?周|[前后]\d+周)\s*/u
 const timeNote = /^(?:单周|双周|周[一二三四五六日天]|第?\d+(?:[-~～至]\d+)?周|[前后]\d+周|\d+月\d+日)$/u
 
+interface ParsedAlias {
+  alias: string
+  normalizedAlias: string
+  place: StablePlace
+}
+
+function buildCampusAliases(entries: StablePlace[]): ParsedAlias[] {
+  return entries.flatMap(place => [place.name, ...place.aliases].map(alias => ({
+    alias,
+    normalizedAlias: key(alias),
+    place
+  }))).sort((a, b) => b.alias.length - a.alias.length)
+}
+
+// Precompute default catalog aliases once
+const defaultCatalogAliases: Record<string, ParsedAlias[]> = Object.fromEntries(
+  Object.entries(placeCatalog).map(([campus, entries]) => [campus, buildCampusAliases(entries)])
+)
+
+const customCatalogCache = new WeakMap<Record<string, StablePlace[]>, Map<string, ParsedAlias[]>>()
+
+function getCampusAliases(catalog: Record<string, StablePlace[]>, campusId: string): ParsedAlias[] {
+  if (catalog === placeCatalog) {
+    return defaultCatalogAliases[campusId] ?? []
+  }
+  let cache = customCatalogCache.get(catalog)
+  if (!cache) {
+    cache = new Map()
+    customCatalogCache.set(catalog, cache)
+  }
+  let aliases = cache.get(campusId)
+  if (!aliases) {
+    aliases = buildCampusAliases(catalog[campusId] ?? [])
+    cache.set(campusId, aliases)
+  }
+  return aliases
+}
+
 export function missingExtraction(raw: string): LocationExtraction {
   return { relation: 'single', locations: [{ source_text: raw, kind: 'unknown', place: null, detail: null,
     campus_text: null, address: null, time: null, conditions: [] }], unassigned_conditions: [], needs_review: false, review_reasons: [] }
@@ -15,9 +53,7 @@ export function missingExtraction(raw: string): LocationExtraction {
 
 /** Anchored longest verified-name match, not substring inference from model-produced place names. */
 export function parseStableLocation(raw: string, campusId: string, catalog = placeCatalog): LocationExtraction {
-  const entries = catalog[campusId] ?? []
-  const names = entries.flatMap(place => [place.name, ...place.aliases].map(alias => ({ alias, place })))
-    .sort((a, b) => b.alias.length - a.alias.length)
+  const names = getCampusAliases(catalog, campusId)
   const pieces = raw.split(/[、,，;；]/u)
   const locations: ExtractedLocation[] = [], unresolved: string[] = []
   let inherited: StablePlace | undefined
@@ -31,14 +67,16 @@ export function parseStableLocation(raw: string, campusId: string, catalog = pla
       time.push(match[1]!); text = text.slice(match[0].length)
     }
     const note = text.match(/[（(]([^（）()]*)[）)]$/u)
-    if (note && !names.some(({ alias }) => key(alias) === key(text))) {
+    let normalizedText = key(text)
+    if (note && !names.some(({ normalizedAlias }) => normalizedAlias === normalizedText)) {
       hasSuffixNote = true
       // Preserve even unsupported notes. They never silently become an unconditional room.
       if (timeNote.test(note[1]!)) time.push(note[1]!)
       else conditions.push(note[1]! || note[0])
       text = text.slice(0, -note[0].length).trim()
+      normalizedText = key(text)
     }
-    const matches = names.filter(({ alias }) => key(text).startsWith(key(alias)))
+    const matches = names.filter(({ alias, normalizedAlias }) => normalizedText.startsWith(normalizedAlias))
       // User-confirmed 南/北 shorthand requires a numeric room; the direction alone is not a building.
       .filter(({ alias }) => !['南', '北'].includes(alias) || numericContinuation.test(text.slice(alias.length).trim()))
       .filter(({ alias }) => !text.slice(alias.length).trim() || room.test(text.slice(alias.length).trim()))
