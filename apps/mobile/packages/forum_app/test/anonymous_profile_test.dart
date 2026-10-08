@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/providers.dart';
@@ -32,7 +33,7 @@ Map<String, dynamic> props(String name) => {
   },
   'topics': [],
   'replies': [
-    {'id': 1, 'url': '/p/1/2', 'excerpt': '这是匿名回复'},
+    {'id': 1, 'url': '/p/post/1/2', 'excerpt': '这是匿名回复'},
   ],
   'topicCount': 0,
   'replyCount': 1,
@@ -300,5 +301,71 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('过期响应'), findsNothing);
     expect(find.text('当前响应'), findsWidgets);
+  });
+  testWidgets('reply rows open the native topic route at their floor', (
+    tester,
+  ) async {
+    final dio = Dio()
+      ..interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (o, h) => h.resolve(
+            Response(
+              requestOptions: o,
+              statusCode: 200,
+              data: {'props': props(persona.name)},
+            ),
+          ),
+        ),
+      );
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => AnonymousProfilePage(uid: uid),
+        ),
+        GoRoute(
+          path: '/p/:postId',
+          builder: (_, state) => Text(
+            'topic-${state.pathParameters['postId']}-'
+            '${state.uri.queryParameters['postNo']}',
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          apiClientProvider.overrideWithValue(
+            GfApiClient(
+              dio: dio,
+              tokenStorage: MemoryTokenStorage(),
+              baseUrl: 'http://fake.local',
+            ),
+          ),
+          currentUserProvider.overrideWith((ref) async => null),
+          anonymousIdentityProvider.overrideWith((ref) async => state(null)),
+        ],
+        child: MaterialApp.router(
+          routerConfig: router,
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: gfThemeData(Brightness.light),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ProfileTabs),
+        matching: find.textContaining('回复'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('这是匿名回复'));
+    await tester.pumpAndSettle();
+    expect(find.text('topic-1-2'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

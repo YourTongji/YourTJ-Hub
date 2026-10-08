@@ -8,6 +8,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../asset_url.dart';
 import '../../current_user.dart';
 import '../../format.dart';
+import '../../profile_links.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
 import '../../navigation/tab_swipe_surface.dart';
@@ -268,13 +269,20 @@ class _AnonymousProfilePageState extends ConsumerState<AnonymousProfilePage> {
                         itemCount: replies.length,
                         itemBuilder: (context, index) {
                           final reply = replies[index] as Map;
+                          // The server links replies as /p/post/<topic>/<floor>;
+                          // only the native topic route is navigable.
+                          final route = profileActivityRoute(
+                            reply['url'] as String? ?? '',
+                          );
                           return GfContentRow(
                             author: persona.name,
                             avatarUrl: resolveApiAssetUrl(persona.avatarUrl),
                             title: l.profileReplies,
                             text: reply['excerpt'] as String,
                             time: '',
-                            onTap: () => context.push(reply['url'] as String),
+                            onTap: route == null
+                                ? null
+                                : () => context.push(route),
                           );
                         },
                       )
