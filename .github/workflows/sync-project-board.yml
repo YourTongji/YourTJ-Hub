@@ -58,7 +58,7 @@ jobs:
       EVENT: ${{ github.event.action || inputs.event }}
       LABELS: ${{ (github.event_name == 'issues' && join(github.event.issue.labels.*.name, ',')) || (github.event_name == 'pull_request' && join(github.event.pull_request.labels.*.name, ',')) || '' }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         # fork PR 默认拿不到 secret 会自跳；此守卫是纵深防御：即便仓库配置了
         # "send secrets to fork PRs"，也绝不执行来自 fork 的脚本。
         if: ${{ env.GH_TOKEN != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
