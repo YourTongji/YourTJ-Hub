@@ -45,7 +45,7 @@ jobs:
       IOS_STORE_NOTES_PATH: ${{ github.workspace }}/.release-approved/ios.zh-Hans.txt
       RELEASE_RESULT_PATH: ${{ github.workspace }}/.release-result.json
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -71,7 +71,7 @@ jobs:
               out.write('IOS_PUBLISH_TARGET='+target+'\n')
               out.write('APPLE_CHANNELS='+json.dumps(channels)+'\n')
           PY
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ inputs.source }}
           path: .source
@@ -213,7 +213,7 @@ jobs:
       cancel-in-progress: false
       queue: max
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: main
           fetch-depth: 0

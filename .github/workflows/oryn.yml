@@ -55,7 +55,7 @@ jobs:
       matrix: ${{ steps.admit.outputs.matrix || steps.plan.outputs.matrix }}
       count: ${{ (steps.admit.outputs.count || steps.plan.outputs.count) }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.repository.default_branch }}
           persist-credentials: false
@@ -136,7 +136,7 @@ jobs:
       matrix:
         scope: [mobile, ios, web]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
