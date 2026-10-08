@@ -114,7 +114,7 @@ jobs:
       # 上传到 run-specific 路径, 避免与 deploy-main 并发部署时
       # 互相覆盖 /tmp 下的同名文件(见 PR review #1)
       - name: Upload deploy scripts to dev host
-        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
@@ -124,7 +124,7 @@ jobs:
           target: "/tmp/yourtj-deploy-${{ github.run_id }}"
           strip_components: 2
       - name: Upload rendered dev config to dev host
-        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
