@@ -8,7 +8,7 @@
 //   课名+周次（单双周可辨）；周次无交集不判冲突（weeksOverlap 判据）。
 // - 冲突标注：deriveConflicts 统一判据（同天+同节+周次交集），⚠ 角标。
 // - 自定义占位（custom: 伪课号）渲染为灰块，不进课程详情；导出 PNG（html-to-image）。
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AlertCircle, AlertTriangle, BookOpen, CalendarCog, Clock, Download, Info, MapPin, User } from '@lucide/vue'
 import {
@@ -22,7 +22,8 @@ import ScheduleTimeGrid from './ScheduleTimeGrid.vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
 import ScheduleConflictWarningDialog from '@/site/components/schedule/ScheduleConflictWarningDialog.vue'
-import ScheduleExportDialog from '@/site/components/schedule/ScheduleExportDialog.vue'
+
+const ScheduleExportDialog = defineAsyncComponent(() => import('@/site/components/schedule/ScheduleExportDialog.vue'))
 import ScheduleExternalToolsTip from '@/site/components/schedule/ScheduleExternalToolsTip.vue'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import {

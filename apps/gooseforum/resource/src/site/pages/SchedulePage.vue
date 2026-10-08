@@ -6,7 +6,7 @@
 // 数据全部走 /api/pk/* JSON API 异步加载（SSR 空壳）；localStorage 持久化由 store 负责。
 // 数据过期提示 + 「同步最新」：P11 latest-update 对比本地 updateTime，P12 course-info-sync
 // 以全方案课程并集请求，applySyncToAllPlans 各方案保留排课状态。
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle,
@@ -20,10 +20,11 @@ import ScheduleStatsCard from '@/site/components/schedule/ScheduleStatsCard.vue'
 import ScheduleRoughList from '@/site/components/schedule/ScheduleRoughList.vue'
 import ScheduleDetailList from '@/site/components/schedule/ScheduleDetailList.vue'
 import ScheduleTimeTable from '@/site/components/schedule/ScheduleTimeTable.vue'
-import ScheduleCoursePicker from '@/site/components/schedule/ScheduleCoursePicker.vue'
-import ScheduleCellPicker from '@/site/components/schedule/ScheduleCellPicker.vue'
-import ScheduleCustomEventDialog from '@/site/components/schedule/ScheduleCustomEventDialog.vue'
-import ScheduleDetailCard from '@/site/components/schedule/ScheduleDetailCard.vue'
+
+const ScheduleCoursePicker = defineAsyncComponent(() => import('@/site/components/schedule/ScheduleCoursePicker.vue'))
+const ScheduleCellPicker = defineAsyncComponent(() => import('@/site/components/schedule/ScheduleCellPicker.vue'))
+const ScheduleCustomEventDialog = defineAsyncComponent(() => import('@/site/components/schedule/ScheduleCustomEventDialog.vue'))
+const ScheduleDetailCard = defineAsyncComponent(() => import('@/site/components/schedule/ScheduleDetailCard.vue'))
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import { scheduleSync, startScheduleSync, stopScheduleSync } from '@/site/composables/useScheduleSync'
 import { getPkLatestUpdate, syncPkCourseInfo } from '@/runtime/pk-api'
