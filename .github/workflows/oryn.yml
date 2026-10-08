@@ -101,7 +101,7 @@ jobs:
           ORYN_WRITE_TOKEN: ${{ steps.target.outputs.token }}
           ORYN_BOT_LOGIN: ${{ steps.target.outputs.app-slug }}[bot]
       - if: (steps.admit.outputs.count || steps.plan.outputs.count) != '0'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: plan
           overwrite: true
@@ -162,7 +162,7 @@ jobs:
       - name: Validate and render platform output
         working-directory: .
         run: python3 scripts/release/smoke.py --verify
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
           name: release-notes-smoke-${{ matrix.scope }}
