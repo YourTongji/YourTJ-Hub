@@ -124,10 +124,14 @@ test('immediate refresh carries visible claims and filters them; failure preserv
 test('expired cursor retains loaded cards and asks for explicit refresh', async () => {
   const { page, state } = await setupPage(390, { expired: true })
   try {
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)); await page.getByText('这批推荐已过期', { exact: false }).waitFor()
-    assert.equal(await page.locator('[data-feed-id]').count(), 20); assert.equal(state.refreshes.length, 0)
-    assert.equal(await page.getByText("加载更多", { exact: true }).count(), 0)
-    assert.ok(await page.getByText("这批推荐已过期", { exact: false }).evaluate((el) => el.getBoundingClientRect().top) < 900)
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+    const expiredNotice = page.getByText('这批推荐已过期', { exact: false })
+    await expiredNotice.waitFor()
+    await expiredNotice.scrollIntoViewIfNeeded()
+    assert.equal(await page.locator('[data-feed-id]').count(), 20)
+    assert.equal(state.refreshes.length, 0)
+    assert.equal(await page.getByText('加载更多', { exact: true }).count(), 0)
+    assert.ok(await expiredNotice.evaluate((el) => el.getBoundingClientRect().top) < 900)
     await page.screenshot({ path: join(screenshots, 'expired-390.png') })
   } finally { await page.close() }
 })

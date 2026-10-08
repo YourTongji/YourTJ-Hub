@@ -443,6 +443,7 @@
 .share-printer-bar {
   position: relative;
   overflow: hidden;
+  contain: paint;
 }
 
 .share-printer-bar::after {
@@ -458,6 +459,8 @@
     rgba(14, 165, 233, 0.18) 75%,
     transparent 100%
   );
+  will-change: transform;
+  transform: translateZ(0);
   animation: gf-share-printer-sweep 2.2s ease-in-out infinite;
 }
 

@@ -903,9 +903,12 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .announcement-unread-bell {
-  /* 未读提醒：持续摇铃标识运动状态；点击后移除该类进入静止态 */
-  animation: announcement-bell-ring 2s ease-in-out infinite;
+  /* 未读提醒：持续摇铃；CSS Containment 与独立合成层保证仅铃铛局部重绘，绝不重绘父容器与页面 */
+  contain: layout paint;
+  will-change: transform;
+  transform: translateZ(0);
   transform-origin: 50% 15%;
+  animation: announcement-bell-ring 2s ease-in-out infinite;
 }
 
 @keyframes announcement-bell-ring {
