@@ -3561,9 +3561,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get anonymousConfirm => 'Namen bestätigen (für ein Jahr fest)';
 
   @override
-  String get anonymousCancel => 'Abbrechen';
-
-  @override
   String get anonymousNext => 'Nächste Seite';
 
   @override
@@ -3571,18 +3568,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get anonymousManage => 'Anonyme Identität verwalten';
-
-  @override
-  String get anonymousReason => 'Grund (erforderlich)';
-
-  @override
-  String get anonymousBan => 'Beiträge des Kontos sperren';
-
-  @override
-  String get anonymousRestore => 'Diese Schreibsperre aufheben';
-
-  @override
-  String get anonymousReveal => 'Identität mit Audit offenlegen';
 
   @override
   String get sortForYou => 'Für dich';

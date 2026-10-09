@@ -88,20 +88,3 @@ class AnonymousIdentityState {
             .toList(),
       );
 }
-
-/// Returned only by an explicitly authorized, audited reveal operation.
-/// This result must never enter public author models or persisted caches.
-class AnonymousReveal {
-  const AnonymousReveal({
-    required this.publicUid,
-    required this.userId,
-    required this.username,
-  });
-  final String publicUid, username;
-  final int userId;
-  factory AnonymousReveal.fromJson(Map<String, dynamic> j) => AnonymousReveal(
-    publicUid: j['publicUid'] as String,
-    userId: (j['userId'] as num).toInt(),
-    username: j['username'] as String,
-  );
-}

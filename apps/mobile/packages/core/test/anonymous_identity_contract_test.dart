@@ -66,11 +66,6 @@ void main() {
         fixture('anonymous-confirm-success'),
       );
       expect(persona.kind, 'persona');
-      final reveal = AnonymousReveal.fromJson(
-        fixture('anonymous-reveal-success'),
-      );
-      expect(reveal.publicUid, persona.publicUid);
-      expect(reveal.userId, 123);
       expect(persona.publicUid, hasLength(32));
       expect(persona.profileUrl, '/a/${persona.publicUid}');
       final author = UserBriefPayload.fromJson({

@@ -134,7 +134,7 @@ func (s Service) ListAdmin(actor uint64, q AdminListQuery) (AdminList, error) {
 // GovernAdmin allows governance without an existing post, with the same audit
 // and owner-wide publishing restriction as scoped moderation.
 func (s Service) GovernAdmin(actor uint64, uid, reason string, disabled bool) (uint64, error) {
-	if !ValidateReason(reason) || len(uid) != 32 {
+	if !ValidateReason(reason) || !ValidatePublicUID(uid) {
 		return 0, ErrUnavailable
 	}
 	var binding identity.Binding
@@ -145,8 +145,11 @@ func (s Service) GovernAdmin(actor uint64, uid, reason string, disabled bool) (u
 		if err := tx.First(&binding, "persona_uid = ?", uid).Error; err != nil {
 			return err
 		}
-		s.DB = tx
-		return s.Govern(actor, uid, reason, disabled)
+		trace, err := randomID()
+		if err != nil {
+			return err
+		}
+		return governTx(tx, actor, uid, reason, disabled, trace, s.Now)
 	})
 	if err != nil {
 		return 0, err

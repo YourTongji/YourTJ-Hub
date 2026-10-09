@@ -11,7 +11,6 @@ export default {
     reason: "閲覧事由",
     reasonPlaceholder: "例：通報されたアカウントを調査",
     view: "一覧を表示",
-    audited: "監査に記録済み",
     hide: "関連情報を隠す",
     searchPlaceholder: "花名・UID・ユーザー名・IDで検索",
     status: "利用状態",
@@ -2985,11 +2984,6 @@ export default {
     ready: "利用可能",
 
     manage: "匿名の身分を管理",
-    reason: "理由（必須）",
-    ban: "アカウントの投稿を制限",
-    restore: "この投稿制限を解除",
-    reveal: "監査して身分を開示",
-
     confirm: "名前を確定（1年間固定）",
     cancel: "キャンセル",
     identity: "匿名の身元",

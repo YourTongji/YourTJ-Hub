@@ -11,7 +11,6 @@ export default {
     reason: "查看事由",
     reasonPlaceholder: "例如：处理举报，核查违规账号",
     view: "查看身份列表",
-    audited: "本次查看已记录审计",
     hide: "隐藏身份关系",
     searchPlaceholder: "搜索花名、UID、用户名或主账号 ID",
     status: "身份状态",
@@ -2988,11 +2987,6 @@ export default {
     ready: "可使用",
 
     manage: "管理匿名身份",
-    reason: "处置理由（必填）",
-    ban: "限制该账号发言",
-    restore: "解除此项发言限制",
-    reveal: "审计揭示身份",
-
     confirm: "确认花名（锁定一年）",
     cancel: "取消",
     identity: "匿名身份",

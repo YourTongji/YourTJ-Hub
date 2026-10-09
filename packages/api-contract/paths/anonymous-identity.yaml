@@ -309,9 +309,9 @@ updateAnonymousProfilePrivacy:
         description: Success or business failure
         content:
           application/json:
-            schema: { $ref: ../components/anonymous-identity.yaml#/disableAnonymousIdentityResponse }
+            schema: { $ref: ../components/anonymous-identity.yaml#/updateAnonymousProfilePrivacyResponse }
             examples:
-              success: { externalValue: ../fixtures/anonymous-disable-success.json }
+              success: { externalValue: ../fixtures/anonymous-profile-privacy-success.json }
       '401':
         description: Authentication required
         content:

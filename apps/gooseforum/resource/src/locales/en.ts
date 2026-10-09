@@ -11,7 +11,6 @@ export default {
     reason: "Access reason",
     reasonPlaceholder: "For example: investigate a reported account",
     view: "View identities",
-    audited: "Access recorded in private audit",
     hide: "Hide mappings",
     searchPlaceholder: "Search name, UID, username or account ID",
     status: "Identity status",
@@ -2986,11 +2985,6 @@ export default {
     ready: "Available",
 
     manage: "Manage anonymous identity",
-    reason: "Reason (required)",
-    ban: "Restrict account writing",
-    restore: "Remove this writing restriction",
-    reveal: "Reveal with audit",
-
     confirm: "Confirm name (locked for one year)",
     cancel: "Cancel",
     identity: "Anonymous identity",

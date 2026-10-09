@@ -222,10 +222,12 @@ class _AnonymousProfilePageState extends ConsumerState<AnonymousProfilePage> {
                               ),
                             ]
                           : [],
-                      statActions: {
-                        0: () => setState(() => tab = 0),
-                        1: () => setState(() => tab = 1),
-                      },
+                      statActions: showContent
+                          ? {
+                              0: () => setState(() => tab = 0),
+                              1: () => setState(() => tab = 1),
+                            }
+                          : const {},
                     ),
                   ),
                   if (showContent) ...[

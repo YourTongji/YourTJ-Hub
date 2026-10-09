@@ -82,6 +82,7 @@ func TestAnonymousProfileContentPrivacyHTTP(t *testing.T) {
 		if res := decodeContractEnvelope(t, rec); res.Code != 0 || rec.Header().Get("Cache-Control") != "private, no-store" {
 			t.Fatal("privacy update failed", rec.Code, rec.Body.String())
 		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "anonymous-profile-privacy-success.json"))
 		for _, viewer := range []string{"", token, contractSessionToken(t, other)} {
 			props, raw := profile(viewer, 1)
 			if props.ShowContent != show {

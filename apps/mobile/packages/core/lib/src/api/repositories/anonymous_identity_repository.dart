@@ -33,18 +33,4 @@ class AnonymousIdentityRepository {
       body: {'showContent': showContent},
     );
   }
-
-  Future<void> govern(int postId, bool disabled, String reason) async {
-    await client.post<Object?>(
-      '/api/forum/anonymous/govern',
-      body: {'postId': postId, 'disabled': disabled, 'reason': reason},
-    );
-  }
-
-  Future<AnonymousReveal> reveal(String publicUid, String reason) =>
-      client.post(
-        '/api/forum/anonymous/reveal',
-        body: {'publicUid': publicUid, 'reason': reason},
-        parser: (j) => AnonymousReveal.fromJson(j as Map<String, dynamic>),
-      );
 }

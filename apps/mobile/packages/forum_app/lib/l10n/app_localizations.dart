@@ -6408,12 +6408,6 @@ abstract class AppLocalizations {
   /// **'Confirm name (locked for one year)'**
   String get anonymousConfirm;
 
-  /// No description provided for @anonymousCancel.
-  ///
-  /// In en, this message translates to:
-  /// **'Cancel'**
-  String get anonymousCancel;
-
   /// No description provided for @anonymousNext.
   ///
   /// In en, this message translates to:
@@ -6431,30 +6425,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Manage anonymous identity'**
   String get anonymousManage;
-
-  /// No description provided for @anonymousReason.
-  ///
-  /// In en, this message translates to:
-  /// **'Reason (required)'**
-  String get anonymousReason;
-
-  /// No description provided for @anonymousBan.
-  ///
-  /// In en, this message translates to:
-  /// **'Restrict account writing'**
-  String get anonymousBan;
-
-  /// No description provided for @anonymousRestore.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove this writing restriction'**
-  String get anonymousRestore;
-
-  /// No description provided for @anonymousReveal.
-  ///
-  /// In en, this message translates to:
-  /// **'Reveal with audit'**
-  String get anonymousReveal;
 
   /// No description provided for @sortForYou.
   ///

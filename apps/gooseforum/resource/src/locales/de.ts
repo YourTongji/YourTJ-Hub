@@ -11,7 +11,6 @@ export default {
     reason: "Zugriffsgrund",
     reasonPlaceholder: "Zum Beispiel: gemeldetes Konto untersuchen",
     view: "Identitäten anzeigen",
-    audited: "Zugriff vertraulich protokolliert",
     hide: "Zuordnungen ausblenden",
     searchPlaceholder: "Name, UID, Benutzername oder Konto-ID suchen",
     status: "Identitätsstatus",
@@ -2985,11 +2984,6 @@ export default {
     ready: "Verfügbar",
 
     manage: "Anonyme Identität verwalten",
-    reason: "Grund (erforderlich)",
-    ban: "Beiträge des Kontos sperren",
-    restore: "Diese Schreibsperre aufheben",
-    reveal: "Identität mit Audit offenlegen",
-
     confirm: "Namen bestätigen (für ein Jahr fest)",
     cancel: "Abbrechen",
     identity: "Anonyme Identität",
