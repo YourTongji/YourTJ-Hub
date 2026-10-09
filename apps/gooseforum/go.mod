@@ -1,8 +1,6 @@
 module github.com/YourTongji/YourTJ-Hub/apps/gooseforum
 
-go 1.26.6
-
-toolchain go1.26.8
+go 1.26.9
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
