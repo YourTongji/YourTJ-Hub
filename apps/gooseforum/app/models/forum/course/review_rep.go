@@ -619,7 +619,10 @@ func UpsertOfferingStatsTx(tx *gorm.DB, offeringId uint64, deltaRatingCount, del
 	}).Error
 }
 
-// OnRebuildAllCourseStats is an optional callback invoked after RebuildAllCourseStats completes.
+// OnRebuildAllCourseStats is an optional post-commit callback invoked after RebuildAllCourseStats completes.
+// Service layers (such as courseservice) wire cache invalidation here (e.g. InvalidateAllCourseDetailCache)
+// to ensure in-memory projections and caches stay consistent across all rebuild entrypoints (task queue,
+// console command, and review imports) without redundant individual calls.
 var OnRebuildAllCourseStats func()
 
 // RebuildAllCourseStats 全量重建课程/offering 统计投影（rebuild-course-stats 命令）。

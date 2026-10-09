@@ -263,6 +263,18 @@ func init() {
 
 const courseDetailCacheTTL = 10 * time.Minute
 
+// InvalidateCourseTeamCache clears all cached course details for courses with the given team key.
+func InvalidateCourseTeamCache(teamKey string) {
+	if teamKey == "" {
+		return
+	}
+	if teammates, err := course.ListVisibleCoursesByTeamKey(teamKey, 0); err == nil {
+		for _, tm := range teammates {
+			courseDetailCache.Delete(strconv.FormatUint(tm.Id, 10))
+		}
+	}
+}
+
 // InvalidateCourseDetailCache clears the cached course detail for the given course ID.
 // If the course belongs to a teaching team, all teammates are also invalidated to preserve
 // team aggregate consistency.
@@ -273,11 +285,7 @@ func InvalidateCourseDetailCache(id uint64) {
 	courseDetailCache.Delete(strconv.FormatUint(id, 10))
 	c := course.GetCourse(id)
 	if c.TeamKey != "" {
-		if teammates, err := course.ListVisibleCoursesByTeamKey(c.TeamKey, c.Id); err == nil {
-			for _, tm := range teammates {
-				courseDetailCache.Delete(strconv.FormatUint(tm.Id, 10))
-			}
-		}
+		InvalidateCourseTeamCache(c.TeamKey)
 	}
 }
 
@@ -289,6 +297,17 @@ func InvalidateCourseDetailCacheByOfferingId(offeringId uint64) {
 	offering, err := course.GetOffering(offeringId)
 	if err == nil && offering.CourseId != 0 {
 		InvalidateCourseDetailCache(offering.CourseId)
+	}
+}
+
+// InvalidateCourseDetailCacheByReviewId clears the cached course detail for the review's parent offering course.
+func InvalidateCourseDetailCacheByReviewId(reviewId uint64) {
+	if reviewId == 0 {
+		return
+	}
+	review, err := course.GetReview(reviewId)
+	if err == nil && review.OfferingId != 0 {
+		InvalidateCourseDetailCacheByOfferingId(review.OfferingId)
 	}
 }
 

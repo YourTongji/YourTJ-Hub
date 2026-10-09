@@ -252,11 +252,13 @@ func UpdateCourse(courseId uint64, input CourseUpdateInput) (AdminCourseItem, er
 	if input.CreditX10 != nil && *input.CreditX10 < 0 {
 		return AdminCourseItem{}, ErrCourseCreditInvalid
 	}
+	var oldTeamKey string
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		entity := course.GetCourseByIdTx(tx, courseId)
 		if entity.Id == 0 {
 			return ErrCourseNotFound
 		}
+		oldTeamKey = entity.TeamKey
 		updates := map[string]any{}
 		if input.PrimaryCode != nil {
 			code := strings.TrimSpace(*input.PrimaryCode)
@@ -330,6 +332,9 @@ func UpdateCourse(courseId uint64, input CourseUpdateInput) (AdminCourseItem, er
 	}
 	InvalidateCatalogFacetsCache()
 	InvalidateCourseDetailCache(courseId)
+	if oldTeamKey != "" && input.TeamKey != nil && *input.TeamKey != oldTeamKey {
+		InvalidateCourseTeamCache(oldTeamKey)
+	}
 	// 事务提交后再回填别名/教师/统计：adminCourseItemForSingle 走独立连接，
 	// 在 SQLite 单连接测试环境下事务内调用会死锁（与 CreateReview 回填作者名同理）。
 	return adminCourseItemForSingle(course.GetCourse(courseId)), nil
@@ -372,11 +377,13 @@ func adminCourseItemForSingle(entity course.Entity) AdminCourseItem {
 // 同事务入队搜索删除任务（worker 因 GetCourse 未命中而删除索引文档）。
 func DeleteCourse(courseId uint64) (DeletedCourseInfo, error) {
 	var info DeletedCourseInfo
+	var oldTeamKey string
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		entity := course.GetCourseByIdTx(tx, courseId)
 		if entity.Id == 0 {
 			return ErrCourseNotFound
 		}
+		oldTeamKey = entity.TeamKey
 		offeringIds, err := course.ListOfferingIdsByCourseAllTx(tx, courseId)
 		if err != nil {
 			return err
@@ -485,6 +492,9 @@ func DeleteCourse(courseId uint64) (DeletedCourseInfo, error) {
 	}
 	InvalidateCatalogFacetsCache()
 	InvalidateCourseDetailCache(courseId)
+	if oldTeamKey != "" {
+		InvalidateCourseTeamCache(oldTeamKey)
+	}
 	return info, nil
 }
 
