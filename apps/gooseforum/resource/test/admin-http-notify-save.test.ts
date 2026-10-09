@@ -35,6 +35,16 @@ describe('HTTP 通知全局保存不静默删除端点', () => {
   })
 })
 
+describe('HTTP 通知端点 UUID 兼容性', () => {
+  test('新增与规范化路径用共享 UUID，保存与测试继续按端点 ID 操作', () => {
+    expect(extractFunction(pageSrc, 'normalizeEndpoint')).toContain('id: endpoint.id || createUuidV4()')
+    expect(extractFunction(pageSrc, 'addHttpEndpoint')).toContain('const id = createUuidV4()')
+    expect(extractFunction(pageSrc, 'saveHttpEndpoint', true)).toContain('endpoint.id')
+    expect(extractFunction(pageSrc, 'testHttpEndpoint', true)).toContain('endpoint.id')
+    expect(pageSrc).not.toContain('crypto.randomUUID()')
+  })
+})
+
 describe('快捷审批确认页加载失败时仍有出口', () => {
   test('预览失败（无 view）时显示打开版主工作台', () => {
     const fallback = actionPageSrc.slice(actionPageSrc.indexOf('<div v-else class="flex flex-wrap items-center gap-2 pt-2">'))

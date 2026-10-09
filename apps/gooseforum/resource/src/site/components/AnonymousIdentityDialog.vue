@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { Check, EyeOff, Loader2, RefreshCw, X } from '@lucide/vue'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
+import { createUuidV4 } from '@/runtime/uuid'
 import {
   confirmName,
   disableIdentity,
@@ -79,7 +80,7 @@ function updateOpen(open: boolean) {
 }
 async function draw() {
   if (!state.value || busy.value || loading.value) return
-  pendingKey ??= crypto.randomUUID()
+  pendingKey ??= createUuidV4()
   busy.value = true
   error.value = ''
   try {

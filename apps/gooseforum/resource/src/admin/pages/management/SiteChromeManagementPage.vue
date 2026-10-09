@@ -46,6 +46,7 @@ import { adminText } from '@/admin/runtime/i18n-text'
 import { adminToast } from '@/admin/runtime/toast'
 import type { AdminPayload, ManageHomeProps, SiteChromeConfig, SiteChromeGroup, SiteChromeItem } from '@/admin/types'
 import { safeUrl } from '@/runtime/safe-url'
+import { createUuidV4 } from '@/runtime/uuid'
 
 const props = defineProps<{
   payload: AdminPayload<ManageHomeProps>
@@ -124,7 +125,7 @@ function normalizeFooterInfo(footerInfo: SiteChromeConfig['footerInfo'] = { prim
 
 function emptyItem(): SiteChromeItem {
   return {
-    id: crypto.randomUUID(),
+    id: createUuidV4(),
     enabled: true,
     type: 'link',
     label: '',
@@ -135,7 +136,7 @@ function emptyItem(): SiteChromeItem {
 
 function emptyGroup(): SiteChromeGroup {
   return {
-    id: crypto.randomUUID(),
+    id: createUuidV4(),
     title: adminText('k00e4'),
     i18nLabel: '',
     items: [],
@@ -146,7 +147,7 @@ function normalizeItem(item: Partial<SiteChromeItem> = {}): SiteChromeItem {
   return {
     ...emptyItem(),
     ...item,
-    id: item.id || crypto.randomUUID(),
+    id: item.id || createUuidV4(),
     enabled: item.enabled !== false,
     type: ['link', 'text'].includes(item.type || '') ? item.type || 'link' : 'link',
     label: item.label || '',
@@ -159,7 +160,7 @@ function normalizeGroup(group: Partial<SiteChromeGroup> = {}): SiteChromeGroup {
   return {
     ...emptyGroup(),
     ...group,
-    id: group.id || crypto.randomUUID(),
+    id: group.id || createUuidV4(),
     title: group.title || adminText('k00e4'),
     i18nLabel: group.i18nLabel || '',
     items: Array.isArray(group.items) ? group.items.map(normalizeItem) : [],

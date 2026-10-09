@@ -109,7 +109,14 @@ describe('per-plan sync state machine', () => {
     await controller.resolveConflict('p', { '[]': 'local' })
     expect(Object.values(controller.drafts.value).map((p) => p.name)).toEqual(['Local'])
     expect(store.state.plans.some((p) => p.id === 'p')).toBe(false)
+    const originalCrypto = globalThis.crypto
+    vi.stubGlobal('crypto', {
+      getRandomValues: originalCrypto.getRandomValues.bind(originalCrypto),
+    })
     expect(controller.restoreDraft('p')).toBe(true)
+    expect(store.state.plans.find((p) => p.name === 'Local')?.id).toMatch(
+      /^plan_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    )
     await vi.advanceTimersByTimeAsync(3000)
     expect(t.put.mock.calls[0][0].id).not.toBe('p')
     expect(t.put.mock.calls[0][1]).toBe(0)
