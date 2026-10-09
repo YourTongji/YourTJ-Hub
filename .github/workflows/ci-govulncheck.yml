@@ -18,8 +18,8 @@ jobs:
   #     exit 3(job 红, 日志含漏洞 ID 与修复版本), 无漏洞 exit 0;
   #   - 下载 vuln DB(vuln.go.dev)失败、go install govulncheck 失败等运行错误
   #     以非零退出(job 红) —— 网络/代理故障天然失败, 不会静默变绿;
-  #   - 内部 setup-go 默认 check-latest=true: 每次用最新 1.26.x patch, Go 标准库
-  #     漏洞随工具链升级消解(例: go1.26.5 的 7 个 stdlib CVE 修复于 go1.26.6)。
+  #   - 内部 setup-go 读取 go.mod 的安全补丁下限; 清空默认版本输入,
+  #     避免其覆盖 go-version-file, 在 GOTOOLCHAIN=local 下仍使用模块要求的版本。
   # job 名保持 ci-backend-govulncheck 不变, 与迁移前一致。
   ci-backend-govulncheck:
     runs-on: ubuntu-latest
@@ -31,6 +31,7 @@ jobs:
       # repo-checkout=false: 复用上方 checkout, 避免 action 内重复检出。
       - uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f
         with:
-          go-version-input: "1.26"
+          go-version-input: ""
+          go-version-file: apps/gooseforum/go.mod
           work-dir: apps/gooseforum
           repo-checkout: "false"
