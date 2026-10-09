@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 import { i18n } from '../src/runtime/i18n'
@@ -7,6 +7,10 @@ import { i18n } from '../src/runtime/i18n'
 import ScheduleTimeTable from '../src/site/components/schedule/ScheduleTimeTable.vue'
 import { useScheduleStore } from '../src/site/composables/useScheduleStore'
 import type { PkCourseDetail, PkStagedCourse } from '../src/site/types/pk'
+
+beforeAll(async () => {
+  await import('../src/site/components/schedule/ScheduleExportDialog.vue')
+})
 
 function makeDetail(code: string, day: number, time: number[], weeks: number[]): PkCourseDetail {
   return {
