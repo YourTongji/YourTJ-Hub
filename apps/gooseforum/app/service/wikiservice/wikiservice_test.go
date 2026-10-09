@@ -394,27 +394,53 @@ func TestBuildTreeCacheStalenessAndDefensiveCopy(t *testing.T) {
 }
 
 // TestBuildTreeActiveDoesNotTaintCache verifies that different activePath calls
-// receive the correct Active flag without altering cached nodes.
+// receive the correct Active flag without altering cached nodes, and directory nodes
+// are never marked Active even if activePath matches the directory path.
 func TestBuildTreeActiveDoesNotTaintCache(t *testing.T) {
 	setupWikiTestDB(t)
 	base := time.Now().Add(-24 * time.Hour)
-	seedProjectedWikiPage(t, "docs", "docs/page1", "Page 1", base)
-	seedProjectedWikiPage(t, "docs", "docs/page2", "Page 2", base.Add(time.Hour))
+	seedProjectedWikiPage(t, "docs", "docs/sub/page1", "Page 1", base)
+	seedProjectedWikiPage(t, "docs", "docs/sub/page2", "Page 2", base.Add(time.Hour))
 
-	tree1, err := BuildTree("docs/page1")
+	// Active matching a page
+	tree1, err := BuildTree("docs/sub/page1")
 	if err != nil {
 		t.Fatalf("build tree 1: %v", err)
 	}
-	if !tree1[0].Nodes[0].Active || tree1[0].Nodes[1].Active {
-		t.Fatalf("expected node 0 active and node 1 inactive: %+v", tree1[0].Nodes)
+	dirNode := tree1[0].Nodes[0]
+	if dirNode.Kind != WikiTreeNodeDirectory {
+		t.Fatalf("expected dir node, got %+v", dirNode)
+	}
+	if dirNode.Active {
+		t.Fatalf("expected dir node inactive: %+v", dirNode)
+	}
+	if !dirNode.Children[0].Active || dirNode.Children[1].Active {
+		t.Fatalf("expected child 0 active and child 1 inactive: %+v", dirNode.Children)
 	}
 
-	tree2, err := BuildTree("docs/page2")
+	// Active matching another page
+	tree2, err := BuildTree("docs/sub/page2")
 	if err != nil {
 		t.Fatalf("build tree 2: %v", err)
 	}
-	if tree2[0].Nodes[0].Active || !tree2[0].Nodes[1].Active {
-		t.Fatalf("expected node 0 inactive and node 1 active: %+v", tree2[0].Nodes)
+	dirNode2 := tree2[0].Nodes[0]
+	if dirNode2.Active {
+		t.Fatalf("expected dir node inactive: %+v", dirNode2)
+	}
+	if dirNode2.Children[0].Active || !dirNode2.Children[1].Active {
+		t.Fatalf("expected child 0 inactive and child 1 active: %+v", dirNode2.Children)
+	}
+
+	// Active matching the directory path: directory node must still NOT be Active
+	treeDir, err := BuildTree("docs/sub")
+	if err != nil {
+		t.Fatalf("build tree dir: %v", err)
+	}
+	if treeDir[0].Nodes[0].Active {
+		t.Fatalf("directory node should never be active even when matching activePath: %+v", treeDir[0].Nodes[0])
+	}
+	if treeDir[0].Nodes[0].Children[0].Active || treeDir[0].Nodes[0].Children[1].Active {
+		t.Fatalf("no children should be active when activePath is dir: %+v", treeDir[0].Nodes[0].Children)
 	}
 
 	// Empty activePath
@@ -422,7 +448,7 @@ func TestBuildTreeActiveDoesNotTaintCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build tree 3: %v", err)
 	}
-	if tree3[0].Nodes[0].Active || tree3[0].Nodes[1].Active {
+	if tree3[0].Nodes[0].Active || tree3[0].Nodes[0].Children[0].Active || tree3[0].Nodes[0].Children[1].Active {
 		t.Fatalf("expected all nodes inactive: %+v", tree3[0].Nodes)
 	}
 }

@@ -120,7 +120,7 @@ func cloneTreeNode(node TreeNode, activePath string) TreeNode {
 		PageId:   node.PageId,
 		Path:     node.Path,
 		Title:    node.Title,
-		Active:   activePath != "" && node.Path == activePath,
+		Active:   node.Kind == WikiTreeNodePage && activePath != "" && node.Path == activePath,
 		Children: nil,
 	}
 	if node.Children != nil {
