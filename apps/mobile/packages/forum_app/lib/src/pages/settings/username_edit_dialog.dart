@@ -65,7 +65,6 @@ class _UsernameEditDialogState extends State<UsernameEditDialog> {
           controller: _controller,
           enabled: !_saving,
           autocorrect: false,
-          enableSuggestions: false,
           autofillHints: const [AutofillHints.newUsername],
           textInputAction: TextInputAction.done,
           onSubmitted: (_) => _save(),

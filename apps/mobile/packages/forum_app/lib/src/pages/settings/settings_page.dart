@@ -1976,7 +1976,10 @@ class _SettingsCredentialDialogState<T>
                   keyboardType: widget.fields[index].keyboardType,
                   autofillHints: widget.fields[index].autofillHints,
                   autocorrect: false,
-                  enableSuggestions: false,
+                  // 仅密码字段保留 enableSuggestions: false(原因见 login_page.dart
+                  // 的同款注释);邮箱、TOTP 码等非密码字段保持默认,避免 ColorOS
+                  // 将其误判为凭据输入而强制安全键盘(issue #1111)。
+                  enableSuggestions: !widget.fields[index].obscureText,
                   textInputAction: index == widget.fields.length - 1
                       ? TextInputAction.done
                       : TextInputAction.next,

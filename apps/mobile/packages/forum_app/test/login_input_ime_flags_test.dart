@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/auth/login_page.dart';
+import 'package:forum_app/src/pages/settings/username_edit_dialog.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'fixtures/page_fixtures.dart';
@@ -118,6 +119,39 @@ void main() {
       expect(confirm, findsOneWidget);
       expect(enableSuggestionsOf(tester, email), isTrue);
       expect(enableSuggestionsOf(tester, confirm), isFalse);
+    },
+  );
+
+  testWidgets(
+    'settings username edit dialog stays a plain text field (issue #1111)',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (_) => UsernameEditDialog(
+                  username: 'oldname',
+                  onSave: (_) async {},
+                ),
+              ),
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      final field = tester.widget<TextField>(
+        find.byKey(const Key('settings-username-input')),
+      );
+      expect(field.enableSuggestions, isTrue);
     },
   );
 }
