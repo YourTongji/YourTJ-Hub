@@ -22,9 +22,8 @@ import ScheduleTimeGrid from './ScheduleTimeGrid.vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
 import ScheduleConflictWarningDialog from '@/site/components/schedule/ScheduleConflictWarningDialog.vue'
-
-const ScheduleExportDialog = defineAsyncComponent(() => import('@/site/components/schedule/ScheduleExportDialog.vue'))
 import ScheduleExternalToolsTip from '@/site/components/schedule/ScheduleExternalToolsTip.vue'
+import ScheduleModalLoading from '@/site/components/schedule/ScheduleModalLoading.vue'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import {
   currentWeekForDate,
@@ -39,6 +38,12 @@ import {
   teacherName as courseTeacherName,
 } from '@/site/utils/timetableGrid'
 import type { PkCourseOnTable } from '@/site/types/pk'
+
+const ScheduleExportDialog = defineAsyncComponent({
+  loader: () => import('@/site/components/schedule/ScheduleExportDialog.vue'),
+  loadingComponent: ScheduleModalLoading,
+  delay: 150,
+})
 
 const { t } = useI18n()
 const store = useScheduleStore()
@@ -670,6 +675,7 @@ onBeforeUnmount(() => {
 
     <!-- 独立高清课表导出生成器弹窗 -->
     <ScheduleExportDialog
+      v-if="showExportDialog"
       :open="showExportDialog"
       :cell-courses="cellCourses"
       :cell-spans="cellSpans"

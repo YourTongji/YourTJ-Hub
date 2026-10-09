@@ -20,11 +20,7 @@ import ScheduleStatsCard from '@/site/components/schedule/ScheduleStatsCard.vue'
 import ScheduleRoughList from '@/site/components/schedule/ScheduleRoughList.vue'
 import ScheduleDetailList from '@/site/components/schedule/ScheduleDetailList.vue'
 import ScheduleTimeTable from '@/site/components/schedule/ScheduleTimeTable.vue'
-
-const ScheduleCoursePicker = defineAsyncComponent(() => import('@/site/components/schedule/ScheduleCoursePicker.vue'))
-const ScheduleCellPicker = defineAsyncComponent(() => import('@/site/components/schedule/ScheduleCellPicker.vue'))
-const ScheduleCustomEventDialog = defineAsyncComponent(() => import('@/site/components/schedule/ScheduleCustomEventDialog.vue'))
-const ScheduleDetailCard = defineAsyncComponent(() => import('@/site/components/schedule/ScheduleDetailCard.vue'))
+import ScheduleModalLoading from '@/site/components/schedule/ScheduleModalLoading.vue'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import { scheduleSync, startScheduleSync, stopScheduleSync } from '@/site/composables/useScheduleSync'
 import { getPkLatestUpdate, syncPkCourseInfo } from '@/runtime/pk-api'
@@ -35,6 +31,27 @@ import { createSectionTimesRefresher } from '@/site/utils/sectionTimesRefresh'
 import type { LayoutPayload, SchedulePageProps } from '@gooseforum/client'
 import type { PkConflictItem } from '@/site/utils/pkConflict'
 import type { PkCourseDetail, PkCourseOnTable } from '@/site/types/pk'
+
+const ScheduleCoursePicker = defineAsyncComponent({
+  loader: () => import('@/site/components/schedule/ScheduleCoursePicker.vue'),
+  loadingComponent: ScheduleModalLoading,
+  delay: 150,
+})
+const ScheduleCellPicker = defineAsyncComponent({
+  loader: () => import('@/site/components/schedule/ScheduleCellPicker.vue'),
+  loadingComponent: ScheduleModalLoading,
+  delay: 150,
+})
+const ScheduleCustomEventDialog = defineAsyncComponent({
+  loader: () => import('@/site/components/schedule/ScheduleCustomEventDialog.vue'),
+  loadingComponent: ScheduleModalLoading,
+  delay: 150,
+})
+const ScheduleDetailCard = defineAsyncComponent({
+  loader: () => import('@/site/components/schedule/ScheduleDetailCard.vue'),
+  loadingComponent: ScheduleModalLoading,
+  delay: 150,
+})
 
 const pageProps = defineProps<{
   layout: LayoutPayload
@@ -460,8 +477,9 @@ onBeforeUnmount(() => {
     </div>
 
 
-    <ScheduleCoursePicker :open="pickerOpen" @close="pickerOpen = false" />
+    <ScheduleCoursePicker v-if="pickerOpen" :open="pickerOpen" @close="pickerOpen = false" />
     <ScheduleCellPicker
+      v-if="cellPick !== null"
       :open="cellPick !== null"
       :day="cellPick?.day ?? null"
       :section="cellPick?.section ?? null"
@@ -471,8 +489,8 @@ onBeforeUnmount(() => {
       @staged="flash(t('schedule.stagedSuccess'), 'success')"
       @replaced="handleReplacedCourse"
     />
-    <ScheduleCustomEventDialog :open="customizeOpen" @close="customizeOpen = false" />
-    <ScheduleDetailCard :course="detailCourse" @close="detailCourse = null" @replace="handleReplaceCourse" />
+    <ScheduleCustomEventDialog v-if="customizeOpen" :open="customizeOpen" @close="customizeOpen = false" />
+    <ScheduleDetailCard v-if="detailCourse !== null" :course="detailCourse" @close="detailCourse = null" @replace="handleReplaceCourse" />
 
     <!-- 选择教学班弹窗：点击已选课程弹出（浮动，取代内联班级列） -->
     <DialogRoot :open="classPickOpen" @update:open="classPickOpen = $event">
