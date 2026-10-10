@@ -296,7 +296,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get authRegisterEmailVerify =>
-      'Registrierung erfolgreich. Eine Bestätigungs-E-Mail wurde gesendet. Bitte prüfe dein Postfach.';
+      'Registrierung erfolgreich. Eine Bestätigungs-E-Mail wurde gesendet. Bitte prüfe dein Postfach. Keine E-Mail erhalten? Melde dich an und sende sie unter Kontosicherheit erneut.';
+
+  @override
+  String get authActivationRequired =>
+      'Bitte aktiviere zuerst dein Konto über die E-Mail in deinem Postfach.';
+
+  @override
+  String get authResendActivationEmail => 'Bestätigungs-E-Mail erneut senden';
 
   @override
   String get authRegisterSuccess =>

@@ -933,7 +933,7 @@ void main() {
       );
       expect(
         find.text(
-          'Registration successful. A verification email was sent; check your inbox.',
+          'Registration successful. A verification email was sent; check your inbox. No email? Sign in and resend it under Account security.',
         ),
         findsNothing,
       );

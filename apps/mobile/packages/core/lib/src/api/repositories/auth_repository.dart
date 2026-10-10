@@ -1,8 +1,10 @@
+import 'package:dio/dio.dart' show CancelToken;
+
 import '../../gen/auth.dart';
 import '../../gen/response.dart';
 import '../gf_api_client.dart';
 
-/// 认证相关接口:登录公钥、登录、注册、验证码、找回/重置密码、OIDC 交换、TOTP 校验。
+/// 认证相关接口:登录公钥、登录、注册、激活邮件、验证码、找回/重置密码、OIDC 交换、TOTP 校验。
 ///
 /// 注意:登录密码的 RSA-OAEP-256 加密由 auth 包负责,
 /// 本层只透传加密后的密文;蜜罐字段(website)在此代码路径中绝不出现。
@@ -71,6 +73,14 @@ class AuthRepository {
       },
     );
   }
+
+  /// 重发当前账号的激活邮件,并保留服务端的稳定成功消息元数据。
+  Future<GfResponse<Object?>> resendActivationEmail({
+    CancelToken? cancelToken,
+  }) => _client.postEnvelope<Object?>(
+    '/api/resend-activation-email',
+    cancelToken: cancelToken,
+  );
 
   /// 找回密码,成功返回服务端消息文案。
   Future<String> forgotPassword({

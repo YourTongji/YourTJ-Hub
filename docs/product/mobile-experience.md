@@ -1205,7 +1205,7 @@ or production push delivery behavior. The shared business and privacy rules are 
   Signed-in users can log out directly from the bottom of the category index. The action requires
   confirmation and retains push unbinding, server-session revocation, local credential and cache
   cleanup, and navigation to sign-in. Cancelling leaves the session intact. Security contains
-  two-factor authentication and session management; guests have no logout action.
+  email-verification resending, two-factor authentication and session management; guests have no logout action.
   The category index and section headers support enlarged text, keyboard activation and localized
   accessible labels; content stays centered within 720 pixels on larger windows.
 - `Current`: users with follow permission retain the follow button for already-followed accounts,
@@ -1343,6 +1343,17 @@ native cleanup is pending.
   the next account requires fresh consent. Optional JPush analytics/location collection is disabled.
 - See [activation and device validation](../operations/mobile-releases.md#native-push-activation-and-verification)
   for credentials, supported OEMs and delivery limitations.
+
+## Email activation
+
+`Current`: password registration distinguishes accounts requiring email activation and directs
+users to sign in and open Account security if the email is missing. Account security and the
+campus connection's `permission.emailRequired` notice share a resend action with localized success,
+cooldown and daily-limit feedback. The campus notice explicitly asks users to activate their account
+from their inbox; backend start/confirm gates remain authoritative, and unbinding stays available.
+After activation, users can retry the original connection action. Resend requests are serialized,
+cancelled on leaving the action or changing sessions, and old-session feedback is discarded.
+Tongji SSO accounts retain automatic activation.
 
 ## Tongji sign-in
 
