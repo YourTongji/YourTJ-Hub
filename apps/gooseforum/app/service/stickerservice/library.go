@@ -158,7 +158,9 @@ func saveToLibrary(conn *gorm.DB, ctx context.Context, userID uint64, input Libr
 			}
 		}
 		if entity.Id != 0 && !entity.IsEnabled {
-			return ErrNotFound
+			if input.FileName == "" || entity.CreatedBy != userID || entity.ReviewStatus != sticker.ReviewStatusPending {
+				return ErrNotFound
+			}
 		}
 		for _, entry := range entries {
 			if entry.StickerID != entity.Id {
@@ -188,13 +190,16 @@ func saveToLibrary(conn *gorm.DB, ctx context.Context, userID uint64, input Libr
 			if _, err := rand.Read(random[:]); err != nil {
 				return err
 			}
-			entity = sticker.Entity{Name: "u_" + hex.EncodeToString(random[:]), FileName: fileName, CreatedBy: userID, IsEnabled: true, Pack: "personal", DisplayName: ""}
+			entity = sticker.Entity{Name: "u_" + hex.EncodeToString(random[:]), FileName: fileName, CreatedBy: userID, IsEnabled: false, ReviewStatus: sticker.ReviewStatusPending, Pack: "personal", DisplayName: ""}
 			// The user's chosen label stays only on their membership. Public
 			// resolution never leaks labels belonging to a different account.
 			if err := sticker.InsertPersonalTx(tx, &entity); err != nil {
 				return err
 			}
 			if err := fileusageservice.SetStickerUsageTx(tx, entity.Id, userID, fileName); err != nil {
+				return err
+			}
+			if err := EnqueueReviewTx(tx, entity.Id); err != nil {
 				return err
 			}
 		}

@@ -2199,7 +2199,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                                   )
                                                 : null,
                                             label: _selecting
-                                                ? '${_replySender(message)}: ${chatReplyExcerpt(message.content)}'
+                                                ? '${_replySender(message)}: ${chatReplyExcerpt(message.content, stickerLabel: StickerStrings(context).animatedSticker)}'
                                                 : null,
                                             onTap: _selecting
                                                 ? () =>
@@ -2522,6 +2522,7 @@ class _ConversationList extends StatelessWidget {
             ? '[${l10n.messagesImage}]'
             : stickerPreviewLabel(
                 conversation.lastMsg,
+                stickerLabel: StickerStrings(context).animatedSticker,
               ).replaceAll(RegExp(r'\s+'), ' ').trim();
         return GfConversationRow(
           avatarUrl: resolveApiAssetUrl(conversation.peerAvatar),
@@ -2532,7 +2533,7 @@ class _ConversationList extends StatelessWidget {
             conversation.peerNickname,
           ),
           lastMessage: draft != null
-              ? '${l10n.messagesDraftLabel} · ${stickerPreviewLabel(draft.value.text)}'
+              ? '${l10n.messagesDraftLabel} · ${stickerPreviewLabel(draft.value.text, stickerLabel: StickerStrings(context).animatedSticker)}'
               : conversation.lastMsg.isEmpty
               ? l10n.messagesNoMessagesYet
               : messagePreview.startsWith('[Chat history]')

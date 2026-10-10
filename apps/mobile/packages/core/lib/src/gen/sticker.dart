@@ -18,6 +18,7 @@ class StickerItemPayload {
     this.pack = '',
     this.isOfficial = true,
     this.isEnabled = true,
+    this.reviewStatus = 'approved',
   });
   final int id;
   final String name;
@@ -26,6 +27,8 @@ class StickerItemPayload {
   final String pack;
   final bool isOfficial;
   final bool isEnabled;
+  final String reviewStatus;
+  bool get isAvailable => isEnabled && reviewStatus == 'approved';
   String get label => displayName.isEmpty ? name : displayName;
   String get token => '[:sticker:$name:]';
   factory StickerItemPayload.fromJson(Map<String, dynamic> json) =>
@@ -37,6 +40,7 @@ class StickerItemPayload {
         pack: json['pack'] as String? ?? '',
         isOfficial: json['isOfficial'] as bool? ?? true,
         isEnabled: json['isEnabled'] as bool? ?? true,
+        reviewStatus: json['reviewStatus'] as String? ?? 'approved',
       );
 }
 

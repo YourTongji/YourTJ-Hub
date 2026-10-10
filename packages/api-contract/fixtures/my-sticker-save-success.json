@@ -1,12 +1,13 @@
 {
   "code": 0,
   "result": {
-    "name": "smile",
+    "name": "u_4b1c9d2e7f83a6b0c5d1e9f2048a7b6c",
     "url": "/file/img/stickers/9f1c2d3e-0000-4000-8000-000000000001.png",
     "id": 9101,
     "displayName": "smile",
-    "pack": "official",
-    "isOfficial": true,
-    "isEnabled": true
+    "pack": "personal",
+    "isOfficial": false,
+    "isEnabled": false,
+    "reviewStatus": "pending"
   }
 }

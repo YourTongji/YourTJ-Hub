@@ -178,10 +178,10 @@ List<StickerMessageSegment> parseStickerSegments(
 
 /// 会话列表预览用可读标签：token 缩写为 `[name]`（预览层不区分启停，
 /// 对齐 web stickerPreviewLabel）。
-String stickerPreviewLabel(String content) {
+String stickerPreviewLabel(String content, {String? stickerLabel}) {
   if (!containsStickerToken(content)) return content;
   return content.replaceAllMapped(
     stickerTokenPattern,
-    (Match match) => '[${match.group(1)}]',
+    (Match match) => '[${stickerLabel ?? match.group(1)}]',
   );
 }

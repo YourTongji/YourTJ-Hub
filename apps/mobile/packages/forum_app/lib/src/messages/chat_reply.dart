@@ -59,10 +59,12 @@ ChatReplyQuote? parseChatReplyQuote(String content) {
 String chatReplyExcerpt(
   String content, {
   int maxLength = chatReplyExcerptMaxLength,
+  String? stickerLabel,
 }) {
   if (maxLength <= 0) return '';
   final collapsed = stickerPreviewLabel(
     content,
+    stickerLabel: stickerLabel,
   ).replaceAll(RegExp(r'\s+'), ' ').trim();
   final runes = collapsed.runes.toList(growable: false);
   if (runes.length <= maxLength) return collapsed;

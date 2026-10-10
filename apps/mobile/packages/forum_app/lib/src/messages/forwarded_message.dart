@@ -59,7 +59,7 @@ class ForwardedMessageCard extends ConsumerWidget {
                         ? l10n.messageForwardHistory
                         : item.msgType == 2
                         ? '[${l10n.messagesImage}]'
-                        : chatReplyExcerpt(item.content, maxLength: 80)}',
+                        : chatReplyExcerpt(item.content, maxLength: 80, stickerLabel: StickerStrings(context).animatedSticker)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 13),

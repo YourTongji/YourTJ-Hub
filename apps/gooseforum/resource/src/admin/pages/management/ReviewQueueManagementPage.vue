@@ -4,6 +4,7 @@ import { userDisplayName } from '@/runtime/private-notes'
 import { adminText } from '@/admin/runtime/i18n-text'
 
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Check, ChevronLeft, ChevronRight, RefreshCw, X } from '@lucide/vue'
 import AdminConfirmDialog from '@/admin/components/AdminConfirmDialog.vue'
 import AdminSection from '@/admin/components/AdminSection.vue'
@@ -27,8 +28,9 @@ defineProps<{
   payload: AdminPayload<ManageHomeProps>
 }>()
 
-type ReviewKind = 'topic' | 'post'
+type ReviewKind = 'topic' | 'post' | 'sticker'
 
+const { t } = useI18n()
 const kind = ref<ReviewKind>('topic')
 const rows = ref<ReviewQueueItem[]>([])
 const loading = ref(false)
@@ -130,6 +132,14 @@ onMounted(loadQueue)
             >
               {{ adminText('k00gh') }}
             </button>
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+              :class="kind === 'sticker' ? 'bg-background shadow-xs' : 'text-muted-foreground hover:text-foreground'"
+              @click="switchKind('sticker')"
+            >
+              {{ t('adminReviewQueue.stickerTab') }}
+            </button>
           </div>
           <div class="flex items-center gap-2">
             <AdminSelect :model-value="pageSize" :options="[{ value: 10, label: adminText('k002x') }, { value: 20, label: adminText('k002y') }, { value: 30, label: adminText('k002z') }, { value: 50, label: adminText('k0030') }]" @update:model-value="updatePageSize" />
@@ -182,12 +192,13 @@ onMounted(loadQueue)
               <TableCell class="px-3 py-2 font-mono text-xs text-muted-foreground">{{ item.id }}</TableCell>
               <TableCell class="max-w-0 py-2">
                 <div class="min-w-0 space-y-1">
-                  <div class="truncate text-sm font-medium">{{ item.title || '-' }}</div>
+                  <div class="truncate text-sm font-medium">{{ kind === 'sticker' ? t('adminReviewQueue.personalUpload') : item.title || '-' }}</div>
                   <Badge v-if="item.postNo" variant="secondary" class="px-1.5 py-0 text-[10px]">#{{ item.postNo }}</Badge>
                 </div>
               </TableCell>
               <TableCell class="max-w-0 py-2">
-                <p class="max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs leading-4 text-muted-foreground">{{ item.content || item.excerpt || '-' }}</p>
+                <img v-if="kind === 'sticker' && item.images?.[0]" :src="item.images[0]" :alt="t('adminReviewQueue.pendingImage')" class="max-h-40 max-w-full rounded border object-contain" loading="lazy" />
+                <p v-else class="max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs leading-4 text-muted-foreground">{{ item.content || item.excerpt || '-' }}</p>
                 <ReviewQueueAiDetails :item="item" />
               </TableCell>
               <TableCell class="py-2 text-sm">{{ userDisplayName(item.userId, item.username || `#${item.userId}`, item.nickname) }}</TableCell>
@@ -219,10 +230,11 @@ onMounted(loadQueue)
               <div class="min-w-0 flex-1 space-y-1">
                 <div class="flex min-w-0 items-center gap-1.5">
                   <span class="font-mono text-xs text-muted-foreground">#{{ item.id }}</span>
-                  <span class="min-w-0 truncate text-[15px] font-semibold leading-5">{{ item.title || '-' }}</span>
+                  <span class="min-w-0 truncate text-[15px] font-semibold leading-5">{{ kind === 'sticker' ? t('adminReviewQueue.personalUpload') : item.title || '-' }}</span>
                   <Badge v-if="item.postNo" variant="secondary" class="h-5 shrink-0 rounded-full px-1.5 text-[10px]">#{{ item.postNo }}</Badge>
                 </div>
-                <p class="max-h-64 overflow-auto whitespace-pre-wrap break-words text-[12px] leading-5 text-muted-foreground">{{ item.content || item.excerpt || '-' }}</p>
+                <img v-if="kind === 'sticker' && item.images?.[0]" :src="item.images[0]" :alt="t('adminReviewQueue.pendingImage')" class="max-h-40 max-w-full rounded border object-contain" loading="lazy" />
+                <p v-else class="max-h-64 overflow-auto whitespace-pre-wrap break-words text-[12px] leading-5 text-muted-foreground">{{ item.content || item.excerpt || '-' }}</p>
                 <ReviewQueueAiDetails :item="item" />
               </div>
             </div>
@@ -247,7 +259,7 @@ onMounted(loadQueue)
     <AdminConfirmDialog
       :open="actionRow !== null"
       :title="actionRow?.approve ? adminText('k00gj') : adminText('k00gk')"
-      :description="actionRow?.approve ? adminText('k00gl') : adminText('k00gm')"
+      :description="kind === 'sticker' ? (actionRow?.approve ? t('adminReviewQueue.approveSticker') : t('adminReviewQueue.rejectSticker')) : actionRow?.approve ? adminText('k00gl') : adminText('k00gm')"
       :confirm-text="actionRow?.approve ? adminText('k00gj') : adminText('k00gk')"
       :loading="saving"
       @update:open="(open) => !open && (actionRow = null)"

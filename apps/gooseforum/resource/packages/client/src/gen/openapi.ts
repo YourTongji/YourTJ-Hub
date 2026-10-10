@@ -3146,7 +3146,9 @@ export interface paths {
          * @description Lists only the authenticated account's private memberships in saved order.
          *     Labels are private to this account; the same asset may be collected by others.
          *     Disabled assets remain with isEnabled=false so users can remove or reorder
-         *     them, but clients must prevent insertion. Permanent official deletion removes
+         *     them, but clients must prevent insertion. Newly uploaded personal assets return
+         *     reviewStatus=pending and isEnabled=false until AI or a site administrator approves
+         *     them. Permanent official deletion removes
          *     the corresponding memberships.
          *     At most 200 members. Removing a member never deletes an asset or sent history.
          *     Account closure clears this list and fences in-flight membership writes.
@@ -3174,7 +3176,9 @@ export interface paths {
          * @description Supply exactly one of stickerName or fileName. A known enabled sticker token
          *     is collected idempotently. fileName must identify a ready standard image/GIF
          *     uploaded by this account, from 1 byte to 4 MiB; the same file reuses the same
-         *     personal asset on retries. Personal assets have immutable random token names
+         *     personal asset on retries. New personal uploads return reviewStatus=pending and
+         *     isEnabled=false; they cannot be selected, resolved, or rendered until approved
+         *     by AI or a site administrator. Personal assets have immutable random token names
          *     and image content. displayName changes only this account's library label.
          *     Maximum 200 memberships and 1000 retained personal uploads per account;
          *     removing a membership does not reset the retained-asset quota. Limit errors
@@ -6609,7 +6613,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Page the manual review queue (pending topics or posts)
+         * Page the manual review queue (pending topics, posts, or personal stickers)
          * @description Admin console operation gated by the `SiteManager` role permission
          *     (SiteManager group); callers without it fail with HTTP 403 and
          *     `permission.denied`. Lists content held for manual review
@@ -6617,7 +6621,9 @@ export interface paths {
          *     `kind=topic` (wiki-station pages and soft-deleted topics excluded),
          *     posts when `kind=post` (wiki first posts excluded — they belong to the
          *     wiki revision review flow — while wiki-station comments with
-         *     `postNo>1` are included). `page` below 1 clamps to 1; `pageSize`
+         *     `postNo>1` are included), or personal sticker uploads when `kind=sticker`.
+         *     Sticker entries are visible only to SiteManager reviewers and include the uploaded image.
+         *     `page` below 1 clamps to 1; `pageSize`
          *     below 1 or above 50 falls back to 20. Any other `kind` fails
          *     validation with HTTP 200 `common.request.invalidParams`. Topic items
          *     omit `topicId`/`postNo`; post items include them and truncate the
@@ -6641,7 +6647,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Approve or reject a queued topic or post
+         * Approve or reject a queued topic, post, or personal sticker
          * @description Admin console operation gated by the `SiteManager` role permission
          *     (SiteManager group); callers without it fail with HTTP 403 and
          *     `permission.denied`. Versioned submissions require the exact `revisionId` returned
@@ -6656,7 +6662,8 @@ export interface paths {
          *     an operation-audit log entry. Business failures (HTTP 200, `code: 1`):
          *     unknown target → `admin.review.notFound`; wiki-station topics and wiki
          *     first posts → `admin.review.targetInvalid` (they belong to the wiki
-         *     revision review flow); target no longer pending →
+         *     revision review flow); sticker approval enables token use and rejection keeps the asset disabled;
+         *     target no longer pending →
          *     `admin.review.processed`; persistence failure → `admin.review.failed`.
          *     A missing/unknown `kind` or a missing `id` fails validation with HTTP
          *     200 `common.request.invalidParams`.
@@ -11501,7 +11508,7 @@ export interface components {
              * @description Any other value (including empty) fails validation with HTTP 200 `common.request.invalidParams`.
              * @enum {string}
              */
-            kind: "topic" | "post";
+            kind: "topic" | "post" | "sticker";
             /** @description 1-based; values below 1 are clamped to 1. */
             page?: number;
             /** @description Values below 1 or above 50 fall back to 20. */
@@ -11518,7 +11525,7 @@ export interface components {
             reviewReason?: string;
             /**
              * Format: uint64
-             * @description Topic id when kind=topic, post id when kind=post.
+             * @description Topic id when kind=topic, post id when kind=post, sticker asset id when kind=sticker.
              */
             id: number;
             /** @description Topic title; for posts, the title of the containing topic (empty when the topic is missing). */
@@ -11548,7 +11555,7 @@ export interface components {
              * @description Posts only; omitted for topics.
              */
             postNo?: number;
-            /** @description Image URLs referenced by the pending content (topic gallery/inline images or post Markdown images). Pending images are readable by reviewers through the authorized `/file/img` preview; anonymous readers receive 404. */
+            /** @description Image URLs referenced by pending content or the uploaded image when kind=sticker. Sticker images are returned only in the SiteManager review queue response. */
             images?: string[];
             /** @description Present only when AI moderation sent this item to review (issue */
             aiReview?: components["schemas"]["AiModerationDecisionItem"];
@@ -11574,7 +11581,7 @@ export interface components {
             /** @description Optional author-visible rejection reason. */
             reason?: string;
             /** @enum {string} */
-            kind: "topic" | "post";
+            kind: "topic" | "post" | "sticker";
             /** Format: uint64 */
             id: number;
             /** @description True approves (processStatus→0), false rejects (processStatus→1). Wiki-station topics and wiki first posts are rejected with `admin.review.targetInvalid` — they belong to the wiki revision review flow. */
@@ -13104,6 +13111,11 @@ export interface components {
              * @default true
              */
             isEnabled: boolean;
+            /**
+             * @description Personal upload review state. Omitted by older servers and treated as approved for compatibility. Clients must prevent insertion unless approved and enabled.
+             * @enum {string}
+             */
+            reviewStatus?: "pending" | "approved" | "rejected";
         };
         ForumStickerListSuccess: components["schemas"]["ApiSuccess"] & {
             /** @description Sticker items. Official directory is enabled official assets only; personal library preserves user order; resolve includes only explicitly requested enabled tokens. */

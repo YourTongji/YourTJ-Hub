@@ -1059,6 +1059,7 @@ export default {
     sources: '表情包来源与许可',
     pickerTitle: '表情包',
     empty: '暂无可用表情包',
+    previewAnimation: '动画表情',
   },
   common: {
     back: '返回',
@@ -3576,6 +3577,8 @@ export default {
       reviewTopicRejected: "审核拒绝话题 {id}",
       reviewPostApproved: "审核通过话题 {topicId} 中的回复 {id}",
       reviewPostRejected: "审核拒绝话题 {topicId} 中的回复 {id}",
+      reviewStickerApproved: "审核通过个人表情 {id}",
+      reviewStickerRejected: "审核拒绝个人表情 {id}",
       courseCreated: "新建课程「{name}」（{primaryCode}）",
       courseUpdated: "编辑课程「{name}」（{primaryCode}）",
       courseDeleted: "删除课程「{name}」（{primaryCode}，含 {offeringCount} 个教学班、{reviewCount} 条课评）",
@@ -3599,6 +3602,13 @@ export default {
       activation: '验证状态',
       role: '角色',
     },
+  },
+  adminReviewQueue: {
+    stickerTab: '个人表情',
+    personalUpload: '个人上传表情',
+    pendingImage: '待审核表情图片',
+    approveSticker: '通过后该表情将启用并可被使用。',
+    rejectSticker: '拒绝后该表情将保持不可用。',
   },
   serverMessages: {
     "anonymous.nameLocked": "花名确认后一年内不能更改。",

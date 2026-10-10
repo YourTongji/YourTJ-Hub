@@ -571,7 +571,7 @@ export function savePrivacyPolicy(settings: PrivacyPolicyConfig) {
   return postJson<unknown>('/api/admin/save-privacy-policy', { settings }, adminText('k00gt'))
 }
 
-export function getReviewQueue(kind: 'topic' | 'post', page: number, pageSize: number) {
+export function getReviewQueue(kind: 'topic' | 'post' | 'sticker', page: number, pageSize: number) {
   return postJson<{ items: ReviewQueueItem[], total: number, page: number, pageSize: number }>(
     '/api/admin/review-queue',
     { kind, page, pageSize },
@@ -579,7 +579,7 @@ export function getReviewQueue(kind: 'topic' | 'post', page: number, pageSize: n
   )
 }
 
-export function reviewAction(kind: 'topic' | 'post', id: number, approve: boolean, revisionId = 0) {
+export function reviewAction(kind: 'topic' | 'post' | 'sticker', id: number, approve: boolean, revisionId = 0) {
   return postJson<unknown>('/api/admin/review-action', { kind, id, approve, revisionId }, adminText('k00gd'))
 }
 

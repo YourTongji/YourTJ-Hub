@@ -24,7 +24,7 @@ func TestStickerSchemaOnSQLite(t *testing.T) {
 	if !conn.Migrator().HasTable("stickers") {
 		t.Fatal("stickers table missing after AutoMigrate")
 	}
-	for _, column := range []string{"id", "name", "file_name", "sort_order", "is_enabled", "created_by"} {
+	for _, column := range []string{"id", "name", "file_name", "sort_order", "is_enabled", "review_status", "created_by"} {
 		if !conn.Migrator().HasColumn(&sticker.Entity{}, column) {
 			t.Fatalf("stickers column %s missing", column)
 		}
@@ -71,7 +71,7 @@ func assertStickerUpgrade(t *testing.T, conn *gorm.DB) {
 	if err := conn.First(&upgraded, old.Id).Error; err != nil {
 		t.Fatal(err)
 	}
-	if !upgraded.IsOfficial || upgraded.Pack != "official" || upgraded.Name != old.Name || upgraded.FileName != old.FileName {
+	if !upgraded.IsOfficial || upgraded.Pack != "official" || upgraded.Name != old.Name || upgraded.FileName != old.FileName || upgraded.ReviewStatus != sticker.ReviewStatusApproved {
 		t.Fatalf("upgrade corrupted legacy sticker: %#v", upgraded)
 	}
 	entry := sticker.LibraryEntry{UserID: 1, StickerID: upgraded.Id}

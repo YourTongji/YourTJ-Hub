@@ -1058,6 +1058,7 @@ export default {
     sources: 'Sticker-Quellen und Lizenzen',
     pickerTitle: 'Sticker',
     empty: 'Keine Sticker verfügbar',
+    previewAnimation: 'Animierter Sticker',
   },
   common: {
     back: 'Zurück',
@@ -3573,6 +3574,8 @@ export default {
       reviewTopicRejected: "Thema {id} abgelehnt",
       reviewPostApproved: "Antwort {id} in Thema {topicId} freigegeben",
       reviewPostRejected: "Antwort {id} in Thema {topicId} abgelehnt",
+      reviewStickerApproved: "Persönlichen Sticker {id} freigegeben",
+      reviewStickerRejected: "Persönlichen Sticker {id} abgelehnt",
       courseCreated: "Kurs „{name}“ ({primaryCode}) angelegt",
       courseUpdated: "Kurs „{name}“ ({primaryCode}) bearbeitet",
       courseDeleted: "Kurs „{name}“ ({primaryCode}) mit {offeringCount} Kursgruppen und {reviewCount} Bewertungen gelöscht",
@@ -3596,6 +3599,13 @@ export default {
       activation: 'Aktivierungsstatus',
       role: 'Rolle',
     },
+  },
+  adminReviewQueue: {
+    stickerTab: 'Persönliche Sticker',
+    personalUpload: 'Persönlicher Upload',
+    pendingImage: 'Sticker wird geprüft',
+    approveSticker: 'Nach der Freigabe kann dieser Sticker verwendet werden.',
+    rejectSticker: 'Nach der Ablehnung bleibt der Sticker nicht verfügbar.',
   },
   serverMessages: {
     "anonymous.nameLocked": "Ein bestätigter Name lässt sich ein Jahr lang nicht ändern.",

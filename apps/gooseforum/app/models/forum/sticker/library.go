@@ -89,7 +89,11 @@ func InsertPersonalTx(tx *gorm.DB, entity *Entity) error {
 		return err
 	}
 	entity.IsOfficial = false
-	return tx.Model(entity).Update("is_official", false).Error
+	entity.IsEnabled = false
+	return tx.Model(entity).Updates(map[string]any{
+		"is_official": false,
+		"is_enabled":  false,
+	}).Error
 }
 
 // CloseLibraryTx removes private membership and fences requests that passed

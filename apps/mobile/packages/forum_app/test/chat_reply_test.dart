@@ -66,6 +66,10 @@ void main() {
 
     test('expands sticker tokens to their readable preview label', () {
       expect(chatReplyExcerpt('[:sticker:smile:] 早'), '[smile] 早');
+      expect(
+        chatReplyExcerpt('[:sticker:u_92f1a:]', stickerLabel: '动画表情'),
+        '[动画表情]',
+      );
     });
 
     test('a non-positive bound yields an empty excerpt', () {
