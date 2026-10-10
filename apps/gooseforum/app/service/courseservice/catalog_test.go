@@ -23,6 +23,7 @@ var catalogTestModels = []any{
 	&course.HelpfulEntity{},
 	&course.DislikeEntity{},
 	&course.SourceRefEntity{},
+	&course.RelationEntity{},
 	&taskQueue.Entity{},
 }
 
@@ -30,7 +31,7 @@ var catalogTestModels = []any{
 func setupCatalogTest(t testing.TB) *gorm.DB {
 	t.Helper()
 	conn := dbconnect.Connect()
-	models := append(catalogTestModels, &course.RelationEntity{})
+	models := catalogTestModels
 	if err := conn.AutoMigrate(models...); err != nil {
 		t.Fatalf("migrate catalog tables: %v", err)
 	}
