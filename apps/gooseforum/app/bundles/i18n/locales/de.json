@@ -134,12 +134,12 @@
   "serverMessages.sticker.imageRequired": "Wähle ein selbst hochgeladenes Bild oder GIF mit höchstens {maxSizeMb} MB.",
   "serverMessages.sticker.unavailable": "Dieser Sticker ist nicht verfügbar.",
   "permission.revealAnonymousIdentity": "Anonyme Identität offenlegen (beschränkte Prüfung)",
-  "anonymous.profileContentHidden": "Die Inhalte dieses anonymen Profils sind ausgeblendet",
+  "anonymous.profileContentHidden": "Die Beiträge dieses Mitglieds werden hier nicht angezeigt",
   "anonymous.identity": "Anonyme Identität",
-  "anonymous.nameLocked": "Dieser Name bleibt ein Jahr fest.",
-  "anonymous.dailyLimit": "Alle 10 täglichen Ziehungen verbraucht. Vorhandene Kandidaten bleiben heute auswählbar.",
-  "anonymous.candidateExpired": "Kandidaten ungültig oder abgelaufen. Heutige Gruppen neu laden.",
-  "anonymous.unavailable": "Anonyme Identität nicht verfügbar",
+  "anonymous.nameLocked": "Ein bestätigter Name lässt sich ein Jahr lang nicht ändern.",
+  "anonymous.dailyLimit": "Die 10 Runden für heute sind verbraucht. Frühere Namen bleiben wählbar.",
+  "anonymous.candidateExpired": "Diese Namen sind abgelaufen. Lade neu und wähle erneut.",
+  "anonymous.unavailable": "Anonyme Identität ist gerade nicht verfügbar",
   "forYouFeed": "Für dich",
   "dailyFeed": "Top-Themen heute"
 }

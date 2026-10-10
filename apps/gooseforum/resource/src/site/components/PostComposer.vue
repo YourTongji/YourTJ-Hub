@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import IdentityPicker from '@/site/components/IdentityPicker.vue'
+import GfSwitch from '@/site/components/GfSwitch.vue'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Check, Loader2, LockKeyhole, LockKeyholeOpen, Send, X } from '@lucide/vue'
@@ -397,12 +398,13 @@ function submit() {
                 maxlength="8"
               />
             </div>
-            <IdentityPicker :key="viewer?.id" :viewer="viewer" v-if="authenticated && !allowAnonymous" v-model="identity" :disabled="composerBusy || editing" />
-            <label v-if="allowAnonymous && !editing" class="mt-2 flex shrink-0 cursor-pointer items-center gap-2 text-[13px] text-base-content/75">
-              <input v-model="anonymous" type="checkbox" class="checkbox checkbox-sm" />
-              {{ t('topic.publishAnonymous') }}
-            </label>
             <div class="mt-3 flex flex-wrap items-center gap-2 shrink-0">
+              <!-- 发布身份与发送按钮同一行：身份是这次发送的一部分 -->
+              <IdentityPicker :key="viewer?.id" :viewer="viewer" v-if="authenticated && !allowAnonymous" v-model="identity" :disabled="composerBusy || editing" class="-ms-1.5 min-w-0 flex-1 basis-40" />
+              <div v-if="allowAnonymous && !editing" class="flex min-h-11 min-w-0 flex-1 items-center gap-2.5 text-[13px] text-base-content/75">
+                <GfSwitch v-model="anonymous" labelledby="composer-anonymous-label" />
+                <span id="composer-anonymous-label">{{ t('topic.publishAnonymous') }}</span>
+              </div>
               <button v-if="target && !editing" type="button" class="gf-button gf-button-md gf-button-muted shrink-0" @click="emit('clearTarget')">
                 {{ t('common.cancel') }}
               </button>

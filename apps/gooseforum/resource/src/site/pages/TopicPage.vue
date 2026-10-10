@@ -2,6 +2,7 @@
 import { authorURL } from '@/runtime/anonymous-identity'
 import { useContentUpdates } from '@/runtime/content-updates'
 import AgentReplySetting from '@/site/components/AgentReplySetting.vue'
+import PersonaTag from '@/site/components/PersonaTag.vue'
 import { useRouter } from 'vue-router'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -233,6 +234,7 @@ function handleTopicState(nextLikeCount: number) {
           <UserAvatar :src="view.topic.author.avatarUrl" :alt="view.topic.author.username" class="h-5 w-5 rounded-full object-cover" />
           {{ authorDisplayName(view.topic.author) }}
         </a>
+        <PersonaTag v-if="view.topic.author.publicUid" :own="view.permissions.isOwnTopic" />
         <!-- Content type badge -->
         <span v-if="view.topic.contentType === 1" class="inline-flex items-center gap-1.5 rounded-full bg-success/20 px-2 py-0.5 text-[12px] font-semibold text-success">
           <HelpCircle class="h-3.5 w-3.5" />
@@ -286,6 +288,7 @@ function handleTopicState(nextLikeCount: number) {
               <UserAvatar :src="view.topic.author.avatarUrl" :alt="view.topic.author.username" class="h-5 w-5 rounded-full object-cover" />
               <span class="truncate">{{ authorDisplayName(view.topic.author) }}</span>
             </a>
+            <PersonaTag v-if="view.topic.author.publicUid" :own="view.permissions.isOwnTopic" />
             <span v-if="view.topic.contentType === 1" class="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-semibold text-success">
               <HelpCircle class="h-3 w-3" />
               {{ t('publish.contentTypes.question') }}

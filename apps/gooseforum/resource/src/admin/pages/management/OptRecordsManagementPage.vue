@@ -27,7 +27,15 @@ const optTypeCodeMap: Record<number, string> = {
   0: 'editUser',
   1: 'editTopic',
   2: 'editCategory',
+  3: 'revealCourseReviewAuthor',
+  4: 'createCourse',
+  5: 'updateCourse',
+  6: 'deleteCourse',
+  7: 'updateReview',
+  8: 'deleteReview',
+  9: 'syncPk',
   10: 'exportData',
+  11: 'revealPostAuthor',
   12: 'materializePk',
 }
 
@@ -56,6 +64,35 @@ const optInfoMessageKeyMap: Record<string, string> = {
   'admin.opt.data.exported': 'adminOptLog.messages.dataExported',
   'admin.opt.data.exported.download': 'adminOptLog.messages.dataExportDownloaded',
   'admin.opt.pk.materialized': 'adminOptLog.messages.pkMaterialized',
+  'admin.opt.pk.synced': 'adminOptLog.messages.pkSynced',
+  'admin.opt.agent.created': 'adminOptLog.messages.agentCreated',
+  'admin.opt.agent.updated': 'adminOptLog.messages.agentUpdated',
+  'admin.opt.agent.tokenRotated': 'adminOptLog.messages.agentTokenRotated',
+  'admin.opt.agent.disabled': 'adminOptLog.messages.agentDisabled',
+  'admin.opt.agent.webhookConfigured': 'adminOptLog.messages.agentWebhookConfigured',
+  'admin.opt.agent.webhookRedelivered': 'adminOptLog.messages.agentWebhookRedelivered',
+  'admin.opt.agent.webhookSecretRotated': 'adminOptLog.messages.agentWebhookSecretRotated',
+  'admin.opt.agent.webhookTestQueued': 'adminOptLog.messages.agentWebhookTestQueued',
+  'admin.opt.agent.interactionReplayed': 'adminOptLog.messages.agentInteractionReplayed',
+  'course.created': 'adminOptLog.messages.courseCreated',
+  'course.updated': 'adminOptLog.messages.courseUpdated',
+  'course.deleted': 'adminOptLog.messages.courseDeleted',
+  'course.merged': 'adminOptLog.messages.courseMerged',
+  'course.mergeUndone': 'adminOptLog.messages.courseMergeUndone',
+  'course.relation.created': 'adminOptLog.messages.courseRelationCreated',
+  'course.relation.approved': 'adminOptLog.messages.courseRelationApproved',
+  'course.relation.ignored': 'adminOptLog.messages.courseRelationIgnored',
+  'course.relation.resetted': 'adminOptLog.messages.courseRelationReset',
+  'review.updated': 'adminOptLog.messages.reviewUpdated',
+  'review.deleted': 'adminOptLog.messages.reviewDeleted',
+  'review.identityRevealed': 'adminOptLog.messages.reviewIdentityRevealed',
+  'post.identityRevealed': 'adminOptLog.messages.postIdentityRevealed',
+}
+
+// Review decisions share one code; the approve flag picks the wording.
+const reviewDecisionKeys: Record<string, [string, string]> = {
+  'admin.opt.review.topic': ['adminOptLog.messages.reviewTopicApproved', 'adminOptLog.messages.reviewTopicRejected'],
+  'admin.opt.review.post': ['adminOptLog.messages.reviewPostApproved', 'adminOptLog.messages.reviewPostRejected'],
 }
 
 function pageResultSize(result: { pageSize?: number, size?: number }) {
@@ -153,8 +190,9 @@ function optInfoText(item: AdminOptRecord) {
   const payload = item.optInfoPayload || tryParseOptInfo(item.optInfo)
   if (!payload?.messageCode) return item.optInfo || '-'
 
-  const key = optInfoMessageKeyMap[payload.messageCode]
-  if (!i18n.global.te(key)) return item.optInfo || payload.messageCode
+  const decision = reviewDecisionKeys[payload.messageCode]
+  const key = decision ? decision[payload.params?.approve === true ? 0 : 1] : optInfoMessageKeyMap[payload.messageCode]
+  if (!key || !i18n.global.te(key)) return item.optInfo || payload.messageCode
   return i18n.global.t(key, localizeOptParams(payload.params || {}))
 }
 

@@ -477,7 +477,7 @@ func TestAnonymousTemplateRendersSharedCrawlerProfile(t *testing.T) {
 			t.Fatalf("hidden crawler profile retained %q", forbidden)
 		}
 	}
-	if !strings.Contains(buf.String(), "Content on this anonymous profile is hidden") {
+	if !strings.Contains(buf.String(), "posts aren&#39;t shown on this page") {
 		t.Fatal("hidden crawler profile missing visibility message", buf.String())
 	}
 }

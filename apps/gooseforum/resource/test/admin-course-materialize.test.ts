@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import CourseMaterializePanel from '../src/admin/components/CourseMaterializePanel.vue'
+import AdminSelect from '../src/admin/components/AdminSelect.vue'
 import { materializePkCalendar } from '../src/admin/runtime/api'
 import type { PkMaterializeResult, PkSyncStatusItem } from '../src/admin/types'
 
@@ -17,37 +18,37 @@ afterEach(() => { wrapper?.unmount(); vi.resetAllMocks() })
 describe('local course materialization', () => {
   test('needs a local calendar, not an upstream cookie', async () => {
     wrapper = mount(CourseMaterializePanel, { props: { calendars: [] } })
-    expect(wrapper.get('button').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="materialize-submit"]').attributes('disabled')).toBeDefined()
     await wrapper.setProps({ calendars: [calendar] })
-    expect(wrapper.get('button').attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('[data-testid="materialize-submit"]').attributes('disabled')).toBeUndefined()
     await wrapper.setProps({ calendars: [{ ...calendar, status: 'running' }] })
-    expect(wrapper.get('button').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="materialize-submit"]').attributes('disabled')).toBeDefined()
   })
 
   test('prevents duplicate submissions and reports committed counts', async () => {
     let finish!: (value: PkMaterializeResult) => void
     vi.mocked(materializePkCalendar).mockReturnValue(new Promise(resolve => { finish = resolve }))
     wrapper = mount(CourseMaterializePanel, { props: { calendars: [calendar] } })
-    await wrapper.get('button').trigger('click')
+    await wrapper.get('[data-testid="materialize-submit"]').trigger('click')
     expect(materializePkCalendar).toHaveBeenCalledWith('122', 'undergraduate')
-    expect(wrapper.get('button').attributes('disabled')).toBeDefined()
-    expect(wrapper.get('select').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="materialize-submit"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[role="combobox"]').attributes('disabled')).toBeDefined()
     expect(wrapper.find('[role="status"]').exists()).toBe(false)
     finish(report)
     await flushPromises()
     expect(wrapper.get('[role="status"]').text()).toContain('"added":1,"updated":3')
-    expect(wrapper.get('button').attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('[data-testid="materialize-submit"]').attributes('disabled')).toBeUndefined()
   })
 
   test('retains failure feedback and permits a retry', async () => {
     vi.mocked(materializePkCalendar).mockRejectedValueOnce(new Error('partial snapshot'))
     wrapper = mount(CourseMaterializePanel, { props: { calendars: [calendar] } })
-    await wrapper.get('button').trigger('click')
+    await wrapper.get('[data-testid="materialize-submit"]').trigger('click')
     await flushPromises()
     expect(wrapper.get('[role="alert"]').text()).toBe('partial snapshot')
-    expect(wrapper.get('button').attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('[data-testid="materialize-submit"]').attributes('disabled')).toBeUndefined()
     vi.mocked(materializePkCalendar).mockResolvedValue(report)
-    await wrapper.get('button').trigger('click')
+    await wrapper.get('[data-testid="materialize-submit"]').trigger('click')
     await flushPromises()
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
     expect(wrapper.find('[role="status"]').exists()).toBe(true)
@@ -57,10 +58,10 @@ describe('local course materialization', () => {
  test('same calendar ID stays isolated by audience', async () => {
   vi.mocked(materializePkCalendar).mockResolvedValue(report)
   wrapper = mount(CourseMaterializePanel, { props: { audience: 'graduate', calendars: [{ ...calendar, audience: 'undergraduate', status: 'running' }, { ...calendar, audience: 'graduate' }] } })
-  expect(wrapper.findAll('option')).toHaveLength(1)
-  expect(wrapper.get('button').attributes('disabled')).toBeUndefined()
-  await wrapper.get('button').trigger('click')
+  expect(wrapper.findComponent(AdminSelect).props('options')).toHaveLength(1)
+  expect(wrapper.get('[data-testid="materialize-submit"]').attributes('disabled')).toBeUndefined()
+  await wrapper.get('[data-testid="materialize-submit"]').trigger('click')
   expect(materializePkCalendar).toHaveBeenCalledWith('122', 'graduate')
   await wrapper.setProps({ audience: 'undergraduate' })
-  expect(wrapper.get('button').attributes('disabled')).toBeDefined()
+  expect(wrapper.get('[data-testid="materialize-submit"]').attributes('disabled')).toBeDefined()
  })

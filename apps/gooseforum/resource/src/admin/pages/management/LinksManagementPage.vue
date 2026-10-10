@@ -317,9 +317,9 @@ onMounted(() => {
           <div class="rounded-lg border bg-background p-4">
             <h2 class="text-sm font-semibold text-foreground">{{ adminText('k00a6') }}</h2>
             <div class="mt-3 space-y-2 text-sm text-muted-foreground">
-              <div class="flex gap-2"><ShieldCheck class="mt-0.5 size-4 shrink-0 text-emerald-600" /><span>{{ adminText('k00a7') }}</span></div>
-              <div class="flex gap-2"><ShieldCheck class="mt-0.5 size-4 shrink-0 text-emerald-600" /><span>{{ adminText('k00a8') }}</span></div>
-              <div class="flex gap-2"><ShieldCheck class="mt-0.5 size-4 shrink-0 text-emerald-600" /><span>{{ adminText('k00a9') }}</span></div>
+              <div class="flex gap-2"><ShieldCheck class="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" /><span>{{ adminText('k00a7') }}</span></div>
+              <div class="flex gap-2"><ShieldCheck class="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" /><span>{{ adminText('k00a8') }}</span></div>
+              <div class="flex gap-2"><ShieldCheck class="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" /><span>{{ adminText('k00a9') }}</span></div>
             </div>
           </div>
           <Badge variant="secondary" class="rounded-md">{{ adminText('k0054') }} {{ totalLinks }} {{ adminText('k00aa') }}</Badge>

@@ -102,22 +102,16 @@ abstract class AppLocalizations {
     Locale('zh'),
   ];
 
-  /// No description provided for @agentRepliesDisable.
-  ///
-  /// In en, this message translates to:
-  /// **'Disable robot replies'**
-  String get agentRepliesDisable;
-
   /// No description provided for @agentRepliesDisabled.
   ///
   /// In en, this message translates to:
-  /// **'The author has disabled robot replies'**
+  /// **'The author has turned off bot replies'**
   String get agentRepliesDisabled;
 
   /// No description provided for @agentRepliesHelp.
   ///
   /// In en, this message translates to:
-  /// **'Blocks replies from site Agent accounts. Existing replies remain.'**
+  /// **'When off, this site\'s bot accounts can\'t reply here. Existing replies stay.'**
   String get agentRepliesHelp;
 
   /// No description provided for @campusCourseReviews.
@@ -2759,6 +2753,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Long-press an image in the body to drag it to any paragraph.'**
   String get publishBodyDragHint;
+
+  /// No description provided for @publishMomentTitleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Title (optional)'**
+  String get publishMomentTitleHint;
+
+  /// No description provided for @publishCategoryLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Category'**
+  String get publishCategoryLabel;
+
+  /// No description provided for @publishCategoryLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Up to {count}'**
+  String publishCategoryLimit(int count);
+
+  /// No description provided for @publishCategoryPickOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a category'**
+  String get publishCategoryPickOne;
+
+  /// No description provided for @publishImageOrderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Image order'**
+  String get publishImageOrderTitle;
+
+  /// No description provided for @publishImageOrderHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Long-press and drag to change where each image appears'**
+  String get publishImageOrderHint;
+
+  /// No description provided for @publishImageOrderPosition.
+  ///
+  /// In en, this message translates to:
+  /// **'Image {index}'**
+  String publishImageOrderPosition(int index);
+
+  /// No description provided for @publishStepOf.
+  ///
+  /// In en, this message translates to:
+  /// **'Step {current} of {total}'**
+  String publishStepOf(int current, int total);
 
   /// No description provided for @publishFormatting.
   ///
@@ -6330,18 +6372,6 @@ abstract class AppLocalizations {
   /// **'This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions.'**
   String get notificationReviewRejectedDetail;
 
-  /// No description provided for @anonymousLockDate.
-  ///
-  /// In en, this message translates to:
-  /// **'Name available from: '**
-  String get anonymousLockDate;
-
-  /// No description provided for @anonymousRemaining.
-  ///
-  /// In en, this message translates to:
-  /// **'Batches remaining today: '**
-  String get anonymousRemaining;
-
   /// No description provided for @anonymousIdentity.
   ///
   /// In en, this message translates to:
@@ -6351,49 +6381,31 @@ abstract class AppLocalizations {
   /// No description provided for @anonymousBoundary.
   ///
   /// In en, this message translates to:
-  /// **'One anonymous identity per account. A chosen name is locked for one year. The public and ordinary moderators cannot see your main account. Restricted administrators can reveal it with a reason and audit. Private bindings and audits remain after account closure.'**
+  /// **'Each account has one anonymous identity, and a confirmed name can\'t change for a year. It can\'t sign in, send messages or follow people. Likes and votes still count once per account, whichever identity you use.'**
   String get anonymousBoundary;
 
   /// No description provided for @anonymousRetry.
   ///
   /// In en, this message translates to:
-  /// **'Reload'**
+  /// **'Try again'**
   String get anonymousRetry;
 
   /// No description provided for @anonymousUnavailable.
   ///
   /// In en, this message translates to:
-  /// **'Anonymous identity is unavailable'**
+  /// **'Anonymous identity is unavailable right now'**
   String get anonymousUnavailable;
-
-  /// No description provided for @anonymousEnable.
-  ///
-  /// In en, this message translates to:
-  /// **'Reactivate identity'**
-  String get anonymousEnable;
-
-  /// No description provided for @anonymousDisable.
-  ///
-  /// In en, this message translates to:
-  /// **'Deactivate identity'**
-  String get anonymousDisable;
-
-  /// No description provided for @anonymousRandomize.
-  ///
-  /// In en, this message translates to:
-  /// **'Draw 10 names'**
-  String get anonymousRandomize;
 
   /// No description provided for @anonymousPublishAs.
   ///
   /// In en, this message translates to:
-  /// **'Publish as'**
+  /// **'Post as'**
   String get anonymousPublishAs;
 
   /// No description provided for @anonymousMember.
   ///
   /// In en, this message translates to:
-  /// **'Main identity'**
+  /// **'Main account'**
   String get anonymousMember;
 
   /// No description provided for @anonymousSetup.
@@ -6401,12 +6413,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Set up anonymous identity'**
   String get anonymousSetup;
-
-  /// No description provided for @anonymousConfirm.
-  ///
-  /// In en, this message translates to:
-  /// **'Confirm name (locked for one year)'**
-  String get anonymousConfirm;
 
   /// No description provided for @anonymousCancel.
   ///
@@ -6471,7 +6477,7 @@ abstract class AppLocalizations {
   /// No description provided for @feedReasonCategory.
   ///
   /// In en, this message translates to:
-  /// **'A category you participate in'**
+  /// **'A category you\'ve posted in'**
   String get feedReasonCategory;
 
   /// No description provided for @feedReasonNewReply.
@@ -6483,7 +6489,7 @@ abstract class AppLocalizations {
   /// No description provided for @feedReasonRecent.
   ///
   /// In en, this message translates to:
-  /// **'Recently published'**
+  /// **'Recently posted'**
   String get feedReasonRecent;
 
   /// No description provided for @sortDaily.
@@ -6495,55 +6501,49 @@ abstract class AppLocalizations {
   /// No description provided for @anonymousPurpose.
   ///
   /// In en, this message translates to:
-  /// **'Use a fixed alias for posts and replies, hiding your main-account association from the public.'**
+  /// **'Post and reply under a fixed name. Others can\'t see your main account.'**
   String get anonymousPurpose;
 
   /// No description provided for @anonymousSettingsHint.
   ///
   /// In en, this message translates to:
-  /// **'Manage the alias and identity used for anonymous posts'**
+  /// **'Post under a fixed name without showing your main account'**
   String get anonymousSettingsHint;
 
   /// No description provided for @anonymousIntroTitle.
   ///
   /// In en, this message translates to:
-  /// **'Your anonymous identity has its own name and history'**
+  /// **'Pick a name first'**
   String get anonymousIntroTitle;
-
-  /// No description provided for @anonymousHistoryHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Posts from the same anonymous identity are linked. Their content may still reveal who you are.'**
-  String get anonymousHistoryHint;
 
   /// No description provided for @anonymousConfirmHint.
   ///
   /// In en, this message translates to:
-  /// **'One anonymous identity per account. Once confirmed, the name cannot change for one year.'**
+  /// **'Each account has one anonymous identity. Once confirmed, the name can\'t be changed for a year.'**
   String get anonymousConfirmHint;
 
   /// No description provided for @anonymousPrivacySummary.
   ///
   /// In en, this message translates to:
-  /// **'The public and ordinary moderators cannot see the main-account association. Specially authorized administrators can reveal it with a recorded reason and audit. Bindings and audit records remain after account closure.'**
+  /// **'Other members and regular moderators can\'t see your main account. A few authorized admins can look it up when handling violations; each lookup needs a reason and is logged. The link is kept even after you close your account.'**
   String get anonymousPrivacySummary;
 
   /// No description provided for @anonymousRules.
   ///
   /// In en, this message translates to:
-  /// **'About anonymous identities'**
+  /// **'Read the full rules'**
   String get anonymousRules;
 
   /// No description provided for @anonymousChooseName.
   ///
   /// In en, this message translates to:
-  /// **'Choose a name'**
+  /// **'Pick a name'**
   String get anonymousChooseName;
 
   /// No description provided for @anonymousRefreshNames.
   ///
   /// In en, this message translates to:
-  /// **'Draw another batch'**
+  /// **'New batch'**
   String get anonymousRefreshNames;
 
   /// No description provided for @anonymousDrawsRemaining.
@@ -6561,7 +6561,7 @@ abstract class AppLocalizations {
   /// No description provided for @anonymousPreviousBatches.
   ///
   /// In en, this message translates to:
-  /// **'Previously generated candidates'**
+  /// **'Generated batches'**
   String get anonymousPreviousBatches;
 
   /// No description provided for @anonymousNamePreview.
@@ -6573,13 +6573,13 @@ abstract class AppLocalizations {
   /// No description provided for @anonymousConfirmName.
   ///
   /// In en, this message translates to:
-  /// **'Confirm name'**
+  /// **'Use this name'**
   String get anonymousConfirmName;
 
   /// No description provided for @anonymousInactive.
   ///
   /// In en, this message translates to:
-  /// **'Inactive'**
+  /// **'Turned off'**
   String get anonymousInactive;
 
   /// No description provided for @anonymousReady.
@@ -6594,35 +6594,161 @@ abstract class AppLocalizations {
   /// **'You can change the name after {date}'**
   String anonymousLockedUntil(String date);
 
-  /// No description provided for @anonymousResetAt.
-  ///
-  /// In en, this message translates to:
-  /// **'Draws reset at {date}'**
-  String anonymousResetAt(String date);
-
   /// No description provided for @anonymousNameLockHint.
   ///
   /// In en, this message translates to:
-  /// **'Name locked for one year.'**
+  /// **'You can\'t change the name for a year after confirming.'**
   String get anonymousNameLockHint;
 
   /// No description provided for @anonymousShowContent.
   ///
   /// In en, this message translates to:
-  /// **'Show anonymous profile content'**
+  /// **'Show my posts on this profile'**
   String get anonymousShowContent;
 
   /// No description provided for @anonymousShowContentDescription.
   ///
   /// In en, this message translates to:
-  /// **'Show topics, replies and counts on the anonymous profile. When off, only the name and avatar remain; the original forum content stays accessible.'**
+  /// **'When off, the profile shows only the name and avatar. Topics and replies still appear where you posted them.'**
   String get anonymousShowContentDescription;
 
   /// No description provided for @anonymousProfileContentHidden.
   ///
   /// In en, this message translates to:
-  /// **'Content on this anonymous profile is hidden'**
+  /// **'This member\'s posts aren\'t shown on this page'**
   String get anonymousProfileContentHidden;
+
+  /// No description provided for @agentRepliesAllow.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow bot replies'**
+  String get agentRepliesAllow;
+
+  /// No description provided for @agentRepliesOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Bot replies off'**
+  String get agentRepliesOff;
+
+  /// No description provided for @anonymousTag.
+  ///
+  /// In en, this message translates to:
+  /// **'Anonymous'**
+  String get anonymousTag;
+
+  /// No description provided for @anonymousTagOwn.
+  ///
+  /// In en, this message translates to:
+  /// **'Your anonymous identity'**
+  String get anonymousTagOwn;
+
+  /// No description provided for @anonymousIntroBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The name and avatar appear on your posts and replies instead of your main account.'**
+  String get anonymousIntroBody;
+
+  /// No description provided for @anonymousGenerateNames.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate names'**
+  String get anonymousGenerateNames;
+
+  /// No description provided for @anonymousBatchOf.
+  ///
+  /// In en, this message translates to:
+  /// **'Batch {number} of {total}'**
+  String anonymousBatchOf(int number, int total);
+
+  /// No description provided for @anonymousPreviewCaption.
+  ///
+  /// In en, this message translates to:
+  /// **'How others will see you'**
+  String get anonymousPreviewCaption;
+
+  /// No description provided for @anonymousPreviewPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a name below'**
+  String get anonymousPreviewPlaceholder;
+
+  /// No description provided for @anonymousRestricted.
+  ///
+  /// In en, this message translates to:
+  /// **'Restricted'**
+  String get anonymousRestricted;
+
+  /// No description provided for @anonymousQuota.
+  ///
+  /// In en, this message translates to:
+  /// **'No batches left today. More on {date}; you can still pick from earlier batches.'**
+  String anonymousQuota(String date);
+
+  /// No description provided for @anonymousProfileContentHiddenOwn.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts are hidden on this profile'**
+  String get anonymousProfileContentHiddenOwn;
+
+  /// No description provided for @anonymousProfileContentHiddenOwnDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Nobody, including you, sees the post list here. Your topics and replies still appear where you posted them.'**
+  String get anonymousProfileContentHiddenOwnDescription;
+
+  /// No description provided for @anonymousProfileOwnerHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This is your anonymous identity. Others see only its name, avatar and public posts — never your main account.'**
+  String get anonymousProfileOwnerHint;
+
+  /// No description provided for @anonymousProfileMemberHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This member posts anonymously. Their main account isn\'t shown.'**
+  String get anonymousProfileMemberHint;
+
+  /// No description provided for @anonymousProfileGuestHint.
+  ///
+  /// In en, this message translates to:
+  /// **'An anonymous identity of a forum member. The main account is kept private.'**
+  String get anonymousProfileGuestHint;
+
+  /// No description provided for @anonymousActiveLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Use anonymous identity'**
+  String get anonymousActiveLabel;
+
+  /// No description provided for @anonymousDisabledHint.
+  ///
+  /// In en, this message translates to:
+  /// **'While it\'s off you can\'t post with it. Existing posts stay as they are.'**
+  String get anonymousDisabledHint;
+
+  /// No description provided for @anonymousStatusRestricted.
+  ///
+  /// In en, this message translates to:
+  /// **'Restricted by an admin — you can\'t post with it right now'**
+  String get anonymousStatusRestricted;
+
+  /// No description provided for @anonymousStatusDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Turned off — you can\'t post with it right now'**
+  String get anonymousStatusDisabled;
+
+  /// No description provided for @anonymousLinkabilityHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Everything you post with it is gathered on one profile, so people may connect it. The content itself can still reveal who you are.'**
+  String get anonymousLinkabilityHint;
+
+  /// No description provided for @anonymousViewProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'View anonymous profile'**
+  String get anonymousViewProfile;
 }
 
 class _AppLocalizationsDelegate

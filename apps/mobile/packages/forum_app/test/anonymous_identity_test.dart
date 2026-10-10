@@ -108,9 +108,14 @@ void main() {
         await tester.tap(candidate);
         await tester.pumpAndSettle();
         expect(confirms, 0);
+        // The name-tag preview shows the picked slip before confirmation.
+        await tester.drag(find.byType(ListView).first, const Offset(0, 4000));
+        await tester.pumpAndSettle();
+        expect(find.text('别人会这样看到你'), findsOneWidget);
+        expect(find.text('从下面挑一个花名'), findsNothing);
         expect(find.byType(AlertDialog), findsNothing);
         expect(tester.takeException(), isNull);
-        final confirm = find.widgetWithText(GfButton, '确认使用此花名');
+        final confirm = find.widgetWithText(GfButton, '使用这个花名');
         await tester.ensureVisible(confirm);
         await tester.tap(confirm);
         await tester.pumpAndSettle();

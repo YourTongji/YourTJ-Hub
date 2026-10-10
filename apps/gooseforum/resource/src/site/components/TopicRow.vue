@@ -11,6 +11,7 @@ import {
   unregisterTopicPreview,
 } from '@/runtime/topic-hover-preview'
 import { topicDescription, topicDisplayLabel } from '@/runtime/topic-description'
+import { feedReasonKey } from '@/site/utils/feed-reason'
 import AvatarStack from '@/site/components/AvatarStack.vue'
 import TopicFeedPreview from '@/site/components/TopicFeedPreview.vue'
 import type { TopicPayload } from '@gooseforum/client'
@@ -29,7 +30,7 @@ withDefaults(defineProps<{
 })
 
 const { t } = useI18n()
-function feedReason(reason?: string) { switch(reason) {case 'following': return t('feed.following'); case 'category': return t('feed.category'); case 'newreply': return t('feed.newreply'); case 'recent': return t('feed.recent'); default:return ''} }
+const feedReason = (reason?: string | null) => { const key = feedReasonKey(reason); return key ? t(key) : '' }
 
 // 桌面端：悬停行停留片刻后，以弹层形式预览信息流卡片。
 // 弹层 fixed 定位在视口上，不推挤表格布局；带延迟避免扫过列表时误触。
@@ -170,7 +171,7 @@ onBeforeUnmount(() => {
             @click="closePreview"
           >
             {{ topic.title }}
-          <span v-if="topic.feedReason" class="block text-xs font-normal text-base-content/55">{{ feedReason(topic.feedReason) }}</span></a>
+          </a>
           <a
             v-else
             :href="topic.url"
@@ -212,7 +213,11 @@ onBeforeUnmount(() => {
           <Sparkles class="h-3 w-3" /> hot
         </span>
       </div>
-      <p v-if="topic.title" class="mt-1 min-h-5 truncate text-[13px] leading-5 text-base-content/55">{{ topicDescription(topic) }}</p>
+      <p v-if="topic.title || feedReason(topic.feedReason)" class="mt-1 min-h-5 truncate text-[13px] leading-5 text-base-content/55">
+        <span v-if="feedReason(topic.feedReason)" class="font-medium text-base-content/70" data-test="feed-reason">{{ feedReason(topic.feedReason) }}</span
+        ><span v-if="feedReason(topic.feedReason) && topic.title && topicDescription(topic)" aria-hidden="true"> · </span
+        ><template v-if="topic.title">{{ topicDescription(topic) }}</template>
+      </p>
       <div class="mt-1.5 flex min-h-6 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/55 lg:hidden">
         <AvatarStack :users="topic.participants" size="sm" />
         <span>{{ timeAgo(topic.lastUpdateTime) }}</span>

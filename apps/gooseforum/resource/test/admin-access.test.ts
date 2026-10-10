@@ -10,7 +10,7 @@ import { AdminPermission, canVisitAdminPath, configureAdminAccess } from '../src
 const adminSrc = resolve(__dirname, '../src/admin')
 
 function sidebarMenuUrls(): string[] {
-  const src = readFileSync(resolve(adminSrc, 'components/layout/AppSidebar.vue'), 'utf8')
+  const src = readFileSync(resolve(adminSrc, 'runtime/navigation.ts'), 'utf8')
   const urls = [...src.matchAll(/url: '(\/admin[^']*)'/g)].map((m) => m[1])
   return [...new Set(urls)]
 }

@@ -116,6 +116,92 @@ Future<ProviderContainer> _mount(
 }
 
 void main() {
+  for (final language in ['zh', 'en', 'ja', 'de']) {
+    for (final hasActor in [false, true]) {
+      testWidgets(
+        '$language notification bolding requires a real actor: $hasActor',
+        (tester) async {
+          await tester.binding.setSurfaceSize(const Size(800, 2400));
+          addTearDown(() => tester.binding.setSurfaceSize(null));
+          final repo = _Notifications();
+          await _mount(tester, repo, locale: Locale(language));
+          final l10n = AppLocalizations.of(
+            tester.element(find.byType(NotificationsPage)),
+          );
+          final events = hasActor
+              ? [
+                  'comment',
+                  'mention',
+                  'post_reply',
+                  'topic_post',
+                  'follow',
+                  'like',
+                  'wiki_updated',
+                ]
+              : [
+                  'review_approved',
+                  'review_pending',
+                  'review_rejected',
+                  'badge',
+                  'unknown',
+                ];
+          final items = <NotificationPayload>[];
+          for (final event in events) {
+            for (final anonymous in hasActor ? [false, true] : [false]) {
+              items.add(
+                _page(l10n.notificationSomeone).items.single.copyWith(
+                  id: items.length + 1,
+                  eventType: event,
+                  title: event == 'unknown' ? l10n.notificationSomeone : '',
+                  content: l10n.notificationSomeone,
+                  actor: NotificationActorPayload(
+                    id: hasActor && !anonymous ? 77 : 0,
+                    publicUid: anonymous ? 'persona-uid' : null,
+                    username: hasActor ? 'Alice' : '',
+                  ),
+                  payload: NotificationInnerPayload(
+                    actorId: hasActor && !anonymous ? 77 : 0,
+                    topicTitle: l10n.notificationSomeone,
+                  ),
+                ),
+              );
+            }
+          }
+          repo.requests.first.$3.complete(
+            NotificationListResponse(
+              items: items,
+              nextCursor: 0,
+              hasNext: false,
+              unreadCount: items.length,
+            ),
+          );
+          await tester.pumpAndSettle();
+          final rows = find.byType(GfNotificationRow);
+          expect(rows, findsNWidgets(items.length));
+          for (var index = 0; index < items.length; index++) {
+            final row = tester.widget<GfNotificationRow>(rows.at(index));
+            expect(row.onActorTap, hasActor ? isNotNull : isNull);
+            final bold = <String>[];
+            for (final text in tester.widgetList<Text>(
+              find.descendant(of: rows.at(index), matching: find.byType(Text)),
+            )) {
+              text.textSpan?.visitChildren((span) {
+                if (span is TextSpan &&
+                    span.style?.fontWeight == FontWeight.w700) {
+                  bold.add(span.text ?? '');
+                }
+                return true;
+              });
+            }
+            expect(bold, hasActor ? ['Alice'] : isEmpty);
+            expect(row.actorName, hasActor ? 'Alice' : '');
+          }
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
   testWidgets('empty unread explains the filter and opens all notifications', (
     tester,
   ) async {

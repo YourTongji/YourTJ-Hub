@@ -510,7 +510,7 @@ Widget buildTopicFeedCard(
           : topic.title,
       description: topic.description,
       authorName: topic.author.publicUid != null
-          ? '${topic.author.nickname ?? topic.author.username} · ${l10n.anonymousPersonaLabel}'
+          ? '${topic.author.nickname ?? topic.author.username} · ${l10n.anonymousTag}'
           : privateDisplayName(
               context,
               topic.author.id,

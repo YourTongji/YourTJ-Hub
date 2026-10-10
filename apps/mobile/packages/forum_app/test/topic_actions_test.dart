@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
+import 'package:forum_app/src/pages/topic/agent_reply_setting.dart';
 import 'package:forum_app/src/pages/topic/topic_actions.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:go_router/go_router.dart';
@@ -113,23 +114,66 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<_Topics> pumpReplySetting(
+    WidgetTester tester, {
+    required bool canManage,
+    bool disabled = false,
+    Future<void> Function()? onChanged,
+  }) async {
+    final repo = _Topics(
+      GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemoryTokenStorage(),
+        baseUrl: 'https://example.test',
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [topicRepositoryProvider.overrideWithValue(repo)],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: AgentReplySetting(
+              topicId: 100,
+              disabled: disabled,
+              canManage: canManage,
+              onChanged: onChanged ?? () async {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    return repo;
+  }
+
   testWidgets(
-    'author changes robot replies and refreshes; readers have no control',
+    'author switches robot replies off and refreshes; readers have no control',
     (tester) async {
       var refreshes = 0;
-      final author = await pump(
+      final repo = await pumpReplySetting(
         tester,
+        canManage: true,
         onChanged: () async {
           refreshes++;
         },
       );
-      await menu(tester, 'Disable robot replies');
-      expect(author.repo.replySettings, [true]);
-      expect(refreshes, 1);
-      await pump(tester, own: false);
-      await tester.tap(find.byTooltip('More options'));
+      expect(find.text('Allow bot replies'), findsOneWidget);
+      await tester.tap(find.byType(Switch));
       await tester.pumpAndSettle();
-      expect(find.text('Disable robot replies'), findsNothing);
+      expect(repo.replySettings, [true]);
+      expect(refreshes, 1);
+      await pumpReplySetting(tester, canManage: false);
+      expect(find.byType(Switch), findsNothing);
+      expect(find.byKey(const Key('agent-replies-notice')), findsNothing);
+      await pumpReplySetting(tester, canManage: false, disabled: true);
+      expect(find.byKey(const Key('agent-replies-notice')), findsOneWidget);
     },
   );
 
@@ -137,34 +181,26 @@ void main() {
     tester,
   ) async {
     var refreshes = 0;
-    final h = await pump(
+    final repo = await pumpReplySetting(
       tester,
+      canManage: true,
       onChanged: () async {
         refreshes++;
       },
     );
-    h.repo.failReplySetting = true;
-    await menu(tester, 'Disable robot replies');
+    repo.failReplySetting = true;
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
     expect(refreshes, 0);
-    expect(h.repo.replySettings, isEmpty);
+    expect(repo.replySettings, isEmpty);
     expect(find.text('Bad state: save failed'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 8));
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+    repo.failReplySetting = false;
+    await tester.tap(find.byType(Switch));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('More options'));
-    await tester.pumpAndSettle();
-    expect(
-      tester
-          .widget<CheckedPopupMenuItem<String>>(
-            find.byType(CheckedPopupMenuItem<String>),
-          )
-          .checked,
-      isFalse,
-    );
-    h.repo.failReplySetting = false;
-    await tester.tap(find.text('Disable robot replies'));
-    await tester.pumpAndSettle();
-    expect(h.repo.replySettings, [true]);
+    expect(repo.replySettings, [true]);
     expect(refreshes, 1);
+    expect(find.text('Bad state: save failed'), findsNothing);
   });
 
   testWidgets('own topic opens its editor and refreshes after returning', (

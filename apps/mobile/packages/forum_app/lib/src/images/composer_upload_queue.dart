@@ -22,7 +22,9 @@ class ComposerUploadQueue extends ChangeNotifier {
   });
 
   final Future<String> Function(XFile file) upload;
-  final void Function(String url) onUploaded;
+
+  /// Receives the uploaded URL and the id [add] returned for its file.
+  final void Function(String url, int id) onUploaded;
   final bool Function() isCurrent;
   final List<ComposerUpload> _items = [];
   List<ComposerUpload> get items => List.unmodifiable(_items);
@@ -30,11 +32,14 @@ class ComposerUploadQueue extends ChangeNotifier {
   bool _running = false, _disposed = false, _active = true;
   int _nextId = 0;
 
-  void add(List<XFile> files) {
-    if (_disposed || !isCurrent()) return;
-    _items.addAll(files.map((file) => ComposerUpload(_nextId++, file)));
+  /// Queues [files] in order and returns their ids.
+  List<int> add(List<XFile> files) {
+    if (_disposed || !isCurrent()) return const [];
+    final added = [for (final file in files) ComposerUpload(_nextId++, file)];
+    _items.addAll(added);
     notifyListeners();
     _drain();
+    return [for (final item in added) item.id];
   }
 
   void retry(int id) {
@@ -73,7 +78,7 @@ class ComposerUploadQueue extends ChangeNotifier {
           if (_disposed || !isCurrent()) return;
           if (!_items.contains(item)) continue;
           item.url = url;
-          onUploaded(url);
+          onUploaded(url, item.id);
           _items.remove(item);
         } catch (error) {
           if (_disposed || !isCurrent()) return;

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminSelect from '@/admin/components/AdminSelect.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Draggable from 'vuedraggable'
@@ -713,19 +714,17 @@ onMounted(load)
         </DialogHeader>
 
         <form class="grid gap-4" @submit.prevent="saveBrandDialog">
-          <div class="flex flex-wrap gap-4 text-sm">
-            <label class="flex items-center gap-2">
-              <input v-model="brandForm.brandType" type="radio" value="default" />
-              {{ adminText('k0086') }}
-            </label>
-            <label class="flex items-center gap-2">
-              <input v-model="brandForm.brandType" type="radio" value="text" />
-              {{ adminText('k0087') }}
-            </label>
-            <label class="flex items-center gap-2">
-              <input v-model="brandForm.brandType" type="radio" value="image" />
-              {{ adminText('k0088') }}
-            </label>
+          <div role="radiogroup" class="inline-flex w-fit rounded-lg bg-muted p-0.5 text-sm">
+            <button
+              v-for="option in [{ value: 'default', label: adminText('k0086') }, { value: 'text', label: adminText('k0087') }, { value: 'image', label: adminText('k0088') }] as const"
+              :key="option.value"
+              type="button"
+              role="radio"
+              :aria-checked="brandForm.brandType === option.value"
+              class="rounded-md px-3 py-1.5 font-medium transition-colors"
+              :class="brandForm.brandType === option.value ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+              @click="brandForm.brandType = option.value"
+            >{{ option.label }}</button>
           </div>
 
           <label v-if="brandForm.brandType === 'default'" class="grid gap-1.5 text-sm">
@@ -767,10 +766,7 @@ onMounted(load)
         <form class="grid gap-4" @submit.prevent="saveItem">
           <label class="grid gap-1.5 text-sm">
             <span class="font-medium">{{ adminText('k00dr') }}</span>
-            <select v-model="form.type" class="h-9 rounded-md border bg-background px-3 text-sm">
-              <option value="link">{{ adminText('k00ds') }}</option>
-              <option value="text">{{ adminText('k00dt') }}</option>
-            </select>
+            <AdminSelect v-model="form.type" :options="[{ value: 'link', label: adminText('k00ds') }, { value: 'text', label: adminText('k00dt') }]" class="w-full" />
           </label>
           <label class="grid gap-1.5 text-sm">
             <span class="font-medium">{{ adminText('k00dv') }}</span>

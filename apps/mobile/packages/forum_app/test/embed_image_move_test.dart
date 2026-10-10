@@ -270,4 +270,62 @@ void main() {
       expect(markdown.indexOf('u1'), lessThan(markdown.indexOf('D')));
     });
   });
+
+  group('reorderDocumentImages', () {
+    Document imagesDoc() => Document.fromDelta(
+      Delta()
+        ..insert('A\n')
+        ..insert(BlockEmbed.image('u1').toJson())
+        ..insert('\nB\n')
+        ..insert(BlockEmbed.image('u2').toJson())
+        ..insert('\n')
+        ..insert(BlockEmbed.image('u3').toJson())
+        ..insert('\n'),
+    );
+
+    test('lists images in reading order', () {
+      expect(documentImageUrls(imagesDoc()), <String>['u1', 'u2', 'u3']);
+    });
+
+    test('moves an image forward and back without touching text', () {
+      final Document doc = imagesDoc();
+      final String text = doc.toPlainText();
+      doc.compose(reorderDocumentImages(doc, 0, 2)!, ChangeSource.local);
+      expect(documentImageUrls(doc), <String>['u2', 'u3', 'u1']);
+      expect(doc.toPlainText(), text);
+      doc.compose(reorderDocumentImages(doc, 2, 0)!, ChangeSource.local);
+      expect(documentImageUrls(doc), <String>['u1', 'u2', 'u3']);
+    });
+
+    test('returns null for no-ops and stale indexes', () {
+      final Document doc = imagesDoc();
+      expect(reorderDocumentImages(doc, 1, 1), isNull);
+      expect(reorderDocumentImages(doc, 0, 3), isNull);
+      expect(reorderDocumentImages(doc, -1, 0), isNull);
+    });
+
+    test('one undo restores the previous order', () {
+      final QuillController controller = QuillController(
+        document: imagesDoc(),
+        selection: const TextSelection.collapsed(offset: 0),
+      );
+      addTearDown(controller.dispose);
+      controller.compose(
+        reorderDocumentImages(controller.document, 1, 0)!,
+        controller.selection,
+        ChangeSource.local,
+      );
+      expect(documentImageUrls(controller.document), <String>[
+        'u2',
+        'u1',
+        'u3',
+      ]);
+      controller.undo();
+      expect(documentImageUrls(controller.document), <String>[
+        'u1',
+        'u2',
+        'u3',
+      ]);
+    });
+  });
 }

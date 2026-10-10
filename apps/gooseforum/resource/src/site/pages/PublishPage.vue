@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import IdentityPicker from '@/site/components/IdentityPicker.vue'
+import GfSwitch from '@/site/components/GfSwitch.vue'
 import { computed, nextTick, ref, watch } from 'vue'
 import { AlertTriangle, BookOpen, Check, FileText, HelpCircle, Lightbulb, ListChecks, Loader2, MessageSquare, Send, X } from '@lucide/vue'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle, PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
@@ -483,7 +484,6 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
 
 <template>
     <main class="min-w-0 pb-8">
-      <IdentityPicker :key="page.layout.viewer.id" :viewer="page.layout.viewer" v-model="identity" :disabled="page.props.isEditing || submitting" />
       <PageHeader
         :title="props.isEditing ? currentTypeEditTitle : currentTypeCreateTitle"
         :description="currentTypeMeta.desc"
@@ -502,10 +502,6 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
       <!-- 单栏全宽：发布检查并入页脚，正文区吃满主列宽度 -->
       <section class="gf-card p-4 sm:p-5">
         <div class="space-y-5">
-          <label v-if="currentTopicId === 0" class="flex items-center gap-2 text-sm">
-            <input v-model="agentRepliesDisabled" type="checkbox" :disabled="submitting" />
-            <span>{{ t('agentReplies.disable') }}<small class="block text-base-content/60">{{ t('agentReplies.help') }}</small></span>
-          </label>
           <!-- 标题 + 分类同一行（better-layout：主输入吃满、元数据靠右共享边缘；可整体折叠给编辑区腾空间）。
                折叠动画：外层 grid-template-rows 0fr↔1fr + 内层 min-h-0/overflow-hidden 高度平滑塌陷 -->
           <!-- space-y 会给非最后子元素加 20px margin-bottom；原 v-show（display:none）折叠时该 margin 不渲染，
@@ -690,6 +686,27 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
             <span class="text-xs text-base-content/55">{{ t('auth.validation.captchaLoadFailed') }}</span>
           </div>
           <input v-model="website" type="text" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true" />
+
+          <!-- 发布设置：身份与机器人回复紧邻发布操作，发布前最后确认 -->
+          <div class="flex flex-col gap-x-6 gap-y-2 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex min-w-0 items-center gap-2">
+              <span class="shrink-0 text-sm font-semibold text-base-content/75">{{ t('anonymous.publishAs') }}</span>
+              <IdentityPicker :key="page.layout.viewer.id" :viewer="page.layout.viewer" v-model="identity" :disabled="page.props.isEditing || submitting" />
+            </div>
+            <div v-if="currentTopicId === 0" class="flex items-center justify-between gap-4 sm:justify-end">
+              <div class="min-w-0 sm:text-end">
+                <p id="publish-agent-replies-label" class="text-sm font-medium text-base-content/80">{{ t('agentReplies.allow') }}</p>
+                <p id="publish-agent-replies-help" class="text-xs leading-5 text-base-content/55">{{ t('agentReplies.help') }}</p>
+              </div>
+              <GfSwitch
+                :model-value="!agentRepliesDisabled"
+                :disabled="submitting"
+                labelledby="publish-agent-replies-label"
+                describedby="publish-agent-replies-help"
+                @update:model-value="agentRepliesDisabled = !$event"
+              />
+            </div>
+          </div>
 
           <!-- 页脚：左侧发布检查状态条 + 右侧操作（better-layout：控制区合并、用间距分组） -->
           <div class="flex flex-col gap-4 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
