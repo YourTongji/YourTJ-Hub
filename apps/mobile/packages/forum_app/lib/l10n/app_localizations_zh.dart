@@ -285,7 +285,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get authRegisterEmailVerify =>
-      '注册成功，验证邮件已发送，请前往邮箱完成验证。 未收到邮件？登录后可在账号安全中重发验证邮件。';
+      '注册成功，验证邮件已发送，请前往邮箱完成验证。未收到邮件？登录后可在账号安全中重发验证邮件。';
 
   @override
   String get authActivationRequired => '请先到邮箱激活账号';

@@ -287,7 +287,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get authRegisterEmailVerify =>
-      '登録が完了しました。確認メールを送信しました。受信箱を確認してください。 メールが届かない場合は、ログイン後にアカウントのセキュリティから再送信できます。';
+      '登録が完了しました。確認メールを送信しました。受信箱を確認してください。メールが届かない場合は、ログイン後にアカウントのセキュリティから再送信できます。';
 
   @override
   String get authActivationRequired => '先に受信箱からアカウントを有効化してください。';
