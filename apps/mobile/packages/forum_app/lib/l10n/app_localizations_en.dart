@@ -616,9 +616,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationsUnread => 'Unread';
 
   @override
-  String get searchTitle => 'Search';
-
-  @override
   String get searchHint => 'Search topics, users, categories…';
 
   @override

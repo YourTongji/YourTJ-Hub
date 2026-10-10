@@ -1206,12 +1206,6 @@ abstract class AppLocalizations {
   /// **'Unread'**
   String get notificationsUnread;
 
-  /// No description provided for @searchTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Search'**
-  String get searchTitle;
-
   /// No description provided for @searchHint.
   ///
   /// In en, this message translates to:

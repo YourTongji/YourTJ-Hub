@@ -599,9 +599,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notificationsUnread => '未读';
 
   @override
-  String get searchTitle => '搜索';
-
-  @override
   String get searchHint => '搜索帖子、用户、分类…';
 
   @override

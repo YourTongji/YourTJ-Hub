@@ -601,9 +601,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get notificationsUnread => '未読';
 
   @override
-  String get searchTitle => '検索';
-
-  @override
   String get searchHint => 'トピック、ユーザー、カテゴリを検索…';
 
   @override
