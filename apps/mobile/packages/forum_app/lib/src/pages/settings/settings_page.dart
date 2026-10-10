@@ -12,6 +12,7 @@ import 'package:ui_kit/ui_kit.dart';
 import 'package:core/core.dart';
 
 import '../../widgets/app_refresh_indicator.dart';
+import '../../widgets/activation_email_action.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../local/writing_store.dart';
@@ -1547,6 +1548,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: <Widget>[
+        const ActivationEmailAction(),
+        const SizedBox(height: 12),
         _settingsSection(
           context,
           title: l10n.settingsTotpTitle,

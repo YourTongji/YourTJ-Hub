@@ -621,8 +621,20 @@ abstract class AppLocalizations {
   /// No description provided for @authRegisterEmailVerify.
   ///
   /// In en, this message translates to:
-  /// **'Registration successful. A verification email was sent; check your inbox.'**
+  /// **'Registration successful. A verification email was sent; check your inbox. No email? Sign in and resend it under Account security.'**
   String get authRegisterEmailVerify;
+
+  /// No description provided for @authActivationRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Please activate your account from your inbox first.'**
+  String get authActivationRequired;
+
+  /// No description provided for @authResendActivationEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Resend verification email'**
+  String get authResendActivationEmail;
 
   /// No description provided for @authRegisterSuccess.
   ///

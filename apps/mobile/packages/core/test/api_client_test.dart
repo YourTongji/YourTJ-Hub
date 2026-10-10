@@ -701,6 +701,111 @@ void main() {
   });
 
   group('repositories 请求体', () {
+    test(
+      'AuthRepository.resendActivationEmail preserves success metadata',
+      () async {
+        final storage = _MemoryTokenStorage();
+        await storage.write('session-token');
+        final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+        final client = GfApiClient(dio: dio, tokenStorage: storage);
+        final cancelToken = CancelToken();
+        final adapter = MockAdapter((request) async {
+          expect(request.method, 'POST');
+          expect(request.path, '/api/resend-activation-email');
+          expect(request.headers['Authorization'], 'Bearer session-token');
+          expect(request.cancelToken, same(cancelToken));
+          return ResponseData(200, {
+            'code': 0,
+            'result': {'remainingToday': 2},
+            'messageCode': 'auth.activation.resendSuccess',
+            'params': {'remainingToday': 2},
+          });
+        });
+        dio.httpClientAdapter = adapter;
+
+        final response = await AuthRepository(
+          client,
+        ).resendActivationEmail(cancelToken: cancelToken);
+
+        expect(response.messageCode, 'auth.activation.resendSuccess');
+        expect(response.params, {'remainingToday': 2});
+        expect(response.result, {'remainingToday': 2});
+        expect(adapter.requests, hasLength(1));
+      },
+    );
+
+    test(
+      'AuthRepository.resendActivationEmail preserves cooldown error params',
+      () async {
+        final storage = _MemoryTokenStorage();
+        await storage.write('session-token');
+        final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+        final client = GfApiClient(dio: dio, tokenStorage: storage);
+        final adapter = MockAdapter((request) async {
+          expect(request.method, 'POST');
+          expect(request.path, '/api/resend-activation-email');
+          expect(request.headers['Authorization'], 'Bearer session-token');
+          return ResponseData(200, {
+            'code': 1,
+            'messageCode': 'auth.activation.resendCooldown',
+            'params': {'retryAfterSeconds': 30},
+          });
+        });
+        dio.httpClientAdapter = adapter;
+
+        await expectLater(
+          AuthRepository(client).resendActivationEmail(),
+          throwsA(
+            isA<ApiException>()
+                .having(
+                  (error) => error.messageCode,
+                  'messageCode',
+                  'auth.activation.resendCooldown',
+                )
+                .having((error) => error.params, 'params', {
+                  'retryAfterSeconds': 30,
+                }),
+          ),
+        );
+        expect(adapter.requests, hasLength(1));
+      },
+    );
+
+    test(
+      'AuthRepository.resendActivationEmail preserves daily-limit error params',
+      () async {
+        final storage = _MemoryTokenStorage();
+        await storage.write('session-token');
+        final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+        final client = GfApiClient(dio: dio, tokenStorage: storage);
+        final adapter = MockAdapter((request) async {
+          expect(request.method, 'POST');
+          expect(request.path, '/api/resend-activation-email');
+          expect(request.headers['Authorization'], 'Bearer session-token');
+          return ResponseData(200, {
+            'code': 1,
+            'messageCode': 'auth.activation.resendDaily',
+            'params': {'limit': 3},
+          });
+        });
+        dio.httpClientAdapter = adapter;
+
+        await expectLater(
+          AuthRepository(client).resendActivationEmail(),
+          throwsA(
+            isA<ApiException>()
+                .having(
+                  (error) => error.messageCode,
+                  'messageCode',
+                  'auth.activation.resendDaily',
+                )
+                .having((error) => error.params, 'params', {'limit': 3}),
+          ),
+        );
+        expect(adapter.requests, hasLength(1));
+      },
+    );
+
     test('AuthRepository.login 请求体含加密密码且无蜜罐字段', () async {
       final storage = _MemoryTokenStorage();
       final dio = Dio(BaseOptions(baseUrl: 'http://test'));

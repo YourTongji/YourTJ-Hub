@@ -68,6 +68,7 @@ ScheduleGridData campusGrid(List<CampusEvent> events, int week) {
 String campusError(AppLocalizations l, Object? e) {
   if (e is ApiException) {
     return switch (e.messageCode) {
+      'permission.emailRequired' => l.authActivationRequired,
       'campus.authorizationRequired' ||
       'campus.messageAuthorizationRequired' => l.campusAuthRequired,
       'campus.authorizationExpired' => l.campusAuthExpired,

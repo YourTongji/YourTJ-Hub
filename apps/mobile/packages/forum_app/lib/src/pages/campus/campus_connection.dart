@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
+import '../../widgets/activation_email_action.dart';
 import '../admin/admin_page.dart';
 import '../settings/campus_cache_clear_tile.dart';
 import 'campus_helpers.dart';
@@ -95,11 +96,18 @@ class _CampusConnectionState extends ConsumerState<CampusConnection> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(offlineCacheEpochProvider, (_, _) {
+      setState(() => _error = null);
+    });
     final l = AppLocalizations.of(context);
     final state = ref.watch(campusControllerProvider);
     final binding = state.status?.binding;
     final candidate = state.status?.candidate;
     final busy = state.busy || _opening;
+    final error = _error ?? state.error;
+    final activationRequired =
+        error is ApiException &&
+        error.messageCode == 'permission.emailRequired';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -172,14 +180,18 @@ class _CampusConnectionState extends ConsumerState<CampusConnection> {
           const SizedBox(height: 16),
           const CampusCacheClearTile(),
         ],
-        if (_error != null || state.error != null)
+        if (error != null)
           Padding(
             padding: const EdgeInsets.only(top: 12),
             child: Text(
-              campusError(l, _error ?? state.error),
+              campusError(l, error),
               style: TextStyle(color: GfTheme.colorsOf(context).error),
             ),
           ),
+        if (activationRequired) ...[
+          const SizedBox(height: 12),
+          const ActivationEmailAction(),
+        ],
       ],
     );
   }

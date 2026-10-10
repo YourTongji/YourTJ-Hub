@@ -297,7 +297,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authRegisterEmailVerify =>
-      'Registration successful. A verification email was sent; check your inbox.';
+      'Registration successful. A verification email was sent; check your inbox. No email? Sign in and resend it under Account security.';
+
+  @override
+  String get authActivationRequired =>
+      'Please activate your account from your inbox first.';
+
+  @override
+  String get authResendActivationEmail => 'Resend verification email';
 
   @override
   String get authRegisterSuccess => 'Registered successfully, please sign in';
