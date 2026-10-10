@@ -211,6 +211,7 @@ func applyReportQuickAction(ctx context.Context, actorID uint64, report reports.
 			afterPostModerationStatusChanged(actorID, post, postTopic, posts.ProcessStatusBlocked)
 		case reports.TargetCourseReview:
 			moderationservice.ReviewStatusChanged(actorID, report.TargetId, reviewHidden)
+			courseservice.InvalidateCourseDetailCacheByReviewId(report.TargetId)
 		}
 	}
 	moderationservice.ReportStatusChanged(actorID, buildReportLogSnapshot(report, resolution), status)
