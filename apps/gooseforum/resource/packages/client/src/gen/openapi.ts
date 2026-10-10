@@ -16176,7 +16176,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description No partial account is created. Verified school identity/student-email collisions return auth.tongji.accountExists with recovery guidance. Username collisions return auth.username.exists, including concurrent inserts; choose another name and retry with the same proof before expiry. Signup/domain policy returns auth.signup.disabled; daily quota returns auth.register.dailyQuota; unexpected failures return auth.register.failed. Dedicated guidance is limited to the school-verified flow. */
+            /** @description No partial account is created. Verified school identity/student-email collisions return auth.tongji.accountExists with recovery guidance. Username collisions return auth.username.exists, including concurrent inserts; choose another name and retry with the same proof before expiry. Signup/domain policy returns auth.signupDisabled; daily quota returns auth.register.dailyQuota; unexpected failures return auth.register.failed. Dedicated guidance is limited to the school-verified flow. */
             409: {
                 headers: {
                     [name: string]: unknown;
