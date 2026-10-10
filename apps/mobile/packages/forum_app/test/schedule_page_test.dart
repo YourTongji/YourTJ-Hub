@@ -73,6 +73,7 @@ class FakePkRepository extends PkRepository {
   List<PkCourseByMajorItem> coursesByMajorFixture =
       const <PkCourseByMajorItem>[];
   List<PkCourseDetailBrief> Function(String courseCode)? onCourseDetails;
+  Future<PkSearchResult> Function(String query)? onSearchCourses;
 
   @override
   Future<List<PkCourseByMajorItem>> coursesByMajor({
@@ -116,6 +117,7 @@ class FakePkRepository extends PkRepository {
     String? campus,
     String? faculty,
   }) async =>
+      onSearchCourses?.call(courseName ?? '') ??
       const PkSearchResult(courses: <PkSearchCourseItem>[], sizeLimit: 0);
 
   @override
@@ -290,10 +292,15 @@ ProviderContainer makeContainer(
   );
 }
 
-Widget wrapApp(ProviderContainer container, {double textScale = 1}) {
+Widget wrapApp(
+  ProviderContainer container, {
+  double textScale = 1,
+  Brightness brightness = Brightness.light,
+}) {
   return UncontrolledProviderScope(
     container: container,
     child: MaterialApp(
+      theme: ThemeData(brightness: brightness),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: const Locale('zh'),
