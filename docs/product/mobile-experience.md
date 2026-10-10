@@ -802,6 +802,11 @@ identity survive this layout change. The header keeps a small outer margin for i
   credit, hour and conflict counts wrap in a compact row. A small Web action opens
   the full [Web scheduler](https://f.yourtj.de/schedule) in the external browser without transferring
   the native credential. Plans are not official enrollment results.
+- `Current`: scheduler course search keeps the field, text and focus while results load or fail.
+  Committed input searches after a 350 ms pause; active input-method composition waits until commit,
+  and keyboard submission searches immediately. Clearing resets results without dismissing the
+  keyboard. Editing, clearing or switching compulsory/optional/search segments invalidates earlier
+  responses; returning to search retains the query. Failed searches offer retry below the field.
 - `Current`: planner and official timetable grids share a responsive seven-day layout with a fixed
   section/time rail during horizontal scrolling. Larger screens expand the columns; narrow screens
   keep readable column widths and explain sideways scrolling. Spanning course blocks show title,

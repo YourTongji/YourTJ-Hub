@@ -1425,8 +1425,10 @@ class _PickTab extends ConsumerStatefulWidget {
 
 class _PickTabState extends ConsumerState<_PickTab> {
   int _segment = 0;
-  String _query = '';
+  final TextEditingController _searchController = TextEditingController();
+  TextEditingValue _searchValue = TextEditingValue.empty;
   Timer? _debounce;
+  int _generation = 0;
   bool _loading = false;
   String? _error;
 
@@ -1437,25 +1439,36 @@ class _PickTabState extends ConsumerState<_PickTab> {
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(_onSearchChanged);
     Future<void>.microtask(_loadCurrentSegment);
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
   Future<void> _loadCurrentSegment() async {
+    if (!mounted) return;
+    if (_segment == 2) {
+      await _runSearch();
+      return;
+    }
     final ScheduleState state = ref.read(scheduleStoreProvider);
     if (!_hasMajorSelection(state)) {
       setState(() => _loading = false);
       return;
     }
-    if (_loading) return;
-    setState(() => _loading = true);
+    final int generation = ++_generation;
+    final int segment = _segment;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
-      if (_segment == 0) {
+      if (segment == 0) {
         final List<PkCourseByMajorItem> courses = await ref
             .read(pkRepositoryProvider)
             .coursesByMajor(
@@ -1463,33 +1476,32 @@ class _PickTabState extends ConsumerState<_PickTab> {
               code: state.majorSelected.major!,
               calendarId: state.majorSelected.calendarId!,
             );
-        if (!mounted) return;
+        if (!mounted || generation != _generation) return;
         setState(() {
           _compulsory = courses;
           _loading = false;
           _error = null;
         });
-      } else if (_segment == 1) {
+      } else if (segment == 1) {
         final List<PkOptionalType> types = await ref
             .read(pkRepositoryProvider)
             .optionalTypes(calendarId: state.majorSelected.calendarId!);
+        if (!mounted || generation != _generation) return;
         final List<PkCourseByNatureItem> groups = await ref
             .read(pkRepositoryProvider)
             .coursesByNature(
               calendarId: state.majorSelected.calendarId!,
               ids: types.map((PkOptionalType t) => t.courseLabelId).toList(),
             );
-        if (!mounted) return;
+        if (!mounted || generation != _generation) return;
         setState(() {
           _optionalGroups = groups;
           _loading = false;
           _error = null;
         });
-      } else {
-        await _runSearch(_query);
       }
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || generation != _generation) return;
       setState(() {
         _loading = false;
         _error = resolveErrorMessage(AppLocalizations.of(context), e);
@@ -1504,10 +1516,43 @@ class _PickTabState extends ConsumerState<_PickTab> {
         state.majorSelected.major!.isNotEmpty;
   }
 
-  Future<void> _runSearch(String query) async {
+  bool _isComposing(TextEditingValue value) =>
+      value.composing.isValid && !value.composing.isCollapsed;
+
+  void _onSearchChanged() {
+    final TextEditingValue value = _searchController.value;
+    final bool composing = _isComposing(value);
+    if (value.text == _searchValue.text &&
+        composing == _isComposing(_searchValue)) {
+      return;
+    }
+    _searchValue = value;
+    _debounce?.cancel();
+    // Invalidate even during debounce/composition, before a newer request starts.
+    _generation++;
+    setState(() {
+      _searchResults = const <PkSearchCourseItem>[];
+      _loading = false;
+      _error = null;
+    });
+    if (_segment != 2 || composing || value.text.trim().isEmpty) return;
+    _debounce = Timer(const Duration(milliseconds: 350), _runSearch);
+  }
+
+  void _submitSearch(String _) {
+    _debounce?.cancel();
+    _runSearch();
+  }
+
+  Future<void> _runSearch() async {
+    if (!mounted || _segment != 2 || _isComposing(_searchController.value)) {
+      return;
+    }
     final ScheduleState state = ref.read(scheduleStoreProvider);
     if (!_hasMajorSelection(state)) return;
-    if (query.trim().isEmpty) {
+    final String query = _searchController.text.trim();
+    final int generation = ++_generation;
+    if (query.isEmpty) {
       setState(() {
         _searchResults = const <PkSearchCourseItem>[];
         _loading = false;
@@ -1515,22 +1560,25 @@ class _PickTabState extends ConsumerState<_PickTab> {
       });
       return;
     }
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final PkSearchResult result = await ref
           .read(pkRepositoryProvider)
           .searchCourses(
             calendarId: state.majorSelected.calendarId!,
-            courseName: query.trim(),
+            courseName: query,
           );
-      if (!mounted) return;
+      if (!mounted || generation != _generation) return;
       setState(() {
         _searchResults = result.courses;
         _loading = false;
         _error = null;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || generation != _generation) return;
       setState(() {
         _loading = false;
         _error = resolveErrorMessage(AppLocalizations.of(context), e);
@@ -1540,7 +1588,13 @@ class _PickTabState extends ConsumerState<_PickTab> {
 
   void _switchSegment(int segment) {
     if (_segment == segment) return;
-    setState(() => _segment = segment);
+    _debounce?.cancel();
+    _generation++;
+    setState(() {
+      _segment = segment;
+      _loading = false;
+      _error = null;
+    });
     _loadCurrentSegment();
   }
 
@@ -1569,6 +1623,17 @@ class _PickTabState extends ConsumerState<_PickTab> {
               description:
                   '${l10n.scheduleTerm} · ${l10n.scheduleGrade} · ${l10n.scheduleMajor}',
             ),
+          )
+        else if (_segment == 2)
+          // Keep the field mounted while only its results load or fail.
+          _SearchPane(
+            controller: _searchController,
+            results: _searchResults,
+            loading: _loading,
+            error: _error,
+            onSubmitted: _submitSearch,
+            onRetry: _runSearch,
+            onPick: (PkSearchCourseItem course) => _pickSearchCourse(course),
           )
         else if (_loading)
           const Padding(
@@ -1632,19 +1697,6 @@ class _PickTabState extends ConsumerState<_PickTab> {
                   ),
               ],
             ],
-          )
-        else
-          _SearchPane(
-            query: _query,
-            results: _searchResults,
-            onQueryChanged: (String value) {
-              setState(() => _query = value);
-              _debounce?.cancel();
-              _debounce = Timer(const Duration(milliseconds: 350), () {
-                _runSearch(value);
-              });
-            },
-            onPick: (PkSearchCourseItem course) => _pickSearchCourse(course),
           ),
       ],
     );
@@ -1826,15 +1878,21 @@ class _CourseRow extends StatelessWidget {
 /// 搜索面板。
 class _SearchPane extends StatelessWidget {
   const _SearchPane({
-    required this.query,
+    required this.controller,
     required this.results,
-    required this.onQueryChanged,
+    required this.loading,
+    required this.error,
+    required this.onSubmitted,
+    required this.onRetry,
     required this.onPick,
   });
 
-  final String query;
+  final TextEditingController controller;
   final List<PkSearchCourseItem> results;
-  final ValueChanged<String> onQueryChanged;
+  final bool loading;
+  final String? error;
+  final ValueChanged<String> onSubmitted;
+  final VoidCallback onRetry;
   final void Function(PkSearchCourseItem course) onPick;
 
   @override
@@ -1844,12 +1902,20 @@ class _SearchPane extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         GfSearchField(
+          controller: controller,
           hintText: l10n.scheduleSearchHint,
           clearLabel: l10n.courseCopyClearSearch,
-          onChanged: onQueryChanged,
+          onSubmitted: onSubmitted,
         ),
         const SizedBox(height: 6),
-        if (results.isEmpty && query.trim().isNotEmpty)
+        if (loading)
+          const Padding(
+            padding: EdgeInsets.all(28),
+            child: Center(child: GfLoadingIndicator()),
+          )
+        else if (error != null)
+          GfErrorRetry(message: error!, onRetry: onRetry)
+        else if (results.isEmpty && controller.text.trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 32),
             child: GfEmpty(message: l10n.commonEmpty),
