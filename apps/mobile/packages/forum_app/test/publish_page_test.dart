@@ -490,6 +490,32 @@ void main() {
     },
   );
 
+  testWidgets(
+    'insert-link dialog url field stays a plain text field (issue #1111)',
+    (tester) async {
+      // 与登录页同根因:enableSuggestions:false 会被 Flutter Android 引擎映射为
+      // VISIBLE_PASSWORD inputType,ColorOS 据此强制安全键盘并禁用粘贴。
+      usePhoneViewport(tester);
+      await pumpPublishPage(tester, editing: false, contentType: 3);
+      tester.widget<QuillEditor>(find.byType(QuillEditor)).focusNode
+          .requestFocus();
+      await tester.pump();
+      await tester.tap(find.text('文字格式'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('插入链接'));
+      await tester.pumpAndSettle();
+
+      final dialogField = tester.widget<TextField>(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(TextField),
+        ),
+      );
+      expect(dialogField.enableSuggestions, isTrue);
+      expect(dialogField.keyboardType, TextInputType.url);
+    },
+  );
+
   for (final compact in [false, true]) {
     for (final type in [2, 3]) {
       testWidgets(

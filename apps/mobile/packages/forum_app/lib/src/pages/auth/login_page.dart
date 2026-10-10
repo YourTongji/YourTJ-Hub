@@ -480,7 +480,6 @@ class _LoginPageState extends ConsumerState<LoginPage>
       labelText: l10n.authCaptcha,
       autofillHints: const [],
       autocorrect: false,
-      enableSuggestions: false,
       textInputAction: TextInputAction.done,
       onSubmitted: (_) => _submit(),
       onChanged: (_) {
@@ -1115,7 +1114,6 @@ class _LoginPageState extends ConsumerState<LoginPage>
                       : AutofillHints.newUsername,
                 ],
                 autocorrect: false,
-                enableSuggestions: false,
                 textInputAction: TextInputAction.next,
                 onEditingComplete: () {
                   if (_mode == _AuthMode.login) {
@@ -1145,7 +1143,6 @@ class _LoginPageState extends ConsumerState<LoginPage>
                     ? const []
                     : const [AutofillHints.email],
                 autocorrect: false,
-                enableSuggestions: false,
                 textInputAction: _mode == _AuthMode.forgotPassword
                     ? TextInputAction.done
                     : TextInputAction.next,
@@ -1193,6 +1190,10 @@ class _LoginPageState extends ConsumerState<LoginPage>
               onTapOutside: (_) => _onPasswordTapOutside(),
               child: _withAuthFocusIntent(
                 _passwordFocusNode,
+                // 只有密码框保留 enableSuggestions: false:Flutter Android 引擎会把它
+                // 映射为 VISIBLE_PASSWORD inputType;ColorOS 据此把字段当凭据输入,
+                // 强制安全键盘并禁用粘贴(issue #1111)。用户名/邮箱/验证码/TOTP
+                // 必须保持默认 true,否则同样被误判为密码框。
                 GfInput(
                   controller: _password,
                   focusNode: _passwordFocusNode,
@@ -1344,7 +1345,6 @@ class _LoginPageState extends ConsumerState<LoginPage>
                 keyboardType: TextInputType.number,
                 autofillHints: const [AutofillHints.oneTimeCode],
                 autocorrect: false,
-                enableSuggestions: false,
                 textInputAction: TextInputAction.done,
                 labelText: l10n.authTwoFactorCode,
                 prefixIcon: const GfSymbol('shield-check', size: 20),
