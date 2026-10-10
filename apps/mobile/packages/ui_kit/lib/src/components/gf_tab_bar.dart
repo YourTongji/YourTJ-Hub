@@ -6,13 +6,17 @@ import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
 import 'gf_motion.dart';
+import 'gf_symbol.dart';
 
 /// A single selectable tab in [GfTabBar].
 class GfTab {
-  const GfTab({required this.label, required this.value});
+  const GfTab({required this.label, required this.value, this.symbol});
 
   final String label;
   final Object value;
+
+  /// Optional leading ReIcon glyph; it follows the label's selected color.
+  final String? symbol;
 }
 
 @immutable
@@ -68,11 +72,16 @@ class GfTabBar extends StatefulWidget {
     required this.selected,
     required this.onSelected,
     this.mobile = true,
+    this.distribute = false,
   });
 
   final List<GfTab> tabs;
   final Object selected;
   final ValueChanged<Object> onSelected;
+
+  /// When true and every tab fits, tabs share the width evenly. Otherwise
+  /// (narrow windows, large text) the bar keeps scrolling horizontally.
+  final bool distribute;
 
   /// When true (default) the bar scrolls horizontally on overflow; when false
   /// tabs wrap.
@@ -99,7 +108,12 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
   bool _reduceMotion = false;
   bool _ready = false;
 
+  /// Width of each evenly distributed tab, or null while the bar scrolls.
+  double? _cellWidth;
+
   static const Curve _indicatorCurve = GfLogarithmicEaseOutCurve();
+  static const double _symbolSize = 18;
+  static const double _symbolGap = 6;
 
   int get _selectedIndex =>
       widget.tabs.indexWhere((tab) => tab.value == widget.selected);
@@ -219,6 +233,7 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
         targetIndex >= widget.tabs.length) {
       return 0;
     }
+    if (_cellWidth case final cell?) return cell * progress.offset.abs();
     final style = DefaultTextStyle.of(
       context,
     ).style.copyWith(fontSize: 16, height: 1.25, fontWeight: FontWeight.w600);
@@ -253,7 +268,7 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
       context,
     ).style.copyWith(fontSize: 16, height: 1.25, fontWeight: FontWeight.w600);
     final currentProgress = _swipeProgress?.value;
-    final double dragExtension =
+    double dragExtension() =>
         currentProgress != null &&
             currentProgress.originIndex == _controller.index &&
             !_controller.indexIsChanging
@@ -262,6 +277,24 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
     final double settleExtension =
         _settlingExtension *
         (1 - _indicatorCurve.transform(_settleController.value));
+
+    Widget label(GfTab tab) {
+      final text = Text(
+        tab.label,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.fade,
+      );
+      if (tab.symbol == null) return text;
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GfSymbol(tab.symbol!, size: _symbolSize),
+          const SizedBox(width: _symbolGap),
+          Flexible(child: text),
+        ],
+      );
+    }
 
     void selectTab(int index) {
       final onTabSelected = GfTabSwipeProgressScope.onTabSelectedOf(context);
@@ -293,7 +326,12 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
                     color: active ? colors.baseContent : colors.iconMuted,
                     fontWeight: active ? FontWeight.w600 : FontWeight.w400,
                   ),
-                  child: Text(tabs[index].label, maxLines: 1, softWrap: false),
+                  child: IconTheme.merge(
+                    data: IconThemeData(
+                      color: active ? colors.baseContent : colors.iconMuted,
+                    ),
+                    child: label(tabs[index]),
+                  ),
                 ),
                 const Spacer(),
                 AnimatedContainer(
@@ -318,37 +356,47 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
     }
     if (tabs.isEmpty) return const SizedBox.shrink();
 
-    return SizedBox(
-      height: height,
-      child: TabBar(
-        key: const ValueKey('gf-tab-bar'),
-        controller: _controller,
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        indicatorAnimation: TabIndicatorAnimation.elastic,
-        indicatorSize: TabBarIndicatorSize.label,
-        indicator: _FixedWidthTabIndicator(
-          color: colors.primary,
-          width: 28 + (dragExtension > 0 ? dragExtension : settleExtension),
-        ),
-        dividerColor: Colors.transparent,
-        dividerHeight: 0,
-        labelColor: colors.baseContent,
-        labelStyle: measureStyle.copyWith(fontWeight: FontWeight.w600),
-        labelPadding: const EdgeInsets.symmetric(horizontal: 16),
-        unselectedLabelColor: colors.iconMuted,
-        unselectedLabelStyle: measureStyle.copyWith(
-          fontWeight: FontWeight.w400,
-        ),
-        tabs: [
-          for (final tab in tabs)
-            Tab(
-              height: height,
-              child: Text(tab.label, maxLines: 1, softWrap: false),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool fill =
+            widget.distribute &&
+            constraints.hasBoundedWidth &&
+            tabs.fold<double>(
+                  0,
+                  (sum, tab) => sum + _itemWidth(context, tab, measureStyle),
+                ) <=
+                constraints.maxWidth;
+        _cellWidth = fill ? constraints.maxWidth / tabs.length : null;
+        final double extension = dragExtension();
+        return SizedBox(
+          height: height,
+          child: TabBar(
+            key: const ValueKey('gf-tab-bar'),
+            controller: _controller,
+            isScrollable: !fill,
+            tabAlignment: fill ? TabAlignment.fill : TabAlignment.start,
+            indicatorAnimation: TabIndicatorAnimation.elastic,
+            indicatorSize: TabBarIndicatorSize.label,
+            indicator: _FixedWidthTabIndicator(
+              color: colors.primary,
+              width: 28 + (extension > 0 ? extension : settleExtension),
             ),
-        ],
-        onTap: selectTab,
-      ),
+            dividerColor: Colors.transparent,
+            dividerHeight: 0,
+            labelColor: colors.baseContent,
+            labelStyle: measureStyle.copyWith(fontWeight: FontWeight.w600),
+            labelPadding: EdgeInsets.symmetric(horizontal: fill ? 4 : 16),
+            unselectedLabelColor: colors.iconMuted,
+            unselectedLabelStyle: measureStyle.copyWith(
+              fontWeight: FontWeight.w400,
+            ),
+            tabs: [
+              for (final tab in tabs) Tab(height: height, child: label(tab)),
+            ],
+            onTap: selectTab,
+          ),
+        );
+      },
     );
   }
 
@@ -359,7 +407,10 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
       textDirection: Directionality.of(context),
       textScaler: MediaQuery.textScalerOf(context),
     )..layout();
-    final width = painter.width + 32;
+    final width =
+        painter.width +
+        32 +
+        (tab.symbol == null ? 0 : _symbolSize + _symbolGap);
     painter.dispose();
     return width;
   }

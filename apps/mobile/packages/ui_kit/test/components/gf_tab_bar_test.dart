@@ -153,6 +153,45 @@ void main() {
       );
     });
 
+    testWidgets('distributed tabs share the width and fall back to scrolling', (
+      tester,
+    ) async {
+      const symbolTabs = <GfTab>[
+        GfTab(label: '全部', value: 'all', symbol: 'layout-grid'),
+        GfTab(label: '帖子', value: 'topics', symbol: 'file-text'),
+        GfTab(label: '用户', value: 'users', symbol: 'users-round'),
+        GfTab(label: '分类', value: 'categories', symbol: 'folder'),
+      ];
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 800);
+      addTearDown(tester.view.reset);
+      Widget bar() => GfTabBar(
+        tabs: symbolTabs,
+        selected: 'all',
+        distribute: true,
+        onSelected: (_) {},
+      );
+      await tester.pumpWidget(gfApp(bar()));
+      final tabBar = find.byKey(const ValueKey('gf-tab-bar'));
+      expect(tester.widget<TabBar>(tabBar).isScrollable, isFalse);
+      final widths = [
+        for (final element in find.byType(Tab).evaluate())
+          tester.getSize(find.byWidget(element.widget)).width,
+      ];
+      expect(widths.toSet(), hasLength(1));
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is GfSymbol && widget.name == 'folder',
+        ),
+        findsOneWidget,
+      );
+
+      tester.view.physicalSize = const Size(200, 800);
+      await tester.pumpWidget(gfApp(bar()));
+      expect(tester.widget<TabBar>(tabBar).isScrollable, isTrue);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('reduced motion disables the underline transition', (
       tester,
     ) async {
