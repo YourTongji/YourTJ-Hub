@@ -23,6 +23,7 @@ export interface PostStreamTopicActions {
 </script>
 
 <script setup lang="ts">
+import PersonaTag from './PersonaTag.vue'
 import { authorURL, authorKey } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, Teleport, useSlots, watch } from 'vue'
@@ -2109,6 +2110,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                     {{ authorDisplayName(post.author) }}
                   </a>
                   <span v-else class="min-w-0 truncate font-semibold text-sm text-base-content/55">{{ t('topic.authorAnonymous') }}</span>
+                  <PersonaTag v-if="post.author.publicUid" :own="post.isOwnPost" />
                   <span
                     v-if="props.contentType === 1"
                     class="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-success/15 px-1.5 py-0.2 text-[10px] font-semibold text-success"
@@ -2167,6 +2169,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                 <div class="flex min-w-0 items-center gap-2">
                   <a v-if="!isAnonymousPost(post)" :href="authorURL(post.author)" class="min-w-0 truncate font-semibold text-base-content hover:text-primary">{{ authorDisplayName(post.author) }}</a>
                   <span v-else class="min-w-0 truncate font-semibold text-base-content/55">{{ t('topic.authorAnonymous') }}</span>
+                  <PersonaTag v-if="post.author.publicUid" :own="post.isOwnPost" />
                   <span v-if="post.postNo" class="hidden shrink-0 text-xs font-semibold tabular-nums text-base-content/55 sm:inline">#{{ formatNumber(post.postNo) }}</span>
                   <span v-if="isQuestionTopic && post.isAnswer" class="hidden shrink-0 rounded bg-success/20 px-1.5 py-0.5 text-[11px] font-semibold text-success sm:inline">{{ t('topic.answer') }}</span>
                 </div>
@@ -2283,7 +2286,6 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                   <span class="sr-only">{{ t('topic.moderationUnban') }}</span>
                 </button>
 
-                <span v-if="post.author.publicUid" class="text-xs text-base-content/55">{{ t('anonymous.identity') }}</span>
                 <!-- 大屏时间展示 -->
                 <time class="hidden w-36 shrink-0 text-right text-xs text-base-content/55 sm:-ml-1 sm:block">{{ formatDateTime(post.createdAt) }}</time>
 

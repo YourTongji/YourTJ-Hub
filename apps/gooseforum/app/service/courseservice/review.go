@@ -108,11 +108,13 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 		return ReviewPayload{}, ErrReviewContentTooLong
 	}
 	var payload ReviewPayload
+	var offeringCourseId uint64
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		offering, err := course.GetOfferingTx(tx, input.OfferingId)
 		if err != nil || offering.Status != course.OfferingStatusVisible {
 			return ErrOfferingNotFound
 		}
+		offeringCourseId = offering.CourseId
 		rating := input.Rating
 		// 唯一约束：同一用户对同一 offering 最多一条（唯一索引不含 status，
 		// 软删的 deleted 行仍占用唯一键，查重必须覆盖全部状态）。
@@ -193,6 +195,7 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 	if err != nil {
 		return ReviewPayload{}, err
 	}
+	InvalidateCourseDetailCache(offeringCourseId)
 	// 事务已提交后再回填 member 作者名：users.Get 需要独立连接，
 	// 在事务内调用会在单连接 SQLite 测试环境下死锁。
 	fillReviewAuthorLabel(&payload, userId)
@@ -285,6 +288,7 @@ func UpdateReview(userId, reviewId uint64, input UpdateReviewInput) (ReviewPaylo
 			return nil
 		})
 		if err == nil {
+			InvalidateCourseDetailCacheByOfferingId(payload.OfferingId)
 			fillReviewAuthorLabel(&payload, userId)
 			return payload, nil
 		}
@@ -303,7 +307,8 @@ func UpdateReview(userId, reviewId uint64, input UpdateReviewInput) (ReviewPaylo
 // 状态转换使用 CAS（WHERE status = 旧值）：并发 hide 与 delete 同时到达时，
 // 只有拿到转换权的事务会调整 stats，另一个 RowsAffected=0 直接幂等成功。
 func DeleteReview(userId, reviewId uint64) error {
-	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+	var offeringCourseId uint64
+	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		entity, err := course.GetReviewTx(tx, reviewId)
 		if err != nil {
 			return ErrReviewNotFound
@@ -330,6 +335,7 @@ func DeleteReview(userId, reviewId uint64) error {
 			if err != nil {
 				return err
 			}
+			offeringCourseId = offering.CourseId
 			rating := 0
 			if entity.Rating != nil {
 				rating = *entity.Rating
@@ -356,6 +362,10 @@ func DeleteReview(userId, reviewId uint64) error {
 		}
 		return nil
 	})
+	if err == nil && offeringCourseId != 0 {
+		InvalidateCourseDetailCache(offeringCourseId)
+	}
+	return err
 }
 
 // SetReviewHelpful 幂等设置/取消 helpful。
@@ -618,10 +628,20 @@ func ListReviewsByCourse(courseId, viewerId uint64) ([]ReviewPayload, error) {
 // 拿到转换权的事务调整 stats；CAS 未命中则重新读取，按最新状态决定
 // 幂等成功（已被并发转为目标态）或 404（已被删除）。
 func SetReviewVisibility(reviewId uint64, hidden bool) error {
-	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+	var offeringCourseId uint64
+	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+		if entity, err := course.GetReviewTx(tx, reviewId); err == nil {
+			if off, err := course.GetOfferingTx(tx, entity.OfferingId); err == nil {
+				offeringCourseId = off.CourseId
+			}
+		}
 		_, err := SetReviewVisibilityTx(tx, reviewId, hidden)
 		return err
 	})
+	if err == nil && offeringCourseId != 0 {
+		InvalidateCourseDetailCache(offeringCourseId)
+	}
+	return err
 }
 
 // SetReviewVisibilityTx applies a review visibility change inside the caller's transaction.

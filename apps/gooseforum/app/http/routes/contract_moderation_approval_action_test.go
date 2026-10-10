@@ -15,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
@@ -22,11 +23,14 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/reports"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/tokenservice"
 	"github.com/gin-gonic/gin"
@@ -176,6 +180,79 @@ func TestModerationApprovalActionReportHTTPContract(t *testing.T) {
 		}
 		if got := reports.Get(contractModerationReportID); got.Status != reports.StatusOpen {
 			t.Fatalf("rejected links mutated the report: %+v", got)
+		}
+	})
+
+	t.Run("course review hide resolves the report and invalidates course detail cache", func(t *testing.T) {
+		conn, router := setupModerationApprovalActionContractTest(t)
+		if err := conn.AutoMigrate(
+			&course.Entity{},
+			&course.TermEntity{},
+			&course.OfferingEntity{},
+			&course.ReviewEntity{},
+			&course.CourseStatsEntity{},
+			&course.OfferingStatsEntity{},
+			&course.AliasEntity{},
+			&course.InstructorEntity{},
+			&course.OfferingInstructorEntity{},
+			&course.CourseAiSummaryEntity{},
+			&rolePermissionRs.Entity{},
+		); err != nil {
+			t.Fatal(err)
+		}
+		manager := createHTTPContractUser(t, conn, contractTestID())
+		grantContractPermission(t, conn, manager.Id, permission.CourseManager)
+		c := course.Entity{PrimaryCode: "CS999", Name: "软件架构", Status: course.StatusVisible}
+		if err := conn.Create(&c).Error; err != nil {
+			t.Fatal(err)
+		}
+		term := course.TermEntity{Code: "2026-AUTUMN", Name: "2026秋"}
+		if err := conn.Create(&term).Error; err != nil {
+			t.Fatal(err)
+		}
+		offering := course.OfferingEntity{CourseId: c.Id, TermId: term.Id, Status: course.StatusVisible}
+		if err := conn.Create(&offering).Error; err != nil {
+			t.Fatal(err)
+		}
+		rating := 5
+		review := course.ReviewEntity{OfferingId: offering.Id, Rating: &rating, Content: "好课", Status: course.ReviewStatusVisible}
+		if err := conn.Create(&review).Error; err != nil {
+			t.Fatal(err)
+		}
+		reportID := contractTestID()
+		if err := conn.Create(&reports.Entity{
+			Id:         reportID,
+			TargetType: reports.TargetCourseReview,
+			TargetId:   review.Id,
+			Status:     reports.StatusOpen,
+			ReporterId: manager.Id,
+		}).Error; err != nil {
+			t.Fatal(err)
+		}
+
+		// Warm course detail cache
+		courseservice.InvalidateAllCourseDetailCache()
+		detail1, err := courseservice.GetCourseDetail(c.Id)
+		if err != nil || detail1.RatingDistribution == nil {
+			t.Fatalf("GetCourseDetail failed: %v, detail: %+v", err, detail1)
+		}
+
+		body := approvalBody(contractApprovalToken(t, tokenservice.ModerationActionSubjectReport, reportID, "hide", "", contractApprovalIssuedAt))
+		if state := approvalState(t, router, approvalExecutePath, body, manager)["state"]; state != "done" {
+			t.Fatalf("hide state = %v", state)
+		}
+
+		rev, err := course.GetReview(review.Id)
+		if err != nil || rev.Status != course.ReviewStatusHidden {
+			t.Fatalf("review after hide = %+v", rev)
+		}
+
+		detail2, err := courseservice.GetCourseDetail(c.Id)
+		if err != nil {
+			t.Fatalf("GetCourseDetail after hide: %v", err)
+		}
+		if detail2.RatingDistribution != nil {
+			t.Fatalf("expected nil RatingDistribution after review hide, got %+v", detail2.RatingDistribution)
 		}
 	})
 

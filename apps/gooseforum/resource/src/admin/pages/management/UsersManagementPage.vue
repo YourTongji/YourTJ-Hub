@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminSelect from '@/admin/components/AdminSelect.vue'
 import { userDisplayName } from '@/runtime/private-notes'
 import { adminText } from '@/admin/runtime/i18n-text'
 
@@ -96,20 +97,20 @@ function badgeIconURL(badge: AdminBadge | UserBadge) {
 
 function badgeToneClass(badge: AdminBadge | UserBadge) {
   const classes: Record<string, string> = {
-    blue: 'bg-blue-100 text-blue-700 ring-blue-200',
-    emerald: 'bg-emerald-100 text-emerald-700 ring-emerald-200',
-    teal: 'bg-teal-100 text-teal-700 ring-teal-200',
-    sky: 'bg-sky-100 text-sky-700 ring-sky-200',
-    cyan: 'bg-cyan-100 text-cyan-700 ring-cyan-200',
-    rose: 'bg-rose-100 text-rose-700 ring-rose-200',
-    violet: 'bg-violet-100 text-violet-700 ring-violet-200',
-    purple: 'bg-purple-100 text-purple-700 ring-purple-200',
-    fuchsia: 'bg-fuchsia-100 text-fuchsia-700 ring-fuchsia-200',
-    indigo: 'bg-indigo-100 text-indigo-700 ring-indigo-200',
-    amber: 'bg-amber-100 text-amber-700 ring-amber-200',
-    orange: 'bg-orange-100 text-orange-700 ring-orange-200',
-    yellow: 'bg-yellow-100 text-yellow-700 ring-yellow-200',
-    slate: 'bg-slate-100 text-slate-700 ring-slate-200',
+    blue: 'bg-blue-100 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
+    emerald: 'bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
+    teal: 'bg-teal-100 text-teal-700 ring-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-500/30',
+    sky: 'bg-sky-100 text-sky-700 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30',
+    cyan: 'bg-cyan-100 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
+    rose: 'bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30',
+    violet: 'bg-violet-100 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
+    purple: 'bg-purple-100 text-purple-700 ring-purple-200 dark:bg-purple-500/15 dark:text-purple-300 dark:ring-purple-500/30',
+    fuchsia: 'bg-fuchsia-100 text-fuchsia-700 ring-fuchsia-200 dark:bg-fuchsia-500/15 dark:text-fuchsia-300 dark:ring-fuchsia-500/30',
+    indigo: 'bg-indigo-100 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
+    amber: 'bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
+    orange: 'bg-orange-100 text-orange-700 ring-orange-200 dark:bg-orange-500/15 dark:text-orange-300 dark:ring-orange-500/30',
+    yellow: 'bg-yellow-100 text-yellow-700 ring-yellow-200 dark:bg-yellow-500/15 dark:text-yellow-300 dark:ring-yellow-500/30',
+    slate: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30',
   }
   if (badge.color && classes[badge.color]) return classes[badge.color]
   if (badge.level === 'gold') return classes.amber
@@ -229,16 +230,7 @@ onMounted(() => {
           </form>
           <div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span class="whitespace-nowrap">{{ rangeStart }}-{{ rangeEnd }} / {{ total }}</span>
-            <select
-              class="h-9 rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              :value="pageSize"
-              @change="changePageSize(Number(($event.target as HTMLSelectElement).value))"
-            >
-              <option :value="10">{{ adminText('k002x') }}</option>
-              <option :value="20">{{ adminText('k002y') }}</option>
-              <option :value="30">{{ adminText('k002z') }}</option>
-              <option :value="50">{{ adminText('k0030') }}</option>
-            </select>
+            <AdminSelect :model-value="pageSize" :options="[{ value: 10, label: adminText('k002x') }, { value: 20, label: adminText('k002y') }, { value: 30, label: adminText('k002z') }, { value: 50, label: adminText('k0030') }]" @update:model-value="changePageSize" />
             <Button
               variant="outline"
               size="icon"
@@ -290,11 +282,11 @@ onMounted(() => {
                   </div>
                   <div class="mt-0.5 truncate text-xs text-muted-foreground">{{ user.email || '-' }}</div>
                   <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                    <span class="inline-flex items-center gap-1" :class="user.status === 0 ? 'text-emerald-700' : 'text-destructive'">
+                    <span class="inline-flex items-center gap-1" :class="user.status === 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-destructive'">
                       <span class="size-1.5 rounded-full" :class="user.status === 0 ? 'bg-emerald-500' : 'bg-destructive'" />
                       {{ user.status === 0 ? adminText('k005y') : adminText('k006k') }}
                     </span>
-                    <span class="inline-flex items-center gap-1" :class="user.validate === 1 ? 'text-emerald-700' : ''">
+                    <span class="inline-flex items-center gap-1" :class="user.validate === 1 ? 'text-emerald-700 dark:text-emerald-400' : ''">
                       <span class="size-1.5 rounded-full" :class="user.validate === 1 ? 'bg-emerald-500' : 'bg-muted-foreground/40'" />
                       {{ user.validate === 1 ? adminText('k006l') : adminText('k006m') }}
                     </span>
@@ -349,7 +341,7 @@ onMounted(() => {
                       </div>
                       <div class="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
                         <span class="truncate">{{ user.email || '-' }}</span>
-                        <span class="inline-flex shrink-0 items-center gap-1" :class="user.validate === 1 ? 'text-emerald-700' : ''">
+                        <span class="inline-flex shrink-0 items-center gap-1" :class="user.validate === 1 ? 'text-emerald-700 dark:text-emerald-400' : ''">
                           <span class="size-1.5 rounded-full" :class="user.validate === 1 ? 'bg-emerald-500' : 'bg-muted-foreground/40'" />
                           {{ user.validate === 1 ? adminText('k006l') : adminText('k006m') }}
                         </span>
@@ -364,7 +356,7 @@ onMounted(() => {
                   </div>
                 </td>
                 <td class="px-3 py-2">
-                  <span class="inline-flex items-center gap-1.5 text-xs font-medium" :class="user.status === 0 ? 'text-emerald-700' : 'text-destructive'">
+                  <span class="inline-flex items-center gap-1.5 text-xs font-medium" :class="user.status === 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-destructive'">
                     <CheckCircle2 v-if="user.status === 0" class="size-3.5" />
                     <ShieldOff v-else class="size-3.5" />
                     {{ user.status === 0 ? adminText('k005y') : adminText('k006k') }}

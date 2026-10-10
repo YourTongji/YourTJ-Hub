@@ -26,7 +26,7 @@ for (const width of [320, 768]) {
       if (path === 'batches') {
         requests.push(body.requestKey)
         if (!keys.has(body.requestKey)) {
-          const batch = { id: 'a'.repeat(32), day: state.day, createdAt: '2026-10-06T00:00:00Z', expiresAt: state.resetsAt, words: [long, 'C++', '人', '数学', '大学', '春天', '上海', '星辰', '同学', '通济'] }
+          const batch = { id: String(state.batches.length + 1).padStart(32, 'a'), day: state.day, createdAt: '2026-10-06T00:00:00Z', expiresAt: state.resetsAt, words: [long, 'C++', '人', '数学', '大学', '春天', '上海', '星辰', '同学', '通济'] }
           keys.set(body.requestKey, batch); state.batches.push(batch); state.remaining--
         }
         result = keys.get(body.requestKey)
@@ -42,7 +42,7 @@ for (const width of [320, 768]) {
     try {
       await page.goto(`${origin}/assets/test/fixtures/browser/anonymous.html`)
       await page.locator('#anonymous-identity > button').click()
-      const draw = page.getByRole('button', { name: '选择花名', exact: true })
+      const draw = page.getByRole('button', { name: '生成花名', exact: true })
       await draw.click()
       await page.getByRole('alert').waitFor()
       await draw.click()
@@ -52,8 +52,22 @@ for (const width of [320, 768]) {
       assert.ok(await name.evaluate(el => el.scrollWidth <= el.clientWidth), 'complete word must wrap')
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'page must fit')
       if (process.env.YOURTJ_ANONYMOUS_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.YOURTJ_ANONYMOUS_SCREENSHOT_DIR}/names-${width}.png`, fullPage: true })
+      // Draw history lives in a height-limited menu, newest first, however many batches exist.
+      for (let i = 0; i < 6; i++) {
+        await page.getByRole('button', { name: '换一批', exact: true }).click()
+        await page.getByRole('button', { name: new RegExp(`第 ${i + 2} 批，共 ${i + 2} 批`) }).waitFor()
+      }
+      await page.getByRole('button', { name: /第 7 批，共 7 批/ }).click()
+      const menu = page.locator('[role="list"]').filter({ hasText: '第 1 批' })
+      await menu.waitFor()
+      assert.ok(await menu.evaluate(el => el.scrollHeight > el.clientHeight && el.clientHeight <= 240), 'history must scroll inside a capped menu')
+      const menuBox = await menu.boundingBox()
+      assert.ok(menuBox && menuBox.x >= 0 && menuBox.x + menuBox.width <= width, 'history menu must fit the viewport')
+      await menu.getByRole('button').last().click()
+      await page.getByRole('button', { name: /第 1 批，共 7 批/ }).waitFor()
       await name.click(); assert.equal(confirms, 0)
-      await page.getByRole('button', { name: '确认使用此花名', exact: true }).click()
+      await page.getByText('别人会这样看到你').waitFor()
+      await page.getByRole('button', { name: '使用这个花名', exact: true }).click()
       await page.locator('#anonymous-identity').getByText(long, { exact: false }).waitFor()
       assert.equal(confirms, 1)
       assert.equal(await draw.count(), 0, 'locked identity must not draw')

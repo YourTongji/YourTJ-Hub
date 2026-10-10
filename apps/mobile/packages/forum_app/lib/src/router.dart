@@ -338,7 +338,6 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
         ),
     ];
 
-    final chrome = ref.watch(readingChromeProvider);
     return Scaffold(
       body: AccountDrawerLayer(
         key: accountDrawerLayerKey,
@@ -365,10 +364,23 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
                         MediaQuery.viewInsetsOf(context).bottom > 0 ||
                         ModalRoute.of(context)?.isCurrent == false,
                   );
+            } else if (notification is ScrollStartNotification &&
+                notification.dragDetails != null) {
+              ref.read(readingChromeProvider).begin();
             } else if (notification is ScrollEndNotification) {
               ref
                   .read(readingChromeProvider)
-                  .settle(notification.metrics.pixels);
+                  .settle(
+                    notification.metrics.pixels,
+                    // Finger moving up scrolls toward the end.
+                    velocity:
+                        -(notification
+                                .dragDetails
+                                ?.velocity
+                                .pixelsPerSecond
+                                .dy ??
+                            0),
+                  );
             }
             return false;
           },
@@ -383,16 +395,21 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
             ),
             bottomNavigation: ReadingChromeSlide(
               direction: 1,
-              child: IgnorePointer(
-                ignoring: chrome.hidden,
-                child: ExcludeSemantics(
-                  excluding: chrome.hidden,
-                  child: GfBottomNavigation(
-                    currentIndex: widget.navigationShell.currentIndex,
-                    onSelected: _selectDestination,
-                    showLabels: shellNavigationShowsLabels,
-                    items: destinations,
-                  ),
+              child: Consumer(
+                builder: (context, ref, child) {
+                  final hidden = ref.watch(
+                    readingChromeProvider.select((chrome) => chrome.hidden),
+                  );
+                  return IgnorePointer(
+                    ignoring: hidden,
+                    child: ExcludeSemantics(excluding: hidden, child: child),
+                  );
+                },
+                child: GfBottomNavigation(
+                  currentIndex: widget.navigationShell.currentIndex,
+                  onSelected: _selectDestination,
+                  showLabels: shellNavigationShowsLabels,
+                  items: destinations,
                 ),
               ),
             ),

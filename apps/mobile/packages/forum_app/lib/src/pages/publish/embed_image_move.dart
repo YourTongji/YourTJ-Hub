@@ -62,6 +62,47 @@ String documentFlatText(Document document) {
   return flat.toString();
 }
 
+/// Image embed URLs of [document] in reading order.
+List<String> documentImageUrls(Document document) => <String>[
+  for (final Operation op in document.toDelta().toList())
+    if (op.data case {'image': final String url}) url,
+];
+
+/// Computes the single Delta that moves the image at reading position [from]
+/// to position [to] among the document's image embeds.
+///
+/// The embed slots stay where they are; only which image fills each slot
+/// changes, so surrounding text and block styles are untouched and the
+/// document length is unchanged. Each image keeps its own attributes.
+/// Returns null for a no-op or an out-of-range index. Composing the result
+/// in one [QuillController.compose] call keeps undo/redo a single step.
+Delta? reorderDocumentImages(Document document, int from, int to) {
+  final List<(int, Operation)> slots = <(int, Operation)>[];
+  int offset = 0;
+  for (final Operation op in document.toDelta().toList()) {
+    if (op.data case {'image': String _}) slots.add((offset, op));
+    offset += op.length ?? 0;
+  }
+  if (from == to || from < 0 || to < 0) return null;
+  if (from >= slots.length || to >= slots.length) return null;
+
+  final List<int> order = List<int>.generate(slots.length, (i) => i);
+  order.insert(to, order.removeAt(from));
+  final Delta delta = Delta();
+  int cursor = 0;
+  for (int slot = 0; slot < slots.length; slot++) {
+    if (order[slot] == slot) continue;
+    final int at = slots[slot].$1;
+    final Operation source = slots[order[slot]].$2;
+    delta
+      ..retain(at - cursor)
+      ..insert(source.data, source.attributes)
+      ..delete(1);
+    cursor = at + 1;
+  }
+  return delta;
+}
+
 /// Returns the attributes of the operation covering flat-text [offset].
 Map<String, dynamic>? attributesAtOffset(List<Operation> ops, int offset) {
   int cursor = 0;

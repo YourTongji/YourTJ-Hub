@@ -289,6 +289,8 @@ let userCardLoading: Promise<void> | undefined
 let drawerOpenSwipe: DrawerSwipeState | null = null
 let drawerGestureHintShowTimer: number | undefined
 let drawerGestureHintHideTimer: number | undefined
+let drawerGestureHintSeenTimer: number | undefined
+let drawerGestureHintShownAt: number | undefined
 
 watch(
   () => props.layout.sidebar.activeKey,
@@ -306,13 +308,15 @@ onMounted(() => {
   updateHeaderElevated()
   window.addEventListener('scroll', updateHeaderElevated, { passive: true })
   window.addEventListener('goose:user-card-show', ensureUserCardForEvent)
+  window.addEventListener('pagehide', onDrawerGestureHintPageHide)
   scheduleDrawerGestureHint()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', updateHeaderElevated)
   window.removeEventListener('goose:user-card-show', ensureUserCardForEvent)
-  clearDrawerGestureHintTimers()
+  window.removeEventListener('pagehide', onDrawerGestureHintPageHide)
+  dismissDrawerGestureHint()
 })
 
 watch(
@@ -343,13 +347,28 @@ function closeDrawer() {
 function clearDrawerGestureHintTimers() {
   window.clearTimeout(drawerGestureHintShowTimer)
   window.clearTimeout(drawerGestureHintHideTimer)
+  window.clearTimeout(drawerGestureHintSeenTimer)
   drawerGestureHintShowTimer = undefined
   drawerGestureHintHideTimer = undefined
+  drawerGestureHintSeenTimer = undefined
+}
+
+function rememberVisibleDrawerGestureHint() {
+  // Seeing the hint does not require waiting for its four-second animation to finish.
+  if (drawerGestureHintShownAt !== undefined && Date.now() - drawerGestureHintShownAt >= 500) {
+    markDrawerGestureHintSeen()
+  }
+}
+
+function onDrawerGestureHintPageHide() {
+  dismissDrawerGestureHint()
 }
 
 function dismissDrawerGestureHint(remember = false) {
+  rememberVisibleDrawerGestureHint()
   clearDrawerGestureHintTimers()
   drawerGestureHintVisible.value = false
+  drawerGestureHintShownAt = undefined
   if (remember) markDrawerGestureHintSeen()
 }
 
@@ -371,9 +390,10 @@ function scheduleDrawerGestureHint() {
       return
     }
     drawerGestureHintVisible.value = true
+    drawerGestureHintShownAt = Date.now()
+    drawerGestureHintSeenTimer = window.setTimeout(rememberVisibleDrawerGestureHint, 500)
     drawerGestureHintHideTimer = window.setTimeout(() => {
-      drawerGestureHintVisible.value = false
-      markDrawerGestureHintSeen()
+      dismissDrawerGestureHint()
     }, 4000)
   }, 800)
 }
@@ -385,8 +405,7 @@ function drawerGestureHintPageOptedOut() {
 watch(
   () => route?.path,
   async () => {
-    clearDrawerGestureHintTimers()
-    drawerGestureHintVisible.value = false
+    dismissDrawerGestureHint()
     await nextTick()
     scheduleDrawerGestureHint()
   },

@@ -13,6 +13,7 @@ import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/images/image_upload.dart';
 import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/pages/publish/publish_page.dart';
+import 'package:forum_app/src/pages/publish/publish_type.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
 import 'package:image_picker/image_picker.dart';
@@ -197,7 +198,7 @@ void main() {
 
   Future<void> selectImages(WidgetTester tester) async {
     final l10n = AppLocalizations.of(tester.element(find.byType(PublishPage)));
-    final gallery = find.text(l10n.publishGallery);
+    final gallery = find.byKey(const Key('publish-gallery-add'));
     if (gallery.evaluate().isNotEmpty) {
       await tester.ensureVisible(gallery);
       await tester.pumpAndSettle();
@@ -303,7 +304,7 @@ void main() {
       expect(files.names, ['first.jpg']);
       expect(
         tester
-            .widget<DropdownButton<int>>(find.byType(DropdownButton<int>))
+            .widget<PublishTypeSwitcher>(find.byType(PublishTypeSwitcher))
             .onChanged,
         isNull,
       );
@@ -322,7 +323,12 @@ void main() {
       await tester.pump();
       expect(find.text(l10n.publishMediaPendingWarning), findsWidgets);
       expect(find.byType(PublishPage), findsOneWidget);
-      await tester.tap(find.byTooltip('重试'));
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('publish-upload-queue')),
+          matching: find.byTooltip('重试'),
+        ),
+      );
       await tester.pump();
       expect(picker.multiCalls, 1);
       files.results.last.complete('https://example.com/first.jpg');
@@ -425,6 +431,49 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     },
   );
+
+  testWidgets('article photos can be added while earlier ones upload', (
+    tester,
+  ) async {
+    await pumpPage(tester, type: 3);
+    final editor = tester
+        .widget<QuillEditor>(find.byType(QuillEditor))
+        .controller;
+    editor.document.insert(0, 'before\nafter\n');
+    editor.updateSelection(
+      const TextSelection.collapsed(offset: 7),
+      ChangeSource.local,
+    );
+    await tester.pumpAndSettle();
+    await selectImages(tester);
+    expect(find.byKey(const Key('publish-upload-queue')), findsOneWidget);
+    // The first batch is still uploading; a second batch at the end of the
+    // body must not wait for it or reuse its insertion point.
+    editor.updateSelection(
+      TextSelection.collapsed(offset: editor.document.length - 1),
+      ChangeSource.local,
+    );
+    await selectImages(tester);
+    expect(picker.multiCalls, 2);
+    for (var i = 0; i < 4; i++) {
+      files.results[i].complete('https://example.com/$i.jpg');
+      await tester.pump();
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('publish-upload-queue')), findsNothing);
+    final saved =
+        (await container.read(writingStoreProvider).drafts(scope)).single;
+    final content = saved.content;
+    int at(String needle) => content.indexOf(needle);
+    expect(at('before'), lessThan(at('0.jpg')));
+    expect(at('0.jpg'), lessThan(at('1.jpg')));
+    expect(at('1.jpg'), lessThan(at('after')));
+    expect(at('after'), lessThan(at('2.jpg')));
+    expect(at('2.jpg'), lessThan(at('3.jpg')));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
 
   testWidgets(
     'article queue retains its insertion point through ongoing edits',

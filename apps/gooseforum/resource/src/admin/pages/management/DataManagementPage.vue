@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import AdminSelect from '@/admin/components/AdminSelect.vue'
+import { Checkbox } from '@/admin/components/ui/checkbox'
 import { adminText } from '@/admin/runtime/i18n-text'
 
 import { onMounted, onUnmounted, ref } from 'vue'
@@ -238,25 +240,14 @@ onUnmounted(stopPolling)
                   class="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition-colors"
                   :class="exportTables.includes(table) ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted/50'"
                 >
-                  <input
-                    type="checkbox"
-                    class="size-4 rounded border"
-                    :checked="exportTables.includes(table)"
-                    @change="toggleTable(table)"
-                  />
+                  <Checkbox :model-value="exportTables.includes(table)" @update:model-value="toggleTable(table)" />
                   {{ table }}
                 </label>
               </div>
             </div>
             <div class="space-y-2">
               <div class="text-sm font-medium">{{ adminText('k00h6') }}</div>
-              <select
-                v-model="exportFormat"
-                class="h-9 rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="json">JSON</option>
-                <option value="csv">CSV</option>
-              </select>
+              <AdminSelect v-model="exportFormat" :options="[{ value: 'json', label: 'JSON' }, { value: 'csv', label: 'CSV' }]" class="w-32" />
             </div>
             <Button data-testid="admin-export-create" type="button" :disabled="creating" @click="createConfirm = true">
               <Loader2 v-if="creating" class="size-4 animate-spin" />
@@ -325,7 +316,7 @@ onUnmounted(stopPolling)
 
           <div v-if="importReport" class="space-y-3 rounded-lg border bg-muted/10 p-4">
             <div class="flex flex-wrap items-center gap-2 text-sm font-semibold">
-              <CheckCircle2 class="size-4 text-emerald-600" />
+              <CheckCircle2 class="size-4 text-emerald-600 dark:text-emerald-400" />
               {{ adminText('k00hf') }}
               <Badge variant="secondary">{{ importStatusText(importReport.status) }}</Badge>
             </div>

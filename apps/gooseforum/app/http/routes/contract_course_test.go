@@ -61,6 +61,8 @@ func setupCourseContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 			t.Fatalf("clean course table: %v", err)
 		}
 	}
+	courseservice.InvalidateCatalogFacetsCache()
+	courseservice.InvalidateAllCourseDetailCache()
 
 	router := gin.New()
 	router.GET("/api/forum/courses", UpQueryReq(forum.CourseListJSON))

@@ -16,8 +16,10 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPoints"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPageRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/wikiservice"
 	"gorm.io/gorm"
 )
 
@@ -34,11 +36,14 @@ func setupContentDeleteTestDB(t *testing.T) *gorm.DB {
 		&contentDeleteEvent.Entity{},
 		&pointsRecord.Entity{},
 		&userPoints.Entity{},
+		&wikiNamespaces.Entity{},
 		&wikiPages.Entity{},
 		&wikiPageRevisions.Entity{},
 	); err != nil {
 		t.Fatalf("migrate content delete tables: %v", err)
 	}
+	wikiservice.InvalidateTreeCache()
+	t.Cleanup(wikiservice.InvalidateTreeCache)
 	return conn
 }
 
@@ -134,6 +139,10 @@ func seedWikiTopic(t *testing.T, conn *gorm.DB, topicID, authorID uint64) uint64
 		CreatedAt: now, UpdatedAt: now,
 	}).Error; err != nil {
 		t.Fatalf("create wiki first post: %v", err)
+	}
+	var ns wikiNamespaces.Entity
+	if err := conn.Where("name = ?", "guide").First(&ns).Error; err != nil {
+		_ = conn.Create(&wikiNamespaces.Entity{Name: "guide"}).Error
 	}
 	if err := conn.Create(&wikiPages.Entity{
 		Id: pageID, TopicId: topicID, Namespace: "guide", Path: fmt.Sprintf("page-%d", topicID),
@@ -520,12 +529,29 @@ func TestContentDeleteEventsRecorded(t *testing.T) {
 
 // wiki 分站页面话题：作者删除 wiki 话题时级联物理删除 wiki_pages 与全部修订，
 // 避免删除话题后残留孤儿页面继续出现在公开导航树/首页（DeleteTopicAs 级联，
-// review wiki-topic-delete-cascade）。
+// review wiki-topic-delete-cascade）。同时确保 BuildTreeAPI 缓存立即失效。
 func TestDeleteWikiTopicByUserCascadesPage(t *testing.T) {
 	conn := setupContentDeleteTestDB(t)
 	const authorID = uint64(949101)
 	const topicID = uint64(949100)
 	pageID := seedWikiTopic(t, conn, topicID, authorID)
+
+	// Prime tree cache before deletion
+	treeBefore, err := wikiservice.BuildTreeAPI()
+	if err != nil {
+		t.Fatalf("BuildTreeAPI before delete: %v", err)
+	}
+	found := false
+	for _, ns := range treeBefore.Namespaces {
+		for _, n := range ns.Nodes {
+			if n.PageId == pageID {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected page %d in tree before delete: %+v", pageID, treeBefore)
+	}
 
 	if err := DeleteTopicByUser(authorID, topicID); err != nil {
 		t.Fatalf("DeleteTopicByUser: %v", err)
@@ -549,6 +575,19 @@ func TestDeleteWikiTopicByUserCascadesPage(t *testing.T) {
 			t.Fatal("deleted wiki page still returned by wikiPages.ListAll()")
 		}
 	}
+
+	// Tree cache must be invalidated immediately: deleted page should not appear in BuildTreeAPI
+	treeAfter, err := wikiservice.BuildTreeAPI()
+	if err != nil {
+		t.Fatalf("BuildTreeAPI after delete: %v", err)
+	}
+	for _, ns := range treeAfter.Namespaces {
+		for _, n := range ns.Nodes {
+			if n.PageId == pageID {
+				t.Fatalf("deleted wiki page %d still present in BuildTreeAPI after delete: %+v", pageID, treeAfter)
+			}
+		}
+	}
 }
 
 // 管理端治理删除 wiki 话题同样级联清理 wiki_pages/修订（DeleteTopicAs 级联；
@@ -559,6 +598,22 @@ func TestDeleteWikiTopicByModeratorCascadesPage(t *testing.T) {
 	const moderatorID = uint64(949202)
 	const topicID = uint64(949200)
 	pageID := seedWikiTopic(t, conn, topicID, authorID)
+
+	treeBefore, err := wikiservice.BuildTreeAPI()
+	if err != nil {
+		t.Fatalf("BuildTreeAPI before moderator delete: %v", err)
+	}
+	found := false
+	for _, ns := range treeBefore.Namespaces {
+		for _, n := range ns.Nodes {
+			if n.PageId == pageID {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected page %d in tree before moderator delete: %+v", pageID, treeBefore)
+	}
 
 	topic := topics.Get(topicID)
 	if err := DeleteTopicAs(topic, moderatorID, topics.VisibilityModeratorRemoved, "policy violation"); err != nil {
@@ -573,6 +628,19 @@ func TestDeleteWikiTopicByModeratorCascadesPage(t *testing.T) {
 	}
 	if revs := wikiPageRevisions.ListByPage(pageID); len(revs) != 0 {
 		t.Fatalf("wiki revisions still present after moderator delete: %d", len(revs))
+	}
+
+	// Tree cache must be invalidated immediately
+	treeAfter, err := wikiservice.BuildTreeAPI()
+	if err != nil {
+		t.Fatalf("BuildTreeAPI after moderator delete: %v", err)
+	}
+	for _, ns := range treeAfter.Namespaces {
+		for _, n := range ns.Nodes {
+			if n.PageId == pageID {
+				t.Fatalf("moderator-deleted wiki page %d still present in BuildTreeAPI: %+v", pageID, treeAfter)
+			}
+		}
 	}
 }
 
@@ -596,6 +664,19 @@ func TestRestoreWikiTopicRestoresPageAndRevisions(t *testing.T) {
 		t.Fatal("wiki page should be soft-deleted (deleted_at set) after topic delete")
 	}
 
+	// Prime cache while page is deleted
+	treeWhileDeleted, err := wikiservice.BuildTreeAPI()
+	if err != nil {
+		t.Fatalf("BuildTreeAPI while deleted: %v", err)
+	}
+	for _, ns := range treeWhileDeleted.Namespaces {
+		for _, n := range ns.Nodes {
+			if n.PageId == pageID {
+				t.Fatalf("page %d should not be in tree while deleted: %+v", pageID, treeWhileDeleted)
+			}
+		}
+	}
+
 	if err := RestoreContent(authorID, ContentTypeTopic, topicID); err != nil {
 		t.Fatalf("RestoreContent: %v", err)
 	}
@@ -608,6 +689,23 @@ func TestRestoreWikiTopicRestoresPageAndRevisions(t *testing.T) {
 	}
 	if revs := wikiPageRevisions.ListByPage(pageID); len(revs) != 1 {
 		t.Fatalf("wiki revisions not restored after topic restore: %d", len(revs))
+	}
+
+	// Tree cache must be invalidated and include restored page
+	treeAfterRestore, err := wikiservice.BuildTreeAPI()
+	if err != nil {
+		t.Fatalf("BuildTreeAPI after restore: %v", err)
+	}
+	restoredFound := false
+	for _, ns := range treeAfterRestore.Namespaces {
+		for _, n := range ns.Nodes {
+			if n.PageId == pageID {
+				restoredFound = true
+			}
+		}
+	}
+	if !restoredFound {
+		t.Fatalf("expected page %d in tree after restore: %+v", pageID, treeAfterRestore)
 	}
 }
 
@@ -623,6 +721,20 @@ func TestRestoreWikiTopicAsModeratorRestoresPageAndRevisions(t *testing.T) {
 	if err := DeleteTopicAs(topic, moderatorID, topics.VisibilityModeratorRemoved, "policy violation"); err != nil {
 		t.Fatalf("DeleteTopicAs: %v", err)
 	}
+
+	// Prime cache while page is deleted
+	treeWhileDeleted, err := wikiservice.BuildTreeAPI()
+	if err != nil {
+		t.Fatalf("BuildTreeAPI while deleted: %v", err)
+	}
+	for _, ns := range treeWhileDeleted.Namespaces {
+		for _, n := range ns.Nodes {
+			if n.PageId == pageID {
+				t.Fatalf("page %d should not be in tree while deleted: %+v", pageID, treeWhileDeleted)
+			}
+		}
+	}
+
 	if err := RestoreTopicAsModerator(moderatorID, topicID); err != nil {
 		t.Fatalf("RestoreTopicAsModerator: %v", err)
 	}
@@ -631,6 +743,23 @@ func TestRestoreWikiTopicAsModeratorRestoresPageAndRevisions(t *testing.T) {
 	}
 	if revs := wikiPageRevisions.ListByPage(pageID); len(revs) != 1 {
 		t.Fatalf("wiki revisions not restored after moderator topic restore: %d", len(revs))
+	}
+
+	// Tree cache must be invalidated and include restored page
+	treeAfterRestore, err := wikiservice.BuildTreeAPI()
+	if err != nil {
+		t.Fatalf("BuildTreeAPI after moderator restore: %v", err)
+	}
+	restoredFound := false
+	for _, ns := range treeAfterRestore.Namespaces {
+		for _, n := range ns.Nodes {
+			if n.PageId == pageID {
+				restoredFound = true
+			}
+		}
+	}
+	if !restoredFound {
+		t.Fatalf("expected page %d in tree after moderator restore: %+v", pageID, treeAfterRestore)
 	}
 }
 

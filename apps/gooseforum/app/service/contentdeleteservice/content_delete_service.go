@@ -36,6 +36,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pointservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/wikiservice"
 	"gorm.io/gorm"
 )
 
@@ -134,6 +135,7 @@ func DeleteTopicAs(topic topics.Entity, operatorID uint64, visibility string, re
 				return component.NewMessageError(component.MessageContentDeleteFailed, "删除话题失败", component.MessageParams{"error": err.Error()})
 			}
 			deleteWikiPageSearchIndex(pageID)
+			wikiservice.InvalidateTreeCache()
 		}
 	}
 
@@ -526,6 +528,7 @@ func restoreWikiTopicPages(topic topics.Entity) {
 	if err := searchservice.IndexWikiPageDocuments(page.Id); err != nil {
 		slog.Warn("failed to restore wiki page search index", "pageId", page.Id, "error", err)
 	}
+	wikiservice.InvalidateTreeCache()
 }
 
 // deleteWikiPageSearchIndex 清理 Wiki 页面删除后留下的段落索引。

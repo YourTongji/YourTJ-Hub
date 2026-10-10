@@ -24,16 +24,19 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
-          go-version: "1.26.9"
-      # 与 go.mod 的安全补丁下限一致，避免缓存命中旧 patch。
-      - name: Assert Go toolchain >= 1.26.9
+          go-version-file: apps/gooseforum/go.mod
+      # Go 工具链下限门禁(issue #447): go.mod 声明 go 1.26.9,
+      # setup-go 读取模块版本, 不依赖可能滞后的 1.26 系列 manifest。
+      # 显式断言解析到的实际工具链 >= 1.26.9, 防止缓存/回退导致旧 patch
+      # (net/http、crypto/tls、html/template 等 stdlib CVE, 修复于 go1.26.9) 静默编译产物。
+      - name: Assert Go toolchain >= 1.26.9 (issue #447)
         working-directory: apps/gooseforum
         run: |
           set -euo pipefail
           min="1.26.9"
           cur="$(go env GOVERSION | sed 's/^go//')"
           if [[ "$(printf '%s\n%s\n' "$min" "$cur" | sort -V | head -n1)" != "$min" ]]; then
-            echo "::error::Go toolchain ${cur} is below the required minimum ${min} (stdlib CVEs fixed in Go 1.26.9)"
+            echo "::error::Go toolchain ${cur} is below the required minimum ${min} (stdlib CVEs fixed in Go 1.26.9, issue #447)"
             exit 1
           fi
           echo "Go toolchain ${cur} >= ${min}: OK"
@@ -75,7 +78,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
-          go-version: "1.26.9"
+          go-version-file: apps/gooseforum/go.mod
       - name: Test (race detector, wiki sync concurrency)
         working-directory: apps/gooseforum
         run: go test -race ./app/service/wikiservice/
@@ -108,7 +111,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
-          go-version: "1.26.9"
+          go-version-file: apps/gooseforum/go.mod
       - name: Test (PostgreSQL migration + PG-gated models)
         working-directory: apps/gooseforum
         env:

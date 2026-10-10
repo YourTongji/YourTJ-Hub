@@ -5,6 +5,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"gorm.io/gorm"
 )
 
@@ -18,21 +19,29 @@ var catalogTestModels = []any{
 	&course.OfferingInstructorEntity{},
 	&course.CourseStatsEntity{},
 	&course.OfferingStatsEntity{},
+	&course.ReviewEntity{},
+	&course.HelpfulEntity{},
+	&course.DislikeEntity{},
+	&course.SourceRefEntity{},
+	&course.RelationEntity{},
+	&taskQueue.Entity{},
 }
 
 // setupCatalogTest 迁移并清空目录筛选相关表（共享全局连接，与 courseservice 其它测试一致）。
-func setupCatalogTest(t *testing.T) *gorm.DB {
+func setupCatalogTest(t testing.TB) *gorm.DB {
 	t.Helper()
 	conn := dbconnect.Connect()
-	if err := conn.AutoMigrate(catalogTestModels...); err != nil {
+	models := catalogTestModels
+	if err := conn.AutoMigrate(models...); err != nil {
 		t.Fatalf("migrate catalog tables: %v", err)
 	}
-	for _, model := range catalogTestModels {
+	for _, model := range models {
 		if err := conn.Unscoped().Where("1 = 1").Delete(model).Error; err != nil {
 			t.Fatalf("clean catalog table: %v", err)
 		}
 	}
 	InvalidateCatalogFacetsCache()
+	InvalidateAllCourseDetailCache()
 	return conn
 }
 
@@ -194,5 +203,347 @@ func TestCatalogFacetsCacheAndInvalidation(t *testing.T) {
 	}
 	if len(deptsUpdated) != 2 || deptsUpdated[0] != "Computer Science" || deptsUpdated[1] != "Mathematics" {
 		t.Fatalf("expected updated departments [Computer Science, Mathematics], got: %v", deptsUpdated)
+	}
+}
+
+func setupCourseDetailFixture(tb testing.TB, conn *gorm.DB) uint64 {
+	tb.Helper()
+	instructor := course.InstructorEntity{Name: "张三", Department: "电信学院"}
+	if err := conn.Create(&instructor).Error; err != nil {
+		tb.Fatalf("create instructor: %v", err)
+	}
+
+	c := course.Entity{
+		PrimaryCode: "1001",
+		Name:        "软件工程",
+		Department:  "电信学院",
+		CreditX10:   30,
+		TeacherId:   instructor.Id,
+		Status:      course.StatusVisible,
+	}
+	if err := conn.Create(&c).Error; err != nil {
+		tb.Fatalf("create course: %v", err)
+	}
+
+	alias := course.AliasEntity{CourseId: c.Id, Value: "SE101"}
+	if err := conn.Create(&alias).Error; err != nil {
+		tb.Fatalf("create alias: %v", err)
+	}
+
+	term := course.TermEntity{Code: "2026-AUTUMN", Name: "2026年秋季学期"}
+	if err := conn.Create(&term).Error; err != nil {
+		tb.Fatalf("create term: %v", err)
+	}
+
+	offering := course.OfferingEntity{
+		CourseId:  c.Id,
+		TermId:    term.Id,
+		Campus:    "嘉定校区",
+		Faculty:   "电信学院",
+		ClassCode: "01001",
+		ClassName: "01班",
+		Status:    course.StatusVisible,
+	}
+	if err := conn.Create(&offering).Error; err != nil {
+		tb.Fatalf("create offering: %v", err)
+	}
+
+	offeringIns := course.OfferingInstructorEntity{
+		OfferingId:   offering.Id,
+		InstructorId: instructor.Id,
+	}
+	if err := conn.Create(&offeringIns).Error; err != nil {
+		tb.Fatalf("create offering instructor: %v", err)
+	}
+
+	courseStats := course.CourseStatsEntity{
+		CourseId:    c.Id,
+		RatingCount: 10,
+		RatingSum:   45,
+		ReviewCount: 10,
+	}
+	if err := conn.Create(&courseStats).Error; err != nil {
+		tb.Fatalf("create course stats: %v", err)
+	}
+
+	offeringStats := course.OfferingStatsEntity{
+		OfferingId:  offering.Id,
+		RatingCount: 5,
+		RatingSum:   23,
+		ReviewCount: 5,
+	}
+	if err := conn.Create(&offeringStats).Error; err != nil {
+		tb.Fatalf("create offering stats: %v", err)
+	}
+
+	rating := 5
+	review := course.ReviewEntity{
+		OfferingId: offering.Id,
+		Rating:     &rating,
+		Content:    "非常推荐的好课",
+		Status:     course.ReviewStatusVisible,
+	}
+	if err := conn.Create(&review).Error; err != nil {
+		tb.Fatalf("create review: %v", err)
+	}
+
+	return c.Id
+}
+
+func BenchmarkGetCourseDetail(b *testing.B) {
+	conn := setupCatalogTest(b)
+	courseId := setupCourseDetailFixture(b, conn)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		detail, err := GetCourseDetail(courseId)
+		if err != nil {
+			b.Fatalf("GetCourseDetail failed: %v", err)
+		}
+		if detail.Id != courseId {
+			b.Fatalf("unexpected detail id: %d", detail.Id)
+		}
+	}
+}
+
+func TestGetCourseDetailCacheAndIsolation(t *testing.T) {
+	conn := setupCatalogTest(t)
+	courseId := setupCourseDetailFixture(t, conn)
+
+	detail1, err := GetCourseDetail(courseId)
+	if err != nil {
+		t.Fatalf("first GetCourseDetail failed: %v", err)
+	}
+	if detail1.Name != "软件工程" || len(detail1.Aliases) != 1 || detail1.Aliases[0] != "SE101" {
+		t.Fatalf("unexpected initial detail: %+v", detail1)
+	}
+	if len(detail1.Offerings) != 1 || len(detail1.Offerings[0].Instructors) != 1 {
+		t.Fatalf("unexpected offerings: %+v", detail1.Offerings)
+	}
+
+	// 1. Defensive cloning: caller mutation must not affect cached values
+	detail1.Aliases[0] = "MUTATED_ALIAS"
+	detail1.Offerings[0].Instructors[0] = "MUTATED_INSTRUCTOR"
+	if detail1.RatingAvg != nil {
+		*detail1.RatingAvg = 99.9
+	}
+	if detail1.RatingDistribution == nil {
+		t.Fatal("expected non-nil RatingDistribution in detail1")
+	}
+	detail1.RatingDistribution[0] = 999
+
+	detail2, err := GetCourseDetail(courseId)
+	if err != nil {
+		t.Fatalf("second GetCourseDetail failed: %v", err)
+	}
+	if detail2.Aliases[0] == "MUTATED_ALIAS" {
+		t.Fatalf("cached alias was mutated: %v", detail2.Aliases)
+	}
+	if detail2.Offerings[0].Instructors[0] == "MUTATED_INSTRUCTOR" {
+		t.Fatalf("cached instructor was mutated: %v", detail2.Offerings[0].Instructors)
+	}
+	if detail2.RatingAvg != nil && *detail2.RatingAvg == 99.9 {
+		t.Fatalf("cached rating avg was mutated: %v", *detail2.RatingAvg)
+	}
+	if detail2.RatingDistribution == nil || detail2.RatingDistribution[0] == 999 {
+		t.Fatalf("cached rating distribution was mutated: %v", detail2.RatingDistribution)
+	}
+
+	// 2. Cache hit: updating DB directly without invalidation serves cached data
+	if err := conn.Model(&course.Entity{}).Where("id = ?", courseId).Update("name", "更新课程名").Error; err != nil {
+		t.Fatalf("direct db update: %v", err)
+	}
+	detailCached, err := GetCourseDetail(courseId)
+	if err != nil {
+		t.Fatalf("GetCourseDetail cached failed: %v", err)
+	}
+	if detailCached.Name != "软件工程" {
+		t.Fatalf("expected cached name 软件工程, got %s", detailCached.Name)
+	}
+
+	// 3. Single course invalidation
+	InvalidateCourseDetailCache(courseId)
+	detailReloaded, err := GetCourseDetail(courseId)
+	if err != nil {
+		t.Fatalf("GetCourseDetail reloaded failed: %v", err)
+	}
+	if detailReloaded.Name != "更新课程名" {
+		t.Fatalf("expected reloaded name 更新课程名, got %s", detailReloaded.Name)
+	}
+
+	// 4. InvalidateAllCourseDetailCache
+	if err := conn.Model(&course.Entity{}).Where("id = ?", courseId).Update("name", "再次更新课程名").Error; err != nil {
+		t.Fatalf("second db update: %v", err)
+	}
+	InvalidateAllCourseDetailCache()
+	detailAllReloaded, err := GetCourseDetail(courseId)
+	if err != nil {
+		t.Fatalf("GetCourseDetail all reloaded failed: %v", err)
+	}
+	if detailAllReloaded.Name != "再次更新课程名" {
+		t.Fatalf("expected reloaded name 再次更新课程名, got %s", detailAllReloaded.Name)
+	}
+}
+
+func TestGetCourseDetailTeamCacheInvalidation(t *testing.T) {
+	conn := setupCatalogTest(t)
+	InvalidateAllCourseDetailCache()
+
+	ins1 := course.InstructorEntity{Name: "团队教师甲", Department: "计算机学院"}
+	if err := conn.Create(&ins1).Error; err != nil {
+		t.Fatalf("create ins1: %v", err)
+	}
+	ins2 := course.InstructorEntity{Name: "团队教师乙", Department: "计算机学院"}
+	if err := conn.Create(&ins2).Error; err != nil {
+		t.Fatalf("create ins2: %v", err)
+	}
+
+	courseA := course.Entity{
+		PrimaryCode: "CS201A",
+		Name:        "面向对象程序设计 A",
+		Department:  "计算机学院",
+		TeacherId:   ins1.Id,
+		TeamKey:     "team-oop-201",
+		ReviewScope: ReviewScopeTeam,
+		Status:      course.StatusVisible,
+	}
+	if err := conn.Create(&courseA).Error; err != nil {
+		t.Fatalf("create courseA: %v", err)
+	}
+
+	courseB := course.Entity{
+		PrimaryCode: "CS201B",
+		Name:        "面向对象程序设计 B",
+		Department:  "计算机学院",
+		TeacherId:   ins2.Id,
+		TeamKey:     "team-oop-201",
+		ReviewScope: ReviewScopeTeam,
+		Status:      course.StatusVisible,
+	}
+	if err := conn.Create(&courseB).Error; err != nil {
+		t.Fatalf("create courseB: %v", err)
+	}
+
+	// 1. Warm cache for both team cards
+	detailA, err := GetCourseDetail(courseA.Id)
+	if err != nil {
+		t.Fatalf("GetCourseDetail courseA: %v", err)
+	}
+	detailB, err := GetCourseDetail(courseB.Id)
+	if err != nil {
+		t.Fatalf("GetCourseDetail courseB: %v", err)
+	}
+	if detailA.Name != "面向对象程序设计 A" || detailB.Name != "面向对象程序设计 B" {
+		t.Fatalf("unexpected details: A=%s, B=%s", detailA.Name, detailB.Name)
+	}
+
+	// Direct DB update without invalidation serves cached data
+	if err := conn.Model(&course.Entity{}).Where("id = ?", courseB.Id).Update("name", "面向对象 B (DB修改)").Error; err != nil {
+		t.Fatalf("direct db update B: %v", err)
+	}
+	cachedB, err := GetCourseDetail(courseB.Id)
+	if err != nil || cachedB.Name != "面向对象程序设计 B" {
+		t.Fatalf("expected cached courseB name, got %+v", cachedB)
+	}
+
+	// 2. Updating course A (even without changing teamKey) invalidates course B
+	newName := "面向对象 A (新课名)"
+	_, err = UpdateCourse(courseA.Id, CourseUpdateInput{Name: &newName})
+	if err != nil {
+		t.Fatalf("UpdateCourse A: %v", err)
+	}
+	reloadedB, err := GetCourseDetail(courseB.Id)
+	if err != nil {
+		t.Fatalf("GetCourseDetail reloaded B: %v", err)
+	}
+	if reloadedB.Name != "面向对象 B (DB修改)" {
+		t.Fatalf("expected courseB to be invalidated and reloaded, got %s", reloadedB.Name)
+	}
+
+	// 3. Changing course A team_key invalidates old team teammates
+	cachedB2, err := GetCourseDetail(courseB.Id)
+	if err != nil || cachedB2.Name != "面向对象 B (DB修改)" {
+		t.Fatalf("expected cached B2, got %+v", cachedB2)
+	}
+	if err := conn.Model(&course.Entity{}).Where("id = ?", courseB.Id).Update("name", "面向对象 B (再次DB修改)").Error; err != nil {
+		t.Fatalf("direct db update B again: %v", err)
+	}
+	newTeamKey := "team-oop-diff"
+	_, err = UpdateCourse(courseA.Id, CourseUpdateInput{TeamKey: &newTeamKey})
+	if err != nil {
+		t.Fatalf("UpdateCourse A change teamKey: %v", err)
+	}
+	reloadedB2, err := GetCourseDetail(courseB.Id)
+	if err != nil {
+		t.Fatalf("GetCourseDetail reloaded B2: %v", err)
+	}
+	if reloadedB2.Name != "面向对象 B (再次DB修改)" {
+		t.Fatalf("expected courseB old team invalidated, got %s", reloadedB2.Name)
+	}
+
+	// 4. Deleting a team course invalidates remaining teammates
+	// Reset both back to same teamKey
+	sameTeamKey := "team-oop-201"
+	_, err = UpdateCourse(courseA.Id, CourseUpdateInput{TeamKey: &sameTeamKey})
+	if err != nil {
+		t.Fatalf("reset courseA teamKey: %v", err)
+	}
+	// Warm cache
+	_, _ = GetCourseDetail(courseA.Id)
+	_, _ = GetCourseDetail(courseB.Id)
+	if err := conn.Model(&course.Entity{}).Where("id = ?", courseB.Id).Update("name", "面向对象 B (删除前修改)").Error; err != nil {
+		t.Fatalf("direct db update B: %v", err)
+	}
+	// Delete course A
+	_, err = DeleteCourse(courseA.Id)
+	if err != nil {
+		t.Fatalf("DeleteCourse A: %v", err)
+	}
+	reloadedB3, err := GetCourseDetail(courseB.Id)
+	if err != nil {
+		t.Fatalf("GetCourseDetail reloaded B3: %v", err)
+	}
+	if reloadedB3.Name != "面向对象 B (删除前修改)" {
+		t.Fatalf("expected courseB invalidated on teammate delete, got %s", reloadedB3.Name)
+	}
+}
+
+func TestInvalidateCourseDetailCacheByReviewId(t *testing.T) {
+	conn := setupCatalogTest(t)
+	InvalidateAllCourseDetailCache()
+	courseId := setupCourseDetailFixture(t, conn)
+
+	detail, err := GetCourseDetail(courseId)
+	if err != nil {
+		t.Fatalf("GetCourseDetail: %v", err)
+	}
+
+	var review course.ReviewEntity
+	if err := conn.Where("offering_id IN (SELECT id FROM course_offering WHERE course_id = ?)", courseId).First(&review).Error; err != nil {
+		t.Fatalf("find review: %v", err)
+	}
+
+	// Mutate course name directly in DB
+	if err := conn.Model(&course.Entity{}).Where("id = ?", courseId).Update("name", "课评关联更新").Error; err != nil {
+		t.Fatalf("direct update course: %v", err)
+	}
+
+	// Should still hit cache
+	cached, err := GetCourseDetail(courseId)
+	if err != nil || cached.Name != detail.Name {
+		t.Fatalf("expected cached name %s, got %s", detail.Name, cached.Name)
+	}
+
+	// Invalidate by review ID
+	InvalidateCourseDetailCacheByReviewId(review.Id)
+
+	// Should reload updated course
+	reloaded, err := GetCourseDetail(courseId)
+	if err != nil {
+		t.Fatalf("GetCourseDetail after review invalidation: %v", err)
+	}
+	if reloaded.Name != "课评关联更新" {
+		t.Fatalf("expected reloaded name 课评关联更新, got %s", reloaded.Name)
 	}
 }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminSelect from '@/admin/components/AdminSelect.vue'
 import { userDisplayName } from '@/runtime/private-notes'
 import { adminText } from '@/admin/runtime/i18n-text'
 
@@ -130,8 +131,8 @@ function postTime(value?: string) {
 
 function topicStatusInfo(status: number) {
   return status === 1
-    ? { label: adminText('k003q'), className: 'bg-slate-950 text-white' }
-    : { label: adminText('k003r'), className: 'bg-slate-100 text-slate-600' }
+    ? { label: adminText('k003q'), className: 'bg-slate-950 text-white dark:bg-slate-200 dark:text-slate-900' }
+    : { label: adminText('k003r'), className: 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300' }
 }
 
 async function loadPosts() {
@@ -163,8 +164,8 @@ function changePage(nextPage: number) {
   void loadPosts()
 }
 
-function changePageSize(event: Event) {
-  pageSize.value = Number((event.target as HTMLSelectElement).value)
+function changePageSize(size: number) {
+  pageSize.value = size
   page.value = 1
   void loadPosts()
 }
@@ -321,11 +322,11 @@ onMounted(() => {
             <span class="whitespace-nowrap">{{ rangeStart }}-{{ rangeEnd }}</span>
             <div class="h-4 w-px bg-border" />
             <div class="flex flex-wrap items-center gap-2">
-              <select class="h-9 rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" :value="pageSize" @change="changePageSize">
-                <option :value="10">{{ adminText('k002x') }}</option>
-                <option :value="20">{{ adminText('k002y') }}</option>
-                <option :value="50">{{ adminText('k0030') }}</option>
-              </select>
+              <AdminSelect
+                :model-value="pageSize"
+                :options="[{ value: 10, label: adminText('k002x') }, { value: 20, label: adminText('k002y') }, { value: 50, label: adminText('k0030') }]"
+                @update:model-value="changePageSize"
+              />
               <Button variant="outline" size="sm" type="button" :disabled="page <= 1 || loading" @click="changePage(page - 1)">{{ adminText('k00au') }}</Button>
               <span class="whitespace-nowrap">{{ adminText('k0056') }} {{ page }} {{ adminText('k0057') }}</span>
               <Button variant="outline" size="sm" type="button" :disabled="!hasNext || loading" @click="changePage(page + 1)">{{ adminText('k00av') }}</Button>

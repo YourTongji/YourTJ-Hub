@@ -28,7 +28,7 @@ onMounted(load)
     <button
       ref="trigger"
       type="button"
-      class="flex w-full min-w-0 items-center gap-3 rounded-lg text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+      class="flex w-full min-w-0 items-center gap-3 rounded-lg text-start focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
       @click="open = true"
     >
       <img
@@ -49,7 +49,7 @@ onMounted(load)
           >{{ state.persona.name }} ·
           {{
             state.governanceDisabled
-              ? t('anonymous.unavailable')
+              ? t('anonymous.restricted')
               : state.disabled
                 ? t('anonymous.inactive')
                 : t('anonymous.ready')
