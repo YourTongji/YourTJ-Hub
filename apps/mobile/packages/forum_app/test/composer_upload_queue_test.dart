@@ -10,7 +10,8 @@ void main() {
   late List<Completer<String>> requests;
   late List<String> filenames, inserted;
   bool current = true;
-  XFile photo(String name) => XFile.fromData(Uint8List(1), name: name, path: name);
+  XFile photo(String name) =>
+      XFile.fromData(Uint8List(1), name: name, path: name);
   Future<void> tick() => Future<void>.delayed(Duration.zero);
   setUp(() {
     current = true;
@@ -25,7 +26,7 @@ void main() {
         requests.add(result);
         return result.future;
       },
-      onUploaded: inserted.add,
+      onUploaded: (url, _) => inserted.add(url),
     );
   });
   tearDown(() => queue.dispose());

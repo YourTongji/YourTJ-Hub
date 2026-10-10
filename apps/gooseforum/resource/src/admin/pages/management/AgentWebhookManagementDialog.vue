@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Checkbox } from '@/admin/components/ui/checkbox'
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Copy, RotateCw, Send, ShieldCheck } from '@lucide/vue'
@@ -349,7 +350,10 @@ function canReplay(status: string) {
           <fieldset class="grid min-w-0 gap-2">
             <legend class="text-sm font-medium">{{ t('agentWebhook.eventTypes') }}</legend>
             <label v-for="event in eventOptions" :key="event.value" class="flex items-center gap-2 text-sm">
-              <input v-model="form.eventTypes" type="checkbox" :value="event.value" class="size-4 accent-primary" />
+              <Checkbox
+                :model-value="form.eventTypes.includes(event.value)"
+                @update:model-value="form.eventTypes = $event === true ? [...form.eventTypes, event.value] : form.eventTypes.filter((type) => type !== event.value)"
+              />
               {{ t(event.label) }}
             </label>
           </fieldset>

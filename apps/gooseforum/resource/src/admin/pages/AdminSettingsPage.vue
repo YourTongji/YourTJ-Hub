@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminSelect from '@/admin/components/AdminSelect.vue'
 import CourseMaterializePanel from '../components/CourseMaterializePanel.vue'
 import { adminText } from '@/admin/runtime/i18n-text'
 import httpNotifyGuideZh from '@/admin/docs/http-notify-guide.zh.md?raw'
@@ -102,6 +103,7 @@ import type {
 } from '@/admin/types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/admin/components/ui/select'
 import { safeUrl } from '@/runtime/safe-url'
+import { createUuidV4 } from '@/runtime/uuid'
 import { isValidCron5Field } from '@/admin/cron'
 
 type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'mcp' | 'ai-summary' | 'http-notify' | 'announcement' | 'storage' | 'terms' | 'privacy' | 'onesystem' | 'schedule'
@@ -644,7 +646,7 @@ function normalizeEndpoint(endpoint: Partial<HttpNotifyEndpoint> = {}) {
   const enabled = toBool(endpoint.enabled, true)
   const channelType = toHttpChannel(endpoint.channelType)
   return {
-    id: endpoint.id || crypto.randomUUID(),
+    id: endpoint.id || createUuidV4(),
     name: endpoint.name ?? '',
     channelType,
     enabled,
@@ -1115,7 +1117,7 @@ function removeExtension(ext: string) {
 }
 
 function addHttpEndpoint() {
-  const id = crypto.randomUUID()
+  const id = createUuidV4()
   expandedHttpEndpoints.add(id)
   httpNotifyForm.endpoints.push({
     id,
@@ -2009,17 +2011,15 @@ onUnmounted(stopSyncPolling)
       <form v-else-if="kind === 'storage'" class="max-w-3xl space-y-8" @submit.prevent="save">
         <div class="grid gap-6 md:grid-cols-2">
           <label class="grid gap-2 text-sm font-medium">{{ adminText('k00fp') }}
-            <select v-model="storageForm.provider" class="h-10 rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <option value="local">{{ adminText('k00fq') }}</option>
-              <option value="s3">{{ adminText('k00fr') }}</option>
-            </select>
+            <AdminSelect v-model="storageForm.provider" :options="[{ value: 'local', label: adminText('k00fq') }, { value: 's3', label: adminText('k00fr') }]" class="h-10 w-full" />
           </label>
           <label class="grid gap-2 text-sm font-medium">{{ adminText('k00fv') }}
-            <select v-model="storageForm.bucketLookup" class="h-10 rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" :disabled="storageForm.provider !== 's3'">
-              <option value="auto">{{ adminText('k00fw') }}</option>
-              <option value="dns">{{ adminText('k00g0') }}</option>
-              <option value="path">{{ adminText('k00g1') }}</option>
-            </select>
+            <AdminSelect
+              v-model="storageForm.bucketLookup"
+              :disabled="storageForm.provider !== 's3'"
+              :options="[{ value: 'auto', label: adminText('k00fw') }, { value: 'dns', label: adminText('k00g0') }, { value: 'path', label: adminText('k00g1') }]"
+              class="h-10 w-full"
+            />
           </label>
         </div>
         <div class="grid gap-6 md:grid-cols-2">
@@ -2068,7 +2068,7 @@ onUnmounted(stopSyncPolling)
             {{ adminText('k00g9') }}
           </Button>
           <label class="inline-flex items-center gap-2 text-sm text-muted-foreground">
-            <input v-model="clearAfterMigrate" type="checkbox" class="size-4 rounded border" :disabled="storageForm.provider !== 's3'" />
+            <Checkbox v-model="clearAfterMigrate" :disabled="storageForm.provider !== 's3'" />
             {{ adminText('k00ga') }}
           </label>
         </div>

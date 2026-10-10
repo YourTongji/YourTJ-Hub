@@ -19,7 +19,7 @@ const size = computed<ButtonVariants['size']>(() => props.compact ? 'icon-sm' : 
 const toneClass = computed(() => {
   if (props.tone === 'danger') return props.compact ? 'text-destructive hover:text-destructive' : 'border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive'
   if (props.tone === 'primary') return 'text-primary hover:text-primary'
-  if (props.tone === 'success') return 'text-emerald-600 hover:text-emerald-700'
+  if (props.tone === 'success') return 'text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300'
   return props.compact ? 'text-muted-foreground hover:text-foreground' : 'text-foreground'
 })
 </script>

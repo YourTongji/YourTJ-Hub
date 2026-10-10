@@ -11,5 +11,9 @@ func DeleteNamespace(name string) error {
 	if err := wikiNamespaceEditors.DeleteByNamespace(name); err != nil {
 		return err
 	}
-	return wikiNamespaces.DeleteByName(name)
+	if err := wikiNamespaces.DeleteByName(name); err != nil {
+		return err
+	}
+	InvalidateTreeCache()
+	return nil
 }

@@ -49,6 +49,8 @@ func setupWikiTestDB(t *testing.T) {
 			t.Fatalf("clean wiki table: %v", err)
 		}
 	}
+	InvalidateTreeCache()
+	t.Cleanup(InvalidateTreeCache)
 }
 
 // wikiTestUserSeq 每次测试递增，保证用户 ID 唯一，避免 userservice 缓存串扰。
@@ -337,6 +339,117 @@ func TestBuildTreePreservesRepositoryDirectories(t *testing.T) {
 	faqNode := byPath["guide/faq"]
 	if faqNode.Kind != WikiTreeNodeDirectory || len(faqNode.Children) != 1 || faqNode.Children[0].PageId != faq.Id {
 		t.Fatalf("faq directory=%+v", faqNode)
+	}
+}
+
+// TestBuildTreeCacheStalenessAndDefensiveCopy verifies that BuildTree results are cached,
+// defensive copies protect cached instances from mutations, and InvalidateTreeCache flushes stale entries.
+func TestBuildTreeCacheStalenessAndDefensiveCopy(t *testing.T) {
+	setupWikiTestDB(t)
+	base := time.Now().Add(-24 * time.Hour)
+	seedProjectedWikiPage(t, "docs", "docs/page1", "Page 1", base)
+
+	res1, err := BuildTreeAPI()
+	if err != nil {
+		t.Fatalf("build tree api 1: %v", err)
+	}
+	if len(res1.Namespaces) != 1 || len(res1.Namespaces[0].Nodes) != 1 {
+		t.Fatalf("expected 1 namespace with 1 node, got %+v", res1)
+	}
+
+	// Mutate returned slice/node to ensure cache isolation
+	res1.Namespaces[0].Name = "mutated"
+	res1.Namespaces[0].Nodes[0].Title = "Mutated Title"
+
+	// Verify subsequent read is not tainted by caller mutation
+	res2, err := BuildTreeAPI()
+	if err != nil {
+		t.Fatalf("build tree api 2: %v", err)
+	}
+	if res2.Namespaces[0].Name != "docs" || res2.Namespaces[0].Nodes[0].Title != "Page 1" {
+		t.Fatalf("cache was tainted by caller mutation: %+v", res2)
+	}
+
+	// Insert another page directly in DB
+	seedProjectedWikiPage(t, "docs", "docs/page2", "Page 2", base.Add(time.Hour))
+
+	// Cache should still return 1 node before invalidation
+	res3, err := BuildTreeAPI()
+	if err != nil {
+		t.Fatalf("build tree api 3: %v", err)
+	}
+	if len(res3.Namespaces[0].Nodes) != 1 {
+		t.Fatalf("expected cached tree with 1 node, got %d", len(res3.Namespaces[0].Nodes))
+	}
+
+	// Invalidate cache and verify fresh data is loaded
+	InvalidateTreeCache()
+	res4, err := BuildTreeAPI()
+	if err != nil {
+		t.Fatalf("build tree api 4: %v", err)
+	}
+	if len(res4.Namespaces[0].Nodes) != 2 {
+		t.Fatalf("expected fresh tree with 2 nodes after invalidation, got %d", len(res4.Namespaces[0].Nodes))
+	}
+}
+
+// TestBuildTreeActiveDoesNotTaintCache verifies that different activePath calls
+// receive the correct Active flag without altering cached nodes, and directory nodes
+// are never marked Active even if activePath matches the directory path.
+func TestBuildTreeActiveDoesNotTaintCache(t *testing.T) {
+	setupWikiTestDB(t)
+	base := time.Now().Add(-24 * time.Hour)
+	seedProjectedWikiPage(t, "docs", "docs/sub/page1", "Page 1", base)
+	seedProjectedWikiPage(t, "docs", "docs/sub/page2", "Page 2", base.Add(time.Hour))
+
+	// Active matching a page
+	tree1, err := BuildTree("docs/sub/page1")
+	if err != nil {
+		t.Fatalf("build tree 1: %v", err)
+	}
+	dirNode := tree1[0].Nodes[0]
+	if dirNode.Kind != WikiTreeNodeDirectory {
+		t.Fatalf("expected dir node, got %+v", dirNode)
+	}
+	if dirNode.Active {
+		t.Fatalf("expected dir node inactive: %+v", dirNode)
+	}
+	if !dirNode.Children[0].Active || dirNode.Children[1].Active {
+		t.Fatalf("expected child 0 active and child 1 inactive: %+v", dirNode.Children)
+	}
+
+	// Active matching another page
+	tree2, err := BuildTree("docs/sub/page2")
+	if err != nil {
+		t.Fatalf("build tree 2: %v", err)
+	}
+	dirNode2 := tree2[0].Nodes[0]
+	if dirNode2.Active {
+		t.Fatalf("expected dir node inactive: %+v", dirNode2)
+	}
+	if dirNode2.Children[0].Active || !dirNode2.Children[1].Active {
+		t.Fatalf("expected child 0 inactive and child 1 active: %+v", dirNode2.Children)
+	}
+
+	// Active matching the directory path: directory node must still NOT be Active
+	treeDir, err := BuildTree("docs/sub")
+	if err != nil {
+		t.Fatalf("build tree dir: %v", err)
+	}
+	if treeDir[0].Nodes[0].Active {
+		t.Fatalf("directory node should never be active even when matching activePath: %+v", treeDir[0].Nodes[0])
+	}
+	if treeDir[0].Nodes[0].Children[0].Active || treeDir[0].Nodes[0].Children[1].Active {
+		t.Fatalf("no children should be active when activePath is dir: %+v", treeDir[0].Nodes[0].Children)
+	}
+
+	// Empty activePath
+	tree3, err := BuildTree("")
+	if err != nil {
+		t.Fatalf("build tree 3: %v", err)
+	}
+	if tree3[0].Nodes[0].Active || tree3[0].Nodes[0].Children[0].Active || tree3[0].Nodes[0].Children[1].Active {
+		t.Fatalf("expected all nodes inactive: %+v", tree3[0].Nodes)
 	}
 }
 

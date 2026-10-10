@@ -802,6 +802,7 @@ func syncOnce(cfg GitConfig, trigger string) (*SyncResult, error) {
 	if result.NamespacesDeleted > 0 {
 		slog.Info("wiki sync: namespaces deleted", "count", result.NamespacesDeleted, "headSha", head)
 	}
+	InvalidateTreeCache()
 	return result, nil
 }
 

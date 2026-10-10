@@ -9,14 +9,11 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get agentRepliesDisable => 'Disable robot replies';
-
-  @override
-  String get agentRepliesDisabled => 'The author has disabled robot replies';
+  String get agentRepliesDisabled => 'The author has turned off bot replies';
 
   @override
   String get agentRepliesHelp =>
-      'Blocks replies from site Agent accounts. Existing replies remain.';
+      'When off, this site\'s bot accounts can\'t reply here. Existing replies stay.';
 
   @override
   String get campusCourseReviews => 'Course reviews';
@@ -1467,6 +1464,37 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get publishBodyDragHint =>
       'Long-press an image in the body to drag it to any paragraph.';
+
+  @override
+  String get publishMomentTitleHint => 'Title (optional)';
+
+  @override
+  String get publishCategoryLabel => 'Category';
+
+  @override
+  String publishCategoryLimit(int count) {
+    return 'Up to $count';
+  }
+
+  @override
+  String get publishCategoryPickOne => 'Choose a category';
+
+  @override
+  String get publishImageOrderTitle => 'Image order';
+
+  @override
+  String get publishImageOrderHint =>
+      'Long-press and drag to change where each image appears';
+
+  @override
+  String publishImageOrderPosition(int index) {
+    return 'Image $index';
+  }
+
+  @override
+  String publishStepOf(int current, int total) {
+    return 'Step $current of $total';
+  }
 
   @override
   String get publishFormatting => 'Formatting';
@@ -3484,44 +3512,27 @@ class AppLocalizationsEn extends AppLocalizations {
       'This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions.';
 
   @override
-  String get anonymousLockDate => 'Name available from: ';
-
-  @override
-  String get anonymousRemaining => 'Batches remaining today: ';
-
-  @override
   String get anonymousIdentity => 'Anonymous identity';
 
   @override
   String get anonymousBoundary =>
-      'One anonymous identity per account. A chosen name is locked for one year. The public and ordinary moderators cannot see your main account. Restricted administrators can reveal it with a reason and audit. Private bindings and audits remain after account closure.';
+      'Each account has one anonymous identity, and a confirmed name can\'t change for a year. It can\'t sign in, send messages or follow people. Likes and votes still count once per account, whichever identity you use.';
 
   @override
-  String get anonymousRetry => 'Reload';
+  String get anonymousRetry => 'Try again';
 
   @override
-  String get anonymousUnavailable => 'Anonymous identity is unavailable';
+  String get anonymousUnavailable =>
+      'Anonymous identity is unavailable right now';
 
   @override
-  String get anonymousEnable => 'Reactivate identity';
+  String get anonymousPublishAs => 'Post as';
 
   @override
-  String get anonymousDisable => 'Deactivate identity';
-
-  @override
-  String get anonymousRandomize => 'Draw 10 names';
-
-  @override
-  String get anonymousPublishAs => 'Publish as';
-
-  @override
-  String get anonymousMember => 'Main identity';
+  String get anonymousMember => 'Main account';
 
   @override
   String get anonymousSetup => 'Set up anonymous identity';
-
-  @override
-  String get anonymousConfirm => 'Confirm name (locked for one year)';
 
   @override
   String get anonymousNext => 'Next page';
@@ -3539,49 +3550,44 @@ class AppLocalizationsEn extends AppLocalizations {
   String get feedReasonFollowing => 'From someone you follow';
 
   @override
-  String get feedReasonCategory => 'A category you participate in';
+  String get feedReasonCategory => 'A category you\'ve posted in';
 
   @override
   String get feedReasonNewReply => 'New replies';
 
   @override
-  String get feedReasonRecent => 'Recently published';
+  String get feedReasonRecent => 'Recently posted';
 
   @override
   String get sortDaily => 'Today\'s top';
 
   @override
   String get anonymousPurpose =>
-      'Use a fixed alias for posts and replies, hiding your main-account association from the public.';
+      'Post and reply under a fixed name. Others can\'t see your main account.';
 
   @override
   String get anonymousSettingsHint =>
-      'Manage the alias and identity used for anonymous posts';
+      'Post under a fixed name without showing your main account';
 
   @override
-  String get anonymousIntroTitle =>
-      'Your anonymous identity has its own name and history';
-
-  @override
-  String get anonymousHistoryHint =>
-      'Posts from the same anonymous identity are linked. Their content may still reveal who you are.';
+  String get anonymousIntroTitle => 'Pick a name first';
 
   @override
   String get anonymousConfirmHint =>
-      'One anonymous identity per account. Once confirmed, the name cannot change for one year.';
+      'Each account has one anonymous identity. Once confirmed, the name can\'t be changed for a year.';
 
   @override
   String get anonymousPrivacySummary =>
-      'The public and ordinary moderators cannot see the main-account association. Specially authorized administrators can reveal it with a recorded reason and audit. Bindings and audit records remain after account closure.';
+      'Other members and regular moderators can\'t see your main account. A few authorized admins can look it up when handling violations; each lookup needs a reason and is logged. The link is kept even after you close your account.';
 
   @override
-  String get anonymousRules => 'About anonymous identities';
+  String get anonymousRules => 'Read the full rules';
 
   @override
-  String get anonymousChooseName => 'Choose a name';
+  String get anonymousChooseName => 'Pick a name';
 
   @override
-  String get anonymousRefreshNames => 'Draw another batch';
+  String get anonymousRefreshNames => 'New batch';
 
   @override
   String anonymousDrawsRemaining(int remaining) {
@@ -3594,16 +3600,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get anonymousPreviousBatches => 'Previously generated candidates';
+  String get anonymousPreviousBatches => 'Generated batches';
 
   @override
   String get anonymousNamePreview => 'Your chosen name';
 
   @override
-  String get anonymousConfirmName => 'Confirm name';
+  String get anonymousConfirmName => 'Use this name';
 
   @override
-  String get anonymousInactive => 'Inactive';
+  String get anonymousInactive => 'Turned off';
 
   @override
   String get anonymousReady => 'Available';
@@ -3614,21 +3620,97 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String anonymousResetAt(String date) {
-    return 'Draws reset at $date';
-  }
+  String get anonymousNameLockHint =>
+      'You can\'t change the name for a year after confirming.';
 
   @override
-  String get anonymousNameLockHint => 'Name locked for one year.';
-
-  @override
-  String get anonymousShowContent => 'Show anonymous profile content';
+  String get anonymousShowContent => 'Show my posts on this profile';
 
   @override
   String get anonymousShowContentDescription =>
-      'Show topics, replies and counts on the anonymous profile. When off, only the name and avatar remain; the original forum content stays accessible.';
+      'When off, the profile shows only the name and avatar. Topics and replies still appear where you posted them.';
 
   @override
   String get anonymousProfileContentHidden =>
-      'Content on this anonymous profile is hidden';
+      'This member\'s posts aren\'t shown on this page';
+
+  @override
+  String get agentRepliesAllow => 'Allow bot replies';
+
+  @override
+  String get agentRepliesOff => 'Bot replies off';
+
+  @override
+  String get anonymousTag => 'Anonymous';
+
+  @override
+  String get anonymousTagOwn => 'Your anonymous identity';
+
+  @override
+  String get anonymousIntroBody =>
+      'The name and avatar appear on your posts and replies instead of your main account.';
+
+  @override
+  String get anonymousGenerateNames => 'Generate names';
+
+  @override
+  String anonymousBatchOf(int number, int total) {
+    return 'Batch $number of $total';
+  }
+
+  @override
+  String get anonymousPreviewCaption => 'How others will see you';
+
+  @override
+  String get anonymousPreviewPlaceholder => 'Pick a name below';
+
+  @override
+  String get anonymousRestricted => 'Restricted';
+
+  @override
+  String anonymousQuota(String date) {
+    return 'No batches left today. More on $date; you can still pick from earlier batches.';
+  }
+
+  @override
+  String get anonymousProfileContentHiddenOwn =>
+      'Posts are hidden on this profile';
+
+  @override
+  String get anonymousProfileContentHiddenOwnDescription =>
+      'Nobody, including you, sees the post list here. Your topics and replies still appear where you posted them.';
+
+  @override
+  String get anonymousProfileOwnerHint =>
+      'This is your anonymous identity. Others see only its name, avatar and public posts — never your main account.';
+
+  @override
+  String get anonymousProfileMemberHint =>
+      'This member posts anonymously. Their main account isn\'t shown.';
+
+  @override
+  String get anonymousProfileGuestHint =>
+      'An anonymous identity of a forum member. The main account is kept private.';
+
+  @override
+  String get anonymousActiveLabel => 'Use anonymous identity';
+
+  @override
+  String get anonymousDisabledHint =>
+      'While it\'s off you can\'t post with it. Existing posts stay as they are.';
+
+  @override
+  String get anonymousStatusRestricted =>
+      'Restricted by an admin — you can\'t post with it right now';
+
+  @override
+  String get anonymousStatusDisabled =>
+      'Turned off — you can\'t post with it right now';
+
+  @override
+  String get anonymousLinkabilityHint =>
+      'Everything you post with it is gathered on one profile, so people may connect it. The content itself can still reveal who you are.';
+
+  @override
+  String get anonymousViewProfile => 'View anonymous profile';
 }

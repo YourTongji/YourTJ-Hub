@@ -84,7 +84,7 @@ describe('AppShell drawer gesture hint persistence', () => {
     vi.restoreAllMocks()
   })
 
-  test('showing the hint does not persist until its full display window finishes', async () => {
+  test('showing the hint persists after 500ms without ending its display window', async () => {
     const wrapper = await mountFreshShell()
 
     await vi.advanceTimersByTimeAsync(800)
@@ -92,18 +92,22 @@ describe('AppShell drawer gesture hint persistence', () => {
     expect(document.querySelector('.gf-drawer-gesture-hint')).not.toBeNull()
     expect(window.localStorage.getItem(hintKey)).toBeNull()
 
-    await vi.advanceTimersByTimeAsync(3999)
+    await vi.advanceTimersByTimeAsync(499)
     expect(window.localStorage.getItem(hintKey)).toBeNull()
 
     await vi.advanceTimersByTimeAsync(1)
     await flushPromises()
-    expect(document.querySelector('.gf-drawer-gesture-hint')).toBeNull()
     expect(window.localStorage.getItem(hintKey)).toBe('1')
+    expect(document.querySelector('.gf-drawer-gesture-hint')).not.toBeNull()
+
+    await vi.advanceTimersByTimeAsync(3500)
+    await flushPromises()
+    expect(document.querySelector('.gf-drawer-gesture-hint')).toBeNull()
 
     wrapper.unmount()
   })
 
-  test('leaving before the hint finishes does not persist it as seen', async () => {
+  test('leaving before 500ms of visibility does not persist it as seen', async () => {
     const wrapper = await mountFreshShell()
 
     await vi.advanceTimersByTimeAsync(800)
@@ -111,6 +115,53 @@ describe('AppShell drawer gesture hint persistence', () => {
     expect(document.querySelector('.gf-drawer-gesture-hint')).not.toBeNull()
     expect(window.localStorage.getItem(hintKey)).toBeNull()
 
+    await vi.advanceTimersByTimeAsync(499)
+    wrapper.unmount()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(window.localStorage.getItem(hintKey)).toBeNull()
+  })
+
+  test('leaving after one second of visibility persists the hint as seen', async () => {
+    const wrapper = await mountFreshShell()
+    await vi.advanceTimersByTimeAsync(1800)
+    await flushPromises()
+    expect(document.querySelector('.gf-drawer-gesture-hint')).not.toBeNull()
+    wrapper.unmount()
+    expect(window.localStorage.getItem(hintKey)).toBe('1')
+  })
+
+  test('route changes after one second of visibility do not offer the hint again', async () => {
+    const wrapper = await mountFreshShell()
+    await vi.advanceTimersByTimeAsync(1800)
+    await wrapper.vm.$router.push('/moderation')
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(800)
+    expect(window.localStorage.getItem(hintKey)).toBe('1')
+    expect(document.querySelector('.gf-drawer-gesture-hint')).toBeNull()
+    await wrapper.vm.$router.push('/')
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(800)
+    expect(document.querySelector('.gf-drawer-gesture-hint')).toBeNull()
+    wrapper.unmount()
+  })
+
+  test.each(['unmount', 'pagehide', 'route'])('%s settles visibility even when the seen timer is delayed', async (exit) => {
+    const wrapper = await mountFreshShell()
+    await vi.advanceTimersByTimeAsync(800)
+    await flushPromises()
+    vi.setSystemTime(Date.now() + 1000)
+    expect(window.localStorage.getItem(hintKey)).toBeNull()
+
+    if (exit === 'unmount') wrapper.unmount()
+    else if (exit === 'pagehide') window.dispatchEvent(new Event('pagehide'))
+    else await wrapper.vm.$router.push('/moderation')
+    expect(window.localStorage.getItem(hintKey)).toBe('1')
+    if (exit !== 'unmount') wrapper.unmount()
+  })
+
+  test('leaving before the hint is shown does not persist it as seen', async () => {
+    const wrapper = await mountFreshShell()
+    await vi.advanceTimersByTimeAsync(799)
     wrapper.unmount()
     await vi.advanceTimersByTimeAsync(5000)
     expect(window.localStorage.getItem(hintKey)).toBeNull()

@@ -510,12 +510,20 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                 children: [
                                   GfNotificationRow(
                                     symbol: symbol,
-                                    actorName: notificationActorName(
-                                      n,
-                                      l10n,
-                                      displayName: (id, name) =>
-                                          privateDisplayName(context, id, name),
-                                    ),
+                                    actorName:
+                                        (n.actor.id > 0 ||
+                                            n.actor.publicUid != null)
+                                        ? notificationActorName(
+                                            n,
+                                            l10n,
+                                            displayName: (id, name) =>
+                                                privateDisplayName(
+                                                  context,
+                                                  id,
+                                                  name,
+                                                ),
+                                          )
+                                        : '',
                                     avatarUrl:
                                         (n.actor.id > 0 ||
                                             n.actor.publicUid != null)

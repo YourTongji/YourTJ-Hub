@@ -6,10 +6,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/localcache"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 )
+
+var (
+	treeCache = &localcache.Cache[[]TreeNamespace]{MaxEntries: 2}
+)
+
+const wikiTreeCacheTTL = 10 * time.Minute
+
+// InvalidateTreeCache clears the in-memory cache for wiki navigation trees.
+func InvalidateTreeCache() {
+	treeCache.Clear()
+}
 
 const (
 	// WikiTreeNodePage is a Markdown page from the content repository.
@@ -101,34 +113,84 @@ func BuildTreeAPI() (WikiTreeResult, error) {
 	return WikiTreeResult{Namespaces: tree}, nil
 }
 
+// cloneTreeNode returns a deep copy of a TreeNode, dynamically setting Active based on activePath.
+func cloneTreeNode(node TreeNode, activePath string) TreeNode {
+	cp := TreeNode{
+		Kind:     node.Kind,
+		PageId:   node.PageId,
+		Path:     node.Path,
+		Title:    node.Title,
+		Active:   node.Kind == WikiTreeNodePage && activePath != "" && node.Path == activePath,
+		Children: nil,
+	}
+	if node.Children != nil {
+		cp.Children = make([]TreeNode, len(node.Children))
+		for i, child := range node.Children {
+			cp.Children[i] = cloneTreeNode(child, activePath)
+		}
+	}
+	return cp
+}
+
+// cloneTreeNamespaces deep copies the tree namespaces and applies activePath.
+func cloneTreeNamespaces(items []TreeNamespace, activePath string) []TreeNamespace {
+	if items == nil {
+		return nil
+	}
+	out := make([]TreeNamespace, len(items))
+	for i, ns := range items {
+		out[i] = TreeNamespace{
+			Name:  ns.Name,
+			Label: ns.Label,
+			Nodes: make([]TreeNode, len(ns.Nodes)),
+		}
+		for j, node := range ns.Nodes {
+			out[i].Nodes[j] = cloneTreeNode(node, activePath)
+		}
+	}
+	return out
+}
+
 // buildTree 构建导航树；relative=true 时 path 相对 namespace（目录名前缀）。
 func buildTree(activePath string, contractShape bool) ([]TreeNamespace, error) {
-	namespaces, err := wikiNamespaces.List()
-	if err != nil {
-		return nil, fmt.Errorf("list wiki namespaces: %w", err)
+	cacheKey := "tree:full"
+	if contractShape {
+		cacheKey = "tree:relative"
 	}
-	if len(namespaces) == 0 {
-		return []TreeNamespace{}, nil
-	}
-	allPages, err := filterPublicPages(wikiPages.ListAll())
+
+	cached, err := treeCache.GetOrLoadE(cacheKey, func() ([]TreeNamespace, error) {
+		namespaces, err := wikiNamespaces.List()
+		if err != nil {
+			return nil, fmt.Errorf("list wiki namespaces: %w", err)
+		}
+		if len(namespaces) == 0 {
+			return []TreeNamespace{}, nil
+		}
+		allPages, err := filterPublicPages(wikiPages.ListAll())
+		if err != nil {
+			return nil, err
+		}
+		byNamespace := make(map[string][]*wikiPages.Entity)
+		for _, page := range allPages {
+			byNamespace[page.Namespace] = append(byNamespace[page.Namespace], page)
+		}
+
+		result := make([]TreeNamespace, 0, len(namespaces))
+		for _, ns := range namespaces {
+			pages := byNamespace[ns.Name]
+			result = append(result, TreeNamespace{
+				Name:  ns.Name,
+				Label: ns.Name,
+				Nodes: buildTreeNodes(pages, ns.Name, "", contractShape),
+			})
+		}
+		return result, nil
+	}, wikiTreeCacheTTL)
+
 	if err != nil {
 		return nil, err
 	}
-	byNamespace := make(map[string][]*wikiPages.Entity)
-	for _, page := range allPages {
-		byNamespace[page.Namespace] = append(byNamespace[page.Namespace], page)
-	}
-
-	result := make([]TreeNamespace, 0, len(namespaces))
-	for _, ns := range namespaces {
-		pages := byNamespace[ns.Name]
-		result = append(result, TreeNamespace{
-			Name:  ns.Name,
-			Label: ns.Name,
-			Nodes: buildTreeNodes(pages, ns.Name, activePath, contractShape),
-		})
-	}
-	return result, nil
+	return cloneTreeNamespaces(cached, activePath), nil
 }
 
 type treeNodeBuilder struct {

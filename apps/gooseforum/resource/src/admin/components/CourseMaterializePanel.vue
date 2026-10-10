@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminSelect from '@/admin/components/AdminSelect.vue'
 import { computed, ref, watch } from 'vue'
 import { Loader2, RefreshCw } from '@lucide/vue'
 import { Button } from './ui/button'
@@ -41,16 +42,18 @@ async function materialize() {
     <h2 class="text-base font-medium">{{ adminText('materializeTitle') }}</h2>
     <p class="text-sm text-muted-foreground">{{ adminText('materializeHint') }}</p>
     <div class="flex flex-wrap items-end gap-3">
-      <label class="grid min-w-0 flex-1 gap-2 text-sm font-medium">
-        {{ adminText('k00th') }}
-        <select v-model="term" :disabled="busy || calendars.length === 0" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-          <option v-if="calendars.length === 0" value="">{{ adminText('materializeNoTerms') }}</option>
-          <option v-for="item in calendars" :key="item.calendarId" :value="String(item.calendarId)">
-            {{ item.calendarName }} ({{ item.calendarId }})
-          </option>
-        </select>
-      </label>
-      <Button type="button" class="h-auto max-w-full whitespace-normal text-left" :disabled="disabled" @click="materialize">
+      <div class="grid min-w-0 flex-1 gap-2 text-sm font-medium">
+        <label :for="`materialize-term-${audience}`">{{ adminText('k00th') }}</label>
+        <AdminSelect
+          :id="`materialize-term-${audience}`"
+          v-model="term"
+          :disabled="busy || calendars.length === 0"
+          :placeholder="adminText('materializeNoTerms')"
+          :options="calendars.map((item) => ({ value: String(item.calendarId), label: `${item.calendarName} (${item.calendarId})` }))"
+          class="w-full"
+        />
+      </div>
+      <Button type="button" class="h-auto max-w-full whitespace-normal text-start" data-testid="materialize-submit" :disabled="disabled" @click="materialize">
         <Loader2 v-if="busy" class="size-4 animate-spin" />
         <RefreshCw v-else class="size-4" />
         {{ adminText(busy ? 'materializeRunning' : 'materializeTitle') }}

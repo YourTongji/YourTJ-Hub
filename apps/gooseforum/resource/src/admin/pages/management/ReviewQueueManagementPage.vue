@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminSelect from '@/admin/components/AdminSelect.vue'
 import { userDisplayName } from '@/runtime/private-notes'
 import { adminText } from '@/admin/runtime/i18n-text'
 
@@ -131,16 +132,7 @@ onMounted(loadQueue)
             </button>
           </div>
           <div class="flex items-center gap-2">
-            <select
-              class="h-9 rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              :value="pageSize"
-              @change="updatePageSize(Number(($event.target as HTMLSelectElement).value))"
-            >
-              <option :value="10">{{ adminText('k002x') }}</option>
-              <option :value="20">{{ adminText('k002y') }}</option>
-              <option :value="30">{{ adminText('k002z') }}</option>
-              <option :value="50">{{ adminText('k0030') }}</option>
-            </select>
+            <AdminSelect :model-value="pageSize" :options="[{ value: 10, label: adminText('k002x') }, { value: 20, label: adminText('k002y') }, { value: 30, label: adminText('k002z') }, { value: 50, label: adminText('k0030') }]" @update:model-value="updatePageSize" />
             <Button
               variant="outline"
               size="icon"

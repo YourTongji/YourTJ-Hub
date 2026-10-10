@@ -222,6 +222,7 @@ func AdminUpdateReview(reviewId uint64, input AdminReviewUpdateInput) (ReviewPay
 			return nil
 		})
 		if err == nil {
+			InvalidateCourseDetailCacheByOfferingId(payload.OfferingId)
 			return payload, nil
 		}
 		if !errors.Is(err, errReviewRatingConflict) {
@@ -284,6 +285,7 @@ func AdminDeleteReview(reviewId uint64) (DeletedReviewInfo, error) {
 	if err != nil {
 		return DeletedReviewInfo{}, err
 	}
+	InvalidateCourseDetailCacheByOfferingId(info.OfferingId)
 	return info, nil
 }
 

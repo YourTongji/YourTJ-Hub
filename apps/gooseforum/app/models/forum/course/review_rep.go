@@ -619,13 +619,19 @@ func UpsertOfferingStatsTx(tx *gorm.DB, offeringId uint64, deltaRatingCount, del
 	}).Error
 }
 
+// OnRebuildAllCourseStats is an optional post-commit callback invoked after RebuildAllCourseStats completes.
+// Service layers (such as courseservice) wire cache invalidation here (e.g. InvalidateAllCourseDetailCache)
+// to ensure in-memory projections and caches stay consistent across all rebuild entrypoints (task queue,
+// console command, and review imports) without redundant individual calls.
+var OnRebuildAllCourseStats func()
+
 // RebuildAllCourseStats 全量重建课程/offering 统计投影（rebuild-course-stats 命令）。
 // 以 review 事实表为准重新聚合，发现漂移时用于对账。
 // 在单事务内先清空两张统计表再重插：中途失败整体回滚，避免留下空表/半成品；
 // 事务快照保证并发课评写入不会在 DELETE 与重插之间插入同主键统计行。
 func RebuildAllCourseStats() error {
 	conn := db.Connect()
-	return conn.Transaction(func(tx *gorm.DB) error {
+	err := conn.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Unscoped().Table(courseStatsTableName).Where("1 = 1").Delete(&CourseStatsEntity{}).Error; err != nil {
 			return err
 		}
@@ -690,6 +696,10 @@ func RebuildAllCourseStats() error {
 		}
 		return nil
 	})
+	if err == nil && OnRebuildAllCourseStats != nil {
+		OnRebuildAllCourseStats()
+	}
+	return err
 }
 
 // ---- Stats read projection (B1 统计投影对外暴露, issue #173) ----

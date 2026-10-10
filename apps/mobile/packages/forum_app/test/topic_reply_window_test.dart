@@ -415,9 +415,12 @@ void main() {
       if (removed.isNotEmpty) topic[removed] = true;
       await pumpTopic(tester, page: page);
       await expandViewport(tester);
-      final l10n = l10nOf(tester);
       expect(
-        find.text('${l10n.agentRepliesDisabled}\n${l10n.agentRepliesHelp}'),
+        find.byWidgetPredicate(
+          (widget) =>
+              widget.key == const Key('agent-replies-notice') ||
+              widget.key == const Key('agent-replies-manage'),
+        ),
         removed.isEmpty ? findsOneWidget : findsNothing,
       );
       await disposePage(tester);

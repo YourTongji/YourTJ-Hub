@@ -1,5 +1,6 @@
 <script setup lang="ts">import { adminText } from '@/admin/runtime/i18n-text'
 
+import AdminSelect from '@/admin/components/AdminSelect.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Edit3, Plus, RefreshCw, Trash2 } from '@lucide/vue'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
@@ -76,20 +77,20 @@ const stats = computed(() => ({
 function toneClass(badge: AdminBadge) {
   const color = colorOptions.includes(badge.color) ? badge.color : 'blue'
   const classes: Record<string, string> = {
-    blue: 'bg-blue-100 text-blue-700 ring-blue-200',
-    emerald: 'bg-emerald-100 text-emerald-700 ring-emerald-200',
-    teal: 'bg-teal-100 text-teal-700 ring-teal-200',
-    sky: 'bg-sky-100 text-sky-700 ring-sky-200',
-    cyan: 'bg-cyan-100 text-cyan-700 ring-cyan-200',
-    rose: 'bg-rose-100 text-rose-700 ring-rose-200',
-    violet: 'bg-violet-100 text-violet-700 ring-violet-200',
-    purple: 'bg-purple-100 text-purple-700 ring-purple-200',
-    fuchsia: 'bg-fuchsia-100 text-fuchsia-700 ring-fuchsia-200',
-    indigo: 'bg-indigo-100 text-indigo-700 ring-indigo-200',
-    amber: 'bg-amber-100 text-amber-700 ring-amber-200',
-    orange: 'bg-orange-100 text-orange-700 ring-orange-200',
-    yellow: 'bg-yellow-100 text-yellow-700 ring-yellow-200',
-    slate: 'bg-slate-100 text-slate-700 ring-slate-200',
+    blue: 'bg-blue-100 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
+    emerald: 'bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
+    teal: 'bg-teal-100 text-teal-700 ring-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-500/30',
+    sky: 'bg-sky-100 text-sky-700 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30',
+    cyan: 'bg-cyan-100 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
+    rose: 'bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30',
+    violet: 'bg-violet-100 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
+    purple: 'bg-purple-100 text-purple-700 ring-purple-200 dark:bg-purple-500/15 dark:text-purple-300 dark:ring-purple-500/30',
+    fuchsia: 'bg-fuchsia-100 text-fuchsia-700 ring-fuchsia-200 dark:bg-fuchsia-500/15 dark:text-fuchsia-300 dark:ring-fuchsia-500/30',
+    indigo: 'bg-indigo-100 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
+    amber: 'bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
+    orange: 'bg-orange-100 text-orange-700 ring-orange-200 dark:bg-orange-500/15 dark:text-orange-300 dark:ring-orange-500/30',
+    yellow: 'bg-yellow-100 text-yellow-700 ring-yellow-200 dark:bg-yellow-500/15 dark:text-yellow-300 dark:ring-yellow-500/30',
+    slate: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30',
   }
   return classes[color]
 }
@@ -192,7 +193,7 @@ onMounted(() => {
               <img :src="badge.iconUrl || '/static/badges/contributor.svg'" :alt="badge.name" class="size-6 object-contain" />
             </div>
             <div class="mt-1 flex max-w-full items-center gap-1">
-              <span class="truncate text-xs font-semibold leading-5" :class="badge.type === 'custom' ? 'text-blue-600' : 'text-foreground'">
+              <span class="truncate text-xs font-semibold leading-5" :class="badge.type === 'custom' ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'">
                 {{ badge.name }}
               </span>
             </div>
@@ -236,9 +237,7 @@ onMounted(() => {
             </label>
             <label class="grid gap-2 text-sm font-medium">
               {{ adminText('k00ad') }}
-              <select v-model="form.color" class="h-9 rounded-md border bg-background px-3 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <option v-for="color in colorOptions" :key="color" :value="color">{{ color }}</option>
-              </select>
+              <AdminSelect v-model="form.color" :options="colorOptions.map((color) => ({ value: color, label: color }))" class="w-full" />
             </label>
             <label class="grid gap-2 text-sm font-medium">
               {{ adminText('k00be') }}
@@ -250,10 +249,12 @@ onMounted(() => {
             </label>
             <label class="grid gap-2 text-sm font-medium">
               {{ adminText('k00bg') }}
-              <select v-model="form.grantMode" class="h-9 rounded-md border bg-background px-3 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring" :disabled="form.type === 'system'">
-                <option value="auto">{{ adminText('k005b') }}</option>
-                <option value="manual">{{ adminText('k005c') }}</option>
-              </select>
+              <AdminSelect
+                v-model="form.grantMode"
+                :disabled="form.type === 'system'"
+                :options="[{ value: 'auto', label: adminText('k005b') }, { value: 'manual', label: adminText('k005c') }]"
+                class="w-full"
+              />
             </label>
             <div class="grid gap-2 text-sm font-medium">
               {{ adminText('k00bh') }}

@@ -27,6 +27,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/wikiservice"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -65,6 +66,8 @@ func setupWikiContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	// （cleared=true 使 LoadWebhookSecret 恒返回空，fail-closed 生效）。
 	conn.Where("page_type = ?", pageConfig.WikiSyncSettings).Delete(&pageConfig.Entity{})
 	hotdataserve.ClearWikiSyncSettingsConfigCache()
+	wikiservice.InvalidateTreeCache()
+	t.Cleanup(wikiservice.InvalidateTreeCache)
 
 	wikiApi := router.Group("/api/wiki")
 	wikiApi.GET("tree", UpButterReq(api.WikiTree))
