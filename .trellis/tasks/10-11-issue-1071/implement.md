@@ -1,6 +1,6 @@
 # Issue #1071 实施检查单
 
-状态：实现及本地验证完成；PR #1121 已创建，修复首轮 CI 发现的契约断言后重跑中。
+状态：实现及本地验证完成；PR #1121 已创建并推送，最新提交的必需 CI 全部通过。
 
 ## 预计修改面
 
@@ -22,8 +22,9 @@
 - [x] `pnpm run check` 与根 `make contract-check` 通过（fixtures、TS 生成和路由覆盖）。
 - [x] `apps/mobile/scripts/build_dev_apk.sh` 生成 armeabi-v7a、arm64-v8a、x86_64 Debug APK；x86_64 包已安装并在 `yourtj-course-widget-api31` 前台启动。
 - [x] import cycle 修复后，`go vet ./...` 与 `go test ./...` 全量 Go 测试通过；全量测试发现并修复旧契约测试对待审表情可共享的过期预期。
-- [ ] PostgreSQL 迁移门禁未在本机运行（缺少 `YOURTJ_TEST_PG_URL`）；由 CI 的 PostgreSQL job 验证。
-- [ ] 本机 `scripts/hooks/check-golangci.sh` 因 Go 1.27 export data v4 与本机 golangci-lint typecheck 上限 v2 不兼容失败；Go 1.26.8 低于仓库要求的 1.26.9，未安装额外工具链。等待 CI 的 pinned Go 1.26.9 结果。
+- [x] PostgreSQL 迁移门禁虽未在本机运行（缺少 `YOURTJ_TEST_PG_URL`），PR CI 的 `backend / ci-backend-pg` 已通过。
+- [ ] 本机 `scripts/hooks/check-golangci.sh` 因 Go 1.27 export data v4 与本机 golangci-lint typecheck 上限 v2 不兼容失败；Go 1.26.8 低于仓库要求的 1.26.9，未安装额外工具链。CI workflow 未运行此 lint 门禁，因此本机 lint 仍未验证。
+- [x] 最新提交 `73fa8225` 的必需 GitHub Actions 检查全部通过；首轮 CI 暴露的待审表情 HTTP 契约测试预期已修复。
 
 ## 未执行
 
