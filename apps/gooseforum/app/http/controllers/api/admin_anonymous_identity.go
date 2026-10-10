@@ -26,7 +26,7 @@ func AdminAnonymousGovern(req component.BetterRequest[AdminAnonymousGovernReq]) 
 }
 
 type AdminAnonymousGovernReq struct {
-	PublicUID string `json:"publicUid" validate:"required,len=32"`
+	PublicUID string `json:"publicUid" validate:"required,len=32,hexadecimal,lowercase"`
 	Reason    string `json:"reason" validate:"required,max=512"`
 	Disabled  *bool  `json:"disabled" validate:"required"`
 }

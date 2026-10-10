@@ -21,7 +21,6 @@ export default {
     reason: "閲覧事由",
     reasonPlaceholder: "例：通報されたアカウントを調査",
     view: "一覧を表示",
-    audited: "監査に記録済み",
     hide: "関連情報を隠す",
     searchPlaceholder: "花名・UID・ユーザー名・IDで検索",
     status: "利用状態",

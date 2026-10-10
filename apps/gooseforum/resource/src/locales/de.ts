@@ -21,7 +21,6 @@ export default {
     reason: "Zugriffsgrund",
     reasonPlaceholder: "Zum Beispiel: gemeldetes Konto untersuchen",
     view: "Identitäten anzeigen",
-    audited: "Zugriff vertraulich protokolliert",
     hide: "Zuordnungen ausblenden",
     searchPlaceholder: "Name, UID, Benutzername oder Konto-ID suchen",
     status: "Identitätsstatus",

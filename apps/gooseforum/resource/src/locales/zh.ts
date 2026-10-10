@@ -21,7 +21,6 @@ export default {
     reason: "查看事由",
     reasonPlaceholder: "例如：处理举报，核查违规账号",
     view: "查看身份列表",
-    audited: "本次查看已记录审计",
     hide: "隐藏身份关系",
     searchPlaceholder: "搜索花名、UID、用户名或主账号 ID",
     status: "身份状态",

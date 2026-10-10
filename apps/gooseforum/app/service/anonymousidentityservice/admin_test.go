@@ -2,6 +2,7 @@ package anonymousidentityservice
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -35,6 +36,9 @@ func exerciseAdminIdentities(t *testing.T, s Service) {
 	grant := rolePermissionRs.Entity{RoleId: 3, PermissionId: permission.RevealAnonymousIdentity.Id(), Effective: 1}
 	if err := s.DB.Create(&grant).Error; err != nil {
 		t.Fatal(err)
+	}
+	if _, err := s.GovernAdmin(3, strings.Repeat("g", 32), "moderation decision", true); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("non-hex public uid was not rejected: %v", err)
 	}
 	if err := s.DB.Delete(&users.EntityComplete{}, 2).Error; err != nil {
 		t.Fatal(err)

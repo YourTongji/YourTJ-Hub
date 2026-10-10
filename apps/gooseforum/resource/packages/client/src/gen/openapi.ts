@@ -13557,6 +13557,9 @@ export interface components {
         AnonymousProfilePrivacyRequest: {
             showContent: boolean;
         };
+        updateAnonymousProfilePrivacyResponse: (components["schemas"]["ApiSuccess"] & {
+            result: boolean;
+        }) | components["schemas"]["ApiFailure"];
         revealAnonymousIdentityResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["AnonymousRevealedOwner"];
         }) | components["schemas"]["ApiFailure"];
@@ -15306,7 +15309,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["disableAnonymousIdentityResponse"];
+                    "application/json": components["schemas"]["updateAnonymousProfilePrivacyResponse"];
                 };
             };
             /** @description Authentication required */

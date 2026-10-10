@@ -76,6 +76,9 @@ func TestAdminAnonymousIdentityHTTPContract(t *testing.T) {
 	if rec = serveJSON(router, govern, `{"publicUid":"`+uid+`","reason":"moderate reports"}`, token); decodeContractEnvelope(t, rec).Code == 0 {
 		t.Fatal("missing status accepted", rec.Code, rec.Body.String())
 	}
+	if rec = serveJSON(router, govern, `{"publicUid":"`+strings.Repeat("g", 32)+`","disabled":true,"reason":"moderate reports"}`, token); decodeContractEnvelope(t, rec).Code == 0 {
+		t.Fatal("non-hex public uid accepted", rec.Code, rec.Body.String())
+	}
 	for _, status := range []string{"true", "false"} {
 		rec = serveJSON(router, govern, `{"publicUid":"`+uid+`","disabled":`+status+`,"reason":"moderate reports"}`, token)
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "anonymous-govern-success.json"))

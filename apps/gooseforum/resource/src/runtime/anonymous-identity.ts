@@ -63,8 +63,3 @@ export function authorURL(author: PublicAuthor): string {
 export function authorKey(author: PublicAuthor): string {
   return author.publicUid ? `persona:${author.publicUid}` : `member:${author.id}`
 }
-
-export const governIdentity = (postId: number, disabled: boolean, reason: string) =>
-  request<boolean>('govern', { postId, disabled, reason })
-export const revealIdentity = (publicUid: string, reason: string) =>
-  request<{ publicUid: string; userId: number; username: string }>('reveal', { publicUid, reason })

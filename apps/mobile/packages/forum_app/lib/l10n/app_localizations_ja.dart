@@ -3410,9 +3410,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get anonymousSetup => '匿名IDを設定';
 
   @override
-  String get anonymousCancel => 'キャンセル';
-
-  @override
   String get anonymousNext => '次のページ';
 
   @override
@@ -3420,18 +3417,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get anonymousManage => '匿名IDを管理';
-
-  @override
-  String get anonymousReason => '理由（必須）';
-
-  @override
-  String get anonymousBan => 'アカウントの投稿を制限';
-
-  @override
-  String get anonymousRestore => 'この投稿制限を解除';
-
-  @override
-  String get anonymousReveal => '監査して身分を開示';
 
   @override
   String get sortForYou => 'おすすめ';

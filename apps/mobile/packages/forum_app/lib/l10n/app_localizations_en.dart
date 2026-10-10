@@ -3535,9 +3535,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get anonymousSetup => 'Set up anonymous identity';
 
   @override
-  String get anonymousCancel => 'Cancel';
-
-  @override
   String get anonymousNext => 'Next page';
 
   @override
@@ -3545,18 +3542,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get anonymousManage => 'Manage anonymous identity';
-
-  @override
-  String get anonymousReason => 'Reason (required)';
-
-  @override
-  String get anonymousBan => 'Restrict account writing';
-
-  @override
-  String get anonymousRestore => 'Remove this writing restriction';
-
-  @override
-  String get anonymousReveal => 'Reveal with audit';
 
   @override
   String get sortForYou => 'For you';

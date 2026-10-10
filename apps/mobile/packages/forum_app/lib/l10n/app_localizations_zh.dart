@@ -3371,9 +3371,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get anonymousSetup => '设置匿名身份';
 
   @override
-  String get anonymousCancel => '取消';
-
-  @override
   String get anonymousNext => '下一页';
 
   @override
@@ -3381,18 +3378,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get anonymousManage => '管理匿名身份';
-
-  @override
-  String get anonymousReason => '处置理由（必填）';
-
-  @override
-  String get anonymousBan => '限制该账号发言';
-
-  @override
-  String get anonymousRestore => '解除此项发言限制';
-
-  @override
-  String get anonymousReveal => '审计揭示身份';
 
   @override
   String get sortForYou => '为你推荐';

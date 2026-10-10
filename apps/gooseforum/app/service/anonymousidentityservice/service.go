@@ -312,3 +312,15 @@ func ErrorCode(err error) string {
 func ValidateReason(reason string) bool {
 	return len([]rune(strings.TrimSpace(reason))) >= 1 && len([]rune(reason)) <= 512
 }
+
+func ValidatePublicUID(uid string) bool {
+	if len(uid) != 32 {
+		return false
+	}
+	for _, char := range uid {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+			return false
+		}
+	}
+	return true
+}

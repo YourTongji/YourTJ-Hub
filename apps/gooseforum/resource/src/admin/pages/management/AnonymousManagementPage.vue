@@ -375,6 +375,8 @@ onBeforeUnmount(() => {
                   class="size-10 rounded-full border"
                 /><a
                   :href="row.profileUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   class="min-w-0 flex-1 font-medium"
                   >{{ row.name }}</a
                 ><Badge
@@ -390,7 +392,14 @@ onBeforeUnmount(() => {
               <div class="flex items-center justify-between gap-2">
                 <div class="min-w-0 text-sm">
                   <p class="break-words">
-                    {{ t('anonymousAdmin.owner') }}：{{ row.owner.username }}
+                    {{ t('anonymousAdmin.owner') }}：<a
+                      v-if="!row.owner.closed"
+                      :href="`/u/${row.owner.userId}`"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="font-medium hover:underline"
+                      >{{ row.owner.username }}</a
+                    ><span v-else>{{ row.owner.username }}</span>
                   </p>
                   <p class="text-xs text-muted-foreground">
                     ID {{ row.owner.userId }} · {{ date(row.selectedAt)

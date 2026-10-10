@@ -202,7 +202,18 @@ confirmAnonymousNameResponse:
         result:
           $ref: '#/PublicPersona'
   - $ref: ./schemas.yaml#/ApiFailure
-disableAnonymousIdentityResponse: &id001
+disableAnonymousIdentityResponse: &disableAnonymousIdentityResponse
+  oneOf:
+  - allOf:
+    - $ref: ./schemas.yaml#/ApiSuccess
+    - type: object
+      required:
+      - result
+      properties:
+        result:
+          type: boolean
+  - $ref: ./schemas.yaml#/ApiFailure
+updateAnonymousProfilePrivacyResponse:
   oneOf:
   - allOf:
     - $ref: ./schemas.yaml#/ApiSuccess
@@ -241,4 +252,4 @@ AnonymousGovernRequest:
       minLength: 1
       maxLength: 512
   additionalProperties: false
-governAnonymousIdentityResponse: *id001
+governAnonymousIdentityResponse: *disableAnonymousIdentityResponse
