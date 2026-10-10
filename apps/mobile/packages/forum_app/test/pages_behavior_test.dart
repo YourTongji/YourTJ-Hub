@@ -2656,12 +2656,25 @@ void main() {
       await tester.pumpAndSettle();
       const query = '高等数学 & 选课';
       await tester.enterText(find.byType(TextField), query);
-      await tester.tap(find.text('搜索课程'));
+      await tester.pump();
+      await tester.tap(find.text('在课程中搜索“$query”'));
       await tester.pumpAndSettle();
       expect(router.state.uri.queryParameters['q'], query);
       router.pop();
       await tester.pumpAndSettle();
+      // The unsent text is kept; clearing it returns to recent searches.
+      expect(find.text('搜索“$query”'), findsOneWidget);
+      await tester.tap(find.byTooltip('清空搜索'));
+      await tester.pumpAndSettle();
       expect(find.text('最近搜索'), findsOneWidget);
+      expect(find.text('搜索课程'), findsOneWidget);
+      expect(find.text('搜索 Wiki'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), '高等');
+      await tester.pump();
+      // Matching history is offered while typing.
+      expect(find.text(query), findsOneWidget);
+      await tester.tap(find.byTooltip('清空搜索'));
+      await tester.pumpAndSettle();
       expect(await container.read(writingStoreProvider).history('site:1'), [
         query,
       ]);
@@ -2674,6 +2687,37 @@ void main() {
       expect(find.text('最近搜索'), findsNothing);
     },
   );
+
+  testWidgets('a single recent search can be removed', (tester) async {
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: MemTokenStorage(),
+      baseUrl: 'http://fake.local',
+    );
+    final container = await makeContainer(
+      pageRepo: CountingPageRepository(client),
+      extraOverrides: [
+        writingScopeProvider.overrideWith((ref) async => 'site:1'),
+      ],
+    );
+    final store = container.read(writingStoreProvider);
+    await store.remember('site:1', '选课');
+    await store.remember('site:1', '宿舍');
+    await tester.pumpWidget(app(container, const SearchPage()));
+    await tester.pumpAndSettle();
+    expect(find.text('选课'), findsOneWidget);
+    expect(find.text('宿舍'), findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('search-recent-宿舍')),
+        matching: find.byTooltip('从最近搜索中移除'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('宿舍'), findsNothing);
+    expect(find.text('选课'), findsOneWidget);
+    expect(await store.history('site:1'), ['选课']);
+  });
 
   testWidgets('short search screen keeps the field usable above the keyboard', (
     tester,

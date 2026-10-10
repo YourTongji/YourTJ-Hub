@@ -91,7 +91,13 @@ void main() {
               path: '/notifications',
               builder: (_, _) => const NotificationsPage(),
             ),
-            for (final path in ['/', '/courses', '/schedule', '/wiki'])
+            for (final path in [
+              '/',
+              '/courses',
+              '/schedule',
+              '/wiki',
+              '/wiki/search',
+            ])
               GoRoute(
                 path: path,
                 builder: (_, _) => Scaffold(body: Text('destination:$path')),
@@ -118,36 +124,24 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.scrollUntilVisible(
-          find.byType(CampusShortcuts),
-          200,
-          scrollable: find
-              .descendant(
-                of: find.byType(ListView),
-                matching: find.byType(Scrollable),
-              )
-              .first,
-        );
-        expect(find.byType(CampusShortcuts), findsOneWidget);
         expect(tester.takeException(), isNull);
         final l10n = AppLocalizations.of(
-          tester.element(find.byType(CampusShortcuts)),
+          tester.element(find.byType(SearchPage)),
         );
+        // Search keeps course and Wiki search one tap away, including at 200%
+        // text on a small phone.
         for (final (label, path) in [
-          (l10n.campusCourseReviews, '/courses'),
-          (l10n.scheduleTitle, '/schedule'),
-          (l10n.wikiTitle, '/wiki'),
+          (l10n.searchCourses, '/courses'),
+          (l10n.searchWiki, '/wiki/search'),
         ]) {
-          final action = find.descendant(
-            of: find.byType(CampusShortcuts),
-            matching: find.text(label),
-          );
+          final action = find.text(label);
           await tester.ensureVisible(action);
           await tester.tap(action);
           await tester.pumpAndSettle();
           expect(router.state.uri.path, path);
           router.pop();
           await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
         }
         router.go('/campus');
         await tester.pumpAndSettle();

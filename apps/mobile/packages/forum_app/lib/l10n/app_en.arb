@@ -315,9 +315,7 @@
   "notificationsMarkAllRead": "Mark all read",
   "notificationsAll": "All",
   "notificationsUnread": "Unread",
-  "searchTitle": "Search",
   "searchHint": "Search topics, users, categories…",
-  "searchEmpty": "Enter keywords to search",
   "searchNoUsers": "No matching users",
   "searchNoCategories": "No matching categories",
   "searchUnavailable": "Search unavailable",
@@ -1230,7 +1228,6 @@
   "campusTools": "Campus tools",
   "campusCoursesTitle": "Discover courses",
   "campusCoursesEmpty": "No course reviews yet. Explore the course catalog.",
-  "searchDiscoveryDescription": "Find posts, people and categories, or jump into your campus tools.",
   "notificationsEmptyDescription": "Replies, mentions and follows will appear here. Explore what’s new on campus.",
   "draftsEmptyDescription": "Save unfinished ideas as drafts and come back when you’re ready.",
   "messagesSending": "Sending…",
@@ -1250,6 +1247,42 @@
   "searchClearRecent": "Clear history",
   "searchCourses": "Search courses",
   "searchWiki": "Search Wiki",
+  "searchIdleHint": "Search topics, users and categories. Your recent searches will appear here.",
+  "searchFor": "Search for “{query}”",
+  "@searchFor": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "searchCoursesFor": "Search courses for “{query}”",
+  "@searchCoursesFor": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "searchWikiFor": "Search the Wiki for “{query}”",
+  "@searchWikiFor": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "searchRemoveRecent": "Remove from recent searches",
+  "searchSeeAll": "See all",
+  "searchNoResults": "No results for “{query}”",
+  "@searchNoResults": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "searchNoResultsHint": "Try different keywords, or search courses and the Wiki.",
   "refreshFailedRetained": "Refresh failed. Your current content is still here.",
   "scheduleOpenWebShort": "Web version",
   "settingsProfileLinks": "Website and social links",

@@ -599,13 +599,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notificationsUnread => '未读';
 
   @override
-  String get searchTitle => '搜索';
-
-  @override
   String get searchHint => '搜索帖子、用户、分类…';
-
-  @override
-  String get searchEmpty => '输入关键词开始搜索';
 
   @override
   String get searchNoUsers => '没有匹配的用户';
@@ -2363,9 +2357,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get campusCoursesEmpty => '还没有课程评价，去课程目录逛逛吧';
 
   @override
-  String get searchDiscoveryDescription => '搜索帖子、同学与板块，也可以直接打开常用的校园工具。';
-
-  @override
   String get notificationsEmptyDescription => '新的回复、提及和关注会出现在这里。先去看看校园里的新鲜事吧。';
 
   @override
@@ -2421,6 +2412,38 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get searchWiki => '搜索 Wiki';
+
+  @override
+  String get searchIdleHint => '搜索帖子、用户和分类，最近的搜索会显示在这里。';
+
+  @override
+  String searchFor(String query) {
+    return '搜索“$query”';
+  }
+
+  @override
+  String searchCoursesFor(String query) {
+    return '在课程中搜索“$query”';
+  }
+
+  @override
+  String searchWikiFor(String query) {
+    return '在 Wiki 中搜索“$query”';
+  }
+
+  @override
+  String get searchRemoveRecent => '从最近搜索中移除';
+
+  @override
+  String get searchSeeAll => '查看全部';
+
+  @override
+  String searchNoResults(String query) {
+    return '没有找到“$query”的相关结果';
+  }
+
+  @override
+  String get searchNoResultsHint => '换个关键词试试，或者在课程和 Wiki 中搜索。';
 
   @override
   String get refreshFailedRetained => '刷新失败，已保留当前内容';

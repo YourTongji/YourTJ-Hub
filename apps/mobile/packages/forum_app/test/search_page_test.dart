@@ -169,6 +169,34 @@ void main() {
     },
   );
 
+  testWidgets('swiping the results switches between adjacent types', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final repo = await pumpSearch(tester);
+    repo.calls.first.result.complete(_result(repo.calls.first, topics: 1));
+    await tester.pumpAndSettle();
+    await tester.drag(find.text('Topic 1'), const Offset(-240, 0));
+    await tester.pump();
+    expect(repo.calls.last.scope, 'topics');
+    expect(repo.calls.last.query, 'original');
+    repo.calls.last.result.complete(_result(repo.calls.last, topics: 1));
+    await tester.pumpAndSettle();
+    final tabBar = tester.widget<TabBar>(
+      find.byKey(const ValueKey('gf-tab-bar')),
+    );
+    expect(tabBar.controller!.index, 1);
+    await tester.drag(find.text('Topic 1'), const Offset(240, 0));
+    await tester.pump();
+    expect(repo.calls.last.scope, '');
+    repo.calls.last.result.complete(_result(repo.calls.last, topics: 1));
+    await tester.pumpAndSettle();
+    expect(find.text('Topic 1'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'scope switch uses submitted query and ignores an older scope response',
     (tester) async {

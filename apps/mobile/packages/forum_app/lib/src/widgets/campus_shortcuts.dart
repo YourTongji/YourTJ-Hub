@@ -4,7 +4,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import '../../l10n/app_localizations.dart';
 
-/// Real campus destinations, shared by discovery and the campus landing page.
+/// Real campus destinations at the top of the campus landing page.
 class CampusShortcuts extends StatelessWidget {
   const CampusShortcuts({super.key});
 

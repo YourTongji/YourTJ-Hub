@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-03
+> Last verified: 2026-10-10
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -529,17 +529,23 @@ validation; simulator/debug execution does not establish production frame-rate g
   catalog, global search, Wiki and scheduler. Search fields provide a localized clear action and keyboard
   submission where applicable. Clearing global search resets results, scope and pagination, and
   invalidates pending requests; account and publishing forms retain their separate form styling.
-- `Current`: global search starts with guidance and direct course, scheduler and Wiki destinations.
-  Result scope buttons stay available during loading, empty results and failures, and scroll
-  horizontally at larger text sizes. Switching scope or retrying uses the last submitted keyword;
+- `Current`: global search opens with its field focused beside a back action. The empty field shows
+  two equal tiles that carry the current input to the native course catalog and Wiki search, followed
+  by recent searches. Recent searches keep up to ten distinct queries per site and account (with a
+  separate guest list), in device preferences only; users can remove one or clear all. Storage
+  failure does not block searching. Before the first submission, typing offers explicit rows to
+  search the forum, courses or the Wiki for the typed text, plus matching recent searches; nothing
+  is sent until a row or keyboard submission is chosen.
+  Result type tabs pair each label with its symbol, share the width evenly and scroll horizontally
+  when they no longer fit, such as at larger text sizes; they stay available during loading, empty
+  results and failures. Swiping the results moves to the adjacent type with the shared tab gesture. Switching type or retrying uses the last submitted keyword;
   typing a different keyword does not search it until submission. Each result section identifies its
-  type and shows displayed rows separately from matching totals; unqueried scopes are not labelled
-  as zero, and the all-scope view does not treat the topic total as an aggregate total.
+  type and shows displayed rows separately from matching totals; in the all view, See all switches
+  to that type when more matches exist. Unqueried scopes are not labelled as zero, and the all-scope
+  view does not treat the topic total as an aggregate total. Empty results name the keyword and
+  offer course and Wiki search.
   Users, topics and categories build one row at a time near the viewport. Only topics paginate;
   appending a page retains the other groups, and a failed page keeps the current rows with a retry.
-  Course and Wiki search actions carry the current input into the matching native page.
-  Recent searches keep up to ten distinct queries per site and account (with a separate guest list),
-  in device preferences only; users can clear them. Storage failure does not block searching.
 - `Current`: topic view/reply metrics remain below the body; reply, like, bookmark and watch actions
   share one bottom dock. The AppBar shows a generic topic label until the body title scrolls out of
   view, then shows that title. Actions use Web's semantic tints and localized accessible labels;
@@ -747,7 +753,7 @@ identity survive this layout change. The header keeps a small outer margin for i
   The Campus bottom destination opens this page directly. Course reviews, the scheduler and Wiki
   have visible shortcuts at the top of its home view, also available to guests, unbound users and
   when school services fail. Pushed tools return to the Campus destination. Explore campus retains
-  public course previews; shortcuts are shared with search discovery. See [campus semantics](campus.md) for binding, privacy and provider limits.
+  public course previews. See [campus semantics](campus.md) for binding, privacy and provider limits.
 - `Current`: while the app stays in the foreground, Campus remembers its selected section,
   independent academic/notice search text and scroll positions, and selected timetable week when
   switching sections, bottom destinations or returning from a pushed page. Scroll restoration waits

@@ -1206,23 +1206,11 @@ abstract class AppLocalizations {
   /// **'Unread'**
   String get notificationsUnread;
 
-  /// No description provided for @searchTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Search'**
-  String get searchTitle;
-
   /// No description provided for @searchHint.
   ///
   /// In en, this message translates to:
   /// **'Search topics, users, categories…'**
   String get searchHint;
-
-  /// No description provided for @searchEmpty.
-  ///
-  /// In en, this message translates to:
-  /// **'Enter keywords to search'**
-  String get searchEmpty;
 
   /// No description provided for @searchNoUsers.
   ///
@@ -4506,12 +4494,6 @@ abstract class AppLocalizations {
   /// **'No course reviews yet. Explore the course catalog.'**
   String get campusCoursesEmpty;
 
-  /// No description provided for @searchDiscoveryDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Find posts, people and categories, or jump into your campus tools.'**
-  String get searchDiscoveryDescription;
-
   /// No description provided for @notificationsEmptyDescription.
   ///
   /// In en, this message translates to:
@@ -4625,6 +4607,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Search Wiki'**
   String get searchWiki;
+
+  /// No description provided for @searchIdleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search topics, users and categories. Your recent searches will appear here.'**
+  String get searchIdleHint;
+
+  /// No description provided for @searchFor.
+  ///
+  /// In en, this message translates to:
+  /// **'Search for “{query}”'**
+  String searchFor(String query);
+
+  /// No description provided for @searchCoursesFor.
+  ///
+  /// In en, this message translates to:
+  /// **'Search courses for “{query}”'**
+  String searchCoursesFor(String query);
+
+  /// No description provided for @searchWikiFor.
+  ///
+  /// In en, this message translates to:
+  /// **'Search the Wiki for “{query}”'**
+  String searchWikiFor(String query);
+
+  /// No description provided for @searchRemoveRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from recent searches'**
+  String get searchRemoveRecent;
+
+  /// No description provided for @searchSeeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'See all'**
+  String get searchSeeAll;
+
+  /// No description provided for @searchNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No results for “{query}”'**
+  String searchNoResults(String query);
+
+  /// No description provided for @searchNoResultsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Try different keywords, or search courses and the Wiki.'**
+  String get searchNoResultsHint;
 
   /// No description provided for @refreshFailedRetained.
   ///
