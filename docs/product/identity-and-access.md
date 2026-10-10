@@ -75,7 +75,11 @@ establish a password. Closing an account keeps the ordinary retained-email reser
 identity reservation survives unlink, replacement and closure to prevent repeat signup and initial-point
 claims; it contains no user ID, email, school ID or credentials and cannot authenticate a user.
 Registration completion uses a ten-minute HttpOnly browser proof and independent CSRF token,
-with no school credentials in the browser. Validation failures allow retry; success consumes the
+with no school credentials in the browser. School-verified registration distinguishes occupied,
+reserved and banned usernames, prompting the user to choose another name. Signup closure and daily
+quota retain their dedicated messages; unexpected failures remain generic. Failed submissions create
+no partial account or campus binding and keep the proof usable until its original deadline.
+Validation failures allow retry; success consumes the
 proof and resumes the original safe destination, including App OIDC. Restart or expiration requires
 fresh school authentication. See [the decision](../decisions/0034-tongji-registration-completion.md).
 
@@ -388,7 +392,7 @@ support.
   template default `server.url = "http://localhost"` is left untouched — issue #113).
 - Enumeration resistance: login errors do not distinguish "user not found / wrong password", and
   unknown accounts run the same-cost PBKDF2 verification as real ones so response time does not
-  reveal whether a username/email is registered. Registration collapses username/email-taken into
+  reveal whether a username/email is registered. Password registration collapses username/email-taken into
   the same generic `auth.register.failed` body as other failures (never `auth.username.exists` /
   `auth.email.exists`) and always runs both existence queries, so the error body no longer reveals
   which field is taken. The registration protocol itself (immediate account creation + session vs.

@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { beforeEach, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { i18n } from '../src/runtime/i18n'
+import { i18n, setLocale } from '../src/runtime/i18n'
+import { resolveApiMessage } from '../src/runtime/api-message'
 import TongjiRegistration from '../src/site/components/TongjiRegistration.vue'
 import { ApiResponseError, getTongjiRegistration, completeTongjiRegistration } from '../src/runtime/api'
 vi.mock('../src/runtime/api', () => ({ ApiResponseError: class extends Error { constructor(message: string, public messageCode?: string) { super(message) } }, getTongjiRegistration: vi.fn(), completeTongjiRegistration: vi.fn() }))
@@ -51,4 +52,25 @@ test('proof expiring during input gives a fresh login action',async () => {
  await wrapper.find('form').trigger('submit'); await flushPromises()
  expect(wrapper.find('form').exists()).toBe(false)
  expect(wrapper.find('a').attributes('href')).toBe('/login')
+})
+
+test.each(['zh', 'en', 'ja', 'de'] as const)('shows specific username failures and keeps form usable in %s', async (locale) => {
+ await setLocale(locale)
+ try {
+  const wrapper = render(); await fill(wrapper)
+  for (const messageCode of ['auth.username.exists', 'auth.username.reserved', 'auth.username.banned']) {
+   const message = resolveApiMessage({messageCode}, 'generic failure')
+   expect(message).not.toBe('generic failure')
+   vi.mocked(completeTongjiRegistration).mockRejectedValueOnce(new ApiResponseError(message, messageCode))
+   await wrapper.find('form').trigger('submit'); await flushPromises()
+   expect(wrapper.find('[role=alert]').text()).toBe(message)
+   expect(wrapper.find('form').exists()).toBe(true)
+   expect(wrapper.find('button[type=submit]').attributes('disabled')).toBeUndefined()
+  }
+  await wrapper.find('input[autocomplete=username]').setValue('retry_student')
+  vi.mocked(completeTongjiRegistration).mockRejectedValueOnce(new Error('retry response'))
+  await wrapper.find('form').trigger('submit'); await flushPromises()
+  expect(completeTongjiRegistration).toHaveBeenLastCalledWith('retry_student','Password123','proof')
+  wrapper.unmount()
+ } finally { await setLocale('zh') }
 })

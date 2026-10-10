@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
@@ -416,8 +417,8 @@ func TestSchoolRegistrationExpiredAndDuplicateUsernameRetry(t *testing.T) {
 		t.Fatal(err)
 	}
 	fields := Registration{Username: "chosen_user", PasswordHash: "hashed-password"}
-	if _, err := s.CompleteRegistration(context.Background(), result.Registration, status.CSRFToken, fields, policy); err == nil {
-		t.Fatal("duplicate username accepted")
+	if _, err := s.CompleteRegistration(context.Background(), result.Registration, status.CSRFToken, fields, policy); !errors.Is(err, users.ErrUsernameOccupied) {
+		t.Fatalf("duplicate username: %v", err)
 	}
 	fields.Username = "available_user"
 	s.registrations[result.Registration].expires = time.Now().Add(-time.Second)
@@ -467,5 +468,39 @@ func TestSchoolRegistrationConcurrentCompletionSingleWinner(t *testing.T) {
 	}
 	if wins != 1 || flow != 1 {
 		t.Fatalf("concurrent completion must have exactly one winner: %d wins, %d flow errors, %v", wins, flow, errs)
+	}
+}
+
+func TestSchoolRegistrationUsernamePolicyFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		code   component.MessageCode
+		policy pageConfig.SecurityAndRegistration
+	}{
+		{"reserved", component.MessageAuthUsernameReserved, pageConfig.SecurityAndRegistration{EnableSignup: true, MaxDailySignups: -1, ReservedUsernames: []string{"chosen_user"}}},
+		{"banned", component.MessageAuthUsernameBanned, pageConfig.SecurityAndRegistration{EnableSignup: true, MaxDailySignups: -1, BannedUsernames: []string{"chosen_user"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, _, policy := loginSetup(t)
+			state, browser, _ := s.StartLogin("/campus", "en")
+			result, err := s.Login(context.Background(), browser, state, "code", policy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			status, err := s.RegistrationStatus(result.Registration)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fields := Registration{Username: "chosen_user", PasswordHash: "test-hash"}
+			_, err = s.CompleteRegistration(context.Background(), result.Registration, status.CSRFToken, fields, tc.policy)
+			var message component.MessageError
+			if !errors.As(err, &message) || message.Code != tc.code {
+				t.Fatalf("username policy: %v, want %s", err, tc.code)
+			}
+			fields.Username = "retry_user"
+			if _, err := s.CompleteRegistration(context.Background(), result.Registration, status.CSRFToken, fields, tc.policy); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }

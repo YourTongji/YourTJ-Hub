@@ -16158,7 +16158,7 @@ export interface operations {
                     "application/json": components["schemas"]["TongjiRegistrationResultResponse"];
                 };
             };
-            /** @description Invalid JSON, username or password. */
+            /** @description Invalid JSON, username or password. Reserved and banned usernames return auth.username.reserved and auth.username.banned; choose another name and retry with the same proof before expiry. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16176,7 +16176,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description No partial account is created. A collision of the verified school identity or its student email with an existing account returns auth.tongji.accountExists with recovery guidance (the requester is already school-verified, so naming the conflict is not an enumeration oracle). Other collisions, registration policy and daily-quota rejections share the generic auth.register.failed body. */
+            /** @description No partial account is created. Verified school identity/student-email collisions return auth.tongji.accountExists with recovery guidance. Username collisions return auth.username.exists, including concurrent inserts; choose another name and retry with the same proof before expiry. Signup/domain policy returns auth.signup.disabled; daily quota returns auth.register.dailyQuota; unexpected failures return auth.register.failed. Dedicated guidance is limited to the school-verified flow. */
             409: {
                 headers: {
                     [name: string]: unknown;

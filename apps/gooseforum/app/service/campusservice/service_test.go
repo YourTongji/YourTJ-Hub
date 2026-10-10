@@ -48,7 +48,7 @@ func (p *fakeProvider) Revoke(context.Context, Credentials)                  { p
 func (p *fakeProvider) Message(context.Context, string, string) (any, error) { return nil, ErrUpstream }
 func setup(t *testing.T) (*Service, *fakeProvider) {
 	t.Helper()
-	db, e := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	db, e := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{TranslateError: true, Logger: logger.Default.LogMode(logger.Silent)})
 	if e != nil {
 		t.Fatal(e)
 	}

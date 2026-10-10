@@ -8,6 +8,8 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+var ErrUsernameOccupied = errors.New("username occupied")
+
 var ErrSignupQuota = errors.New("signup quota reached")
 
 // GetForAuthenticationTx reads the current account under the caller's transaction.
@@ -27,7 +29,12 @@ func CreateVerifiedAccountTx(tx *gorm.DB, user *EntityComplete, maxDaily int) er
 	if err := CheckSignupQuotaTx(tx, maxDaily); err != nil {
 		return err
 	}
-	return tx.Create(user).Error
+	err := tx.Create(user).Error
+	// The email claim is locked above; username uniqueness can still race.
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return ErrUsernameOccupied
+	}
+	return err
 }
 
 // CheckSignupQuotaTx serializes all self-service registration paths until their
