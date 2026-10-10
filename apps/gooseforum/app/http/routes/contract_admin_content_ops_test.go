@@ -13,6 +13,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
@@ -311,6 +312,35 @@ func TestAdminListReviewQueueHTTPContract(t *testing.T) {
 		}
 		if item["nickname"] != "待审昵称" {
 			t.Fatalf("item nickname = %#v, want hydrated nickname", item["nickname"])
+		}
+	})
+
+	t.Run("sticker queue leaves excerpt localization to the client", func(t *testing.T) {
+		conn, router := setupAdminContentOpsContractTest(t)
+		if err := conn.AutoMigrate(&sticker.Entity{}); err != nil {
+			t.Fatalf("migrate sticker table: %v", err)
+		}
+		author := createHTTPContractUser(t, conn, contractTestID())
+		entity := sticker.Entity{
+			Name: fmt.Sprintf("u_%d", contractTestID()), FileName: "stickers/pending.png",
+			CreatedBy: author.Id, ReviewStatus: sticker.ReviewStatusPending,
+		}
+		if err := conn.Transaction(func(tx *gorm.DB) error { return sticker.InsertPersonalTx(tx, &entity) }); err != nil {
+			t.Fatalf("seed pending sticker: %v", err)
+		}
+		t.Cleanup(func() { conn.Delete(&sticker.Entity{}, entity.Id) })
+
+		result := decodeSiteResult(t, serveAdminSiteRaw(t, conn, router, http.MethodPost, path, `{"kind":"sticker"}`))
+		items, ok := result["items"].([]any)
+		if !ok {
+			t.Fatalf("result.items = %#v, want an array", result["items"])
+		}
+		item := findContractItem(items, float64(entity.Id))
+		if item == nil {
+			t.Fatalf("seeded sticker %d not found in review queue items %#v", entity.Id, items)
+		}
+		if item["excerpt"] != "" {
+			t.Fatalf("sticker excerpt = %#v, want empty so clients can localize it", item["excerpt"])
 		}
 	})
 

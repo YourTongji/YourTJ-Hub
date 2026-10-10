@@ -2434,7 +2434,7 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 				username, nickname = user.Username, user.Nickname
 			}
 			items = append(items, ReviewQueueItem{
-				Id: entity.Id, Title: entity.Name, Excerpt: "个人上传表情",
+				Id: entity.Id, Title: entity.Name,
 				UserId: entity.CreatedBy, Username: username, Nickname: nickname,
 				ProcessStatus: 2, CreatedAt: entity.CreatedAt.Format(time.RFC3339),
 				Images: []string{stickerservice.ResolveURLFor(entity)},
