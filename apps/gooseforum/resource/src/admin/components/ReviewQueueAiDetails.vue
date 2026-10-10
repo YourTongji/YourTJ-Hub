@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+import MarkdownImageViewer from '@/components/MarkdownImageViewer.vue'
 import { Loader2 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { Badge } from '@/admin/components/ui/badge'
@@ -9,6 +11,12 @@ import { reasonText } from '@/admin/utils/aiModerationReasons'
 // 读取（站点管理员会话），不会进入共享缓存。
 defineProps<{ item: ReviewQueueItem }>()
 const { t } = useI18n()
+const imageViewer = ref<InstanceType<typeof MarkdownImageViewer> | null>(null)
+
+function previewImages(images: string[], index: number, event: MouseEvent) {
+  (event.currentTarget as HTMLButtonElement).focus()
+  imageViewer.value?.open(images.map(src => ({ src, alt: '' })), index)
+}
 </script>
 
 <template>
@@ -24,14 +32,15 @@ const { t } = useI18n()
       <li v-for="(reason, index) in item.aiReview.reasons" :key="index">{{ reasonText(t, reason) }}</li>
     </ul>
     <div v-if="item.images?.length" class="flex flex-wrap gap-1">
-      <a v-for="url in item.images" :key="url" :href="url" target="_blank" rel="noopener">
+      <button v-for="(url, index) in item.images" :key="index" type="button" :aria-label="`${t('common.preview')} ${index + 1}`" class="rounded focus-visible:outline-2 focus-visible:outline-ring" @click="previewImages(item.images, index, $event)">
         <img :src="url" alt="" loading="lazy" class="size-12 rounded border object-cover">
-      </a>
+      </button>
     </div>
     <template v-if="item.aiReview">
       <p v-for="(image, index) in item.aiReview.images.filter(entry => entry.evidence)" :key="index" class="line-clamp-2 text-[11px] leading-4 text-muted-foreground">
         {{ image.evidence }}
       </p>
     </template>
+    <MarkdownImageViewer ref="imageViewer" />
   </div>
 </template>

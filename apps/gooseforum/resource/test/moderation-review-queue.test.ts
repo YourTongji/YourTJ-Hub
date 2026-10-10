@@ -1,9 +1,11 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, shallowMount, type VueWrapper } from '@vue/test-utils'
 import * as api from '../src/runtime/api'
 import { i18n } from '../src/runtime/i18n'
 import ModerationReviewQueue from '../src/site/components/ModerationReviewQueue.vue'
+import ModerationPage from '../src/site/pages/ModerationPage.vue'
+import type { LayoutPayload } from '@gooseforum/client'
 import type { ReviewQueueItem } from '../src/admin/types'
 
 const item = (id: number): ReviewQueueItem => ({
@@ -17,7 +19,11 @@ const item = (id: number): ReviewQueueItem => ({
   },
 })
 
-afterEach(() => vi.restoreAllMocks())
+const previews: VueWrapper[] = []
+afterEach(() => {
+  previews.splice(0).forEach(wrapper => wrapper.unmount())
+  vi.restoreAllMocks()
+})
 
 describe('moderation workbench review queue (issue #975)', () => {
   test('lists scoped items with AI reasons and approves in one click', async () => {
@@ -60,4 +66,77 @@ describe('moderation workbench review queue (issue #975)', () => {
     expect(wrapper.text()).toContain('通常几秒内会自动公开或拒绝，你也可以现在处理。')
     expect(wrapper.text()).not.toContain('AI 转人工审核')
   })
+})
+
+
+describe('moderation image previews (issue #1091)', () => {
+  test('opens the clicked image inline and preserves rejection confirmation, pagination and pending approval', async () => {
+    i18n.global.locale.value = 'zh'
+    const entry = { ...item(5), images: ['/file/img/a.png', '/file/img/b.png'] }
+    const fetch = vi.spyOn(api, 'fetchModerationReviewQueue').mockResolvedValue({ items: [entry, item(6)], total: 30, page: 2, pageSize: 20 })
+    let resolveAction!: (result: string) => void
+    const action = vi.spyOn(api, 'moderationReviewAction').mockImplementation(() => new Promise(resolve => { resolveAction = resolve }))
+    const wrapper = mount(ModerationReviewQueue, { global: { plugins: [i18n] }, attachTo: document.body })
+    previews.push(wrapper)
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === '拒绝')!.trigger('click')
+    const preview = wrapper.findAll('button').filter(button => button.find('img').exists())[1]!
+    expect(preview).toBeDefined()
+    expect(preview.attributes('type')).toBe('button')
+    expect(preview.attributes('aria-label')).toBeTruthy()
+    expect(wrapper.find('a[href="/file/img/b.png"]').exists()).toBe(false)
+    await preview.trigger('click')
+    await flushPromises()
+    let dialog = document.querySelector('[role="dialog"]')!
+    expect(dialog.querySelector('img')?.getAttribute('src')).toBe('/file/img/b.png')
+    expect(dialog.textContent).toContain('2 / 2')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }))
+    await flushPromises()
+    expect(dialog.querySelector('img')?.getAttribute('src')).toBe('/file/img/a.png')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(document.activeElement).toBe(preview.element)
+    expect(wrapper.text()).toContain('确认拒绝')
+    expect(action).not.toHaveBeenCalled()
+    await wrapper.findAll('button').find(button => button.text() === '通过')!.trigger('click')
+    await preview.trigger('click')
+    await flushPromises()
+    dialog = document.querySelector('[role="dialog"]')!
+    expect(dialog).toBeTruthy()
+    expect(wrapper.findAll('button').find(button => button.text() === '通过')!.attributes('disabled')).toBeDefined()
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(fetch).toHaveBeenCalledTimes(1)
+    await wrapper.findAll('button').find(button => button.text() === '加载更多')!.trigger('click')
+    await flushPromises()
+    expect(fetch).toHaveBeenLastCalledWith('topic', 3, 20)
+    resolveAction('success')
+    await flushPromises()
+    expect(action).toHaveBeenCalledWith('topic', 5, true, 105)
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+  })
+})
+
+
+test('leave workspace is a separate homepage link that stays available on every tab', async () => {
+  i18n.global.locale.value = 'zh'
+  vi.spyOn(api, 'fetchModerationReports').mockResolvedValue({ items: [], nextCursor: 0, hasNext: false })
+  vi.spyOn(api, 'fetchModerationLogs').mockResolvedValue({ items: [], nextCursor: 0, hasNext: false })
+  const wrapper = shallowMount(ModerationPage, {
+    props: {
+      layout: {} as LayoutPayload,
+      props: { topics: [], categoryTabs: [], pagination: { page: 1, nextPage: 2, hasNext: false, nextUrl: '' } },
+    },
+    global: { plugins: [i18n], stubs: { PageHeader: false } },
+  })
+  previews.push(wrapper)
+  for (const tab of wrapper.findAll('main > div > button')) {
+    await tab.trigger('click')
+    const link = wrapper.find('header a[href="/"]')
+    expect(link.exists()).toBe(true)
+    expect(link.text()).toBe('离开工作台')
+    expect(link.attributes('target')).toBeUndefined()
+  }
 })

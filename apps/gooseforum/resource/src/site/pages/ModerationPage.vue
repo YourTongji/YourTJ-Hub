@@ -287,7 +287,11 @@ async function submitEvidenceView() {
 
 <template>
   <main class="min-w-0 pb-8">
-    <PageHeader :title="t('moderation.title')" :description="t('moderation.description')" compact class="border-b-0 !mb-2 sm:!mb-2 !pb-2 sm:!pb-2" />
+    <PageHeader :title="t('moderation.title')" :description="t('moderation.description')" compact class="border-b-0 !mb-2 sm:!mb-2 !pb-2 sm:!pb-2">
+      <template #actions>
+        <a href="/" class="gf-button gf-button-sm gf-button-secondary">{{ t('moderation.leaveWorkbench') }}</a>
+      </template>
+    </PageHeader>
 
     <div class="mb-4 flex flex-wrap gap-2 border-b border-line">
       <button

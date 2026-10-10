@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, test } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import MarkdownImageViewer from '@/site/components/MarkdownImageViewer.vue'
+import MarkdownImageViewer from '@/components/MarkdownImageViewer.vue'
 import { i18n } from '../src/runtime/i18n'
 import { nextTick } from 'vue'
 
@@ -79,4 +79,58 @@ describe('MarkdownImageViewer', () => {
 
     wrapper.unmount()
   })
+  test('traps focus and restores the trigger and body overflow after Escape', async () => {
+    const trigger = document.createElement('button')
+    document.body.append(trigger)
+    trigger.focus()
+    document.body.style.overflow = 'auto'
+    const wrapper = mount(MarkdownImageViewer, { global: { plugins: [i18n] }, attachTo: document.body })
+    wrapper.vm.open([{ src: '/uploads/focus.png', alt: '' }], 0)
+    await flushPromises()
+    const dialog = document.querySelector('[role="dialog"]')!
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    expect(document.body.style.overflow).toBe('hidden')
+    const buttons = dialog.querySelectorAll('button')
+    const last = buttons[buttons.length - 1]!
+    last.focus()
+    last.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
+    expect(document.activeElement).toBe(buttons[0])
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(document.activeElement).toBe(trigger)
+    expect(document.body.style.overflow).toBe('auto')
+    wrapper.unmount()
+    trigger.remove()
+    document.body.style.overflow = ''
+  })
+
+  test('supports touch swipes, thumbnail selection and backdrop close', async () => {
+    const wrapper = mount(MarkdownImageViewer, { global: { plugins: [i18n] }, attachTo: document.body })
+    wrapper.vm.open([{ src: '/a.png', alt: 'A' }, { src: '/b.png', alt: 'B' }], 0)
+    await flushPromises()
+    const dialog = document.querySelector('[role="dialog"]')!
+    const touch = (type: string, key: string, x: number, y: number) => {
+      const event = new Event(type, { bubbles: true })
+      Object.defineProperty(event, key, { value: [{ clientX: x, clientY: y }] })
+      dialog.dispatchEvent(event)
+    }
+    touch('touchstart', 'touches', 100, 100)
+    touch('touchend', 'changedTouches', 100, 200)
+    await flushPromises()
+    expect(dialog.querySelector('img')?.getAttribute('src')).toBe('/a.png')
+    touch('touchstart', 'touches', 100, 100)
+    touch('touchend', 'changedTouches', 20, 105)
+    await flushPromises()
+    expect(dialog.querySelector('img')?.getAttribute('src')).toBe('/b.png')
+    ;(dialog.querySelector('button[aria-pressed="false"]') as HTMLButtonElement).click()
+    await flushPromises()
+    expect(dialog.querySelector('img')?.getAttribute('src')).toBe('/a.png')
+    dialog.querySelector('img')!.parentElement!.click()
+    await flushPromises()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    wrapper.unmount()
+  })
+
 })

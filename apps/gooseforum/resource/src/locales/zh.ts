@@ -3350,6 +3350,7 @@ export default {
     },
   },
   moderation: {
+    leaveWorkbench: '离开工作台',
     title: '版主工作台',
     description: '集中处理你负责范围内的社区管理任务。',
     notice: '权力越大责任越大。封禁前请确认帖子确实违反社区规则，必要时先沟通再处理。',

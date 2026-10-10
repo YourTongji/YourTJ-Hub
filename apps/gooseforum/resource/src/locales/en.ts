@@ -3348,6 +3348,7 @@ export default {
     },
   },
   moderation: {
+    leaveWorkbench: 'Leave workspace',
     title: 'Moderator workspace',
     description: 'Handle community management tasks within your scope.',
     notice: 'With great power comes great responsibility. Before blocking a post, make sure it violates the community rules and communicate first when appropriate.',
