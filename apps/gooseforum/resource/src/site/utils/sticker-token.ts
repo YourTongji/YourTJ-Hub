@@ -47,9 +47,9 @@ export function parseStickerSegments(content: string, urlByName: Map<string, str
 }
 
 /**
- * 会话列表预览用的可读标签：把 token 缩写为 [name]，
- * 未知/停用 token 同样缩写（预览层不做启停区分）。
+ * 会话列表预览用的可读标签：不暴露随机 token 名；未知/停用 token
+ * 同样显示统一文案（预览层不做启停区分）。
  */
-export function stickerPreviewLabel(content: string): string {
-  return content.replace(STICKER_TOKEN_RE, (_, name: string) => `[${name}]`)
+export function stickerPreviewLabel(content: string, stickerLabel?: string): string {
+  return content.replace(STICKER_TOKEN_RE, (_, name: string) => `[${stickerLabel ?? name}]`)
 }

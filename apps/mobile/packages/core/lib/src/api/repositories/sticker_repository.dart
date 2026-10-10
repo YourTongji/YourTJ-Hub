@@ -87,7 +87,7 @@ class StickerLibrary extends ChangeNotifier {
       final items = await _repository.list();
       if (_disposed) return const [];
       final currentNames = items
-          .where((item) => item.isEnabled)
+          .where((item) => item.isAvailable)
           .map((item) => item.name)
           .toSet();
       for (final old in _items ?? <StickerItemPayload>[]) {
@@ -105,7 +105,7 @@ class StickerLibrary extends ChangeNotifier {
   void remember(Iterable<StickerItemPayload> items) {
     if (_disposed) return;
     for (final item in items) {
-      if (!item.isEnabled) {
+      if (!item.isAvailable) {
         _resolved.remove(item.name);
         continue;
       }

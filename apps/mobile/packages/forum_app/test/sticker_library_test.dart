@@ -407,13 +407,15 @@ void main() {
     },
   );
 
-  test('old servers default stickers to enabled official items', () {
+  test('old servers default stickers to approved enabled official items', () {
     final item = StickerItemPayload.fromJson({
       'name': 'smile',
       'url': '/smile.png',
     });
     expect(item.isEnabled, isTrue);
     expect(item.isOfficial, isTrue);
+    expect(item.reviewStatus, 'approved');
+    expect(item.isAvailable, isTrue);
   });
 
   testWidgets('picker remains usable on narrow enlarged-text windows', (

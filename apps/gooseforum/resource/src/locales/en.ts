@@ -1059,6 +1059,7 @@ export default {
     sources: 'Sticker sources and licenses',
     pickerTitle: 'Stickers',
     empty: 'No stickers available',
+    previewAnimation: 'Animated sticker',
   },
   common: {
     back: 'Back',
@@ -3574,6 +3575,8 @@ export default {
       reviewTopicRejected: "Rejected topic {id}",
       reviewPostApproved: "Approved reply {id} in topic {topicId}",
       reviewPostRejected: "Rejected reply {id} in topic {topicId}",
+      reviewStickerApproved: "Approved personal sticker {id}",
+      reviewStickerRejected: "Rejected personal sticker {id}",
       courseCreated: "Created course “{name}” ({primaryCode})",
       courseUpdated: "Edited course “{name}” ({primaryCode})",
       courseDeleted: "Deleted course “{name}” ({primaryCode}, with {offeringCount} classes and {reviewCount} reviews)",
@@ -3597,6 +3600,13 @@ export default {
       activation: 'activation status',
       role: 'role',
     },
+  },
+  adminReviewQueue: {
+    stickerTab: 'Personal stickers',
+    personalUpload: 'Personal upload',
+    pendingImage: 'Sticker awaiting review',
+    approveSticker: 'Approval enables this sticker for use.',
+    rejectSticker: 'The sticker will remain unavailable after rejection.',
   },
   serverMessages: {
     "anonymous.nameLocked": "A confirmed name can't be changed for a year.",

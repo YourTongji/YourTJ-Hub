@@ -9063,7 +9063,7 @@ AdminReviewQueueRequest:
   properties:
     kind:
       type: string
-      enum: [topic, post]
+      enum: [topic, post, sticker]
       description: Any other value (including empty) fails validation with HTTP 200 `common.request.invalidParams`.
     page:
       type: integer
@@ -9090,7 +9090,7 @@ AdminReviewQueueItem:
     id:
       type: integer
       format: uint64
-      description: Topic id when kind=topic, post id when kind=post.
+      description: Topic id when kind=topic, post id when kind=post, sticker asset id when kind=sticker.
     title:
       type: string
       description: Topic title; for posts, the title of the containing topic (empty when the topic is missing).
@@ -9126,7 +9126,7 @@ AdminReviewQueueItem:
       maxItems: 9
       items:
         type: string
-      description: Image URLs referenced by the pending content (topic gallery/inline images or post Markdown images). Pending images are readable by reviewers through the authorized `/file/img` preview; anonymous readers receive 404.
+      description: Image URLs referenced by pending content or the uploaded image when kind=sticker. Sticker images are returned only in the SiteManager review queue response.
     aiReview:
       $ref: '#/AiModerationDecisionItem'
       description: Present only when AI moderation sent this item to review (issue #975); carries triggered policies, raw probabilities and the truncated evidence summary.
@@ -9177,7 +9177,7 @@ AdminReviewActionRequest:
       description: Optional author-visible rejection reason.
     kind:
       type: string
-      enum: [topic, post]
+      enum: [topic, post, sticker]
     id:
       type: integer
       format: uint64
@@ -10388,6 +10388,10 @@ StickerItem:
       type: boolean
       default: true
       description: False for temporarily unavailable assets retained in a private library. Clients must prevent insertion while permitting removal or reordering. Older servers omit this field and clients assume true.
+    reviewStatus:
+      type: string
+      enum: [pending, approved, rejected]
+      description: Personal upload review state. Omitted by older servers and treated as approved for compatibility. Clients must prevent insertion unless approved and enabled.
   additionalProperties: false
 
 ForumStickerListSuccess:

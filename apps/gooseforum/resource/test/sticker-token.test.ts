@@ -44,12 +44,13 @@ describe('parseStickerSegments', () => {
 })
 
 describe('stickerPreviewLabel', () => {
-  it('把 token 缩写为 [name]', () => {
-    expect(stickerPreviewLabel('发个 [:sticker:滑稽:] 给你')).toBe('发个 [滑稽] 给你')
+	it('预览用统一文案隐藏官方及个人 token 名', () => {
+		expect(stickerPreviewLabel('发个 [:sticker:滑稽:]', 'Animated sticker')).toBe('发个 [Animated sticker]')
+		expect(stickerPreviewLabel('[:sticker:u_92f1a:]', 'Animated sticker')).toBe('[Animated sticker]')
   })
 
   it('未知 token 同样缩写', () => {
-    expect(stickerPreviewLabel('[:sticker:停用的:]')).toBe('[停用的]')
+		expect(stickerPreviewLabel('[:sticker:停用的:]', 'Animated sticker')).toBe('[Animated sticker]')
   })
 
   it('无 token 原文返回', () => {

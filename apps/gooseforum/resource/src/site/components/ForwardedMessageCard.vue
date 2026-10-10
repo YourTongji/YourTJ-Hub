@@ -16,7 +16,7 @@ const open = ref(false)
 <template>
   <button class="block w-full min-w-0 max-w-72 text-left" @click="open = true">
     <span class="block font-semibold">{{ t('messages.forwardHistory') }}</span>
-    <span v-for="(entry, index) in bundle.messages.slice(0, 3)" :key="index" class="mt-1 block truncate text-xs">{{ entry.senderName }}: {{ entry.forwarded ? t('messages.forwardHistory') : stickerPreviewLabel(entry.content) }}</span>
+    <span v-for="(entry, index) in bundle.messages.slice(0, 3)" :key="index" class="mt-1 block truncate text-xs">{{ entry.senderName }}: {{ entry.forwarded ? t('messages.forwardHistory') : stickerPreviewLabel(entry.content, t('stickers.previewAnimation')) }}</span>
     <span class="mt-2 flex items-center justify-between gap-4 border-t border-current/20 pt-2 text-xs">{{ t('messages.forwardCount', { count: bundle.messages.length }) }}<ChevronRight class="h-4 w-4" /></span>
   </button>
   <DialogRoot v-model:open="open">

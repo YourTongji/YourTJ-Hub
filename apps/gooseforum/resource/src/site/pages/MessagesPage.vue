@@ -58,7 +58,7 @@ function messageSegments(content: string) {
 
 // Localize the stable legacy fallback marker without changing the stored copy.
 function conversationPreview(content: string) {
-  const preview = stickerPreviewLabel(content).replace(/\s+/g, ' ').trim()
+  const preview = stickerPreviewLabel(content, t('stickers.previewAnimation')).replace(/\s+/g, ' ').trim()
   return preview.startsWith('[Chat history]')
     ? preview.replaceAll('[Chat history]', `[${t('messages.forwardHistory')}]`)
     : preview

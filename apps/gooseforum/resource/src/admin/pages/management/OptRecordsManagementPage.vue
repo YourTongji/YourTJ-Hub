@@ -37,6 +37,7 @@ const optTypeCodeMap: Record<number, string> = {
   10: 'exportData',
   11: 'revealPostAuthor',
   12: 'materializePk',
+  13: 'reviewSticker',
 }
 
 const targetTypeCodeMap: Record<number, string> = {
@@ -50,6 +51,7 @@ const targetTypeCodeMap: Record<number, string> = {
   7: 'courseReview',
   8: 'course',
   9: 'post',
+  10: 'sticker',
 }
 
 const optInfoMessageKeyMap: Record<string, string> = {
@@ -93,6 +95,7 @@ const optInfoMessageKeyMap: Record<string, string> = {
 const reviewDecisionKeys: Record<string, [string, string]> = {
   'admin.opt.review.topic': ['adminOptLog.messages.reviewTopicApproved', 'adminOptLog.messages.reviewTopicRejected'],
   'admin.opt.review.post': ['adminOptLog.messages.reviewPostApproved', 'adminOptLog.messages.reviewPostRejected'],
+  'admin.opt.review.sticker': ['adminOptLog.messages.reviewStickerApproved', 'adminOptLog.messages.reviewStickerRejected'],
 }
 
 function pageResultSize(result: { pageSize?: number, size?: number }) {

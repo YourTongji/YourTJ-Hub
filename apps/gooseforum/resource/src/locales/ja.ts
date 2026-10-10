@@ -1058,6 +1058,7 @@ export default {
     sources: 'スタンプの出典とライセンス',
     pickerTitle: 'スタンプ',
     empty: '利用可能なスタンプがありません',
+    previewAnimation: 'アニメーションスタンプ',
   },
   common: {
     back: '戻る',
@@ -3573,6 +3574,8 @@ export default {
       reviewTopicRejected: "トピック {id} を却下",
       reviewPostApproved: "トピック {topicId} の返信 {id} を承認",
       reviewPostRejected: "トピック {topicId} の返信 {id} を却下",
+      reviewStickerApproved: "個人ステッカー {id} を承認",
+      reviewStickerRejected: "個人ステッカー {id} を却下",
       courseCreated: "授業「{name}」（{primaryCode}）を作成",
       courseUpdated: "授業「{name}」（{primaryCode}）を編集",
       courseDeleted: "授業「{name}」（{primaryCode}、クラス {offeringCount} 件・授業評価 {reviewCount} 件）を削除",
@@ -3596,6 +3599,13 @@ export default {
       activation: 'activation status',
       role: 'role',
     },
+  },
+  adminReviewQueue: {
+    stickerTab: '個人ステッカー',
+    personalUpload: '個人アップロード',
+    pendingImage: '審査待ちステッカー',
+    approveSticker: '承認するとこのステッカーを使用できます。',
+    rejectSticker: '却下後もこのステッカーは使用できません。',
   },
   serverMessages: {
     "anonymous.nameLocked": "確定した名前は1年間変更できません。",

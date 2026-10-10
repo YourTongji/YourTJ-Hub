@@ -9,8 +9,9 @@ const tableName = "moderation_ai_decisions"
 
 // 审查主体类型（与 moderationLog 主体同名）。
 const (
-	SubjectTopic = "topic"
-	SubjectPost  = "post"
+	SubjectTopic   = "topic"
+	SubjectPost    = "post"
+	SubjectSticker = "sticker"
 )
 
 // 最终动作。
