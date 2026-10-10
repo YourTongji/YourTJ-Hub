@@ -29,6 +29,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/routes"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/migration"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentwebhookservice"
@@ -38,6 +39,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/filemigrateservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/httpnotifyservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
@@ -322,7 +324,14 @@ func startBusinessServices() {
 	// 主题、用户、分类搜索 worker：消费 transaction-bound outbox，避免业务
 	// 请求/事件 consumer 同步等待 Meilisearch。
 	backgroundservice.RunWorker("content_review_worker", publicationservice.TaskType, publicationservice.RunReviewTask)
-	backgroundservice.RunWorker("sticker_review_worker", stickerservice.TaskTypeReview, stickerservice.RunReviewTask)
+	backgroundservice.RunWorker("sticker_review_worker", stickerservice.TaskTypeReview, func(ctx context.Context, task *taskQueue.Entity) error {
+		return stickerservice.RunReviewTask(ctx, task, func(ctx context.Context, authorID, stickerID uint64, imageURL string) *moderationDecision.Entity {
+			return moderationservice.EvaluateSubmission(ctx, moderationservice.AIContentInput{
+				AuthorID: authorID, SubjectType: moderationDecision.SubjectSticker,
+				SubjectID: stickerID, Gallery: []string{imageURL},
+			})
+		})
+	})
 	backgroundservice.RunWorker("content_published_worker", publicationservice.EffectTaskType, publicationservice.RunEffectsTask)
 	backgroundservice.RunWorker("topic_search_worker", searchservice.TaskTypeTopicSearch, searchservice.RunTopicSearchTask)
 	backgroundservice.RunWorker("user_search_worker", searchservice.TaskTypeUserSearch, searchservice.RunUserSearchTask)

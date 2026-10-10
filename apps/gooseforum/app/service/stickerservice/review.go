@@ -11,7 +11,6 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"gorm.io/gorm"
 )
 
@@ -33,9 +32,12 @@ func EnqueueReviewTx(tx *gorm.DB, stickerID uint64) error {
 
 // RunReviewTask returns nil without enabling the sticker when moderation is
 // disabled/shadow or asks for a person to review the image.
-func RunReviewTask(ctx context.Context, task *taskQueue.Entity) error {
+func RunReviewTask(ctx context.Context, task *taskQueue.Entity, evaluate func(context.Context, uint64, uint64, string) *moderationDecision.Entity) error {
 	if task == nil || task.Type != TaskTypeReview {
 		return errors.New("invalid sticker review task")
+	}
+	if evaluate == nil {
+		return errors.New("sticker review evaluator is nil")
 	}
 	var payload reviewTask
 	if err := json.Unmarshal([]byte(task.TaskJson), &payload); err != nil || payload.StickerID == 0 {
@@ -60,10 +62,7 @@ func RunReviewTask(ctx context.Context, task *taskQueue.Entity) error {
 	if prior > 0 {
 		return nil
 	}
-	decision := moderationservice.EvaluateSubmission(ctx, moderationservice.AIContentInput{
-		AuthorID: entity.CreatedBy, SubjectType: moderationDecision.SubjectSticker,
-		SubjectID: entity.Id, Gallery: []string{ResolveURLFor(entity)},
-	})
+	decision := evaluate(ctx, entity.CreatedBy, entity.Id, ResolveURLFor(entity))
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
