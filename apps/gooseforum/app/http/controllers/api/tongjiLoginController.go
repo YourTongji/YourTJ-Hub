@@ -148,7 +148,13 @@ type tongjiRegistrationRequest struct {
 // the requester's school identity is already verified, so naming the conflict
 // creates no enumeration oracle.
 func tongjiRegistrationFailure(err error) (int, component.MessageCode) {
+	var message component.MessageError
+	if errors.As(err, &message) && (message.Code == component.MessageAuthUsernameReserved || message.Code == component.MessageAuthUsernameBanned) {
+		return http.StatusBadRequest, message.Code
+	}
 	switch {
+	case errors.Is(err, users.ErrUsernameOccupied):
+		return http.StatusConflict, component.MessageAuthUsernameExists
 	case errors.Is(err, campusservice.ErrFlow):
 		return http.StatusGone, component.MessageAuthRequired
 	case errors.Is(err, campus.ErrIdentityUsed), errors.Is(err, users.ErrEmailOccupied):

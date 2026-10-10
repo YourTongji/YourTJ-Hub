@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -438,6 +440,9 @@ func TestTongjiRegistrationFailureMapping(t *testing.T) {
 		{"identity used", campus.ErrIdentityUsed, http.StatusConflict, component.MessageAuthTongjiAccountExists},
 		{"email occupied", users.ErrEmailOccupied, http.StatusConflict, component.MessageAuthTongjiAccountExists},
 		{"signup disabled", campusservice.ErrSignupDisabled, http.StatusConflict, component.MessageAuthSignupDisabled},
+		{"username occupied", users.ErrUsernameOccupied, http.StatusConflict, component.MessageAuthUsernameExists},
+		{"reserved", component.NewMessageError(component.MessageAuthUsernameReserved, "reserved", nil), http.StatusBadRequest, component.MessageAuthUsernameReserved},
+		{"banned", component.NewMessageError(component.MessageAuthUsernameBanned, "banned", nil), http.StatusBadRequest, component.MessageAuthUsernameBanned},
 		{"daily quota", users.ErrSignupQuota, http.StatusConflict, component.MessageAuthRegisterDailyQuota},
 		{"unexpected failure", errors.New("db down"), http.StatusConflict, component.MessageAuthRegisterFailed},
 	} {
@@ -495,4 +500,54 @@ func TestTongjiRegisterAccountCollisionGuidesRecovery(t *testing.T) {
 			t.Fatalf("partial account created: %d %v", count, err)
 		}
 	})
+}
+
+func TestTongjiRegisterUsernameCollisionAllowsRetry(t *testing.T) {
+	router, _ := setupTongjiLogin(t)
+	conn := db.Connect()
+	owner := users.EntityComplete{Username: "taken_student", Email: "owner@example.test"}
+	if err := conn.Create(&owner).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Unscoped().Delete(&owner) })
+	proof := startTongjiRegistrationProof(t, router)
+	csrf := tongjiRegistrationCSRF(t, router, proof)
+	models := []any{&campus.Binding{}, &campus.IdentityReservation{}, &userPoints.Entity{}, &userStatistics.Entity{}}
+	counts := make([]int64, len(models))
+	for i, model := range models {
+		if err := conn.Model(model).Count(&counts[i]).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	rec := postTongjiRegistration(t, router, proof, owner.Username, "Password123", csrf)
+	fixture, err := os.ReadFile("../../../../../../packages/api-contract/fixtures/tongji-registration-username-exists.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want, got any
+	if err := json.Unmarshal(fixture, &want); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if rec.Code != http.StatusConflict || !reflect.DeepEqual(got, want) {
+		t.Fatalf("collision: %d %s", rec.Code, rec.Body.String())
+	}
+	if hasAccessTokenCookie(rec) {
+		t.Fatal("failed registration issued session")
+	}
+	for i, model := range models {
+		var count int64
+		if err := conn.Model(model).Count(&count).Error; err != nil || count != counts[i] {
+			t.Fatalf("partial signup: %T %d %v", model, count, err)
+		}
+	}
+	if tongjiRegistrationCSRF(t, router, proof) != csrf {
+		t.Fatal("failure replaced proof")
+	}
+	rec = postTongjiRegistration(t, router, proof, "retry_student", "Password123", csrf)
+	if rec.Code != http.StatusOK || !hasAccessTokenCookie(rec) {
+		t.Fatalf("retry: %d %s", rec.Code, rec.Body.String())
+	}
 }

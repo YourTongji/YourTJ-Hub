@@ -141,7 +141,7 @@ func (s *Service) loginAccount(ctx context.Context, credentials Credentials, loc
 		}
 		username := registration.Username
 		if _, err := moderationservice.CheckUsernameAllowedWithConfig(username, policy); err != nil {
-			return ErrSignupDisabled
+			return err
 		}
 		user, err = userservice.CreateVerifiedAccountTx(tx, username, credentials.StudentID+"@tongji.edu.cn", locale, policy.MaxDailySignups)
 		if err != nil {

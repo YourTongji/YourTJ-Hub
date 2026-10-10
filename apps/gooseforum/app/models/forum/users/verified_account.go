@@ -8,6 +8,8 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+var ErrUsernameOccupied = errors.New("username occupied")
+
 var ErrSignupQuota = errors.New("signup quota reached")
 
 // GetForAuthenticationTx reads the current account under the caller's transaction.
@@ -27,7 +29,24 @@ func CreateVerifiedAccountTx(tx *gorm.DB, user *EntityComplete, maxDaily int) er
 	if err := CheckSignupQuotaTx(tx, maxDaily); err != nil {
 		return err
 	}
-	return tx.Create(user).Error
+	// The insert runs under a savepoint: a duplicate key aborts the PostgreSQL
+	// transaction, and the claim re-check below must still execute to attribute
+	// the conflict (username race vs. email/pending_email index hit by a writer
+	// outside the claim lock, e.g. the pending-email switch).
+	if err := tx.SavePoint("create_verified_account").Error; err != nil {
+		return err
+	}
+	err := tx.Create(user).Error
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		if rollbackErr := tx.RollbackTo("create_verified_account").Error; rollbackErr != nil {
+			return rollbackErr
+		}
+		if claimErr := CheckEmailClaimTx(tx, user.Email, 0); claimErr != nil {
+			return claimErr
+		}
+		return ErrUsernameOccupied
+	}
+	return err
 }
 
 // CheckSignupQuotaTx serializes all self-service registration paths until their

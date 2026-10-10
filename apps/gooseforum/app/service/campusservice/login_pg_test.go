@@ -138,3 +138,43 @@ func TestSchoolLoginDailyQuotaOnPostgreSQL(t *testing.T) {
 		})
 	}
 }
+
+func TestSchoolRegistrationUsernameCollisionOnPostgreSQL(t *testing.T) {
+	conn := loginPostgres(t)
+	s := New(Config{EncryptionKey: strings.Repeat("e", 32), IdentityKey: strings.Repeat("i", 32)}, campus.Store{DB: conn}, nil)
+	policy := pageConfig.SecurityAndRegistration{EnableSignup: true, MaxDailySignups: -1}
+	credentials := []Credentials{{Subject: "first", StudentID: "2351111"}, {Subject: "second", StudentID: "2352222"}}
+	var errs [2]error
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for i := range errs {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			_, _, errs[i] = s.loginAccount(context.Background(), credentials[i], "en", policy, &Registration{Username: "same_student", PasswordHash: "test-hash"})
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	loser := -1
+	for i, err := range errs {
+		if errors.Is(err, users.ErrUsernameOccupied) {
+			loser = i
+		} else if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if loser == -1 || errs[1-loser] != nil {
+		t.Fatalf("expected one winner and typed collision: %v", errs)
+	}
+	for _, model := range []any{&users.EntityComplete{}, &campus.Binding{}, &campus.IdentityReservation{}, &userPoints.Entity{}, &userStatistics.Entity{}} {
+		var count int64
+		if err := conn.Model(model).Count(&count).Error; err != nil || count != 1 {
+			t.Fatalf("partial signup: %T %d %v", model, count, err)
+		}
+	}
+	if _, _, err := s.loginAccount(context.Background(), credentials[loser], "en", policy, &Registration{Username: "retry_student", PasswordHash: "test-hash"}); err != nil {
+		t.Fatal(err)
+	}
+}
