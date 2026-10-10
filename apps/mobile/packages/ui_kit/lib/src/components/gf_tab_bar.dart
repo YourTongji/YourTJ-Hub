@@ -114,6 +114,7 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
   static const Curve _indicatorCurve = GfLogarithmicEaseOutCurve();
   static const double _symbolSize = 18;
   static const double _symbolGap = 6;
+  static const double _fillLabelPadding = 4;
 
   int get _selectedIndex =>
       widget.tabs.indexWhere((tab) => tab.value == widget.selected);
@@ -279,12 +280,7 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
         (1 - _indicatorCurve.transform(_settleController.value));
 
     Widget label(GfTab tab) {
-      final text = Text(
-        tab.label,
-        maxLines: 1,
-        softWrap: false,
-        overflow: TextOverflow.fade,
-      );
+      final text = Text(tab.label, maxLines: 1, softWrap: false);
       if (tab.symbol == null) return text;
       return Row(
         mainAxisSize: MainAxisSize.min,
@@ -358,13 +354,23 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        // Equal cells must each hold the widest label at the fill padding.
         final bool fill =
             widget.distribute &&
             constraints.hasBoundedWidth &&
             tabs.fold<double>(
-                  0,
-                  (sum, tab) => sum + _itemWidth(context, tab, measureStyle),
-                ) <=
+                      0,
+                      (widest, tab) => math.max(
+                        widest,
+                        _itemWidth(
+                          context,
+                          tab,
+                          measureStyle,
+                          padding: _fillLabelPadding,
+                        ),
+                      ),
+                    ) *
+                    tabs.length <=
                 constraints.maxWidth;
         _cellWidth = fill ? constraints.maxWidth / tabs.length : null;
         final double extension = dragExtension();
@@ -385,7 +391,9 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
             dividerHeight: 0,
             labelColor: colors.baseContent,
             labelStyle: measureStyle.copyWith(fontWeight: FontWeight.w600),
-            labelPadding: EdgeInsets.symmetric(horizontal: fill ? 4 : 16),
+            labelPadding: EdgeInsets.symmetric(
+              horizontal: fill ? _fillLabelPadding : 16,
+            ),
             unselectedLabelColor: colors.iconMuted,
             unselectedLabelStyle: measureStyle.copyWith(
               fontWeight: FontWeight.w400,
@@ -400,7 +408,12 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
     );
   }
 
-  double _itemWidth(BuildContext context, GfTab tab, TextStyle style) {
+  double _itemWidth(
+    BuildContext context,
+    GfTab tab,
+    TextStyle style, {
+    double padding = 16,
+  }) {
     final painter = TextPainter(
       text: TextSpan(text: tab.label, style: style),
       maxLines: 1,
@@ -409,7 +422,7 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
     )..layout();
     final width =
         painter.width +
-        32 +
+        padding * 2 +
         (tab.symbol == null ? 0 : _symbolSize + _symbolGap);
     painter.dispose();
     return width;

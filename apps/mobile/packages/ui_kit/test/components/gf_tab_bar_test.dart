@@ -189,6 +189,25 @@ void main() {
       tester.view.physicalSize = const Size(200, 800);
       await tester.pumpWidget(gfApp(bar()));
       expect(tester.widget<TabBar>(tabBar).isScrollable, isTrue);
+
+      // Equal cells must fit the widest label, not just the combined width.
+      tester.view.physicalSize = const Size(600, 800);
+      await tester.pumpWidget(
+        gfApp(
+          GfTabBar(
+            tabs: const [
+              GfTab(label: '全部', value: 'all', symbol: 'layout-grid'),
+              GfTab(label: '帖子', value: 'topics', symbol: 'file-text'),
+              GfTab(label: '用户', value: 'users', symbol: 'users-round'),
+              GfTab(label: '一个很长的分类名称', value: 'long', symbol: 'folder'),
+            ],
+            selected: 'all',
+            distribute: true,
+            onSelected: (_) {},
+          ),
+        ),
+      );
+      expect(tester.widget<TabBar>(tabBar).isScrollable, isTrue);
       expect(tester.takeException(), isNull);
     });
 
