@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter_appauth/flutter_appauth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pointycastle/digests/sha256.dart';
@@ -48,6 +49,11 @@ class FakeAuthRepository implements AuthRepository {
   @override
   Future<void> appleBind(AppleCredentialRequest request) =>
       throw UnimplementedError();
+
+  @override
+  Future<GfResponse<Object?>> resendActivationEmail({
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
 
   FakeAuthRepository({this.exchangeToken = 'forum-jwt'});
 
