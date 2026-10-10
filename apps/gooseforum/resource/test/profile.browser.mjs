@@ -40,7 +40,7 @@ for (const width of [320, 1280]) {
           'anonymous profile must not overflow horizontally',
         )
         if (hidden) {
-          await page.getByText('这位成员的发言不在主页展示', { exact: true }).waitFor()
+          await page.locator('[data-test="anonymous-content-hidden"]:visible').waitFor()
           assert.equal(await page.locator('article a[href*="?tab="]').count(), 0)
           assert.equal(await page.getByText('分享一件最近让你开心的小事', { exact: true }).count(), 0)
         } else {

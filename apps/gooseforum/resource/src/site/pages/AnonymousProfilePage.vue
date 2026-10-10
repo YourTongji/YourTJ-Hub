@@ -114,12 +114,12 @@ watch(manageOpen, (open) => {
         </div>
       </div>
       <EmptyState v-else-if="isOwnProfile" :icon="EyeOff" :title="t('anonymous.profileContentHiddenOwn')"
-        :description="t('anonymous.profileContentHiddenOwnDescription')" class="p-8">
+        :description="t('anonymous.profileContentHiddenOwnDescription')" class="p-8" data-test="anonymous-content-hidden">
         <button type="button" class="gf-button gf-button-md gf-button-secondary" @click="manage">
           <Settings class="h-4 w-4 shrink-0" />{{ t('anonymous.manage') }}
         </button>
       </EmptyState>
-      <EmptyState v-else :icon="EyeOff" :title="t('anonymous.profileContentHidden')" class="p-8" />
+      <EmptyState v-else :icon="EyeOff" :title="t('anonymous.profileContentHidden')" class="p-8" data-test="anonymous-content-hidden" />
       <nav v-if="showContent && (page.props.page > 1 || hasNext)" class="flex justify-between gap-3 border-t border-line p-4">
         <a v-if="page.props.page > 1" :href="pageUrl(page.props.page - 1)" class="gf-button gf-button-secondary">{{ t('common.previousPage') }}</a>
         <a v-if="hasNext" :href="pageUrl(page.props.page + 1)" class="gf-button gf-button-secondary ms-auto">{{ t('anonymous.next') }}</a>
