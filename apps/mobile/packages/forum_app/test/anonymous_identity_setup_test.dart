@@ -171,7 +171,7 @@ Future<ProviderContainer> host(
 }
 
 Future<void> open(WidgetTester tester) async {
-  await tester.tap(find.byType(PopupMenuButton<String>));
+  await tester.tap(find.byKey(const Key('identity-picker')));
   await tester.pumpAndSettle();
   await tester.tap(find.text('设置匿名身份'));
   await tester.pumpAndSettle();
@@ -236,18 +236,18 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+      expect(tester.widget<Switch>(find.byType(Switch).first).value, isTrue);
       f.failPrivacy = true;
-      await tester.ensureVisible(find.byType(Switch));
-      await tester.tap(find.byType(Switch));
+      await tester.ensureVisible(find.byType(Switch).first);
+      await tester.tap(find.byType(Switch).first);
       await tester.pumpAndSettle();
-      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+      expect(tester.widget<Switch>(find.byType(Switch).first).value, isTrue);
       expect(f.state['showContent'], true);
       f.failPrivacy = false;
-      await tester.ensureVisible(find.byType(Switch));
-      await tester.tap(find.byType(Switch));
+      await tester.ensureVisible(find.byType(Switch).first);
+      await tester.tap(find.byType(Switch).first);
       await tester.pumpAndSettle();
-      expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+      expect(tester.widget<Switch>(find.byType(Switch).first).value, isFalse);
       expect(f.state['showContent'], false);
       expect(tester.takeException(), isNull);
     },
@@ -308,7 +308,7 @@ void main() {
     await tester.tap(find.byType(TextField));
     await tester.pumpAndSettle();
     final draftFocus = FocusManager.instance.primaryFocus!;
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(find.byKey(const Key('identity-picker')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('管理匿名身份'));
     await tester.pumpAndSettle();
@@ -339,7 +339,7 @@ void main() {
       expect(draftFocus.hasFocus, isFalse);
       expect(tester.takeException(), isNull);
       expect(find.byType(BottomSheet), findsOneWidget);
-      await tap(tester, '选择花名');
+      await tap(tester, '生成花名');
       await tap(tester, '星辰');
       expect(f.confirms, 0);
       expect(identity, 'member');
@@ -348,10 +348,10 @@ void main() {
         const ValueKey('anonymous-confirmation-footer'),
       );
       expect(
-        find.descendant(of: footer, matching: find.textContaining('一年内不可更改')),
+        find.descendant(of: footer, matching: find.textContaining('一年内不能换花名')),
         findsOneWidget,
       );
-      await tap(tester, '确认使用此花名');
+      await tap(tester, '使用这个花名');
       expect(f.confirms, 1);
       expect(identity, 'persona');
       expect(find.byType(BottomSheet), findsNothing);
@@ -369,13 +369,13 @@ void main() {
       var identity = 'member';
       await host(tester, f, draft, (value) => identity = value);
       await open(tester);
-      await tap(tester, '选择花名');
-      await tap(tester, '选择花名');
+      await tap(tester, '生成花名');
+      await tap(tester, '生成花名');
       expect(f.keys[0], f.keys[1]);
       expect(f.state['remaining'], 9);
       await tap(tester, '星辰');
       f.failConfirm = true;
-      await tap(tester, '确认使用此花名');
+      await tap(tester, '使用这个花名');
       expect(identity, 'member');
       expect(find.byType(BottomSheet), findsOneWidget);
       await tester.tap(find.byTooltip('关闭'));
@@ -394,10 +394,10 @@ void main() {
     var changed = 0;
     final container = await host(tester, f, draft, (_) => changed++);
     await open(tester);
-    await tap(tester, '选择花名');
+    await tap(tester, '生成花名');
     await tap(tester, '星辰');
     f.confirmWait = Completer<void>();
-    await tester.tap(find.text('确认使用此花名'));
+    await tester.tap(find.text('使用这个花名'));
     await tester.pump();
     container.read(offlineCacheEpochProvider.notifier).invalidate();
     await tester.pumpAndSettle();
@@ -415,16 +415,21 @@ void main() {
     addTearDown(draft.dispose);
     await host(tester, f, draft, (_) {});
     await open(tester);
-    await tap(tester, '选择花名');
+    await tap(tester, '生成花名');
     await tap(tester, '换一批');
     expect(f.keys.length, 2);
     expect(find.text('星辰'), findsOneWidget);
-    await tap(tester, '第 2 批');
+    // History opens as a capped list under the toggle, newest batch first.
+    await tap(tester, '第 2 批，共 2 批');
+    final history = find.byKey(const ValueKey('anonymous-batch-history'));
+    expect(history, findsOneWidget);
+    expect(tester.getSize(history).height, lessThanOrEqualTo(320));
     await tester.tap(
-      find.widgetWithText(CheckedPopupMenuItem<String>, '第 1 批'),
+      find.descendant(of: history, matching: find.text('第 1 批')),
     );
     await tester.pumpAndSettle();
-    expect(find.text('第 1 批'), findsOneWidget);
+    expect(history, findsNothing);
+    expect(find.text('第 1 批，共 2 批'), findsOneWidget);
     expect(f.keys.length, 2);
     expect(find.text('星辰'), findsOneWidget);
   });
@@ -450,10 +455,10 @@ void main() {
           locale: locale,
         );
         final l = await AppLocalizations.delegate.load(locale);
-        await tester.tap(find.byType(PopupMenuButton<String>));
+        await tester.tap(find.byKey(const Key('identity-picker')));
         await tester.pumpAndSettle();
         await tap(tester, l.anonymousSetup);
-        await tap(tester, l.anonymousChooseName);
+        await tap(tester, l.anonymousGenerateNames);
         await tap(tester, '中华人民共和国道路交通安全法实施条例');
         final r = tester.getRect(
           find.byKey(const ValueKey('anonymous-confirmation-footer')),
@@ -485,10 +490,10 @@ void main() {
     addTearDown(tester.view.resetViewInsets);
     await tester.pumpAndSettle();
     final l = AppLocalizations.of(tester.element(find.byType(IdentityPicker)));
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(find.byKey(const Key('identity-picker')));
     await tester.pumpAndSettle();
     await tap(tester, l.anonymousSetup);
-    await tap(tester, l.anonymousChooseName);
+    await tap(tester, l.anonymousGenerateNames);
     await tap(tester, '星辰');
     final footer = tester.getRect(
       find.byKey(const ValueKey('anonymous-confirmation-footer')),

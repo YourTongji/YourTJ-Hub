@@ -18,11 +18,19 @@ class ChromeReveal {
 
 /// Chrome follows the finger like X's feed: it slides out over [travel]
 /// pixels of downward scroll, any upward scroll pulls it back, and a partial
-/// state settles in the last direction once scrolling stops. Bounce and
-/// horizontal gestures are ignored. Moving chrome never changes a scroll
-/// view's viewport or pixel offset.
+/// state settles once scrolling stops. Bounce and horizontal gestures are
+/// ignored. Moving chrome never changes a scroll view's viewport or pixel
+/// offset.
 class ReadingChrome extends ChangeNotifier {
-  static const double travel = 64;
+  /// Scroll distance that hides chrome completely. The current surface sets
+  /// it to its header height so the header moves 1:1 with the content.
+  double get travel => _travel;
+  double _travel = 64;
+  set travel(double value) => _travel = math.max(48, value);
+
+  /// Reveal at the start of the current drag; settling follows the net
+  /// movement of the gesture, not a last-frame jitter.
+  double? _gestureStart;
 
   final ValueNotifier<ChromeReveal> _reveal = ValueNotifier(
     const ChromeReveal(1),
@@ -38,8 +46,12 @@ class ReadingChrome extends ChangeNotifier {
 
   void show() {
     _direction = 0;
+    _gestureStart = null;
     _set(1, animate: true);
   }
+
+  /// Marks the start of a reader's drag.
+  void begin() => _gestureStart = _reveal.value.value;
 
   void update(
     double delta,
@@ -61,11 +73,25 @@ class ReadingChrome extends ChangeNotifier {
     );
   }
 
-  /// Finishes a partial reveal in the direction the reader last moved.
-  void settle(double pixels) {
+  /// Finishes a partial reveal. A quick fling decides by its [velocity]
+  /// (positive scrolls toward the end); otherwise the gesture's net movement
+  /// wins, falling back to the last direction when no drag was tracked.
+  void settle(double pixels, {double velocity = 0}) {
     final double value = _reveal.value.value;
+    final double? start = _gestureStart;
+    _gestureStart = null;
     if (value == 0 || value == 1) return;
-    _set(_direction < 0 || pixels < travel ? 1 : 0, animate: true);
+    final bool show;
+    if (pixels < travel) {
+      show = true;
+    } else if (velocity.abs() > 600) {
+      show = velocity < 0;
+    } else if (start != null && (value - start).abs() > .02) {
+      show = value > start;
+    } else {
+      show = _direction < 0;
+    }
+    _set(show ? 1 : 0, animate: true);
   }
 
   void _set(double value, {required bool animate}) {

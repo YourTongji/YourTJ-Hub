@@ -8,6 +8,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../asset_url.dart';
 import '../../current_user.dart';
 import '../../format.dart';
+import '../../profile_links.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
 import '../../navigation/tab_swipe_surface.dart';
@@ -121,9 +122,11 @@ class _AnonymousProfilePageState extends ConsumerState<AnonymousProfilePage> {
       load();
     });
     final signedIn = ref.watch(currentUserProvider).valueOrNull != null;
-    final ownPersona = signedIn
-        ? ref.watch(anonymousIdentityProvider).valueOrNull?.persona
-        : null;
+    final ownState = signedIn ? ref.watch(anonymousIdentityProvider) : null;
+    final ownPersona = ownState?.valueOrNull?.persona;
+    // A signed-in viewer's line waits for the private ownership read, so the
+    // owner never briefly sees the wording meant for other members.
+    final ownResolved = !signedIn || ownState!.hasValue || ownState.hasError;
     final d = data;
     if (d == null) {
       return Scaffold(
@@ -205,11 +208,19 @@ class _AnonymousProfilePageState extends ConsumerState<AnonymousProfilePage> {
                       showUsername: false,
                       nameBadges: [
                         GfBadge(
-                          label: l.anonymousIdentity,
-                          variant: GfBadgeVariant.muted,
+                          label: isOwn ? l.anonymousTagOwn : l.anonymousTag,
+                          variant: isOwn
+                              ? GfBadgeVariant.info
+                              : GfBadgeVariant.muted,
                         ),
                       ],
-                      bio: l.anonymousHistoryHint,
+                      bio: !ownResolved
+                          ? null
+                          : isOwn
+                          ? l.anonymousProfileOwnerHint
+                          : signedIn
+                          ? l.anonymousProfileMemberHint
+                          : l.anonymousProfileGuestHint,
                       stats: showContent
                           ? [
                               (
@@ -258,13 +269,20 @@ class _AnonymousProfilePageState extends ConsumerState<AnonymousProfilePage> {
                         itemCount: replies.length,
                         itemBuilder: (context, index) {
                           final reply = replies[index] as Map;
+                          // The server links replies as /p/post/<topic>/<floor>;
+                          // only the native topic route is navigable.
+                          final route = profileActivityRoute(
+                            reply['url'] as String? ?? '',
+                          );
                           return GfContentRow(
                             author: persona.name,
                             avatarUrl: resolveApiAssetUrl(persona.avatarUrl),
                             title: l.profileReplies,
                             text: reply['excerpt'] as String,
                             time: '',
-                            onTap: () => context.push(reply['url'] as String),
+                            onTap: route == null
+                                ? null
+                                : () => context.push(route),
                           );
                         },
                       )
@@ -296,9 +314,19 @@ class _AnonymousProfilePageState extends ConsumerState<AnonymousProfilePage> {
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 32),
-                        child: GfEmpty(
-                          message: l.anonymousProfileContentHidden,
-                        ),
+                        child: isOwn
+                            ? GfEmpty(
+                                key: const Key('anonymous-hidden-own'),
+                                message: l.anonymousProfileContentHiddenOwn,
+                                description: l
+                                    .anonymousProfileContentHiddenOwnDescription,
+                                action: GfButton(
+                                  label: l.anonymousManage,
+                                  variant: GfButtonVariant.secondary,
+                                  onPressed: manage,
+                                ),
+                              )
+                            : GfEmpty(message: l.anonymousProfileContentHidden),
                       ),
                     ),
                   SliverToBoxAdapter(

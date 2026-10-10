@@ -218,19 +218,22 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   Expanding pins neither reloads the stream nor changes its pagination cursor.
 - `Current`: Home sort, Campus section and notification filter rails share a scrollable tab bar.
   The page-swipe recognizer feeds the shared tab controller's live drag offset, so the selected
-  underline follows a held slow swipe and stretches evenly toward the adjacent tab. After release,
+  underline follows a held slow swipe: its edge facing the adjacent tab stretches first and the
+  trailing edge catches up, rather than both edges growing at once. After release,
   the extended segment contracts with a logarithmic ease-out curve. Home, Campus and Notifications
   move both content panes with the same drag or tap transition while retaining each visited page's
   elements and scroll state. A pane drag reports the touch slop it travelled before winning the
   gesture arena, so the page stays under the finger; release settles with a spring that keeps the
   swipe's velocity, and a fling back toward the origin cancels the switch. A pending pane uses the
   transparent animated YourTJ mark until its data is ready.
-  Profile stream tabs use the same drag progress; the bar reveals selected tabs outside its viewport
-  and honors reduced-motion settings.
+  Profile stream tabs, including the following/followers lists, use the same drag progress and the
+  same one-sided stretch; the bar reveals selected tabs outside its viewport and honors
+  reduced-motion settings.
 - `Current`: root headers, filter rails and bottom navigation overlay the reading viewport and
-  follow the finger: they slide out over 64 logical pixels of downward scroll, any upward scroll
-  pulls them back, and a partial state settles in the last direction within 180 ms once scrolling
-  stops. Near the top they stay attached to the content; edge bounce is ignored. Content insets
+  follow the finger: they move one-to-one with downward scroll across the header's own height, any
+  upward scroll pulls them back, and a partial state settles within 180 ms once scrolling stops. The
+  settle follows a fast release fling, otherwise the net movement since the drag began, so a small
+  release jitter cannot reverse it. Hiding or showing them does not rebuild the root surface. Near the top they stay attached to the content; edge bounce is ignored. Content insets
   never change, so the feed does not jump. Hidden headers are clipped at the system safe-area edge;
   the compose button follows the bottom bar. Header and bottom-bar borders are one physical pixel.
   While controls are hidden, off-screen tab panes scroll their reserved header band away, so a pane
@@ -582,30 +585,55 @@ badges, dividers and selectors share the same semantic palette without third-par
 ## Publishing
 
 `Current`: opening a publishing field or moving its caret alone does not create unsaved work.
-While the software keyboard is visible, the edit step hides its introductory guide and empty photo
-placeholder, retaining the title, body, save status and writing toolbar. Title focus and controller
+While the software keyboard is visible, the edit step hides its type switcher and empty photo
+strip, retaining the title, body, save status and writing row. Title focus and controller
 identity survive this layout change. The header keeps a small outer margin for its primary action.
 
 
-- `Current`: publishing uses a type-coloured icon, contextual writing hint and a two-step
-  edit/preview indicator above an unframed writing canvas. New moments start with the body and
-  an optional Add title action; opening that field alone does not create unsaved work. Existing
-  nonempty titles remain visible in topic edits and restored drafts. Type switches retain title
-  input; articles and questions keep their required title field. Moment previews show only a
-  manually entered title, while title-free publishing/server drafts use the existing body-derived
-  API summary. Classification sits
-  in a rounded panel below the preview. All three types share these controls and spacing. Article
-  formatting tools remain
-  folded in a bottom accessory bar above the software keyboard; expanding them preserves the editor
-  selection and active body focus, including while local save status changes. Format buttons reflect
+- `Current`: new topics choose moment, question or article from a segmented switcher above the
+  fields; its raised pill slides to the chosen type. The switcher hides while the keyboard is open,
+  and the app bar then names the type. A hairline under the app bar shows the two-step position
+  (half while writing, full on preview) and announces the step. The body placeholder carries the
+  type's writing hint. Moments lead with photos: with none yet, a full-width card with the
+  type-coloured gallery symbol, a prompt and the nine-photo/reorder hint; with photos, a square strip
+  (long-press reordering, a remove control per photo) ending in a gallery tile with the n/9 count.
+  Questions attach photos after the body. Every type shows its title field; the moment title
+  placeholder says it may stay empty, and opening the field alone does not create unsaved work. A
+  hairline below the title takes the accent while it is focused, with the length counter shown only
+  then. Existing titles remain visible in topic edits and restored drafts, and type switches retain
+  title input. Moment previews show only a manually entered title, while title-free
+  publishing/server drafts use the existing body-derived API summary. The local save status leads
+  with a small clock, check, history or alert mark.
+- `Current`: the preview step reads as the finished post: a card headed by the type's symbol and
+  label rises in, followed by one settings group whose rows lead with their own symbols. Category is
+  a dropdown the width of its row; each category leads with a soft colour swatch and a picked one is
+  tinted with a check. As in Web's quick composer, moments and questions take one category and the
+  menu closes on pick; articles take up to three with the menu staying open and a count. Switching
+  an article to a short type keeps its first category. The row lists the picks as small pills.
+  Publishing identity and the bot-reply switch follow. Save draft is an app-bar icon in both steps.
+- `Current`: an article preview with two or more body images adds an image-order card above the
+  settings: numbered thumbnails in reading order that long-press dragging reorders. The move swaps
+  which image fills each existing slot, leaves the text untouched, refreshes the preview at once and
+  is a single undo step.
+- `Current`: one writing row sits above the software keyboard. Image and sticker controls stay
+  pinned at its start; for articles, a horizontally scrolling formatting toolbar follows them
+  without an expand step, preserving the editor selection and body focus. Format buttons reflect
   the current selection visually and announce their label, enabled state and format toggle together;
-  undo and redo are disabled when
-  their respective history is empty. The heading tool applies heading 2 with a tap and opens a level
-  sheet on long press that
-  offers heading 1–3 (matching the Markdown round-trip); the current level is checked and re-picking
-  it clears the heading. The accessory bar holds the draft action and, for articles only, the image
-  tool; moments and questions pick images from the compact gallery tile above the body. Rich and
-  simple body text use the same mobile reading scale. Preview hides the accessory bar.
+  undo and redo are disabled when their respective history is empty. The heading tool applies
+  heading 2 with a tap and opens a level sheet on long press that offers heading 1–3 (matching the
+  Markdown round-trip); the current level is checked and re-picking it clears the heading. Moments
+  and questions show the image control while the keyboard is open and otherwise use the gallery
+  tile. Rich and simple body text use the same mobile reading scale. Preview hides the writing row.
+- `Current`: photo uploads never block writing. Typing, stickers and further photo picks continue
+  while earlier photos upload in order. Each article photo lands where the caret was when it was
+  picked, following later edits; a compact thumbnail tray above the writing row shows progress,
+  retry and removal. Save, publish, type switching and leaving still wait for pending photos.
+- `Current`: a long-pressed article image lifts as a small card above the fingertip; a drop line
+  marks the slot below the paragraph under the finger, with a light haptic tick when that slot
+  changes. Near the viewport edges the page auto-scrolls faster the deeper the finger sits. The move
+  is one undo step. The move hint under the writing row appears only once the body holds an image.
+- `Current`: leaving with unsaved work opens a bottom sheet with Keep and leave, Discard changes and
+  Continue editing as full-width actions; dismissing it continues editing.
 
 - `Current`: reply composers use one rounded surface with a borderless, growing two-line input.
   Image, hide-keyboard, collapse and send actions share the bottom row. The reply target is a
@@ -1003,11 +1031,13 @@ existing selected names and persisted batches remain valid under their original 
 batches per Shanghai day as Web. Account settings keeps a compact anonymous-identity entry;
 its page and the composer's contextual bottom sheet reuse the same setup content. One candidate
 batch appears at a time, and previously generated same-day batches remain selectable without a
-new draw. Candidates wrap without truncation. Tapping a name previews it; a pinned action area
+new draw. Candidates sit in a two-column grid and wrap without truncation; a new batch fades in
+as one unit. Tapping a name previews it; a pinned action area
 keeps the one-year lock notice and explicit confirmation visible. Introductory and privacy text
 scroll with the contents, and full rules remain expandable. An ambiguous draw retains its request
 key for retry. Self-disable/enable keeps the persona UID, avatar and slot; a governance
-restriction cannot be cleared from settings. Private state follows the current session epoch.
+restriction cannot be cleared from settings. The persona row and its content-visibility and
+active switches share one inset card. Private state follows the current session epoch.
 
 `Current`: native topic and reply composers show a compact current-name/avatar identity menu.
 Setup opens a bottom sheet over the active writing route, preserving the draft. Successful explicit

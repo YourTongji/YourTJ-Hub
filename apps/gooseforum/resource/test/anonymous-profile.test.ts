@@ -40,7 +40,7 @@ test('guests do not fetch private state or get management controls', async () =>
 test('hidden profile omits streams, counts and pagination even with stale props', async () => {
   wrapper = mount(AnonymousProfilePage, { props: { layout, props: { ...anonymousProfile, showContent: false, page: 2, hasNext: true } }, global })
   await flushPromises()
-  expect(wrapper.text()).toContain('匿名主页的内容已隐藏')
+  expect(wrapper.text()).toContain('主页上的发言已隐藏')
   expect(wrapper.text()).not.toContain(anonymousProfile.topics[0].title)
   expect(wrapper.text()).not.toContain(anonymousProfile.replies[0].excerpt)
   expect(wrapper.find('nav').exists()).toBe(false)
@@ -51,6 +51,8 @@ test('another signed-in persona does not get management controls', async () => {
   wrapper = mount(AnonymousProfilePage, { props: { layout, props: anonymousProfile }, global })
   await flushPromises()
   expect(wrapper.findComponent(ProfileManageButton).exists()).toBe(false)
+  expect(wrapper.text()).toContain('这位成员以匿名身份发言')
+  expect(wrapper.text()).not.toContain('这是你的匿名身份')
 })
 test('logout discards a pending private ownership read', async () => {
   let resolve!: (state: IdentityState) => void
@@ -59,6 +61,8 @@ test('logout discards a pending private ownership read', async () => {
   await wrapper.setProps({ layout: { ...layout, viewer: { ...layout.viewer, isAuthenticated: false } } })
   resolve(structuredClone(identityState)); await flushPromises()
   expect(wrapper.findComponent(ProfileManageButton).exists()).toBe(false)
+  expect(wrapper.text()).toContain('本站成员的匿名身份')
+  expect(wrapper.text()).not.toContain('这是你的匿名身份')
 })
 test('reply tab uses independent counts and retains its paging target', async () => {
   history.replaceState({}, '', '/a/' + 'a'.repeat(32) + '?tab=replies&page=2')

@@ -68,7 +68,7 @@ function releaseTime(value: string) {
                   </span>
                   <span
                     v-if="release.prerelease"
-                    class="inline-flex h-4 shrink-0 items-center rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-700"
+                    class="inline-flex h-4 shrink-0 items-center rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
                   >
                     {{ adminText('k0049') }}
                   </span>

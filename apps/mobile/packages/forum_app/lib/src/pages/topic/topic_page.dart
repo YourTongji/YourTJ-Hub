@@ -1,4 +1,5 @@
 import '../../realtime/realtime_updates.dart';
+import 'agent_reply_setting.dart';
 import '../../report_content.dart';
 import '../../widgets/stickers/sticker_draft_preview.dart';
 import '../../widgets/identity_picker.dart';
@@ -1717,13 +1718,16 @@ class _TopicPageState extends ConsumerState<TopicPage>
                               ),
                             ),
                             const SliverToBoxAdapter(child: GfDivider()),
-                            if (props.topic.agentRepliesDisabled &&
-                                _topicAvailable)
+                            if (_topicAvailable)
                               SliverToBoxAdapter(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Text(
-                                    '${l10n.agentRepliesDisabled}\n${l10n.agentRepliesHelp}',
+                                child: AgentReplySetting(
+                                  topicId: props.topic.id,
+                                  disabled: props.topic.agentRepliesDisabled,
+                                  canManage:
+                                      props.permissions.canManageAgentReplies,
+                                  onChanged: () => _load(
+                                    silent: true,
+                                    postNo: _currentFloor,
                                   ),
                                 ),
                               ),
@@ -2252,7 +2256,7 @@ class _TopicHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${topic.author.publicUid != null ? l10n.anonymousPersonaLabel : '@${topic.author.username}'} · ${timeAgo(topic.createdAt, l10n: l10n)}',
+                      '${topic.author.publicUid != null ? (isOwnTopic ? l10n.anonymousTagOwn : l10n.anonymousTag) : '@${topic.author.username}'} · ${timeAgo(topic.createdAt, l10n: l10n)}',
                       style: GfTheme.typographyOf(
                         context,
                       ).caption.copyWith(color: colors.iconMuted),
@@ -2554,7 +2558,7 @@ class _PostCard extends StatelessWidget {
               ),
               if (post.author.publicUid != null)
                 Text(
-                  l10n.anonymousPersonaLabel,
+                  post.isOwnPost ? l10n.anonymousTagOwn : l10n.anonymousTag,
                   style: GfTheme.typographyOf(context).caption,
                 ),
               if (post.postNo > 0)

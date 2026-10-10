@@ -36,9 +36,16 @@ afterEach(() => {
   wrapper?.unmount()
   document.body.innerHTML = ''
 })
+// Menu options carry a title and a subtitle; match either the whole text or its last line.
+// Decorative aria-hidden parts (slip numbers) are not part of the label.
+function visibleText(item: Element) {
+  const copy = item.cloneNode(true) as Element
+  copy.querySelectorAll('[aria-hidden="true"]').forEach((node) => node.remove())
+  return copy.textContent?.trim()
+}
 function button(label: string) {
   const found = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
-    (item) => item.textContent?.trim() === label,
+    (item) => visibleText(item) === label || item.lastElementChild?.lastElementChild?.textContent?.trim() === label,
   )
   expect(found, `button ${label}`).toBeTruthy()
   return found!
@@ -63,13 +70,13 @@ test('sets up a missing persona in place and selects it only after explicit conf
     state.remaining--
     return batch
   })
-  button('选择花名').click()
+  button('生成花名').click()
   await flushPromises()
   button('星辰').click()
   await flushPromises()
   expect(confirmName).not.toHaveBeenCalled()
   expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-  expect(document.body.textContent).toContain('一年内不可更改')
+  expect(document.body.textContent).toContain('一年内不能换花名')
   vi.mocked(confirmName).mockResolvedValue({
     kind: 'persona',
     publicUid: 'p1',
@@ -77,7 +84,7 @@ test('sets up a missing persona in place and selects it only after explicit conf
     avatarUrl: '/a/avatar.svg',
     profileUrl: '/a/p1',
   })
-  button('确认使用此花名').click()
+  button('使用这个花名').click()
   await flushPromises()
   expect(confirmName).toHaveBeenCalledWith('batch1', 0)
   expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['persona'])
@@ -93,7 +100,7 @@ test('loading failure keeps the selected identity and offers retry', async () =>
   })
   await flushPromises()
   expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-  expect(wrapper.find('button[aria-label="重新加载"]').exists()).toBe(true)
+  expect(wrapper.find('button[aria-label="重试"]').exists()).toBe(true)
 })
 test('profile privacy commits only after success and preserves the preference on failure', async () => {
   state.persona = { kind: 'persona', publicUid: 'p1', name: '躲进云里的猫', avatarUrl: '', profileUrl: '/a/p1' }
@@ -104,16 +111,16 @@ test('profile privacy commits only after success and preserves the preference on
   await flushPromises()
   button('管理匿名身份').click()
   await flushPromises()
-  const input = () => document.querySelector<HTMLInputElement>('input[aria-label="展示匿名主页内容"]')!
-  expect(input().checked).toBe(true)
+  const toggle = () => document.querySelector<HTMLButtonElement>('[role="switch"][aria-labelledby="anonymous-show-content-label"]')!
+  expect(toggle().getAttribute('aria-checked')).toBe('true')
   vi.mocked(setProfileContent).mockRejectedValueOnce(new Error('offline'))
-  input().click(); await flushPromises()
-  expect(input().checked).toBe(true)
+  toggle().click(); await flushPromises()
+  expect(toggle().getAttribute('aria-checked')).toBe('true')
   expect(document.body.textContent).toContain('offline')
   vi.mocked(setProfileContent).mockResolvedValue(true)
-  input().click(); await flushPromises()
+  toggle().click(); await flushPromises()
   expect(setProfileContent).toHaveBeenLastCalledWith(false)
-  expect(input().checked).toBe(false)
+  expect(toggle().getAttribute('aria-checked')).toBe('false')
 })
 
 test('ambiguous draw retries reuse the same request key and failed confirmation keeps the publishing identity', async () => {
@@ -135,15 +142,15 @@ test('ambiguous draw retries reuse the same request key and failed confirmation 
       state.remaining = 9
       return batch
     })
-  button('选择花名').click()
+  button('生成花名').click()
   await flushPromises()
-  button('选择花名').click()
+  button('生成花名').click()
   await flushPromises()
   expect(vi.mocked(generateNames).mock.calls[0][1]).toBe(vi.mocked(generateNames).mock.calls[1][1])
   button('星辰').click()
   await flushPromises()
   vi.mocked(confirmName).mockRejectedValueOnce(new Error('offline'))
-  button('确认使用此花名').click()
+  button('使用这个花名').click()
   await flushPromises()
   expect(document.querySelector('[role="alert"]')?.textContent).toContain('offline')
   expect(document.querySelector('[role="dialog"]')).toBeTruthy()

@@ -17,6 +17,7 @@
 | 能力 | 状态 | 当前边界与维护入口 |
 |---|---|---|
 | 主题、回复与互动 | `Current` | 提问／瞬间／文章、图集、草稿、楼层视图、点赞收藏、关注频道、通知与私信；首页最新排序提供置顶标题区，默认单行显示置顶标签、标题与总数，可展开其余标题；见[论坛体验](forum.md)。 |
+| 管理后台外壳 | `Current` | 跟随系统并可手动切换的深色主题、按页面名称、路由词和分组检索后台页面并给出候选列表的命令搜索；表单选择统一使用后台组件库，不使用浏览器原生下拉、复选或单选控件。 |
 | Web 导航外壳 | `Current` | 桌面侧栏可折叠并记忆状态，窄屏使用抽屉；见[论坛阅读规范](forum.md#feed-and-reading)。 |
 | Markdown 与外链 | `Partial` | 阅读支持 Mermaid、数学与受控链接预览；Vditor 替代数学分隔符预览尚缺，见[论坛体验](forum.md#links-markdown-and-stickers)。 |
 | 表情库 | `Partial` | 官方目录、个人素材 API、Web token 渲染及 Flutter 管理／输入可用；Web 个人库管理未实现，见[表情规范](mobile-experience.md#sticker-library)。 |
