@@ -622,9 +622,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchHint => 'Search topics, users, categories…';
 
   @override
-  String get searchEmpty => 'Enter keywords to search';
-
-  @override
   String get searchNoUsers => 'No matching users';
 
   @override
@@ -2446,10 +2443,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'No course reviews yet. Explore the course catalog.';
 
   @override
-  String get searchDiscoveryDescription =>
-      'Find posts, people and categories, or jump into your campus tools.';
-
-  @override
   String get notificationsEmptyDescription =>
       'Replies, mentions and follows will appear here. Explore what’s new on campus.';
 
@@ -2507,6 +2500,40 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchWiki => 'Search Wiki';
+
+  @override
+  String get searchIdleHint =>
+      'Search topics, users and categories. Your recent searches will appear here.';
+
+  @override
+  String searchFor(String query) {
+    return 'Search for “$query”';
+  }
+
+  @override
+  String searchCoursesFor(String query) {
+    return 'Search courses for “$query”';
+  }
+
+  @override
+  String searchWikiFor(String query) {
+    return 'Search the Wiki for “$query”';
+  }
+
+  @override
+  String get searchRemoveRecent => 'Remove from recent searches';
+
+  @override
+  String get searchSeeAll => 'See all';
+
+  @override
+  String searchNoResults(String query) {
+    return 'No results for “$query”';
+  }
+
+  @override
+  String get searchNoResultsHint =>
+      'Try different keywords, or search courses and the Wiki.';
 
   @override
   String get refreshFailedRetained =>

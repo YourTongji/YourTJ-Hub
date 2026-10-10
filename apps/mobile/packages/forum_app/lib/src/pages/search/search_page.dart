@@ -16,11 +16,15 @@ import '../../../l10n/app_localizations.dart';
 import '../../format.dart';
 import '../../providers.dart';
 import '../../local/writing_store.dart';
+import '../../navigation/tab_page_transition.dart';
+import '../../navigation/tab_swipe_surface.dart';
+import '../../widgets/skeletons.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/topic_list.dart';
-import '../../widgets/campus_shortcuts.dart';
 
 /// 聚合搜索页：已提交查询与输入中的关键词分离，各类型结果逐项构建。
+/// 空输入展示课程/Wiki 入口与最近搜索；首次提交前输入时给出明确的搜索去向；
+/// 提交后以类型标签切换范围。
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
 
@@ -69,6 +73,27 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       }
     } catch (_) {
       /* History is optional, never block a search. */
+    }
+  }
+
+  Future<void> _forget(String query) async {
+    final epoch = ref.read(offlineCacheEpochProvider);
+    setState(() => _recent = [..._recent]..remove(query));
+    try {
+      final owner = await ref.read(writingScopeProvider.future);
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      await ref.read(writingStoreProvider).forget(owner, query);
+    } catch (error) {
+      if (mounted) {
+        showGfToast(
+          context,
+          resolveErrorMessage(AppLocalizations.of(context), error),
+          error: true,
+        );
+      }
+    }
+    if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+      await _loadHistory();
     }
   }
 
@@ -319,146 +344,161 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _loadHistory();
     });
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final String description =
-        '$_submittedQuery · ${_scopeLabel(_scope, l10n)}';
+    final bool canPop = Navigator.canPop(context);
 
     return Scaffold(
-      appBar: GfAppBar(title: Text(l10n.searchTitle)),
-      body: Column(
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      body: SafeArea(
+        bottom: false,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _maxContentWidth),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                GfSearchField(
-                  controller: _query,
-                  hintText: l10n.searchHint,
-                  clearLabel: l10n.courseCopyClearSearch,
-                  onSubmitted: (_) => _search(),
-                  onClear: _clearSearch,
-                ),
-                if (MediaQuery.viewInsetsOf(context).bottom == 0)
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 0,
-                    children: [
-                      TextButton.icon(
-                        onPressed: () => _searchElsewhere('/courses'),
-                        icon: const GfSymbol('graduation-cap', size: 18),
-                        label: Text(l10n.searchCourses),
-                      ),
-                      TextButton.icon(
-                        onPressed: () => _searchElsewhere('/wiki/search'),
-                        icon: const GfSymbol('book-open', size: 18),
-                        label: Text(l10n.searchWiki),
+              children: <Widget>[
+                Padding(
+                  padding: EdgeInsetsDirectional.fromSTEB(
+                    canPop ? 4 : 16,
+                    8,
+                    16,
+                    8,
+                  ),
+                  child: Row(
+                    children: <Widget>[
+                      if (canPop) ...[
+                        GfIconButton(
+                          symbol: 'chevron-left',
+                          iconSize: 24,
+                          color: GfTheme.colorsOf(context).baseContent,
+                          tooltip: MaterialLocalizations.of(
+                            context,
+                          ).backButtonTooltip,
+                          onPressed: () => Navigator.maybePop(context),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      Expanded(
+                        child: GfSearchField(
+                          controller: _query,
+                          autofocus: true,
+                          hintText: l10n.searchHint,
+                          clearLabel: l10n.courseCopyClearSearch,
+                          onSubmitted: (_) => _search(),
+                          onClear: _clearSearch,
+                        ),
                       ),
                     ],
                   ),
-                if (_submittedQuery.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    description,
-                    style: GfTheme.typographyOf(context).caption.copyWith(
-                      color: GfTheme.colorsOf(context).iconMuted,
-                    ),
-                  ),
-                ],
+                ),
+                Expanded(
+                  child: _submittedQuery.isEmpty
+                      ? _buildBody(context)
+                      : _buildScopedResults(context),
+                ),
               ],
             ),
           ),
-          if (_submittedQuery.isNotEmpty)
-            _SearchScopeBar(
-              selected: _scope,
-              onSelected: _setScope,
-              tabs: <_ScopeTab>[
-                _ScopeTab('all', l10n.searchAll),
-                _ScopeTab('topics', l10n.searchTopics),
-                _ScopeTab('users', l10n.searchUsers),
-                _ScopeTab('categories', l10n.searchCategories),
-              ],
+        ),
+      ),
+    );
+  }
+
+  /// Type tabs and results share the app-wide horizontal swipe: the body
+  /// follows the finger and the tab indicator tracks the same progress.
+  Widget _buildScopedResults(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final int index = _scopes.indexOf(_scope);
+    return TabSwipeSurface(
+      index: index,
+      length: _scopes.length,
+      onChanged: (next) => _setScope(_scopes[next]),
+      tabSelectionDuration: GfMotion.duration(context, GfMotion.selection),
+      child: Column(
+        children: <Widget>[
+          GfTabBar(
+            distribute: true,
+            selected: _scope,
+            onSelected: (value) => _setScope(value as String),
+            tabs: <GfTab>[
+              for (final scope in _scopes)
+                GfTab(
+                  label: _scopeLabel(scope, l10n),
+                  value: scope,
+                  symbol: _scopeSymbol(scope),
+                ),
+            ],
+          ),
+          const GfDivider(),
+          Expanded(
+            child: TabPageTransition(
+              index: index,
+              length: _scopes.length,
+              retainInactivePages: false,
+              // Only the selected type is fetched; a neighbour revealed by a
+              // drag shows the loading shape until it becomes current.
+              pageBuilder: (page, _) => page == index
+                  ? _buildBody(context)
+                  : const GfTopicFeedSkeleton(),
             ),
-          Expanded(child: _buildResult(context)),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildResult(BuildContext context) {
+  Widget _buildBody(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final AsyncValue<SearchPageProps>? result = _result;
     if (result == null) {
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-        children: [
-          if (_recent.isNotEmpty) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    l10n.searchRecent,
-                    style: GfTheme.typographyOf(context).title2,
-                  ),
-                ),
-                TextButton(
-                  onPressed: _clearHistory,
-                  child: Text(l10n.searchClearRecent),
-                ),
-              ],
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final query in _recent)
-                  ActionChip(
-                    label: Text(
-                      query,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    onPressed: () {
-                      _query.text = query;
-                      _search();
-                    },
-                  ),
-              ],
-            ),
-            const SizedBox(height: 24),
-          ],
-          Align(
-            alignment: Alignment.centerLeft,
-            child: GfIconTile('search', size: 56),
-          ),
-          const SizedBox(height: 24),
-          Text(l10n.searchEmpty, style: GfTheme.typographyOf(context).title1),
-          const SizedBox(height: 8),
-          Text(
-            l10n.searchDiscoveryDescription,
-            style: GfTheme.typographyOf(context).body.copyWith(
-              color: GfTheme.colorsOf(context).iconMuted,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 32),
-          Text(l10n.campusTools, style: GfTheme.typographyOf(context).title2),
-          const SizedBox(height: 16),
-          const CampusShortcuts(),
-        ],
+      return ValueListenableBuilder<TextEditingValue>(
+        valueListenable: _query,
+        builder: (context, value, _) {
+          final String typed = value.text.trim();
+          if (typed.isEmpty) {
+            return _Discovery(
+              recent: _recent,
+              onCourses: () => _searchElsewhere('/courses'),
+              onWiki: () => _searchElsewhere('/wiki/search'),
+              onRecent: _searchRecent,
+              onForget: _forget,
+              onClearRecent: _clearHistory,
+            );
+          }
+          final String needle = typed.toLowerCase();
+          return _Suggestions(
+            query: typed,
+            recent: <String>[
+              for (final query in _recent)
+                if (query != typed && query.toLowerCase().contains(needle))
+                  query,
+            ],
+            onSearch: () => _search(query: typed),
+            onCourses: () => _searchElsewhere('/courses'),
+            onWiki: () => _searchElsewhere('/wiki/search'),
+            onRecent: _searchRecent,
+          );
+        },
       );
     }
     return result.when(
-      loading: () => const GfLoading(),
+      loading: () => const GfTopicFeedSkeleton(),
       error: (Object e, _) => GfErrorRetry(
         message: resolveErrorMessage(l10n, e),
         onRetry: () => _search(query: _submittedQuery),
       ),
       data: (SearchPageProps props) {
         if (props.searchUnavailable == true) {
-          return GfEmpty(message: l10n.searchUnavailable);
+          return GfEmpty(
+            symbol: 'circle-alert',
+            message: l10n.searchUnavailable,
+            action: GfButton(
+              label: l10n.commonRetry,
+              variant: GfButtonVariant.outline,
+              onPressed: () => _search(query: _submittedQuery),
+            ),
+          );
         }
         return GfScrollToTop(
-          semanticLabel: AppLocalizations.of(context).commonBackToTop,
+          semanticLabel: l10n.commonBackToTop,
           controller: _scrollToTopController,
           builder: (_, ScrollController controller) => _SearchResults(
             props: props,
@@ -468,20 +508,36 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             hasMore: _page < props.totalPages,
             onLoadMore: _loadMore,
             onRefresh: _refresh,
+            onSeeAll: _setScope,
+            onCourses: () => _searchElsewhere('/courses'),
+            onWiki: () => _searchElsewhere('/wiki/search'),
             controller: controller,
           ),
         );
       },
     );
   }
+
+  void _searchRecent(String query) {
+    _query.value = TextEditingValue(
+      text: query,
+      selection: TextSelection.collapsed(offset: query.length),
+    );
+    _search(query: query);
+  }
 }
 
-class _ScopeTab {
-  const _ScopeTab(this.value, this.label);
+/// Keeps the search column readable on tablets and wide windows.
+const double _maxContentWidth = 720;
 
-  final String value;
-  final String label;
-}
+const List<String> _scopes = <String>['all', 'topics', 'users', 'categories'];
+
+String _scopeSymbol(String scope) => switch (scope) {
+  'topics' => 'file-text',
+  'users' => 'users-round',
+  'categories' => 'folder',
+  _ => 'layout-grid',
+};
 
 String _scopeLabel(String scope, AppLocalizations l10n) => switch (scope) {
   'topics' => l10n.searchTopics,
@@ -492,88 +548,321 @@ String _scopeLabel(String scope, AppLocalizations l10n) => switch (scope) {
   _ => scope,
 };
 
-class _SearchScopeBar extends StatelessWidget {
-  const _SearchScopeBar({
-    required this.tabs,
-    required this.selected,
-    required this.onSelected,
+/// Course and Wiki search live on their own native pages; these tiles carry
+/// the current input there. Equal halves keep the row balanced, and each tile
+/// uses a faint wash of its destination's tone.
+class _ElsewhereShortcuts extends StatelessWidget {
+  const _ElsewhereShortcuts({
+    required this.onCourses,
+    required this.onWiki,
+    this.compact = false,
   });
 
-  final List<_ScopeTab> tabs;
-  final String selected;
-  final ValueChanged<String> onSelected;
+  final VoidCallback onCourses;
+  final VoidCallback onWiki;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final GfColors colors = GfTheme.colorsOf(context);
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+    return IntrinsicHeight(
       child: Row(
-        children: [
-          for (final tab in tabs)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: _ScopeButton(
-                tab: tab,
-                active: selected == tab.value,
-                colors: colors,
-                onTap: () => onSelected(tab.value),
-              ),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Expanded(
+            child: _ElsewhereTile(
+              symbol: 'graduation-cap',
+              tone: colors.primary,
+              label: l10n.searchCourses,
+              compact: compact,
+              onTap: onCourses,
             ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _ElsewhereTile(
+              symbol: 'book-open',
+              tone: colors.warning,
+              label: l10n.searchWiki,
+              compact: compact,
+              onTap: onWiki,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _ScopeButton extends StatelessWidget {
-  const _ScopeButton({
-    required this.tab,
-    required this.active,
-    required this.colors,
+class _ElsewhereTile extends StatelessWidget {
+  const _ElsewhereTile({
+    required this.symbol,
+    required this.tone,
+    required this.label,
+    required this.compact,
     required this.onTap,
   });
 
-  final _ScopeTab tab;
-  final bool active;
-  final GfColors colors;
+  final String symbol;
+  final Color tone;
+  final String label;
+  final bool compact;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
     return Semantics(
       button: true,
-      selected: active,
       child: Material(
-        color: active ? colors.neutral : colors.base200,
-        borderRadius: BorderRadius.circular(999),
+        color: tone.withValues(alpha: dark ? 0.16 : 0.08),
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
-          borderRadius: BorderRadius.circular(999),
           onTap: onTap,
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 44),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Flexible(
-                  child: Text(
-                    tab.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: active
-                          ? colors.neutralContent
-                          : colors.baseContent.withValues(alpha: 0.65),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: compact ? 48 : 56),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  GfSymbol(symbol, size: 20, color: tone),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      style: GfTheme.typographyOf(context).caption.copyWith(
+                        fontSize: 15,
+                        height: 1.3,
+                        fontWeight: FontWeight.w600,
+                        color: colors.baseContent,
+                      ),
                     ),
                   ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Empty input: destinations first, then the device-local history.
+class _Discovery extends StatelessWidget {
+  const _Discovery({
+    required this.recent,
+    required this.onCourses,
+    required this.onWiki,
+    required this.onRecent,
+    required this.onForget,
+    required this.onClearRecent,
+  });
+
+  final List<String> recent;
+  final VoidCallback onCourses;
+  final VoidCallback onWiki;
+  final ValueChanged<String> onRecent;
+  final ValueChanged<String> onForget;
+  final VoidCallback onClearRecent;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final GfColors colors = GfTheme.colorsOf(context);
+    final GfTypography type = GfTheme.typographyOf(context);
+    return ListView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: EdgeInsets.only(
+        top: 4,
+        bottom: 24 + MediaQuery.paddingOf(context).bottom,
+      ),
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: _ElsewhereShortcuts(onCourses: onCourses, onWiki: onWiki),
+        ),
+        const SizedBox(height: 24),
+        if (recent.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              l10n.searchIdleHint,
+              style: type.small.copyWith(color: colors.iconMuted),
+            ),
+          )
+        else ...<Widget>[
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 4, 0),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Semantics(
+                    header: true,
+                    child: Text(l10n.searchRecent, style: type.heading),
+                  ),
+                ),
+                TextButton(
+                  onPressed: onClearRecent,
+                  style: TextButton.styleFrom(
+                    foregroundColor: colors.iconMuted,
+                    textStyle: type.caption.copyWith(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  child: Text(l10n.searchClearRecent),
                 ),
               ],
             ),
+          ),
+          for (final query in recent)
+            _SuggestionRow(
+              key: ValueKey('search-recent-$query'),
+              symbol: 'history',
+              label: query,
+              onTap: () => onRecent(query),
+              trailing: GfIconButton(
+                symbol: 'x',
+                iconSize: 16,
+                tooltip: l10n.searchRemoveRecent,
+                onPressed: () => onForget(query),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Typing before the first submission: explicit destinations for the typed
+/// text plus matching history. Nothing is searched until a row is chosen.
+class _Suggestions extends StatelessWidget {
+  const _Suggestions({
+    required this.query,
+    required this.recent,
+    required this.onSearch,
+    required this.onCourses,
+    required this.onWiki,
+    required this.onRecent,
+  });
+
+  final String query;
+  final List<String> recent;
+  final VoidCallback onSearch;
+  final VoidCallback onCourses;
+  final VoidCallback onWiki;
+  final ValueChanged<String> onRecent;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    return ListView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: EdgeInsets.only(
+        top: 4,
+        bottom: 24 + MediaQuery.paddingOf(context).bottom,
+      ),
+      children: <Widget>[
+        _SuggestionRow(
+          symbol: 'search',
+          label: l10n.searchFor(query),
+          strong: true,
+          onTap: onSearch,
+        ),
+        _SuggestionRow(
+          symbol: 'graduation-cap',
+          label: l10n.searchCoursesFor(query),
+          onTap: onCourses,
+        ),
+        _SuggestionRow(
+          symbol: 'book-open',
+          label: l10n.searchWikiFor(query),
+          onTap: onWiki,
+        ),
+        if (recent.isNotEmpty) ...<Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+            child: Semantics(
+              header: true,
+              child: Text(
+                l10n.searchRecent,
+                style: GfTheme.typographyOf(context).caption.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: GfTheme.colorsOf(context).iconMuted,
+                ),
+              ),
+            ),
+          ),
+          for (final item in recent)
+            _SuggestionRow(
+              key: ValueKey('search-suggestion-$item'),
+              symbol: 'history',
+              label: item,
+              onTap: () => onRecent(item),
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _SuggestionRow extends StatelessWidget {
+  const _SuggestionRow({
+    super.key,
+    required this.symbol,
+    required this.label,
+    required this.onTap,
+    this.strong = false,
+    this.trailing,
+  });
+
+  final String symbol;
+  final String label;
+  final VoidCallback onTap;
+  final bool strong;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    return InkWell(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: EdgeInsetsDirectional.fromSTEB(
+            16,
+            6,
+            trailing == null ? 16 : 4,
+            6,
+          ),
+          child: Row(
+            children: <Widget>[
+              GfSymbol(
+                symbol,
+                size: 20,
+                color: strong ? colors.baseContent : colors.iconMuted,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GfTheme.typographyOf(context).body.copyWith(
+                    fontSize: 16,
+                    fontWeight: strong ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+              ),
+              if (trailing != null) ...[const SizedBox(width: 4), trailing!],
+            ],
           ),
         ),
       ),
@@ -590,6 +879,9 @@ class _SearchResults extends StatelessWidget {
     required this.hasMore,
     required this.onLoadMore,
     required this.onRefresh,
+    required this.onSeeAll,
+    required this.onCourses,
+    required this.onWiki,
     this.controller,
   });
 
@@ -600,6 +892,9 @@ class _SearchResults extends StatelessWidget {
   final bool hasMore;
   final VoidCallback onLoadMore;
   final Future<void> Function() onRefresh;
+  final ValueChanged<String> onSeeAll;
+  final VoidCallback onCourses;
+  final VoidCallback onWiki;
   final ScrollController? controller;
 
   @override
@@ -613,6 +908,7 @@ class _SearchResults extends StatelessWidget {
         (scope == 'all' || scope == 'categories') &&
         props.categories.isNotEmpty;
     final bool hasResults = showUsers || showTopics || showCategories;
+    final bool showElsewhere = scope == 'all' && hasResults;
 
     final failed = props.failedScopes ?? const <String>[];
     final sections = <({String scope, int length, int total})>[
@@ -630,6 +926,7 @@ class _SearchResults extends StatelessWidget {
     final showFooter = showTopics && props.totalPages > 1;
     final itemCount =
         (failed.isEmpty ? 0 : 1) +
+        (showElsewhere ? 1 : 0) +
         (hasResults
             ? sections.fold<int>(
                     0,
@@ -647,32 +944,41 @@ class _SearchResults extends StatelessWidget {
       }
       if (!hasResults) {
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 44),
+          padding: const EdgeInsets.symmetric(vertical: 32),
           child: GfEmpty(
+            symbol: 'search',
             message: scope == 'users'
                 ? l10n.searchNoUsers
                 : scope == 'categories'
                 ? l10n.searchNoCategories
-                : '“${props.query}” · ${l10n.commonEmpty}',
+                : l10n.searchNoResults(props.query),
+            description: l10n.searchNoResultsHint,
+            action: _ElsewhereShortcuts(onCourses: onCourses, onWiki: onWiki),
           ),
         );
       }
-      for (final section in sections) {
+      if (showElsewhere) {
         if (index == 0) {
-          return Semantics(
-            header: true,
-            child: GfSectionHeader(
-              title: _scopeLabel(section.scope, l10n),
-              description: l10n.searchResultCount(
-                section.length,
-                section.total,
-              ),
-              symbol: switch (section.scope) {
-                'users' => 'users-round',
-                'topics' => 'message-circle',
-                _ => 'folder',
-              },
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: _ElsewhereShortcuts(
+              onCourses: onCourses,
+              onWiki: onWiki,
+              compact: true,
             ),
+          );
+        }
+        index--;
+      }
+      for (final (position, section) in sections.indexed) {
+        if (index == 0) {
+          return _SectionHeader(
+            title: _scopeLabel(section.scope, l10n),
+            count: l10n.searchResultCount(section.length, section.total),
+            first: position == 0 && !showElsewhere,
+            onSeeAll: scope == 'all' && section.total > section.length
+                ? () => onSeeAll(section.scope)
+                : null,
           );
         }
         index--;
@@ -714,12 +1020,80 @@ class _SearchResults extends StatelessWidget {
       child: ListView.builder(
         controller: controller,
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.only(
+          bottom: 24 + MediaQuery.paddingOf(context).bottom,
+        ),
         itemCount: itemCount,
         itemBuilder: (context, index) => Material(
           color: GfTheme.colorsOf(context).base100,
           child: buildRow(index),
         ),
+      ),
+    );
+  }
+}
+
+/// Result group label: type and counts on one baseline; "See all" narrows the
+/// aggregate view to that type.
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.title,
+    required this.count,
+    required this.first,
+    this.onSeeAll,
+  });
+
+  final String title;
+  final String count;
+  final bool first;
+  final VoidCallback? onSeeAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    final GfTypography type = GfTheme.typographyOf(context);
+    return Padding(
+      padding: EdgeInsetsDirectional.fromSTEB(
+        16,
+        first ? 12 : 24,
+        onSeeAll == null ? 16 : 4,
+        4,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          Flexible(
+            child: Wrap(
+              spacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.end,
+              children: <Widget>[
+                Semantics(header: true, child: Text(title, style: type.title3)),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 1),
+                  child: Text(
+                    count,
+                    style: type.caption.copyWith(color: colors.iconMuted),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (onSeeAll != null) ...<Widget>[
+            const Spacer(),
+            TextButton(
+              onPressed: onSeeAll,
+              style: TextButton.styleFrom(
+                foregroundColor: colors.primary,
+                textStyle: type.caption.copyWith(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              child: Text(AppLocalizations.of(context).searchSeeAll),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -733,28 +1107,32 @@ class _PartialFailure extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-      decoration: BoxDecoration(
-        color: colors.warning.withValues(alpha: 0.05),
-        border: Border.all(color: colors.warning.withValues(alpha: 0.3)),
-        borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).field),
-      ),
-      child: Row(
-        children: <Widget>[
-          GfSymbol('circle-alert', size: 18, color: colors.warning),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '${AppLocalizations.of(context).searchUnavailable}: ${scopes.map((scope) => _scopeLabel(scope, AppLocalizations.of(context))).join(', ')}',
-              style: TextStyle(
-                color: colors.baseContent.withValues(alpha: 0.75),
-                fontSize: 13,
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.warning.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).field),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: <Widget>[
+              GfSymbol('circle-alert', size: 18, color: colors.warning),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${l10n.searchUnavailable}: ${scopes.map((scope) => _scopeLabel(scope, l10n)).join(', ')}',
+                  style: GfTheme.typographyOf(context).caption.copyWith(
+                    fontSize: 14,
+                    color: colors.baseContent.withValues(alpha: 0.8),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -766,17 +1144,16 @@ class _UserRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = GfTheme.colorsOf(context);
+    final GfColors colors = GfTheme.colorsOf(context);
+    final GfTypography type = GfTheme.typographyOf(context);
     return InkWell(
       onTap: () => context.push('/u/${user.id}'),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: colors.line)),
-        ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            GfAvatar(src: resolveApiAssetUrl(user.avatarUrl), size: 40),
+            GfAvatar(src: resolveApiAssetUrl(user.avatarUrl), size: 44),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -791,30 +1168,23 @@ class _UserRow extends StatelessWidget {
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: type.bodyStrong.copyWith(height: 1.35),
                   ),
-                  const SizedBox(height: 2),
                   Text(
                     '@${user.username}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.baseContent.withValues(alpha: 0.55),
-                      fontSize: 12,
-                    ),
+                    style: type.caption.copyWith(color: colors.iconMuted),
                   ),
                   if (user.bio.isNotEmpty) ...[
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Text(
                       user.bio,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.baseContent.withValues(alpha: 0.55),
-                        fontSize: 12,
+                      style: type.caption.copyWith(
+                        fontSize: 14,
+                        color: colors.baseContent.withValues(alpha: 0.8),
                       ),
                     ),
                   ],
@@ -844,30 +1214,30 @@ class _CategoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = GfTheme.colorsOf(context);
+    final GfColors colors = GfTheme.colorsOf(context);
+    final GfTypography type = GfTheme.typographyOf(context);
+    final Color tone = colorFromHex(category.color);
     return InkWell(
       onTap: () => context.push('/c/${category.slug}/${category.id}'),
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 72),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: colors.line)),
-        ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
           children: [
             Container(
-              width: 36,
-              height: 36,
+              width: 44,
+              height: 44,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: colorFromHex(category.color),
-                borderRadius: BorderRadius.circular(
-                  GfTheme.radiiOf(context).field,
-                ),
+                color: tone.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
                 category.icon.isEmpty ? '#' : category.icon,
-                style: const TextStyle(fontSize: 17),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: tone,
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -879,23 +1249,18 @@ class _CategoryRow extends StatelessWidget {
                     category.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: type.bodyStrong.copyWith(height: 1.35),
                   ),
-                  if (category.desc.isNotEmpty) ...[
-                    const SizedBox(height: 3),
+                  if (category.desc.isNotEmpty)
                     Text(
                       category.desc,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.baseContent.withValues(alpha: 0.55),
-                        fontSize: 12,
+                      style: type.caption.copyWith(
+                        fontSize: 14,
+                        color: colors.iconMuted,
                       ),
                     ),
-                  ],
                 ],
               ),
             ),

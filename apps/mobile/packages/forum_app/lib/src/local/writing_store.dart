@@ -194,6 +194,17 @@ class WritingStore {
     }, generation: _generation);
   }
 
+  Future<void> forget(String scope, String query) async {
+    await _database.updateValue(scope, 'history', 'search', (raw) {
+      if (raw == null) return null;
+      return jsonEncode(
+        List<String>.from(
+          jsonDecode(raw) as List,
+        ).where((q) => q != query).toList(),
+      );
+    }, generation: _generation);
+  }
+
   Future<void> clearAccount(String scope) => _database.clearScope(scope);
   Future<void> clearHistory(String scope) => _database.writeBatch(
     scope,
