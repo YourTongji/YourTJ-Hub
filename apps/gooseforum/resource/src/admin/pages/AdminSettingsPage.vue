@@ -103,6 +103,7 @@ import type {
 } from '@/admin/types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/admin/components/ui/select'
 import { safeUrl } from '@/runtime/safe-url'
+import { createUuidV4 } from '@/runtime/uuid'
 import { isValidCron5Field } from '@/admin/cron'
 
 type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'mcp' | 'ai-summary' | 'http-notify' | 'announcement' | 'storage' | 'terms' | 'privacy' | 'onesystem' | 'schedule'
@@ -645,7 +646,7 @@ function normalizeEndpoint(endpoint: Partial<HttpNotifyEndpoint> = {}) {
   const enabled = toBool(endpoint.enabled, true)
   const channelType = toHttpChannel(endpoint.channelType)
   return {
-    id: endpoint.id || crypto.randomUUID(),
+    id: endpoint.id || createUuidV4(),
     name: endpoint.name ?? '',
     channelType,
     enabled,
@@ -1116,7 +1117,7 @@ function removeExtension(ext: string) {
 }
 
 function addHttpEndpoint() {
-  const id = crypto.randomUUID()
+  const id = createUuidV4()
   expandedHttpEndpoints.add(id)
   httpNotifyForm.endpoints.push({
     id,

@@ -4,6 +4,7 @@ import { shallowRef } from 'vue'
 import { setSolidifyHook, useScheduleStore, MAX_PLANS } from './useScheduleStore'
 import { mergeSchedulePlan, schedulePlanKey, type PlanMergeConflict } from './schedule-plan-merge'
 import type { PkPlan } from '@/site/types/pk'
+import { createUuidV4 } from '@/runtime/uuid'
 
 export interface PkPlanItem {
   plan: PkPlan
@@ -417,7 +418,7 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
       mergeBlocked.value = true
       return false
     }
-    const plan = { ...copy(draft), id: `plan_${crypto.randomUUID()}` }
+    const plan = { ...copy(draft), id: `plan_${createUuidV4()}` }
     apply(plan.id, plan)
     const next = { ...drafts.value }
     delete next[id]
