@@ -3348,6 +3348,7 @@ export default {
     },
   },
   moderation: {
+    leaveWorkbench: 'Arbeitsbereich verlassen',
     title: 'Arbeitsbereich des Moderators',
     description: 'Verwalte die Community-Aktivitäten in deinem Zuständigkeitsbereich.',
     notice: 'Mit großer Macht kommt große Verantwortung. Bevor du einen Beitrag sperrst, vergewissere dich, dass er gegen die Community-Regeln verstößt, und kommuniziere, wenn möglich, vorher.',

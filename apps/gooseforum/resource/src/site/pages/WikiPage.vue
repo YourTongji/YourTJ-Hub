@@ -6,7 +6,7 @@ import { ChevronDown, ChevronRight, Clock, Eye, MessageSquare } from '@lucide/vu
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { showUserCard } from '@/runtime/user-card-events'
 import { consumeWikiJumpState } from '@/runtime/use-wiki-search'
-import MarkdownImageViewer from '@/site/components/MarkdownImageViewer.vue'
+import MarkdownImageViewer from '@/components/MarkdownImageViewer.vue'
 import { getMarkdownImagePreview } from '@/runtime/markdown-image-preview'
 import PostStream from '@/site/components/PostStream.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
@@ -36,11 +36,11 @@ function flashElement(element: HTMLElement) {
   element.classList.add('wiki-hit-flash')
 }
 
-function scrollToAnchor(anchor: string) {
+function scrollToAnchor(anchor: string, behavior: ScrollBehavior = 'smooth') {
   const element = document.getElementById(anchor)
   if (!(element instanceof HTMLElement)) return
   const top = element.getBoundingClientRect().top + window.scrollY - 88
-  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+  window.scrollTo({ top: Math.max(0, top), behavior })
   // 平滑滚动是异步的：等滚动结束（scrollend，fallback 定时器）再触发高亮动画，
   // 避免动画在滚动途中就淡出。
   let flashed = false
@@ -68,16 +68,15 @@ function handleHitKeydown(event: KeyboardEvent) {
 
 onMounted(() => {
   const hash = window.location.hash.slice(1)
-  if (hash) {
-    requestAnimationFrame(() => scrollToAnchor(decodeURIComponent(hash)))
-  }
   const jump = consumeWikiJumpState()
   if (jump && jump.anchors.length) {
     hitAnchors.value = jump.anchors
     hitCursor.value = 0
-    requestAnimationFrame(() => scrollToAnchor(jump.anchors[0]))
     document.addEventListener('keydown', handleHitKeydown)
   }
+  // 整页导航已由浏览器定位 hash；只即时校正顶部偏移，同页下一处仍平滑滚动。
+  const anchor = hitAnchors.value[0] || (hash ? decodeURIComponent(hash) : '')
+  if (anchor) requestAnimationFrame(() => scrollToAnchor(anchor, 'instant'))
 })
 
 onBeforeUnmount(() => {

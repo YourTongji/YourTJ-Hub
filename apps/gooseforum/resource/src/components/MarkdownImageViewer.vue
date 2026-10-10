@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, X } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
+import { FocusScope } from 'reka-ui'
 import { decideHorizontalSwipe } from '@/runtime/image-gestures'
 
 export interface MarkdownPreviewImage {
@@ -34,7 +35,7 @@ function open(nextImages: MarkdownPreviewImage[], index: number) {
   isZoomed.value = false
   lockBodyScroll()
   void nextTick(() => {
-    window.addEventListener('keydown', handleKeydown)
+    if (viewerOpen.value) window.addEventListener('keydown', handleKeydown)
   })
 }
 
@@ -144,8 +145,10 @@ defineExpose({
       leave-from-class="opacity-100"
       leave-to-class="opacity-0"
     >
-      <div
+      <FocusScope
         v-if="viewerOpen && currentImage"
+        trapped
+        loop
         class="fixed inset-0 z-[150] flex flex-col bg-black/92 backdrop-blur-md select-none animate-in fade-in-0 duration-200"
         role="dialog"
         aria-modal="true"
@@ -241,12 +244,14 @@ defineExpose({
             type="button"
             class="h-10 w-10 shrink-0 overflow-hidden rounded-lg border-2 transition-all duration-150 cursor-pointer"
             :class="idx === currentIndex ? 'border-primary scale-105 shadow-md' : 'border-transparent opacity-50 hover:opacity-80'"
+            :aria-label="`${t('common.preview')} ${idx + 1} / ${images.length}`"
+            :aria-pressed="idx === currentIndex"
             @click.stop="goToImage(idx)"
           >
             <img :src="img.src" :alt="img.alt" loading="lazy" decoding="async" class="h-full w-full object-cover" />
           </button>
         </div>
-      </div>
+      </FocusScope>
     </Transition>
   </Teleport>
 </template>
