@@ -154,13 +154,16 @@ function runRevealAnimation() {
 }
 
 watch(
-  () => props.open,
-  (open) => {
+  [() => props.open, posterCanvasRef, imgFxCanvasRef],
+  ([open]) => {
     if (open) {
+      // The lazy dialog's portal must mount both canvases before revealing the poster.
+      if (!posterCanvasRef.value || !imgFxCanvasRef.value) return
       copied.value = false
       isRevealed.value = false
       isCanvasReady.value = false
       nextTick(() => {
+        if (!props.open || !posterCanvasRef.value || !imgFxCanvasRef.value) return
         updateFitScale()
         runRevealAnimation()
       })
@@ -172,6 +175,7 @@ watch(
       }
     }
   },
+  { immediate: true },
 )
 
 onMounted(() => {
