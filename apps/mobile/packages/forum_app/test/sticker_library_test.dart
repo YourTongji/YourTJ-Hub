@@ -260,7 +260,6 @@ void main() {
     (tester) async {
       final repository = _Repository()..members = [pendingPersonal];
       final state = StickerCollection(repository, StickerLibrary(repository));
-      addTearDown(state.dispose);
       await tester.pumpWidget(
         ProviderScope(
           overrides: [stickerCollectionProvider.overrideWith((_) => state)],
@@ -289,7 +288,6 @@ void main() {
   testWidgets('picker tabs hide pending personal stickers', (tester) async {
     final repository = _Repository()..members = [pendingPersonal];
     final state = StickerCollection(repository, StickerLibrary(repository));
-    addTearDown(state.dispose);
     await state.loadMine();
     final inserted = <String>[];
     await tester.pumpWidget(
