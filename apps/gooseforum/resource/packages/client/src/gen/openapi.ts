@@ -1816,6 +1816,9 @@ export interface paths {
          *     global moderators see every pending item; category moderators see only content
          *     whose topic belongs to one of their categories. Versioned topic edits also require
          *     scope over a candidate category; filtering happens before pagination and `total`.
+         *     `kind=sticker` is accepted by validation but always fails here with `permission.denied`:
+         *     personal sticker uploads are decided only by site managers through the admin
+         *     review queue (`/api/admin/review-queue`, MADR 0079).
          */
         post: operations["listModerationReviewQueue"];
         delete?: never;
@@ -1843,7 +1846,9 @@ export interface paths {
          *     the caller's category scope fail with `admin.review.notFound` so the content's
          *     state is not revealed. First-post edits require scope over both the current and
          *     candidate categories, including requests addressed as `kind=post`. Requires a
-         *     writable account.
+         *     writable account. `kind=sticker` is accepted by validation but always fails with
+         *     `permission.denied` here; personal stickers are decided only by site managers
+         *     through the admin review action (`/api/admin/review-action`, MADR 0079).
          */
         post: operations["moderationReviewAction"];
         delete?: never;
@@ -11528,9 +11533,9 @@ export interface components {
              * @description Topic id when kind=topic, post id when kind=post, sticker asset id when kind=sticker.
              */
             id: number;
-            /** @description Topic title; for posts, the title of the containing topic (empty when the topic is missing). */
+            /** @description Topic title; for posts, the title of the containing topic (empty when the topic is missing); for stickers, the asset token name (the generated `u_` name, visible to site managers only). */
             title: string;
-            /** @description Topic excerpt (falling back to the title) or the post content truncated to 120 bytes. */
+            /** @description Topic excerpt (falling back to the title) or the post content truncated to 120 bytes; empty for stickers (the client localizes the queue row title by kind). */
             excerpt: string;
             /** Format: uint64 */
             userId: number;
@@ -11555,7 +11560,7 @@ export interface components {
              * @description Posts only; omitted for topics.
              */
             postNo?: number;
-            /** @description Image URLs referenced by pending content or the uploaded image when kind=sticker. Sticker images are returned only in the SiteManager review queue response. */
+            /** @description Image URLs referenced by pending content or the uploaded image when kind=sticker. Pending topic/post images are readable by authorized reviewers through /file/img and return 404 for anonymous readers (issue #975). Sticker images are additionally visible to the uploader in their own library while pending; after approval the file becomes publicly readable. */
             images?: string[];
             /** @description Present only when AI moderation sent this item to review (issue */
             aiReview?: components["schemas"]["AiModerationDecisionItem"];

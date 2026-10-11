@@ -39,7 +39,17 @@ read or decide this queue. Manual decisions update the AI moderation record when
 always written to the existing operation log.
 
 Conversation previews replace every sticker token, including unknown and unavailable tokens, with
-the localized `[Animated sticker]` label. The stored message body and sent token remain unchanged.
+the localized `[Animated sticker]` label. Chat bubbles and reply quote headers mask personal
+(`u_` random-name) tokens the same way; the quote header bakes a language-neutral `[Sticker]`
+wire marker that recipients localize at render time. The stored message body and sent token remain
+unchanged, so legacy clients that do not mask tokens may still display the raw name in message
+bodies — masking is a client-rendering responsibility.
+
+Review outcomes are silent by design: manual sticker approval/rejection records the decision in the
+operation log (and backfills the AI record when one exists) but does not notify the owner or carry a
+reason; owners discover the result from their library status. Rejected assets stay non-public:
+their file usage remains `PENDING`, so the image bytes are not publicly readable until an approval
+publishes them.
 
 ## Pros and Cons of the Options
 

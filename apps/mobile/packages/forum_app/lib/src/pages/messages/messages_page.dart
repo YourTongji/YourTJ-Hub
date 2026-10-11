@@ -2640,6 +2640,7 @@ class _ReplyPreview extends StatelessWidget {
                     localizedChatReplyExcerpt(
                       target.excerpt,
                       imageLabel: AppLocalizations.of(context).messagesImage,
+                      stickerLabel: StickerStrings(context).animatedSticker,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,

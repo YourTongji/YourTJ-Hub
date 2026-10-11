@@ -6,7 +6,7 @@ import { getChatMessages, markChatRead, sendChatMessage, sensitiveWordsFromError
 import { containsSensitiveText } from '@/site/utils/sensitive-highlight'
 import { formatChatClock, formatChatDayLabel, formatChatTime } from '@/runtime/format'
 import { buildChatTimeline } from '@/runtime/chat-timeline'
-import { parseStickerSegments, stickerPreviewLabel } from '@/site/utils/sticker-token'
+import { maskPersonalStickerTokens, parseStickerSegments, stickerPreviewLabel } from '@/site/utils/sticker-token'
 import { useResolvedStickers } from '@/site/composables/useResolvedStickers'
 import { useUnreadStatus } from '@/runtime/unread-status'
 import UserAvatar from '@/site/components/UserAvatar.vue'
@@ -395,7 +395,7 @@ async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | '
                             class="inline-block h-14 w-14 max-w-full align-middle object-contain"
                             loading="lazy"
                           />
-                          <template v-else>{{ segment.text }}</template>
+                          <template v-else>{{ maskPersonalStickerTokens(segment.text, t('stickers.previewAnimation')) }}</template>
                         </template></template>
                       </div>
                       <time v-if="item.showTimestamp" class="mt-1 block text-[11px] text-base-content/55" :class="item.message.isSelf ? 'text-right' : ''">{{ formatChatClock(item.message.createdAt) }}</time>

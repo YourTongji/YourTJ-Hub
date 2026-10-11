@@ -8,6 +8,7 @@ import '../link_navigation.dart';
 import '../providers.dart';
 import '../server_messages.dart';
 import '../widgets/stickers/resolved_sticker_content.dart';
+import '../widgets/stickers/sticker_strings.dart';
 import '../widgets/sticker_message_span.dart';
 import 'message_content.dart';
 import 'swipe_reply.dart';
@@ -183,6 +184,7 @@ class _ChatReplyQuoteBlock extends StatelessWidget {
     final excerpt = localizedChatReplyExcerpt(
       quote.excerpt,
       imageLabel: AppLocalizations.of(context).messagesImage,
+      stickerLabel: StickerStrings(context).animatedSticker,
     );
     return Semantics(
       button: onTap != null,

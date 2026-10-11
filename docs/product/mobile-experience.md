@@ -1428,7 +1428,8 @@ servers that omit interaction fields retain read-only content previews.
   file service. Failed requests retain the current input and expose retry. Concurrent collection
   writes are rejected explicitly so a skipped operation cannot report success.
 - `Current`: personal membership is account-private. Shared personal token names can be resolved by
-  recipients; the public directory lists official stickers only. Removing a library entry keeps
+  recipients once review approves the asset (pending uploads are not resolvable); the public
+  directory lists official stickers only. Removing a library entry keeps
   shared posts and messages renderable. Account closure removes collection membership while shared
   assets retain their history references. Site administrators review undecided personal uploads in
   the admin queue; forum moderators have no access to these images. [0038](../decisions/0038-personal-sticker-library.md)

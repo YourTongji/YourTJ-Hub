@@ -5,9 +5,11 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
@@ -24,7 +26,7 @@ func stickerReviewDB(t *testing.T) *gorm.DB {
 	}
 	sqlDB.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	if err := conn.AutoMigrate(&sticker.Entity{}, &moderationDecision.Entity{}, &taskQueue.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&sticker.Entity{}, &moderationDecision.Entity{}, &taskQueue.Entity{}, &fileUsage.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	return conn
@@ -131,5 +133,89 @@ func TestManualStickerDecisionUpdatesStatusAndAIReviewRecord(t *testing.T) {
 	err := conn.Transaction(func(tx *gorm.DB) error { return reviewPersonalStickerTx(tx, entity.Id, false, 43) })
 	if !errors.Is(err, ErrReviewProcessed) {
 		t.Fatalf("second decision err = %v, want ErrReviewProcessed", err)
+	}
+}
+
+func TestStickerReviewFileUsageLifecycle(t *testing.T) {
+	conn := stickerReviewDB(t)
+	create := func(name string) sticker.Entity {
+		entity := sticker.Entity{Name: name, FileName: "stickers/" + name + ".png", CreatedBy: 5, IsOfficial: false, IsEnabled: false, ReviewStatus: sticker.ReviewStatusPending}
+		if err := conn.Transaction(func(tx *gorm.DB) error {
+			if err := sticker.InsertPersonalTx(tx, &entity); err != nil {
+				return err
+			}
+			return fileusageservice.SetStickerUsageTx(tx, entity.Id, 5, entity.FileName, fileUsage.UsageStatusPending)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return entity
+	}
+	usageStatus := func(id uint64) string {
+		t.Helper()
+		var usage fileUsage.Entity
+		if err := conn.Where("target_type = ? AND target_id = ?", fileUsage.TargetSticker, id).First(&usage).Error; err != nil {
+			t.Fatal(err)
+		}
+		return usage.Status
+	}
+
+	allowed := create("u_file_allow")
+	if err := conn.Transaction(func(tx *gorm.DB) error {
+		return applyAIReviewTx(tx, allowed.Id, &moderationDecision.Entity{FinalAction: moderationDecision.ActionAllow})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := usageStatus(allowed.Id); got != fileUsage.UsageStatusActive {
+		t.Fatalf("AI-allowed usage status = %q, want ACTIVE", got)
+	}
+
+	blocked := create("u_file_block")
+	if err := conn.Transaction(func(tx *gorm.DB) error {
+		return applyAIReviewTx(tx, blocked.Id, &moderationDecision.Entity{FinalAction: moderationDecision.ActionBlock})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := usageStatus(blocked.Id); got != fileUsage.UsageStatusPending {
+		t.Fatalf("AI-blocked usage status = %q, want PENDING (non-public)", got)
+	}
+
+	approved := create("u_file_manual_ok")
+	if err := conn.Transaction(func(tx *gorm.DB) error {
+		return reviewPersonalStickerTx(tx, approved.Id, true, 42)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := usageStatus(approved.Id); got != fileUsage.UsageStatusActive {
+		t.Fatalf("manual-approved usage status = %q, want ACTIVE", got)
+	}
+
+	rejected := create("u_file_manual_no")
+	if err := conn.Transaction(func(tx *gorm.DB) error {
+		return reviewPersonalStickerTx(tx, rejected.Id, false, 42)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := usageStatus(rejected.Id); got != fileUsage.UsageStatusPending {
+		t.Fatalf("manual-rejected usage status = %q, want PENDING (non-public)", got)
+	}
+}
+
+func TestManualStickerDecisionWithoutAIRecordCreatesOne(t *testing.T) {
+	conn := stickerReviewDB(t)
+	entity := sticker.Entity{Name: "u_human_only", FileName: "sticker.png", CreatedBy: 9, IsOfficial: false, IsEnabled: false, ReviewStatus: sticker.ReviewStatusPending}
+	if err := conn.Transaction(func(tx *gorm.DB) error { return sticker.InsertPersonalTx(tx, &entity) }); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Transaction(func(tx *gorm.DB) error {
+		return reviewPersonalStickerTx(tx, entity.Id, false, 43)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var recorded moderationDecision.Entity
+	if err := conn.Where("subject_type = ? AND subject_id = ?", moderationDecision.SubjectSticker, entity.Id).First(&recorded).Error; err != nil {
+		t.Fatalf("human-only decision record: %v", err)
+	}
+	if recorded.HumanAction != moderationDecision.HumanRejected || recorded.HumanActorId != 43 || recorded.HumanAt == nil {
+		t.Fatalf("human-only decision = %#v", recorded)
 	}
 }

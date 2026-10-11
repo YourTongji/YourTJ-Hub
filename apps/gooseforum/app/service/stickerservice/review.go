@@ -8,6 +8,7 @@ import (
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
@@ -118,7 +119,16 @@ func applyAIReviewTx(tx *gorm.DB, stickerID uint64, decision *moderationDecision
 	case moderationDecision.ActionReview:
 		return nil
 	}
-	return sticker.SaveTx(tx, &entity)
+	if err := sticker.SaveTx(tx, &entity); err != nil {
+		return err
+	}
+	if entity.ReviewStatus == sticker.ReviewStatusApproved {
+		// The upload's file usage was registered PENDING; approval publishes
+		// the bytes in the same transaction. Rejected uploads keep their
+		// PENDING usage and stay non-public (issue #1071).
+		return fileUsage.MarkTargetPendingActiveTx(tx, fileUsage.TargetSticker, entity.Id)
+	}
+	return nil
 }
 
 func PendingReview(ctx context.Context, page, pageSize int) ([]sticker.Entity, int64, error) {
@@ -161,6 +171,14 @@ func reviewPersonalStickerTx(tx *gorm.DB, stickerID uint64, approve bool, actorI
 	if err := sticker.SaveTx(tx, &entity); err != nil {
 		return err
 	}
+	if approve {
+		// Approving publishes the pending upload's file usage in the same
+		// transaction; rejected uploads keep their PENDING usage and stay
+		// non-public (issue #1071).
+		if err := fileUsage.MarkTargetPendingActiveTx(tx, fileUsage.TargetSticker, entity.Id); err != nil {
+			return err
+		}
+	}
 	var decision moderationDecision.Entity
 	if err := tx.Where("subject_type = ? AND subject_id = ?", moderationDecision.SubjectSticker, entity.Id).
 		Order("id DESC").First(&decision).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -175,5 +193,19 @@ func reviewPersonalStickerTx(tx *gorm.DB, stickerID uint64, approve bool, actorI
 			"human_action": action, "human_actor_id": actorID, "human_at": time.Now(),
 		}).Error
 	}
-	return nil
+	// No AI decision exists (moderation disabled or never evaluated): still
+	// record the human outcome so offline audit keeps a labeled sample.
+	action := moderationDecision.HumanRejected
+	if approve {
+		action = moderationDecision.HumanApproved
+	}
+	now := time.Now()
+	return tx.Create(&moderationDecision.Entity{
+		SubjectType:  moderationDecision.SubjectSticker,
+		SubjectId:    entity.Id,
+		AuthorId:     entity.CreatedBy,
+		HumanAction:  action,
+		HumanActorId: actorID,
+		HumanAt:      &now,
+	}).Error
 }

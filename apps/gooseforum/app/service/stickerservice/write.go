@@ -12,6 +12,7 @@ import (
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
@@ -102,7 +103,7 @@ func Save(ctx context.Context, userID uint64, input SaveInput) error {
 			}
 			return err
 		}
-		return fileusageservice.SetStickerUsageTx(tx, row.Id, row.CreatedBy, row.FileName)
+		return fileusageservice.SetStickerUsageTx(tx, row.Id, row.CreatedBy, row.FileName, fileUsage.UsageStatusActive)
 	})
 	if err == nil {
 		InvalidateCache()
@@ -122,7 +123,7 @@ func Delete(ctx context.Context, id uint64) error {
 		if !row.IsOfficial {
 			return ErrNotFound
 		}
-		if err := fileusageservice.SetStickerUsageTx(tx, id, 0, ""); err != nil {
+		if err := fileusageservice.SetStickerUsageTx(tx, id, 0, "", fileUsage.UsageStatusActive); err != nil {
 			return err
 		}
 		return sticker.DeleteTx(tx, id)
@@ -179,7 +180,7 @@ func ImportImage(ctx context.Context, userID uint64, data []byte, fileName, rawN
 				}
 				continue
 			}
-			return fileusageservice.SetStickerUsageTx(tx, row.Id, userID, file.Name)
+			return fileusageservice.SetStickerUsageTx(tx, row.Id, userID, file.Name, fileUsage.UsageStatusActive)
 		}
 		return ErrNameExists
 	})
