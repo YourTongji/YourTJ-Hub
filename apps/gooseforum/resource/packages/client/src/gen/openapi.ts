@@ -11533,7 +11533,7 @@ export interface components {
              * @description Topic id when kind=topic, post id when kind=post, sticker asset id when kind=sticker.
              */
             id: number;
-            /** @description Topic title; for posts, the title of the containing topic (empty when the topic is missing); for stickers, the asset token name (the generated `u_` name, visible to site managers only). */
+            /** @description Topic title; for posts, the title of the containing topic (empty when the topic is missing); for stickers, the asset token name (the generated `u_` name; this queue is site-manager only, and the uploader also sees their own name in library responses). */
             title: string;
             /** @description Topic excerpt (falling back to the title) or the post content truncated to 120 bytes; empty for stickers (the client localizes the queue row title by kind). */
             excerpt: string;

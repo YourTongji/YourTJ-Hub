@@ -178,7 +178,7 @@ List<StickerMessageSegment> parseStickerSegments(
 
 /// 会话列表预览/回复引用用可读标签。传入 `stickerLabel` 时所有 token
 /// 统一替换为该本地化占位（不暴露随机 token 名，issue #1071）；缺省回退
-/// 为 `[name]`，仅限信令等内部场景——面向用户的预览与引用必须传 label。
+/// 为 `[name]`（旧行为兼容，目前仅测试覆盖）。面向用户的预览与引用必须传 label。
 String stickerPreviewLabel(String content, {String? stickerLabel}) {
   if (!containsStickerToken(content)) return content;
   return content.replaceAllMapped(

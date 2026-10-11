@@ -147,6 +147,27 @@ func TestSaveToLibraryNamePathMatchesFilePathGuards(t *testing.T) {
 	}
 }
 
+func TestRejectedPersonalUploadsDoNotConsumeQuota(t *testing.T) {
+	conn := stickerLibraryDB(t)
+	seed := func(name, status string) {
+		entity := sticker.Entity{Name: name, FileName: "stickers/" + name + ".png", CreatedBy: 11, IsOfficial: false, IsEnabled: false, ReviewStatus: status}
+		if err := conn.Transaction(func(tx *gorm.DB) error { return sticker.InsertPersonalTx(tx, &entity) }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seed("u_quota_rejected_a", sticker.ReviewStatusRejected)
+	seed("u_quota_rejected_b", sticker.ReviewStatusRejected)
+	seed("u_quota_pending", sticker.ReviewStatusPending)
+
+	count, err := sticker.CountPersonalUploadsTx(conn, 11)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("quota count = %d, want 1 (only the pending upload counts)", count)
+	}
+}
+
 func TestPersonalStickerLibraryQuotaOnPostgreSQL(t *testing.T) {
 	dsn := os.Getenv("YOURTJ_TEST_PG_URL")
 	if dsn == "" {

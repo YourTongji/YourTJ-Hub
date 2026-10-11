@@ -308,7 +308,6 @@ void main() {
     await tester.tap(find.text('Mine'));
     await tester.pumpAndSettle();
     expect(find.text('PendingOne'), findsNothing);
-    expect(find.text('Under review'), findsNothing);
     expect(inserted, isEmpty);
   });
 

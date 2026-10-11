@@ -11,6 +11,14 @@ const String chatImageReplyMarker = '[Image]';
 /// token names must never travel in the quote (issue #1071).
 const String chatStickerReplyMarker = '[Sticker]';
 
+/// The label that bakes exactly [chatStickerReplyMarker] through
+/// stickerPreviewLabel's `[label]` wrapping, keeping the wire value and the
+/// render-time match derived from a single constant.
+final String chatStickerWireLabel = chatStickerReplyMarker.substring(
+  1,
+  chatStickerReplyMarker.length - 1,
+);
+
 String localizedChatReplyExcerpt(
   String excerpt, {
   required String imageLabel,
@@ -103,7 +111,8 @@ class ChatReplyTarget {
   final String content;
 
   /// Bakes the language-neutral [Sticker] wire marker for sticker tokens.
-  String get excerpt => chatReplyExcerpt(content, stickerLabel: 'Sticker');
+  String get excerpt =>
+      chatReplyExcerpt(content, stickerLabel: chatStickerWireLabel);
 
   String compose(String body) =>
       composeChatReply(sender: sender, content: content, body: body);
@@ -119,7 +128,7 @@ String composeChatReply({
   required String content,
   required String body,
 }) {
-  final excerpt = chatReplyExcerpt(content, stickerLabel: 'Sticker');
+  final excerpt = chatReplyExcerpt(content, stickerLabel: chatStickerWireLabel);
   if (sender.isEmpty && excerpt.isEmpty) return body;
   final header = sender.isEmpty ? '>' : '> $sender:';
   return excerpt.isEmpty ? '$header\n\n$body' : '$header $excerpt\n\n$body';

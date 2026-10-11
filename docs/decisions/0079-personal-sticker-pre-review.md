@@ -43,7 +43,8 @@ the localized `[Animated sticker]` label. Chat bubbles and reply quote headers m
 (`u_` random-name) tokens the same way; the quote header bakes a language-neutral `[Sticker]`
 wire marker that recipients localize at render time. The stored message body and sent token remain
 unchanged, so legacy clients that do not mask tokens may still display the raw name in message
-bodies — masking is a client-rendering responsibility.
+bodies — masking is a client-rendering responsibility. Reply quotes baked before this change
+likewise keep their raw names; history is not rewritten.
 
 Review outcomes are silent by design: manual sticker approval/rejection records the decision in the
 operation log (and backfills the AI record when one exists) but does not notify the owner or carry a
