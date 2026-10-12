@@ -8,6 +8,7 @@ import {
   BookOpen,
   CalendarRange,
   Eye,
+  EyeOff,
   GraduationCap,
   FileText,
   Flame,
