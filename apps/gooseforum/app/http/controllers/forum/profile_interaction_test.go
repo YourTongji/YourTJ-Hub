@@ -19,7 +19,7 @@ import (
 
 func TestProfileViewerInteractionState(t *testing.T) {
 	db := dbconnect.Connect()
-	if err := db.AutoMigrate(&users.EntityComplete{}, &topics.Entity{}, &posts.Entity{}, &topicUserAction.Entity{}, &postUserAction.Entity{}, &userActivities.Entity{}); err != nil {
+	if err := db.AutoMigrate(&users.EntityComplete{}, &topics.Entity{}, &posts.Entity{}, &topicUserAction.Entity{}, &postUserAction.Entity{}, &userActivities.Entity{}, &users.PrivacySettingsEntity{}); err != nil {
 		t.Fatal(err)
 	}
 	const owner, viewer, topicID, postID = uint64(979201), uint64(979202), uint64(979203), uint64(979204)

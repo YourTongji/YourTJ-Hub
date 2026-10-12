@@ -19,6 +19,26 @@ class UserRepository {
     );
   }
 
+  /// Profile privacy (issue #1124). The owner-only settings decide what the
+  /// profile page returns to everyone else.
+  Future<UserPrivacySettingsPayload> getPrivacySettings() =>
+      _client.get<UserPrivacySettingsPayload>(
+        '/api/user/privacy-settings',
+        parser: (json) =>
+            UserPrivacySettingsPayload.fromJson(json as Map<String, dynamic>),
+      );
+
+  /// Saves one section's audience and returns the confirmed settings.
+  Future<UserPrivacySettingsPayload> updatePrivacySetting(
+    String section,
+    String audience,
+  ) => _client.patch<UserPrivacySettingsPayload>(
+    '/api/user/privacy-settings',
+    body: {section: audience},
+    parser: (json) =>
+        UserPrivacySettingsPayload.fromJson(json as Map<String, dynamic>),
+  );
+
   Future<PrivateNotesPayload> getPrivateNotes() =>
       _client.get<PrivateNotesPayload>(
         '/api/user-notes',

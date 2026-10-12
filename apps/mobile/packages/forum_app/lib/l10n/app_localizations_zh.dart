@@ -3544,4 +3544,134 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get anonymousViewProfile => '查看匿名主页';
+
+  @override
+  String get profilePrivacyTitle => '个人主页可见范围';
+
+  @override
+  String get profilePrivacyDescription => '选择谁能在你的个人主页上看到这些内容。';
+
+  @override
+  String get profilePrivacyScope =>
+      '这里只控制个人主页的展示。你发布的内容和回复仍会出现在版块、搜索和原讨论中，关注数、粉丝数等统计也会继续显示。';
+
+  @override
+  String get profilePrivacyViewProfile => '查看我的主页';
+
+  @override
+  String get profilePrivacyTopics => '内容';
+
+  @override
+  String get profilePrivacyTopicsDescription => '你发布的内容列表，以及概览里的近期内容';
+
+  @override
+  String get profilePrivacyActivity => '动态';
+
+  @override
+  String get profilePrivacyActivityDescription =>
+      '回复等动态记录；其中的发布、点赞和关注记录还会分别遵循对应设置';
+
+  @override
+  String get profilePrivacyLikes => '赞过的内容';
+
+  @override
+  String get profilePrivacyLikesDescription => '你点赞过的内容列表';
+
+  @override
+  String get profilePrivacyFollowing => '关注列表';
+
+  @override
+  String get profilePrivacyFollowingDescription => '你关注的人';
+
+  @override
+  String get profilePrivacyFollowers => '粉丝列表';
+
+  @override
+  String get profilePrivacyFollowersDescription => '关注你的人';
+
+  @override
+  String get profilePrivacyEveryone => '所有人';
+
+  @override
+  String get profilePrivacyMembers => '登录用户';
+
+  @override
+  String get profilePrivacyFollowersOnly => '关注我的人';
+
+  @override
+  String get profilePrivacyMutual => '互相关注的人';
+
+  @override
+  String get profilePrivacySelf => '仅自己';
+
+  @override
+  String profilePrivacyAudienceTitle(String section) {
+    return '谁能看到$section';
+  }
+
+  @override
+  String get profilePrivacyLoadFailed => '无法加载个人主页可见范围。';
+
+  @override
+  String get profilePrivacySaved => '可见范围已保存到你的账户';
+
+  @override
+  String get profilePrivacySaveFailed => '未能保存，设置保持不变。请检查网络后重试。';
+
+  @override
+  String get profilePrivacyWidenTitle => '扩大可见范围？';
+
+  @override
+  String profilePrivacyWidenDescription(String section, String audience) {
+    return '「$section」将改为「$audience」可见，之前隐藏期间的记录也会一并显示。';
+  }
+
+  @override
+  String get profilePrivacyWidenConfirm => '扩大可见范围';
+
+  @override
+  String get profileHiddenTitle => '这部分内容未公开';
+
+  @override
+  String profileHiddenPrivate(String name) {
+    return '$name 选择不在个人主页展示这部分内容。';
+  }
+
+  @override
+  String profileHiddenSignin(String name) {
+    return '$name 只向登录用户展示这部分内容。';
+  }
+
+  @override
+  String profileHiddenFollowers(String name) {
+    return '$name 只向关注者展示这部分内容，关注后即可查看。';
+  }
+
+  @override
+  String profileHiddenFollowersGuest(String name) {
+    return '$name 只向关注者展示这部分内容，登录并关注后即可查看。';
+  }
+
+  @override
+  String profileHiddenMutual(String name) {
+    return '$name 只向互相关注的人展示这部分内容。';
+  }
+
+  @override
+  String get profileHiddenSignIn => '登录';
+
+  @override
+  String get profileOwnerMembers => '只有登录用户能看到这部分内容。';
+
+  @override
+  String get profileOwnerFollowers => '只有关注你的人能看到这部分内容。';
+
+  @override
+  String get profileOwnerMutual => '只有和你互相关注的人能看到这部分内容。';
+
+  @override
+  String get profileOwnerSelf => '只有你能看到这部分内容。';
+
+  @override
+  String get profilePrivacyManage => '修改可见范围';
 }

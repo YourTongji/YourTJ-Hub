@@ -6731,6 +6731,234 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'View anonymous profile'**
   String get anonymousViewProfile;
+
+  /// No description provided for @profilePrivacyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile visibility'**
+  String get profilePrivacyTitle;
+
+  /// No description provided for @profilePrivacyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose who can see each part of your profile.'**
+  String get profilePrivacyDescription;
+
+  /// No description provided for @profilePrivacyScope.
+  ///
+  /// In en, this message translates to:
+  /// **'This only changes what your profile shows. Your topics and replies still appear in categories, search and their original discussions, and counts such as followers stay visible.'**
+  String get profilePrivacyScope;
+
+  /// No description provided for @profilePrivacyViewProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'View my profile'**
+  String get profilePrivacyViewProfile;
+
+  /// No description provided for @profilePrivacyTopics.
+  ///
+  /// In en, this message translates to:
+  /// **'Topics'**
+  String get profilePrivacyTopics;
+
+  /// No description provided for @profilePrivacyTopicsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Your topic list and the recent topics in your summary'**
+  String get profilePrivacyTopicsDescription;
+
+  /// No description provided for @profilePrivacyActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'Activity'**
+  String get profilePrivacyActivity;
+
+  /// No description provided for @profilePrivacyActivityDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Replies and other activity. Posts, likes and follows in it also follow their own settings'**
+  String get profilePrivacyActivityDescription;
+
+  /// No description provided for @profilePrivacyLikes.
+  ///
+  /// In en, this message translates to:
+  /// **'Liked topics'**
+  String get profilePrivacyLikes;
+
+  /// No description provided for @profilePrivacyLikesDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Topics you liked'**
+  String get profilePrivacyLikesDescription;
+
+  /// No description provided for @profilePrivacyFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'Following list'**
+  String get profilePrivacyFollowing;
+
+  /// No description provided for @profilePrivacyFollowingDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'People you follow'**
+  String get profilePrivacyFollowingDescription;
+
+  /// No description provided for @profilePrivacyFollowers.
+  ///
+  /// In en, this message translates to:
+  /// **'Followers list'**
+  String get profilePrivacyFollowers;
+
+  /// No description provided for @profilePrivacyFollowersDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'People who follow you'**
+  String get profilePrivacyFollowersDescription;
+
+  /// No description provided for @profilePrivacyEveryone.
+  ///
+  /// In en, this message translates to:
+  /// **'Everyone'**
+  String get profilePrivacyEveryone;
+
+  /// No description provided for @profilePrivacyMembers.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed-in members'**
+  String get profilePrivacyMembers;
+
+  /// No description provided for @profilePrivacyFollowersOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Your followers'**
+  String get profilePrivacyFollowersOnly;
+
+  /// No description provided for @profilePrivacyMutual.
+  ///
+  /// In en, this message translates to:
+  /// **'Mutual follows'**
+  String get profilePrivacyMutual;
+
+  /// No description provided for @profilePrivacySelf.
+  ///
+  /// In en, this message translates to:
+  /// **'Only you'**
+  String get profilePrivacySelf;
+
+  /// Title of the audience picker for one profile section.
+  ///
+  /// In en, this message translates to:
+  /// **'Who can see {section}'**
+  String profilePrivacyAudienceTitle(String section);
+
+  /// No description provided for @profilePrivacyLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to load profile visibility.'**
+  String get profilePrivacyLoadFailed;
+
+  /// No description provided for @profilePrivacySaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Visibility saved to your account'**
+  String get profilePrivacySaved;
+
+  /// No description provided for @profilePrivacySaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to save. Your previous setting is kept. Check your connection and try again.'**
+  String get profilePrivacySaveFailed;
+
+  /// No description provided for @profilePrivacyWidenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show to more people?'**
+  String get profilePrivacyWidenTitle;
+
+  /// Confirmation before a profile section becomes visible to more people.
+  ///
+  /// In en, this message translates to:
+  /// **'“{section}” will be visible to “{audience}”, including anything recorded while it was hidden.'**
+  String profilePrivacyWidenDescription(String section, String audience);
+
+  /// No description provided for @profilePrivacyWidenConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Show to more people'**
+  String get profilePrivacyWidenConfirm;
+
+  /// No description provided for @profileHiddenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This section isn’t public'**
+  String get profileHiddenTitle;
+
+  /// Shown to other viewers; name is the profile owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} chose not to show this on their profile.'**
+  String profileHiddenPrivate(String name);
+
+  /// Shown to guests; name is the profile owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} shows this only to signed-in members.'**
+  String profileHiddenSignin(String name);
+
+  /// Shown to signed-in non-followers; name is the profile owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} shows this only to followers. Follow to see it.'**
+  String profileHiddenFollowers(String name);
+
+  /// Shown to guests; name is the profile owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} shows this only to followers. Sign in and follow to see it.'**
+  String profileHiddenFollowersGuest(String name);
+
+  /// Shown to viewers who are not mutual follows; name is the profile owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} shows this only to mutual follows.'**
+  String profileHiddenMutual(String name);
+
+  /// No description provided for @profileHiddenSignIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in'**
+  String get profileHiddenSignIn;
+
+  /// No description provided for @profileOwnerMembers.
+  ///
+  /// In en, this message translates to:
+  /// **'Only signed-in members can see this.'**
+  String get profileOwnerMembers;
+
+  /// No description provided for @profileOwnerFollowers.
+  ///
+  /// In en, this message translates to:
+  /// **'Only your followers can see this.'**
+  String get profileOwnerFollowers;
+
+  /// No description provided for @profileOwnerMutual.
+  ///
+  /// In en, this message translates to:
+  /// **'Only mutual follows can see this.'**
+  String get profileOwnerMutual;
+
+  /// No description provided for @profileOwnerSelf.
+  ///
+  /// In en, this message translates to:
+  /// **'Only you can see this.'**
+  String get profileOwnerSelf;
+
+  /// No description provided for @profilePrivacyManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Change visibility'**
+  String get profilePrivacyManage;
 }
 
 class _AppLocalizationsDelegate

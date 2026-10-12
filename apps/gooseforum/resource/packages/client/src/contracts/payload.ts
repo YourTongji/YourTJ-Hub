@@ -702,6 +702,26 @@ export interface UserProfileProps {
   canFollow: boolean
   messageUrl: string
   settingsUrl: string
+  /** Profile sections as resolved for the current viewer (issue #1124). */
+  visibility: UserProfileVisibility
+}
+
+export type ProfileVisibilityReason = 'signin' | 'followers' | 'mutual' | 'private'
+
+export interface ProfileSectionVisibility {
+  visible: boolean
+  /** Present only when the section is hidden from this viewer. */
+  reason?: ProfileVisibilityReason
+  /** Present only on the owner's own profile. */
+  audience?: 'everyone' | 'members' | 'followers' | 'mutual' | 'self'
+}
+
+export interface UserProfileVisibility {
+  profileTopics: ProfileSectionVisibility
+  profileActivity: ProfileSectionVisibility
+  profileLikes: ProfileSectionVisibility
+  followingList: ProfileSectionVisibility
+  followersList: ProfileSectionVisibility
 }
 
 export interface BadgePayload {

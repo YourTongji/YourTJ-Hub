@@ -385,6 +385,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/user/privacy-settings"
+  },
+  {
+    "method": "GET",
     "path": "/api/user/sessions"
   },
   {
@@ -646,6 +650,10 @@
   {
     "method": "PATCH",
     "path": "/api/forum/course-reviews/:reviewId"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/user/privacy-settings"
   },
   {
     "method": "PATCH",

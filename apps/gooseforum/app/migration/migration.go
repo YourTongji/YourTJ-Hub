@@ -761,6 +761,7 @@ func SchemaModels() []any {
 		&userFollow.Entity{},
 		&users.PrivateNoteEntity{},
 		&users.BlockEntity{},
+		&users.PrivacySettingsEntity{},
 		&userBadges.Entity{},
 		&oidcAuthRequests.Entity{},
 		&oidcAccessTokens.Entity{},

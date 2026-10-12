@@ -3720,4 +3720,137 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get anonymousViewProfile => 'View anonymous profile';
+
+  @override
+  String get profilePrivacyTitle => 'Profile visibility';
+
+  @override
+  String get profilePrivacyDescription =>
+      'Choose who can see each part of your profile.';
+
+  @override
+  String get profilePrivacyScope =>
+      'This only changes what your profile shows. Your topics and replies still appear in categories, search and their original discussions, and counts such as followers stay visible.';
+
+  @override
+  String get profilePrivacyViewProfile => 'View my profile';
+
+  @override
+  String get profilePrivacyTopics => 'Topics';
+
+  @override
+  String get profilePrivacyTopicsDescription =>
+      'Your topic list and the recent topics in your summary';
+
+  @override
+  String get profilePrivacyActivity => 'Activity';
+
+  @override
+  String get profilePrivacyActivityDescription =>
+      'Replies and other activity. Posts, likes and follows in it also follow their own settings';
+
+  @override
+  String get profilePrivacyLikes => 'Liked topics';
+
+  @override
+  String get profilePrivacyLikesDescription => 'Topics you liked';
+
+  @override
+  String get profilePrivacyFollowing => 'Following list';
+
+  @override
+  String get profilePrivacyFollowingDescription => 'People you follow';
+
+  @override
+  String get profilePrivacyFollowers => 'Followers list';
+
+  @override
+  String get profilePrivacyFollowersDescription => 'People who follow you';
+
+  @override
+  String get profilePrivacyEveryone => 'Everyone';
+
+  @override
+  String get profilePrivacyMembers => 'Signed-in members';
+
+  @override
+  String get profilePrivacyFollowersOnly => 'Your followers';
+
+  @override
+  String get profilePrivacyMutual => 'Mutual follows';
+
+  @override
+  String get profilePrivacySelf => 'Only you';
+
+  @override
+  String profilePrivacyAudienceTitle(String section) {
+    return 'Who can see $section';
+  }
+
+  @override
+  String get profilePrivacyLoadFailed => 'Unable to load profile visibility.';
+
+  @override
+  String get profilePrivacySaved => 'Visibility saved to your account';
+
+  @override
+  String get profilePrivacySaveFailed =>
+      'Unable to save. Your previous setting is kept. Check your connection and try again.';
+
+  @override
+  String get profilePrivacyWidenTitle => 'Show to more people?';
+
+  @override
+  String profilePrivacyWidenDescription(String section, String audience) {
+    return '“$section” will be visible to “$audience”, including anything recorded while it was hidden.';
+  }
+
+  @override
+  String get profilePrivacyWidenConfirm => 'Show to more people';
+
+  @override
+  String get profileHiddenTitle => 'This section isn’t public';
+
+  @override
+  String profileHiddenPrivate(String name) {
+    return '$name chose not to show this on their profile.';
+  }
+
+  @override
+  String profileHiddenSignin(String name) {
+    return '$name shows this only to signed-in members.';
+  }
+
+  @override
+  String profileHiddenFollowers(String name) {
+    return '$name shows this only to followers. Follow to see it.';
+  }
+
+  @override
+  String profileHiddenFollowersGuest(String name) {
+    return '$name shows this only to followers. Sign in and follow to see it.';
+  }
+
+  @override
+  String profileHiddenMutual(String name) {
+    return '$name shows this only to mutual follows.';
+  }
+
+  @override
+  String get profileHiddenSignIn => 'Sign in';
+
+  @override
+  String get profileOwnerMembers => 'Only signed-in members can see this.';
+
+  @override
+  String get profileOwnerFollowers => 'Only your followers can see this.';
+
+  @override
+  String get profileOwnerMutual => 'Only mutual follows can see this.';
+
+  @override
+  String get profileOwnerSelf => 'Only you can see this.';
+
+  @override
+  String get profilePrivacyManage => 'Change visibility';
 }

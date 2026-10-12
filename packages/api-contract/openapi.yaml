@@ -10,7 +10,7 @@ info:
     (create/update/delete, window and revision reads), forum interactions
     (like/bookmark/watch on topics and posts, follow, report), user account and
     profile operations (captcha, user card, profile/email/username/avatar/password
-    changes, OAuth bindings), notification reads and read-marking, direct chat
+    changes, OAuth bindings, profile privacy settings), notification reads and read-marking, direct chat
     (send/messages/mark-read), admin topic/post moderation, notification quick-approval
     confirmation (signed-link preview/execute), Admin-gated operations
     (Agent account management, operation audit log paging, traffic overview),
@@ -208,6 +208,8 @@ paths:
     $ref: ./paths/forum-moderation.yaml#/viewDeletedContent
   /api/get-captcha:
     $ref: ./paths/user-account.yaml#/getCaptcha
+  /api/user/privacy-settings:
+    $ref: './paths/user-account.yaml#/privacySettings'
   /api/user-blocks:
     $ref: './paths/user-account.yaml#/userBlocks'
   /api/user-block:

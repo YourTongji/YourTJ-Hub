@@ -3,6 +3,7 @@ import type { TopicPayload } from '@gooseforum/client'
 // CourseSummaryPayload 以别名导入：本文件 1663 行另有一个同名但形状不同的
 // CourseSummaryPayload（AI 总结：consensus/keywords/pros/cons），二者同名异物。
 // 这里导入的是课程卡片（id/name/ratingAvg/...），故别名为 CourseCatalogItem 避免混淆。
+import type { components } from '@gooseforum/client'
 import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, MentionTarget, ModerationApprovalActionView, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import type { ReviewQueueItem } from '@/admin/types'
@@ -1281,6 +1282,29 @@ export async function revokeAllSessions(): Promise<boolean> {
   })
   await readApiResponse<unknown>(response, t('api.sessionRevokeAllFailed'))
   return true
+}
+
+export type UserPrivacySettings = components['schemas']['UserPrivacySettings']
+export type ProfileAudience = components['schemas']['ProfileAudience']
+export type ProfilePrivacySection = keyof UserPrivacySettings
+
+// Account-level profile privacy (issue #1124): the server is the only source of
+// truth, so callers render a saved value only after the request succeeds.
+export async function getPrivacySettings(): Promise<UserPrivacySettings> {
+  const response = await feedFetch('/api/user/privacy-settings', {
+    cache: 'no-store',
+    headers: { Accept: 'application/json' },
+  })
+  return readApiResponse<UserPrivacySettings>(response, t('api.privacyLoadFailed'))
+}
+
+export async function updatePrivacySettings(update: Partial<UserPrivacySettings>): Promise<UserPrivacySettings> {
+  const response = await feedFetch('/api/user/privacy-settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(update),
+  })
+  return readApiResponse<UserPrivacySettings>(response, t('api.privacySaveFailed'))
 }
 
 export interface TotpSetupPayload {

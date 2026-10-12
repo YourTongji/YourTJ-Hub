@@ -255,6 +255,30 @@ Future<_Harness> _mount(
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  // issue #1124: profile visibility is an account setting, so only signed-in
+  // members get the entry, next to the other account rows.
+  for (final signedIn in [false, true]) {
+    testWidgets('profile visibility entry signedIn=$signedIn', (tester) async {
+      await _mount(tester, signedIn: signedIn, language: 'en');
+      final entry = find.byKey(
+        const ValueKey('settings-category-profile-privacy'),
+      );
+      if (!signedIn) {
+        expect(entry, findsNothing);
+        return;
+      }
+      await tester.scrollUntilVisible(
+        entry,
+        180,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(
+        find.descendant(of: entry, matching: find.text('Profile visibility')),
+        findsOneWidget,
+      );
+    });
+  }
+
   for (final brightness in Brightness.values) {
     for (final signedIn in [false, true]) {
       testWidgets(

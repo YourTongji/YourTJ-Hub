@@ -263,6 +263,10 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.GET("user/sessions", UpButterReq(api.ListSessions))
 	loginApi.POST("user/sessions/revoke", UpButterReq(api.RevokeSession))
 	loginApi.POST("user/sessions/revoke-all", UpButterReq(api.RevokeAllSessions))
+	// Profile privacy reduces disclosure, so restricted accounts may still
+	// manage it; the owner always comes from the session (issue #1124).
+	loginApi.GET("user/privacy-settings", UpQueryReq(api.GetPrivacySettings))
+	loginApi.PATCH("user/privacy-settings", middleware.RateLimit(middleware.RateLimitInteract), api.UpdatePrivacySettings)
 	// TOTP 写操作校验账户密码或 6 位验证码（setup/enable/disable），挂 RateLimit 防止暴力破解；
 	// 同时挂 CheckWritableAccount：pending/冻结账号不得变更 2FA 状态（issue #427，与
 	// change-password 等账户写操作口径一致）；status 只读 enabled 标志、不验证任何凭据，

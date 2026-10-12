@@ -41,6 +41,7 @@ import 'pages/wiki/wiki_page.dart';
 import 'pages/wiki/wiki_search_page.dart';
 import 'pages/schedule/schedule_page.dart';
 import 'pages/search/search_page.dart';
+import 'pages/settings/profile_privacy_page.dart';
 import 'pages/settings/settings_page.dart';
 import 'pages/settings/schedule_widget_settings_page.dart';
 import 'pages/settings/text_size_settings_page.dart';
@@ -560,6 +561,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/settings/widgets',
       builder: (_, _) => const ScheduleWidgetSettingsPage(),
+    ),
+    GoRoute(
+      path: '/settings/profile-privacy',
+      builder: (_, _) => const ProfilePrivacyPage(),
     ),
     GoRoute(
       path: '/settings/text-size',

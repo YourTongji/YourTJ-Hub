@@ -1104,6 +1104,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 if (section == _SettingsTab.account) ...[
                   const GfDivider(),
                   GfSettingRow(
+                    key: const ValueKey('settings-category-profile-privacy'),
+                    symbol: 'eye',
+                    title: l10n.profilePrivacyTitle,
+                    onTap: () => context.push('/settings/profile-privacy'),
+                  ),
+                  const GfDivider(),
+                  GfSettingRow(
                     symbol: 'eye-off',
                     title: l10n.userBlocks,
                     onTap: () => showBlockedUsers(context),

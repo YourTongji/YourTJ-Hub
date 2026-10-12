@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AnonymousIdentitySettings from '@/site/components/AnonymousIdentitySettings.vue'
+import ProfilePrivacySettings from '@/site/components/ProfilePrivacySettings.vue'
 import ManagedContent from '@/site/components/ManagedContent.vue'
 import { useContentUpdates } from '@/runtime/content-updates'
 import BadgeDisplayEditor from '@/site/components/BadgeDisplayEditor.vue'
@@ -9,6 +10,7 @@ import {
   Archive,
   ArrowLeft,
   Ban,
+  Bell,
   CalendarDays,
   Camera,
   Check,
@@ -120,7 +122,7 @@ const page = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-const tabKeys = ['profile', 'account', 'privacy', 'binding', 'security', 'content', 'deleted', 'general'] as const
+const tabKeys = ['profile', 'account', 'privacy', 'notifications', 'binding', 'security', 'content', 'deleted', 'general'] as const
 type TabKey = (typeof tabKeys)[number]
 
 const activeTab = ref<TabKey>('profile')
@@ -274,19 +276,12 @@ const passwordForm = reactive({
   confirmPassword: '',
 })
 
-const privacy = reactive({
-  showTopics: true,
-  showFollowing: true,
-  emailNotifications: true,
-})
-
-// Web Push（issue #444 第二通道）：开关状态以浏览器真实订阅为准，
-// 不落入 localStorage 偏好（savePrivacy 只持久化展示类偏好）。
+// Web Push（issue #444 第二通道）：开关状态以浏览器真实订阅为准。
 const webPushAvailable = ref(false)
 const webPushEnabled = ref(false)
 const webPushBusy = ref(false)
 
-// 浏览器级通知（Web Notification API，issue #444）：偏好独立于 privacy 存 localStorage，
+// 浏览器级通知（Web Notification API，issue #444）：偏好存 localStorage，
 // 由 runtime/browser-notification 直接读写，权限状态由浏览器维护。
 const browserNotificationsSupported = isBrowserNotificationSupported()
 const browserNotificationsEnabled = ref(isBrowserNotificationEnabled())
@@ -382,10 +377,6 @@ onMounted(() => {
   const urlTab = window.location.hash === '#anonymous-identity' ? 'privacy' : new URL(window.location.href).searchParams.get('tab')
   if (tabKeys.includes(urlTab as TabKey)) activeTab.value = urlTab as TabKey
 
-  const savedPrivacy = localStorage.getItem('goose-privacy-settings')
-  if (savedPrivacy) {
-    Object.assign(privacy, JSON.parse(savedPrivacy))
-  }
   void loadBindings()
   void loadSessions()
   void loadTotpStatus()
@@ -418,6 +409,7 @@ function settingsTabLabel(key: string, fallback?: string) {
   if (key === 'profile') return t('settings.tabs.profile')
   if (key === 'account') return t('settings.tabs.account')
   if (key === 'privacy') return t('settings.tabs.privacy')
+  if (key === 'notifications') return t('settings.tabs.notifications')
   if (key === 'binding') return t('settings.tabs.binding')
   if (key === 'security') return t('settings.tabs.security')
   if (key === 'content') return t('settings.tabs.content')
@@ -1018,10 +1010,6 @@ async function submitPassword() {
   }
 }
 
-function savePrivacy() {
-  localStorage.setItem('goose-privacy-settings', JSON.stringify(privacy))
-  showStatus(t('settings.status.privacySaved'))
-}
 
 /** 初始化推送开关：仅浏览器支持且实例已配置 VAPID 时展示，初始态 = 现有订阅。 */
 async function initWebPush() {
@@ -2156,28 +2144,14 @@ async function toggleBinding(provider: string) {
           <section v-show="activeTab === 'privacy'">
             <SectionHeader :icon="Shield" :title="t('settings.privacy.title')" />
             <div class="max-w-2xl divide-y divide-line p-4">
+              <ProfilePrivacySettings v-if="activeTab === 'privacy'" :key="`profile-privacy-${page.layout.viewer.id}`" :profile-url="profileUrl" @saved="showStatus" />
               <AnonymousIdentitySettings v-if="activeTab === 'privacy'" :key="page.layout.viewer.id" />
-              <label class="flex items-center justify-between gap-4 py-4">
-                <span>
-                  <span class="block text-sm font-semibold text-base-content">{{ t('settings.privacy.showTopics') }}</span>
-                  <span class="text-sm text-base-content/55">{{ t('settings.privacy.showTopicsDescription') }}</span>
-                </span>
-                <GfSwitch :model-value="privacy.showTopics" @update:model-value="privacy.showTopics = $event; savePrivacy()" />
-              </label>
-              <label class="flex items-center justify-between gap-4 py-4">
-                <span>
-                  <span class="block text-sm font-semibold text-base-content">{{ t('settings.privacy.showFollowing') }}</span>
-                  <span class="text-sm text-base-content/55">{{ t('settings.privacy.showFollowingDescription') }}</span>
-                </span>
-                <GfSwitch :model-value="privacy.showFollowing" @update:model-value="privacy.showFollowing = $event; savePrivacy()" />
-              </label>
-              <label class="flex items-center justify-between gap-4 py-4">
-                <span>
-                  <span class="block text-sm font-semibold text-base-content">{{ t('settings.privacy.emailNotifications') }}</span>
-                  <span class="text-sm text-base-content/55">{{ t('settings.privacy.emailNotificationsDescription') }}</span>
-                </span>
-                <GfSwitch :model-value="privacy.emailNotifications" @update:model-value="privacy.emailNotifications = $event; savePrivacy()" />
-              </label>
+            </div>
+          </section>
+
+          <section v-show="activeTab === 'notifications'">
+            <SectionHeader :icon="Bell" :title="t('settings.privacy.notificationsTitle')" />
+            <div class="max-w-2xl divide-y divide-line p-4">
               <label v-if="webPushAvailable" class="flex items-center justify-between gap-4 py-4">
                 <span>
                   <span class="block text-sm font-semibold text-base-content">{{ t('settings.privacy.webPushNotifications') }}</span>

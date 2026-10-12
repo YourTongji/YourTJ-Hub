@@ -259,6 +259,11 @@ _$UserProfilePropsImpl _$$UserProfilePropsImplFromJson(
   canFollow: json['canFollow'] as bool,
   messageUrl: json['messageUrl'] as String,
   settingsUrl: json['settingsUrl'] as String,
+  visibility: json['visibility'] == null
+      ? const UserProfileVisibilityPayload()
+      : UserProfileVisibilityPayload.fromJson(
+          json['visibility'] as Map<String, dynamic>,
+        ),
 );
 
 Map<String, dynamic> _$$UserProfilePropsImplToJson(
@@ -282,6 +287,7 @@ Map<String, dynamic> _$$UserProfilePropsImplToJson(
   'canFollow': instance.canFollow,
   'messageUrl': instance.messageUrl,
   'settingsUrl': instance.settingsUrl,
+  'visibility': instance.visibility,
 };
 
 _$SettingsUserPayloadImpl _$$SettingsUserPayloadImplFromJson(

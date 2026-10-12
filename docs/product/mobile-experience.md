@@ -1063,6 +1063,16 @@ or production push delivery behavior. The shared business and privacy rules are 
 
 ## Profile and privacy
 
+- `Current`: Settings → Your account → Profile visibility lists the five profile sections with
+  their saved audience. Tapping a row opens a bottom-sheet picker limited to that section's
+  audiences; a row changes only after the server confirms, failures keep the saved value with an
+  error toast, and widening asks for confirmation. Loading uses the settings skeleton, load errors
+  offer retry and signed-out visits offer sign-in. Profile streams follow the server-resolved
+  visibility: other members and guests see a "not public" state naming the owner and reason, with
+  sign-in only when it could help; the owner sees a note with a Change visibility shortcut. Servers
+  without profile privacy keep every stream public. See
+  [profile visibility](identity-and-access.md#profile-visibility).
+
 - `Current`: visit statistics run automatically for guests and signed-in users in official Android/iOS
   release builds against `https://f.yourtj.de`, with no settings switch or consent preference. Fresh
   installations and upgrades use the same policy, regardless of any legacy saved analytics choice.

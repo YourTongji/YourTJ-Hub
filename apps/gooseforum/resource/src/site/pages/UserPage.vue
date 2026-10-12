@@ -3,6 +3,7 @@ import ProfileHeader from '@/site/components/ProfileHeader.vue'
 import ProfileManageButton from '@/site/components/ProfileManageButton.vue'
 import ProfileTabs from '@/site/components/ProfileTabs.vue'
 import ProfileStats from '@/site/components/ProfileStats.vue'
+import ProfileSectionPrivacy from '@/site/components/ProfileSectionPrivacy.vue'
 import PrivateNoteEditor from '@/site/components/PrivateNoteEditor.vue'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
@@ -35,7 +36,7 @@ import TopicListFooter from '@/site/components/TopicListFooter.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import { badgeClass, badgeIconURL } from '@/site/utils/badge-style'
 import { socialIcons, socialLabels } from '@/site/utils/social-icons'
-import type { LayoutPayload, PagePayload, TopicPayload, UserActivityPayload, UserBookmarkPayload, UserConnectionPayload, UserLikePayload, UserProfileProps } from '@gooseforum/client'
+import type { LayoutPayload, PagePayload, ProfileSectionVisibility, TopicPayload, UserActivityPayload, UserBookmarkPayload, UserConnectionPayload, UserLikePayload, UserProfileProps } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 
 const page = defineProps<{
@@ -79,6 +80,30 @@ const connectionTabItems = computed(() => [
   { key: 'following', label: t('user.tabs.following'), url: `/u/${page.props.user.userId}/following` },
   { key: 'followers', label: t('user.tabs.followers'), url: `/u/${page.props.user.userId}/followers` },
 ])
+// Server-resolved visibility (issue #1124); a hidden section never renders a
+// list, empty state or pagination, even if stale client state holds rows.
+const visibility = computed(() => page.props.visibility)
+const isVisible = (state?: ProfileSectionVisibility) => state?.visible !== false
+const connectionVisibility = computed(() => {
+  const key = isStandaloneConnections.value ? page.props.section : page.props.activityTab
+  return key === 'followers' ? visibility.value?.followersList : visibility.value?.followingList
+})
+const activityVisibility = computed(() => {
+  switch (page.props.activityTab) {
+    case 'topics': return visibility.value?.profileTopics
+    case 'likes': return visibility.value?.profileLikes
+    case 'following':
+    case 'followers': return connectionVisibility.value
+    case 'timeline': return visibility.value?.profileActivity
+    default: return undefined
+  }
+})
+const privacyProps = computed(() => ({
+  isOwnProfile: page.props.isOwnProfile,
+  authenticated: Boolean(page.layout.viewer?.isAuthenticated),
+  name: displayName.value,
+  settingsUrl: page.props.settingsUrl,
+}))
 const hasActivityTopics = computed(() => activityTopics.value.length > 0)
 const hasActivities = computed(() => activities.value.length > 0)
 const hasLikes = computed(() => likes.value.length > 0)
@@ -369,7 +394,12 @@ function safeProfileUrl(value?: string) {
           </a>
         </nav>
         <p v-if="followError" class="px-4 pt-3 text-sm text-error sm:px-5">{{ followError }}</p>
+        <div v-if="!isVisible(connectionVisibility)" class="p-4">
+          <ProfileSectionPrivacy :state="connectionVisibility" v-bind="privacyProps" />
+        </div>
+        <template v-else>
         <div class="p-4">
+          <ProfileSectionPrivacy class="mb-3" :state="connectionVisibility" v-bind="privacyProps" />
           <div class="divide-y divide-line">
             <div
               v-for="connection in activeConnections"
@@ -408,6 +438,7 @@ function safeProfileUrl(value?: string) {
             @load-more="loadMore"
           />
         </div>
+        </template>
       </section>
 
       <section v-else class="gf-card overflow-hidden">
@@ -541,7 +572,8 @@ function safeProfileUrl(value?: string) {
           <div class="grid gap-5 pt-4 lg:grid-cols-[minmax(0,1fr)_300px]">
             <section class="min-w-0">
               <h2 class="mb-2 text-sm font-semibold text-base-content/75">{{ t('user.summarySections.recentTopics') }}</h2>
-              <div class="divide-y divide-line">
+              <ProfileSectionPrivacy compact :state="visibility?.profileTopics" v-bind="privacyProps" />
+              <div v-if="isVisible(visibility?.profileTopics)" class="divide-y divide-line">
                 <a
                   v-for="topic in visibleTopics"
                   :key="topic.id"
@@ -566,7 +598,7 @@ function safeProfileUrl(value?: string) {
                   <span class="hidden text-right text-xs font-medium text-base-content/55 sm:block">{{ timeAgo(topic.lastUpdateTime) }}</span>
                 </a>
               </div>
-              <EmptyState v-if="!visibleTopics.length" :icon="FileText" :title="t('user.emptyTopics')" />
+              <EmptyState v-if="isVisible(visibility?.profileTopics) && !visibleTopics.length" :icon="FileText" :title="t('user.emptyTopics')" />
             </section>
 
             <aside class="min-w-0 space-y-5">
@@ -636,6 +668,13 @@ function safeProfileUrl(value?: string) {
             </a>
           </div>
 
+          <div v-if="!isVisible(activityVisibility)" class="p-4">
+            <ProfileSectionPrivacy :state="activityVisibility" v-bind="privacyProps" />
+          </div>
+          <template v-else>
+          <div v-if="page.props.isOwnProfile && activityVisibility?.audience && activityVisibility.audience !== 'everyone'" class="px-4 pt-4">
+            <ProfileSectionPrivacy :state="activityVisibility" v-bind="privacyProps" />
+          </div>
           <div v-if="page.props.activityTab === 'timeline'">
             <div class="space-y-3 p-4">
               <a
@@ -771,6 +810,7 @@ function safeProfileUrl(value?: string) {
             </a>
           </div>
           <EmptyState v-if="(page.props.activityTab === 'following' || page.props.activityTab === 'followers') && activeConnections.length === 0" :icon="UserPlus" :title="t('user.emptyData')" />
+          </template>
         </div>
 
         <div v-else-if="page.props.section === 'bookmarks'">

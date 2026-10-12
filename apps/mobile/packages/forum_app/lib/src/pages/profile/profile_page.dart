@@ -2,6 +2,7 @@ import '../settings/anonymous_identity_page.dart';
 import 'profile_header_sliver.dart';
 import 'profile_tabs.dart';
 import 'profile_edit_button.dart';
+import 'profile_section_privacy.dart';
 import '../../user_blocks.dart';
 import '../../private_notes.dart';
 import '../../navigation/auth_navigation.dart';
@@ -1533,6 +1534,32 @@ class _ProfileBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
+    // Hidden sections arrive empty; say why instead of showing an empty list.
+    final privacy = profileStreamVisibility(props, selectedKey);
+    if (privacy != null && !privacy.visible) {
+      final user = props.user;
+      return SliverToBoxAdapter(
+        child: ProfileSectionHidden(
+          state: privacy,
+          name: user.nickname.isNotEmpty ? user.nickname : user.username,
+          returnTo: '/u/${user.userId}',
+        ),
+      );
+    }
+    final ownerNote = props.isOwnProfile
+        ? ProfileSectionOwnerNote.messageFor(l10n, privacy?.audience)
+        : null;
+    final body = _streamRows(context, l10n);
+    if (ownerNote == null) return body;
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(child: ProfileSectionOwnerNote(message: ownerNote)),
+        body,
+      ],
+    );
+  }
+
+  Widget _streamRows(BuildContext context, AppLocalizations l10n) {
     return switch (selectedKey) {
       'badges' =>
         props.badges.isEmpty

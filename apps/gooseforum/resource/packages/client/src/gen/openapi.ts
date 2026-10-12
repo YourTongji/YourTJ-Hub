@@ -1963,6 +1963,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/user/privacy-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the caller's profile privacy settings
+         * @description Owner comes only from the session; another account's raw settings are never readable.
+         *     Each setting chooses who can see one profile aggregate (topic list, activity timeline,
+         *     liked topics, following list, follower list). Accounts without a stored row return the
+         *     public defaults that predate the setting. The settings hide profile aggregates only: topics,
+         *     replies and relationships keep their ordinary forum visibility. Responses use private, no-store.
+         */
+        get: operations["getPrivacySettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update the caller's profile privacy settings
+         * @description Partial update of the caller's own settings; omitted fields keep their value. At least one
+         *     field is required. Unknown fields, null, non-string values, trailing JSON documents and
+         *     bodies over 4096 bytes fail with common.request.parseFailed. An audience a setting does not
+         *     offer fails with common.request.invalidParams. Rejected requests change nothing. The new
+         *     audience applies to the next profile request on every channel. Restricted (frozen) accounts
+         *     may still reduce what they disclose. Responses use private, no-store.
+         */
+        patch: operations["updatePrivacySettings"];
+        trace?: never;
+    };
     "/api/user-blocks": {
         parameters: {
             query?: never;
@@ -13715,6 +13748,32 @@ export interface components {
         ModerationApprovalActionResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["ModerationApprovalActionView"];
         };
+        /**
+         * @description Who can see a profile aggregate, from the widest to the narrowest audience.
+         * @enum {string}
+         */
+        ProfileAudience: "everyone" | "members" | "followers" | "mutual" | "self";
+        /** @enum {string} */
+        ProfileLikesAudience: "everyone" | "followers" | "self";
+        /** @enum {string} */
+        ProfileConnectionsAudience: "everyone" | "followers" | "mutual" | "self";
+        UserPrivacySettings: {
+            profileTopics: components["schemas"]["ProfileAudience"];
+            profileActivity: components["schemas"]["ProfileAudience"];
+            profileLikes: components["schemas"]["ProfileLikesAudience"];
+            followingList: components["schemas"]["ProfileConnectionsAudience"];
+            followersList: components["schemas"]["ProfileConnectionsAudience"];
+        };
+        UserPrivacySettingsSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["UserPrivacySettings"];
+        };
+        UserPrivacySettingsUpdateRequest: {
+            profileTopics?: components["schemas"]["ProfileAudience"];
+            profileActivity?: components["schemas"]["ProfileAudience"];
+            profileLikes?: components["schemas"]["ProfileLikesAudience"];
+            followingList?: components["schemas"]["ProfileConnectionsAudience"];
+            followersList?: components["schemas"]["ProfileConnectionsAudience"];
+        };
         UserBlock: {
             /** Format: uint64 */
             targetUserId: number;
@@ -18108,6 +18167,114 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CaptchaSuccess"];
+                };
+            };
+        };
+    };
+    getPrivacySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPrivacySettingsSuccess"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Storage unavailable; no successful response is returned. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    updatePrivacySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserPrivacySettingsUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The complete settings after the update. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPrivacySettingsSuccess"];
+                };
+            };
+            /** @description Malformed body, unknown field or unsupported audience. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cookie request rejected with auth.csrf.rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+            /** @description Storage unavailable; nothing was saved. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };

@@ -138,6 +138,7 @@ function buildProps(canSetPassword: boolean): SettingsPageProps {
       { key: 'profile', url: '/settings', active: true },
       { key: 'account', url: '/settings?tab=account', active: false },
       { key: 'privacy', url: '/settings?tab=privacy', active: false },
+      { key: 'notifications', url: '/settings?tab=notifications', active: false },
       { key: 'binding', url: '/settings?tab=binding', active: false },
       { key: 'security', url: '/settings?tab=security', active: false },
       { key: 'content', url: '/settings?tab=content', active: false },

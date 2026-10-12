@@ -158,6 +158,28 @@ display name and profile links belong to the public profile. Email, verification
 email-change confirmation appear in a separate private section. Email supports sign-in, verification
 and account recovery; it is not included in the public user card or profile.
 
+`Current`: members choose who can see five profile sections — topics, activity, liked topics,
+following list and followers list — from Web Settings → Privacy → Profile visibility and the
+app's Settings → Your account → Profile visibility. Audiences are everyone, signed-in members,
+your followers, mutual follows and only you; liked topics offer everyone, followers and only you;
+follow lists omit signed-in members. Every account starts with everyone. The server enforces the
+choice for profile HTML, page JSON and the app: hidden sections return no rows or pagination
+cursor, and timeline posts, likes and follows also obey their own sections. The owner always sees
+everything, with a note naming who else can see a restricted section. Other members and guests see
+a "not public" state that names the owner and the reason; guests get a sign-in action only when
+signing in could reveal the section. Blocked viewers and failed reads see the section as hidden.
+Changes apply on the next request; profile pages are `private, no-store`. Widening an audience asks
+for confirmation because older activity becomes visible again. Old Web switches that were stored only
+in the browser are offered once for migration and never applied silently. See
+[0080](../decisions/0080-profile-section-privacy.md).
+
+`Current`: profile visibility controls profile aggregation only. Topics and replies stay visible in
+categories, search and their discussions; user cards keep follower, topic and like counts; bookmarks
+remain owner-only. Settings copy states this scope.
+
+`Decision needed`: private accounts with follow approval, message and mention permissions, hiding
+social counts and badges, and moderator access rules beyond today's public profile.
+
 ## Account lifecycle
 
 - Registration: forum self-service password registration (with email verification when enabled) is

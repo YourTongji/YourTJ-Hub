@@ -521,6 +521,17 @@ each batch checks ownership. Jobs bind to the configured server origin and requi
 Status responses omit raw errors, document bodies and the instance fingerprint.
 See the [maintenance decision](../decisions/0024-admin-search-index-maintenance.md).
 
+## Profile section privacy
+
+`Current`: `user_privacy_settings` keeps one row per member (`user_id` primary key) with a
+`varchar(16)` audience for each profile section, defaulting to `everyone`; a missing row reads as
+all defaults, so existing accounts need no backfill. Writes lock the row, merge a validated partial
+update and upsert only the supplied columns in one transaction, so two first saves of different
+sections both persist; the response is re-read from storage. `profileprivacyservice` evaluates the viewer once per
+profile request (follow state in one query, blocks fail closed) before section queries, and the
+timeline query filters `action IN (...)` so hidden actions cannot surface through rows or cursors.
+See [0080](../decisions/0080-profile-section-privacy.md).
+
 ## Private user-name overlays
 
 `Current`: `user_private_notes` uses `(owner_id, target_user_id)` as its composite primary key.

@@ -49,6 +49,22 @@ func GetUserTimeline(userId uint64, lastId uint64, limit int) (entities []*Entit
 	return
 }
 
+// GetUserTimelineActions pages only the given activity types, so hidden rows
+// never consume a page slot or move the cursor. No actions means no rows.
+func GetUserTimelineActions(userId uint64, lastId uint64, limit int, actions []int) (entities []*Entity, err error) {
+	if len(actions) == 0 {
+		return []*Entity{}, nil
+	}
+	db := builder().Where("user_id = ? AND action IN ?", userId, actions)
+	if lastId > 0 {
+		db = db.Where("id < ?", lastId)
+	}
+	err = db.Order("id DESC").
+		Limit(limit).
+		Find(&entities).Error
+	return
+}
+
 // HasRecord 检查是否存在指定目标的行为记录（用于审核批准时判断是新建还是编辑）。
 func HasRecord(action ActionType, subjectType string, subjectId uint64) bool {
 	var count int64

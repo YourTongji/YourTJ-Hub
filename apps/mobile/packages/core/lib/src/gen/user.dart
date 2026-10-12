@@ -151,6 +151,11 @@ abstract class UserProfileProps with _$UserProfileProps {
     required bool canFollow,
     required String messageUrl,
     required String settingsUrl,
+
+    /// issue #1124: server-resolved section visibility. Servers without
+    /// profile privacy omit it, and every section is then public.
+    @Default(UserProfileVisibilityPayload())
+    UserProfileVisibilityPayload visibility,
   }) = _UserProfileProps;
 
   factory UserProfileProps.fromJson(Map<String, dynamic> json) =>
@@ -242,6 +247,132 @@ abstract class PrivateNotesPayload with _$PrivateNotesPayload {
   }) = _PrivateNotesPayload;
   factory PrivateNotesPayload.fromJson(Map<String, dynamic> json) =>
       _$PrivateNotesPayloadFromJson(json);
+}
+
+/// One profile section as the server resolved it for the current viewer
+/// (issue #1124). Hidden sections arrive with empty lists and no cursor.
+class ProfileSectionVisibilityPayload {
+  const ProfileSectionVisibilityPayload({
+    this.visible = true,
+    this.reason,
+    this.audience,
+  });
+
+  final bool visible;
+
+  /// Why the section is hidden: `signin`, `followers`, `mutual` or `private`.
+  final String? reason;
+
+  /// Owner only: who else can see the section.
+  final String? audience;
+
+  factory ProfileSectionVisibilityPayload.fromJson(Map<String, dynamic> json) =>
+      ProfileSectionVisibilityPayload(
+        visible: json['visible'] as bool? ?? true,
+        reason: json['reason'] as String?,
+        audience: json['audience'] as String?,
+      );
+
+  Map<String, dynamic> toJson() => {
+    'visible': visible,
+    if (reason != null) 'reason': reason,
+    if (audience != null) 'audience': audience,
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is ProfileSectionVisibilityPayload &&
+      other.visible == visible &&
+      other.reason == reason &&
+      other.audience == audience;
+
+  @override
+  int get hashCode => Object.hash(visible, reason, audience);
+}
+
+class UserProfileVisibilityPayload {
+  const UserProfileVisibilityPayload({
+    this.profileTopics = const ProfileSectionVisibilityPayload(),
+    this.profileActivity = const ProfileSectionVisibilityPayload(),
+    this.profileLikes = const ProfileSectionVisibilityPayload(),
+    this.followingList = const ProfileSectionVisibilityPayload(),
+    this.followersList = const ProfileSectionVisibilityPayload(),
+  });
+
+  final ProfileSectionVisibilityPayload profileTopics;
+  final ProfileSectionVisibilityPayload profileActivity;
+  final ProfileSectionVisibilityPayload profileLikes;
+  final ProfileSectionVisibilityPayload followingList;
+  final ProfileSectionVisibilityPayload followersList;
+
+  factory UserProfileVisibilityPayload.fromJson(Map<String, dynamic> json) {
+    ProfileSectionVisibilityPayload section(String key) {
+      final value = json[key];
+      return value is Map<String, dynamic>
+          ? ProfileSectionVisibilityPayload.fromJson(value)
+          : const ProfileSectionVisibilityPayload();
+    }
+
+    return UserProfileVisibilityPayload(
+      profileTopics: section('profileTopics'),
+      profileActivity: section('profileActivity'),
+      profileLikes: section('profileLikes'),
+      followingList: section('followingList'),
+      followersList: section('followersList'),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'profileTopics': profileTopics.toJson(),
+    'profileActivity': profileActivity.toJson(),
+    'profileLikes': profileLikes.toJson(),
+    'followingList': followingList.toJson(),
+    'followersList': followersList.toJson(),
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is UserProfileVisibilityPayload &&
+      other.profileTopics == profileTopics &&
+      other.profileActivity == profileActivity &&
+      other.profileLikes == profileLikes &&
+      other.followingList == followingList &&
+      other.followersList == followersList;
+
+  @override
+  int get hashCode => Object.hash(
+    profileTopics,
+    profileActivity,
+    profileLikes,
+    followingList,
+    followersList,
+  );
+}
+
+/// Who may see each profile section, keyed like the API fields. Mirrors
+/// users.PrivacyAudiences on the server, which rejects anything else.
+const Map<String, List<String>> profilePrivacyAudiences = {
+  'profileTopics': ['everyone', 'members', 'followers', 'mutual', 'self'],
+  'profileActivity': ['everyone', 'members', 'followers', 'mutual', 'self'],
+  'profileLikes': ['everyone', 'followers', 'self'],
+  'followingList': ['everyone', 'followers', 'mutual', 'self'],
+  'followersList': ['everyone', 'followers', 'mutual', 'self'],
+};
+
+/// The owner's saved profile privacy settings (`/api/user/privacy-settings`).
+class UserPrivacySettingsPayload {
+  const UserPrivacySettingsPayload(this.audiences);
+
+  /// Section key → audience, for every key in [profilePrivacyAudiences].
+  final Map<String, String> audiences;
+
+  factory UserPrivacySettingsPayload.fromJson(Map<String, dynamic> json) =>
+      UserPrivacySettingsPayload({
+        for (final key in profilePrivacyAudiences.keys)
+          key: json[key] as String,
+      });
+
+  String audienceOf(String section) => audiences[section]!;
 }
 
 /// Owner-scoped block list. No reverse relationship is exposed.

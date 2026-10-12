@@ -1138,3 +1138,119 @@ displayBadges:
                 externalValue: ../fixtures/account-frozen.json
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
+privacySettings:
+  get:
+    tags: [User]
+    summary: Read the caller's profile privacy settings
+    operationId: getPrivacySettings
+    description: |
+      Owner comes only from the session; another account's raw settings are never readable.
+      Each setting chooses who can see one profile aggregate (topic list, activity timeline,
+      liked topics, following list, follower list). Accounts without a stored row return the
+      public defaults that predate the setting. The settings hide profile aggregates only: topics,
+      replies and relationships keep their ordinary forum visibility. Responses use private, no-store.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: The caller's settings.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/UserPrivacySettingsSuccess
+            examples:
+              default:
+                externalValue: ../fixtures/privacy-settings-default.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '503':
+        description: Storage unavailable; no successful response is returned.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+  patch:
+    tags: [User]
+    summary: Update the caller's profile privacy settings
+    operationId: updatePrivacySettings
+    description: |
+      Partial update of the caller's own settings; omitted fields keep their value. At least one
+      field is required. Unknown fields, null, non-string values, trailing JSON documents and
+      bodies over 4096 bytes fail with common.request.parseFailed. An audience a setting does not
+      offer fails with common.request.invalidParams. Rejected requests change nothing. The new
+      audience applies to the next profile request on every channel. Restricted (frozen) accounts
+      may still reduce what they disclose. Responses use private, no-store.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/UserPrivacySettingsUpdateRequest
+    responses:
+      '200':
+        description: The complete settings after the update.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/UserPrivacySettingsSuccess
+            examples:
+              updated:
+                externalValue: ../fixtures/privacy-settings-updated.json
+      '400':
+        description: Malformed body, unknown field or unsupported audience.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/parse-failed.json
+              invalidAudience:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Cookie request rejected with auth.csrf.rejected by the CSRF gate.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+      '429':
+        description: Interaction rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+      '503':
+        description: Storage unavailable; nothing was saved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure

@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：389
-- /api JSON 路由：320，已入契约：321（100%），已知未覆盖：0
+- 快照路由总数：391
+- /api JSON 路由：322，已入契约：323（100%），已知未覆盖：0
 - 非 API 排除路由：68
 
-## 已覆盖（321）
+## 已覆盖（323）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -98,6 +98,7 @@
 | GET | `/api/user-blocks` | `listUserBlocks` |
 | GET | `/api/user-card` | `getUserCard` |
 | GET | `/api/user-notes` | `listPrivateNotes` |
+| GET | `/api/user/privacy-settings` | `getPrivacySettings` |
 | GET | `/api/user/sessions` | `listSessions` |
 | GET | `/api/user/totp/status` | `getTotpStatus` |
 | GET | `/api/v1/agent/events` | `agentListEvents` |
@@ -111,6 +112,7 @@
 | GET | `/api/wiki/search` | `searchWikiSearch` |
 | GET | `/api/wiki/tree` | `getWikiTree` |
 | PATCH | `/api/forum/course-reviews/:reviewId` | `updateCourseReview` |
+| PATCH | `/api/user/privacy-settings` | `updatePrivacySettings` |
 | POST | `/api/admin/agent-create` | `adminAgentCreate` |
 | POST | `/api/admin/agent-disable` | `adminAgentDisable` |
 | POST | `/api/admin/agent-interaction-intents` | `adminAgentInteractionIntents` |

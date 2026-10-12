@@ -168,3 +168,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0077](0077-scoped-software-and-data-licenses.md) — YourTJ 软件使用 GPL-3.0-only，上游 GooseForum 保留 MIT，Wiki 与课评数据使用 CC BY-NC-SA 4.0。
 - [0078](0078-for-you-viewport-seen-and-browsing-sessions.md) — 可视卡片已见的30天聚合、同步确认和For You历史会话恢复，保持有限候选与统计边界。
 - [0079](0079-feed-block-exclusion.md) — 公开列表与推荐统一的双向屏蔽排除；带屏蔽关系读者绕过共享列表缓存，搜索与回复楼层为文档边界。
+- [0080](0080-profile-section-privacy.md) — 个人主页分区可见范围由服务端执行；只控制主页聚合，不引入私密账号。

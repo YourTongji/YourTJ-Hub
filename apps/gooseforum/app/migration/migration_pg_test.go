@@ -50,6 +50,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	for _, table := range []string{
 		"feed_seen_state",
 		"user_blocks",
+		"user_privacy_settings",
 		"user_sessions",
 		"user_totp",
 		"user_totp_recovery_codes",
@@ -217,6 +218,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	for _, table := range []string{
 		"feed_seen_state",
 		"user_blocks",
+		"user_privacy_settings",
 		"user_sessions",
 		"user_totp",
 		"user_totp_recovery_codes",

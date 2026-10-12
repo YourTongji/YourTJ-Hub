@@ -10990,6 +10990,56 @@ UserBlockRequest:
       type: boolean
   additionalProperties: false
 
+# ================= Profile privacy (issue #1124) =================
+
+ProfileAudience:
+  type: string
+  description: Who can see a profile aggregate, from the widest to the narrowest audience.
+  enum: [everyone, members, followers, mutual, self]
+ProfileLikesAudience:
+  type: string
+  enum: [everyone, followers, self]
+ProfileConnectionsAudience:
+  type: string
+  enum: [everyone, followers, mutual, self]
+UserPrivacySettings:
+  type: object
+  required: [profileTopics, profileActivity, profileLikes, followingList, followersList]
+  properties:
+    profileTopics:
+      $ref: '#/ProfileAudience'
+    profileActivity:
+      $ref: '#/ProfileAudience'
+    profileLikes:
+      $ref: '#/ProfileLikesAudience'
+    followingList:
+      $ref: '#/ProfileConnectionsAudience'
+    followersList:
+      $ref: '#/ProfileConnectionsAudience'
+  additionalProperties: false
+UserPrivacySettingsSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      properties:
+        result:
+          $ref: '#/UserPrivacySettings'
+UserPrivacySettingsUpdateRequest:
+  type: object
+  minProperties: 1
+  properties:
+    profileTopics:
+      $ref: '#/ProfileAudience'
+    profileActivity:
+      $ref: '#/ProfileAudience'
+    profileLikes:
+      $ref: '#/ProfileLikesAudience'
+    followingList:
+      $ref: '#/ProfileConnectionsAudience'
+    followersList:
+      $ref: '#/ProfileConnectionsAudience'
+  additionalProperties: false
+
 
 # ================= AI image/text moderation（issue #975）=================
 
