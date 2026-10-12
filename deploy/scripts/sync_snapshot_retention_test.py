@@ -30,6 +30,37 @@ class SnapshotRetentionTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(len(list(directory.iterdir())), 8)
 
+    def test_postgres_success_prunes_existing_snapshots(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            directory = root / 'snapshots/dev-prev'
+            directory.mkdir(parents=True)
+            for day in range(1, 9):
+                (directory / f'file-202609{day:02d}_030000.db').write_text('old')
+            for instance in ('main', 'dev'):
+                storage = root / instance / 'storage/database'
+                storage.mkdir(parents=True)
+                (storage / 'file.db').write_text(instance)
+                (root / instance / 'config.toml').write_text(
+                    '[db.default]\nconnection = "postgres"\nurl = "postgres://localhost/' + instance + '"\n')
+            commands = root / 'bin'
+            commands.mkdir()
+            mocks = {'docker': '#!/bin/sh\ncat >/dev/null\n',
+                     'sqlite3': '#!/usr/bin/env python3\nimport shutil,sys\n'
+                                'shutil.copyfile(sys.argv[1], sys.argv[2].split("\'")[1])\n'}
+            for name, body in mocks.items():
+                command = commands / name
+                command.write_text(body)
+                command.chmod(0o755)
+            result = subprocess.run(['bash', str(pathlib.Path(__file__).with_name('sync-db-from-main.sh'))],
+                                    env={'PATH': str(commands) + ':/usr/bin:/bin', 'YOURTJ_ROOT': tmp},
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(len(list(directory.iterdir())), 5)
+            self.assertEqual((root / 'dev/storage/database/file.db').read_text(), 'main')
+            self.assertEqual((root / 'main/storage/database/file.db').read_text(), 'main')
+            self.assertFalse((directory / 'file-20260901_030000.db').exists())
+
     def test_retention(self):
         start = SCRIPT.index('prune_dev_snapshots() {')
         function = SCRIPT[start:SCRIPT.index('\n}\n', start) + 3]
