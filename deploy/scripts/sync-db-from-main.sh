@@ -109,11 +109,34 @@ sync_one() {
   echo "sync-db: $label synced from main"
 }
 
+# 只清理已知命名的普通文件；同时间戳的 sqlite/file 属于一次同步。
+prune_dev_snapshots() {
+  python3 - "$ROOT/snapshots/dev-prev" <<'PYTHON'
+import pathlib
+import re
+import sys
+
+directory = pathlib.Path(sys.argv[1])
+if not directory.is_dir() or directory.is_symlink():
+    sys.exit(0)
+groups = {}
+for path in directory.iterdir():
+    match = re.fullmatch(r"(?:sqlite|file)-(\d{8}_\d{6})\.db", path.name)
+    if match and path.is_file() and not path.is_symlink():
+        groups.setdefault(match[1], []).append(path)
+for timestamp in sorted(groups, reverse=True)[5:]:
+    for path in groups[timestamp]:
+        path.unlink()
+PYTHON
+}
+
+SNAPSHOT_TIME="$(date +%Y%m%d_%H%M%S)"
+
 if [ "$MAIN_MODE" = "postgres" ] && [ "$DEV_MODE" = "postgres" ]; then
   echo "sync-db: PG mode ($MAIN_PG -> $DEV_PG)"
   if [ -f "$DEV_FILE_DB" ]; then
     mkdir -p "$ROOT/snapshots/dev-prev"
-    cp -f "$DEV_FILE_DB" "$ROOT/snapshots/dev-prev/file-$(date +%Y%m%d_%H%M%S).db"
+    cp -f "$DEV_FILE_DB" "$ROOT/snapshots/dev-prev/file-${SNAPSHOT_TIME}.db"
   fi
   # 参数化(review S3): dbname 经 psql -v 变量传递, :"devpg" 由 psql 做
   # SQL 标识符引用(内部引号转义), 消除 dbname 插值进 SQL 字符串的注入面。
@@ -165,15 +188,16 @@ SQL
   sync_one "$MAIN_FILE_DB" "$DEV_FILE_DB" "file"
   chown -R 1000:1000 "$ROOT/dev/storage" 2>/dev/null || true
   echo "sync-db: dev file db synced from main"
+  prune_dev_snapshots
   exit 0
 fi
 
 # 保留 dev 旧库一份(排查用)
 if [ -f "$DEV_DB" ]; then
   mkdir -p "$ROOT/snapshots/dev-prev"
-  PREV_DB="$ROOT/snapshots/dev-prev/sqlite-$(date +%Y%m%d_%H%M%S).db"
+  PREV_DB="$ROOT/snapshots/dev-prev/sqlite-${SNAPSHOT_TIME}.db"
   "$SCRIPT_DIR/snapshot-db.sh" "$DEV_DB" "$PREV_DB"
-  [ -f "$DEV_FILE_DB" ] && cp -f "$DEV_FILE_DB" "$ROOT/snapshots/dev-prev/file-$(date +%Y%m%d_%H%M%S).db"
+  [ -f "$DEV_FILE_DB" ] && cp -f "$DEV_FILE_DB" "$ROOT/snapshots/dev-prev/file-${SNAPSHOT_TIME}.db"
 fi
 
 sync_one "$MAIN_DB" "$DEV_DB" "sqlite"
@@ -183,3 +207,5 @@ sync_one "$MAIN_FILE_DB" "$DEV_FILE_DB" "file"
 # 容器内 uid 1000 需要可写 storage
 chown -R 1000:1000 "$ROOT/dev/storage" 2>/dev/null || true
 echo "sync-db: dev dbs synced from main"
+
+prune_dev_snapshots
