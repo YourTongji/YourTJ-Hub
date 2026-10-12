@@ -1343,7 +1343,7 @@ func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *post
 			0,
 			firstPost,
 		),
-		HotTopics: buildTopicHotTopics(topic.Id),
+		HotTopics: buildTopicHotTopics(currentUserID, topic.Id),
 		Permissions: TopicPermissions{
 			CanManageAgentReplies: currentUserID != 0 && currentUserID == topic.UserId && topic.TopicType == topics.TopicTypeForum && topic.VisibilityStatus == topics.VisibilityActive,
 			IsOwnTopic:            currentUserID == topic.UserId,
@@ -1645,8 +1645,8 @@ func buildReplyTargetPayload(topicID, postID uint64, postMap map[uint64]*posts.E
 	return target
 }
 
-func buildTopicHotTopics(currentTopicID uint64) []TopicPayload {
-	topicPage := hotdataserve.GetLatestTopicsSimpleVoPaginated(1, "hot")
+func buildTopicHotTopics(viewerID, currentTopicID uint64) []TopicPayload {
+	topicPage := hotdataserve.GetLatestTopicsSimpleVoPaginated(viewerID, 1, "hot")
 	filtered := make([]*vo.TopicsSimpleVo, 0, 6)
 	for _, topic := range topicPage.Topics {
 		if topic == nil || topic.Id == currentTopicID {

@@ -10,6 +10,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"gorm.io/gorm"
 	"testing"
 	"time"
@@ -18,7 +19,7 @@ import (
 func followingDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := dbconnect.Connect()
-	if err := db.AutoMigrate(&topics.Entity{}, &posts.Entity{}, &userFollow.Entity{}); err != nil {
+	if err := db.AutoMigrate(&topics.Entity{}, &posts.Entity{}, &userFollow.Entity{}, &users.BlockEntity{}); err != nil {
 		t.Fatal(err)
 	}
 	return db

@@ -50,7 +50,7 @@ func TestTopicListCacheReadsTopics(t *testing.T) {
 	})
 	conn.Create(&topicCategoryIndex.Entity{TopicId: 10, CategoryId: 3, Effective: 1})
 
-	page := GetLatestTopicsSimpleVoPaginated(1, "latest")
+	page := GetLatestTopicsSimpleVoPaginated(0, 1, "latest")
 	if len(page.Topics) != 1 {
 		t.Fatalf("latest topics len=%d, want 1", len(page.Topics))
 	}
@@ -59,7 +59,7 @@ func TestTopicListCacheReadsTopics(t *testing.T) {
 		t.Fatalf("topic list item mismatch: %#v", item)
 	}
 
-	categoryPage := GetTopicsByCategorySimpleVo(3, "latest", 1)
+	categoryPage := GetTopicsByCategorySimpleVo(0, 3, "latest", 1)
 	if len(categoryPage.Topics) != 1 || categoryPage.Topics[0].Id != 10 {
 		t.Fatalf("category topic page=%#v, want topic 10", categoryPage.Topics)
 	}

@@ -99,7 +99,7 @@ func TestPersonaPublicProjectionAndLifecycle(t *testing.T) {
 
 func TestFollowingFeedExcludesPrivatePersonaOwnership(t *testing.T) {
 	conn := dbconnect.Connect()
-	if err := conn.AutoMigrate(&topics.Entity{}, &posts.Entity{}, &userFollow.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&topics.Entity{}, &posts.Entity{}, &userFollow.Entity{}, &users.BlockEntity{}); err != nil {
 		t.Fatal(err)
 	}
 	edge := userFollow.Entity{UserId: 991801, FollowUserId: 991802, Status: 1}

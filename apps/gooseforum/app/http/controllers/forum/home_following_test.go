@@ -8,6 +8,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -52,7 +53,7 @@ func TestFollowingHomeGuestRequiresLogin(t *testing.T) {
 
 func TestFollowingHomePayloadCursorAndLocale(t *testing.T) {
 	db := dbconnect.Connect()
-	if err := db.AutoMigrate(&topics.Entity{}, &posts.Entity{}, &userFollow.Entity{}); err != nil {
+	if err := db.AutoMigrate(&topics.Entity{}, &posts.Entity{}, &userFollow.Entity{}, &users.BlockEntity{}); err != nil {
 		t.Fatal(err)
 	}
 	const viewer, author uint64 = 976000, 976001

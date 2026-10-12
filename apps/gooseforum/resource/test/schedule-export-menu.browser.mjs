@@ -128,3 +128,31 @@ test('outside click closes menu without stealing focus', async () => {
     await page.close()
   }
 })
+
+test('lazy image dialog reveals its canvas and enables export after each opening', async () => {
+  const page = await openPage(1280, 'en', false)
+  const errors = []
+  page.on('pageerror', error => errors.push(error.message))
+  try {
+    for (let opening = 0; opening < 2; opening++) {
+      await page.getByRole('button', { name: 'Export image', exact: true }).click()
+      const dialog = page.getByRole('dialog')
+      await dialog.waitFor({ state: 'visible' })
+      await page.waitForFunction(() => {
+        const canvas = document.querySelector('[role="dialog"] canvas')
+        return canvas?.style.width === '1140px'
+      })
+      await page.waitForFunction(() => {
+        const canvas = document.querySelector('[role="dialog"] canvas')
+        return canvas?.style.opacity === '0'
+      })
+      assert.equal(await dialog.getByRole('button', { name: 'Download Image', exact: true }).isEnabled(), true)
+      assert.equal(await dialog.getByRole('button', { name: 'Copy Image', exact: true }).isEnabled(), true)
+      await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+      await dialog.waitFor({ state: 'hidden' })
+    }
+    assert.deepEqual(errors, [])
+  } finally {
+    await page.close()
+  }
+})

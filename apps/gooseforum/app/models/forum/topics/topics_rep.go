@@ -360,6 +360,10 @@ type PageQuery struct {
 	Sort           string
 	// TopicType 按话题类型过滤；nil=不过滤（兼容既有调用）。
 	TopicType *int8
+	// ExcludeBlockedViewerID 非零时排除与观看者存在任一方向屏蔽关系的作者。
+	// 过滤下沉到 SQL 以保证分页正确；其结果只属于该观看者，调用方不得
+	// 复用无用户维度的公开列表缓存（见 hotdataserve 的绕过策略）。
+	ExcludeBlockedViewerID uint64
 }
 
 type AdminPageQuery struct {
@@ -393,6 +397,9 @@ func Page(q PageQuery) struct {
 	}
 	if q.UserId != 0 {
 		b.Where(queryopt.Eq("user_id", q.UserId))
+	}
+	if q.ExcludeBlockedViewerID != 0 {
+		b.Where("user_id NOT IN (?)", users.BlockedPeerIDsQuery(q.ExcludeBlockedViewerID))
 	}
 	if q.PersonaUID != "" {
 		b.Where("persona_uid = ?", q.PersonaUID).Where("retention_status <> ?", RetentionPurged).Where("EXISTS (SELECT 1 FROM posts p WHERE p.id=topics.first_post_id AND p.topic_id=topics.id AND p.visibility_status=? AND p.retention_status<>?)", VisibilityActive, RetentionPurged)

@@ -1,7 +1,8 @@
 # Owner-scoped blocks and administrator-only private-message evidence
 
 ## Status
-Accepted
+Superseded by [0079](0079-feed-block-exclusion.md)
+（仅公开内容可见性条款被 0079 取代；屏蔽存储、私信、通知与举报证据条款继续有效。）
 Class: feature
 
 ## Context and Problem Statement

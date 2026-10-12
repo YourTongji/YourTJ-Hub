@@ -1818,7 +1818,7 @@ export interface paths {
          *     scope over a candidate category; filtering happens before pagination and `total`.
          *     `kind=sticker` is accepted by validation but always fails here with `permission.denied`:
          *     personal sticker uploads are decided only by site managers through the admin
-         *     review queue (`/api/admin/review-queue`, MADR 0079).
+         *     review queue (`/api/admin/review-queue`, MADR 0080).
          */
         post: operations["listModerationReviewQueue"];
         delete?: never;
@@ -1848,7 +1848,7 @@ export interface paths {
          *     candidate categories, including requests addressed as `kind=post`. Requires a
          *     writable account. `kind=sticker` is accepted by validation but always fails with
          *     `permission.denied` here; personal stickers are decided only by site managers
-         *     through the admin review action (`/api/admin/review-action`, MADR 0079).
+         *     through the admin review action (`/api/admin/review-action`, MADR 0080).
          */
         post: operations["moderationReviewAction"];
         delete?: never;

@@ -734,14 +734,27 @@ onBeforeUnmount(() => {
               </button>
               <div class="min-w-0 flex-1">
                 <template v-if="activeAnnouncement">
-                  <div class="gf-prose gf-prose-announcement">
-                    <span
-                      v-if="activeAnnouncement.title"
-                      class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-primary"
+                  <!-- 所有条目同格叠放（grid 单格）：面板高度取最高公告，轮播/圆点
+                       切换只换可见性，高度恒定，下方话题列表不再随切换上下移动。
+                       非激活条目移出视觉、无障碍树与 Tab 焦点序（issue #1102）。 -->
+                  <div class="gf-prose gf-prose-announcement grid">
+                    <div
+                      v-for="(item, index) in announcementItems"
+                      :key="item.id"
+                      data-testid="announcement-item"
+                      class="col-start-1 row-start-1"
+                      :class="index === activeAnnouncementIndex ? '' : 'invisible'"
+                      :aria-hidden="index === activeAnnouncementIndex ? undefined : 'true'"
+                      :inert="index === activeAnnouncementIndex ? undefined : true"
                     >
-                      {{ activeAnnouncement.title }}
-                    </span>
-                    <div v-html="activeAnnouncement.html" />
+                      <span
+                        v-if="item.title"
+                        class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-primary"
+                      >
+                        {{ item.title }}
+                      </span>
+                      <div v-html="item.html" />
+                    </div>
                   </div>
                   <div
                     v-if="hasMultipleAnnouncements"

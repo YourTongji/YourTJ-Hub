@@ -117,7 +117,7 @@ func WikiDetail(c *gin.Context) {
 	props := WikiDetailProps{
 		Page:         detail,
 		Contributors: wikiservice.BuildContributors(page.Id),
-		HotTopics:    buildTopicHotTopics(topic.Id),
+		HotTopics:    buildTopicHotTopics(loginUserID, topic.Id),
 	}
 	// 互动状态（点赞/收藏/订阅）复用 topicUserAction。
 	if loginUserID > 0 {

@@ -48,6 +48,7 @@ watch(
   (open) => {
     if (open) resetForm()
   },
+  { immediate: true },
 )
 
 function resetForm() {

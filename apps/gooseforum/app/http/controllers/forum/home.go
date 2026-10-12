@@ -39,7 +39,7 @@ func Home(c *gin.Context) {
 		followingHome(c, page)
 		return
 	}
-	topicPage := hotdataserve.GetLatestTopicsSimpleVoPaginated(page, sort)
+	topicPage := hotdataserve.GetLatestTopicsSimpleVoPaginated(component.LoginUserId(c), page, sort)
 	props := buildHomeProps(c, page, sort, withOwnPendingTopics(topicPage.Topics, component.LoginUserId(c), page), topicPage.HasNext)
 	items := []feedservice.Candidate{}
 	for _, t := range topicPage.Topics {

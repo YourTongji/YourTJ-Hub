@@ -27,7 +27,7 @@ func Category(c *gin.Context) {
 	if foregroundPage(c) {
 		feedservice.CaptureActivity(component.LoginUserId(c))
 	}
-	topicPage := hotdataserve.GetTopicsByCategorySimpleVo(id, sort, page)
+	topicPage := hotdataserve.GetTopicsByCategorySimpleVo(component.LoginUserId(c), id, sort, page)
 
 	payload := PagePayload{
 		Component: PageComponentCategory,

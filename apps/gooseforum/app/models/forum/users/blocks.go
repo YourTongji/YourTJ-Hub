@@ -120,6 +120,29 @@ func FilterInteractionRecipients(actor uint64, recipients []uint64) ([]uint64, e
 	return FilterInteractionRecipientsTx(db.Connect(), actor, recipients)
 }
 
+// BlockedPeerIDsQuery is the live scalar set of user ids related to the viewer
+// by a block in either direction. Feeds exclude these authors from public
+// lists; the set never discloses which direction created a relation.
+func BlockedPeerIDsQuery(viewer uint64) *gorm.DB {
+	return db.Connect().Model(&BlockEntity{}).
+		Select("CASE WHEN owner_id = ? THEN target_user_id ELSE owner_id END", viewer).
+		Where("owner_id = ? OR target_user_id = ?", viewer, viewer)
+}
+
+// HasBlockedPeers reports whether any block relation touches the user in
+// either direction. Public list loading uses it to decide whether a request
+// needs a viewer-scoped query instead of the shared list cache.
+func HasBlockedPeers(userID uint64) (bool, error) {
+	if userID == 0 {
+		return false, nil
+	}
+	var row int
+	err := db.Connect().Model(&BlockEntity{}).Select("1").
+		Where("owner_id = ? OR target_user_id = ?", userID, userID).
+		Limit(1).Scan(&row).Error
+	return row == 1, err
+}
+
 // FilterInteractionRecipientsTx is used after locking all participants when
 // filtering and persisting an interaction must be atomic with block changes.
 func FilterInteractionRecipientsTx(tx *gorm.DB, actor uint64, recipients []uint64) ([]uint64, error) {

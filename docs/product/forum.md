@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-07
+> Last verified: 2026-10-11
 
 ## Content and publishing
 
@@ -73,6 +73,11 @@ their separate rules.
 关注频道、个人备注与资料内容预览的权限和
 投影规则见[契约与数据](../architecture/contracts-and-data.md)。
 
+`Current`：登录读者的首页、分类页、关注流与话题/Wiki 详情侧栏热门不显示与其存在任一方向屏蔽
+关系的作者（与推荐、私信、通知同一双向语义，见[信息流排序](feed-ranking.md)与
+[决策 0079](../decisions/0079-feed-block-exclusion.md)）；被屏蔽作者的帖子仍可经直接链接与
+聚合搜索访问，其在他人帖子下的回复楼层不受影响。
+
 `Current`：Web 首页桌面工具栏提供刷新入口，45 秒探测非推荐排序第一页；只有 ID 高于已加载
 最大 ID 的条目计为新话题，排序变化本身不算新增。点击提示后新第一页置顶去重并保留旧条目；
 PWA standalone 触摸设备在页顶支持下拉刷新，以第一页替换列表。刷新和加载更多互斥，失败保留内容。
@@ -80,6 +85,8 @@ PWA standalone 触摸设备在页顶支持下拉刷新，以第一页替换列�
 `Current`：桌面帖子预览全站最多一个；窗口失焦、页面隐藏、路由切换或组件停用时关闭。
 公告折叠偏好在本地保存，与公告已读状态独立；收起后不渲染公告正文，新公告仍提示未读。
 折叠公告整行可点击展开，悬停反馈仅着色箭头，键盘聚焦显示整行轮廓；公告标题为空时显示展开提示。
+多条公告轮播时面板按最高公告预留高度，自动轮播与圆点切换不改变面板高度、不带动下方话题列表上下移动，
+非当前条目不进入无障碍树与 Tab 焦点序。
 交互过渡尊重减少动态效果设置。友链描述截断时，鼠标悬停和键盘聚焦均可查看全文。
 
 `Current`：话题详情的回复数、阅读数只在标题元数据中展示，点赞数显示在标题元数据和游客态胶囊登录入口；右栏保留参与者信息。
@@ -134,7 +141,7 @@ Web 确认弹窗约束键盘焦点。规则覆盖主题、回复、Wiki 和课�
 上传保持待审，由站点管理员在审核队列人工处理；原生表情可单独放大预览，不混入附件图库。
 `Planned`：Web 个人库管理界面。
 配额、历史素材保留和隐私规则见[移动端表情规范](mobile-experience.md#sticker-library)与
-[个人表情库决策](../decisions/0038-personal-sticker-library.md)及[先审后用决策](../decisions/0079-personal-sticker-pre-review.md)。
+[个人表情库决策](../decisions/0038-personal-sticker-library.md)及[先审后用决策](../decisions/0080-personal-sticker-pre-review.md)。
 
 ## Governance and public exports
 

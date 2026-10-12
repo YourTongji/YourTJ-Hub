@@ -438,6 +438,7 @@ watch(
     void ensureRequiredAndOptional()
     void loadSearchDicts()
   },
+  { immediate: true },
 )
 
 // ---- 勾选与计算 ----
