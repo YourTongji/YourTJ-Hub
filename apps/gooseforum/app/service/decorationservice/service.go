@@ -45,7 +45,6 @@ type Adjustment struct {
 
 func Catalog(ctx context.Context) ([]Style, error) { return catalog(db.ConnectContext(ctx)) }
 func catalog(conn *gorm.DB) ([]Style, error) {
-	styles := []Style{}
 	var overrides []decoration.Definition
 	if err := conn.Find(&overrides).Error; err != nil {
 		return nil, err
@@ -59,7 +58,7 @@ func catalog(conn *gorm.DB) ([]Style, error) {
 		}
 		byCode[s.Code] = s
 	}
-	styles = make([]Style, 0, len(byCode))
+	styles := make([]Style, 0, len(byCode))
 	for _, s := range byCode {
 		styles = append(styles, s)
 	}

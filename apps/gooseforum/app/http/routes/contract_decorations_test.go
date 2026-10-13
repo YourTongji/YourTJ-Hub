@@ -131,16 +131,25 @@ func TestDecorationAdminPermissionsAndDefinitionHTTP(t *testing.T) {
 	rec := serveAuthSecurityJSON(router, "GET", "/api/admin/decorations", "", contractSessionToken(t, siteManager))
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "decoration-list-success.json"))
 	style := decorationservice.Style{Code: "frame-lantern", Name: "Lantern frame", Kind: decorationservice.AvatarFrame, LightColors: []string{"#166534", "#0D9488"}, DarkColors: []string{"#86EFAC", "#2DD4BF"}, IsEnabled: true, SortOrder: 10, AssetURL: "/static/decorations/frame-lantern.png"}
-	body, _ := json.Marshal(style)
+	body, err := json.Marshal(style)
+	if err != nil {
+		t.Fatal(err)
+	}
 	rec = serveAuthSecurityJSON(router, "POST", "/api/admin/decoration-save", string(body), contractSessionToken(t, siteManager))
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "decoration-style-success.json"))
 	style.Kind = decorationservice.NicknameStyle
-	body, _ = json.Marshal(style)
+	body, err = json.Marshal(style)
+	if err != nil {
+		t.Fatal(err)
+	}
 	rec = serveAuthSecurityJSON(router, "POST", "/api/admin/decoration-save", string(body), contractSessionToken(t, siteManager))
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "invalid-params.json"))
 	style.Kind = decorationservice.AvatarFrame
 	style.LightColors = []string{"url(javascript:alert(1))"}
-	body, _ = json.Marshal(style)
+	body, err = json.Marshal(style)
+	if err != nil {
+		t.Fatal(err)
+	}
 	rec = serveAuthSecurityJSON(router, "POST", "/api/admin/decoration-save", string(body), contractSessionToken(t, siteManager))
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "invalid-params.json"))
 	var count int64
