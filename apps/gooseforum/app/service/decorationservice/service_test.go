@@ -255,7 +255,10 @@ func TestDecorationConcurrentRevokeEquipPostgreSQL(t *testing.T) {
 func TestDecorationFrameScaleValidation(t *testing.T) {
 	for _, scale := range []float64{0, 0.5, 1.25, 2} {
 		s := testStyle("frame-scale", AvatarFrame)
-		payload, _ := json.Marshal(map[string]float64{"assetScale": scale})
+		payload, err := json.Marshal(map[string]float64{"assetScale": scale})
+		if err != nil {
+			t.Fatal(err)
+		}
 		if err := json.Unmarshal(payload, &s); err != nil {
 			t.Fatal(err)
 		}
@@ -265,7 +268,10 @@ func TestDecorationFrameScaleValidation(t *testing.T) {
 	}
 	for _, scale := range []float64{-1, 0.49, 2.01} {
 		s := testStyle("frame-scale", AvatarFrame)
-		payload, _ := json.Marshal(map[string]float64{"assetScale": scale})
+		payload, err := json.Marshal(map[string]float64{"assetScale": scale})
+		if err != nil {
+			t.Fatal(err)
+		}
 		if err := json.Unmarshal(payload, &s); err != nil {
 			t.Fatal(err)
 		}
