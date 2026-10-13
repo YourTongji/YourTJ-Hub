@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：396
-- /api JSON 路由：327，已入契约：328（100%），已知未覆盖：0
+- 快照路由总数：400
+- /api JSON 路由：331，已入契约：332（100%），已知未覆盖：0
 - 非 API 排除路由：68
 
-## 已覆盖（328）
+## 已覆盖（332）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -189,6 +189,10 @@
 | POST | `/api/admin/save-user-badges` | `adminSaveUserBadges` |
 | POST | `/api/admin/search/maintenance` | `adminSearchMaintenance` |
 | POST | `/api/admin/set-agent-comment-topic-policy` | `adminSetAgentCommentTopicPolicy` |
+| POST | `/api/admin/stats/category-summary` | `adminStatsCategorySummary` |
+| POST | `/api/admin/stats/category-trend` | `adminStatsCategoryTrend` |
+| POST | `/api/admin/stats/user-detail` | `adminStatsUserDetail` |
+| POST | `/api/admin/stats/user-ranking` | `adminStatsUserRanking` |
 | POST | `/api/admin/sticker-delete` | `adminStickerDelete` |
 | POST | `/api/admin/sticker-import` | `adminStickerImport` |
 | POST | `/api/admin/sticker-save` | `adminStickerSave` |

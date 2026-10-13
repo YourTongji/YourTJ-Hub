@@ -481,6 +481,11 @@ func apiRoute(ginApp *gin.Engine) {
 	anonymousAdmin.POST("list", UpButterReq(api.AdminAnonymousList))
 	anonymousAdmin.POST("govern", UpButterReq(api.AdminAnonymousGovern))
 	adminApi.POST("traffic-overview", middleware.CheckPermission(permission.Admin), UpButterReq(api.GetTrafficOverview))
+	// 内容贡献统计（issue #1145）：只读内容表的板块/用户维度统计，与推荐遥测无关。
+	adminApi.POST("stats/category-summary", middleware.CheckPermission(permission.Admin), UpButterReq(api.AdminStatsCategorySummary))
+	adminApi.POST("stats/category-trend", middleware.CheckPermission(permission.Admin), UpButterReq(api.AdminStatsCategoryTrend))
+	adminApi.POST("stats/user-ranking", middleware.CheckPermission(permission.Admin), UpButterReq(api.AdminStatsUserRanking))
+	adminApi.POST("stats/user-detail", middleware.CheckPermission(permission.Admin), UpButterReq(api.AdminStatsUserDetail))
 
 	adminApi.
 		Group("", middleware.CheckPermission(permission.UserManager)).

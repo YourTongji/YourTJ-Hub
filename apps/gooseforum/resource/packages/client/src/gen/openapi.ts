@@ -4596,6 +4596,201 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/stats/category-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Per-category topic/reply/contributor counts over a date range (content contribution stats)
+         * @description Admin console operation gated by the `Admin` role permission; callers without it
+         *     fail with HTTP 403 and `permission.denied`. Both dates are inclusive and sliced by
+         *     server-local calendar day; `coverage.timezone` echoes the zone actually used. An
+         *     empty `startDate` defaults to 7 days before today and an empty `endDate` to today,
+         *     each resolved independently of the other; both ends are inclusive, so the default
+         *     window covers 8 calendar days — the same convention as `adminTrafficOverview`,
+         *     while the console's "last 7 days" preset is a separate UI-level range.
+         *     Content scope is the currently public, undeleted forum content, using the
+         *     repository's canonical public-topic predicate: a topic counts when
+         *     `deleted_at IS NULL AND visibility_status = 'ACTIVE' AND process_status = 0 AND topic_type = 0 AND status = 1`
+         *     (published topics only; `topic_type = 0` excludes wiki pages) and its first floor is
+         *     still visible — the post referenced by `first_post_id` is not soft-deleted, is
+         *     `visibility_status = 'ACTIVE'` and is `process_status = 0`, so a topic whose body
+         *     was removed stops counting instead of surfacing as a body-less orphan. Replies are
+         *     the posts of those same topics with `post_no > 1` (the first floor is the topic body
+         *     itself and is never a reply), so they inherit the topic-level conditions.
+         *     A row is attributed to its effective first-public time
+         *     `COALESCE(first_public_at, created_at)`, not to its last edit. Liked content is
+         *     measured by the likes that are still effective now (topic `like_count`, live
+         *     `post_user_action` rows with `liked_at IS NOT NULL`); an unliked action is not
+         *     counted and no synthetic contribution score is derived.
+         *     Category attribution uses the current membership relation
+         *     (`topic_category_index.effective = 1`), so a topic belonging to several categories
+         *     is counted in each of them and the cross-category sum can exceed `totals`;
+         *     `totals` deduplicates by topic/post id and describes the whole site. `categories`
+         *     always lists every category, zero-filled, ordered by `topicCount` descending then
+         *     `categoryId` ascending.
+         *     `contributorCount` counts the distinct human accounts (`users.actor_type = 0`) that
+         *     authored an in-range topic or reply; anonymous rows (`persona_uid`/`is_anonymous`)
+         *     and soft-deleted users are excluded, and per-day contributor counts are never
+         *     summed. `agentContributorCount` counts bot accounts (`actor_type = 1`) separately
+         *     so agents never inflate human figures. `coverage.estimated` is true when any
+         *     counted row was backfilled from `created_at` (`first_public_estimated`), i.e. its
+         *     exact first-public time is unknown.
+         *     Validation failures (malformed date, `startDate > endDate`, a span over 366 days)
+         *     return HTTP 200 `common.request.invalidParams` with `params.field` naming the
+         *     rejected field — an inverted range blames `endDate`, and an over-long range adds
+         *     `params.maxRangeDays` with the enforced cap; the range is never silently truncated.
+         *     A storage failure returns HTTP 200 `admin.stats.fetchFailed` rather than a
+         *     zero-filled success. JSON binding is lenient: a malformed body binds to zero values
+         *     and therefore falls back to the default window instead of returning a bind error.
+         */
+        post: operations["adminStatsCategorySummary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/stats/category-trend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Daily topic/reply counts of one category over a date range
+         * @description Admin console operation gated by the `Admin` role permission; callers without it
+         *     fail with HTTP 403 and `permission.denied`. `categoryId` is required and must be an
+         *     existing category. Both dates are inclusive and sliced by server-local calendar
+         *     day; omitted dates fall back to the `adminStatsCategorySummary` window (empty
+         *     `startDate` = 7 days before today, empty `endDate` = today, both inclusive, so 8
+         *     calendar days).
+         *     `days` holds one entry per in-range day in ascending order, so days without any
+         *     contribution are present with zero counts and `estimated: false`; a day whose
+         *     counts include a row backfilled from `created_at` is flagged `estimated: true`.
+         *     The counts obey the same scope as `adminStatsCategorySummary`: currently public,
+         *     undeleted, published forum topics of the category with a still-visible first floor
+         *     (`deleted_at IS NULL AND visibility_status = 'ACTIVE' AND process_status = 0 AND topic_type = 0 AND status = 1`,
+         *     `topic_type = 0` excluding wiki pages), and replies as the posts of those topics
+         *     with `post_no > 1`, attributed by `COALESCE(first_public_at, created_at)`, with
+         *     anonymous and soft-deleted authors irrelevant here because per-day counts are
+         *     content counts, not people counts.
+         *     Validation failures (malformed date, `startDate > endDate`, a span over 366 days,
+         *     a missing or unknown `categoryId`) return HTTP 200 `common.request.invalidParams`
+         *     with `params.field` naming the rejected field — an inverted range blames `endDate`,
+         *     and an over-long range adds `params.maxRangeDays` with the enforced cap. A storage
+         *     failure returns HTTP 200 `admin.stats.fetchFailed` rather than a zero-filled
+         *     success. JSON binding is lenient: a malformed body binds to zero values, so a
+         *     missing `categoryId` is rejected as `common.request.invalidParams` instead of
+         *     returning a bind error.
+         */
+        post: operations["adminStatsCategoryTrend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/stats/user-ranking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Paginated contributor ranking over a date range
+         * @description Admin console operation gated by the `Admin` role permission; callers without it
+         *     fail with HTTP 403 and `permission.denied`. Ranks accounts by their in-range
+         *     contribution, optionally restricted to one category. Both dates are inclusive and
+         *     sliced by server-local calendar day; omitted dates fall back to the
+         *     `adminStatsCategorySummary` window (empty `startDate` = 7 days before today, empty
+         *     `endDate` = today, both inclusive, so 8 calendar days); `categoryId` 0 or omitted
+         *     means whole-site.
+         *     Counted content obeys the same public scope as `adminStatsCategorySummary`
+         *     (published, undeleted forum topics with a still-visible first floor, replies as
+         *     their `post_no > 1` posts).
+         *     Attribution is by author account, so anonymous rows (`persona_uid`/`is_anonymous`)
+         *     never surface an identity and soft-deleted users (`users.deleted_at IS NOT NULL`)
+         *     are absent from the ranking even though their public content still counts towards
+         *     content volume. `actorType` selects the population: 0 (default) ranks human
+         *     accounts, 1 ranks agent (bot) accounts; the two are never mixed.
+         *     `sortBy` picks the ordering metric (`topics` default, `replies`, `likes`) and ties
+         *     are broken by `userId` ascending, so paging is stable. `page` is 1-based and echoed
+         *     unchanged; `pageSize` is bounded to 1-100 (default 20) and `total` is the number of
+         *     matching accounts, i.e. the paging denominator. `likes` counts the likes still
+         *     effective now (topic `like_count`, plus live `post_user_action` rows), not the
+         *     likes added during the range. `coverage.estimated` is scoped to the rows this
+         *     ranking actually counts: it is true when any of them was backfilled from
+         *     `created_at`, so anonymous or otherwise excluded content never raises the flag.
+         *     Validation failures (malformed date, `startDate > endDate`, a span over 366 days,
+         *     an unknown `categoryId`, `pageSize` outside 1-100, an unknown `sortBy`, an unknown
+         *     `actorType`) return HTTP 200 `common.request.invalidParams` with `params.field`
+         *     naming the rejected field — an inverted range blames `endDate`, and an over-long
+         *     range adds `params.maxRangeDays` with the enforced cap; defaults are never
+         *     substituted silently for an invalid value. A storage failure returns HTTP 200
+         *     `admin.stats.fetchFailed` rather than an empty page. JSON binding is lenient: a
+         *     malformed body binds to zero values and therefore falls back to the default window
+         *     and filters.
+         */
+        post: operations["adminStatsUserRanking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/stats/user-detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Contribution detail of one account over a date range
+         * @description Admin console operation gated by the `Admin` role permission; callers without it
+         *     fail with HTTP 403 and `permission.denied`. Exactly one of `userId` and `username`
+         *     identifies the account; passing both or neither fails with
+         *     `common.request.invalidParams`. `userId` is the authoritative lookup because the
+         *     forum user id is the identity key, `username` is the by-name convenience form.
+         *     An unknown or soft-deleted (closed) account returns HTTP 200 `user.notFound`; a
+         *     closed account is never resurrected by this read.
+         *     Both dates are inclusive and sliced by server-local calendar day; omitted dates
+         *     fall back to the `adminStatsCategorySummary` window (empty `startDate` = 7 days
+         *     before today, empty `endDate` = today, both inclusive, so 8 calendar days);
+         *     `categoryId` 0 or omitted means whole-site. `summary` holds the account's in-range totals under
+         *     the same scope as the ranking endpoint (`likes` counts likes still effective now),
+         *     and `days` holds one entry per in-range day ascending, zero-filled for days without
+         *     contribution, with `estimated: true` on days whose counts include a row backfilled
+         *     from `created_at`. An account with no contribution in range is not an error: its
+         *     `summary` and `days` are all zero. Anonymous content is never attributed to the
+         *     queried account, and querying an agent account returns its real identity because
+         *     the caller is an administrator.
+         *     A storage failure returns HTTP 200 `admin.stats.fetchFailed` rather than a
+         *     zero-filled success. JSON binding is lenient: a malformed body binds to zero values,
+         *     so a missing account identifier is rejected as `common.request.invalidParams`
+         *     instead of returning a bind error.
+         */
+        post: operations["adminStatsUserDetail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/user-list": {
         parameters: {
             query?: never;
@@ -12964,6 +13159,245 @@ export interface components {
                 /** @description Omitted from the wire payload when false. */
                 hasNext?: boolean;
             };
+        };
+        AdminStatsCategorySummaryRequest: {
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            startDate?: string;
+            /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
+            endDate?: string;
+        };
+        AdminStatsCategorySummaryResult: {
+            /** @description Every category, zero-filled when it has no in-range contribution, ordered by `topicCount` descending then `categoryId` ascending. */
+            categories: components["schemas"]["AdminStatsCategoryItem"][];
+            totals: components["schemas"]["AdminStatsTotals"];
+            coverage: components["schemas"]["AdminStatsCoverage"];
+        };
+        AdminStatsCategorySummaryResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminStatsCategorySummaryResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminStatsCategoryTrendRequest: {
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            startDate?: string;
+            /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
+            endDate?: string;
+            /**
+             * Format: uint64
+             * @description Required category id; an unknown id fails with `common.request.invalidParams`.
+             */
+            categoryId: number;
+        };
+        AdminStatsCategoryTrendResult: {
+            /**
+             * Format: uint64
+             * @description Echo of the requested category id.
+             */
+            categoryId: number;
+            /** @description One entry per in-range day, ascending; days without contribution are present with zero counts. */
+            days: components["schemas"]["AdminStatsDayCount"][];
+            coverage: components["schemas"]["AdminStatsCoverage"];
+        };
+        AdminStatsCategoryTrendResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminStatsCategoryTrendResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminStatsUserRankingRequest: {
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            startDate?: string;
+            /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
+            endDate?: string;
+            /**
+             * Format: uint64
+             * @description Category filter; 0 or omitted means whole-site.
+             */
+            categoryId?: number;
+            /**
+             * @description Ordering metric, descending; empty or omitted defaults to `topics`, and ties break on `userId` ascending.
+             * @enum {string}
+             */
+            sortBy?: "topics" | "replies" | "likes";
+            /** @description 1-based page number, echoed unchanged; omitted defaults to page 1. Values above the 10000 cap are rejected as `common.request.invalidParams` with `params.field = page` rather than clamped or silently truncated, because deeper windows are meaningless and would overflow the offset arithmetic. */
+            page?: number;
+            /** @description Page size; omitted defaults to 20, and values outside 1-100 are rejected rather than clamped. */
+            pageSize?: number;
+            /**
+             * @description Contributor population to rank; 0 = human accounts (default when omitted), 1 = agent (bot) accounts.
+             * @enum {integer}
+             */
+            actorType?: 0 | 1;
+        };
+        AdminStatsUserRankingResult: {
+            /** @description Ranked page; an empty array when nothing matches. Anonymous content and soft-deleted users never appear. */
+            items: components["schemas"]["AdminStatsUserRankingItem"][];
+            /** @description 1-based page number, echoed unchanged. */
+            page: number;
+            /** @description Effective page size. */
+            pageSize: number;
+            /**
+             * Format: int64
+             * @description Number of accounts matching the filters (the paging denominator), independent of `page`.
+             */
+            total: number;
+            coverage: components["schemas"]["AdminStatsCoverage"];
+        };
+        AdminStatsUserRankingResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminStatsUserRankingResult"];
+        }) | components["schemas"]["ApiFailure"];
+        /** @description Exactly one of `userId` and `username` identifies the account; passing both or neither fails with `common.request.invalidParams`. `userId` is the authoritative form (the numeric forum user id), `username` the by-name convenience form. */
+        AdminStatsUserDetailRequest: {
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            startDate?: string;
+            /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
+            endDate?: string;
+            /**
+             * Format: uint64
+             * @description Category filter; 0 or omitted means whole-site.
+             */
+            categoryId?: number;
+            /**
+             * Format: uint64
+             * @description Account id; exactly one of `userId` / `username` must be given.
+             */
+            userId?: number;
+            /** @description Account username; exactly one of `userId` / `username` must be given. */
+            username?: string;
+        };
+        AdminStatsUserDetailResult: {
+            user: components["schemas"]["AdminStatsUserDetailUser"];
+            summary: components["schemas"]["AdminStatsUserDetailSummary"];
+            /** @description One entry per in-range day, ascending, zero-filled for days without contribution. */
+            days: components["schemas"]["AdminStatsDayCount"][];
+            coverage: components["schemas"]["AdminStatsCoverage"];
+        };
+        AdminStatsUserDetailResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminStatsUserDetailResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminStatsCoverage: {
+            /** @description Runtime-derived server-local timezone whose calendar days the range was sliced by (there is no site-level timezone setting). Formatted as `"<abbreviation> (UTC±HH:MM)"`, e.g. `CST (UTC+08:00)` or `UTC (UTC+00:00)`; the abbreviation is the `time.Local` zone name, or `Local` when that name is empty or literally `Local`. */
+            timezone: string;
+            /** @description Inclusive date-range span cap in days currently enforced (366), echoed so the UI can show the limit without hard-coding it. */
+            maxRangeDays: number;
+            /** @description True when any counted row's first-public time was backfilled from `created_at` (`first_public_estimated`), i.e. not an exact audit-time record. */
+            estimated: boolean;
+        };
+        AdminStatsCategoryItem: {
+            /** Format: uint64 */
+            categoryId: number;
+            /** @description Current category name. */
+            name: string;
+            /**
+             * Format: int64
+             * @description In-range topics currently attributed to this category (a topic in several categories counts once per category).
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description In-range replies of those topics (`post_no > 1`; the first floor is not a reply).
+             */
+            replyCount: number;
+            /**
+             * Format: int64
+             * @description Distinct human accounts (`actor_type = 0`) that authored one of them; anonymous rows and soft-deleted users excluded.
+             */
+            contributorCount: number;
+            /**
+             * Format: int64
+             * @description Distinct agent accounts (`actor_type = 1`) that authored one of them, kept separate from `contributorCount`.
+             */
+            agentContributorCount: number;
+        };
+        AdminStatsTotals: {
+            /**
+             * Format: int64
+             * @description Whole-site in-range topics, deduplicated by topic id (unaffected by multi-category attribution).
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description Whole-site in-range replies, deduplicated by post id.
+             */
+            replyCount: number;
+            /**
+             * Format: int64
+             * @description Distinct human accounts contributing site-wide; per-day counts are never summed.
+             */
+            contributorCount: number;
+            /**
+             * Format: int64
+             * @description Distinct agent accounts contributing site-wide.
+             */
+            agentContributorCount: number;
+        };
+        AdminStatsDayCount: {
+            /** @description YYYY-MM-DD, server-local day. */
+            date: string;
+            /**
+             * Format: int64
+             * @description Topics attributed to this day; 0 when the day has no contribution.
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description Replies attributed to this day; 0 when the day has no contribution.
+             */
+            replyCount: number;
+            /** @description True when this day's counts include a row whose first-public time was backfilled from `created_at`. */
+            estimated: boolean;
+        };
+        AdminStatsUserRankingItem: {
+            /**
+             * Format: uint64
+             * @description Numeric forum user id (also the OIDC `sub`).
+             */
+            userId: number;
+            username: string;
+            nickname: string;
+            /**
+             * @description 0 = human account, 1 = agent (bot) account; matches the request `actorType` filter.
+             * @enum {integer}
+             */
+            actorType: 0 | 1;
+            /**
+             * Format: int64
+             * @description In-range topics authored under the requested scope.
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description In-range replies authored under the requested scope.
+             */
+            replyCount: number;
+            /**
+             * Format: int64
+             * @description Likes still effective on those topics and replies; cancelled likes are not counted.
+             */
+            likeCount: number;
+        };
+        AdminStatsUserDetailUser: {
+            /** Format: uint64 */
+            userId: number;
+            username: string;
+            nickname: string;
+            /**
+             * @description 0 = human account, 1 = agent (bot) account.
+             * @enum {integer}
+             */
+            actorType: 0 | 1;
+        };
+        AdminStatsUserDetailSummary: {
+            /**
+             * Format: int64
+             * @description In-range topics authored under the requested scope; 0 when the account had no contribution.
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description In-range replies authored under the requested scope; 0 when the account had no contribution.
+             */
+            replyCount: number;
+            /**
+             * Format: int64
+             * @description Likes still effective on those topics and replies; cancelled likes are not counted.
+             */
+            likeCount: number;
         };
         AdminTrafficOverviewRequest: {
             /** @description Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago. */
@@ -23410,6 +23844,174 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminTrafficOverviewResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStatsCategorySummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStatsCategorySummaryRequest"];
+            };
+        };
+        responses: {
+            /** @description Category summary plus site-wide totals, or a legacy business failure envelope (`common.request.invalidParams` / `admin.stats.fetchFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStatsCategorySummaryResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStatsCategoryTrend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStatsCategoryTrendRequest"];
+            };
+        };
+        responses: {
+            /** @description Daily series for the category, or a legacy business failure envelope (`common.request.invalidParams` / `admin.stats.fetchFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStatsCategoryTrendResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStatsUserRanking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStatsUserRankingRequest"];
+            };
+        };
+        responses: {
+            /** @description One page of ranked contributors, or a legacy business failure envelope (`common.request.invalidParams` / `admin.stats.fetchFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStatsUserRankingResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStatsUserDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStatsUserDetailRequest"];
+            };
+        };
+        responses: {
+            /** @description Account identity, in-range summary and daily series, or a legacy business failure envelope (`common.request.invalidParams` / `user.notFound` / `admin.stats.fetchFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStatsUserDetailResponse"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */

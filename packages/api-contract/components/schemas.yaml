@@ -11813,3 +11813,406 @@ DecorationStyleResponse:
         $ref: '#/DecorationStyle'
     additionalProperties: false
   - $ref: '#/ApiFailure'
+
+# ================= Admin content contribution stats（issue #1145）=================
+# Scope, attribution and 0-vs-estimated rules: see paths/admin-stats.yaml.
+
+AdminStatsCategorySummaryRequest:
+  type: object
+  properties:
+    startDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago.
+    endDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today.
+  additionalProperties: false
+
+AdminStatsCategoryTrendRequest:
+  type: object
+  required: [categoryId]
+  properties:
+    startDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago.
+    endDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today.
+    categoryId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Required category id; an unknown id fails with `common.request.invalidParams`.
+  additionalProperties: false
+
+AdminStatsUserRankingRequest:
+  type: object
+  properties:
+    startDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago.
+    endDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today.
+    categoryId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Category filter; 0 or omitted means whole-site.
+    sortBy:
+      type: string
+      enum: [topics, replies, likes]
+      description: Ordering metric, descending; empty or omitted defaults to `topics`, and ties break on `userId` ascending.
+    page:
+      type: integer
+      minimum: 1
+      maximum: 10000
+      description: >-
+        1-based page number, echoed unchanged; omitted defaults to page 1. Values above the 10000
+        cap are rejected as `common.request.invalidParams` with `params.field = page` rather than
+        clamped or silently truncated, because deeper windows are meaningless and would overflow
+        the offset arithmetic.
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 100
+      description: Page size; omitted defaults to 20, and values outside 1-100 are rejected rather than clamped.
+    actorType:
+      type: integer
+      enum: [0, 1]
+      description: Contributor population to rank; 0 = human accounts (default when omitted), 1 = agent (bot) accounts.
+  additionalProperties: false
+
+AdminStatsUserDetailRequest:
+  type: object
+  properties:
+    startDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago.
+    endDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today.
+    categoryId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Category filter; 0 or omitted means whole-site.
+    userId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Account id; exactly one of `userId` / `username` must be given.
+    username:
+      type: string
+      minLength: 1
+      description: Account username; exactly one of `userId` / `username` must be given.
+  additionalProperties: false
+  description: >-
+    Exactly one of `userId` and `username` identifies the account; passing both or neither fails with
+    `common.request.invalidParams`. `userId` is the authoritative form (the numeric forum user id),
+    `username` the by-name convenience form.
+
+AdminStatsCoverage:
+  type: object
+  required: [timezone, maxRangeDays, estimated]
+  properties:
+    timezone:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: >-
+        Runtime-derived server-local timezone whose calendar days the range was sliced by (there is no
+        site-level timezone setting). Formatted as `"<abbreviation> (UTC±HH:MM)"`, e.g. `CST (UTC+08:00)`
+        or `UTC (UTC+00:00)`; the abbreviation is the `time.Local` zone name, or `Local` when that name is
+        empty or literally `Local`.
+    maxRangeDays:
+      type: integer
+      minimum: 1
+      description: Inclusive date-range span cap in days currently enforced (366), echoed so the UI can show the limit without hard-coding it.
+    estimated:
+      type: boolean
+      description: True when any counted row's first-public time was backfilled from `created_at` (`first_public_estimated`), i.e. not an exact audit-time record.
+  additionalProperties: false
+
+AdminStatsCategoryItem:
+  type: object
+  required: [categoryId, name, topicCount, replyCount, contributorCount, agentContributorCount]
+  properties:
+    categoryId:
+      type: integer
+      format: uint64
+      minimum: 1
+    name:
+      type: string
+      description: Current category name.
+    topicCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range topics currently attributed to this category (a topic in several categories counts once per category).
+    replyCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range replies of those topics (`post_no > 1`; the first floor is not a reply).
+    contributorCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Distinct human accounts (`actor_type = 0`) that authored one of them; anonymous rows and soft-deleted users excluded.
+    agentContributorCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Distinct agent accounts (`actor_type = 1`) that authored one of them, kept separate from `contributorCount`.
+  additionalProperties: false
+
+AdminStatsTotals:
+  type: object
+  required: [topicCount, replyCount, contributorCount, agentContributorCount]
+  properties:
+    topicCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Whole-site in-range topics, deduplicated by topic id (unaffected by multi-category attribution).
+    replyCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Whole-site in-range replies, deduplicated by post id.
+    contributorCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Distinct human accounts contributing site-wide; per-day counts are never summed.
+    agentContributorCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Distinct agent accounts contributing site-wide.
+  additionalProperties: false
+
+AdminStatsCategorySummaryResult:
+  type: object
+  required: [categories, totals, coverage]
+  properties:
+    categories:
+      type: array
+      items:
+        $ref: '#/AdminStatsCategoryItem'
+      description: Every category, zero-filled when it has no in-range contribution, ordered by `topicCount` descending then `categoryId` ascending.
+    totals:
+      $ref: '#/AdminStatsTotals'
+    coverage:
+      $ref: '#/AdminStatsCoverage'
+  additionalProperties: false
+
+AdminStatsCategorySummaryResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminStatsCategorySummaryResult'
+    - $ref: '#/ApiFailure'
+
+AdminStatsDayCount:
+  type: object
+  required: [date, topicCount, replyCount, estimated]
+  properties:
+    date:
+      type: string
+      description: YYYY-MM-DD, server-local day.
+    topicCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Topics attributed to this day; 0 when the day has no contribution.
+    replyCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Replies attributed to this day; 0 when the day has no contribution.
+    estimated:
+      type: boolean
+      description: True when this day's counts include a row whose first-public time was backfilled from `created_at`.
+  additionalProperties: false
+
+AdminStatsCategoryTrendResult:
+  type: object
+  required: [categoryId, days, coverage]
+  properties:
+    categoryId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Echo of the requested category id.
+    days:
+      type: array
+      items:
+        $ref: '#/AdminStatsDayCount'
+      description: One entry per in-range day, ascending; days without contribution are present with zero counts.
+    coverage:
+      $ref: '#/AdminStatsCoverage'
+  additionalProperties: false
+
+AdminStatsCategoryTrendResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminStatsCategoryTrendResult'
+    - $ref: '#/ApiFailure'
+
+AdminStatsUserRankingItem:
+  type: object
+  required: [userId, username, nickname, actorType, topicCount, replyCount, likeCount]
+  properties:
+    userId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Numeric forum user id (also the OIDC `sub`).
+    username:
+      type: string
+    nickname:
+      type: string
+    actorType:
+      type: integer
+      enum: [0, 1]
+      description: 0 = human account, 1 = agent (bot) account; matches the request `actorType` filter.
+    topicCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range topics authored under the requested scope.
+    replyCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range replies authored under the requested scope.
+    likeCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Likes still effective on those topics and replies; cancelled likes are not counted.
+  additionalProperties: false
+
+AdminStatsUserRankingResult:
+  type: object
+  required: [items, page, pageSize, total, coverage]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/AdminStatsUserRankingItem'
+      description: Ranked page; an empty array when nothing matches. Anonymous content and soft-deleted users never appear.
+    page:
+      type: integer
+      minimum: 1
+      description: 1-based page number, echoed unchanged.
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 100
+      description: Effective page size.
+    total:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Number of accounts matching the filters (the paging denominator), independent of `page`.
+    coverage:
+      $ref: '#/AdminStatsCoverage'
+  additionalProperties: false
+
+AdminStatsUserRankingResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminStatsUserRankingResult'
+    - $ref: '#/ApiFailure'
+
+AdminStatsUserDetailUser:
+  type: object
+  required: [userId, username, nickname, actorType]
+  properties:
+    userId:
+      type: integer
+      format: uint64
+      minimum: 1
+    username:
+      type: string
+    nickname:
+      type: string
+    actorType:
+      type: integer
+      enum: [0, 1]
+      description: 0 = human account, 1 = agent (bot) account.
+  additionalProperties: false
+
+AdminStatsUserDetailSummary:
+  type: object
+  required: [topicCount, replyCount, likeCount]
+  properties:
+    topicCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range topics authored under the requested scope; 0 when the account had no contribution.
+    replyCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range replies authored under the requested scope; 0 when the account had no contribution.
+    likeCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Likes still effective on those topics and replies; cancelled likes are not counted.
+  additionalProperties: false
+
+AdminStatsUserDetailResult:
+  type: object
+  required: [user, summary, days, coverage]
+  properties:
+    user:
+      $ref: '#/AdminStatsUserDetailUser'
+    summary:
+      $ref: '#/AdminStatsUserDetailSummary'
+    days:
+      type: array
+      items:
+        $ref: '#/AdminStatsDayCount'
+      description: One entry per in-range day, ascending, zero-filled for days without contribution.
+    coverage:
+      $ref: '#/AdminStatsCoverage'
+  additionalProperties: false
+
+AdminStatsUserDetailResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminStatsUserDetailResult'
+    - $ref: '#/ApiFailure'

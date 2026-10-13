@@ -1,15 +1,21 @@
 <script setup lang="ts">import { adminText } from '@/admin/runtime/i18n-text'
 
 import { FileText, Link as LinkIcon, MessageSquare, Users } from '@lucide/vue'
-import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import AdminSection from '@/admin/components/AdminSection.vue'
 import { BasicPage } from '@/admin/components/global-layout'
+import CategoryStatsSection from '@/admin/pages/stats/CategoryStatsSection.vue'
+import StatsFilterBar from '@/admin/pages/stats/StatsFilterBar.vue'
+import UserStatsSection from '@/admin/pages/stats/UserStatsSection.vue'
 import {
+  getAdminStatsCategorySummary,
   getGithubReleases,
   getServerVersion,
   getSiteStatistics,
   getTrafficOverview,
 } from '@/admin/runtime/api'
+import type { AdminStatsCategorySummaryResult, AdminStatsFilter } from '@/admin/runtime/api'
 import type {
   AdminPayload,
   DailyTraffic,
@@ -23,9 +29,14 @@ defineProps<{
   payload: AdminPayload<ManageHomeProps>
 }>()
 
-const DateRangePicker = defineAsyncComponent(() => import('@/admin/pages/stats/DateRangePicker.vue'))
 const ProjectVersion = defineAsyncComponent(() => import('@/admin/pages/stats/ProjectVersion.vue'))
 const TrafficOverview = defineAsyncComponent(() => import('@/admin/pages/stats/TrafficOverview.vue'))
+
+const { t } = useI18n()
+
+// 贡献统计（issue #1145）区间上限，与后端校验一致；服务端返回 coverage.maxRangeDays 时以后者为准展示。
+const MAX_RANGE_DAYS = 366
+const DAY_MS = 86_400_000
 
 const stats = ref<SiteStatistics>()
 const statsLoading = ref(true)
@@ -37,8 +48,38 @@ const releases = ref<GithubRelease[]>([])
 const releasesLoading = ref(true)
 const releasesError = ref('')
 
-const endDate = ref(formatDate(new Date()))
-const startDate = ref(formatDate(addDays(new Date(), -7)))
+const today = new Date()
+const presets = computed(() => [
+  { key: '7', label: t('statsAdmin.range7'), startDate: formatDate(addDays(today, -6)), endDate: formatDate(today) },
+  { key: '30', label: t('statsAdmin.range30'), startDate: formatDate(addDays(today, -29)), endDate: formatDate(today) },
+])
+
+// filter 是筛选栏的即时输入，activeFilter 是唯一被各区块消费的有效筛选：
+// 区间非法时不派发请求，页面继续展示上一次有效筛选的结果（AC-8）。
+const filter = reactive({ startDate: formatDate(addDays(today, -6)), endDate: formatDate(today), categoryId: 0 })
+const activePreset = ref('7')
+const activeFilter = ref<AdminStatsFilter>({ ...filter })
+const invalidMessage = ref('')
+
+const categorySummary = ref<AdminStatsCategorySummaryResult>()
+const categorySummaryLoading = ref(true)
+const categorySummaryError = ref('')
+// 请求序号守卫：快速切换筛选时旧响应不得覆盖新结果（AC-8）。
+let summarySeq = 0
+let trafficSeq = 0
+
+const categoryOptions = computed(() => [
+  { value: 0, label: t('statsAdmin.categoryAll') },
+  ...(categorySummary.value?.categories ?? []).map(item => ({ value: Number(item.categoryId), label: item.name })),
+])
+const timezone = computed(() => categorySummary.value?.coverage?.timezone)
+const maxRangeDays = computed(() => Number(categorySummary.value?.coverage?.maxRangeDays) || MAX_RANGE_DAYS)
+const rules = computed(() => [
+  t('statsAdmin.ruleTime'),
+  t('statsAdmin.ruleLikes'),
+  t('statsAdmin.ruleCategory'),
+  t('statsAdmin.ruleUsers'),
+])
 
 const summaryItems = computed(() => [
   {
@@ -82,6 +123,35 @@ function formatDate(date: Date) {
   return `${year}-${month}-${day}`
 }
 
+function rangeDays(startDate: string, endDate: string) {
+  const start = new Date(`${startDate}T00:00:00`).getTime()
+  const end = new Date(`${endDate}T00:00:00`).getTime()
+  if (Number.isNaN(start) || Number.isNaN(end)) return Number.NaN
+  return Math.round((end - start) / DAY_MS) + 1
+}
+
+function validateRange(startDate: string, endDate: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+    return t('statsAdmin.invalidFormat')
+  }
+  const days = rangeDays(startDate, endDate)
+  if (!Number.isFinite(days) || days < 1) return t('statsAdmin.invalidOrder')
+  if (days > MAX_RANGE_DAYS) return t('statsAdmin.invalidSpan', { days, max: MAX_RANGE_DAYS })
+  return ''
+}
+
+function errorText(error: unknown) {
+  return error instanceof Error && error.message ? error.message : t('statsAdmin.loadFailed')
+}
+
+function selectPreset(key: string) {
+  activePreset.value = key
+  const preset = presets.value.find(item => item.key === key)
+  if (!preset) return
+  filter.startDate = preset.startDate
+  filter.endDate = preset.endDate
+}
+
 function formatNumber(value?: number) {
   return statsLoading.value || value === undefined ? '...' : value.toLocaleString()
 }
@@ -115,11 +185,32 @@ async function loadStats() {
 }
 
 async function loadTraffic() {
+  const seq = ++trafficSeq
   trafficLoading.value = true
   try {
-    traffic.value = await getTrafficOverview(startDate.value, endDate.value)
+    const result = await getTrafficOverview(activeFilter.value.startDate, activeFilter.value.endDate)
+    if (seq === trafficSeq) traffic.value = result
   } finally {
-    trafficLoading.value = false
+    if (seq === trafficSeq) trafficLoading.value = false
+  }
+}
+
+async function loadCategorySummary() {
+  const seq = ++summarySeq
+  categorySummaryLoading.value = true
+  categorySummaryError.value = ''
+  try {
+    const result = await getAdminStatsCategorySummary({
+      startDate: activeFilter.value.startDate,
+      endDate: activeFilter.value.endDate,
+    })
+    if (seq === summarySeq) categorySummary.value = result
+  } catch (error) {
+    if (seq !== summarySeq) return
+    // 保留上一次结果：筛选栏的板块下拉仍需要上一份板块清单。
+    categorySummaryError.value = errorText(error)
+  } finally {
+    if (seq === summarySeq) categorySummaryLoading.value = false
   }
 }
 
@@ -145,9 +236,28 @@ async function loadReleases() {
   }
 }
 
+function applyFilter() {
+  const invalid = validateRange(filter.startDate, filter.endDate)
+  invalidMessage.value = invalid
+  if (invalid) return
+  // 同值不重派发由 Vue 响应式保证：重复选中同一预设/区间不会触发本 watcher。
+  activeFilter.value = { startDate: filter.startDate, endDate: filter.endDate, categoryId: filter.categoryId }
+}
+
+watch(filter, applyFilter)
+
+// 逐字段监听：只改板块时区间字段不变，不应重取按时间切片的接口（AC-1/AC-8）。
+watch(
+  [() => activeFilter.value.startDate, () => activeFilter.value.endDate],
+  () => {
+    void loadCategorySummary()
+    void loadTraffic()
+  },
+  { immediate: true },
+)
+
 onMounted(() => {
   void loadStats()
-  void loadTraffic()
   void loadServerVersion()
   void loadReleases()
 })
@@ -178,7 +288,27 @@ onMounted(() => {
       </div>
     </template>
 
+      <StatsFilterBar
+        class="mb-4"
+        :presets="presets"
+        :active-preset="activePreset"
+        :start-date="filter.startDate"
+        :end-date="filter.endDate"
+        :category-id="filter.categoryId"
+        :category-options="categoryOptions"
+        :timezone="timezone"
+        :max-range-days="maxRangeDays"
+        :invalid-message="invalidMessage"
+        @select-preset="selectPreset"
+        @update:start-date="filter.startDate = $event"
+        @update:end-date="filter.endDate = $event"
+        @update:category-id="filter.categoryId = $event"
+      />
+
       <AdminSection class="mb-4">
+        <p class="border-b bg-muted/10 px-4 py-2 text-xs text-muted-foreground">
+          {{ t('statsAdmin.overviewNote') }}
+        </p>
         <div class="grid sm:grid-cols-2 xl:grid-cols-4">
         <div
           v-for="(item, index) in summaryItems"
@@ -204,11 +334,7 @@ onMounted(() => {
         <div class="min-w-0">
  <TrafficOverview :data="traffic" :loading="trafficLoading">
             <template #headerAction>
-              <DateRangePicker
-                v-model:start-date="startDate"
-                v-model:end-date="endDate"
-                @change="loadTraffic"
-              />
+              <p class="max-w-[320px] text-xs text-muted-foreground sm:text-right">{{ t('statsAdmin.trafficNote') }}</p>
             </template>
           </TrafficOverview>
         </div>
@@ -220,5 +346,32 @@ onMounted(() => {
           />
         </div>
       </div>
+
+      <div class="mt-4">
+        <CategoryStatsSection
+          :filter="activeFilter"
+          :summary="categorySummary"
+          :summary-loading="categorySummaryLoading"
+          :summary-error="categorySummaryError"
+          @retry="loadCategorySummary"
+          @select-category="filter.categoryId = $event"
+        />
+      </div>
+
+      <div class="mt-4">
+        <UserStatsSection :filter="activeFilter" />
+      </div>
+
+      <AdminSection class="mt-4" body-class="px-4 py-3">
+        <template #header>
+          <h2 class="text-sm font-semibold">{{ t('statsAdmin.rulesTitle') }}</h2>
+        </template>
+        <ul class="grid gap-1.5 text-xs leading-relaxed text-muted-foreground">
+          <li v-for="rule in rules" :key="rule" class="flex gap-2">
+            <span aria-hidden="true">·</span>
+            <span>{{ rule }}</span>
+          </li>
+        </ul>
+      </AdminSection>
     </BasicPage>
 </template>

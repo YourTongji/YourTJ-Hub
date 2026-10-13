@@ -29,9 +29,8 @@ func FollowingPage(ctx context.Context, viewerID uint64, before *CreatedCursor, 
 		Where("user_id IN (?)", userFollow.ActiveFollowedIDsQuery(ctx, viewerID)).
 		Where("user_id NOT IN (?)", users.BlockedPeerIDsQuery(viewerID)).
 		Where("persona_uid = ?", "").
-		Where("status = ? AND process_status = ? AND visibility_status = ?", 1, ProcessStatusNormal, VisibilityActive).
-		Where("topic_type = ?", TopicTypeForum).
-		Where(firstPostVisibleSQL, ProcessStatusNormal)
+		Where(PublicScopePredicate(tableName)).
+		Where(FirstPostVisiblePredicate(tableName))
 	if before != nil {
 		b = b.Where("created_at < ? OR (created_at = ? AND id < ?)", before.CreatedAt, before.CreatedAt, before.ID)
 	}

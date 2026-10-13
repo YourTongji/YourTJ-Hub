@@ -965,6 +965,22 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/stats/category-summary"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/stats/category-trend"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/stats/user-detail"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/stats/user-ranking"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/sticker-delete"
   },
   {

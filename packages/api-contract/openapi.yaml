@@ -13,7 +13,9 @@ info:
     changes, OAuth bindings), notification reads and read-marking, direct chat
     (send/messages/mark-read), admin topic/post moderation, notification quick-approval
     confirmation (signed-link preview/execute), Admin-gated operations
-    (Agent account management, operation audit log paging, traffic overview),
+    (Agent account management, operation audit log paging, traffic overview,
+    content contribution stats: per-category summary/trend and contributor
+    ranking/account detail over an inclusive date range),
     admin user management (user list/edit, user badge grants, role options),
     admin role management (permission options, role list/save/delete), admin
     category and moderator management (category CRUD, global and per-category
@@ -443,6 +445,14 @@ paths:
     $ref: ./paths/admin-operations.yaml#/adminOptRecordPage
   /api/admin/traffic-overview:
     $ref: ./paths/admin-operations.yaml#/adminTrafficOverview
+  /api/admin/stats/category-summary:
+    $ref: ./paths/admin-stats.yaml#/adminStatsCategorySummary
+  /api/admin/stats/category-trend:
+    $ref: ./paths/admin-stats.yaml#/adminStatsCategoryTrend
+  /api/admin/stats/user-ranking:
+    $ref: ./paths/admin-stats.yaml#/adminStatsUserRanking
+  /api/admin/stats/user-detail:
+    $ref: ./paths/admin-stats.yaml#/adminStatsUserDetail
   /api/admin/user-list:
     $ref: ./paths/admin-users.yaml#/adminUserList
   /api/admin/user-edit:
@@ -1973,6 +1983,44 @@ components:
       $ref: ./components/schemas.yaml#/AdminOptRecordPageRequest
     AdminOptRecordPageResponse:
       $ref: ./components/schemas.yaml#/AdminOptRecordPageResponse
+    AdminStatsCategorySummaryRequest:
+      $ref: ./components/schemas.yaml#/AdminStatsCategorySummaryRequest
+    AdminStatsCategorySummaryResult:
+      $ref: ./components/schemas.yaml#/AdminStatsCategorySummaryResult
+    AdminStatsCategorySummaryResponse:
+      $ref: ./components/schemas.yaml#/AdminStatsCategorySummaryResponse
+    AdminStatsCategoryTrendRequest:
+      $ref: ./components/schemas.yaml#/AdminStatsCategoryTrendRequest
+    AdminStatsCategoryTrendResult:
+      $ref: ./components/schemas.yaml#/AdminStatsCategoryTrendResult
+    AdminStatsCategoryTrendResponse:
+      $ref: ./components/schemas.yaml#/AdminStatsCategoryTrendResponse
+    AdminStatsUserRankingRequest:
+      $ref: ./components/schemas.yaml#/AdminStatsUserRankingRequest
+    AdminStatsUserRankingResult:
+      $ref: ./components/schemas.yaml#/AdminStatsUserRankingResult
+    AdminStatsUserRankingResponse:
+      $ref: ./components/schemas.yaml#/AdminStatsUserRankingResponse
+    AdminStatsUserDetailRequest:
+      $ref: ./components/schemas.yaml#/AdminStatsUserDetailRequest
+    AdminStatsUserDetailResult:
+      $ref: ./components/schemas.yaml#/AdminStatsUserDetailResult
+    AdminStatsUserDetailResponse:
+      $ref: ./components/schemas.yaml#/AdminStatsUserDetailResponse
+    AdminStatsCoverage:
+      $ref: ./components/schemas.yaml#/AdminStatsCoverage
+    AdminStatsCategoryItem:
+      $ref: ./components/schemas.yaml#/AdminStatsCategoryItem
+    AdminStatsTotals:
+      $ref: ./components/schemas.yaml#/AdminStatsTotals
+    AdminStatsDayCount:
+      $ref: ./components/schemas.yaml#/AdminStatsDayCount
+    AdminStatsUserRankingItem:
+      $ref: ./components/schemas.yaml#/AdminStatsUserRankingItem
+    AdminStatsUserDetailUser:
+      $ref: ./components/schemas.yaml#/AdminStatsUserDetailUser
+    AdminStatsUserDetailSummary:
+      $ref: ./components/schemas.yaml#/AdminStatsUserDetailSummary
     AdminTrafficOverviewRequest:
       $ref: ./components/schemas.yaml#/AdminTrafficOverviewRequest
     AdminTrafficOverviewResponse:

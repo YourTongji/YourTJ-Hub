@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-07
+> Last verified: 2026-10-13
 
 ## Contract status
 
@@ -28,7 +28,9 @@ and CI rejects any route that is neither contracted nor listed. By domain:
   TypeScript is generated into `apps/status/src/generated/`, with fixture and handler validation in
   that application's tests. This API is outside Gin and the forum/mobile client contract.
 - admin console (`/api/admin/*`): user/role/category/moderator management, topic/post moderation,
-  agent administration, operation records, traffic overview, page settings, site settings, and
+  agent administration, operation records, traffic overview, content contribution statistics
+  (`paths/admin-stats.yaml`: `/api/admin/stats/{category-summary,category-trend,user-ranking,user-detail}`,
+  admin-only reads over published content and like relations), page settings, site settings, and
   data import/export;
 - Agent public API (`/api/v1/agent/*`), course catalog + reviews + moderation, and the PK
   scheduler (`/api/pk/*`: public read-only dictionaries/catalog/details plus the login-gated
@@ -454,6 +456,14 @@ and per-topic documents preserve the stored Markdown source.
   above and is not a Planned capability.
 - Docs status words updated in step (docs/README.md).
 
+`Current`: the read-only admin contribution statistics operations ship through that same chain — the
+four `/api/admin/stats/*` operations are defined in `paths/admin-stats.yaml`, with generated
+TypeScript types, committed fixtures and route-level HTTP tests in the same change, so a new field,
+filter or validation rule cannot land backend-only. They read published content rows and like
+relations only: feed analytics events, exposure/seen records and experiment data are not an input,
+and that telemetry's 30-day retention is unchanged. Product rules and the counting definitions live
+in [forum](../product/forum.md#content-contribution-statistics).
+
 PK plan synchronization is `Current` and follows [issue #714](https://github.com/YourTongji/YourTJ-Hub/issues/714):
 `pk_plan_item` is keyed by numeric user ID and plan ID, with payload JSON, independent integer revision
 and diagnostic `updated_at`. A scheduler-owned owner row serializes quota checks, lazy migration and
@@ -681,6 +691,11 @@ participation queries exclude anonymous ownership. Persona participant queries b
 results. Notification `private_actor_id` supports private eligibility; payload actor ID zero and
 `actorPersonaUid` support safe hydration and pushes. Public exports redact anonymous authors and
 editors and cannot reconstruct private ownership. Missing personas never resolve through users.
+
+Admin contribution statistics follow the same attribution boundary: per-user figures resolve public
+human ownership only — persona-owned and legacy anonymous rows are excluded from contributor counts,
+ranking and detail, while still counting toward aggregate category and site content volumes. The
+report exposes no owner binding and adds no reveal path beyond the audited one above.
 
 The private anonymous settings/governance and restricted admin list/governance operations live in
 the controlled OpenAPI contract. The admin list paginates at most 50 private mappings and commits
