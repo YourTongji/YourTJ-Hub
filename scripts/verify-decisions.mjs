@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // verify-decisions.mjs — decision log gate.
 // Enforces the MADR-based decision log contract in docs/decisions/:
-//   - file naming NNNN-title.md, unique sequential numbering
+//   - file naming NNNN-title.md, unique numbering (gaps allowed for parallel PR reservations)
 //   - required sections, in order
 //   - valid status values
 //   - valid Class: extension values when present
@@ -97,12 +97,6 @@ export async function verifyDir(dirPath) {
   for (const n of nums) {
     if (seen.has(n)) errors.push(`duplicate decision number ${String(n).padStart(4, '0')}`);
     seen.add(n);
-  }
-  for (let i = 0; i < nums.length; i++) {
-    if (nums[i] !== i) {
-      errors.push(`decision numbers must be sequential starting at 0; found ${files[i]}`);
-      break;
-    }
   }
   for (const f of files) {
     const text = await readFile(path.join(dirPath, f), 'utf8');
