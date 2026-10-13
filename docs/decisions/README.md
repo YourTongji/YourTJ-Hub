@@ -6,7 +6,7 @@ Every durable choice with meaningful alternatives â€” architecture or process â€
 
 The format is **MADR (Markdown Any Decision Records)** with a documented `Class:` extension. Names and structure follow the industry standard so existing MADR tooling keeps working; the extension is ignored by tools that do not know it.
 
-A decision record is a file named `NNNN-title.md` (4-digit zero-padded number, `-`, kebab-case title) directly inside this directory. Numbers are assigned sequentially; the number is the record's identity and never changes.
+A decision record is a file named `NNNN-title.md` (4-digit zero-padded number, `-`, kebab-case title) directly inside this directory. Numbers are assigned as unique identifiers; gaps are allowed so multiple open PRs can reserve numbers independently. Once assigned, a number is the record's identity and never changes. Do not renumber existing records to close gaps.
 
 ### Required sections
 
@@ -61,9 +61,16 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - Cross-reference records with relative Markdown links (`[0001](0001-title.md)`), never bare numbers.
 - Document current reality, not change history. Put change stories in commits; the decision record states the live contract.
 
+## Reserving numbers in parallel PRs
+
+- Before creating a MADR, check `dev` and open PRs for existing or reserved numbers. Reserve a distinct unused four-digit number in your PR or linked Issue (for example, `MADR 0084 reserved for #1171`) so other contributors can coordinate. A reservation is a coordination convention, not a committed placeholder record.
+- A reserved number may be absent from `dev` until its PR merges; other decisions can merge first. Do not create empty placeholder MADRs or renumber another contributor's record to fill a gap.
+- Keep the index entries in numeric order, even across gaps. Resolve collisions before merging; a reservation in an unmerged branch is not automatically enforced by the verifier.
+- If a proposed decision is abandoned, its reservation may be released explicitly in the Issue/PR; leaving a gap is valid.
+
 ## Verifier
 
-`scripts/verify-decisions.mjs` enforces: file naming, unique sequential numbering, required sections, valid status values, valid `Class:` values when present, and `Superseded by NNNN` targets that exist. It exits non-zero on any violation. `scripts/run-gates.mjs` selects it from the manifest.
+`scripts/verify-decisions.mjs` enforces: file naming, unique numbering (gaps permitted for reserved or unmerged records), required sections, valid status values, valid `Class:` values when present, and `Superseded by NNNN` targets that exist. It exits non-zero on any violation. `scripts/run-gates.mjs` selects it from the manifest.
 
 ## Index
 
