@@ -8747,12 +8747,12 @@ AdminStorageSettingsConfig:
       description: Optional public (CDN) prefix; empty means files are served through the `/file/img` proxy.
     forceProxyUpload:
       type: boolean
-      description: "Operator switch (default false). When true, `/file/img-upload/init` answers `mode: proxy` even with the `s3` provider, so clients upload through `POST /file/img-upload` and the server writes to the bucket."
+      description: "Operator switch (default false). When true, `/file/img-upload/init` answers `mode: proxy` even with the `s3` provider, so clients upload through `POST /file/img-upload` and the server writes to the bucket. Omitting the field on save keeps the stored value; it is always saved as false when provider is not `s3`."
   additionalProperties: false
 
 AdminStorageSettingsView:
   type: object
-  required: [provider, endpoint, bucket, region, bucketLookup, secure, accessKeyConfigured, secretKeyConfigured, publicUrlPrefix]
+  required: [provider, endpoint, bucket, region, bucketLookup, secure, accessKeyConfigured, secretKeyConfigured, publicUrlPrefix, forceProxyUpload]
   properties:
     provider:
       type: string
@@ -10134,7 +10134,8 @@ DirectImageUploadInitResult:
       type: string
       enum: [proxy, direct]
       description: |
-        `proxy` — continue with the multipart `POST /file/img-upload` (local provider).
+        `proxy` — continue with the multipart `POST /file/img-upload` (local provider, or the
+        `s3` provider with the operator switch `forceProxyUpload` enabled).
         `direct` — upload to `upload.url` with `upload.fields` + the file, then call
         `/file/img-upload/complete` with `name`.
     name:

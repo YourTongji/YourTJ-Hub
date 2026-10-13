@@ -8179,8 +8179,10 @@ export interface paths {
          * @description Starts a post-image upload. The caller declares the original filename, browser MIME type and
          *     byte size; the server validates them against the posting-settings allowlist and size cap
          *     before returning a mode. With the local storage provider the response is `mode: "proxy"` and
-         *     the caller must continue with the existing multipart `POST /file/img-upload`. With an
-         *     S3-compatible provider the response is `mode: "direct"` and carries a short-lived presigned
+         *     the caller must continue with the existing multipart `POST /file/img-upload`; the same applies
+         *     to an S3-compatible provider while the storage setting `forceProxyUpload` is enabled (the
+         *     server then writes the proxied upload to the bucket). Otherwise, with an S3-compatible
+         *     provider the response is `mode: "direct"` and carries a short-lived presigned
          *     POST policy (`upload.url` + `upload.fields`) plus the pending object `name`: the browser
          *     uploads the file straight to the bucket, then calls `/file/img-upload/complete` to publish.
          *     Business failures (HTTP 200): `upload.attachment.disabled`, `upload.cooldown` (new-account
@@ -11567,7 +11569,7 @@ export interface components {
             secretKey: string;
             /** @description Optional public (CDN) prefix; empty means files are served through the `/file/img` proxy. */
             publicUrlPrefix: string;
-            /** @description Operator switch (default false). When true, `/file/img-upload/init` answers `mode: proxy` even with the `s3` provider, so clients upload through `POST /file/img-upload` and the server writes to the bucket. */
+            /** @description Operator switch (default false). When true, `/file/img-upload/init` answers `mode: proxy` even with the `s3` provider, so clients upload through `POST /file/img-upload` and the server writes to the bucket. Omitting the field on save keeps the stored value; it is always saved as false when provider is not `s3`. */
             forceProxyUpload?: boolean;
         };
         AdminStorageSettingsResponse: components["schemas"]["ApiSuccess"] & {
@@ -13463,7 +13465,8 @@ export interface components {
         };
         DirectImageUploadInitResult: {
             /**
-             * @description `proxy` — continue with the multipart `POST /file/img-upload` (local provider).
+             * @description `proxy` — continue with the multipart `POST /file/img-upload` (local provider, or the
+             *     `s3` provider with the operator switch `forceProxyUpload` enabled).
              *     `direct` — upload to `upload.url` with `upload.fields` + the file, then call
              *     `/file/img-upload/complete` with `name`.
              * @enum {string}
@@ -14774,7 +14777,7 @@ export interface components {
             /** @description Whether a secret key is stored (encrypted with AES-256-GCM). The key itself is never returned (issue */
             secretKeyConfigured: boolean;
             publicUrlPrefix: string;
-            forceProxyUpload?: boolean;
+            forceProxyUpload: boolean;
         };
         AdminImportTaskAcceptedResult: {
             /**
