@@ -15,6 +15,7 @@ type Capacities struct {
 	UnreadStatus       uint64
 	ModerationStatus   uint64
 	ConversationAccess uint64
+	BlockedPeers       uint64
 	BadgeDefinitions   uint64
 	RuntimeTheme       uint64
 	SEOXML             uint64
@@ -33,6 +34,7 @@ var current = Capacities{
 	UnreadStatus:       2048,
 	ModerationStatus:   2048,
 	ConversationAccess: 4096,
+	BlockedPeers:       4096,
 	BadgeDefinitions:   4,
 	RuntimeTheme:       1,
 	SEOXML:             128,

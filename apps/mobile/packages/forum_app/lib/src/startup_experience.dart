@@ -7,11 +7,27 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:ui_kit/ui_kit.dart';
 
+/// Startup-blocking readiness reported by the app shell. The brand layer
+/// holds on top of the app while storage is still preparing, so cold start
+/// shows a single waiting surface instead of a separate data-preparation
+/// page behind the brand animation.
+enum StartupReadiness { loading, ready, failed }
+
+/// Whether the brand startup layer still covers the window. StorageGate
+/// suppresses its own blocking page while this is true; once the brand layer
+/// finishes — including the reduced-motion fast path — the gate surfaces
+/// loading, resetting and retry states again (e.g. for a later manual reset).
+final ValueNotifier<bool> startupBrandCovering = ValueNotifier<bool>(false);
+
 /// Keeps the native launch mark continuous while the real app warms underneath.
 class StartupExperience extends StatefulWidget {
-  const StartupExperience({super.key, required this.child});
+  const StartupExperience({super.key, required this.child, this.readiness});
 
   final Widget child;
+
+  /// When provided, the decorative sequence may hold past its deadline until
+  /// this signal settles; null keeps the legacy fixed-duration behavior.
+  final StartupReadiness? readiness;
 
   @override
   State<StartupExperience> createState() => _StartupExperienceState();
@@ -22,6 +38,11 @@ class _StartupExperienceState extends State<StartupExperience>
   static const _brandDuration = Duration(milliseconds: 800);
   static const _exitDuration = GfMotion.content;
   static const _captionDelay = Duration(milliseconds: 450);
+  static const _legacyDeadline = Duration(milliseconds: 1200);
+
+  /// With a readiness signal the brand layer may hold past the decorative
+  /// deadline; this cap only guards against a bootstrap that never settles.
+  static const _readinessSafetyCap = Duration(seconds: 10);
   static const _staticLogoAsset = 'assets/splash/brand_mark.svg';
   static const _staticLogoFallbackAsset = 'assets/splash/brand_mark.png';
   static const _logoAsset = 'assets/splash/logo_motion.webp';
@@ -60,10 +81,12 @@ class _StartupExperienceState extends State<StartupExperience>
   bool _showStaticLogo = true;
   bool _leaving = false;
   bool _finished = false;
+  bool _holding = false;
 
   @override
   void initState() {
     super.initState();
+    startupBrandCovering.value = true;
     _brandController = AnimationController(vsync: this);
     _exitController = AnimationController(vsync: this, duration: _exitDuration);
     _brandProgress = CurvedAnimation(
@@ -92,6 +115,7 @@ class _StartupExperienceState extends State<StartupExperience>
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS);
     if (!mobile || _reducedMotion) {
+      startupBrandCovering.value = false;
       _finished = true;
       return;
     }
@@ -104,11 +128,24 @@ class _StartupExperienceState extends State<StartupExperience>
     _brandController.duration = _brandDuration;
   }
 
+  @override
+  void didUpdateWidget(covariant StartupExperience oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_holding || widget.readiness == oldWidget.readiness) return;
+    if (widget.readiness == StartupReadiness.ready) {
+      _holding = false;
+      unawaited(_exit());
+    } else if (widget.readiness == StartupReadiness.failed) {
+      _holding = false;
+      _skipStartupExperience();
+    }
+  }
+
   void _startSequenceAfterVisibleLayout() {
     if (_sequenceStarted || _finished || _reducedMotion) return;
     _sequenceStarted = true;
     _startupTimeoutTimer = Timer(
-      const Duration(milliseconds: 1200),
+      widget.readiness == null ? _legacyDeadline : _readinessSafetyCap,
       _skipStartupExperience,
     );
     _captionTimer = Timer(_captionDelay, () {
@@ -125,14 +162,34 @@ class _StartupExperienceState extends State<StartupExperience>
       await _brandController.forward().orCancel;
       if (!mounted) return;
       _captionTimer?.cancel();
+      if (widget.readiness == StartupReadiness.loading) {
+        // Local storage is still preparing underneath; keep the brand layer
+        // up instead of revealing the storage gate's waiting page.
+        _holding = true;
+        return;
+      }
+      if (widget.readiness == StartupReadiness.failed) {
+        _skipStartupExperience();
+        return;
+      }
+      await _exit();
+    } on TickerCanceled {
+      // Disposal during a route teardown ends the decorative sequence.
+    }
+  }
+
+  Future<void> _exit() async {
+    if (!mounted || _finished) return;
+    try {
       setState(() => _leaving = true);
       await _exitController.forward().orCancel;
       if (mounted) {
         _startupTimeoutTimer?.cancel();
+        startupBrandCovering.value = false;
         setState(() => _finished = true);
       }
     } on TickerCanceled {
-      // Disposal during a route teardown ends the decorative sequence.
+      // Disposal mid-exit ends the sequence without a reveal.
     }
   }
 
@@ -142,6 +199,7 @@ class _StartupExperienceState extends State<StartupExperience>
     _startupTimeoutTimer?.cancel();
     _brandController.stop();
     _exitController.stop();
+    startupBrandCovering.value = false;
     setState(() {
       _leaving = true;
       _finished = true;
@@ -150,6 +208,9 @@ class _StartupExperienceState extends State<StartupExperience>
 
   @override
   void dispose() {
+    // A mid-cover disposal (tests, future teardowns) must not leave the gate
+    // suppressing its blocking page behind a gone brand layer.
+    startupBrandCovering.value = false;
     _captionTimer?.cancel();
     _startupTimeoutTimer?.cancel();
     _brandController.dispose();

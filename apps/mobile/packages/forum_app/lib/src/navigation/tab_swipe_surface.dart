@@ -185,117 +185,128 @@ class _TabSwipeSurfaceState extends State<TabSwipeSurface>
             policy?.track(event.pointer, isFirstTab: isFirstTab),
         onPointerUp: (event) => policy?.release(event.pointer),
         onPointerCancel: (event) => policy?.release(event.pointer),
-        child: RawGestureDetector(
-          behavior: HitTestBehavior.translucent,
-          excludeFromSemantics: true,
-          gestures: {
-            _TabSwipeGestureRecognizer:
-                GestureRecognizerFactoryWithHandlers<
-                  _TabSwipeGestureRecognizer
-                >(
-                  _TabSwipeGestureRecognizer.new,
-                  (recognizer) => recognizer
-                    ..screenWidth = MediaQuery.sizeOf(context).width
-                    ..drawerEdgeWidth =
-                        MediaQuery.sizeOf(context).width *
-                        drawerSwipeOpeningFraction
-                    ..drawerOpenDirection =
-                        Directionality.of(context) == TextDirection.ltr ? 1 : -1
-                    ..drawerSwipeEnabled = isFirstTab
-                    // Report the slop travelled before winning the arena so
-                    // the page stays under the finger instead of trailing it.
-                    ..dragStartBehavior = DragStartBehavior.down
-                    ..onStart = (_) {
-                      _settle.stop();
-                      _distance = 0;
-                      _publishProgress(widget.index, 0);
-                    }
-                    ..onUpdate = (details) {
-                      _distance += details.primaryDelta ?? 0;
-                      final int next =
-                          widget.index +
-                          (_distance * recognizer.drawerOpenDirection < 0
-                              ? 1
-                              : -1);
-                      final double offset = next >= 0 && next < widget.length
-                          ? (-_distance *
-                                    recognizer.drawerOpenDirection /
-                                    recognizer.screenWidth)
-                                .clamp(-.95, .95)
-                                .toDouble()
-                          : 0;
-                      _publishProgress(
-                        widget.index,
-                        offset,
-                        targetIndex: offset == 0 ? null : next,
-                      );
-                    }
-                    ..onCancel = () {
-                      _settleProgress(
-                        originIndex: widget.index,
-                        targetIndex: null,
-                        from: _progress.value.offset,
-                        to: 0,
-                        velocity: 0,
-                      );
-                    }
-                    ..onEnd = (details) {
-                      final velocity = details.velocity.pixelsPerSecond.dx;
-                      // Page progress runs against the finger's direction.
-                      final pageVelocity =
-                          -velocity *
-                          recognizer.drawerOpenDirection /
-                          recognizer.screenWidth;
-                      // A decisive fling wins over distance, so flicking back
-                      // cancels; otherwise 48 pixels of travel commit.
-                      final distance = velocity.abs() >= 500
-                          ? (velocity.sign == _distance.sign ? velocity : 0.0)
-                          : _distance.abs() >= 48
-                          ? _distance
-                          : 0.0;
-                      if (distance == 0 ||
-                          widget.length < 2 ||
-                          widget.index < 0 ||
-                          widget.index >= widget.length) {
+        child: LayoutBuilder(
+          builder: (context, constraints) => RawGestureDetector(
+            behavior: HitTestBehavior.translucent,
+            excludeFromSemantics: true,
+            gestures: {
+              _TabSwipeGestureRecognizer:
+                  GestureRecognizerFactoryWithHandlers<
+                    _TabSwipeGestureRecognizer
+                  >(
+                    _TabSwipeGestureRecognizer.new,
+                    (recognizer) => recognizer
+                      ..screenWidth = MediaQuery.sizeOf(context).width
+                      // Pages translate by the surface width, which a bounded
+                      // reading column can make narrower than the screen.
+                      ..pageWidth =
+                          constraints.hasBoundedWidth &&
+                              constraints.maxWidth > 0
+                          ? constraints.maxWidth
+                          : MediaQuery.sizeOf(context).width
+                      ..drawerEdgeWidth =
+                          MediaQuery.sizeOf(context).width *
+                          drawerSwipeOpeningFraction
+                      ..drawerOpenDirection =
+                          Directionality.of(context) == TextDirection.ltr
+                          ? 1
+                          : -1
+                      ..drawerSwipeEnabled = isFirstTab
+                      // Report the slop travelled before winning the arena so
+                      // the page stays under the finger instead of trailing it.
+                      ..dragStartBehavior = DragStartBehavior.down
+                      ..onStart = (_) {
+                        _settle.stop();
+                        _distance = 0;
+                        _publishProgress(widget.index, 0);
+                      }
+                      ..onUpdate = (details) {
+                        _distance += details.primaryDelta ?? 0;
+                        final int next =
+                            widget.index +
+                            (_distance * recognizer.drawerOpenDirection < 0
+                                ? 1
+                                : -1);
+                        final double offset = next >= 0 && next < widget.length
+                            ? (-_distance *
+                                      recognizer.drawerOpenDirection /
+                                      recognizer.pageWidth)
+                                  .clamp(-.95, .95)
+                                  .toDouble()
+                            : 0;
+                        _publishProgress(
+                          widget.index,
+                          offset,
+                          targetIndex: offset == 0 ? null : next,
+                        );
+                      }
+                      ..onCancel = () {
                         _settleProgress(
                           originIndex: widget.index,
                           targetIndex: null,
                           from: _progress.value.offset,
                           to: 0,
-                          velocity: pageVelocity,
+                          velocity: 0,
                         );
-                        return;
                       }
-                      final int next =
-                          widget.index +
-                          (distance * recognizer.drawerOpenDirection < 0
-                              ? 1
-                              : -1);
-                      if (next < 0 || next >= widget.length) {
+                      ..onEnd = (details) {
+                        final velocity = details.velocity.pixelsPerSecond.dx;
+                        // Page progress runs against the finger's direction.
+                        final pageVelocity =
+                            -velocity *
+                            recognizer.drawerOpenDirection /
+                            recognizer.pageWidth;
+                        // A decisive fling wins over distance, so flicking back
+                        // cancels; otherwise 48 pixels of travel commit.
+                        final distance = velocity.abs() >= 500
+                            ? (velocity.sign == _distance.sign ? velocity : 0.0)
+                            : _distance.abs() >= 48
+                            ? _distance
+                            : 0.0;
+                        if (distance == 0 ||
+                            widget.length < 2 ||
+                            widget.index < 0 ||
+                            widget.index >= widget.length) {
+                          _settleProgress(
+                            originIndex: widget.index,
+                            targetIndex: null,
+                            from: _progress.value.offset,
+                            to: 0,
+                            velocity: pageVelocity,
+                          );
+                          return;
+                        }
+                        final int next =
+                            widget.index +
+                            (distance * recognizer.drawerOpenDirection < 0
+                                ? 1
+                                : -1);
+                        if (next < 0 || next >= widget.length) {
+                          _settleProgress(
+                            originIndex: widget.index,
+                            targetIndex: null,
+                            from: _progress.value.offset,
+                            to: 0,
+                            velocity: pageVelocity,
+                          );
+                          return;
+                        }
+                        final int originIndex = widget.index;
+                        final offset = _progress.value.offset;
+                        final direction = next > originIndex ? 1.0 : -1.0;
                         _settleProgress(
-                          originIndex: widget.index,
-                          targetIndex: null,
-                          from: _progress.value.offset,
-                          to: 0,
+                          originIndex: originIndex,
+                          targetIndex: next,
+                          from: offset,
+                          to: direction,
                           velocity: pageVelocity,
                         );
-                        return;
-                      }
-                      final int originIndex = widget.index;
-                      final offset = _progress.value.offset;
-                      final direction = next > originIndex ? 1.0 : -1.0;
-                      _settleProgress(
-                        originIndex: originIndex,
-                        targetIndex: next,
-                        from: offset,
-                        to: direction,
-                        velocity: pageVelocity,
-                      );
-                      widget.onChanged(next);
-                    },
-                ),
-          },
-          child: widget.child,
+                        widget.onChanged(next);
+                      },
+                  ),
+            },
+            child: widget.child,
+          ),
         ),
       ),
     );
@@ -310,6 +321,7 @@ class _TabSwipeGestureRecognizer extends HorizontalDragGestureRecognizer {
 
   double drawerEdgeWidth = 0;
   double screenWidth = 0;
+  double pageWidth = 0;
   int drawerOpenDirection = 1;
   bool drawerSwipeEnabled = true;
   final Map<int, Offset> _origins = {};

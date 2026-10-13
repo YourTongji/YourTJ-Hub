@@ -43,10 +43,16 @@ home latest/hot/popular/new, category pages, the following feed and the topic-de
 which direction caused an exclusion, and a shortfall from filtering stays a short page.
 
 A viewer with any block relation bypasses the shared list cache and loads a viewer-scoped page; every
-other request keeps the shared cached list, so mainstream traffic is unaffected. The relation check
-fails open on a storage error — a moment of unfiltered public list beats a blank page — and a failure
-is never cached as filtered output. Because filtered pages bypass the cache, block changes apply to
-lists immediately instead of waiting out the 5-second TTL.
+other request keeps the shared cached list, so mainstream traffic is unaffected. The existence check
+that picks the path is itself a per-reader decision, so it is answered from a per-reader 5-second
+in-process cache instead of a database query on every logged-in request (issue #1129); the block
+write path invalidates both sides' entries after commit, so block changes apply to lists immediately
+instead of waiting out the TTL. The relation check fails open on a storage error — a moment of
+unfiltered public list beats a blank page — and a failure is never cached as filtered output; a
+failed existence check is not cached either, so fail-open is re-evaluated on the next request.
+Bulk relation removals outside the write path (account close) need no invalidation: they can only
+leave a cached true behind, which keeps a viewer-scoped query with correct output and is bounded by
+the TTL.
 
 Boundaries: direct links to a blocked author's topic, aggregate search results and the author's
 replies inside other topics remain available; the block removes authors from feeds, not content from

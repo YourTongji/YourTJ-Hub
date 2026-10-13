@@ -682,8 +682,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             fields: [
               // Disable also accepts the account password; retain its full
               // keyboard instead of forcing the numeric setup-code keypad.
+              // Obscure it so a typed password never enters the keyboard
+              // dictionary; the credential dialog then keeps suggestions off
+              // for this field (issue #1111).
               _SettingsCredentialField(
                 label: l10n.settingsTotpCode,
+                obscureText: true,
                 autofillHints: const [AutofillHints.oneTimeCode],
               ),
             ],
@@ -2010,7 +2014,10 @@ class _SettingsCredentialDialogState<T>
                   keyboardType: widget.fields[index].keyboardType,
                   autofillHints: widget.fields[index].autofillHints,
                   autocorrect: false,
-                  enableSuggestions: false,
+                  // 仅密码字段保留 enableSuggestions: false(原因见 login_page.dart
+                  // 的同款注释);邮箱、TOTP 码等非密码字段保持默认,避免 ColorOS
+                  // 将其误判为凭据输入而强制安全键盘(issue #1111)。
+                  enableSuggestions: !widget.fields[index].obscureText,
                   textInputAction: index == widget.fields.length - 1
                       ? TextInputAction.done
                       : TextInputAction.next,

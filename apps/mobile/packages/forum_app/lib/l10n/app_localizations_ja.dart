@@ -601,19 +601,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get notificationsUnread => '未読';
 
   @override
-  String get searchTitle => '検索';
-
-  @override
   String get searchHint => 'トピック、ユーザー、カテゴリを検索…';
-
-  @override
-  String get searchEmpty => 'キーワードを入力して検索';
-
-  @override
-  String get searchNoUsers => '該当するユーザーはいません';
-
-  @override
-  String get searchNoCategories => '該当するカテゴリはありません';
 
   @override
   String get searchUnavailable => '検索サービスを利用できません';
@@ -2376,10 +2364,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get campusCoursesEmpty => '授業レビューはまだありません。授業一覧を見てみましょう。';
 
   @override
-  String get searchDiscoveryDescription =>
-      '投稿・ユーザー・カテゴリを検索したり、キャンパスツールを開いたりできます。';
-
-  @override
   String get notificationsEmptyDescription =>
       '返信・メンション・フォローがここに表示されます。キャンパスの新着情報を見てみましょう。';
 
@@ -2436,6 +2420,38 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get searchWiki => 'Wiki を検索';
+
+  @override
+  String get searchIdleHint => 'トピック、ユーザー、カテゴリを検索できます。最近の検索はここに表示されます。';
+
+  @override
+  String searchFor(String query) {
+    return '「$query」を検索';
+  }
+
+  @override
+  String searchCoursesFor(String query) {
+    return '授業で「$query」を検索';
+  }
+
+  @override
+  String searchWikiFor(String query) {
+    return 'Wiki で「$query」を検索';
+  }
+
+  @override
+  String get searchRemoveRecent => '最近の検索から削除';
+
+  @override
+  String get searchSeeAll => 'すべて表示';
+
+  @override
+  String searchNoResults(String query) {
+    return '「$query」に一致する結果はありません';
+  }
+
+  @override
+  String get searchNoResultsHint => '別のキーワードを試すか、授業や Wiki で検索してください。';
 
   @override
   String get refreshFailedRetained => '更新できませんでした。現在の内容を表示しています。';
@@ -2532,6 +2548,20 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get campusUnavailable => '大学のデータを取得できません。後でもう一度お試しください。';
+
+  @override
+  String get campusUpstreamUnavailable => '大学のサービスを一時的に利用できません。後でもう一度お試しください。';
+
+  @override
+  String get campusRulesAIUnavailable =>
+      'AI を利用できません。「AI 授業要約」のモデル設定を確認するか、手動で規則を追加してください。';
+
+  @override
+  String get campusRulesAIOutput =>
+      'AI が有効な規則を生成できませんでした。日付と振替先を明記して再試行するか、手動で編集してください。';
+
+  @override
+  String get campusRulesLimited => 'AI リクエストが多すぎます。後で再試行してください。';
 
   @override
   String get campusNoData => '記録はありません';

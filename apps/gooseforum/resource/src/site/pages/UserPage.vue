@@ -509,7 +509,7 @@ function safeProfileUrl(value?: string) {
                   :aria-label="page.props.user.websiteName || page.props.user.website"
                 >
                   <Bird class="h-5 w-5" />
-                  <span class="gf-tooltip pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 max-w-40 -translate-x-1/2 truncate opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                  <span class="gf-tooltip pointer-events-none absolute bottom-full left-0 z-10 mb-2 w-max max-w-[min(24rem,calc(100vw-3rem))] break-all whitespace-normal text-left opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 sm:left-auto sm:right-0">
                     {{ page.props.user.websiteName || page.props.user.website }}
                   </span>
                 </a>

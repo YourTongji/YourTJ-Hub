@@ -2484,7 +2484,6 @@ class _PublishPageState extends ConsumerState<PublishPage>
           keyboardType: TextInputType.url,
           hintText: 'https://',
           autocorrect: false,
-          enableSuggestions: false,
           onChanged: (text) => value = text,
         ),
         actions: [

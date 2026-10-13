@@ -38,6 +38,11 @@ window.fetch = async (input, init) => {
 persona.avatarUrl = '/assets/test/fixtures/browser/anonymous-admin-avatar-0.svg'
 layout.viewer.avatarUrl = '/assets/test/fixtures/browser/anonymous-admin-avatar-1.svg'
 const member = params.get('member') === '1'
+const website = params.get('website')
+if (website) {
+  memberProfile.user.website = website
+  memberProfile.user.websiteName = ''
+}
 const reply: PostPayload = {
   id: 202, postNo: 2, topicId: 1, isAnonymous: true,
   content: '抱着一杯热茶，看了一下午的雨。', renderedContent: '<p>抱着一杯热茶，看了一下午的雨。</p>',

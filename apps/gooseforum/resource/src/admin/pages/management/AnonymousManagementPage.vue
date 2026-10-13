@@ -136,6 +136,11 @@ async function govern() {
     if (epoch !== session) return
     selected.value = undefined
     await load()
+    // A governed row may leave the current filter, shrinking the last page
+    // out from under us; converge instead of showing an out-of-range empty state.
+    if (epoch !== session || page.value <= pages.value) return
+    page.value = pages.value
+    await load()
   } catch (e) {
     if (epoch !== session) return
     actionError.value =
