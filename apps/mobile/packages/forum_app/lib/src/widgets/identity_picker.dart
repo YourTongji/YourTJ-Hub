@@ -115,6 +115,8 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
                             : decorationFrameAssetUrl(
                                 user?.decoration?.avatarFrame,
                               ),
+                        frameScale:
+                            user?.decoration?.avatarFrame?.assetScale ?? 1.25,
                         src: resolveApiAssetUrl(
                           widget.value == 'persona'
                               ? p?.avatarUrl ?? ''
@@ -249,6 +251,7 @@ class _IdentityMenu extends ConsumerWidget {
                 frameAssetUrl: decorationFrameAssetUrl(
                   user?.decoration?.avatarFrame,
                 ),
+                frameScale: user?.decoration?.avatarFrame?.assetScale ?? 1.25,
                 src: resolveApiAssetUrl(user?.avatarUrl ?? ''),
                 size: 36,
               ),

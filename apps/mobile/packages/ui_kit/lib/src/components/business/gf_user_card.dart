@@ -38,6 +38,7 @@ class GfUserCardHeader extends StatelessWidget {
     required this.avatarUrl,
     this.avatarFrameColors = const [],
     this.avatarFrameAssetUrl = '',
+    this.avatarFrameScale = 1.25,
     this.coverUrl,
     this.avatarBadge,
     this.actions,
@@ -60,6 +61,7 @@ class GfUserCardHeader extends StatelessWidget {
   final String avatarUrl;
   final List<Color> avatarFrameColors;
   final String avatarFrameAssetUrl;
+  final double avatarFrameScale;
   final String? coverUrl;
   final Widget? avatarBadge;
   final Widget? actions;
@@ -135,6 +137,7 @@ class GfUserCardHeader extends StatelessWidget {
                   child: GfAvatar(
                     frameColors: avatarFrameColors,
                     frameAssetUrl: avatarFrameAssetUrl,
+                    frameScale: avatarFrameScale,
                     src: avatarUrl,
                     size: 88,
                     badge: avatarBadge,
@@ -159,6 +162,7 @@ class GfUserCard extends StatelessWidget {
     required this.avatarUrl,
     this.avatarFrameColors = const [],
     this.avatarFrameAssetUrl = '',
+    this.avatarFrameScale = 1.25,
     required this.name,
     this.nicknameColors = const [],
     required this.username,
@@ -188,6 +192,7 @@ class GfUserCard extends StatelessWidget {
   final String avatarUrl;
   final List<Color> avatarFrameColors;
   final String avatarFrameAssetUrl;
+  final double avatarFrameScale;
   final String name;
   final List<Color> nicknameColors;
   final String username;
@@ -328,6 +333,7 @@ class GfUserCard extends StatelessWidget {
           GfUserCardHeader(
             avatarFrameColors: avatarFrameColors,
             avatarFrameAssetUrl: avatarFrameAssetUrl,
+            avatarFrameScale: avatarFrameScale,
             avatarUrl: avatarUrl,
             coverUrl: coverUrl,
             avatarBadge: avatarBadge,

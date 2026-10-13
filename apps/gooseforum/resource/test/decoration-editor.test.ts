@@ -70,3 +70,14 @@ describe('image avatar frame', () => {
     wrapper.unmount()
   })
 })
+
+it('scales frame artwork around the avatar center and falls back for invalid scale', async () => {
+  const wrapper = mount(UserAvatar, { props: { src: '/avatar.webp', alt: 'Member', frame: { ...frame, assetUrl: '/static/decorations/tea-garden-v1.png', assetScale: 1.6 } }, attrs: { class: 'h-10 w-10 rounded-full' } })
+  expect((wrapper.element as HTMLElement).style.getPropertyValue('--avatar-frame-size')).toBe('160%')
+  expect((wrapper.element as HTMLElement).style.getPropertyValue('--avatar-frame-offset')).toBe('-30%')
+  await wrapper.setProps({ frame: { ...frame, assetUrl: '/static/decorations/tea-garden-v1.png', assetScale: 0.75 } })
+  expect((wrapper.element as HTMLElement).style.getPropertyValue('--avatar-frame-offset')).toBe('12.5%')
+  await wrapper.setProps({ frame: { ...frame, assetUrl: '/static/decorations/tea-garden-v1.png', assetScale: 20 } })
+  expect((wrapper.element as HTMLElement).style.getPropertyValue('--avatar-frame-size')).toBe('125%')
+  wrapper.unmount()
+})

@@ -27,7 +27,9 @@ and member course-review authors. Private notes retain their existing display-na
 rendered historical exports, Markdown and forwarded-message snapshots are not rewritten.
 
 Frames use bounded gradient borders or an optional transparent PNG/WebP around the avatar,
-preserving its layout and badge overlay. Artwork is installed under
+preserving its layout and badge overlay. Artwork can be scaled from 50% to 200% of the avatar
+diameter, centered on the portrait; the default is 125%. This saved setting is shared by Web and
+Flutter. Scaling affects artwork only, not the fallback gradient border. Artwork is installed under
 `apps/gooseforum/resource/static/decorations/` and configured by its same-origin static path;
 external URLs and unsafe paths are rejected. Loading failure falls back to the configured gradient
 border. See the [avatar-frame artwork generation spec](avatar-frame-generation.md).
@@ -44,6 +46,22 @@ confer official status, trust or administrative permissions.
 `/admin/decorations`, including name, theme palettes, enabled state and order. A code is stable and
 its kind cannot change. Definitions are disabled rather than deleted, preserving references and
 audit records. User managers grant or revoke at `/admin/user-decorations`; a reason is required.
+
+The catalog supports name/code search and type/status filters. Creating or editing a definition
+opens a labeled form with color pickers, hexadecimal inputs and simultaneous light/dark previews.
+Avatar artwork has a live scale slider, percentage input and default reset. Validation feedback keeps
+the draft available for correction; failed saves do not close the editor. Disabled definitions remain
+previewable for administration but do not display on user profiles. A confirmed save updates the list
+from its response rather than depending on another read.
+
+The grants view identifies the loaded user ID and shows inventory and stored equipment. Changing the
+ID blocks mutations until that account is loaded. Revocation requires confirmation of the account,
+style and reason. Successful changes show a receipt; if the subsequent audit refresh fails, the view
+retains the confirmed state and offers a read-only refresh rather than repeating the mutation.
+Visible labels and status/error feedback follow the
+[WAI form labels](https://www.w3.org/WAI/tutorials/forms/labels/) and
+[notifications guidance](https://www.w3.org/WAI/tutorials/forms/notifications/).
+
 The account view shows its latest 100 audit entries, newest first.
 
 A grant/revoke carries a durable request key. Repeating identical input returns current state

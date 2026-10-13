@@ -29,6 +29,6 @@ const variables = computed(() => decorationVariables(readable.value && props.sty
 <template><span ref="element" :class="{ 'gf-decorated-nickname': Object.keys(variables).length > 0 }" :style="variables"><slot /></span></template>
 <style scoped>
 .gf-decorated-nickname { background-image: var(--decoration-light); background-clip: text; -webkit-background-clip: text; color: transparent; }
-:global([data-theme="gf-dark"]) .gf-decorated-nickname { background-image: var(--decoration-dark); }
+:global([data-theme="gf-dark"] .gf-decorated-nickname) { background-image: var(--decoration-dark); }
 @media (forced-colors: active) { .gf-decorated-nickname { background: none; color: CanvasText; } }
 </style>

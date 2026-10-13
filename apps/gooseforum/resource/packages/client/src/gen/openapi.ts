@@ -8202,6 +8202,11 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         DecorationStyle: {
+            /**
+             * @description Frame artwork diameter relative to the avatar, centered without changing layout; omitted values use 1.25.
+             * @default 1.25
+             */
+            assetScale: number;
             /** @description Optional same-origin PNG or WebP frame artwork installed under resource/static/decorations. External URLs are rejected. */
             assetUrl?: string;
             code: string;

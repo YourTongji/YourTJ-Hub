@@ -14,6 +14,7 @@ class GfAvatarStack extends StatelessWidget {
     required this.avatarUrls,
     this.frameColors = const [],
     this.frameAssetUrls = const [],
+    this.frameScales = const [],
     this.size = GfAvatarStackSize.sm,
     this.max = 4,
   });
@@ -21,6 +22,7 @@ class GfAvatarStack extends StatelessWidget {
   final List<String> avatarUrls;
   final List<List<Color>> frameColors;
   final List<String> frameAssetUrls;
+  final List<double> frameScales;
 
   /// Stack density; `sm` is used in topic rows, `md` in larger cards.
   final GfAvatarStackSize size;
@@ -50,6 +52,7 @@ class GfAvatarStack extends StatelessWidget {
                 frameAssetUrl: i < frameAssetUrls.length
                     ? frameAssetUrls[i]
                     : '',
+                frameScale: i < frameScales.length ? frameScales[i] : 1.25,
                 src: urls[i],
                 size: avatarSize,
                 ring: true,

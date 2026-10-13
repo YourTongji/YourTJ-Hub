@@ -785,6 +785,7 @@ class _UserRow extends StatelessWidget {
               frameAssetUrl: decorationFrameAssetUrl(
                 user.decoration?.avatarFrame,
               ),
+              frameScale: user.decoration?.avatarFrame?.assetScale ?? 1.25,
               src: resolveApiAssetUrl(user.avatarUrl),
               size: 40,
             ),

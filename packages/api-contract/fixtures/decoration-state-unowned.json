@@ -16,7 +16,8 @@
         ],
         "isEnabled": true,
         "sortOrder": 10,
-        "assetUrl": "/static/decorations/frame-lantern.png"
+        "assetUrl": "/static/decorations/frame-lantern.png",
+        "assetScale": 1.25
       },
       {
         "code": "name-moss",
@@ -31,7 +32,8 @@
           "#99F6E4"
         ],
         "isEnabled": true,
-        "sortOrder": 20
+        "sortOrder": 20,
+        "assetScale": 1.25
       }
     ],
     "ownedCodes": [],

@@ -166,3 +166,52 @@ func TestDecorationAdminPermissionsAndDefinitionHTTP(t *testing.T) {
 		t.Fatalf("frozen equipment write: %d", rec.Code)
 	}
 }
+
+func TestDecorationFrameScaleHTTP(t *testing.T) {
+	conn, router := setupDecorationHTTP(t)
+	manager := createContractSiteManager(t, conn)
+	token := contractSessionToken(t, manager)
+	style := decorationservice.Style{Code: "frame-scale", Name: "Scale frame", Kind: decorationservice.AvatarFrame, LightColors: []string{"#166534"}, DarkColors: []string{"#86EFAC"}, IsEnabled: true, AssetURL: "/static/decorations/frame-lantern.png"}
+	for _, scale := range []float64{0, 0.5, 2, 1.1} {
+		style.AssetScale = scale
+		body, err := json.Marshal(style)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec := serveAuthSecurityJSON(router, "POST", "/api/admin/decoration-save", string(body), token)
+		var response struct {
+			Code   int
+			Result decorationservice.Style
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		want := scale
+		if scale == 0 {
+			want = decorationservice.DefaultAssetScale
+		}
+		if rec.Code != 200 || response.Code != 0 || response.Result.AssetScale != want {
+			t.Fatalf("save scale=%v response=%s", scale, rec.Body.String())
+		}
+		var stored decoration.Definition
+		if err := conn.First(&stored, "code = ?", style.Code).Error; err != nil {
+			t.Fatal(err)
+		}
+		if stored.AssetScale != want {
+			t.Fatalf("persisted scale=%v want=%v", stored.AssetScale, want)
+		}
+		styles, err := decorationservice.Catalog(t.Context())
+		if err != nil || len(styles) != 1 || styles[0].AssetScale != want {
+			t.Fatalf("catalog scale=%+v err=%v", styles, err)
+		}
+	}
+	for _, scale := range []float64{-1, 0.49, 2.01} {
+		style.AssetScale = scale
+		body, err := json.Marshal(style)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec := serveAuthSecurityJSON(router, "POST", "/api/admin/decoration-save", string(body), token)
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "invalid-params.json"))
+	}
+}

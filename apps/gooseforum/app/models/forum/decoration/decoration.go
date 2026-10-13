@@ -5,6 +5,7 @@ import "time"
 // Definition stores administrator-managed styles; colors and asset paths are
 // validated by decorationservice before they can reach a renderer.
 type Definition struct {
+	AssetScale  float64  `gorm:"not null;default:1.25" json:"assetScale"`
 	AssetURL    string   `gorm:"size:160;not null;default:''" json:"assetUrl,omitempty"`
 	Code        string   `gorm:"primaryKey;size:64" json:"code"`
 	Name        string   `gorm:"size:80;not null" json:"name"`

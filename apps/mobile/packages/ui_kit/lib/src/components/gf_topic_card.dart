@@ -50,6 +50,7 @@ class GfTopicCard extends StatefulWidget {
     required this.authorName,
     this.avatarFrameColors = const [],
     this.avatarFrameAssetUrl = '',
+    this.avatarFrameScale = 1.25,
     this.nicknameColors = const [],
     required this.authorAvatarUrl,
     required this.categories,
@@ -83,6 +84,7 @@ class GfTopicCard extends StatefulWidget {
   final String title;
   final String description;
   final String avatarFrameAssetUrl;
+  final double avatarFrameScale;
   final String authorName;
   final List<Color> avatarFrameColors, nicknameColors;
   final String authorAvatarUrl;
@@ -419,6 +421,7 @@ class _GfTopicCardState extends State<GfTopicCard> {
                     child: GfAvatar(
                       frameColors: widget.avatarFrameColors,
                       frameAssetUrl: widget.avatarFrameAssetUrl,
+                      frameScale: widget.avatarFrameScale,
                       src: widget.authorAvatarUrl,
                       size: 36,
                     ),

@@ -48,7 +48,9 @@ Use a short lowercase ASCII filename such as `campus-garden-v1.png` and place it
 `apps/gooseforum/resource/static/decorations/`. Add the asset through the normal reviewed source
 change so the single Go binary embeds it. In `/admin/decorations`, create an `avatarFrame` style,
 set the light and dark fallback colors, and enter `/static/decorations/<filename>` as its optional
-asset path. The server accepts only same-origin PNG/WebP paths in this directory; external URLs,
+asset path. Adjust the artwork scale in the live preview to fit the portrait opening: the setting
+is the artwork diameter as a percentage of the avatar diameter (50%–200%, default 125%). It scales
+around the avatar center and is saved for both Web and Flutter. The server accepts only same-origin PNG/WebP paths in this directory; external URLs,
 query strings, and traversal paths are rejected.
 
 Keep the fallback colors even when the artwork loads successfully. Web and Flutter use them when an

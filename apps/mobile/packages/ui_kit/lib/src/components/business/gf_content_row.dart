@@ -16,6 +16,7 @@ class GfContentRow extends StatelessWidget {
     required this.avatarUrl,
     this.avatarFrameColors = const [],
     this.avatarFrameAssetUrl = '',
+    this.avatarFrameScale = 1.25,
     this.nicknameColors = const [],
     required this.time,
     required this.text,
@@ -34,6 +35,7 @@ class GfContentRow extends StatelessWidget {
   final VoidCallback? onTap, onAuthorTap;
 
   final String avatarFrameAssetUrl;
+  final double avatarFrameScale;
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
@@ -63,6 +65,7 @@ class GfContentRow extends StatelessWidget {
                           child: GfAvatar(
                             frameColors: avatarFrameColors,
                             frameAssetUrl: avatarFrameAssetUrl,
+                            frameScale: avatarFrameScale,
                             src: avatarUrl,
                             size: 40,
                           ),

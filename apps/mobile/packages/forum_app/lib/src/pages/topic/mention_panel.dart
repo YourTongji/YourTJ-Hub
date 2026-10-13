@@ -249,6 +249,7 @@ class _MentionCandidateRow extends StatelessWidget {
                   frameAssetUrl: decorationFrameAssetUrl(
                     user.decoration?.avatarFrame,
                   ),
+                  frameScale: user.decoration?.avatarFrame?.assetScale ?? 1.25,
                   src: user.avatarUrl,
                   size: 30,
                 ),

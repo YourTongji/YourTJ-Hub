@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { badgeClass, badgeIconURL, badgeTooltip, isSystemBadgeArtwork } from '@/site/utils/badge-style'
-import { decorationVariables, isSafeDecorationAssetUrl } from '@/site/utils/decoration-style'
+import { decorationAssetScale, decorationVariables, isSafeDecorationAssetUrl } from '@/site/utils/decoration-style'
 import type { DecorationStyle, UserBadgePayload } from '@gooseforum/client'
 
 defineOptions({ inheritAttrs: false })
@@ -20,6 +20,10 @@ const props = withDefaults(defineProps<{
 })
 
 const frameVariables = computed(() => decorationVariables(props.frame?.kind === 'avatarFrame' ? props.frame : null))
+const frameLayout = computed(() => {
+  const percent = Math.round(decorationAssetScale(props.frame) * 10000) / 100
+  return { ...frameVariables.value, '--avatar-frame-size': `${percent}%`, '--avatar-frame-offset': `${(100 - percent) / 2}%` }
+})
 const hasFrame = computed(() => Object.keys(frameVariables.value).length > 0)
 
 const frameImageFailed = ref(false)
@@ -64,7 +68,7 @@ function formatAvatarUrl(src: string, url: URL): string {
 </script>
 
 <template>
-  <span v-if="badge || hasFrame" v-bind="$attrs" class="group/avatar relative inline-block shrink-0" :style="frameVariables">
+  <span v-if="badge || hasFrame" v-bind="$attrs" class="group/avatar relative inline-block shrink-0" :style="frameLayout">
     <span v-if="hasFrame && (!frameAsset || !frameImageLoaded || frameImageFailed)" class="gf-avatar-frame" aria-hidden="true" />
     <img :src="resolvedSrc" :alt="alt" width="96" height="96" decoding="async" class="h-full w-full rounded-[inherit] object-cover" :class="imgClass">
     <img v-if="frameAsset && !frameImageFailed" :src="frameAsset" alt="" aria-hidden="true" class="gf-avatar-frame-image" decoding="async" @load="frameImageLoaded = true" @error="frameImageFailed = true" />
@@ -81,10 +85,30 @@ function formatAvatarUrl(src: string, url: URL): string {
 </template>
 
 <style scoped>
-.gf-avatar-frame-image { position: absolute; width: 125%; height: 125%; max-width: none; left: -12.5%; top: -12.5%; z-index: 1; object-fit: contain; pointer-events: none; }
-.gf-avatar-frame { position: absolute; inset: -3px; border: 3px solid transparent; border-radius: inherit; background: var(--decoration-light) border-box; mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0); mask-composite: exclude; pointer-events: none; }
-:global([data-theme="gf-dark"]) .gf-avatar-frame-image { position: absolute; width: 125%; height: 125%; max-width: none; left: -12.5%; top: -12.5%; z-index: 1; object-fit: contain; pointer-events: none; }
-.gf-avatar-frame { background-image: var(--decoration-dark); }
-@media (forced-colors: active) { .gf-avatar-frame-image { display: none; } .gf-avatar-frame-image { position: absolute; width: 125%; height: 125%; max-width: none; left: -12.5%; top: -12.5%; z-index: 1; object-fit: contain; pointer-events: none; }
-.gf-avatar-frame { background: none; border-color: CanvasText; mask: none; } }
+.gf-avatar-frame-image {
+  position: absolute;
+  width: var(--avatar-frame-size, 125%);
+  height: var(--avatar-frame-size, 125%);
+  max-width: none;
+  left: var(--avatar-frame-offset, -12.5%);
+  top: var(--avatar-frame-offset, -12.5%);
+  z-index: 1;
+  object-fit: contain;
+  pointer-events: none;
+}
+.gf-avatar-frame {
+  position: absolute;
+  inset: -3px;
+  border: 3px solid transparent;
+  border-radius: inherit;
+  background: var(--decoration-light) border-box;
+  mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+:global([data-theme="gf-dark"] .gf-avatar-frame) { background-image: var(--decoration-dark); }
+@media (forced-colors: active) {
+  .gf-avatar-frame-image { display: none; }
+  .gf-avatar-frame { background: none; border-color: CanvasText; mask: none; }
+}
 </style>

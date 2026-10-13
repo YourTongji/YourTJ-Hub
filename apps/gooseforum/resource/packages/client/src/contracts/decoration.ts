@@ -7,6 +7,7 @@ export interface DecorationStyle {
   isEnabled: boolean
   sortOrder: number
   assetUrl?: string
+  assetScale?: number
 }
 export interface UserDecoration {
   avatarFrame?: DecorationStyle | null

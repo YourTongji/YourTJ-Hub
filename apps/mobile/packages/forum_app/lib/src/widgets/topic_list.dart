@@ -327,6 +327,8 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
                       : decorationFrameAssetUrl(
                           topic.author.decoration?.avatarFrame,
                         ),
+                  frameScale:
+                      topic.author.decoration?.avatarFrame?.assetScale ?? 1.25,
                   src: resolveApiAssetUrl(topic.author.avatarUrl),
                   size: 20,
                 ),
@@ -457,6 +459,10 @@ Widget _topicRow(
       description: topic.title.isEmpty ? '' : topic.description,
       categories: categories,
       participantAvatarUrls: participantAvatarUrls,
+      participantFrameScales: [
+        for (final participant in topic.participants)
+          participant.decoration?.avatarFrame?.assetScale ?? 1.25,
+      ],
       participantFrameAssetUrls: [
         for (final participant in topic.participants)
           decorationFrameAssetUrl(participant.decoration?.avatarFrame),
@@ -531,6 +537,8 @@ Widget buildTopicFeedCard(
       avatarFrameAssetUrl: decorationFrameAssetUrl(
         topic.author.decoration?.avatarFrame,
       ),
+      avatarFrameScale:
+          topic.author.decoration?.avatarFrame?.assetScale ?? 1.25,
       nicknameColors: decorationColors(
         context,
         topic.author.decoration?.nicknameStyle,

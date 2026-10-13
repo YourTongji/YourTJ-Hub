@@ -20,6 +20,7 @@ class Decorations extends UserRepository {
         code: 'frame',
         name: 'Frame',
         kind: 'avatarFrame',
+        assetScale: 1.4,
         lightColors: ['#123456', '#654321'],
         darkColors: ['#abcdef', '#fedcba'],
       ),
@@ -156,6 +157,10 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(repo.calls.single, {'avatarFrame': 'frame', 'nicknameStyle': ''});
+      expect(
+        tester.widget<GfAvatar>(find.byType(GfAvatar).first).frameScale,
+        1.4,
+      );
       await tester.tap(find.widgetWithText(TextButton, 'Equip').first);
       await tester.pumpAndSettle();
       expect(repo.calls.last, {'avatarFrame': '', 'nicknameStyle': ''});

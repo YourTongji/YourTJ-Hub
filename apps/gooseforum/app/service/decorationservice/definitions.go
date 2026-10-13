@@ -11,6 +11,8 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/decoration"
 )
 
+const DefaultAssetScale = 1.25
+
 const AvatarFrame = "avatarFrame"
 const NicknameStyle = "nicknameStyle"
 
@@ -21,6 +23,9 @@ var colorPattern = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
 var decorationAssetPattern = regexp.MustCompile(`^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp)$`)
 
 func ValidateStyle(style Style) error {
+	if math.IsNaN(style.AssetScale) || math.IsInf(style.AssetScale, 0) || (style.AssetScale != 0 && (style.AssetScale < 0.5 || style.AssetScale > 2)) {
+		return ErrInvalid
+	}
 	if style.AssetURL != "" && (style.Kind != AvatarFrame || path.Clean(style.AssetURL) != style.AssetURL || !decorationAssetPattern.MatchString(style.AssetURL)) {
 		return ErrInvalid
 	}

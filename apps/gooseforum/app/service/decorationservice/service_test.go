@@ -1,7 +1,9 @@
 package decorationservice
 
 import (
+	"encoding/json"
 	"errors"
+	"math"
 	"os"
 	"sync"
 	"testing"
@@ -247,5 +249,57 @@ func TestDecorationConcurrentRevokeEquipPostgreSQL(t *testing.T) {
 	}
 	if row.AvatarFrame != "" {
 		t.Fatalf("revoked frame remained equipped: %s", row.AvatarFrame)
+	}
+}
+
+func TestDecorationFrameScaleValidation(t *testing.T) {
+	for _, scale := range []float64{0, 0.5, 1.25, 2} {
+		s := testStyle("frame-scale", AvatarFrame)
+		payload, _ := json.Marshal(map[string]float64{"assetScale": scale})
+		if err := json.Unmarshal(payload, &s); err != nil {
+			t.Fatal(err)
+		}
+		if err := ValidateStyle(s); err != nil {
+			t.Fatalf("scale %v: %v", scale, err)
+		}
+	}
+	for _, scale := range []float64{-1, 0.49, 2.01} {
+		s := testStyle("frame-scale", AvatarFrame)
+		payload, _ := json.Marshal(map[string]float64{"assetScale": scale})
+		if err := json.Unmarshal(payload, &s); err != nil {
+			t.Fatal(err)
+		}
+		if ValidateStyle(s) == nil {
+			t.Fatalf("accepted invalid scale %v", scale)
+		}
+	}
+}
+
+func TestDecorationFrameScaleLegacyCatalogAndFinite(t *testing.T) {
+	conn := testDB(t, "")
+	style := testStyle("frame-scale", AvatarFrame)
+	if err := conn.Create(&style).Error; err != nil {
+		t.Fatal(err)
+	}
+	// An externally populated legacy zero is read at the prior 125 percent size.
+	if err := conn.Model(&style).Update("asset_scale", 0).Error; err != nil {
+		t.Fatal(err)
+	}
+	styles, err := catalog(conn)
+	if err != nil || len(styles) != 1 || styles[0].AssetScale != DefaultAssetScale {
+		t.Fatalf("legacy styles=%+v err=%v", styles, err)
+	}
+	for _, scale := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+		style.AssetScale = scale
+		if ValidateStyle(style) == nil {
+			t.Fatalf("accepted non-finite scale %v", scale)
+		}
+	}
+	if err := conn.Model(&style).Update("asset_scale", 2.01).Error; err != nil {
+		t.Fatal(err)
+	}
+	styles, err = catalog(conn)
+	if err != nil || len(styles) != 0 {
+		t.Fatalf("invalid scale exposed: %+v err=%v", styles, err)
 	}
 }

@@ -15,6 +15,7 @@ class GfConversationRow extends StatelessWidget {
     required this.name,
     this.avatarFrameColors = const [],
     this.avatarFrameAssetUrl = '',
+    this.avatarFrameScale = 1.25,
     this.nicknameColors = const [],
     required this.lastMessage,
     required this.time,
@@ -35,6 +36,7 @@ class GfConversationRow extends StatelessWidget {
   final VoidCallback? onTap;
 
   final String avatarFrameAssetUrl;
+  final double avatarFrameScale;
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
@@ -57,6 +59,7 @@ class GfConversationRow extends StatelessWidget {
                 GfAvatar(
                   frameColors: avatarFrameColors,
                   frameAssetUrl: avatarFrameAssetUrl,
+                  frameScale: avatarFrameScale,
                   src: avatarUrl,
                   size: 40,
                   ring: true,

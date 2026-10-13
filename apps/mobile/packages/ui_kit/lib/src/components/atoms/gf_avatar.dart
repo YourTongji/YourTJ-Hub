@@ -19,12 +19,14 @@ class GfAvatar extends StatelessWidget {
     this.badge,
     this.frameColors = const [],
     this.frameAssetUrl = '',
+    this.frameScale = 1.25,
   });
 
   /// Image URL (may be empty; falls back to a placeholder).
   final String src;
   final List<Color> frameColors;
   final String frameAssetUrl;
+  final double frameScale;
 
   /// Edge length in logical pixels; decode size snaps up to the step that
   /// covers it, so every value is valid.
@@ -136,6 +138,7 @@ class GfAvatar extends StatelessWidget {
       size: size,
       colors: frameColors,
       assetUrl: frameAssetUrl,
+      assetScale: frameScale,
       child: avatar,
     );
     if (badge == null) return framed;
@@ -157,11 +160,13 @@ class GfAvatarFrame extends StatelessWidget {
     required this.child,
     this.colors = const [],
     this.assetUrl = '',
+    this.assetScale = 1.25,
   });
   final double size;
   final Widget child;
   final List<Color> colors;
   final String assetUrl;
+  final double assetScale;
   @override
   Widget build(BuildContext context) {
     final fallback = colors.length < 2
@@ -187,7 +192,10 @@ class GfAvatarFrame extends StatelessWidget {
         (uri.hasScheme && uri.scheme != 'https' && uri.scheme != 'http')) {
       return fallback;
     }
-    final edge = size * 1.25;
+    final scale = assetScale.isFinite && assetScale >= 0.5 && assetScale <= 2
+        ? assetScale
+        : 1.25;
+    final edge = size * scale;
     final pixels = (edge * MediaQuery.devicePixelRatioOf(context)).ceil();
     return SizedBox(
       width: size,

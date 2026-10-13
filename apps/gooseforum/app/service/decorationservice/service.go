@@ -56,6 +56,9 @@ func catalog(conn *gorm.DB) ([]Style, error) {
 			delete(byCode, s.Code)
 			continue
 		}
+		if s.AssetScale == 0 {
+			s.AssetScale = DefaultAssetScale
+		}
 		byCode[s.Code] = s
 	}
 	styles := make([]Style, 0, len(byCode))
@@ -73,6 +76,9 @@ func catalog(conn *gorm.DB) ([]Style, error) {
 
 func SaveStyle(ctx context.Context, actorID uint64, style Style) (Style, error) {
 	style.Name = strings.TrimSpace(style.Name)
+	if style.AssetScale == 0 {
+		style.AssetScale = DefaultAssetScale
+	}
 	if actorID == 0 || ValidateStyle(style) != nil {
 		return Style{}, ErrInvalid
 	}
@@ -86,7 +92,7 @@ func SaveStyle(ctx context.Context, actorID uint64, style Style) (Style, error) 
 				return ErrInvalid
 			}
 		}
-		if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "code"}}, DoUpdates: clause.AssignmentColumns([]string{"name", "kind", "light_colors", "dark_colors", "is_enabled", "sort_order", "asset_url"})}).Create(&style).Error; err != nil {
+		if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "code"}}, DoUpdates: clause.AssignmentColumns([]string{"name", "kind", "light_colors", "dark_colors", "is_enabled", "sort_order", "asset_url", "asset_scale"})}).Create(&style).Error; err != nil {
 			return err
 		}
 		details, _ := json.Marshal(style)

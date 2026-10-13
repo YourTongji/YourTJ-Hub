@@ -12,9 +12,11 @@ class DecorationStyle {
     this.isEnabled = true,
     this.sortOrder = 0,
     this.assetUrl,
+    this.assetScale = 1.25,
   });
   final String code, name, kind;
   final String? assetUrl;
+  final double assetScale;
   final List<String> lightColors, darkColors;
   final bool isEnabled;
   final int sortOrder;
@@ -44,6 +46,13 @@ class DecorationStyle {
                 _assetPattern.hasMatch(json['assetUrl'] as String)
             ? json['assetUrl'] as String
             : null,
+        assetScale:
+            json['assetScale'] is num &&
+                (json['assetScale'] as num).isFinite &&
+                (json['assetScale'] as num) >= 0.5 &&
+                (json['assetScale'] as num) <= 2
+            ? (json['assetScale'] as num).toDouble()
+            : 1.25,
         sortOrder: json['sortOrder'] is num
             ? (json['sortOrder'] as num).toInt()
             : 0,
@@ -68,6 +77,7 @@ class DecorationStyle {
     'darkColors': darkColors,
     'isEnabled': isEnabled,
     if (assetUrl != null) 'assetUrl': assetUrl,
+    'assetScale': assetScale,
     'sortOrder': sortOrder,
   };
 }

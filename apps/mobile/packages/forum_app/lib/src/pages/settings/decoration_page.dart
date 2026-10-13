@@ -153,6 +153,7 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
                   frameAssetUrl: decorationFrameAssetUrl(
                     _style(_frame, 'avatarFrame'),
                   ),
+                  frameScale: _style(_frame, 'avatarFrame')?.assetScale ?? 1.25,
                 ),
                 const SizedBox(width: 16),
                 Expanded(

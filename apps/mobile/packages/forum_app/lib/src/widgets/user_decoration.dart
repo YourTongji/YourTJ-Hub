@@ -39,5 +39,5 @@ String decorationFrameAssetUrl(DecorationStyle? style) =>
         RegExp(
           r'^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp)$',
         ).hasMatch(style!.assetUrl!)
-    ? resolveApiAssetUrl(style!.assetUrl!)
+    ? resolveApiAssetUrl(style.assetUrl!)
     : '';

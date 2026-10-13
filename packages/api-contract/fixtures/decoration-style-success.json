@@ -14,6 +14,7 @@
     ],
     "isEnabled": true,
     "sortOrder": 10,
-    "assetUrl": "/static/decorations/frame-lantern.png"
+    "assetUrl": "/static/decorations/frame-lantern.png",
+    "assetScale": 1.25
   }
 }

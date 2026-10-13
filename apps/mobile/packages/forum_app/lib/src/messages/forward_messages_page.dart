@@ -206,6 +206,10 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
                                     frameAssetUrl: decorationFrameAssetUrl(
                                       recipient.user.decoration?.avatarFrame,
                                     ),
+                                    frameScale:
+                                        (recipient.user.decoration?.avatarFrame)
+                                            ?.assetScale ??
+                                        1.25,
                                     src: resolveApiAssetUrl(
                                       recipient.user.avatarUrl,
                                     ),
@@ -281,6 +285,10 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
                                   frameAssetUrl: decorationFrameAssetUrl(
                                     user.decoration?.avatarFrame,
                                   ),
+                                  frameScale:
+                                      (user.decoration?.avatarFrame)
+                                          ?.assetScale ??
+                                      1.25,
                                   src: resolveApiAssetUrl(user.avatarUrl),
                                   size: 40,
                                 ),

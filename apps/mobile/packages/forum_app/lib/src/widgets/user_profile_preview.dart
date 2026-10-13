@@ -723,6 +723,8 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                     frameAssetUrl: decorationFrameAssetUrl(
                       user?.decoration?.avatarFrame,
                     ),
+                    frameScale:
+                        user?.decoration?.avatarFrame?.assetScale ?? 1.25,
                     src: avatarUrl,
                     size: 76,
                     badge: wornBadge == null

@@ -11587,6 +11587,12 @@ DecorationStyle:
   - isEnabled
   - sortOrder
   properties:
+    assetScale:
+      type: number
+      minimum: 0.5
+      maximum: 2
+      default: 1.25
+      description: Frame artwork diameter relative to the avatar, centered without changing layout; omitted values use 1.25.
     assetUrl:
       type: string
       pattern: ^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp)$

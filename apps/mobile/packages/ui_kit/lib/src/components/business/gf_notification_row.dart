@@ -19,6 +19,7 @@ class GfNotificationRow extends StatelessWidget {
     this.actorName = '',
     this.avatarFrameColors = const [],
     this.avatarFrameAssetUrl = '',
+    this.avatarFrameScale = 1.25,
     this.nicknameColors = const [],
     this.avatarUrl,
     this.onActorTap,
@@ -40,6 +41,7 @@ class GfNotificationRow extends StatelessWidget {
   final int? subtitleMaxLines;
 
   final String avatarFrameAssetUrl;
+  final double avatarFrameScale;
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
@@ -90,6 +92,7 @@ class GfNotificationRow extends StatelessWidget {
                             child: GfAvatar(
                               frameColors: avatarFrameColors,
                               frameAssetUrl: avatarFrameAssetUrl,
+                              frameScale: avatarFrameScale,
                               src: avatarUrl!,
                               size: 36,
                             ),

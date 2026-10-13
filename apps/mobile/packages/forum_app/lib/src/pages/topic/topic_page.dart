@@ -2244,6 +2244,8 @@ class _TopicHeader extends StatelessWidget {
                       : decorationFrameAssetUrl(
                           topic.author.decoration?.avatarFrame,
                         ),
+                  frameScale:
+                      topic.author.decoration?.avatarFrame?.assetScale ?? 1.25,
                   src: resolveApiAssetUrl(topic.author.avatarUrl),
                   size: 40,
                   badge: topic.author.wornBadge == null
@@ -2558,6 +2560,8 @@ class _PostCard extends StatelessWidget {
                       : decorationFrameAssetUrl(
                           post.author.decoration?.avatarFrame,
                         ),
+                  frameScale:
+                      post.author.decoration?.avatarFrame?.assetScale ?? 1.25,
                   src: resolveApiAssetUrl(post.author.avatarUrl),
                   size: 32,
                   badge: post.isAnonymous || post.author.wornBadge == null

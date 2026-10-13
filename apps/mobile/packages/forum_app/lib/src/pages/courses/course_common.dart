@@ -311,6 +311,7 @@ Widget reviewAvatar(
     assetUrl: context == null || author.kind != 'member'
         ? ''
         : decorationFrameAssetUrl(author.decoration?.avatarFrame),
+    assetScale: author.decoration?.avatarFrame?.assetScale ?? 1.25,
     child: ClipOval(child: image),
   );
 }

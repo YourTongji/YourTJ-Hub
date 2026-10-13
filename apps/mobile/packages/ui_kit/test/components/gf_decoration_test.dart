@@ -7,6 +7,59 @@ import '../helpers.dart';
 
 void main() {
   testWidgets(
+    'custom frame scale stays centered with unchanged avatar geometry',
+    (tester) async {
+      final bytes = File(
+        '../../../../apps/gooseforum/resource/static/decorations/tea-garden-v1.png',
+      ).readAsBytesSync();
+      for (final scale in [
+        0.5,
+        1.4,
+        2.0,
+        double.nan,
+        double.infinity,
+        0.0,
+        2.1,
+      ]) {
+        await tester.pumpWidget(
+          gfApp(
+            GfMediaScope(
+              identity: 'frame-scale-$scale',
+              factory:
+                  (
+                    url, {
+                    width,
+                    height,
+                    policy = ResizeImagePolicy.exact,
+                    allowedOrigins,
+                  }) => MemoryImage(bytes),
+              child: GfAvatar(
+                src: '',
+                size: 40,
+                frameScale: scale,
+                frameAssetUrl:
+                    'https://forum.test/static/decorations/tea-garden-v1.png',
+              ),
+            ),
+          ),
+        );
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)),
+        );
+        await tester.pumpAndSettle();
+        final expectedScale = scale.isFinite && scale >= 0.5 && scale <= 2
+            ? scale
+            : 1.25;
+        expect(tester.getSize(find.byType(GfAvatar)), const Size(40, 40));
+        final frame = tester.getRect(find.byType(Image));
+        final avatar = tester.getRect(find.byType(GfAvatar));
+        expect(frame.size, Size(40 * expectedScale, 40 * expectedScale));
+        expect(frame.center, avatar.center);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+  testWidgets(
     'static image frame paints at 1.25 size with badges above and unchanged geometry',
     (tester) async {
       final bytes = File(
@@ -92,6 +145,7 @@ void main() {
               size: 40,
               frameColors: const [Colors.orange, Colors.green],
               frameAssetUrl: asset,
+              frameScale: 2,
             ),
           ),
         ),

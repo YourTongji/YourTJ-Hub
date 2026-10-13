@@ -16,33 +16,61 @@ Map<String, dynamic> style(String kind) => {
 };
 void main() {
   test(
-    'only safe local PNG and WebP paths are accepted as frame art',
+    'frame scale is bounded, defaults for old payloads and survives caching',
     () {
-      const path = '/static/decorations/custom-frame.png';
-      final data = {
-        ...style('avatarFrame'),
-        'assetUrl': path,
-      };
-      final parsed = DecorationStyle.parse(data, 'avatarFrame')!;
-      expect(parsed.assetUrl, path);
-      expect(parsed.toJson()['assetUrl'], path);
-      for (final invalid in [
-        'https://outside.test' + path,
-        path + '?v=1',
-        '/static/decorations/../custom.png',
-        '/static/decorations/custom.svg',
-      ]) {
+      for (final value in [0.5, 1, 1.4, 2]) {
+        final parsed = DecorationStyle.fromJson({
+          ...style('avatarFrame'),
+          'assetScale': value,
+        });
+        expect(parsed.toJson()['assetScale'], value.toDouble());
         expect(
-          DecorationStyle.fromJson({...data, 'assetUrl': invalid}).assetUrl,
-          isNull,
+          DecorationStyle.fromJson(
+            jsonDecode(jsonEncode(parsed.toJson())),
+          ).assetScale,
+          value.toDouble(),
         );
       }
-      expect(
-        DecorationStyle.fromJson({...data, 'kind': 'nicknameStyle'}).assetUrl,
-        isNull,
-      );
+      for (final value in [
+        null,
+        0,
+        -1,
+        0.49,
+        2.01,
+        double.nan,
+        double.infinity,
+        '1.4',
+      ]) {
+        final parsed = DecorationStyle.fromJson({
+          ...style('avatarFrame'),
+          'assetScale': value,
+        });
+        expect(parsed.toJson()['assetScale'], 1.25);
+      }
     },
   );
+  test('only safe local PNG and WebP paths are accepted as frame art', () {
+    const path = '/static/decorations/custom-frame.png';
+    final data = {...style('avatarFrame'), 'assetUrl': path};
+    final parsed = DecorationStyle.parse(data, 'avatarFrame')!;
+    expect(parsed.assetUrl, path);
+    expect(parsed.toJson()['assetUrl'], path);
+    for (final invalid in [
+      'https://outside.test$path',
+      '$path?v=1',
+      '/static/decorations/../custom.png',
+      '/static/decorations/custom.svg',
+    ]) {
+      expect(
+        DecorationStyle.fromJson({...data, 'assetUrl': invalid}).assetUrl,
+        isNull,
+      );
+    }
+    expect(
+      DecorationStyle.fromJson({...data, 'kind': 'nicknameStyle'}).assetUrl,
+      isNull,
+    );
+  });
   test(
     'one-stop palettes remain one stop and out-of-contract palettes fall back',
     () {

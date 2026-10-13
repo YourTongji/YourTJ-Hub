@@ -14,6 +14,7 @@ class GfConnectionRow extends StatelessWidget {
     required this.avatarUrl,
     this.avatarFrameColors = const [],
     this.avatarFrameAssetUrl = '',
+    this.avatarFrameScale = 1.25,
     this.nicknameColors = const [],
     required this.bio,
     this.action,
@@ -25,6 +26,7 @@ class GfConnectionRow extends StatelessWidget {
   final VoidCallback? onTap;
 
   final String avatarFrameAssetUrl;
+  final double avatarFrameScale;
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
@@ -62,6 +64,7 @@ class GfConnectionRow extends StatelessWidget {
               GfAvatar(
                 frameColors: avatarFrameColors,
                 frameAssetUrl: avatarFrameAssetUrl,
+                frameScale: avatarFrameScale,
                 src: avatarUrl,
                 size: 48,
               ),

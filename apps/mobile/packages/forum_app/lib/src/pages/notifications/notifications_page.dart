@@ -522,6 +522,13 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                         : decorationFrameAssetUrl(
                                             n.actor.decoration?.avatarFrame,
                                           ),
+                                    avatarFrameScale:
+                                        n
+                                            .actor
+                                            .decoration
+                                            ?.avatarFrame
+                                            ?.assetScale ??
+                                        1.25,
                                     nicknameColors: n.actor.publicUid != null
                                         ? const []
                                         : decorationColors(

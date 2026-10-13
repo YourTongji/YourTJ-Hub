@@ -1981,6 +1981,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                       frameAssetUrl: decorationFrameAssetUrl(
                         widget.conv.peerDecoration?.avatarFrame,
                       ),
+                      frameScale:
+                          (widget.conv.peerDecoration?.avatarFrame)
+                              ?.assetScale ??
+                          1.25,
                       label: l10n.messagesViewProfile(peerName),
                       src: resolveApiAssetUrl(widget.conv.peerAvatar),
                       size: 36,
@@ -2558,6 +2562,8 @@ class _ConversationList extends StatelessWidget {
           avatarFrameAssetUrl: decorationFrameAssetUrl(
             conversation.peerDecoration?.avatarFrame,
           ),
+          avatarFrameScale:
+              conversation.peerDecoration?.avatarFrame?.assetScale ?? 1.25,
           nicknameColors: decorationColors(
             context,
             conversation.peerDecoration?.nicknameStyle,
@@ -2899,6 +2905,7 @@ class _NewChatUserRow extends StatelessWidget {
                 frameAssetUrl: decorationFrameAssetUrl(
                   user.decoration?.avatarFrame,
                 ),
+                frameScale: user.decoration?.avatarFrame?.assetScale ?? 1.25,
                 src: resolveApiAssetUrl(user.avatarUrl),
                 size: 40,
                 ring: true,
@@ -3034,6 +3041,7 @@ class _PeerAvatarButton extends StatelessWidget {
     this.ring = false,
     this.frameColors = const [],
     this.frameAssetUrl = '',
+    this.frameScale = 1.25,
     this.alignment = Alignment.center,
   });
 
@@ -3044,6 +3052,7 @@ class _PeerAvatarButton extends StatelessWidget {
   final bool ring;
   final List<Color> frameColors;
   final String frameAssetUrl;
+  final double frameScale;
   final Alignment alignment;
 
   @override
@@ -3064,6 +3073,7 @@ class _PeerAvatarButton extends StatelessWidget {
             child: GfAvatar(
               frameColors: frameColors,
               frameAssetUrl: frameAssetUrl,
+              frameScale: frameScale,
               src: src,
               size: size,
               ring: ring,
@@ -3170,6 +3180,7 @@ class _MessageRow extends ConsumerWidget {
               frameAssetUrl: decorationFrameAssetUrl(
                 viewerDecoration?.avatarFrame,
               ),
+              frameScale: viewerDecoration?.avatarFrame?.assetScale ?? 1.25,
               src: resolveApiAssetUrl(viewerAvatar),
               size: 32,
             )
@@ -3184,6 +3195,7 @@ class _MessageRow extends ConsumerWidget {
               frameAssetUrl: decorationFrameAssetUrl(
                 peerDecoration?.avatarFrame,
               ),
+              frameScale: peerDecoration?.avatarFrame?.assetScale ?? 1.25,
               src: resolveApiAssetUrl(peerAvatar),
               size: 32,
               alignment: Alignment.topLeft,

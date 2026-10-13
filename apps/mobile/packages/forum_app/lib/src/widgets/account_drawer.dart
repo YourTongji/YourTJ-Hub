@@ -347,6 +347,7 @@ class AccountAvatar extends ConsumerWidget {
     return GfAvatar(
       frameColors: decorationColors(context, viewer?.decoration?.avatarFrame),
       frameAssetUrl: decorationFrameAssetUrl(viewer?.decoration?.avatarFrame),
+      frameScale: viewer?.decoration?.avatarFrame?.assetScale ?? 1.25,
       src: resolveApiAssetUrl(viewer?.avatarUrl ?? ''),
       size: 30,
     );
@@ -439,6 +440,11 @@ class AccountDrawer extends ConsumerWidget {
                         user?.decoration?.avatarFrame ??
                             viewer?.decoration?.avatarFrame,
                       ),
+                      frameScale:
+                          (user?.decoration?.avatarFrame ??
+                                  viewer?.decoration?.avatarFrame)
+                              ?.assetScale ??
+                          1.25,
                       src: resolveApiAssetUrl(
                         user?.avatarUrl ?? viewer?.avatarUrl ?? '',
                       ),

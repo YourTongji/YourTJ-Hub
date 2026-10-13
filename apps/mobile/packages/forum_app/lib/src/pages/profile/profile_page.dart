@@ -1036,28 +1036,28 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ? null
       : UserWornBadge(user.wornBadge!, avatarSize: 88);
 
-  Widget _immersiveHeader(BuildContext context, UserProfileProps props) =>
-      ProfileHeaderSliver(
-        avatarUrl: props.user.avatarUrl,
-        avatarFrameColors: decorationColors(
-          context,
-          props.user.decoration?.avatarFrame,
-        ),
-        avatarFrameAssetUrl: decorationFrameAssetUrl(
-          props.user.decoration?.avatarFrame,
-        ),
-        coverUrl: props.user.profileCoverUrl,
-        avatarBadge: _wornBadge(props.user),
-        title: _profileTitle(context, AppLocalizations.of(context)),
-        actions: _profileButtons(props),
-        actionHeightFor: (context, width) =>
-            _actionBandHeight(context, props, width),
-        navigationActions: (context, glass) => _profileActions(
-          context,
-          AppLocalizations.of(context),
-          glass: glass,
-        ),
-      );
+  Widget _immersiveHeader(
+    BuildContext context,
+    UserProfileProps props,
+  ) => ProfileHeaderSliver(
+    avatarUrl: props.user.avatarUrl,
+    avatarFrameColors: decorationColors(
+      context,
+      props.user.decoration?.avatarFrame,
+    ),
+    avatarFrameAssetUrl: decorationFrameAssetUrl(
+      props.user.decoration?.avatarFrame,
+    ),
+    avatarFrameScale: props.user.decoration?.avatarFrame?.assetScale ?? 1.25,
+    coverUrl: props.user.profileCoverUrl,
+    avatarBadge: _wornBadge(props.user),
+    title: _profileTitle(context, AppLocalizations.of(context)),
+    actions: _profileButtons(props),
+    actionHeightFor: (context, width) =>
+        _actionBandHeight(context, props, width),
+    navigationActions: (context, glass) =>
+        _profileActions(context, AppLocalizations.of(context), glass: glass),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -1432,6 +1432,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       avatarFrameAssetUrl: decorationFrameAssetUrl(
         user.decoration?.avatarFrame,
       ),
+      avatarFrameScale: user.decoration?.avatarFrame?.assetScale ?? 1.25,
       nicknameColors: decorationColors(context, user.decoration?.nicknameStyle),
       avatarBadge: _wornBadge(user),
       name: privateDisplayName(
@@ -1662,6 +1663,8 @@ class _ProfileBody extends StatelessWidget {
           avatarFrameAssetUrl: decorationFrameAssetUrl(
             props.user.decoration?.avatarFrame,
           ),
+          avatarFrameScale:
+              props.user.decoration?.avatarFrame?.assetScale ?? 1.25,
           nicknameColors: decorationColors(
             context,
             props.user.decoration?.nicknameStyle,
@@ -1865,6 +1868,7 @@ class _ProfileBody extends StatelessWidget {
             avatarFrameAssetUrl: decorationFrameAssetUrl(
               user.decoration?.avatarFrame,
             ),
+            avatarFrameScale: user.decoration?.avatarFrame?.assetScale ?? 1.25,
             nicknameColors: decorationColors(
               context,
               user.decoration?.nicknameStyle,
@@ -1919,6 +1923,7 @@ class _ProfileBody extends StatelessWidget {
     avatarFrameAssetUrl: decorationFrameAssetUrl(
       author?.decoration?.avatarFrame,
     ),
+    avatarFrameScale: author?.decoration?.avatarFrame?.assetScale ?? 1.25,
     nicknameColors: decorationColors(
       context,
       author?.decoration?.nicknameStyle,

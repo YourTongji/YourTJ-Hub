@@ -4,6 +4,11 @@ export function isSafeDecorationAssetUrl(value: string | undefined): value is st
   return !!value && /^\/static\/decorations\/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(?:png|webp)$/.test(value)
 }
 
+export function decorationAssetScale(style?: DecorationStyle | null): number {
+  const value = style?.assetScale
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0.5 && value <= 2 ? value : 1.25
+}
+
 export function decorationVariables(style?: DecorationStyle | null) {
   if (!style?.isEnabled) return {}
   const valid = (colors: string[]) => Array.isArray(colors) && colors.length >= 1 && colors.length <= 4 && colors.every(color => /^#[0-9a-f]{6}$/i.test(color))
