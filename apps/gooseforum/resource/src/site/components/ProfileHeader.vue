@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { UserBadgePayload } from '@gooseforum/client'
+import type { DecorationStyle, UserBadgePayload } from '@gooseforum/client'
 import UserAvatar from './UserAvatar.vue'
 
-const props = defineProps<{ avatarUrl: string; avatarAlt: string; coverUrl?: string; badge?: UserBadgePayload | null }>()
+const props = defineProps<{ avatarUrl: string; avatarAlt: string; coverUrl?: string; frame?: DecorationStyle | null; badge?: UserBadgePayload | null }>()
 const coverStyle = computed(() => {
   const fallback = 'linear-gradient(135deg, var(--gf-color-base-200) 0%, var(--gf-color-info-content) 52%, var(--gf-color-base-200) 100%)'
   const cover = props.coverUrl?.trim()
@@ -22,7 +22,7 @@ const coverStyle = computed(() => {
     <div class="relative z-0 px-4 pb-4 sm:px-5">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:gap-4 sm:flex-1">
-          <UserAvatar :src="avatarUrl" :alt="avatarAlt" :badge="badge" size="large" img-class="rounded-full"
+          <UserAvatar :frame="frame" :src="avatarUrl" :alt="avatarAlt" :badge="badge" size="large" img-class="rounded-full"
             class="-mt-9 h-24 w-24 shrink-0 rounded-full border-2 border-base-100 bg-base-100 shadow-sm sm:-mt-10 sm:h-28 sm:w-28" />
           <div class="min-w-0 sm:flex-1 sm:pt-3"><slot name="identity" /></div>
         </div>

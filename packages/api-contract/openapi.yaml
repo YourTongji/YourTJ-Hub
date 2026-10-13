@@ -52,6 +52,20 @@ tags:
   - name: Files
     description: 图片上传端点（服务端代理 multipart 与 S3 预签名直传）。
 paths:
+  /api/user/decorations:
+    $ref: ./paths/decorations.yaml#/myDecorations
+  /api/user/decorations/equip:
+    $ref: ./paths/decorations.yaml#/equipDecorations
+  /api/admin/decorations:
+    $ref: ./paths/decorations.yaml#/listDecorations
+  /api/admin/decoration-save:
+    $ref: ./paths/decorations.yaml#/saveDecoration
+  /api/admin/user-decorations:
+    $ref: ./paths/decorations.yaml#/getUserDecorations
+  /api/admin/decoration-grant:
+    $ref: ./paths/decorations.yaml#/grantDecoration
+  /api/admin/decoration-revoke:
+    $ref: ./paths/decorations.yaml#/revokeDecoration
   /api/v1/agent/events:
     $ref: ./paths/agent-events.yaml#/agentListEvents
   /api/v1/agent/events/{eventId}:
@@ -781,6 +795,28 @@ components:
       bearerFormat: agt_
       description: Opaque Agent bearer token (agt_...) issued once at Agent create/rotate time. Cookies and human JWTs are never accepted.
   schemas:
+    DecorationStyle:
+      $ref: ./components/schemas.yaml#/DecorationStyle
+    DecorationDisplay:
+      $ref: ./components/schemas.yaml#/DecorationDisplay
+    DecorationEquipped:
+      $ref: ./components/schemas.yaml#/DecorationEquipped
+    DecorationState:
+      $ref: ./components/schemas.yaml#/DecorationState
+    DecorationAdjustmentRequest:
+      $ref: ./components/schemas.yaml#/DecorationAdjustmentRequest
+    DecorationAudit:
+      $ref: ./components/schemas.yaml#/DecorationAudit
+    AdminDecorationState:
+      $ref: ./components/schemas.yaml#/AdminDecorationState
+    DecorationStateResponse:
+      $ref: ./components/schemas.yaml#/DecorationStateResponse
+    AdminDecorationStateResponse:
+      $ref: ./components/schemas.yaml#/AdminDecorationStateResponse
+    DecorationListResponse:
+      $ref: ./components/schemas.yaml#/DecorationListResponse
+    DecorationStyleResponse:
+      $ref: ./components/schemas.yaml#/DecorationStyleResponse
     CampusBinding:
       $ref: ./paths/campus.yaml#/components/schemas/CampusBinding
     CampusCandidate:

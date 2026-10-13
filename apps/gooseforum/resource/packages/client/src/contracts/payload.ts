@@ -1,3 +1,4 @@
+import type { UserDecoration } from './decoration.js'
 export interface PagePayload<TProps = unknown, TComponent extends string = string> {
   component: TComponent
   props: TProps
@@ -244,6 +245,7 @@ export interface ViewerPayload {
   id: number
   username: string
   email: string
+  decoration?: UserDecoration
   avatarUrl: string
   isAuthenticated: boolean
   canAccessAdmin: boolean
@@ -392,10 +394,11 @@ export interface TopicDetailPayload {
     id: number
     username: string
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
-  participants: Array<{ id: number; username: string; nickname?: string; avatarUrl: string; wornBadge?: UserBadgePayload | null }>
+  participants: Array<{ id: number; username: string; nickname?: string; avatarUrl: string; decoration?: UserDecoration; wornBadge?: UserBadgePayload | null }>
   categories: Array<{ id: number; name: string; url: string; color: string }>
   replyCount: number
   maxPostNo: number
@@ -436,6 +439,7 @@ export interface PostPayload {
     id: number
     username: string
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
@@ -454,6 +458,7 @@ export interface PostPayload {
     id: number
     username: string
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
@@ -475,6 +480,7 @@ export interface ReplyTargetPayload {
     id: number
     username: string
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
@@ -515,10 +521,11 @@ export interface TopicPayload {
     id: number
     username: string
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
-  participants: Array<{ id: number; username: string; nickname?: string; avatarUrl: string; wornBadge?: UserBadgePayload | null }>
+  participants: Array<{ id: number; username: string; nickname?: string; avatarUrl: string; decoration?: UserDecoration; wornBadge?: UserBadgePayload | null }>
   categories: Array<{ id: number; name: string; url: string; color: string }>
   replyCount: number
   viewCount: number
@@ -564,6 +571,7 @@ export interface ModerationLogItem {
     username: string
     /** Current nickname; absent when the actor has none. */
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl: string
   }
   subject: ModerationLogSubject
@@ -595,6 +603,7 @@ export interface ModerationReportItem {
     username: string
     /** Current nickname; absent when the reporter has none. */
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl: string
   }
   handler: {
@@ -602,6 +611,7 @@ export interface ModerationReportItem {
     username: string
     /** Current nickname; absent when the handler has none. */
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl: string
   }
   categories: Array<{ id: number; name: string; url: string; color: string }>
@@ -656,6 +666,7 @@ export interface UserCardPayload {
   userId: number
   username: string
   nickname: string
+  decoration?: UserDecoration
   avatarUrl: string
   profileCoverUrl: string
   bio: string
@@ -770,6 +781,7 @@ export interface UserConnectionPayload {
   id: number
   username: string
   nickname: string
+  decoration?: UserDecoration
   avatarUrl: string
   bio: string
   url: string
@@ -845,6 +857,7 @@ export interface SponsorPayload {
   name: string
   message: string
   link: string
+  decoration?: UserDecoration
   avatarUrl: string
 }
 
@@ -939,6 +952,7 @@ export interface NotificationPayload {
     username: string
     /** Current nickname; absent when the actor has none. */
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl?: string
   }
   topic?: {
@@ -983,6 +997,7 @@ export interface ChatItemPayload {
   peerUsername: string
   /** Current nickname; absent when the peer has none. */
   peerNickname?: string
+  peerDecoration?: UserDecoration
   peerAvatar: string
   lastMsg: string
   lastMsgTime: string
@@ -1018,6 +1033,7 @@ export interface SettingsUserPayload {
   pendingEmail: string
   nickname: string
   locale: string
+  decoration?: UserDecoration
   avatarUrl: string
   profileCoverUrl: string
   bio: string
@@ -1060,6 +1076,7 @@ export interface UserSearchPayload {
   id: number
   username: string
   nickname: string
+  decoration?: UserDecoration
   avatarUrl: string
   bio: string
 }
@@ -1250,6 +1267,7 @@ export interface WikiContributorPayload {
   userId: number
   username: string
   /** GitHub noreply 邮箱可解析时的动态头像直链；自定义邮箱贡献者为空。 */
+  decoration?: UserDecoration
   avatarUrl: string
   /** GitHub 主页外链（{username}）；自定义邮箱贡献者为空。 */
   githubUrl?: string

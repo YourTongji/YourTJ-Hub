@@ -1,3 +1,4 @@
+import type { UserDecoration } from './decoration.js'
 import type { PostWindowPayload, SearchPageProps } from './payload.js'
 import type { components } from '../gen/openapi.js'
 
@@ -10,6 +11,7 @@ export interface MentionTarget {
   userId: number
   username: string
   nickname: string
+  decoration?: UserDecoration
   avatarUrl: string
   actorType: 'human' | 'bot'
 }

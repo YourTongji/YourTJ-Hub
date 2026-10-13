@@ -21,6 +21,8 @@ UserBriefPayload _$UserBriefPayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$UserBriefPayload {
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
   String? get kind => throw _privateConstructorUsedError;
   String? get publicUid => throw _privateConstructorUsedError;
@@ -48,6 +50,7 @@ abstract class $UserBriefPayloadCopyWith<$Res> {
   ) = _$UserBriefPayloadCopyWithImpl<$Res, UserBriefPayload>;
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int id,
     String? kind,
     String? publicUid,
@@ -76,6 +79,7 @@ class _$UserBriefPayloadCopyWithImpl<$Res, $Val extends UserBriefPayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
     Object? kind = freezed,
     Object? publicUid = freezed,
@@ -87,6 +91,10 @@ class _$UserBriefPayloadCopyWithImpl<$Res, $Val extends UserBriefPayload>
   }) {
     return _then(
       _value.copyWith(
+            decoration: freezed == decoration
+                ? _value.decoration
+                : decoration // ignore: cast_nullable_to_non_nullable
+                      as UserDecoration?,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
@@ -149,6 +157,7 @@ abstract class _$$UserBriefPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int id,
     String? kind,
     String? publicUid,
@@ -177,6 +186,7 @@ class __$$UserBriefPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
     Object? kind = freezed,
     Object? publicUid = freezed,
@@ -188,6 +198,10 @@ class __$$UserBriefPayloadImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$UserBriefPayloadImpl(
+        decoration: freezed == decoration
+            ? _value.decoration
+            : decoration // ignore: cast_nullable_to_non_nullable
+                  as UserDecoration?,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
@@ -229,6 +243,7 @@ class __$$UserBriefPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$UserBriefPayloadImpl implements _UserBriefPayload {
   const _$UserBriefPayloadImpl({
+    @JsonKey(fromJson: UserDecoration.parse) this.decoration,
     required this.id,
     this.kind,
     this.publicUid,
@@ -242,6 +257,9 @@ class _$UserBriefPayloadImpl implements _UserBriefPayload {
   factory _$UserBriefPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$UserBriefPayloadImplFromJson(json);
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  final UserDecoration? decoration;
   @override
   final int id;
   @override
@@ -261,7 +279,7 @@ class _$UserBriefPayloadImpl implements _UserBriefPayload {
 
   @override
   String toString() {
-    return 'UserBriefPayload(id: $id, kind: $kind, publicUid: $publicUid, profileUrl: $profileUrl, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, wornBadge: $wornBadge)';
+    return 'UserBriefPayload(decoration: $decoration, id: $id, kind: $kind, publicUid: $publicUid, profileUrl: $profileUrl, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, wornBadge: $wornBadge)';
   }
 
   @override
@@ -269,6 +287,8 @@ class _$UserBriefPayloadImpl implements _UserBriefPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$UserBriefPayloadImpl &&
+            (identical(other.decoration, decoration) ||
+                other.decoration == decoration) &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.kind, kind) || other.kind == kind) &&
             (identical(other.publicUid, publicUid) ||
@@ -289,6 +309,7 @@ class _$UserBriefPayloadImpl implements _UserBriefPayload {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    decoration,
     id,
     kind,
     publicUid,
@@ -318,6 +339,7 @@ class _$UserBriefPayloadImpl implements _UserBriefPayload {
 
 abstract class _UserBriefPayload implements UserBriefPayload {
   const factory _UserBriefPayload({
+    @JsonKey(fromJson: UserDecoration.parse) final UserDecoration? decoration,
     required final int id,
     final String? kind,
     final String? publicUid,
@@ -331,6 +353,9 @@ abstract class _UserBriefPayload implements UserBriefPayload {
   factory _UserBriefPayload.fromJson(Map<String, dynamic> json) =
       _$UserBriefPayloadImpl.fromJson;
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration;
   @override
   int get id;
   @override

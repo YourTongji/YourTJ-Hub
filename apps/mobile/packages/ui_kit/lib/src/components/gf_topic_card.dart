@@ -1,3 +1,4 @@
+import 'atoms/gf_decorated_name.dart';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
@@ -47,6 +48,9 @@ class GfTopicCard extends StatefulWidget {
     required this.title,
     required this.description,
     required this.authorName,
+    this.avatarFrameColors = const [],
+    this.avatarFrameAssetUrl = '',
+    this.nicknameColors = const [],
     required this.authorAvatarUrl,
     required this.categories,
     required this.imageUrls,
@@ -78,7 +82,9 @@ class GfTopicCard extends StatefulWidget {
 
   final String title;
   final String description;
+  final String avatarFrameAssetUrl;
   final String authorName;
+  final List<Color> avatarFrameColors, nicknameColors;
   final String authorAvatarUrl;
   final List<GfTopicCategory> categories;
   final List<String> imageUrls;
@@ -219,6 +225,7 @@ class _GfTopicCardState extends State<GfTopicCard> {
       children: <Widget>[
         _AuthorMeta(
           name: widget.authorName,
+          nicknameColors: widget.nicknameColors,
           avatarUrl: widget.authorAvatarUrl,
           activityText: widget.activityText,
           categories: widget.categories,
@@ -409,7 +416,12 @@ class _GfTopicCardState extends State<GfTopicCard> {
                   width: 44,
                   height: 44,
                   child: Center(
-                    child: GfAvatar(src: widget.authorAvatarUrl, size: 36),
+                    child: GfAvatar(
+                      frameColors: widget.avatarFrameColors,
+                      frameAssetUrl: widget.avatarFrameAssetUrl,
+                      src: widget.authorAvatarUrl,
+                      size: 36,
+                    ),
                   ),
                 ),
               ),
@@ -504,6 +516,7 @@ class _BookmarkAction extends StatelessWidget {
 class _AuthorMeta extends StatelessWidget {
   const _AuthorMeta({
     required this.name,
+    this.nicknameColors = const [],
     required this.avatarUrl,
     required this.activityText,
     required this.categories,
@@ -513,6 +526,7 @@ class _AuthorMeta extends StatelessWidget {
   });
 
   final String name;
+  final List<Color> nicknameColors;
   final String avatarUrl;
   final String activityText;
   final List<GfTopicCategory> categories;
@@ -619,8 +633,9 @@ class _AuthorMeta extends StatelessWidget {
                           alignment: Alignment.centerLeft,
                           widthFactor: 1,
                           heightFactor: 1,
-                          child: Text(
+                          child: GfDecoratedName(
                             name,
+                            colors: nicknameColors,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(

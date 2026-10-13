@@ -1567,6 +1567,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 
 export interface ReviewAuthorPayload {
   kind: 'anonymous' | 'member' | 'legacy'
+  decoration?: import('@gooseforum/client').UserDecoration
   label: string
   avatarUrl?: string
 }
@@ -2187,4 +2188,11 @@ export async function completeTongjiRegistration(username: string, password: str
   return readApiResponse<{ redirect: string }>(await feedFetch('/api/auth/tongji/registration', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, csrfToken }),
   }), t('auth.validation.registerFailed'))
+}
+
+export async function getDecorations(): Promise<import('@gooseforum/client').DecorationState> {
+  return readApiResponse(await feedFetch('/api/user/decorations', { headers: { Accept: 'application/json' } }), t('decoration.loadFailed'))
+}
+export async function equipDecorations(equipped: { avatarFrame: string; nicknameStyle: string }): Promise<import('@gooseforum/client').DecorationState> {
+  return readApiResponse(await feedFetch('/api/user/decorations/equip', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(equipped) }), t('decoration.saveFailed'))
 }

@@ -1,3 +1,5 @@
+import 'decoration_page.dart';
+import '../../widgets/user_decoration.dart';
 import '../../user_blocks.dart';
 import 'dart:async';
 
@@ -1304,6 +1306,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ),
               const GfDivider(),
               GfSettingRow(
+                symbol: 'sparkles',
+                title: DecorationStrings(context).title,
+                onTap: user == null
+                    ? null
+                    : () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => DecorationPage(
+                              avatarUrl: user.avatarUrl,
+                              name: user.nickname.isEmpty
+                                  ? user.username
+                                  : user.nickname,
+                            ),
+                          ),
+                        );
+                        if (mounted) await _loadUser(silent: true);
+                      },
+              ),
+              const GfDivider(),
+              GfSettingRow(
                 symbol: 'camera',
                 title: l10n.settingsAvatar,
                 description: _uploadingAvatar
@@ -1312,6 +1334,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 leading: user == null
                     ? null
                     : GfAvatar(
+                        frameColors: decorationColors(
+                          context,
+                          user.decoration?.avatarFrame,
+                        ),
+                        frameAssetUrl: decorationFrameAssetUrl(
+                          user.decoration?.avatarFrame,
+                        ),
                         src: resolveApiAssetUrl(user.avatarUrl),
                         size: 32,
                       ),

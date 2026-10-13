@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：389
-- /api JSON 路由：320，已入契约：321（100%），已知未覆盖：0
+- 快照路由总数：396
+- /api JSON 路由：327，已入契约：328（100%），已知未覆盖：0
 - 非 API 排除路由：68
 
-## 已覆盖（321）
+## 已覆盖（328）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -26,6 +26,7 @@
 | GET | `/api/admin/data/export/download/:taskId` | `adminDownloadExportTask` |
 | GET | `/api/admin/data/export/tasks` | `adminListExportTasks` |
 | GET | `/api/admin/data/import/tasks` | `adminListImportTasks` |
+| GET | `/api/admin/decorations` | `listDecorations` |
 | GET | `/api/admin/feed/summary` | `getFeedSummary` |
 | GET | `/api/admin/friend-links` | `adminGetFriendLinks` |
 | GET | `/api/admin/get-all-role-item` | `adminGetAllRoleItem` |
@@ -50,6 +51,7 @@
 | GET | `/api/admin/storage-migrate-tasks` | `adminListStorageMigrateTasks` |
 | GET | `/api/admin/storage-settings` | `adminGetStorageSettings` |
 | GET | `/api/admin/terms-of-service` | `adminGetTermsOfService` |
+| GET | `/api/admin/user-decorations` | `getUserDecorations` |
 | GET | `/api/admin/wiki/sync/cdn` | `getWikiAssetCDN` |
 | GET | `/api/admin/wiki/sync/runs` | `listWikiSyncRuns` |
 | GET | `/api/admin/wiki/sync/status` | `getWikiSyncStatus` |
@@ -98,6 +100,7 @@
 | GET | `/api/user-blocks` | `listUserBlocks` |
 | GET | `/api/user-card` | `getUserCard` |
 | GET | `/api/user-notes` | `listPrivateNotes` |
+| GET | `/api/user/decorations` | `myDecorations` |
 | GET | `/api/user/sessions` | `listSessions` |
 | GET | `/api/user/totp/status` | `getTotpStatus` |
 | GET | `/api/v1/agent/events` | `agentListEvents` |
@@ -142,6 +145,9 @@
 | POST | `/api/admin/data/export` | `adminCreateExportTask` |
 | POST | `/api/admin/data/import` | `adminImportData` |
 | POST | `/api/admin/data/import/tasks/:taskId/replay` | `adminReplayImportTask` |
+| POST | `/api/admin/decoration-grant` | `grantDecoration` |
+| POST | `/api/admin/decoration-revoke` | `revokeDecoration` |
+| POST | `/api/admin/decoration-save` | `saveDecoration` |
 | POST | `/api/admin/file-resources` | `adminListFileResources` |
 | POST | `/api/admin/get-permission-list` | `adminGetPermissionList` |
 | POST | `/api/admin/global-moderator-add` | `adminGlobalModeratorAdd` |
@@ -316,6 +322,7 @@
 | POST | `/api/upload-avatar` | `uploadAvatar` |
 | POST | `/api/user-block` | `setUserBlock` |
 | POST | `/api/user-note` | `setPrivateNote` |
+| POST | `/api/user/decorations/equip` | `equipDecorations` |
 | POST | `/api/user/sessions/revoke` | `revokeSession` |
 | POST | `/api/user/sessions/revoke-all` | `revokeAllSessions` |
 | POST | `/api/user/totp/disable` | `disableTotp` |

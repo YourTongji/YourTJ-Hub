@@ -1,3 +1,4 @@
+import 'user_decoration.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -103,6 +104,17 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       GfAvatar(
+                        frameColors: widget.value == 'persona'
+                            ? const []
+                            : decorationColors(
+                                context,
+                                user?.decoration?.avatarFrame,
+                              ),
+                        frameAssetUrl: widget.value == 'persona'
+                            ? ''
+                            : decorationFrameAssetUrl(
+                                user?.decoration?.avatarFrame,
+                              ),
                         src: resolveApiAssetUrl(
                           widget.value == 'persona'
                               ? p?.avatarUrl ?? ''
@@ -112,8 +124,14 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
                       ),
                       const SizedBox(width: 8),
                       Flexible(
-                        child: Text(
+                        child: GfDecoratedName(
                           name,
+                          colors: widget.value == 'persona'
+                              ? const []
+                              : decorationColors(
+                                  context,
+                                  user?.decoration?.nicknameStyle,
+                                ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: type.bodyStrong,
@@ -224,6 +242,13 @@ class _IdentityMenu extends ConsumerWidget {
             option(
               key: const Key('identity-option-member'),
               leading: GfAvatar(
+                frameColors: decorationColors(
+                  context,
+                  user?.decoration?.avatarFrame,
+                ),
+                frameAssetUrl: decorationFrameAssetUrl(
+                  user?.decoration?.avatarFrame,
+                ),
                 src: resolveApiAssetUrl(user?.avatarUrl ?? ''),
                 size: 36,
               ),

@@ -6,3 +6,5 @@ export * from './sticker.js'
 export * from './link-preview.js'
 export * from './private-notes.js'
 export * from './realtime.js'
+
+export * from './decoration.js'

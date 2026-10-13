@@ -1,3 +1,4 @@
+import 'decoration.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'common.dart';
@@ -9,6 +10,7 @@ part 'user.g.dart';
 @freezed
 abstract class UserCardPayload with _$UserCardPayload {
   const factory UserCardPayload({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     required int userId,
     required String username,
     required String nickname,
@@ -113,6 +115,7 @@ abstract class UserBookmarkPayload with _$UserBookmarkPayload {
 @freezed
 abstract class UserConnectionPayload with _$UserConnectionPayload {
   const factory UserConnectionPayload({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     required int id,
     required String username,
     required String nickname,
@@ -160,6 +163,7 @@ abstract class UserProfileProps with _$UserProfileProps {
 @freezed
 abstract class SettingsUserPayload with _$SettingsUserPayload {
   const factory SettingsUserPayload({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     required int id,
     required String username,
     required String email,

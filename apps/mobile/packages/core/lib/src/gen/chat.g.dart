@@ -9,6 +9,7 @@ part of 'chat.dart';
 _$ChatItemPayloadImpl _$$ChatItemPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$ChatItemPayloadImpl(
+  peerDecoration: UserDecoration.parse(json['peerDecoration']),
   id: (json['id'] as num).toInt(),
   peerId: (json['peerId'] as num).toInt(),
   peerUsername: json['peerUsername'] as String,
@@ -24,6 +25,7 @@ _$ChatItemPayloadImpl _$$ChatItemPayloadImplFromJson(
 Map<String, dynamic> _$$ChatItemPayloadImplToJson(
   _$ChatItemPayloadImpl instance,
 ) => <String, dynamic>{
+  'peerDecoration': instance.peerDecoration,
   'id': instance.id,
   'peerId': instance.peerId,
   'peerUsername': instance.peerUsername,

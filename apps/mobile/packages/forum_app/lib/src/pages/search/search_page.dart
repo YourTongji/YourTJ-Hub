@@ -1,3 +1,4 @@
+import '../../widgets/user_decoration.dart';
 import '../../private_notes.dart';
 
 import 'package:flutter/material.dart';
@@ -776,18 +777,32 @@ class _UserRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            GfAvatar(src: resolveApiAssetUrl(user.avatarUrl), size: 40),
+            GfAvatar(
+              frameColors: decorationColors(
+                context,
+                user.decoration?.avatarFrame,
+              ),
+              frameAssetUrl: decorationFrameAssetUrl(
+                user.decoration?.avatarFrame,
+              ),
+              src: resolveApiAssetUrl(user.avatarUrl),
+              size: 40,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  GfDecoratedName(
                     privateDisplayName(
                       context,
                       user.id,
                       user.username,
                       user.nickname,
+                    ),
+                    colors: decorationColors(
+                      context,
+                      user.decoration?.nicknameStyle,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

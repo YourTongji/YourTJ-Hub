@@ -21,6 +21,8 @@ ChatItemPayload _$ChatItemPayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$ChatItemPayload {
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get peerDecoration => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
   int get peerId => throw _privateConstructorUsedError;
   String get peerUsername => throw _privateConstructorUsedError;
@@ -50,6 +52,7 @@ abstract class $ChatItemPayloadCopyWith<$Res> {
   ) = _$ChatItemPayloadCopyWithImpl<$Res, ChatItemPayload>;
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? peerDecoration,
     int id,
     int peerId,
     String peerUsername,
@@ -78,6 +81,7 @@ class _$ChatItemPayloadCopyWithImpl<$Res, $Val extends ChatItemPayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? peerDecoration = freezed,
     Object? id = null,
     Object? peerId = null,
     Object? peerUsername = null,
@@ -91,6 +95,10 @@ class _$ChatItemPayloadCopyWithImpl<$Res, $Val extends ChatItemPayload>
   }) {
     return _then(
       _value.copyWith(
+            peerDecoration: freezed == peerDecoration
+                ? _value.peerDecoration
+                : peerDecoration // ignore: cast_nullable_to_non_nullable
+                      as UserDecoration?,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
@@ -147,6 +155,7 @@ abstract class _$$ChatItemPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? peerDecoration,
     int id,
     int peerId,
     String peerUsername,
@@ -174,6 +183,7 @@ class __$$ChatItemPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? peerDecoration = freezed,
     Object? id = null,
     Object? peerId = null,
     Object? peerUsername = null,
@@ -187,6 +197,10 @@ class __$$ChatItemPayloadImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$ChatItemPayloadImpl(
+        peerDecoration: freezed == peerDecoration
+            ? _value.peerDecoration
+            : peerDecoration // ignore: cast_nullable_to_non_nullable
+                  as UserDecoration?,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
@@ -236,6 +250,7 @@ class __$$ChatItemPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$ChatItemPayloadImpl implements _ChatItemPayload {
   const _$ChatItemPayloadImpl({
+    @JsonKey(fromJson: UserDecoration.parse) this.peerDecoration,
     required this.id,
     required this.peerId,
     required this.peerUsername,
@@ -251,6 +266,9 @@ class _$ChatItemPayloadImpl implements _ChatItemPayload {
   factory _$ChatItemPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$ChatItemPayloadImplFromJson(json);
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  final UserDecoration? peerDecoration;
   @override
   final int id;
   @override
@@ -274,7 +292,7 @@ class _$ChatItemPayloadImpl implements _ChatItemPayload {
 
   @override
   String toString() {
-    return 'ChatItemPayload(id: $id, peerId: $peerId, peerUsername: $peerUsername, peerNickname: $peerNickname, peerAvatar: $peerAvatar, lastMsg: $lastMsg, lastMsgTime: $lastMsgTime, unreadCount: $unreadCount, convId: $convId, peerUrl: $peerUrl)';
+    return 'ChatItemPayload(peerDecoration: $peerDecoration, id: $id, peerId: $peerId, peerUsername: $peerUsername, peerNickname: $peerNickname, peerAvatar: $peerAvatar, lastMsg: $lastMsg, lastMsgTime: $lastMsgTime, unreadCount: $unreadCount, convId: $convId, peerUrl: $peerUrl)';
   }
 
   @override
@@ -282,6 +300,8 @@ class _$ChatItemPayloadImpl implements _ChatItemPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$ChatItemPayloadImpl &&
+            (identical(other.peerDecoration, peerDecoration) ||
+                other.peerDecoration == peerDecoration) &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.peerId, peerId) || other.peerId == peerId) &&
             (identical(other.peerUsername, peerUsername) ||
@@ -303,6 +323,7 @@ class _$ChatItemPayloadImpl implements _ChatItemPayload {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    peerDecoration,
     id,
     peerId,
     peerUsername,
@@ -334,6 +355,8 @@ class _$ChatItemPayloadImpl implements _ChatItemPayload {
 
 abstract class _ChatItemPayload implements ChatItemPayload {
   const factory _ChatItemPayload({
+    @JsonKey(fromJson: UserDecoration.parse)
+    final UserDecoration? peerDecoration,
     required final int id,
     required final int peerId,
     required final String peerUsername,
@@ -349,6 +372,9 @@ abstract class _ChatItemPayload implements ChatItemPayload {
   factory _ChatItemPayload.fromJson(Map<String, dynamic> json) =
       _$ChatItemPayloadImpl.fromJson;
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get peerDecoration;
   @override
   int get id;
   @override

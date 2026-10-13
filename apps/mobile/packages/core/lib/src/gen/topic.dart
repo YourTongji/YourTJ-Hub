@@ -1,3 +1,4 @@
+import 'decoration.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'topic.freezed.dart';
@@ -6,6 +7,7 @@ part 'topic.g.dart';
 @freezed
 abstract class UserBriefPayload with _$UserBriefPayload {
   const factory UserBriefPayload({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     required int id,
     String? kind,
     String? publicUid,

@@ -1,3 +1,4 @@
+import '../../widgets/user_decoration.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -2140,14 +2141,20 @@ class _ReviewRow extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              reviewAvatar(review, size: 40),
+              reviewAvatar(review, size: 40, context: context),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(
+                    GfDecoratedName(
                       reviewAuthorLabel(review, copy),
+                      colors: review.author.kind == 'member'
+                          ? decorationColors(
+                              context,
+                              review.author.decoration?.nicknameStyle,
+                            )
+                          : const [],
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: type.small.copyWith(

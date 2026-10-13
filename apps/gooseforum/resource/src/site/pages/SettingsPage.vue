@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import DecorationEditor from '@/site/components/DecorationEditor.vue'
+import UserNickname from '@/site/components/UserNickname.vue'
+import type { UserDecoration } from '@gooseforum/client'
 import AnonymousIdentitySettings from '@/site/components/AnonymousIdentitySettings.vue'
 import ManagedContent from '@/site/components/ManagedContent.vue'
 import { useContentUpdates } from '@/runtime/content-updates'
@@ -206,6 +209,11 @@ const inlineConfirmClear = ref<InlineProfileField | null>(null)
 const savingPresetAvatar = ref('')
 const savingWornBadge = ref(false)
 const presetAvatarDraft = ref(page.props.user.avatarUrl)
+const decoration = ref<UserDecoration | undefined>(page.props.user.decoration)
+function applyDecoration(value: UserDecoration) {
+  decoration.value = value
+  page.layout.viewer.decoration = value
+}
 const wornBadgeCode = ref(page.props.user.wornBadgeCode || '')
 const coverUrl = ref(page.props.user.profileCoverUrl || '')
 const bindings = ref<OAuthBindingsPayload>({})
@@ -1432,7 +1440,7 @@ async function toggleBinding(provider: string) {
                 :aria-label="t('settings.avatar.upload')"
                 @click="chooseCustomAvatar"
               >
-                <UserAvatar :src="avatarPreviewUrl" :alt="usernameForm.username" :badge="wornBadgePreview" size="large" class="h-full w-full rounded-full" img-class="rounded-full transition group-hover:brightness-90" />
+                <UserAvatar :src="avatarPreviewUrl" :alt="usernameForm.username" :badge="wornBadgePreview" :frame="decoration?.avatarFrame" size="large" class="h-full w-full rounded-full" img-class="rounded-full transition group-hover:brightness-90" />
                 <span class="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full text-neutral-content">
                   <Loader2 v-if="uploadingAvatar" class="h-8 w-8 animate-spin opacity-100" />
                   <Camera v-else class="h-8 w-8 opacity-0 drop-shadow transition group-hover:opacity-100" />
@@ -1441,7 +1449,7 @@ async function toggleBinding(provider: string) {
 
               <div class="min-w-0 flex-1 sm:pt-3">
                 <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-y-2">
-                  <h2 class="truncate text-xl font-bold leading-tight tracking-tight text-base-content sm:text-2xl">{{ displayName }}</h2>
+                  <h2 class="truncate text-xl font-bold leading-tight tracking-tight text-base-content sm:text-2xl"><UserNickname :style-definition="decoration?.nicknameStyle">{{ displayName }}</UserNickname></h2>
                   <span class="gf-badge gf-badge-info rounded text-[11px]">{{ t('settings.editing') }}</span>
                   <button
                     type="button"
@@ -1748,6 +1756,7 @@ async function toggleBinding(provider: string) {
             </div>
           </section>
 
+          <DecorationEditor :avatar-url="avatarPreviewUrl" :name="displayName" @changed="applyDecoration" />
           <BadgeDisplayEditor v-if="userBadges.length" :badges="userBadges" :selected="props.user.displayBadges ?? userBadges.slice(0, 5)" />
           <section v-if="userBadges.length" class="mt-4 border-t border-line pt-3">
             <div class="mb-2 flex flex-wrap items-center justify-between gap-2">

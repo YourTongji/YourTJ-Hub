@@ -1089,6 +1089,8 @@ UserSearchPayload:
   type: object
   required: [id, username, nickname, avatarUrl, bio]
   properties:
+    decoration:
+      $ref: "#/DecorationDisplay"
     id:
       type: integer
       format: uint64
@@ -1634,6 +1636,8 @@ ReviewAuthorPayload:
   type: object
   required: [kind, label]
   properties:
+    decoration:
+      $ref: "#/DecorationDisplay"
     kind:
       type: string
       enum: [anonymous, member, legacy]
@@ -2528,6 +2532,8 @@ TopicAuthorPayload:
   type: object
   required: [id, username, avatarUrl]
   properties:
+    decoration:
+      $ref: "#/DecorationDisplay"
     kind:
       type: string
       enum: [member, persona]
@@ -4507,6 +4513,8 @@ UserCard:
   type: object
   required: [userId, username, nickname, avatarUrl, profileCoverUrl, bio, signature, websiteName, website, prestige, isAdmin, topicCount, replyCount, likeReceivedCount, likeGivenCount, followerCount, followingCount, collectionCount, isOnline, isFollowing, externalInformation, isSelf, badges, lastActiveTime, createdAt, isAccountClosed]
   properties:
+    decoration:
+      $ref: "#/DecorationDisplay"
     userId:
       type: integer
       format: uint64
@@ -5015,6 +5023,8 @@ NotificationActorPayload:
   type: object
   required: [id, username, avatarUrl]
   properties:
+    decoration:
+      $ref: "#/DecorationDisplay"
     kind:
       type: string
       enum: [member, persona]
@@ -11565,3 +11575,235 @@ FeedSessionResponse:
     result: { $ref: '#/FeedSessionResult' }
     message: { type: string }
     messageCode: { type: string }
+
+DecorationStyle:
+  type: object
+  required:
+  - code
+  - name
+  - kind
+  - lightColors
+  - darkColors
+  - isEnabled
+  - sortOrder
+  properties:
+    assetUrl:
+      type: string
+      pattern: ^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp)$
+      description: Optional same-origin PNG or WebP frame artwork installed under resource/static/decorations. External URLs are rejected.
+    code:
+      type: string
+      pattern: ^[a-z][a-z0-9_-]{0,63}$
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+    kind:
+      type: string
+      enum:
+      - avatarFrame
+      - nicknameStyle
+    lightColors:
+      type: array
+      minItems: 1
+      maxItems: 2
+      items:
+        type: string
+        pattern: ^#[0-9A-Fa-f]{6}$
+    darkColors:
+      type: array
+      minItems: 1
+      maxItems: 2
+      items:
+        type: string
+        pattern: ^#[0-9A-Fa-f]{6}$
+    isEnabled:
+      type: boolean
+    sortOrder:
+      type: integer
+      minimum: 0
+      maximum: 100000
+  additionalProperties: false
+DecorationDisplay:
+  type: object
+  properties:
+    avatarFrame:
+      $ref: '#/DecorationStyle'
+    nicknameStyle:
+      $ref: '#/DecorationStyle'
+  additionalProperties: false
+DecorationEquipped:
+  type: object
+  required:
+  - avatarFrame
+  - nicknameStyle
+  properties:
+    avatarFrame:
+      type: string
+      maxLength: 64
+    nicknameStyle:
+      type: string
+      maxLength: 64
+  additionalProperties: false
+DecorationState:
+  type: object
+  required:
+  - catalog
+  - ownedCodes
+  - equipped
+  properties:
+    catalog: &id001
+      type: array
+      items:
+        $ref: '#/DecorationStyle'
+    ownedCodes: &id002
+      type: array
+      uniqueItems: true
+      items:
+        type: string
+    equipped: &id003
+      $ref: '#/DecorationEquipped'
+  additionalProperties: false
+DecorationAdjustmentRequest:
+  type: object
+  required:
+  - userId
+  - code
+  - reason
+  - requestKey
+  properties:
+    userId:
+      type: integer
+      minimum: 1
+    code:
+      type: string
+      pattern: ^[a-z][a-z0-9_-]{0,63}$
+    reason:
+      type: string
+      minLength: 1
+      maxLength: 512
+    requestKey:
+      type: string
+      minLength: 8
+      maxLength: 128
+  additionalProperties: false
+DecorationAudit:
+  type: object
+  required:
+  - id
+  - requestKey
+  - userId
+  - code
+  - action
+  - source
+  - actorId
+  - reason
+  - createdAt
+  properties:
+    id:
+      type: integer
+    requestKey:
+      type: string
+    userId:
+      type: integer
+    code:
+      type: string
+    action:
+      type: string
+      enum:
+      - grant
+      - revoke
+      - equip
+      - definition
+    source:
+      type: string
+      enum:
+      - manual
+      - xp
+      - trust
+      - credit
+      - migration
+      - self
+    actorId:
+      type: integer
+    reason:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+AdminDecorationState:
+  type: object
+  required:
+  - catalog
+  - ownedCodes
+  - equipped
+  - audits
+  properties:
+    catalog: *id001
+    ownedCodes: *id002
+    equipped: *id003
+    audits:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/DecorationAudit'
+  additionalProperties: false
+DecorationStateResponse:
+  oneOf:
+  - type: object
+    required:
+    - code
+    - result
+    properties:
+      code:
+        type: integer
+        const: 0
+      result:
+        $ref: '#/DecorationState'
+    additionalProperties: false
+  - $ref: '#/ApiFailure'
+AdminDecorationStateResponse:
+  oneOf:
+  - type: object
+    required:
+    - code
+    - result
+    properties:
+      code:
+        type: integer
+        const: 0
+      result:
+        $ref: '#/AdminDecorationState'
+    additionalProperties: false
+  - $ref: '#/ApiFailure'
+DecorationListResponse:
+  oneOf:
+  - type: object
+    required:
+    - code
+    - result
+    properties:
+      code:
+        type: integer
+        const: 0
+      result:
+        type: array
+        items:
+          $ref: '#/DecorationStyle'
+    additionalProperties: false
+  - $ref: '#/ApiFailure'
+DecorationStyleResponse:
+  oneOf:
+  - type: object
+    required:
+    - code
+    - result
+    properties:
+      code:
+        type: integer
+        const: 0
+      result:
+        $ref: '#/DecorationStyle'
+    additionalProperties: false
+  - $ref: '#/ApiFailure'

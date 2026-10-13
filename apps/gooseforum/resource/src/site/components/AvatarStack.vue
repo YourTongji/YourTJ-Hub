@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { UserDecoration } from '@gooseforum/client'
 import { userDisplayName } from '@/runtime/private-notes'
 import { showUserCard } from '@/runtime/user-card-events'
 import UserAvatar from '@/site/components/UserAvatar.vue'
@@ -7,6 +8,7 @@ interface StackUser {
   id: number
   username: string
   /** 当前昵称；无昵称时缺省（备注名显示 note(display name) 用）。 */
+  decoration?: UserDecoration
   nickname?: string
   avatarUrl: string
 }
@@ -33,7 +35,7 @@ withDefaults(defineProps<{
       :class="size === 'sm' ? 'h-6 w-6' : 'h-8 w-8'"
       @click="showUserCard(user, $event)"
     >
-      <UserAvatar
+      <UserAvatar :frame="user.decoration?.avatarFrame"
         :src="user.avatarUrl"
         :alt="userDisplayName(user.id, user.username, user.nickname)"
         class="rounded-full object-cover"

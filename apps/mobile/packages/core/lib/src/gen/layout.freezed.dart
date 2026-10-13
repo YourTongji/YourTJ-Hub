@@ -936,6 +936,8 @@ ViewerPayload _$ViewerPayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$ViewerPayload {
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
   String get username => throw _privateConstructorUsedError;
   String get email => throw _privateConstructorUsedError;
@@ -964,6 +966,7 @@ abstract class $ViewerPayloadCopyWith<$Res> {
   ) = _$ViewerPayloadCopyWithImpl<$Res, ViewerPayload>;
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int id,
     String username,
     String email,
@@ -991,6 +994,7 @@ class _$ViewerPayloadCopyWithImpl<$Res, $Val extends ViewerPayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
     Object? username = null,
     Object? email = null,
@@ -1003,6 +1007,10 @@ class _$ViewerPayloadCopyWithImpl<$Res, $Val extends ViewerPayload>
   }) {
     return _then(
       _value.copyWith(
+            decoration: freezed == decoration
+                ? _value.decoration
+                : decoration // ignore: cast_nullable_to_non_nullable
+                      as UserDecoration?,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
@@ -1055,6 +1063,7 @@ abstract class _$$ViewerPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int id,
     String username,
     String email,
@@ -1081,6 +1090,7 @@ class __$$ViewerPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
     Object? username = null,
     Object? email = null,
@@ -1093,6 +1103,10 @@ class __$$ViewerPayloadImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$ViewerPayloadImpl(
+        decoration: freezed == decoration
+            ? _value.decoration
+            : decoration // ignore: cast_nullable_to_non_nullable
+                  as UserDecoration?,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
@@ -1138,6 +1152,7 @@ class __$$ViewerPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$ViewerPayloadImpl implements _ViewerPayload {
   const _$ViewerPayloadImpl({
+    @JsonKey(fromJson: UserDecoration.parse) this.decoration,
     required this.id,
     required this.username,
     required this.email,
@@ -1152,6 +1167,9 @@ class _$ViewerPayloadImpl implements _ViewerPayload {
   factory _$ViewerPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$ViewerPayloadImplFromJson(json);
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  final UserDecoration? decoration;
   @override
   final int id;
   @override
@@ -1181,7 +1199,7 @@ class _$ViewerPayloadImpl implements _ViewerPayload {
 
   @override
   String toString() {
-    return 'ViewerPayload(id: $id, username: $username, email: $email, avatarUrl: $avatarUrl, isAuthenticated: $isAuthenticated, canAccessAdmin: $canAccessAdmin, isModerator: $isModerator, requiresEmailVerification: $requiresEmailVerification, adminPermissions: $adminPermissions)';
+    return 'ViewerPayload(decoration: $decoration, id: $id, username: $username, email: $email, avatarUrl: $avatarUrl, isAuthenticated: $isAuthenticated, canAccessAdmin: $canAccessAdmin, isModerator: $isModerator, requiresEmailVerification: $requiresEmailVerification, adminPermissions: $adminPermissions)';
   }
 
   @override
@@ -1189,6 +1207,8 @@ class _$ViewerPayloadImpl implements _ViewerPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$ViewerPayloadImpl &&
+            (identical(other.decoration, decoration) ||
+                other.decoration == decoration) &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.username, username) ||
                 other.username == username) &&
@@ -1216,6 +1236,7 @@ class _$ViewerPayloadImpl implements _ViewerPayload {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    decoration,
     id,
     username,
     email,
@@ -1243,6 +1264,7 @@ class _$ViewerPayloadImpl implements _ViewerPayload {
 
 abstract class _ViewerPayload implements ViewerPayload {
   const factory _ViewerPayload({
+    @JsonKey(fromJson: UserDecoration.parse) final UserDecoration? decoration,
     required final int id,
     required final String username,
     required final String email,
@@ -1257,6 +1279,9 @@ abstract class _ViewerPayload implements ViewerPayload {
   factory _ViewerPayload.fromJson(Map<String, dynamic> json) =
       _$ViewerPayloadImpl.fromJson;
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration;
   @override
   int get id;
   @override

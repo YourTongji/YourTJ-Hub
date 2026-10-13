@@ -4,6 +4,146 @@
  */
 
 export interface paths {
+    "/api/user/decorations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the account decoration catalog, entitlements and effective equipment
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        get: operations["myDecorations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/decorations/equip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Equip or remove each owned decoration slot
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        post: operations["equipDecorations"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decorations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List decoration definitions (SiteManager)
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        get: operations["listDecorations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decoration-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save a validated decoration definition (SiteManager)
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        post: operations["saveDecoration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/user-decorations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read account equipment and recent audit receipts (UserManager)
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        get: operations["getUserDecorations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decoration-grant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant a decoration entitlement with a durable request key (UserManager)
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        post: operations["grantDecoration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decoration-revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke all entitlement sources for a decoration (UserManager)
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        post: operations["revokeDecoration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/events": {
         parameters: {
             query?: never;
@@ -8061,6 +8201,77 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        DecorationStyle: {
+            /** @description Optional same-origin PNG or WebP frame artwork installed under resource/static/decorations. External URLs are rejected. */
+            assetUrl?: string;
+            code: string;
+            name: string;
+            /** @enum {string} */
+            kind: "avatarFrame" | "nicknameStyle";
+            lightColors: string[];
+            darkColors: string[];
+            isEnabled: boolean;
+            sortOrder: number;
+        };
+        DecorationDisplay: {
+            avatarFrame?: components["schemas"]["DecorationStyle"];
+            nicknameStyle?: components["schemas"]["DecorationStyle"];
+        };
+        DecorationEquipped: {
+            avatarFrame: string;
+            nicknameStyle: string;
+        };
+        DecorationState: {
+            catalog: components["schemas"]["DecorationStyle"][];
+            ownedCodes: string[];
+            equipped: components["schemas"]["DecorationEquipped"];
+        };
+        DecorationAdjustmentRequest: {
+            userId: number;
+            code: string;
+            reason: string;
+            requestKey: string;
+        };
+        DecorationAudit: {
+            id: number;
+            requestKey: string;
+            userId: number;
+            code: string;
+            /** @enum {string} */
+            action: "grant" | "revoke" | "equip" | "definition";
+            /** @enum {string} */
+            source: "manual" | "xp" | "trust" | "credit" | "migration" | "self";
+            actorId: number;
+            reason: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AdminDecorationState: {
+            catalog: components["schemas"]["DecorationStyle"][];
+            ownedCodes: string[];
+            equipped: components["schemas"]["DecorationEquipped"];
+            audits: components["schemas"]["DecorationAudit"][];
+        };
+        DecorationStateResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["DecorationState"];
+        } | components["schemas"]["ApiFailure"];
+        AdminDecorationStateResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["AdminDecorationState"];
+        } | components["schemas"]["ApiFailure"];
+        DecorationListResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["DecorationStyle"][];
+        } | components["schemas"]["ApiFailure"];
+        DecorationStyleResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["DecorationStyle"];
+        } | components["schemas"]["ApiFailure"];
         CampusBinding: {
             maskedId: string;
             /**
@@ -8879,6 +9090,7 @@ export interface components {
             grantedAt: string;
         };
         UserCard: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /** Format: uint64 */
             userId: number;
             username: string;
@@ -9672,6 +9884,7 @@ export interface components {
         };
         /** @description Review author display info. Identity fields (userId/username/avatar) are deliberately absent from the review DTO. */
         ReviewAuthorPayload: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /**
              * @description Anonymous and legacy reviews never carry identity fields.
              * @enum {string}
@@ -11681,6 +11894,7 @@ export interface components {
             result: components["schemas"]["AdminImportTaskAcceptedResult"];
         }) | components["schemas"]["ApiFailure"];
         TopicAuthorPayload: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /** @enum {string} */
             kind?: "member" | "persona";
             publicUid?: string;
@@ -12983,6 +13197,7 @@ export interface components {
             height: number;
         };
         UserSearchPayload: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /** Format: uint64 */
             id: number;
             username: string;
@@ -13350,6 +13565,7 @@ export interface components {
         };
         AgentAckResponse: components["schemas"]["AgentAckSuccess"] | components["schemas"]["ApiFailure"];
         MentionTarget: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /** Format: uint64 */
             userId: number;
             username: string;
@@ -13931,6 +14147,7 @@ export interface components {
             messageCode?: string;
         };
         NotificationActorPayload: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /** @enum {string} */
             kind?: "member" | "persona";
             publicUid?: string;
@@ -14512,6 +14729,335 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    myDecorations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationStateResponse"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    equipDecorations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecorationEquipped"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationStateResponse"];
+                };
+            };
+            /** @description Malformed JSON/query or body exceeds 4096 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listDecorations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationListResponse"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    saveDecoration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecorationStyle"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationStyleResponse"];
+                };
+            };
+            /** @description Malformed JSON/query or body exceeds 4096 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getUserDecorations: {
+        parameters: {
+            query: {
+                userId: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDecorationStateResponse"];
+                };
+            };
+            /** @description Malformed JSON/query or body exceeds 4096 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    grantDecoration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecorationAdjustmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationStateResponse"];
+                };
+            };
+            /** @description Malformed JSON/query or body exceeds 4096 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    revokeDecoration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecorationAdjustmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationStateResponse"];
+                };
+            };
+            /** @description Malformed JSON/query or body exceeds 4096 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     agentListEvents: {
         parameters: {
             query?: {

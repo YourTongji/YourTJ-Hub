@@ -45,6 +45,7 @@ Map<String, dynamic> _$$NotificationPayloadImplToJson(
 _$NotificationActorPayloadImpl _$$NotificationActorPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$NotificationActorPayloadImpl(
+  decoration: UserDecoration.parse(json['decoration']),
   id: (json['id'] as num).toInt(),
   kind: json['kind'] as String?,
   publicUid: json['publicUid'] as String?,
@@ -57,6 +58,7 @@ _$NotificationActorPayloadImpl _$$NotificationActorPayloadImplFromJson(
 Map<String, dynamic> _$$NotificationActorPayloadImplToJson(
   _$NotificationActorPayloadImpl instance,
 ) => <String, dynamic>{
+  'decoration': instance.decoration,
   'id': instance.id,
   'kind': instance.kind,
   'publicUid': instance.publicUid,

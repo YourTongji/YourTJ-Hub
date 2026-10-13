@@ -21,6 +21,8 @@ ReviewAuthorPayload _$ReviewAuthorPayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$ReviewAuthorPayload {
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration => throw _privateConstructorUsedError;
   String get kind => throw _privateConstructorUsedError;
   String get label => throw _privateConstructorUsedError;
   String? get avatarUrl => throw _privateConstructorUsedError;
@@ -42,7 +44,12 @@ abstract class $ReviewAuthorPayloadCopyWith<$Res> {
     $Res Function(ReviewAuthorPayload) then,
   ) = _$ReviewAuthorPayloadCopyWithImpl<$Res, ReviewAuthorPayload>;
   @useResult
-  $Res call({String kind, String label, String? avatarUrl});
+  $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
+    String kind,
+    String label,
+    String? avatarUrl,
+  });
 }
 
 /// @nodoc
@@ -60,12 +67,17 @@ class _$ReviewAuthorPayloadCopyWithImpl<$Res, $Val extends ReviewAuthorPayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? kind = null,
     Object? label = null,
     Object? avatarUrl = freezed,
   }) {
     return _then(
       _value.copyWith(
+            decoration: freezed == decoration
+                ? _value.decoration
+                : decoration // ignore: cast_nullable_to_non_nullable
+                      as UserDecoration?,
             kind: null == kind
                 ? _value.kind
                 : kind // ignore: cast_nullable_to_non_nullable
@@ -93,7 +105,12 @@ abstract class _$$ReviewAuthorPayloadImplCopyWith<$Res>
   ) = __$$ReviewAuthorPayloadImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({String kind, String label, String? avatarUrl});
+  $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
+    String kind,
+    String label,
+    String? avatarUrl,
+  });
 }
 
 /// @nodoc
@@ -110,12 +127,17 @@ class __$$ReviewAuthorPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? kind = null,
     Object? label = null,
     Object? avatarUrl = freezed,
   }) {
     return _then(
       _$ReviewAuthorPayloadImpl(
+        decoration: freezed == decoration
+            ? _value.decoration
+            : decoration // ignore: cast_nullable_to_non_nullable
+                  as UserDecoration?,
         kind: null == kind
             ? _value.kind
             : kind // ignore: cast_nullable_to_non_nullable
@@ -137,6 +159,7 @@ class __$$ReviewAuthorPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$ReviewAuthorPayloadImpl implements _ReviewAuthorPayload {
   const _$ReviewAuthorPayloadImpl({
+    @JsonKey(fromJson: UserDecoration.parse) this.decoration,
     required this.kind,
     required this.label,
     this.avatarUrl,
@@ -146,6 +169,9 @@ class _$ReviewAuthorPayloadImpl implements _ReviewAuthorPayload {
       _$$ReviewAuthorPayloadImplFromJson(json);
 
   @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  final UserDecoration? decoration;
+  @override
   final String kind;
   @override
   final String label;
@@ -154,7 +180,7 @@ class _$ReviewAuthorPayloadImpl implements _ReviewAuthorPayload {
 
   @override
   String toString() {
-    return 'ReviewAuthorPayload(kind: $kind, label: $label, avatarUrl: $avatarUrl)';
+    return 'ReviewAuthorPayload(decoration: $decoration, kind: $kind, label: $label, avatarUrl: $avatarUrl)';
   }
 
   @override
@@ -162,6 +188,8 @@ class _$ReviewAuthorPayloadImpl implements _ReviewAuthorPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$ReviewAuthorPayloadImpl &&
+            (identical(other.decoration, decoration) ||
+                other.decoration == decoration) &&
             (identical(other.kind, kind) || other.kind == kind) &&
             (identical(other.label, label) || other.label == label) &&
             (identical(other.avatarUrl, avatarUrl) ||
@@ -170,7 +198,8 @@ class _$ReviewAuthorPayloadImpl implements _ReviewAuthorPayload {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, kind, label, avatarUrl);
+  int get hashCode =>
+      Object.hash(runtimeType, decoration, kind, label, avatarUrl);
 
   /// Create a copy of ReviewAuthorPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -191,6 +220,7 @@ class _$ReviewAuthorPayloadImpl implements _ReviewAuthorPayload {
 
 abstract class _ReviewAuthorPayload implements ReviewAuthorPayload {
   const factory _ReviewAuthorPayload({
+    @JsonKey(fromJson: UserDecoration.parse) final UserDecoration? decoration,
     required final String kind,
     required final String label,
     final String? avatarUrl,
@@ -199,6 +229,9 @@ abstract class _ReviewAuthorPayload implements ReviewAuthorPayload {
   factory _ReviewAuthorPayload.fromJson(Map<String, dynamic> json) =
       _$ReviewAuthorPayloadImpl.fromJson;
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration;
   @override
   String get kind;
   @override

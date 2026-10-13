@@ -1,3 +1,4 @@
+import '../../widgets/user_decoration.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -274,6 +275,7 @@ String reviewAuthorLabel(ReviewPayload review, CourseCopy copy) {
 Widget reviewAvatar(
   ReviewPayload review, {
   double size = 40,
+  BuildContext? context,
   Widget Function(String url, Widget fallback)? imageBuilder,
 }) {
   final ReviewAuthorPayload author = review.author;
@@ -287,8 +289,10 @@ Widget reviewAvatar(
     seed: '${author.label}-${review.id}',
     size: size,
   );
-  if (url.isEmpty) return fallback;
-  final Widget image = imageBuilder != null
+
+  final Widget image = url.isEmpty
+      ? fallback
+      : imageBuilder != null
       ? imageBuilder(url, fallback)
       : GfNetworkImage(
           url,
@@ -298,8 +302,15 @@ Widget reviewAvatar(
           semanticLabel: author.label,
           errorBuilder: (_, _, _) => fallback,
         );
-  return SizedBox.square(
-    dimension: size,
+  final colors = context == null || author.kind != 'member'
+      ? const <Color>[]
+      : decorationColors(context, author.decoration?.avatarFrame);
+  return GfAvatarFrame(
+    size: size,
+    colors: colors,
+    assetUrl: context == null || author.kind != 'member'
+        ? ''
+        : decorationFrameAssetUrl(author.decoration?.avatarFrame),
     child: ClipOval(child: image),
   );
 }

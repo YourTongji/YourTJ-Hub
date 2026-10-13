@@ -793,3 +793,8 @@ export function listAnonymousIdentities(request: AdminAnonymousListRequest): Pro
 export function governAnonymousIdentity(request: import('@gooseforum/client').components['schemas']['AdminAnonymousGovernRequest']): Promise<boolean> {
   return postJson('/api/admin/anonymous-identities/govern', request, t('anonymousAdmin.saveFailed'))
 }
+
+export function getDecorations() { return getJson<import('@gooseforum/client').DecorationStyle[]>('/api/admin/decorations', i18n.global.t('decoration.loadFailed')) }
+export function saveDecoration(style: import('@gooseforum/client').DecorationStyle) { return postJson<import('@gooseforum/client').DecorationStyle>('/api/admin/decoration-save', style) }
+export function getUserDecorations(userId: number) { return getJson<import('@gooseforum/client').DecorationState>(`/api/admin/user-decorations?userId=${encodeURIComponent(userId)}`, i18n.global.t('decoration.loadFailed')) }
+export function changeUserDecoration(action: 'grant' | 'revoke', body: { userId: number; code: string; reason: string; requestKey: string }) { return postJson<import('@gooseforum/client').DecorationState>(`/api/admin/decoration-${action}`, body) }

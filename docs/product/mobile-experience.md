@@ -1670,3 +1670,10 @@ acceptance; simulator compilation does not establish those results.
   allowlist. Search, notification, Wiki and course pages do not gain a blanket disk cache. The media
   upload queue is not a durable offline-send service. See the authoritative
   [storage boundaries and limits](../architecture/mobile-state-and-cache.md#cache-policy).
+
+## Profile decoration settings
+
+`Current`: native settings expose administrator-granted avatar frames and nickname styles with
+preview, independent removal, save/retry and theme-aware readable presentation. The native identity
+surfaces consume the same effective payload as Web; persona/anonymous identities remain independent.
+See [profile decorations](profile-decorations.md) for ownership and qualification semantics.

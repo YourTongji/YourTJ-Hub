@@ -17,6 +17,9 @@ class GfNotificationRow extends StatelessWidget {
     required this.time,
     required this.unread,
     this.actorName = '',
+    this.avatarFrameColors = const [],
+    this.avatarFrameAssetUrl = '',
+    this.nicknameColors = const [],
     this.avatarUrl,
     this.onActorTap,
     this.onTap,
@@ -24,6 +27,7 @@ class GfNotificationRow extends StatelessWidget {
     this.markReadLabel = 'Mark as read',
     this.subtitleMaxLines = 3,
   });
+  final List<Color> avatarFrameColors, nicknameColors;
   final String symbol;
   final GfNotificationTone tone;
   final String title, subtitle, time, actorName;
@@ -35,6 +39,7 @@ class GfNotificationRow extends StatelessWidget {
   /// Null shows complete guidance rather than truncating a content preview.
   final int? subtitleMaxLines;
 
+  final String avatarFrameAssetUrl;
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
@@ -82,7 +87,12 @@ class GfNotificationRow extends StatelessWidget {
                               vertical: 4,
                               horizontal: 4,
                             ),
-                            child: GfAvatar(src: avatarUrl!, size: 36),
+                            child: GfAvatar(
+                              frameColors: avatarFrameColors,
+                              frameAssetUrl: avatarFrameAssetUrl,
+                              src: avatarUrl!,
+                              size: 36,
+                            ),
                           ),
                         ),
                       ),
@@ -96,7 +106,21 @@ class GfNotificationRow extends StatelessWidget {
                             TextSpan(text: title.substring(0, actorStart)),
                             TextSpan(
                               text: actorName,
-                              style: const TextStyle(
+                              style: TextStyle(
+                                foreground: nicknameColors.length < 2
+                                    ? null
+                                    : (Paint()
+                                        ..shader =
+                                            LinearGradient(
+                                              colors: nicknameColors,
+                                            ).createShader(
+                                              Rect.fromLTWH(
+                                                0,
+                                                0,
+                                                actorName.length * 8.0,
+                                                20,
+                                              ),
+                                            )),
                                 fontWeight: FontWeight.w700,
                               ),
                             ),

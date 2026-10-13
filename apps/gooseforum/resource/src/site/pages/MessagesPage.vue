@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UserNickname from '@/site/components/UserNickname.vue'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { ArrowLeft, MessageSquare, MessageSquarePlus, MoreVertical, Search, Send, Smile, X } from '@lucide/vue'
@@ -251,7 +252,7 @@ function appendEmoji(emoji: string) {
   void nextTick(() => messageInput.value?.focus())
 }
 
-async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | 'nickname' | 'avatarUrl' | 'url'>) {
+async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | 'nickname' | 'avatarUrl' | 'url' | 'decoration'>) {
   const existing = conversations.value.find((item) => item.peerId === user.id)
   if (existing) {
     await selectConversation(existing)
@@ -262,6 +263,7 @@ async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | '
     peerId: user.id,
     peerUsername: user.username,
     peerNickname: user.nickname || undefined,
+    peerDecoration: user.decoration,
     peerAvatar: user.avatarUrl,
     lastMsg: '',
     lastMsgTime: '',
@@ -315,7 +317,7 @@ async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | '
               @click="selectConversation(conversation)"
             >
               <span class="relative h-10 w-10 shrink-0">
-                <UserAvatar :src="conversation.peerAvatar" :alt="conversation.peerUsername" class="h-10 w-10 rounded-full object-cover ring-1 ring-line" />
+                <UserAvatar :frame="conversation.peerDecoration?.avatarFrame" :src="conversation.peerAvatar" :alt="conversation.peerUsername" class="h-10 w-10 rounded-full object-cover ring-1 ring-line" />
                 <span
                   v-if="conversation.unreadCount"
                   class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-error/100 ring-2 ring-base-100"
@@ -324,7 +326,7 @@ async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | '
               </span>
               <div class="min-w-0 flex-1">
                 <div class="flex items-baseline justify-between gap-2">
-                  <span class="truncate text-sm font-semibold text-base-content">{{ userDisplayName(conversation.peerId, conversation.peerUsername, conversation.peerNickname) }}</span>
+                  <span class="truncate text-sm font-semibold text-base-content"><UserNickname :style-definition="conversation.peerDecoration?.nicknameStyle">{{ userDisplayName(conversation.peerId, conversation.peerUsername, conversation.peerNickname) }}</UserNickname></span>
                   <time class="shrink-0 text-[11px] text-base-content/55">{{ conversation.lastMsgTime ? formatChatTime(conversation.lastMsgTime) : '' }}</time>
                 </div>
                 <div class="mt-1 flex items-center gap-2">
@@ -353,9 +355,9 @@ async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | '
                 <button type="button" class="gf-icon-button -ml-2 h-8 w-8 hover:bg-base-300 hover:text-base-content md:hidden" @click="active = null">
                   <ArrowLeft class="h-5 w-5" />
                 </button>
-                <UserAvatar :src="active.peerAvatar" :alt="active.peerUsername" class="h-9 w-9 rounded-full object-cover ring-1 ring-line" />
+                <UserAvatar :frame="active.peerDecoration?.avatarFrame" :src="active.peerAvatar" :alt="active.peerUsername" class="h-9 w-9 rounded-full object-cover ring-1 ring-line" />
                 <div class="min-w-0">
-                  <a :href="active.peerUrl" class="truncate text-sm font-bold text-base-content hover:text-primary">{{ userDisplayName(active.peerId, active.peerUsername, active.peerNickname) }}</a>
+                  <a :href="active.peerUrl" class="truncate text-sm font-bold text-base-content hover:text-primary"><UserNickname :style-definition="active.peerDecoration?.nicknameStyle">{{ userDisplayName(active.peerId, active.peerUsername, active.peerNickname) }}</UserNickname></a>
                   <p class="text-xs text-base-content/55">{{ t('messages.conversation') }}</p>
                 </div>
               </div>
@@ -376,7 +378,7 @@ async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | '
                     class="flex max-w-[88%] items-start gap-2 md:max-w-[82%]"
                     :class="item.message.isSelf ? 'ml-auto flex-row-reverse' : ''"
                   >
-                    <UserAvatar
+                    <UserAvatar :frame="item.message.isSelf ? page.layout.viewer.decoration?.avatarFrame : active.peerDecoration?.avatarFrame"
                       :src="item.message.isSelf ? page.layout.viewer.avatarUrl : active.peerAvatar"
                       :alt="item.message.isSelf ? page.layout.viewer.username : active.peerUsername"
                       class="h-8 w-8 rounded-full object-cover ring-1 ring-line"
@@ -497,9 +499,9 @@ async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | '
               class="flex w-full items-center gap-3 p-3 text-left hover:bg-base-200 [border-radius:var(--gf-radius-field)]"
               @click="startChat(user)"
             >
-              <UserAvatar :src="user.avatarUrl" :alt="user.username" class="h-10 w-10 rounded-full object-cover ring-1 ring-line" />
+              <UserAvatar :frame="user.decoration?.avatarFrame" :src="user.avatarUrl" :alt="user.username" class="h-10 w-10 rounded-full object-cover ring-1 ring-line" />
               <div class="min-w-0">
-                <div class="truncate text-sm font-semibold text-base-content">{{ userDisplayName(user.id, user.username, user.nickname) }}</div>
+                <div class="truncate text-sm font-semibold text-base-content"><UserNickname :style-definition="user.decoration?.nicknameStyle">{{ userDisplayName(user.id, user.username, user.nickname) }}</UserNickname></div>
                 <div class="truncate text-xs text-base-content/55">@{{ user.username }}</div>
               </div>
             </button>

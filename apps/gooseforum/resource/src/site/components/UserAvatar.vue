@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { badgeClass, badgeIconURL, badgeTooltip, isSystemBadgeArtwork } from '@/site/utils/badge-style'
-import type { UserBadgePayload } from '@gooseforum/client'
+import { decorationVariables, isSafeDecorationAssetUrl } from '@/site/utils/decoration-style'
+import type { DecorationStyle, UserBadgePayload } from '@gooseforum/client'
 
 defineOptions({ inheritAttrs: false })
 
@@ -9,6 +10,7 @@ const props = withDefaults(defineProps<{
   src: string
   alt: string
   size?: 'medium' | 'large'
+  frame?: DecorationStyle | null
   badge?: UserBadgePayload | null
   imgClass?: string
 }>(), {
@@ -16,6 +18,14 @@ const props = withDefaults(defineProps<{
   badge: null,
   imgClass: '',
 })
+
+const frameVariables = computed(() => decorationVariables(props.frame?.kind === 'avatarFrame' ? props.frame : null))
+const hasFrame = computed(() => Object.keys(frameVariables.value).length > 0)
+
+const frameImageFailed = ref(false)
+const frameImageLoaded = ref(false)
+const frameAsset = computed(() => hasFrame.value && isSafeDecorationAssetUrl(props.frame?.assetUrl) ? props.frame.assetUrl : '')
+watch(frameAsset, () => { frameImageFailed.value = false; frameImageLoaded.value = false })
 
 const systemArtwork = computed(() => !!props.badge && isSystemBadgeArtwork(props.badge))
 
@@ -54,9 +64,12 @@ function formatAvatarUrl(src: string, url: URL): string {
 </script>
 
 <template>
-  <span v-if="badge" v-bind="$attrs" class="group/avatar relative inline-block shrink-0">
-    <img :src="resolvedSrc" :alt="alt" width="96" height="96" decoding="async" class="h-full w-full object-cover" :class="imgClass">
+  <span v-if="badge || hasFrame" v-bind="$attrs" class="group/avatar relative inline-block shrink-0" :style="frameVariables">
+    <span v-if="hasFrame && (!frameAsset || !frameImageLoaded || frameImageFailed)" class="gf-avatar-frame" aria-hidden="true" />
+    <img :src="resolvedSrc" :alt="alt" width="96" height="96" decoding="async" class="h-full w-full rounded-[inherit] object-cover" :class="imgClass">
+    <img v-if="frameAsset && !frameImageFailed" :src="frameAsset" alt="" aria-hidden="true" class="gf-avatar-frame-image" decoding="async" @load="frameImageLoaded = true" @error="frameImageFailed = true" />
     <span
+      v-if="badge"
       :class="['absolute -bottom-1.5 -right-1.5 z-10 flex h-[30%] min-h-3.5 w-[30%] min-w-3.5 items-center justify-center rounded-full shadow-md shadow-black/10 ring-2 transition-transform duration-150 ease-out hover:scale-110', badgeClass(badge.color, badge.level), { 'p-[2px]': !systemArtwork }]"
       :title="badgeTooltip(badge)"
     >
@@ -66,3 +79,12 @@ function formatAvatarUrl(src: string, url: URL): string {
   </span>
   <img v-else v-bind="$attrs" :src="resolvedSrc" :alt="alt" width="96" height="96" decoding="async">
 </template>
+
+<style scoped>
+.gf-avatar-frame-image { position: absolute; width: 125%; height: 125%; max-width: none; left: -12.5%; top: -12.5%; z-index: 1; object-fit: contain; pointer-events: none; }
+.gf-avatar-frame { position: absolute; inset: -3px; border: 3px solid transparent; border-radius: inherit; background: var(--decoration-light) border-box; mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0); mask-composite: exclude; pointer-events: none; }
+:global([data-theme="gf-dark"]) .gf-avatar-frame-image { position: absolute; width: 125%; height: 125%; max-width: none; left: -12.5%; top: -12.5%; z-index: 1; object-fit: contain; pointer-events: none; }
+.gf-avatar-frame { background-image: var(--decoration-dark); }
+@media (forced-colors: active) { .gf-avatar-frame-image { display: none; } .gf-avatar-frame-image { position: absolute; width: 125%; height: 125%; max-width: none; left: -12.5%; top: -12.5%; z-index: 1; object-fit: contain; pointer-events: none; }
+.gf-avatar-frame { background: none; border-color: CanvasText; mask: none; } }
+</style>

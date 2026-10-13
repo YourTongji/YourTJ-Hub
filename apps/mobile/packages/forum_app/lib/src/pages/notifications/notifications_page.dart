@@ -1,3 +1,4 @@
+import '../../widgets/user_decoration.dart';
 import 'package:dio/dio.dart';
 
 import '../../private_notes.dart';
@@ -509,6 +510,24 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                 key: ValueKey(n.id),
                                 children: [
                                   GfNotificationRow(
+                                    avatarFrameColors: n.actor.publicUid != null
+                                        ? const []
+                                        : decorationColors(
+                                            context,
+                                            n.actor.decoration?.avatarFrame,
+                                          ),
+                                    avatarFrameAssetUrl:
+                                        n.actor.publicUid != null
+                                        ? ''
+                                        : decorationFrameAssetUrl(
+                                            n.actor.decoration?.avatarFrame,
+                                          ),
+                                    nicknameColors: n.actor.publicUid != null
+                                        ? const []
+                                        : decorationColors(
+                                            context,
+                                            n.actor.decoration?.nicknameStyle,
+                                          ),
                                     symbol: symbol,
                                     actorName:
                                         (n.actor.id > 0 ||

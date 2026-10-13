@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import UserAvatar from '@/site/components/UserAvatar.vue'
+import UserNickname from '@/site/components/UserNickname.vue'
 import { userDisplayName } from '@/runtime/private-notes'
 import { useRouter } from 'vue-router'
 import { computed, ref, watch } from 'vue'
@@ -164,9 +166,9 @@ watch(
             <ul class="divide-y divide-line">
               <li v-for="user in users" :key="user.id">
                 <a :href="userUrl(user)" class="flex items-center gap-3 px-4 py-3 transition hover:bg-base-200/60">
-                  <img :src="user.avatarUrl || undefined" :alt="user.username" class="h-10 w-10 shrink-0 rounded-full bg-base-300 object-cover" />
+                  <UserAvatar :frame="user.decoration?.avatarFrame" :src="user.avatarUrl" :alt="user.username" class="h-10 w-10 shrink-0 rounded-full bg-base-300 object-cover" />
                   <div class="min-w-0">
-                    <p class="truncate text-sm font-medium text-base-content">{{ userDisplayName(user.id, user.username, user.nickname) }}</p>
+                    <p class="truncate text-sm font-medium text-base-content"><UserNickname :style-definition="user.decoration?.nicknameStyle">{{ userDisplayName(user.id, user.username, user.nickname) }}</UserNickname></p>
                     <p class="truncate text-xs text-base-content/55">@{{ user.username }}</p>
                     <p v-if="user.bio" class="mt-0.5 truncate text-xs text-base-content/45">{{ user.bio }}</p>
                   </div>

@@ -1,3 +1,4 @@
+import 'decoration.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'common.dart';
@@ -9,6 +10,7 @@ part 'search.g.dart';
 @freezed
 abstract class UserSearchPayload with _$UserSearchPayload {
   const factory UserSearchPayload({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     required int id,
     required String username,
     required String nickname,

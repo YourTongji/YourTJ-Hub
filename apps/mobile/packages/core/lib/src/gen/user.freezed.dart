@@ -21,6 +21,8 @@ UserCardPayload _$UserCardPayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$UserCardPayload {
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration => throw _privateConstructorUsedError;
   int get userId => throw _privateConstructorUsedError;
   String get username => throw _privateConstructorUsedError;
   String get nickname => throw _privateConstructorUsedError;
@@ -73,6 +75,7 @@ abstract class $UserCardPayloadCopyWith<$Res> {
   ) = _$UserCardPayloadCopyWithImpl<$Res, UserCardPayload>;
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int userId,
     String username,
     String nickname,
@@ -121,6 +124,7 @@ class _$UserCardPayloadCopyWithImpl<$Res, $Val extends UserCardPayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? userId = null,
     Object? username = null,
     Object? nickname = null,
@@ -152,6 +156,10 @@ class _$UserCardPayloadCopyWithImpl<$Res, $Val extends UserCardPayload>
   }) {
     return _then(
       _value.copyWith(
+            decoration: freezed == decoration
+                ? _value.decoration
+                : decoration // ignore: cast_nullable_to_non_nullable
+                      as UserDecoration?,
             userId: null == userId
                 ? _value.userId
                 : userId // ignore: cast_nullable_to_non_nullable
@@ -294,6 +302,7 @@ abstract class _$$UserCardPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int userId,
     String username,
     String nickname,
@@ -342,6 +351,7 @@ class __$$UserCardPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? userId = null,
     Object? username = null,
     Object? nickname = null,
@@ -373,6 +383,10 @@ class __$$UserCardPayloadImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$UserCardPayloadImpl(
+        decoration: freezed == decoration
+            ? _value.decoration
+            : decoration // ignore: cast_nullable_to_non_nullable
+                  as UserDecoration?,
         userId: null == userId
             ? _value.userId
             : userId // ignore: cast_nullable_to_non_nullable
@@ -494,6 +508,7 @@ class __$$UserCardPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$UserCardPayloadImpl implements _UserCardPayload {
   const _$UserCardPayloadImpl({
+    @JsonKey(fromJson: UserDecoration.parse) this.decoration,
     required this.userId,
     required this.username,
     required this.nickname,
@@ -529,6 +544,9 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
   factory _$UserCardPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$UserCardPayloadImplFromJson(json);
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  final UserDecoration? decoration;
   @override
   final int userId;
   @override
@@ -615,7 +633,7 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
 
   @override
   String toString() {
-    return 'UserCardPayload(userId: $userId, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, externalInformation: $externalInformation, isAdmin: $isAdmin, topicCount: $topicCount, replyCount: $replyCount, likeReceivedCount: $likeReceivedCount, likeGivenCount: $likeGivenCount, followerCount: $followerCount, followingCount: $followingCount, collectionCount: $collectionCount, isOnline: $isOnline, isFollowing: $isFollowing, isSelf: $isSelf, isAccountClosed: $isAccountClosed, displayBadges: $displayBadges, badges: $badges, wornBadge: $wornBadge, lastActiveTime: $lastActiveTime, createdAt: $createdAt)';
+    return 'UserCardPayload(decoration: $decoration, userId: $userId, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, externalInformation: $externalInformation, isAdmin: $isAdmin, topicCount: $topicCount, replyCount: $replyCount, likeReceivedCount: $likeReceivedCount, likeGivenCount: $likeGivenCount, followerCount: $followerCount, followingCount: $followingCount, collectionCount: $collectionCount, isOnline: $isOnline, isFollowing: $isFollowing, isSelf: $isSelf, isAccountClosed: $isAccountClosed, displayBadges: $displayBadges, badges: $badges, wornBadge: $wornBadge, lastActiveTime: $lastActiveTime, createdAt: $createdAt)';
   }
 
   @override
@@ -623,6 +641,8 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$UserCardPayloadImpl &&
+            (identical(other.decoration, decoration) ||
+                other.decoration == decoration) &&
             (identical(other.userId, userId) || other.userId == userId) &&
             (identical(other.username, username) ||
                 other.username == username) &&
@@ -683,6 +703,7 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
   @override
   int get hashCode => Object.hashAll([
     runtimeType,
+    decoration,
     userId,
     username,
     nickname,
@@ -732,6 +753,7 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
 
 abstract class _UserCardPayload implements UserCardPayload {
   const factory _UserCardPayload({
+    @JsonKey(fromJson: UserDecoration.parse) final UserDecoration? decoration,
     required final int userId,
     required final String username,
     required final String nickname,
@@ -765,6 +787,9 @@ abstract class _UserCardPayload implements UserCardPayload {
   factory _UserCardPayload.fromJson(Map<String, dynamic> json) =
       _$UserCardPayloadImpl.fromJson;
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration;
   @override
   int get userId;
   @override
@@ -2116,6 +2141,8 @@ UserConnectionPayload _$UserConnectionPayloadFromJson(
 
 /// @nodoc
 mixin _$UserConnectionPayload {
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
   String get username => throw _privateConstructorUsedError;
   String get nickname => throw _privateConstructorUsedError;
@@ -2143,6 +2170,7 @@ abstract class $UserConnectionPayloadCopyWith<$Res> {
   ) = _$UserConnectionPayloadCopyWithImpl<$Res, UserConnectionPayload>;
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int id,
     String username,
     String nickname,
@@ -2172,6 +2200,7 @@ class _$UserConnectionPayloadCopyWithImpl<
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
     Object? username = null,
     Object? nickname = null,
@@ -2183,6 +2212,10 @@ class _$UserConnectionPayloadCopyWithImpl<
   }) {
     return _then(
       _value.copyWith(
+            decoration: freezed == decoration
+                ? _value.decoration
+                : decoration // ignore: cast_nullable_to_non_nullable
+                      as UserDecoration?,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
@@ -2231,6 +2264,7 @@ abstract class _$$UserConnectionPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int id,
     String username,
     String nickname,
@@ -2257,6 +2291,7 @@ class __$$UserConnectionPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
     Object? username = null,
     Object? nickname = null,
@@ -2268,6 +2303,10 @@ class __$$UserConnectionPayloadImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$UserConnectionPayloadImpl(
+        decoration: freezed == decoration
+            ? _value.decoration
+            : decoration // ignore: cast_nullable_to_non_nullable
+                  as UserDecoration?,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
@@ -2309,6 +2348,7 @@ class __$$UserConnectionPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$UserConnectionPayloadImpl implements _UserConnectionPayload {
   const _$UserConnectionPayloadImpl({
+    @JsonKey(fromJson: UserDecoration.parse) this.decoration,
     required this.id,
     required this.username,
     required this.nickname,
@@ -2322,6 +2362,9 @@ class _$UserConnectionPayloadImpl implements _UserConnectionPayload {
   factory _$UserConnectionPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$UserConnectionPayloadImplFromJson(json);
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  final UserDecoration? decoration;
   @override
   final int id;
   @override
@@ -2342,7 +2385,7 @@ class _$UserConnectionPayloadImpl implements _UserConnectionPayload {
 
   @override
   String toString() {
-    return 'UserConnectionPayload(id: $id, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, bio: $bio, url: $url, isFollowing: $isFollowing, isSelf: $isSelf)';
+    return 'UserConnectionPayload(decoration: $decoration, id: $id, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, bio: $bio, url: $url, isFollowing: $isFollowing, isSelf: $isSelf)';
   }
 
   @override
@@ -2350,6 +2393,8 @@ class _$UserConnectionPayloadImpl implements _UserConnectionPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$UserConnectionPayloadImpl &&
+            (identical(other.decoration, decoration) ||
+                other.decoration == decoration) &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.username, username) ||
                 other.username == username) &&
@@ -2368,6 +2413,7 @@ class _$UserConnectionPayloadImpl implements _UserConnectionPayload {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    decoration,
     id,
     username,
     nickname,
@@ -2398,6 +2444,7 @@ class _$UserConnectionPayloadImpl implements _UserConnectionPayload {
 
 abstract class _UserConnectionPayload implements UserConnectionPayload {
   const factory _UserConnectionPayload({
+    @JsonKey(fromJson: UserDecoration.parse) final UserDecoration? decoration,
     required final int id,
     required final String username,
     required final String nickname,
@@ -2411,6 +2458,9 @@ abstract class _UserConnectionPayload implements UserConnectionPayload {
   factory _UserConnectionPayload.fromJson(Map<String, dynamic> json) =
       _$UserConnectionPayloadImpl.fromJson;
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration;
   @override
   int get id;
   @override
@@ -3100,6 +3150,8 @@ SettingsUserPayload _$SettingsUserPayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$SettingsUserPayload {
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
   String get username => throw _privateConstructorUsedError;
   String get email => throw _privateConstructorUsedError;
@@ -3145,6 +3197,7 @@ abstract class $SettingsUserPayloadCopyWith<$Res> {
   ) = _$SettingsUserPayloadCopyWithImpl<$Res, SettingsUserPayload>;
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int id,
     String username,
     String email,
@@ -3185,6 +3238,7 @@ class _$SettingsUserPayloadCopyWithImpl<$Res, $Val extends SettingsUserPayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
     Object? username = null,
     Object? email = null,
@@ -3208,6 +3262,10 @@ class _$SettingsUserPayloadCopyWithImpl<$Res, $Val extends SettingsUserPayload>
   }) {
     return _then(
       _value.copyWith(
+            decoration: freezed == decoration
+                ? _value.decoration
+                : decoration // ignore: cast_nullable_to_non_nullable
+                      as UserDecoration?,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
@@ -3318,6 +3376,7 @@ abstract class _$$SettingsUserPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int id,
     String username,
     String email,
@@ -3358,6 +3417,7 @@ class __$$SettingsUserPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
     Object? username = null,
     Object? email = null,
@@ -3381,6 +3441,10 @@ class __$$SettingsUserPayloadImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$SettingsUserPayloadImpl(
+        decoration: freezed == decoration
+            ? _value.decoration
+            : decoration // ignore: cast_nullable_to_non_nullable
+                  as UserDecoration?,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
@@ -3470,6 +3534,7 @@ class __$$SettingsUserPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
   const _$SettingsUserPayloadImpl({
+    @JsonKey(fromJson: UserDecoration.parse) this.decoration,
     required this.id,
     required this.username,
     required this.email,
@@ -3498,6 +3563,9 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
   factory _$SettingsUserPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$SettingsUserPayloadImplFromJson(json);
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  final UserDecoration? decoration;
   @override
   final int id;
   @override
@@ -3572,7 +3640,7 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
 
   @override
   String toString() {
-    return 'SettingsUserPayload(id: $id, username: $username, email: $email, pendingEmail: $pendingEmail, nickname: $nickname, locale: $locale, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, createdAt: $createdAt, externalInformation: $externalInformation, wornBadgeCode: $wornBadgeCode, displayBadges: $displayBadges, badges: $badges, wearableBadges: $wearableBadges, wornBadge: $wornBadge)';
+    return 'SettingsUserPayload(decoration: $decoration, id: $id, username: $username, email: $email, pendingEmail: $pendingEmail, nickname: $nickname, locale: $locale, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, createdAt: $createdAt, externalInformation: $externalInformation, wornBadgeCode: $wornBadgeCode, displayBadges: $displayBadges, badges: $badges, wearableBadges: $wearableBadges, wornBadge: $wornBadge)';
   }
 
   @override
@@ -3580,6 +3648,8 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$SettingsUserPayloadImpl &&
+            (identical(other.decoration, decoration) ||
+                other.decoration == decoration) &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.username, username) ||
                 other.username == username) &&
@@ -3626,6 +3696,7 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
   @override
   int get hashCode => Object.hashAll([
     runtimeType,
+    decoration,
     id,
     username,
     email,
@@ -3667,6 +3738,7 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
 
 abstract class _SettingsUserPayload implements SettingsUserPayload {
   const factory _SettingsUserPayload({
+    @JsonKey(fromJson: UserDecoration.parse) final UserDecoration? decoration,
     required final int id,
     required final String username,
     required final String email,
@@ -3692,6 +3764,9 @@ abstract class _SettingsUserPayload implements SettingsUserPayload {
   factory _SettingsUserPayload.fromJson(Map<String, dynamic> json) =
       _$SettingsUserPayloadImpl.fromJson;
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration;
   @override
   int get id;
   @override

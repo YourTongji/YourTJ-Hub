@@ -904,7 +904,7 @@ async function loadUserCard() {
                 :aria-expanded="userMenuOpen"
                 aria-haspopup="menu"
               >
-                <UserAvatar :src="layout.viewer.avatarUrl" :alt="layout.viewer.username" class="h-9 w-9 rounded-full object-cover ring-1 ring-line/80" />
+                <UserAvatar :frame="layout.viewer.decoration?.avatarFrame" :src="layout.viewer.avatarUrl" :alt="layout.viewer.username" class="h-9 w-9 rounded-full object-cover ring-1 ring-line/80" />
               </button>
               <Transition name="gf-menu">
                 <div

@@ -1,6 +1,8 @@
 package forum
 
 import (
+	"context"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/decorationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"log/slog"
 	"net/http"
@@ -363,6 +365,7 @@ func PostRevisions(req component.BetterRequest[PostRevisionsReq]) component.Resp
 	}
 	userMap := users.GetMapByIds(editorIDs)
 	wornBadges := badgeservice.GetWornBadges(selectedWornBadges(userMap))
+	decorations := decorationservice.EffectiveBatch(context.Background(), editorIDs)
 
 	type revisionPayload struct {
 		Version       uint64             `json:"version"`
@@ -406,6 +409,7 @@ func PostRevisions(req component.BetterRequest[PostRevisionsReq]) component.Resp
 			rendered = postservice.RenderPostHTML(content)
 		}
 		editor := userPayloadWithWornBadge(v.EditorId, userMap, wornBadges[v.EditorId])
+		editor.Decoration = decorations[v.EditorId]
 		if postEntity.IsAnonymous {
 			// 匿名楼层（issue #524）：所有版本的编辑者均为匿名作者本人
 			// （v1 EditorId 即真实作者 uid），公开历史不得回显，否则

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UserNickname from '@/site/components/UserNickname.vue'
 import { authorURL } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
@@ -412,7 +413,7 @@ function markItemReadAndNavigate(item: NotificationPayload) {
           <div class="min-w-0">
             <div class="flex min-w-0 items-center gap-1.5 text-sm leading-5" :class="{ 'flex-wrap': isReviewResult(item) }">
               <a v-if="actorURL(item) && item.eventType !== 'badge'" :href="actorURL(item)" class="max-w-[42%] shrink-0 truncate font-semibold text-base-content hover:text-primary" @click="markItemReadAndNavigate(item)">
-                {{ actorName(item) }}
+                <UserNickname :style-definition="item.actor?.decoration?.nicknameStyle">{{ actorName(item) }}</UserNickname>
               </a>
               <span v-else class="shrink-0 font-semibold text-base-content" :class="isReviewResult(item) ? 'w-full' : 'max-w-[42%] truncate'">{{ item.eventType === 'follow' ? actorName(item) : notificationTitleText(item) }}</span>
               <span class="shrink-0 text-base-content/55">{{ item.actor.id || item.actor.publicUid || item.eventType === 'follow' ? notificationVerb(item) : '' }}</span>

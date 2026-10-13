@@ -9,6 +9,8 @@ class ProfileHeaderSliver extends StatelessWidget {
   const ProfileHeaderSliver({
     super.key,
     required this.avatarUrl,
+    this.avatarFrameColors = const [],
+    this.avatarFrameAssetUrl = '',
     required this.title,
     this.coverUrl = '',
     this.avatarBadge,
@@ -17,6 +19,8 @@ class ProfileHeaderSliver extends StatelessWidget {
     this.navigationActions,
   });
   final String avatarUrl, coverUrl;
+  final List<Color> avatarFrameColors;
+  final String avatarFrameAssetUrl;
   final Widget title;
   final Widget? avatarBadge, actions;
   final double Function(BuildContext, double)? actionHeightFor;
@@ -118,6 +122,8 @@ class ProfileHeaderSliver extends StatelessWidget {
                       child: ExcludeSemantics(
                         excluding: !isExpanded,
                         child: GfUserCardHeader(
+                          avatarFrameColors: avatarFrameColors,
+                          avatarFrameAssetUrl: avatarFrameAssetUrl,
                           coverHeight: coverHeight,
                           actionHeight: actionHeight,
                           coverUrl: resolveApiAssetUrl(coverUrl),

@@ -251,6 +251,8 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.POST("user-block", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(4096, api.SetUserBlock))
 	loginApi.POST("user-note", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUserNote), UpLimitedJsonReq(4096, api.SetPrivateNote))
 	loginApi.POST("display-badges", middleware.CheckWritableAccount, UpLimitedJsonReq(4096, api.SetDisplayBadges))
+	loginApi.GET("user/decorations", UpButterReq(api.MyDecorations))
+	loginApi.POST("user/decorations/equip", middleware.CheckWritableAccount, UpLimitedJsonReq(4096, api.EquipDecorations))
 	loginApi.POST("wear-badge", middleware.CheckWritableAccount, UpButterReq(api.WearBadge))
 	loginApi.POST("upload-avatar", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.UploadAvatar)
 	loginApi.POST("change-password", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), UpButterReq(api.ChangePassword))
@@ -467,6 +469,12 @@ func apiRoute(ginApp *gin.Engine) {
 	chatApi.POST("message-read-states", UpButterReq(api.GetChatMessageReadStates))
 
 	adminApi := baseApi.Group("admin", middleware.CSRFProtection, middleware.JWTAuthCheck, middleware.CheckWritableAccount)
+
+	adminApi.GET("decorations", middleware.CheckPermission(permission.SiteManager), UpButterReq(api.DecorationList))
+	adminApi.POST("decoration-save", middleware.CheckPermission(permission.SiteManager), UpLimitedJsonReq(4096, api.SaveDecoration))
+	adminApi.GET("user-decorations", middleware.CheckPermission(permission.UserManager), UpQueryReq(api.UserDecorations))
+	adminApi.POST("decoration-grant", middleware.CheckPermission(permission.UserManager), UpLimitedJsonReq(4096, api.GrantDecoration))
+	adminApi.POST("decoration-revoke", middleware.CheckPermission(permission.UserManager), UpLimitedJsonReq(4096, api.RevokeDecoration))
 
 	adminApi.GET("feed/summary", middleware.CheckPermission(permission.Admin), UpButterReq(api.FeedSummary))
 	anonymousAdmin := adminApi.Group("anonymous-identities", middleware.AnonymousPrivateResponse, middleware.NoUpdateUserActivity, middleware.CheckPermission(permission.UserManager), middleware.CheckPermission(permission.RevealAnonymousIdentity))

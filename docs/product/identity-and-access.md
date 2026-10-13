@@ -438,6 +438,13 @@ user caches or offline storage.
 
 Private-note editing waits for a successful read of the current owner’s notes. Loading or failed reads keep editing disabled and offer retry, preventing an unseen existing note from being cleared or overwritten.
 
+## Avatar frames and nickname styles
+
+`Current`: administrator-granted avatar frames and nickname styles can be independently previewed,
+equipped and removed in Web and Flutter settings. Hub is the entitlement/equipment source, and
+anonymous identities never inherit their owner's cosmetics. See [profile decorations](profile-decorations.md)
+for selection, administration, recovery and business-integration boundaries.
+
 ## Profile badge display
 
 `Current` — Users independently choose one avatar badge and zero to five public

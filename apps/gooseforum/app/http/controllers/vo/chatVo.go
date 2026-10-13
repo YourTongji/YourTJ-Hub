@@ -1,12 +1,16 @@
 package vo
 
-import "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
+import (
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/decorationservice"
+)
 
 // ChatItemVo summarizes one conversation in the messages list.
 type ChatItemVo struct {
-	Id           uint64 `json:"id"` // user_chat_config id
-	PeerId       uint64 `json:"peerId"`
-	PeerUsername string `json:"peerUsername"`
+	PeerDecoration *decorationservice.Display `json:"peerDecoration,omitempty"`
+	Id             uint64                     `json:"id"` // user_chat_config id
+	PeerId         uint64                     `json:"peerId"`
+	PeerUsername   string                     `json:"peerUsername"`
 	// PeerNickname 当前昵称；备注名显示 note(display name) 需要，无昵称时省略。
 	PeerNickname string `json:"peerNickname,omitempty"`
 	PeerAvatar   string `json:"peerAvatar"`

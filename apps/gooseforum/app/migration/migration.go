@@ -26,6 +26,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/contentDeleteEvent"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/decoration"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
@@ -686,6 +687,7 @@ func SchemaModels() []any {
 	return append(feed.Models(), []any{
 		&identity.Persona{}, &identity.Binding{}, &identity.Quota{}, &identity.Batch{}, &identity.RevealAudit{},
 		&badges.Entity{},
+		&decoration.Definition{}, &decoration.Entitlement{}, &decoration.Equipment{}, &decoration.Audit{},
 		&sticker.Entity{},
 		&sticker.LibraryOwner{},
 		&sticker.LibraryEntry{},

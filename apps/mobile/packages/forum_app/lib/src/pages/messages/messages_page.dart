@@ -1,3 +1,4 @@
+import '../../widgets/user_decoration.dart';
 import '../../offline/drift_cache.dart';
 import '../../widgets/cache_snapshot_hint.dart';
 import '../../messages/chat_message_bubble.dart';
@@ -71,6 +72,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
   AsyncValue<List<ChatItemPayload>> _conversations = const AsyncValue.loading();
   List<UserConnectionPayload> _suggestedUsers = const [];
   String _viewerAvatar = '';
+  UserDecoration? _viewerDecoration;
   String _viewerUsername = '';
   final TextEditingController _conversationSearch = TextEditingController();
   Timer? _pollTimer;
@@ -268,6 +270,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
         _serverConversationsResolved = true;
         _suggestedUsers = parsed.suggestedUsers;
         _viewerAvatar = resolveApiAssetUrl(payload.layout.viewer.avatarUrl);
+        _viewerDecoration = payload.layout.viewer.decoration;
         _viewerUsername = payload.layout.viewer.username;
         _targetConversation = _targetConversationFor(items);
       });
@@ -345,6 +348,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
         builder: (_) => _ConversationPage(
           conv: conv,
           viewerAvatar: _viewerAvatar,
+          viewerDecoration: _viewerDecoration,
           viewerUsername: _viewerUsername,
         ),
       ),
@@ -393,6 +397,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
         id: 0,
         peerId: selected.id,
         peerUsername: selected.username,
+        peerDecoration: selected.decoration,
         peerNickname: selected.nickname.isEmpty ? null : selected.nickname,
         peerAvatar: resolveApiAssetUrl(selected.avatarUrl),
         lastMsg: '',
@@ -511,6 +516,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
         _targetConversation = null;
         _suggestedUsers = [];
         _viewerAvatar = '';
+        _viewerDecoration = null;
         _viewerUsername = '';
       });
     });
@@ -538,6 +544,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
         key: ValueKey<int>(targetConversation.peerId),
         conv: targetConversation,
         viewerAvatar: _viewerAvatar,
+        viewerDecoration: _viewerDecoration,
         viewerUsername: _viewerUsername,
       );
     }
@@ -567,11 +574,13 @@ class _ConversationPage extends ConsumerStatefulWidget {
     super.key,
     required this.conv,
     required this.viewerAvatar,
+    this.viewerDecoration,
     required this.viewerUsername,
   });
 
   final ChatItemPayload conv;
   final String viewerAvatar;
+  final UserDecoration? viewerDecoration;
   final String viewerUsername;
 
   @override
@@ -1965,6 +1974,13 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                     _PeerAvatarButton(
                       key: const Key('chat-peer-avatar-appbar'),
                       peerId: widget.conv.peerId,
+                      frameColors: decorationColors(
+                        context,
+                        widget.conv.peerDecoration?.avatarFrame,
+                      ),
+                      frameAssetUrl: decorationFrameAssetUrl(
+                        widget.conv.peerDecoration?.avatarFrame,
+                      ),
                       label: l10n.messagesViewProfile(peerName),
                       src: resolveApiAssetUrl(widget.conv.peerAvatar),
                       size: 36,
@@ -1978,8 +1994,12 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Text(
+                          GfDecoratedName(
                             peerName,
+                            colors: decorationColors(
+                              context,
+                              widget.conv.peerDecoration?.nicknameStyle,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -2245,6 +2265,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                                             .peerAvatar,
                                                         viewerAvatar:
                                                             widget.viewerAvatar,
+                                                        viewerDecoration: widget
+                                                            .viewerDecoration,
+                                                        peerDecoration: widget
+                                                            .conv
+                                                            .peerDecoration,
                                                         showTime:
                                                             item.showTimestamp,
                                                         onSwipeReply: _selecting
@@ -2526,6 +2551,17 @@ class _ConversationList extends StatelessWidget {
               ).replaceAll(RegExp(r'\s+'), ' ').trim();
         return GfConversationRow(
           avatarUrl: resolveApiAssetUrl(conversation.peerAvatar),
+          avatarFrameColors: decorationColors(
+            context,
+            conversation.peerDecoration?.avatarFrame,
+          ),
+          avatarFrameAssetUrl: decorationFrameAssetUrl(
+            conversation.peerDecoration?.avatarFrame,
+          ),
+          nicknameColors: decorationColors(
+            context,
+            conversation.peerDecoration?.nicknameStyle,
+          ),
           name: privateDisplayName(
             context,
             conversation.peerId,
@@ -2856,6 +2892,13 @@ class _NewChatUserRow extends StatelessWidget {
           child: Row(
             children: <Widget>[
               GfAvatar(
+                frameColors: decorationColors(
+                  context,
+                  user.decoration?.avatarFrame,
+                ),
+                frameAssetUrl: decorationFrameAssetUrl(
+                  user.decoration?.avatarFrame,
+                ),
                 src: resolveApiAssetUrl(user.avatarUrl),
                 size: 40,
                 ring: true,
@@ -2865,8 +2908,12 @@ class _NewChatUserRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(
+                    GfDecoratedName(
                       name,
+                      colors: decorationColors(
+                        context,
+                        user.decoration?.nicknameStyle,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -2985,6 +3032,8 @@ class _PeerAvatarButton extends StatelessWidget {
     required this.src,
     required this.size,
     this.ring = false,
+    this.frameColors = const [],
+    this.frameAssetUrl = '',
     this.alignment = Alignment.center,
   });
 
@@ -2993,6 +3042,8 @@ class _PeerAvatarButton extends StatelessWidget {
   final String src;
   final double size;
   final bool ring;
+  final List<Color> frameColors;
+  final String frameAssetUrl;
   final Alignment alignment;
 
   @override
@@ -3010,7 +3061,13 @@ class _PeerAvatarButton extends StatelessWidget {
           height: 44,
           child: Align(
             alignment: alignment,
-            child: GfAvatar(src: src, size: size, ring: ring),
+            child: GfAvatar(
+              frameColors: frameColors,
+              frameAssetUrl: frameAssetUrl,
+              src: src,
+              size: size,
+              ring: ring,
+            ),
           ),
         ),
       ),
@@ -3074,7 +3131,9 @@ class _MessageRow extends ConsumerWidget {
     required this.peerId,
     required this.peerProfileLabel,
     required this.peerAvatar,
+    this.peerDecoration,
     required this.viewerAvatar,
+    this.viewerDecoration,
     this.onLongPress,
     this.onSwipeReply,
     this.replyToMessageId,
@@ -3087,7 +3146,9 @@ class _MessageRow extends ConsumerWidget {
   final int peerId;
   final String peerProfileLabel;
   final String peerAvatar;
+  final UserDecoration? peerDecoration;
   final String viewerAvatar;
+  final UserDecoration? viewerDecoration;
   final VoidCallback? onLongPress;
   final VoidCallback? onSwipeReply;
   final int? replyToMessageId;
@@ -3101,11 +3162,28 @@ class _MessageRow extends ConsumerWidget {
     return ChatMessageRow(
       mine: message.isSelf,
       avatar: message.isSelf
-          ? GfAvatar(src: resolveApiAssetUrl(viewerAvatar), size: 32)
+          ? GfAvatar(
+              frameColors: decorationColors(
+                context,
+                viewerDecoration?.avatarFrame,
+              ),
+              frameAssetUrl: decorationFrameAssetUrl(
+                viewerDecoration?.avatarFrame,
+              ),
+              src: resolveApiAssetUrl(viewerAvatar),
+              size: 32,
+            )
           : _PeerAvatarButton(
               key: Key('chat-peer-avatar-${message.id}'),
               peerId: peerId,
               label: peerProfileLabel,
+              frameColors: decorationColors(
+                context,
+                peerDecoration?.avatarFrame,
+              ),
+              frameAssetUrl: decorationFrameAssetUrl(
+                peerDecoration?.avatarFrame,
+              ),
               src: resolveApiAssetUrl(peerAvatar),
               size: 32,
               alignment: Alignment.topLeft,
