@@ -32,6 +32,8 @@ The first non-empty line under `## Status` is the status value. Valid values:
 - `Deprecated` — no longer recommended; superseded by a linked record.
 - `Superseded by [NNNN](NNNN-title.md)` — replaced by a newer record; the target must exist.
 
+New supersession statuses use the linked form. The verifier also accepts the exact legacy form `Superseded by NNNN` while its numbered target exists; other free-form or mismatched references are invalid.
+
 A record whose status is `Accepted`, `Deprecated`, or `Superseded by …` describes current or frozen reality. It is never rewritten into a different decision: to change a decision, add a new record and mark the old one `Superseded by NNNN`. Both records stay, cross-linked.
 
 ### Class line (extension)
@@ -65,7 +67,7 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 
 - Before creating a MADR, check `dev` and open PRs for existing or reserved numbers. Reserve a distinct unused four-digit number in your PR or linked Issue (for example, `MADR 0084 reserved for #1171`) so other contributors can coordinate. A reservation is a coordination convention, not a committed placeholder record.
 - A reserved number may be absent from `dev` until its PR merges; other decisions can merge first. Do not create empty placeholder MADRs or renumber another contributor's record to fill a gap.
-- Keep the index entries in numeric order, even across gaps. Resolve collisions before merging; a reservation in an unmerged branch is not automatically enforced by the verifier.
+- Keep the index entries in numeric order, even across gaps. A reservation becomes active when first published in a PR or linked Issue. If concurrent PRs claim the same number, the earliest published claim keeps it; other PRs must choose another unused number and update their filenames, index entries, and links before merging. If the order is unclear, maintainers resolve the collision before any affected PR merges. Reservations in unmerged branches are not automatically enforced by the verifier.
 - If a proposed decision is abandoned, its reservation may be released explicitly in the Issue/PR; leaving a gap is valid.
 
 ## Verifier

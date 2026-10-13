@@ -59,3 +59,34 @@ test('keeps enforcing sections and superseded targets with gaps', async () => {
     assert.ok(errors.some(error => error.includes('superseded target missing')), errors.join('\n'));
   });
 });
+
+test('rejects invalid statuses and missing sections when numbering has gaps', async () => {
+  await withRecords(['0000-first.md', '0084-proposed.md'], async dir => {
+    await writeFile(path.join(dir, '0000-first.md'), decision('Not a valid status'));
+    await writeFile(
+      path.join(dir, '0084-proposed.md'),
+      decision().replace('## Decision Drivers\nDrivers.\n\n', ''),
+    );
+    const errors = await verifyDir(dir);
+    assert.ok(errors.some(error => error.includes('invalid status "Not a valid status"')), errors.join('\n'));
+    assert.ok(errors.some(error => error.includes('required sections missing or out of order')), errors.join('\n'));
+  });
+});
+
+test('rejects superseded links whose target filename does not match the record number', async () => {
+  await withRecords(['0000-first.md', '0084-current.md'], async dir => {
+    await writeFile(
+      path.join(dir, '0084-current.md'),
+      decision('Superseded by [0000](0084-current.md)'),
+    );
+    const errors = await verifyDir(dir);
+    assert.ok(errors.some(error => error.includes('invalid superseded reference')), errors.join('\n'));
+  });
+});
+
+test('accepts existing legacy numeric superseded references', async () => {
+  await withRecords(['0000-first.md', '0084-current.md'], async dir => {
+    await writeFile(path.join(dir, '0084-current.md'), decision('Superseded by 0000'));
+    assert.deepEqual(await verifyDir(dir), []);
+  });
+});
