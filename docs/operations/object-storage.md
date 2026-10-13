@@ -28,6 +28,7 @@ S3 兼容对象存储（MinIO / Tencent COS / Alibaba OSS / Cloudflare R2）后�
 | `secure` | 是否使用 TLS |
 | `publicUrlPrefix` | 可选公开 URL 前缀（CDN 直读）；未配置时论坛通过 `/file/img/*` 代理读取 |
 | `internalEndpoint` | 可选内网端点，仅 `s3` 模式使用；配置后服务端数据面操作经内网端点访问，浏览器直传仍走公开 `endpoint`。为空或与 `endpoint` 同主机时行为不变，详见「内网 Endpoint（可选）」 |
+| `forceProxyUpload` | 运维开关，默认 `false`；仅 `s3` 模式有效。开启后 `init` 恒回 `mode: proxy`，帖子图片改走服务端代理上传（服务端仍写入同一 bucket），详见「强制服务端代理上传（运维开关）」 |
 
 ### 内网 Endpoint（可选）
 
@@ -58,6 +59,28 @@ VPC 内解析（解析结果形如 `100.100.2.136` / `100.100.2.138` 等 100.100
   的处理方式一致）。
 - 该用法仅适用于 Alibaba OSS 等提供同地域内网端点形态的厂商；MinIO / Tencent COS /
   Cloudflare R2 / 自建 S3 兼容存储没有对应用法，保持为空即可。
+
+### 强制服务端代理上传（运维开关）
+
+`forceProxyUpload`（管理端：设置 → 存储设置 →「强制服务端代理上传」）用于浏览器直传出现故障时的
+临时兜底，**不切换存储提供方**：
+
+- 开启后 `POST /file/img-upload/init` 在 `s3` 模式下也返回 `mode: proxy`，Web 端随即改走
+  `POST /file/img-upload`；服务端经 `Provider.Save` 把文件写入同一 bucket（配置了
+  `internalEndpoint` 时经内网端点），随后生成变体。已有图片、读取路径与 `publicUrlPrefix` 均不变。
+- **不要用把 `provider` 切回 `local` 的方式代替**：本地提供方只从数据库 BLOB 读取，存量 S3
+  对象会全部 404。
+- 生效方式：保存后清除存储设置缓存，`storageservice.Current()` 按新配置判断，无需重启。
+- 移动端（Flutter）本来就只使用 `POST /file/img-upload`，不受该开关影响。
+
+**取舍与上线检查**：
+
+- 上传字节全部经过应用服务器：上行带宽与 CPU 增加；处理时整份文件被 `io.ReadAll`
+  读入内存（上限为发布设置的图片大小上限），并发上传会放大内存占用，小规格实例需留意。
+- 反向代理（openresty/nginx）的 `client_max_body_size` 必须 **不小于** 图片上传上限（加上
+  multipart 开销），否则大图会在到达论坛前被 413 拒绝。
+- 限流与每日额度沿用 `RateLimitUpload` 与发布设置，校验口径与直传 complete 一致。
+- 直传故障排除后应关闭开关，恢复浏览器直传以节省服务器带宽。
 
 ## 帖子图片直传流程
 

@@ -11372,6 +11372,8 @@ export interface components {
             secretKey: string;
             /** @description Optional public (CDN) prefix; empty means files are served through the `/file/img` proxy. */
             publicUrlPrefix: string;
+            /** @description Operator switch (default false). When true, `/file/img-upload/init` answers `mode: proxy` even with the `s3` provider, so clients upload through `POST /file/img-upload` and the server writes to the bucket. */
+            forceProxyUpload?: boolean;
         };
         AdminStorageSettingsResponse: components["schemas"]["ApiSuccess"] & {
             /** @description Stored storage settings without the credentials (configured state only), or the built-in default when nothing has been saved. */
@@ -14338,6 +14340,7 @@ export interface components {
             /** @description Whether a secret key is stored (encrypted with AES-256-GCM). The key itself is never returned (issue */
             secretKeyConfigured: boolean;
             publicUrlPrefix: string;
+            forceProxyUpload?: boolean;
         };
         AdminImportTaskAcceptedResult: {
             /**

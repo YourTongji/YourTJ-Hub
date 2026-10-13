@@ -350,6 +350,7 @@ type StorageSettings struct {
 	AccessKey        string `json:"-"`                // 运行时明文（服务内存）；密文见 StorageSettingsStorage
 	SecretKey        string `json:"-"`                // 运行时明文（服务内存）；密文见 StorageSettingsStorage
 	PublicUrlPrefix  string `json:"publicUrlPrefix"`  // 可选公开访问前缀（CDN），留空则走 /file/img 代理
+	ForceProxyUpload bool   `json:"forceProxyUpload"` // 运维开关：S3 模式下也强制帖子图片走服务端代理上传（默认 false = 浏览器直传）
 }
 
 // StorageSettingsStorage 存储设置的落库 JSON 形状：与对外 StorageSettings 分离，
@@ -369,6 +370,7 @@ type StorageSettingsStorage struct {
 	AccessKeyEncrypted string `json:"accessKeyEncrypted,omitempty"` // 密文（AES-256-GCM）
 	SecretKeyEncrypted string `json:"secretKeyEncrypted,omitempty"` // 密文（AES-256-GCM）
 	PublicUrlPrefix    string `json:"publicUrlPrefix"`
+	ForceProxyUpload   bool   `json:"forceProxyUpload"`
 }
 
 // ToConfig 将落库形状转为领域结构（凭据为密文或存量明文原样拷贝，调用方解密/识别）。
@@ -392,6 +394,7 @@ func (s StorageSettingsStorage) ToConfig() StorageSettings {
 		AccessKey:        accessKey,
 		SecretKey:        secretKey,
 		PublicUrlPrefix:  s.PublicUrlPrefix,
+		ForceProxyUpload: s.ForceProxyUpload,
 	}
 }
 
@@ -407,6 +410,7 @@ type StorageSettingsView struct {
 	AccessKeyConfigured bool   `json:"accessKeyConfigured"`
 	SecretKeyConfigured bool   `json:"secretKeyConfigured"`
 	PublicUrlPrefix     string `json:"publicUrlPrefix"`
+	ForceProxyUpload    bool   `json:"forceProxyUpload"`
 }
 
 // ToView 由落库形状生成回显视图。
@@ -422,6 +426,7 @@ func (s StorageSettingsStorage) ToView() StorageSettingsView {
 		AccessKeyConfigured: strings.TrimSpace(s.AccessKey) != "" || strings.TrimSpace(s.AccessKeyEncrypted) != "",
 		SecretKeyConfigured: strings.TrimSpace(s.SecretKey) != "" || strings.TrimSpace(s.SecretKeyEncrypted) != "",
 		PublicUrlPrefix:     s.PublicUrlPrefix,
+		ForceProxyUpload:    s.ForceProxyUpload,
 	}
 }
 
@@ -438,6 +443,7 @@ func (c StorageSettings) ToView() StorageSettingsView {
 		AccessKeyConfigured: strings.TrimSpace(c.AccessKey) != "",
 		SecretKeyConfigured: strings.TrimSpace(c.SecretKey) != "",
 		PublicUrlPrefix:     c.PublicUrlPrefix,
+		ForceProxyUpload:    c.ForceProxyUpload,
 	}
 }
 
@@ -454,6 +460,7 @@ type StorageSettingsInput struct {
 	AccessKey        string `json:"accessKey"`
 	SecretKey        string `json:"secretKey"`
 	PublicUrlPrefix  string `json:"publicUrlPrefix"`
+	ForceProxyUpload bool   `json:"forceProxyUpload"`
 }
 
 // ToConfig 将输入形状转为领域结构（含明文凭据，供测试连接等服务使用）。

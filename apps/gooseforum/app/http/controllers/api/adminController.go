@@ -2090,6 +2090,7 @@ func SaveStorageSettings(req component.BetterRequest[SaveStorageSettingsReq]) co
 	storage.BucketLookup = input.BucketLookup
 	storage.Secure = input.Secure
 	storage.PublicUrlPrefix = input.PublicUrlPrefix
+	storage.ForceProxyUpload = input.ForceProxyUpload
 	if key := strings.TrimSpace(input.AccessKey); key != "" {
 		sealed, err := securestore.EncryptPurpose(key, securestore.StorageAccessKeyPurpose)
 		if err != nil {
