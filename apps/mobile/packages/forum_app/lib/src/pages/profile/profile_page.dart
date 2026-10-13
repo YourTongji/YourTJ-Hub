@@ -710,7 +710,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           (item) => item.targetUserId == profileUserId,
         ) ??
         false;
-    final menu = PopupMenuButton<String>(
+    final menu = GfPopupMenuButton<String>(
       tooltip: l10n.profileMore,
       icon: GfSymbol(
         'ellipsis',
@@ -720,7 +720,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       onSelected: (value) => _onProfileMenuSelected(value, profileUser),
       itemBuilder: (_) => profileUser != null
           ? [
-              PopupMenuItem(
+              GfPopupMenuItem(
                 value: _profileBlockAction,
                 child: Text(
                   blocks?.hasError == true
@@ -732,46 +732,49 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               ),
             ]
           : [
-              PopupMenuItem(
+              GfPopupMenuItem(
                 value: persona?.profileUrl ?? '/settings/anonymous-identity',
                 child: Text(l10n.anonymousIdentity),
               ),
-              PopupMenuItem(value: '/drafts', child: Text(l10n.draftsTitle)),
-              PopupMenuItem(
+              GfPopupMenuItem(value: '/drafts', child: Text(l10n.draftsTitle)),
+              GfPopupMenuItem(
                 value: '/my-course-reviews',
                 child: Text(l10n.myCourseReviewsTitle),
               ),
-              PopupMenuItem(
+              GfPopupMenuItem(
                 value: '/my-content',
                 child: Text(l10n.profileContent),
               ),
-              PopupMenuItem(
+              GfPopupMenuItem(
                 value: '/recycle-bin',
                 child: Text(l10n.profileTrash),
               ),
               if (_canModerate)
-                PopupMenuItem(
+                GfPopupMenuItem(
                   value: '/moderation',
                   child: Text(l10n.profileModeration),
                 ),
               if (_canAccessAdmin)
-                PopupMenuItem(value: '/admin', child: Text(l10n.profileAdmin)),
+                GfPopupMenuItem(
+                  value: '/admin',
+                  child: Text(l10n.profileAdmin),
+                ),
               if (_canManageCourses) ...[
-                PopupMenuItem(
+                GfPopupMenuItem(
                   value: '/moderation/courses',
                   child: Text(l10n.coursesManagement),
                 ),
-                PopupMenuItem(
+                GfPopupMenuItem(
                   value: '/moderation/course-reviews',
                   child: Text(l10n.coursesReviewModeration),
                 ),
               ],
               const PopupMenuDivider(),
-              PopupMenuItem(
+              GfPopupMenuItem(
                 value: '/settings/account',
                 child: Text(l10n.profileSecurity),
               ),
-              PopupMenuItem(
+              GfPopupMenuItem(
                 value: '/settings',
                 child: Text(l10n.settingsTitle),
               ),

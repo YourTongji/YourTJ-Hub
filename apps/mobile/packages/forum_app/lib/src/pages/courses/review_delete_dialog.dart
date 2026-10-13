@@ -15,22 +15,9 @@ Future<bool> confirmCourseReviewDeletion(
   final l10n = AppLocalizations.of(context);
   final copy = CourseCopy(l10n);
   final colors = GfTheme.colorsOf(context);
-  return await showDialog<bool>(
-        context: context,
-        animationStyle: GfMotion.dialogStyle(context),
-        builder: (dialogContext) => AlertDialog(
-          backgroundColor: colors.base100,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 24,
-          ),
-          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-          contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
-          actionsPadding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
+  return await showGfAlertDialog<bool>(
+        context,
+        builder: (dialogContext) => GfAlertDialog(
           title: Text(
             copy.deleteReviewTitle,
             style: GfTheme.typographyOf(context).heading,
@@ -68,24 +55,15 @@ Future<bool> confirmCourseReviewDeletion(
             ],
           ),
           actions: [
-            Row(
-              children: [
-                Expanded(
-                  child: GfButton(
-                    label: l10n.commonCancel,
-                    variant: GfButtonVariant.ghost,
-                    onPressed: () => Navigator.pop(dialogContext, false),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GfButton(
-                    label: copy.delete,
-                    variant: GfButtonVariant.danger,
-                    onPressed: () => Navigator.pop(dialogContext, true),
-                  ),
-                ),
-              ],
+            GfButton(
+              label: l10n.commonCancel,
+              variant: GfButtonVariant.ghost,
+              onPressed: () => Navigator.pop(dialogContext, false),
+            ),
+            GfButton(
+              label: copy.delete,
+              variant: GfButtonVariant.danger,
+              onPressed: () => Navigator.pop(dialogContext, true),
             ),
           ],
         ),

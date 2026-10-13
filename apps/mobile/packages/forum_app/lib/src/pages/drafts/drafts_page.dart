@@ -165,12 +165,10 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
     final session = ref.read(offlineCacheEpochProvider.notifier);
     final epoch = ref.read(offlineCacheEpochProvider);
     final l10n = AppLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      animationStyle: GfMotion.dialogStyle(context),
-      builder: (context) => AlertDialog(
+    final confirmed = await showGfAlertDialog<bool>(
+      context,
+      builder: (context) => GfAlertDialog(
         title: Text(l10n.draftDeleteLocal),
-        scrollable: true,
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -184,11 +182,12 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
           ],
         ),
         actions: [
-          TextButton(
+          GfDialogAction(
             onPressed: () => Navigator.pop(context, false),
             child: Text(l10n.commonCancel),
           ),
-          TextButton(
+          GfDialogAction(
+            destructive: true,
             onPressed: () => Navigator.pop(context, true),
             child: Text(l10n.draftDeleteLocal),
           ),
@@ -233,12 +232,10 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
     final epoch = ref.read(offlineCacheEpochProvider);
     final l10n = AppLocalizations.of(context);
     final title = draft.title.isEmpty ? l10n.topicNoTitle : draft.title;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      animationStyle: GfMotion.dialogStyle(context),
-      builder: (context) => AlertDialog(
+    final confirmed = await showGfAlertDialog<bool>(
+      context,
+      builder: (context) => GfAlertDialog(
         title: Text(l10n.draftDeleteCloud),
-        scrollable: true,
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -248,11 +245,12 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
           ],
         ),
         actions: [
-          TextButton(
+          GfDialogAction(
             onPressed: () => Navigator.pop(context, false),
             child: Text(l10n.commonCancel),
           ),
-          TextButton(
+          GfDialogAction(
+            destructive: true,
             onPressed: () => Navigator.pop(context, true),
             child: Text(l10n.draftDeleteCloud),
           ),

@@ -144,13 +144,29 @@ class _Pages extends PageRepository {
   }
 }
 
-Future<GoRouter> _mount(WidgetTester tester, _Pages pages) async {
+Future<GoRouter> _mount(
+  WidgetTester tester,
+  _Pages pages, {
+  Size size = const Size(600, 800),
+  double textScale = 1,
+  VoidCallback? onScroll,
+  bool tickersEnabled = false,
+}) async {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
   SharedPreferences.setMockInitialValues({});
   final router = GoRouter(
     routes: [
       GoRoute(
         path: '/',
-        builder: (_, _) => const TickerMode(enabled: false, child: HomePage()),
+        builder: (_, _) => NotificationListener<ScrollNotification>(
+          onNotification: (_) {
+            onScroll?.call();
+            return false;
+          },
+          child: TickerMode(enabled: tickersEnabled, child: const HomePage()),
+        ),
       ),
       GoRoute(
         path: '/c/:slug/:id',
@@ -174,6 +190,12 @@ Future<GoRouter> _mount(WidgetTester tester, _Pages pages) async {
       child: MaterialApp.router(
         routerConfig: router,
         theme: gfThemeData(Brightness.light),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(textScale)),
+          child: child!,
+        ),
         locale: const Locale('zh'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
@@ -208,6 +230,92 @@ ScrollPosition _position(WidgetTester tester) => tester
     .position;
 
 void main() {
+  testWidgets(
+    'tablet categories sit beside the feed and resize retains reading state',
+    (tester) async {
+      final pages = _Pages();
+      final router = await _mount(tester, pages, size: const Size(1000, 900));
+      final sidebar = find.byKey(const ValueKey('home-category-sidebar'));
+      expect(sidebar, findsOneWidget);
+      expect(find.byKey(const ValueKey('home-category-rail')), findsNothing);
+      expect(
+        tester.getRect(sidebar).right,
+        lessThanOrEqualTo(tester.getRect(find.byType(GfTopicList)).left),
+      );
+      await _chooseCategory(tester);
+      _position(tester).jumpTo(210);
+      await tester.pumpAndSettle();
+      final position = _position(tester);
+      final offset = position.pixels;
+      final calls = List<String>.of(pages.calls);
+      for (final width in [600.0, 1000.0]) {
+        tester.view.physicalSize = Size(width, 900);
+        await tester.pumpAndSettle();
+        expect(sidebar, width == 600 ? findsNothing : findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('home-category-rail')),
+          width == 600 ? findsOneWidget : findsNothing,
+        );
+        expect(
+          tester.getRect(find.byType(GfTopicList)).width,
+          lessThanOrEqualTo(720),
+        );
+        expect(_position(tester), same(position));
+        expect(_position(tester).pixels, closeTo(offset, 1));
+        expect(_feed(tester).topics.first.title, 'Category latest 0');
+        expect(pages.calls, calls);
+      }
+      expect(router.state.uri.path, '/');
+      await tester.tap(find.byKey(const ValueKey('home-category-all')));
+      await tester.pumpAndSettle();
+      expect(_feed(tester).topics.first.title, 'All latest 0');
+    },
+  );
+
+  testWidgets(
+    'large text keeps a readable single feed rather than squeezing it',
+    (tester) async {
+      await _mount(tester, _Pages(), size: const Size(1000, 900), textScale: 2);
+      expect(find.byKey(const ValueKey('home-category-sidebar')), findsNothing);
+      expect(find.byKey(const ValueKey('home-category-rail')), findsOneWidget);
+      expect(tester.getRect(find.byType(GfTopicList)).width, 720);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('scrolling tablet categories leaves reading chrome unchanged', (
+    tester,
+  ) async {
+    final pages = _Pages()..longCategoryRail = true;
+    var scrollNotifications = 0;
+    await _mount(
+      tester,
+      pages,
+      size: const Size(1000, 500),
+      onScroll: () => scrollNotifications++,
+      tickersEnabled: true,
+    );
+    final sidebar = find.byKey(const ValueKey('home-category-sidebar'));
+    scrollNotifications = 0;
+    final feedPosition = _position(tester);
+    final offset = feedPosition.pixels;
+    await tester.drag(sidebar, const Offset(0, -350));
+    await tester.pumpAndSettle();
+    final categoryPosition = tester
+        .state<ScrollableState>(
+          find.descendant(of: sidebar, matching: find.byType(Scrollable)),
+        )
+        .position;
+    expect(categoryPosition.pixels, greaterThan(0));
+    expect(scrollNotifications, 0);
+    expect(feedPosition.pixels, offset);
+    await tester.drag(find.byType(GfTopicList), const Offset(0, -150));
+    await tester.pumpAndSettle();
+    expect(scrollNotifications, greaterThan(0));
+    expect(feedPosition.pixels, greaterThan(offset));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'visible category rail selects and filters home without pushing a route',
     (tester) async {
@@ -263,7 +371,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final pages = _Pages()..longCategoryRail = true;
-      await _mount(tester, pages);
+      await _mount(tester, pages, size: const Size(320, 800));
       final rail = find.byKey(const ValueKey('home-category-rail'));
       final selected = find.byKey(const ValueKey('home-category-1'));
       expect(selected.hitTestable(), findsNothing);

@@ -385,7 +385,11 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
             return false;
           },
           child: ReadingWindow(
-            maxContentWidth: widget.navigationShell.currentIndex == 1
+            navigationRailWidth: ReadingNavigationRail.widthFor(
+              context,
+              destinations,
+            ),
+            maxContentWidth: widget.navigationShell.currentIndex <= 1
                 ? 1120
                 : 720,
             rail: ReadingNavigationRail(
@@ -428,6 +432,20 @@ int? publishTopicIdFromUri(Uri uri) {
       uri.queryParameters['topicId'] ?? uri.queryParameters['id'] ?? '';
   return int.tryParse(rawTopicId);
 }
+
+GoRoute _readingPageRoute({
+  required String path,
+  required GoRouterWidgetBuilder builder,
+  GoRouterRedirect? redirect,
+  double maxContentWidth = 720,
+}) => GoRoute(
+  path: path,
+  redirect: redirect,
+  builder: (context, state) => ReadingPageWindow(
+    maxContentWidth: maxContentWidth,
+    child: builder(context, state),
+  ),
+);
 
 final appNavigatorKey = GlobalKey<NavigatorState>();
 final appSessionOverlays = SessionOverlayRegistry();
@@ -494,7 +512,7 @@ final GoRouter appRouter = GoRouter(
         ),
       ],
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/chat',
       redirect: (_, state) =>
           (int.tryParse(state.uri.queryParameters['userId'] ?? '') ?? 0) > 0
@@ -506,9 +524,10 @@ final GoRouter appRouter = GoRouter(
         targetAvatarUrl: state.uri.queryParameters['avatar'] ?? '',
       ),
     ),
-    GoRoute(path: '/search', builder: (_, _) => const SearchPage()),
-    GoRoute(
+    _readingPageRoute(path: '/search', builder: (_, _) => const SearchPage()),
+    _readingPageRoute(
       path: '/publish',
+      maxContentWidth: 1120,
       builder: (BuildContext context, GoRouterState state) => PublishPage(
         topicId: publishTopicIdFromUri(state.uri),
         localDraftKey: state.uri.queryParameters['local'],
@@ -520,14 +539,14 @@ final GoRouter appRouter = GoRouter(
         },
       ),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/c/:slug/:id',
       builder: (BuildContext context, GoRouterState state) => CategoryPage(
         slug: state.pathParameters['slug']!,
         categoryId: int.parse(state.pathParameters['id']!),
       ),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/p/:postId',
       builder: (BuildContext context, GoRouterState state) => TopicPage(
         topicId: int.parse(state.pathParameters['postId']!),
@@ -535,53 +554,61 @@ final GoRouter appRouter = GoRouter(
       ),
     ),
     for (final stream in ['following', 'followers'])
-      GoRoute(
+      _readingPageRoute(
         path: '/u/:userId/$stream',
         builder: (_, state) => ProfilePage.connections(
           userId: int.parse(state.pathParameters['userId']!),
           initialStream: stream,
         ),
       ),
-    GoRoute(
+    _readingPageRoute(
       path: '/a/:publicUid',
       builder: (_, state) =>
           AnonymousProfilePage(uid: state.pathParameters['publicUid']!),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/settings/anonymous-identity',
       builder: (_, state) => const AnonymousIdentityPage(),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/u/:userId',
       builder: (BuildContext context, GoRouterState state) =>
           ProfilePage(userId: int.parse(state.pathParameters['userId']!)),
     ),
-    GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
-    GoRoute(
+    _readingPageRoute(
+      path: '/settings',
+      maxContentWidth: 1120,
+      builder: (_, _) => const SettingsPage(),
+    ),
+    _readingPageRoute(
       path: '/settings/widgets',
       builder: (_, _) => const ScheduleWidgetSettingsPage(),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/settings/text-size',
       builder: (_, _) => const TextSizeSettingsPage(),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/settings/:section',
+      maxContentWidth: 1120,
       builder: (_, state) => SettingsPage(
         initialSection: state.pathParameters['section'],
         autoEditProfile: state.uri.queryParameters['edit'] == '1',
       ),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/my-course-reviews',
       builder: (_, _) => const MyCourseReviewsPage(),
     ),
-    GoRoute(path: '/my-content', builder: (_, _) => const ContentPage()),
-    GoRoute(
+    _readingPageRoute(
+      path: '/my-content',
+      builder: (_, _) => const ContentPage(),
+    ),
+    _readingPageRoute(
       path: '/recycle-bin',
       builder: (_, _) => const ContentPage(deleted: true),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/profile',
       builder: (_, state) => switch (state.uri.queryParameters['stream']) {
         'following' || 'followers' => ProfilePage.connections(
@@ -595,9 +622,12 @@ final GoRouter appRouter = GoRouter(
       path: '/moderation',
       builder: (_, _) => const AdminPage(target: MobileWebTarget.moderation),
     ),
-    GoRoute(path: '/about', builder: (_, _) => const SiteInfoIndexPage()),
+    _readingPageRoute(
+      path: '/about',
+      builder: (_, _) => const SiteInfoIndexPage(),
+    ),
     for (final kind in SiteInfoKind.values)
-      GoRoute(
+      _readingPageRoute(
         path: '/${kind.name}',
         builder: (_, _) => SiteInfoPage(kind: kind),
       ),
@@ -611,20 +641,21 @@ final GoRouter appRouter = GoRouter(
       builder: (_, _) => const AdminPage(target: MobileWebTarget.courseReviews),
     ),
     GoRoute(path: '/campus/official', redirect: (_, _) => '/campus'),
-    GoRoute(
+    _readingPageRoute(
       path: '/campus/explore',
+      maxContentWidth: 1120,
       builder: (_, _) => const CampusExplorePage(),
     ),
     GoRoute(path: '/admin', builder: (_, _) => const AdminPage()),
-    GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
-    GoRoute(path: '/drafts', builder: (_, _) => const DraftsPage()),
+    _readingPageRoute(path: '/login', builder: (_, _) => const LoginPage()),
+    _readingPageRoute(path: '/drafts', builder: (_, _) => const DraftsPage()),
     GoRoute(path: '/schedule', builder: (_, _) => const SchedulePage()),
-    GoRoute(
+    _readingPageRoute(
       path: '/courses',
       builder: (_, state) =>
           CourseCatalogPage(initialQuery: state.uri.queryParameters['q'] ?? ''),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/courses/:courseId',
       builder: (BuildContext context, GoRouterState state) => CourseDetailPage(
         courseId: int.parse(state.pathParameters['courseId']!),
@@ -636,13 +667,13 @@ final GoRouter appRouter = GoRouter(
         ),
       ),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/wiki/search',
       builder: (_, state) =>
           WikiSearchPage(initialQuery: state.uri.queryParameters['q'] ?? ''),
     ),
-    GoRoute(path: '/wiki', builder: (_, _) => const WikiHomePage()),
-    GoRoute(
+    _readingPageRoute(path: '/wiki', builder: (_, _) => const WikiHomePage()),
+    _readingPageRoute(
       // 多段 wiki 路径（如 /wiki/guide/getting-started）经 (.*) 通配捕获；
       // go_router 对 path 参数自动 percent-decode，页面内按段重新编码。
       path: '/wiki/:wikiPath(.*)',

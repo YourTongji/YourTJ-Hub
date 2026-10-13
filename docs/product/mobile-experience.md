@@ -50,16 +50,34 @@ labels. See [feed ranking and measurement](feed-ranking.md) for the shared behav
 
 
 `Current`: root layout uses the available window width. Below 600 logical pixels it retains bottom
-destinations; at 600 and above it uses a persistent, scrollable 72-pixel navigation rail. Forum,
-notification and conversation lists occupy a centered column up to 720 pixels wide. Campus can use
-1120 pixels for its timetable and tools. Wide layouts reclaim the bottom-navigation inset, keep
+destinations; at 600 and above it uses a persistent, scrollable navigation rail, 72–160 pixels wide
+according to localized label width and system text size. Home and Campus can use
+1120 pixels for their workspaces. Notification and conversation lists retain a readable column
+up to 720 pixels wide. Wide layouts reclaim the bottom-navigation inset, keep
 compose actions inside the content column and anchor their menu to that column. Resizing preserves
 the retained branch navigator, inputs and reading position; opening a keyboard does not change the
 width breakpoint.
 
-`Current`: the rail shares destination icons and unread state with the bottom bar. Each action
+`Current`: the rail shares destination icons and unread state with the bottom bar and displays each
+localized destination name below its icon. Labels wrap and the rail scrolls when large system text
+or a short window needs more space. Each action
 exposes its name, selected state and activation in one semantic node. Persistent navigation is
 ordered after the active route in the accessibility tree so iOS does not hide it behind that route.
+
+`Current`: pushed forum, course, Wiki, account, settings and information pages keep their complete
+header and content in a centered column up to 720 logical pixels wide. Settings, publishing and
+Campus Explore can use 1120 pixels; the scheduler, authenticated management and image viewer use the full viewport.
+Imperative account, message and sticker-library routes share the reading window. Horizontal safe
+areas are consumed once and each bounded page receives its actual column width. Resizing leaves the
+route, input and scroll state mounted; the compact route continues to use the iOS edge-swipe transition.
+
+`Current`: tablet workspaces organize navigation beside their content. Home places category
+selection beside the retained topic feed when the available content width supports both panes;
+compact windows keep the horizontal category controls. Settings places its directory beside the
+selected section, so changing sections updates the detail without a full-screen route transition.
+Enlarged text raises the required width, restoring a single pane when labels or content need more
+space. Publishing uses its existing editor and preview workspace. These layouts follow available
+window space rather than device names; see [0082](../decisions/0082-adaptive-ios-interaction-surfaces.md).
 
 
 - `Current`: Home offers a server-defined Following sort. It requires sign-in and shows only
@@ -592,9 +610,19 @@ are not displayed. Chat bubbles use 20-pixel corners and are bounded by the conv
 `Current`: primary and secondary buttons use pill shapes with state-specific colors and a separate
 48-pixel hit target. Icon actions retain at least 44 pixels, except the compact profile social links,
 whose touch areas are 24 pixels wide and 32 pixels high. Menus, segmented controls and choice
-labels grow with system text size; selected states expose semantics. Dialogs use one scrollable
+labels grow with system text size; selected states expose semantics. Complex dialogs use one scrollable
 surface with 24-pixel corners, while inline alerts use a quiet 16-pixel surface. Avatars, loading,
 badges, dividers and selectors share the same semantic palette without third-party default skins.
+
+`Current`: iOS short menus, attachment and language choices, and dropdown fields use shared Cupertino
+actions. Windows narrower than 600 logical pixels present a bottom action sheet; wider windows use
+a scrollable menu up to 380 pixels wide near the initiating control, bounded by root safe areas and
+the keyboard. Cancellation leaves the current value unchanged; choices show the current selection,
+disabled actions cannot activate and destructive actions use the platform's destructive treatment.
+Simple confirmations use Cupertino alerts. Complex credential and editing forms retain their Gf
+surface, validation and failed-save recovery. Android retains Material presentation. Radio rows,
+switches and sliders also follow the platform; both palettes follow the selected light/dark theme.
+These are Flutter Cupertino components; native UIKit and Liquid Glass presentation are not claimed.
 
 ## Publishing
 

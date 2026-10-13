@@ -4,18 +4,18 @@ import '../../l10n/app_localizations.dart';
 
 Future<bool> confirmDiscardEdit(BuildContext context) async {
   final l = AppLocalizations.of(context);
-  return await showDialog<bool>(
-        context: context,
-        animationStyle: GfMotion.dialogStyle(context),
-        builder: (context) => AlertDialog(
+  return await showGfAlertDialog<bool>(
+        context,
+        builder: (context) => GfAlertDialog(
           title: Text(l.settingsUnsavedTitle),
           content: Text(l.settingsUnsavedBody),
           actions: [
-            TextButton(
+            GfDialogAction(
               onPressed: () => Navigator.pop(context, false),
               child: Text(l.settingsKeepEditing),
             ),
-            TextButton(
+            GfDialogAction(
+              destructive: true,
               onPressed: () => Navigator.pop(context, true),
               child: Text(l.settingsDiscardChanges),
             ),

@@ -1163,7 +1163,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
             if (_mode == _AuthMode.register &&
                 _registration?.allowedDomains.isNotEmpty == true) ...[
               const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
+              GfDropdownButtonFormField<String>(
                 key: const Key('register-email-domain'),
                 initialValue: _emailDomain,
                 isExpanded: true,

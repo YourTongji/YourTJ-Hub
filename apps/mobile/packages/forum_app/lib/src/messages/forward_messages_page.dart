@@ -89,17 +89,18 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
 
   Future<void> _discard(ChatForwarding controller) async {
     final l10n = AppLocalizations.of(context);
-    final discard = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
+    final discard = await showGfAlertDialog<bool>(
+      context,
+      builder: (context) => GfAlertDialog(
         title: Text(l10n.messageForwardCancelRemaining),
         content: Text(l10n.messageForwardAbandonNotice),
         actions: [
-          TextButton(
+          GfDialogAction(
             onPressed: () => Navigator.pop(context, false),
             child: Text(l10n.commonCancel),
           ),
-          TextButton(
+          GfDialogAction(
+            destructive: true,
             onPressed: () => Navigator.pop(context, true),
             child: Text(l10n.commonConfirm),
           ),

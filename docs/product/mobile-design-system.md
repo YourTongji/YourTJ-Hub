@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-29
+> Last verified: 2026-10-13
 
 This standard applies the native reading direction in [0037](../decisions/0037-adaptive-mobile-reading-window.md)
 to the Flutter app. [Mobile experience](mobile-experience.md) records implemented behavior. Rules marked
@@ -66,7 +66,15 @@ Navigation uses the same destinations, icons and unread meaning at every window 
 rail stays reachable independently of reading scroll; compact controls reclaim vertical reading
 space. Compose menus follow their source column and consume system insets once. Implemented
 breakpoints and bounds live in [mobile experience](mobile-experience.md#navigation-and-reading).
-`Planned`: contextual panes and bounded reading layouts on every pushed page.
+`Current`: pushed reading pages use a centered bounded column, including their headers;
+the page receives the actual column width and retains its state across window changes. Timetable,
+management and image-viewer pages retain their full viewport. The wide rail shows destination names
+below their icons, with wrapping labels and scrolling at enlarged text sizes.
+`Current`: Home presents category navigation beside the topic feed, settings presents its directory
+beside the current section, and publishing presents editor and preview together when space permits.
+The single-pane fallback keeps selected content and input mounted; enlarged text increases the
+space needed for two panes.
+`Planned`: conversation list and chat detail together.
 
 Resizing, rotating or opening the keyboard must not recreate a draft, reset the selected tab, navigate
 away or lose scroll position. No product operation depends solely on hover. Keyboard users can reach
@@ -98,9 +106,15 @@ Focusing an editor is not an edit. Keyboard layouts prioritize the active writin
 introductory guidance, retain focus, and keep the primary action reachable. Implemented behavior
 lives in [mobile experience](mobile-experience.md#publishing).
 
-`Current`: profile and password editing use pages and preserve input on failed saves. Shared short
-choice sheets use a drag handle, 24-pixel top corners, one safe-area boundary and a 640-pixel width
-limit. `Partial`: legacy forms still use bounded scrollable sheets; profile, password and course
+`Current`: profile and password editing use pages and preserve input on failed saves. iOS short
+menus and single choices use Cupertino action sheets with separate cancellation, checked selection,
+disabled actions and explicit destructive actions. Compact windows present them at the bottom;
+wide windows place a scrollable surface up to 380 pixels wide near the trigger, inside safe areas
+and above the keyboard. Simple confirmations use Cupertino alerts; complex credential and editing
+forms retain the bounded Gf surface. Android keeps Material menus, choices and confirmations;
+its short action sheets retain the shared safe-area and width limits. See
+[0082](../decisions/0082-adaptive-ios-interaction-surfaces.md).
+`Partial`: legacy forms still use bounded scrollable sheets; profile, password and course
 review editing confirm discarding changed input.
 Transient feedback uses the existing shared banner; field-specific errors stay beside the field.
 Retry belongs beside the failed operation. A success banner must not precede server acknowledgement

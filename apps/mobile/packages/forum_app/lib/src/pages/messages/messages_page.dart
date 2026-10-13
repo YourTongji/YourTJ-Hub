@@ -1,3 +1,4 @@
+import '../../navigation/reading_window.dart';
 import '../../offline/drift_cache.dart';
 import '../../widgets/cache_snapshot_hint.dart';
 import '../../messages/chat_message_bubble.dart';
@@ -342,10 +343,12 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
     if (conv.convId == 0 && !_serverConversationsResolved) return;
     await Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
-        builder: (_) => _ConversationPage(
-          conv: conv,
-          viewerAvatar: _viewerAvatar,
-          viewerUsername: _viewerUsername,
+        builder: (_) => ReadingPageWindow(
+          child: _ConversationPage(
+            conv: conv,
+            viewerAvatar: _viewerAvatar,
+            viewerUsername: _viewerUsername,
+          ),
         ),
       ),
     );
@@ -1492,36 +1495,48 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     settle(8);
   }
 
+  final _attachmentMenuKey = GlobalKey();
+
   Future<void> _showAttachments() async {
     if (!_sessionCurrent || _attachingImage) return;
     final l10n = AppLocalizations.of(context);
-    final action = await showGfBottomSheet<String>(
+    final action = await showGfActionSheet<String>(
       context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const GfSymbol('image'),
-            title: Text(l10n.publishToolImage),
-            enabled:
-                _historyReady &&
-                !ref.read(chatOutboxProvider(widget.conv.peerId)).sending,
-            onTap: () => Navigator.pop(context, 'image'),
+      anchorContext: _attachmentMenuKey.currentContext,
+      items: [
+        GfPopupMenuItem(
+          value: 'image',
+          enabled:
+              _historyReady &&
+              !ref.read(chatOutboxProvider(widget.conv.peerId)).sending,
+          child: Row(
+            children: [
+              GfSymbol('image', size: 22),
+              const SizedBox(width: 12),
+              Expanded(child: Text(l10n.publishToolImage)),
+            ],
           ),
-          ListTile(
-            leading: const GfSymbol('smile'),
-            title: Text(StickerStrings(context).add),
-            onTap: () => Navigator.pop(context, 'stickers'),
+        ),
+        GfPopupMenuItem(
+          value: 'stickers',
+          child: Row(
+            children: [
+              GfSymbol('smile', size: 22),
+              const SizedBox(width: 12),
+              Expanded(child: Text(StickerStrings(context).add)),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
     if (!mounted || !_sessionCurrent) return;
     if (action == 'image') {
       await _attachImage();
     } else if (action == 'stickers') {
       await Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => const StickerLibraryPage()),
+        MaterialPageRoute<void>(
+          builder: (_) => ReadingPageWindow(child: const StickerLibraryPage()),
+        ),
       );
     }
   }
@@ -1668,7 +1683,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     ).overlay?.context.findRenderObject();
     if (box is! RenderBox || overlay is! RenderBox || !_sessionCurrent) return;
     final origin = box.localToGlobal(Offset.zero, ancestor: overlay);
-    final action = await showMenu<String>(
+    final action = await showGfMenu<String>(
       context: context,
       useRootNavigator: true,
       position: RelativeRect.fromRect(
@@ -1677,20 +1692,20 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
       ),
       items: [
         if (_historyReady)
-          PopupMenuItem(value: 'reply', child: Text(l10n.messageReply)),
+          GfPopupMenuItem(value: 'reply', child: Text(l10n.messageReply)),
         if (!isForwardedHistory)
-          PopupMenuItem(value: 'copy', child: Text(l10n.messagesCopyAll)),
+          GfPopupMenuItem(value: 'copy', child: Text(l10n.messagesCopyAll)),
         if (_historyReady)
-          PopupMenuItem(value: 'forward', child: Text(l10n.messageForward)),
+          GfPopupMenuItem(value: 'forward', child: Text(l10n.messageForward)),
         if (_historyReady)
-          PopupMenuItem(value: 'select', child: Text(l10n.messageSelect)),
+          GfPopupMenuItem(value: 'select', child: Text(l10n.messageSelect)),
         if (_historyReady && !isForwardedHistory && canCollect)
-          PopupMenuItem(
+          GfPopupMenuItem(
             value: 'collect',
             child: Text(StickerStrings(context).collect),
           ),
         if (_historyReady && !message.isSelf)
-          PopupMenuItem(value: 'report', child: Text(l10n.messageReport)),
+          GfPopupMenuItem(value: 'report', child: Text(l10n.messageReport)),
       ],
     );
     if (!mounted || !_sessionCurrent || action == null) return;
@@ -1775,10 +1790,12 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     _composerFocus.unfocus();
     await Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
-        builder: (_) => ForwardMessagesPage(
-          convId: _convId,
-          messageIds: ids,
-          ownerEpoch: _sessionEpoch,
+        builder: (_) => ReadingPageWindow(
+          child: ForwardMessagesPage(
+            convId: _convId,
+            messageIds: ids,
+            ownerEpoch: _sessionEpoch,
+          ),
         ),
       ),
     );
@@ -2443,6 +2460,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                       accessoryBuilder: (insert) =>
                           StickerPicker(onInsert: insert),
                       onAttach: _showAttachments,
+                      attachButtonKey: _attachmentMenuKey,
                       attachLabel: l10n.messagesAttachments,
                       clearOnSend: false,
                       enabled: _drafts.current,

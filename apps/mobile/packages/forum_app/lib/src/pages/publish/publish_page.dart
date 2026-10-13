@@ -790,33 +790,35 @@ class _PublishPageState extends ConsumerState<PublishPage>
   }
 
   /// 长按标题按钮弹出级别菜单;选中当前级别再次确认可取消标题。
+  final _headingMenuKey = GlobalKey();
+
   Future<void> _showHeadingLevelMenu(AppLocalizations l10n) async {
     final int? currentHeader =
         _quill.getSelectionStyle().attributes[Attribute.header.key]?.value
             as int?;
-    final Attribute? selected = await showGfBottomSheet<Attribute>(
+    final Attribute? selected = await showGfActionSheet<Attribute>(
       context,
-      keyboardAware: true,
-      builder: (sheetContext) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
-          children: <Widget>[
-            for (final (attribute, label, level) in <(Attribute, String, int)>[
-              (Attribute.h1, l10n.publishHeadingLevel1, 1),
-              (Attribute.h2, l10n.publishHeadingLevel2, 2),
-              (Attribute.h3, l10n.publishHeadingLevel3, 3),
-            ])
-              ListTile(
-                title: Text(label),
-                trailing: currentHeader == level
-                    ? const GfSymbol('check', size: 22)
-                    : null,
-                onTap: () => Navigator.pop(sheetContext, attribute),
-              ),
-          ],
+      anchorContext: _headingMenuKey.currentContext,
+      initialValue: switch (currentHeader) {
+        1 => Attribute.h1,
+        2 => Attribute.h2,
+        3 => Attribute.h3,
+        _ => null,
+      },
+      items: [
+        GfPopupMenuItem(
+          value: Attribute.h1,
+          child: Text(l10n.publishHeadingLevel1),
         ),
-      ),
+        GfPopupMenuItem(
+          value: Attribute.h2,
+          child: Text(l10n.publishHeadingLevel2),
+        ),
+        GfPopupMenuItem(
+          value: Attribute.h3,
+          child: Text(l10n.publishHeadingLevel3),
+        ),
+      ],
     );
     if (selected == null || !mounted) return;
     _toggleFormat(selected);
@@ -857,7 +859,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     unawaited(_saveLocal());
   }
 
-  Future<void> _pickAndInsertImage() async {
+  Future<void> _pickAndInsertImage([BuildContext? anchor]) async {
     // Pending uploads keep running; only a second picker is refused.
     if (_pickingImage || _submitting || !_sessionCurrent || _finished) return;
     final l10n = AppLocalizations.of(context);
@@ -873,27 +875,31 @@ class _PublishPageState extends ConsumerState<PublishPage>
         : null;
     setState(() => _pickingImage = true);
     try {
-      final source = await showGfBottomSheet<ImageSource>(
+      final source = await showGfActionSheet<ImageSource>(
         context,
-        keyboardAware: true,
-        builder: (context) => SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
-            children: [
-              ListTile(
-                leading: const GfSymbol('image', size: 23),
-                title: Text(l10n.publishPhotoLibrary),
-                onTap: () => Navigator.pop(context, ImageSource.gallery),
-              ),
-              ListTile(
-                leading: const GfSymbol('camera', size: 23),
-                title: Text(l10n.publishCamera),
-                onTap: () => Navigator.pop(context, ImageSource.camera),
-              ),
-            ],
+        anchorContext: anchor,
+        items: [
+          GfPopupMenuItem(
+            value: ImageSource.gallery,
+            child: Row(
+              children: [
+                GfSymbol('image', size: 22),
+                const SizedBox(width: 12),
+                Expanded(child: Text(l10n.publishPhotoLibrary)),
+              ],
+            ),
           ),
-        ),
+          GfPopupMenuItem(
+            value: ImageSource.camera,
+            child: Row(
+              children: [
+                GfSymbol('camera', size: 22),
+                const SizedBox(width: 12),
+                Expanded(child: Text(l10n.publishCamera)),
+              ],
+            ),
+          ),
+        ],
       );
       if (source == null || !mounted || !_sessionCurrent || _finished) return;
       final picker = ref.read(imagePickerProvider);
@@ -2283,6 +2289,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       placeholder: PublishType.fromValue(_contentType).hint(l10n),
       onHeading: () => _toggleFormat(Attribute.h2),
       onHeadingLongPress: () => _showHeadingLevelMenu(l10n),
+      headingButtonKey: _headingMenuKey,
       onInsertLink: _insertLink,
       showToolbar: false,
       editorBuilder: (context) => DragTarget<ComposerImageDragPayload>(
@@ -2407,10 +2414,14 @@ class _PublishPageState extends ConsumerState<PublishPage>
                   // Markdown formatting only.
                   if (_contentType == 3 ||
                       MediaQuery.viewInsetsOf(context).bottom > 0)
-                    _toolButton(
-                      symbol: _activelyUploading ? 'clock' : 'gallery',
-                      tooltip: l10n.publishToolImage,
-                      onPressed: _pickingImage ? null : _pickAndInsertImage,
+                    Builder(
+                      builder: (anchor) => _toolButton(
+                        symbol: _activelyUploading ? 'clock' : 'gallery',
+                        tooltip: l10n.publishToolImage,
+                        onPressed: _pickingImage
+                            ? null
+                            : () => _pickAndInsertImage(anchor),
+                      ),
                     ),
                   _toolButton(
                     symbol: _stickerOpen ? 'keyboard' : 'emoji-circle',
@@ -2524,6 +2535,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     tinted: false,
     onHeading: () => _toggleFormat(Attribute.h2),
     onHeadingLongPress: () => _showHeadingLevelMenu(l10n),
+    headingButtonKey: _headingMenuKey,
     onInsertLink: _insertLink,
   );
 
@@ -2800,53 +2812,55 @@ class _PublishPageState extends ConsumerState<PublishPage>
         fontFeatures: const [FontFeature.tabularFigures()],
       ),
     );
-    return Semantics(
-      key: const Key('publish-gallery-add'),
-      button: true,
-      enabled: !_pickingImage,
-      label: empty ? title : '${l10n.publishToolImage} $count/9',
-      excludeSemantics: true,
-      onTap: _pickingImage ? null : _pickAndInsertImage,
-      child: Material(
-        color: colors.base200,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(empty ? 16 : 12),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: _pickingImage ? null : _pickAndInsertImage,
-          child: empty
-              ? Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      icon,
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(title, style: type.bodyStrong),
-                            const SizedBox(height: 4),
-                            Text(
-                              l10n.publishGalleryHint,
-                              style: type.caption.copyWith(
-                                color: colors.iconMuted,
+    return Builder(
+      builder: (anchor) => Semantics(
+        key: const Key('publish-gallery-add'),
+        button: true,
+        enabled: !_pickingImage,
+        label: empty ? title : '${l10n.publishToolImage} $count/9',
+        excludeSemantics: true,
+        onTap: _pickingImage ? null : () => _pickAndInsertImage(anchor),
+        child: Material(
+          color: colors.base200,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(empty ? 16 : 12),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: _pickingImage ? null : () => _pickAndInsertImage(anchor),
+            child: empty
+                ? Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        icon,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(title, style: type.bodyStrong),
+                              const SizedBox(height: 4),
+                              Text(
+                                l10n.publishGalleryHint,
+                                style: type.caption.copyWith(
+                                  color: colors.iconMuted,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  )
+                : SizedBox.square(
+                    dimension: _galleryTile,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [icon, const SizedBox(height: 6), countLabel],
+                    ),
                   ),
-                )
-              : SizedBox.square(
-                  dimension: _galleryTile,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [icon, const SizedBox(height: 6), countLabel],
-                  ),
-                ),
+          ),
         ),
       ),
     );

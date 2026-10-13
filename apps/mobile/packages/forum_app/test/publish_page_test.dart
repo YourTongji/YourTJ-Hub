@@ -1927,7 +1927,7 @@ void main() {
           fromContentManagement: true,
           locale: const Locale('en'),
         );
-        await tester.tap(find.byType(PopupMenuButton<String>));
+        await tester.tap(find.byType(GfPopupMenuButton<String>));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Edit and resubmit'));
         await tester.pumpAndSettle();

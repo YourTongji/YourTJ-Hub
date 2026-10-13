@@ -230,7 +230,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
             tooltip: l10n.scheduleAddCustomEvent,
             onPressed: _openCustomEventSheet,
           ),
-          PopupMenuButton<_ExportAction>(
+          GfPopupMenuButton<_ExportAction>(
             tooltip: l10n.scheduleExportPng,
             icon: GfSymbol('share-2', size: 20, color: colors.iconMuted),
             color: colors.base100,
@@ -243,11 +243,11 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
             },
             itemBuilder: (BuildContext menuContext) =>
                 <PopupMenuEntry<_ExportAction>>[
-                  PopupMenuItem<_ExportAction>(
+                  GfPopupMenuItem<_ExportAction>(
                     value: _ExportAction.png,
                     child: Text(l10n.scheduleExportPng),
                   ),
-                  PopupMenuItem<_ExportAction>(
+                  GfPopupMenuItem<_ExportAction>(
                     value: _ExportAction.csv,
                     child: Text(l10n.scheduleExportCsv),
                   ),
@@ -712,40 +712,24 @@ Future<void> _confirmDelete(
   final AppLocalizations l10n = AppLocalizations.of(context);
   await showGfAlertDialog<void>(
     context,
-    builder: (BuildContext sheetContext) => Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            l10n.schedulePlanDelete,
-            style: GfTheme.typographyOf(sheetContext).heading,
-          ),
-          const SizedBox(height: 8),
-          Text(plan.name, style: GfTheme.typographyOf(sheetContext).body),
-          const SizedBox(height: 18),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: <Widget>[
-              GfButton(
-                label: l10n.commonCancel,
-                variant: GfButtonVariant.ghost,
-                onPressed: () => Navigator.of(sheetContext).pop(),
-              ),
-              const SizedBox(width: 8),
-              GfButton(
-                label: l10n.schedulePlanDelete,
-                variant: GfButtonVariant.danger,
-                onPressed: () {
-                  notifier.deletePlan(plan.id);
-                  Navigator.of(sheetContext).pop();
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
+    builder: (sheetContext) => GfAlertDialog(
+      title: Text(l10n.schedulePlanDelete),
+      content: Text(plan.name),
+      actions: [
+        GfButton(
+          label: l10n.commonCancel,
+          variant: GfButtonVariant.ghost,
+          onPressed: () => Navigator.pop(sheetContext),
+        ),
+        GfButton(
+          label: l10n.schedulePlanDelete,
+          variant: GfButtonVariant.danger,
+          onPressed: () {
+            notifier.deletePlan(plan.id);
+            Navigator.pop(sheetContext);
+          },
+        ),
+      ],
     ),
   );
 }
@@ -1332,7 +1316,7 @@ class _WeekFilter extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: DropdownButtonHideUnderline(
-              child: DropdownButton<int?>(
+              child: GfDropdownButton<int?>(
                 value: week,
                 isExpanded: true,
                 isDense: false,

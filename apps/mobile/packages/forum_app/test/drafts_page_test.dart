@@ -661,7 +661,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final l10n = AppLocalizations.of(tester.element(find.byType(AlertDialog)));
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(GfAlertDialog)),
+    );
     await tester.tap(
       find.widgetWithText(TextButton, l10n.draftDeleteLocal).last,
     );

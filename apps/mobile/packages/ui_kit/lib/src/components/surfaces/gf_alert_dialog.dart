@@ -1,13 +1,26 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
 import '../gf_motion.dart';
+import '../gf_button.dart';
 
 Future<T?> showGfAlertDialog<T>(
   BuildContext context, {
   required WidgetBuilder builder,
   bool barrierDismissible = false,
+  bool adaptive = true,
 }) {
+  if (adaptive && Theme.of(context).platform == TargetPlatform.iOS) {
+    return Navigator.of(context, rootNavigator: true).push<T>(
+      CupertinoDialogRoute<T>(
+        context: context,
+        builder: builder,
+        barrierDismissible: barrierDismissible,
+        transitionDuration: GfMotion.duration(context, GfMotion.layout),
+      ),
+    );
+  }
   return showDialog<T>(
     context: context,
     animationStyle: GfMotion.dialogStyle(context),
@@ -37,67 +50,142 @@ class GfAlertDialog extends StatelessWidget {
     this.title,
     this.content,
     this.actions = const <Widget>[],
+    this.adaptive = true,
   });
 
   final Widget? title;
   final Widget? content;
   final List<Widget> actions;
 
+  /// Complex credential and editing forms keep their full-width Gf surface.
+  final bool adaptive;
+
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Flexible(
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (title != null) ...[
-                    Semantics(
-                      namesRoute: true,
-                      child: DefaultTextStyle.merge(
+    if (adaptive && Theme.of(context).platform == TargetPlatform.iOS) {
+      return CupertinoAlertDialog(
+        title: title == null
+            ? null
+            : Semantics(namesRoute: true, child: title!),
+        content: content,
+        actions: [for (final action in actions) _cupertinoAction(action)],
+      );
+    }
+    return Material(
+      color: colors.base100,
+      borderRadius: BorderRadius.circular(24),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (title != null) ...[
+                      Semantics(
+                        namesRoute: true,
+                        child: DefaultTextStyle.merge(
+                          style: TextStyle(
+                            color: colors.baseContent,
+                            fontSize: 20,
+                            height: 1.3,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          child: title!,
+                        ),
+                      ),
+                      if (content != null) const SizedBox(height: 12),
+                    ],
+                    if (content != null)
+                      DefaultTextStyle.merge(
                         style: TextStyle(
                           color: colors.baseContent,
-                          fontSize: 20,
-                          height: 1.3,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          height: 1.45,
                         ),
-                        child: title!,
+                        child: content!,
                       ),
-                    ),
-                    if (content != null) const SizedBox(height: 12),
                   ],
-                  if (content != null)
-                    DefaultTextStyle.merge(
-                      style: TextStyle(
-                        color: colors.baseContent,
-                        fontSize: 15,
-                        height: 1.45,
-                      ),
-                      child: content!,
-                    ),
-                ],
+                ),
               ),
             ),
-          ),
-          if (actions.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            OverflowBar(
-              alignment: MainAxisAlignment.end,
-              overflowAlignment: OverflowBarAlignment.end,
-              spacing: 8,
-              overflowSpacing: 8,
-              children: actions,
-            ),
+            if (actions.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              OverflowBar(
+                alignment: MainAxisAlignment.end,
+                overflowAlignment: OverflowBarAlignment.end,
+                spacing: 8,
+                overflowSpacing: 8,
+                children: actions,
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
+}
+
+Widget _cupertinoAction(Widget action) {
+  if (action is GfButton) {
+    return CupertinoDialogAction(
+      isDestructiveAction: action.variant == GfButtonVariant.danger,
+      isDefaultAction: action.variant == GfButtonVariant.primary,
+      onPressed: action.loading ? null : action.onPressed,
+      child: action.loading
+          ? const CupertinoActivityIndicator()
+          : Text(action.label),
+    );
+  }
+  if (action is ButtonStyleButton) {
+    return CupertinoDialogAction(
+      onPressed: action.onPressed,
+      child: action.child!,
+    );
+  }
+  return action;
+}
+
+/// Explicit destructive/default semantics for short confirmations on iOS.
+class GfDialogAction extends StatelessWidget {
+  const GfDialogAction({
+    super.key,
+    required this.onPressed,
+    required this.child,
+    this.destructive = false,
+    this.isDefault = false,
+    this.filled = false,
+  });
+  final VoidCallback? onPressed;
+  final Widget child;
+  final bool destructive;
+  final bool isDefault;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) =>
+      Theme.of(context).platform == TargetPlatform.iOS
+      ? CupertinoDialogAction(
+          onPressed: onPressed,
+          isDestructiveAction: destructive,
+          isDefaultAction: isDefault,
+          child: child,
+        )
+      : filled
+      ? FilledButton(onPressed: onPressed, child: child)
+      : TextButton(
+          onPressed: onPressed,
+          style: destructive
+              ? TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                )
+              : null,
+          child: child,
+        );
 }

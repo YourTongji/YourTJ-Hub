@@ -1,3 +1,4 @@
+import '../navigation/reading_window.dart';
 import 'dart:async';
 
 import '../asset_url.dart';
@@ -32,8 +33,9 @@ class ForwardedMessageCard extends ConsumerWidget {
           final epoch = ref.read(offlineCacheEpochProvider);
           Navigator.of(context, rootNavigator: true).push(
             MaterialPageRoute<void>(
-              builder: (_) =>
-                  ForwardedMessagesPage(bundle: bundle, ownerEpoch: epoch),
+              builder: (_) => ReadingPageWindow(
+                child: ForwardedMessagesPage(bundle: bundle, ownerEpoch: epoch),
+              ),
             ),
           );
         },
@@ -125,7 +127,7 @@ class _ForwardedMessagesPageState extends ConsumerState<ForwardedMessagesPage> {
     ).overlay?.context.findRenderObject();
     if (box is! RenderBox || overlay is! RenderBox) return;
     final origin = box.localToGlobal(Offset.zero, ancestor: overlay);
-    final action = await showMenu<String>(
+    final action = await showGfMenu<String>(
       context: context,
       useRootNavigator: true,
       position: RelativeRect.fromRect(
@@ -133,7 +135,7 @@ class _ForwardedMessagesPageState extends ConsumerState<ForwardedMessagesPage> {
         Offset.zero & overlay.size,
       ),
       items: [
-        PopupMenuItem(
+        GfPopupMenuItem(
           value: 'collect',
           child: Text(StickerStrings(context).collect),
         ),

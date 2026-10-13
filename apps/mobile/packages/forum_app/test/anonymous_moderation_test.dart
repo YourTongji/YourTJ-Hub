@@ -57,10 +57,10 @@ void main() {
             ),
           ),
         );
-        await tester.tap(find.byType(PopupMenuButton<String>));
+        await tester.tap(find.byType(GfPopupMenuButton<String>));
         await tester.pumpAndSettle();
         expect(find.text('管理匿名身份'), findsNothing);
-        expect(find.byType(PopupMenuItem<String>), findsWidgets);
+        expect(find.byType(GfPopupMenuItem<String>), findsWidgets);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pumpAndSettle();

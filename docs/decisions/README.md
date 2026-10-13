@@ -170,3 +170,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0079](0079-feed-block-exclusion.md) — 公开列表与推荐统一的双向屏蔽排除；带屏蔽关系读者绕过共享列表缓存，关系检查按读者短 TTL 缓存并由写路径失效，搜索与回复楼层为文档边界。
 - [0080](0080-personal-sticker-pre-review.md) — 个人上传表情先审核后使用，AI 未决结果进入站点管理员专属队列。
 - [0081](0081-mobile-editor-caret-follow-and-image-height-cap.md) — 移动端编辑器由跟随器按光标行驱动外层滚动，正文图片铺满宽度并把高度限制在 0.6 倍视口高。
+- [0082](0082-adaptive-ios-interaction-surfaces.md) — Gf 平台适配 iOS 菜单、单选和确认，按窗口约束浮层与二级阅读页面。

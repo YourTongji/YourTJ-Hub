@@ -1,3 +1,4 @@
+import '../../navigation/reading_window.dart';
 import 'package:flutter/material.dart';
 import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -58,37 +59,38 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
     });
   }
 
-  Future<void> _actions(StickerItemPayload item) async {
+  Future<void> _actions(StickerItemPayload item, BuildContext anchor) async {
     final collection = ref.read(stickerCollectionProvider);
     final strings = StickerStrings(context);
     final saved = collection.mine.any((value) => value.name == item.name);
-    final action = await showGfBottomSheet<String>(
+    final action = await showGfActionSheet<String>(
       context,
-      builder: (context) => StickerSessionSurface(
-        collection: collection,
-        child: SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
+      surfaceBuilder: (_, child) =>
+          StickerSessionSurface(collection: collection, child: child),
+      anchorContext: anchor,
+      items: [
+        GfPopupMenuItem(
+          value: 'preview',
+          child: Row(
             children: [
-              ListTile(
-                leading: const GfSymbol('maximize', size: 22),
-                title: Text(strings.viewLarger),
-                onTap: () => Navigator.pop(context, 'preview'),
-              ),
-              ListTile(
-                leading: GfSymbol(
-                  saved ? 'bookmark-filled' : 'bookmark',
-                  size: 22,
-                ),
-                title: Text(saved ? strings.saved : strings.collect),
-                enabled: !saved && !collection.busy,
-                onTap: () => Navigator.pop(context, 'save'),
-              ),
+              GfSymbol('maximize', size: 22),
+              const SizedBox(width: 12),
+              Expanded(child: Text(strings.viewLarger)),
             ],
           ),
         ),
-      ),
+        GfPopupMenuItem(
+          value: 'save',
+          enabled: !saved && !collection.busy,
+          child: Row(
+            children: [
+              GfSymbol(saved ? 'bookmark-filled' : 'bookmark', size: 22),
+              const SizedBox(width: 12),
+              Expanded(child: Text(saved ? strings.saved : strings.collect)),
+            ],
+          ),
+        ),
+      ],
     );
     if (!mounted || !collection.active) return;
     if (action == 'preview') {
@@ -194,7 +196,8 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
               icon: const GfSymbol('sliders-horizontal', size: 22),
               onPressed: () => Navigator.of(context, rootNavigator: true).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => const StickerLibraryPage(),
+                  builder: (_) =>
+                      ReadingPageWindow(child: const StickerLibraryPage()),
                 ),
               ),
             ),
@@ -274,7 +277,9 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                         ? () => setState(() => _tab = 2)
                         : () => Navigator.of(context, rootNavigator: true).push(
                             MaterialPageRoute<void>(
-                              builder: (_) => const StickerLibraryPage(),
+                              builder: (_) => ReadingPageWindow(
+                                child: const StickerLibraryPage(),
+                              ),
                             ),
                           ),
                   ),
@@ -299,7 +304,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                         hint: strings.pickerHint,
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
-                          onLongPress: () => _actions(item),
+                          onLongPress: () => _actions(item, context),
                           onTap: () {
                             widget.onInsert(item.token);
                             state.used(item);

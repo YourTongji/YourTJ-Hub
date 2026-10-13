@@ -63,20 +63,21 @@ class _CampusConnectionState extends ConsumerState<CampusConnection> {
   Future<void> _unbind(CampusBinding binding) async {
     final l = AppLocalizations.of(context);
     final epoch = ref.read(offlineCacheEpochProvider);
-    final accepted = await showDialog<bool>(
-      context: context,
-      animationStyle: GfMotion.dialogStyle(context),
-      builder: (context) => AlertDialog(
+    final accepted = await showGfAlertDialog<bool>(
+      context,
+      builder: (context) => GfAlertDialog(
         title: Text(l.campusUnbind),
         content: Text(l.campusUnbindBody),
         actions: [
-          TextButton(
+          GfButton(
+            label: l.commonCancel,
+            variant: GfButtonVariant.ghost,
             onPressed: () => Navigator.pop(context, false),
-            child: Text(l.commonCancel),
           ),
-          TextButton(
+          GfButton(
+            label: l.campusUnbind,
+            variant: GfButtonVariant.danger,
             onPressed: () => Navigator.pop(context, true),
-            child: Text(l.campusUnbind),
           ),
         ],
       ),

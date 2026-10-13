@@ -163,7 +163,7 @@ void main() {
           onReport: () {},
         ),
       );
-      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.tap(find.byType(GfPopupMenuButton<String>));
       await tester.pumpAndSettle();
       expect(find.text('Edit'), findsOneWidget);
       expect(find.text('Share'), findsNothing);
@@ -215,7 +215,7 @@ void main() {
         onReport: () {},
       ),
     );
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(find.byType(GfPopupMenuButton<String>));
     await tester.pumpAndSettle();
     expect(find.text('Share'), findsOneWidget);
     expect(find.text('Generate share image'), findsOneWidget);
@@ -243,32 +243,33 @@ void main() {
           onReport: () {},
         ),
       );
-      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.tap(find.byType(GfPopupMenuButton<String>));
       await tester.pumpAndSettle();
       expect(find.text('Share'), findsNothing);
       expect(find.text('Generate share image'), findsNothing);
     });
   }
 
-  testWidgets('share actions are absent when the containing topic is unavailable', (
-    tester,
-  ) async {
-    await pump(
-      tester,
-      repo(),
-      PostActions(
-        post: post().copyWith(isOwnPost: false),
-        topicAvailable: false,
-        onChanged: () async {},
-        onReply: null,
-        onReport: () {},
-      ),
-    );
-    await tester.tap(find.byType(PopupMenuButton<String>));
-    await tester.pumpAndSettle();
-    expect(find.text('Share'), findsNothing);
-    expect(find.text('Generate share image'), findsNothing);
-  });
+  testWidgets(
+    'share actions are absent when the containing topic is unavailable',
+    (tester) async {
+      await pump(
+        tester,
+        repo(),
+        PostActions(
+          post: post().copyWith(isOwnPost: false),
+          topicAvailable: false,
+          onChanged: () async {},
+          onReply: null,
+          onReport: () {},
+        ),
+      );
+      await tester.tap(find.byType(GfPopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      expect(find.text('Share'), findsNothing);
+      expect(find.text('Generate share image'), findsNothing);
+    },
+  );
 
   testWidgets('share card uses public author data, never private notes', (
     tester,
@@ -300,7 +301,7 @@ void main() {
       ),
     );
     await pump(tester, repo(), widget);
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(find.byType(GfPopupMenuButton<String>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Generate share image'));
     await tester.pumpAndSettle();
@@ -340,7 +341,7 @@ void main() {
         onReport: () {},
       ),
     );
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(find.byType(GfPopupMenuButton<String>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Generate share image'));
     await tester.pumpAndSettle();

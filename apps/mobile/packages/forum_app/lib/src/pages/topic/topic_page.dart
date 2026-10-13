@@ -1506,18 +1506,18 @@ class _TopicPageState extends ConsumerState<TopicPage>
       if (!saved) {
         if (!_replySaveFailed) return;
         final l10n = AppLocalizations.of(context);
-        final discard = await showDialog<bool>(
-          context: context,
-          animationStyle: GfMotion.dialogStyle(context),
-          builder: (context) => AlertDialog(
+        final discard = await showGfAlertDialog<bool>(
+          context,
+          builder: (context) => GfAlertDialog(
             title: Text(l10n.draftLocalSaveFailed),
             content: Text(l10n.draftReplyLeaveUnsaved),
             actions: [
-              TextButton(
+              GfDialogAction(
                 onPressed: () => Navigator.pop(context, false),
                 child: Text(l10n.publishContinue),
               ),
-              TextButton(
+              GfDialogAction(
+                destructive: true,
                 onPressed: () => Navigator.pop(context, true),
                 child: Text(l10n.publishDiscard),
               ),

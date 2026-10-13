@@ -316,6 +316,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
                       onInsertImage: _insertImage,
                       insertingImage: _uploadingImage,
                       onHeading: () => _chooseHeading(l10n),
+                      headingButtonKey: _headingMenuKey,
                       onInsertLink: _insertLink,
                     ),
                   ),
@@ -514,7 +515,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
       url: _anonymous ? '' : (publisher?.avatarUrl ?? ''),
       colors: colors,
     );
-    final Widget toggle = Switch(
+    final Widget toggle = Switch.adaptive(
       value: _anonymous,
       onChanged: _submitting
           ? null
@@ -809,17 +810,18 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
     );
     if (selected == null || !mounted) return;
     if (_content.trim().isNotEmpty) {
-      final replace = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
+      final replace = await showGfAlertDialog<bool>(
+        context,
+        builder: (dialogContext) => GfAlertDialog(
           title: Text(l10n.courseReviewTemplateReplaceTitle),
           content: Text(l10n.courseReviewTemplateReplaceBody),
           actions: <Widget>[
-            TextButton(
+            GfDialogAction(
               onPressed: () => Navigator.pop(dialogContext, false),
               child: Text(l10n.courseReviewTemplateKeepEditing),
             ),
-            TextButton(
+            GfDialogAction(
+              destructive: true,
               onPressed: () => Navigator.pop(dialogContext, true),
               child: Text(l10n.courseReviewTemplateApply),
             ),
@@ -923,6 +925,8 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
     _ => l10n.courseReviewTemplateBlankDescription,
   };
 
+  final _headingMenuKey = GlobalKey();
+
   Future<void> _chooseHeading(AppLocalizations l10n) async {
     final level =
         _editorController
@@ -930,28 +934,29 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
                 .attributes[Attribute.header.key]
                 ?.value
             as int?;
-    final selected = await showGfBottomSheet<Attribute>(
+    final selected = await showGfActionSheet<Attribute>(
       context,
-      keyboardAware: true,
-      builder: (sheetContext) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: <Widget>[
-            for (final (attribute, label, value) in <(Attribute, String, int)>[
-              (Attribute.h1, l10n.publishHeadingLevel1, 1),
-              (Attribute.h2, l10n.publishHeadingLevel2, 2),
-              (Attribute.h3, l10n.publishHeadingLevel3, 3),
-            ])
-              ListTile(
-                title: Text(label),
-                trailing: level == value
-                    ? const GfSymbol('check', size: 20)
-                    : null,
-                onTap: () => Navigator.pop(sheetContext, attribute),
-              ),
-          ],
+      anchorContext: _headingMenuKey.currentContext,
+      initialValue: switch (level) {
+        1 => Attribute.h1,
+        2 => Attribute.h2,
+        3 => Attribute.h3,
+        _ => null,
+      },
+      items: [
+        GfPopupMenuItem(
+          value: Attribute.h1,
+          child: Text(l10n.publishHeadingLevel1),
         ),
-      ),
+        GfPopupMenuItem(
+          value: Attribute.h2,
+          child: Text(l10n.publishHeadingLevel2),
+        ),
+        GfPopupMenuItem(
+          value: Attribute.h3,
+          child: Text(l10n.publishHeadingLevel3),
+        ),
+      ],
     );
     if (selected != null && mounted) {
       _editorController.formatSelection(selected);

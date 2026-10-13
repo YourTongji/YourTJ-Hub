@@ -404,19 +404,19 @@ class _AdminPageState extends ConsumerState<AdminPage> {
   Future<bool> _confirm(String message, {bool alert = false}) async {
     if (!mounted) return false;
     final l10n = AppLocalizations.of(context);
-    return await showDialog<bool>(
-          context: context,
-          animationStyle: GfMotion.dialogStyle(context),
-          builder: (context) => AlertDialog(
+    return await showGfAlertDialog<bool>(
+          context,
+          builder: (context) => GfAlertDialog(
             title: Text(_title(l10n)),
             content: SingleChildScrollView(child: Text(message)),
             actions: [
               if (!alert)
-                TextButton(
+                GfDialogAction(
                   onPressed: () => Navigator.pop(context, false),
                   child: Text(l10n.commonCancel),
                 ),
-              FilledButton(
+              GfDialogAction(
+                filled: true,
                 onPressed: () => Navigator.pop(context, true),
                 child: Text(l10n.commonConfirm),
               ),

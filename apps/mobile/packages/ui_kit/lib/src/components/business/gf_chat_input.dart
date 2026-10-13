@@ -26,6 +26,7 @@ class GfChatInput extends StatefulWidget {
     this.previewBuilder,
     this.onAttach,
     this.attachLabel,
+    this.attachButtonKey,
   });
 
   final ValueChanged<String> onSend;
@@ -51,6 +52,7 @@ class GfChatInput extends StatefulWidget {
   final Widget Function(String text)? previewBuilder;
   final VoidCallback? onAttach;
   final String? attachLabel;
+  final Key? attachButtonKey;
 
   @override
   State<GfChatInput> createState() => _GfChatInputState();
@@ -269,20 +271,25 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         if (widget.onAttach != null) ...[
-                          IconButton(
-                            key: const Key('chat-attach'),
-                            tooltip: widget.attachLabel,
-                            icon: const GfSymbol('plus', size: 24),
-                            onPressed: widget.enabled ? widget.onAttach : null,
-                            style: IconButton.styleFrom(
-                              fixedSize: const Size.square(44),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              backgroundColor: colors.base200,
-                              foregroundColor: colors.baseContent,
-                              disabledForegroundColor: colors.iconMuted
-                                  .withValues(alpha: .45),
-                              shape: const CircleBorder(),
-                              padding: EdgeInsets.zero,
+                          KeyedSubtree(
+                            key: widget.attachButtonKey,
+                            child: IconButton(
+                              key: const Key('chat-attach'),
+                              tooltip: widget.attachLabel,
+                              icon: const GfSymbol('plus', size: 24),
+                              onPressed: widget.enabled
+                                  ? widget.onAttach
+                                  : null,
+                              style: IconButton.styleFrom(
+                                fixedSize: const Size.square(44),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                backgroundColor: colors.base200,
+                                foregroundColor: colors.baseContent,
+                                disabledForegroundColor: colors.iconMuted
+                                    .withValues(alpha: .45),
+                                shape: const CircleBorder(),
+                                padding: EdgeInsets.zero,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),

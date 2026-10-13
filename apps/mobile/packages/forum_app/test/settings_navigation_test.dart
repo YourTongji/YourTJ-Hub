@@ -178,7 +178,13 @@ Future<_Harness> _mount(
   double scale = 1,
   TokenStorage? tokenStorage,
   bool settle = true,
+  Size? viewport = const Size(390, 844),
 }) async {
+  if (viewport != null) {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = viewport;
+    addTearDown(tester.view.reset);
+  }
   final storage = tokenStorage ?? MemoryTokenStorage();
   if (signedIn) await storage.write('test-session');
   final client = GfApiClient(
@@ -254,6 +260,82 @@ Future<_Harness> _mount(
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('wide settings keeps its directory and opens sections in place', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1120, 900);
+    addTearDown(tester.view.reset);
+    final harness = await _mount(tester, signedIn: true, viewport: null);
+    final page = find.byType(SettingsPage);
+    final state = tester.state(page);
+    expect(find.byKey(const ValueKey('settings-directory')), findsOneWidget);
+    expect(find.byKey(const ValueKey('settings-theme-system')), findsOneWidget);
+    final account = find.byKey(const ValueKey('settings-category-account'));
+    await tester.ensureVisible(account);
+    await tester.tap(account);
+    await tester.pumpAndSettle();
+    expect(tester.state(page), same(state));
+    expect(find.byKey(const ValueKey('settings-directory')), findsOneWidget);
+    expect(find.text('alice@example.com'), findsOneWidget);
+    expect(harness.page.requests, 1);
+    final accountBounds = tester.getRect(
+      find.byKey(const ValueKey('settings-detail')),
+    );
+    expect(accountBounds.left, greaterThanOrEqualTo(260));
+    final appearance = find.byKey(
+      const ValueKey('settings-category-appearance'),
+    );
+    await tester.ensureVisible(appearance);
+    await tester.tap(appearance);
+    await tester.pumpAndSettle();
+    expect(tester.state(page), same(state));
+    expect(find.byKey(const ValueKey('settings-theme-system')), findsOneWidget);
+    expect(harness.page.requests, 1);
+    for (final width in [834.0, 390.0, 1120.0]) {
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpAndSettle();
+      expect(tester.state(page), same(state));
+      expect(
+        find.byKey(const ValueKey('settings-theme-system')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('settings-directory')),
+        width >= 800 ? findsOneWidget : findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets(
+    'wide settings profile editing survives split view and keyboard',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1120, 900);
+      addTearDown(tester.view.reset);
+      final harness = await _mount(
+        tester,
+        signedIn: true,
+        section: 'profile',
+        autoEditProfile: true,
+        viewport: null,
+      );
+      final input = find.byKey(const ValueKey('profile-nickname'));
+      final editor = tester.state(input);
+      await tester.enterText(input, 'Unsaved iPad profile');
+      for (final width in [834.0, 390.0, 1120.0]) {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+        await tester.pumpAndSettle();
+        expect(tester.state(input), same(editor));
+        expect(find.text('Unsaved iPad profile'), findsOneWidget);
+        expect(harness.user.saveAttempts, 0);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
 
   for (final brightness in Brightness.values) {
     for (final signedIn in [false, true]) {
@@ -498,9 +580,7 @@ void main() {
       isTrue,
     );
     expect(
-      tester
-          .widget<TextField>(input('Current password'))
-          .enableSuggestions,
+      tester.widget<TextField>(input('Current password')).enableSuggestions,
       isFalse,
     );
     await tester.enterText(input('New email'), 'next@example.com');
@@ -939,6 +1019,7 @@ void main() {
             signedIn: true,
             language: language,
             scale: 2,
+            viewport: null,
           );
           expect(find.byType(GfTabBar), findsNothing);
           expect(harness.page.requests, 0);

@@ -83,7 +83,7 @@ void main() {
       await tester.tap(
         find
             .descendant(
-              of: find.byType(AlertDialog),
+              of: find.byType(GfAlertDialog),
               matching: find.text('Delete'),
             )
             .last,
@@ -191,13 +191,13 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('Delete'));
       await tester.pumpAndSettle();
-      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.byType(GfAlertDialog), findsOneWidget);
       container.read(offlineCacheEpochProvider.notifier).invalidate();
       await tester.pump();
       await tester.tap(
         find
             .descendant(
-              of: find.byType(AlertDialog),
+              of: find.byType(GfAlertDialog),
               matching: find.text('Delete'),
             )
             .last,

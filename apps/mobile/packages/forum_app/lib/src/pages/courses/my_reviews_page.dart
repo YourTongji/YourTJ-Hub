@@ -327,7 +327,7 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
         item.review.viewer.canEdit ||
         item.review.viewer.canDelete;
     if (!hasMenu) return const SizedBox.shrink();
-    return PopupMenuButton<String>(
+    return GfPopupMenuButton<String>(
       key: ValueKey<String>('own-review-menu-${item.review.id}'),
       tooltip: l10n.profileMore,
       icon: const GfSymbol('ellipsis', size: 20),
@@ -345,14 +345,15 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
       },
       itemBuilder: (_) => <PopupMenuEntry<String>>[
         if (item.canOpenCourse)
-          PopupMenuItem<String>(
+          GfPopupMenuItem<String>(
             value: 'open',
             child: Text(l10n.myCourseReviewOpen),
           ),
         if (item.review.viewer.canEdit)
-          PopupMenuItem<String>(value: 'edit', child: Text(l10n.commonEdit)),
+          GfPopupMenuItem<String>(value: 'edit', child: Text(l10n.commonEdit)),
         if (item.review.viewer.canDelete)
-          PopupMenuItem<String>(
+          GfPopupMenuItem<String>(
+            destructive: true,
             value: 'delete',
             child: Text(
               CourseCopy(l10n).delete,

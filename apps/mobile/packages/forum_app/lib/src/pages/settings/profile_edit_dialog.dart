@@ -550,7 +550,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                             ],
                           ),
                           const SizedBox(height: 20),
-                          DropdownButtonFormField<String>(
+                          GfDropdownButtonFormField<String>(
                             initialValue: _locale,
                             isExpanded: true,
                             itemHeight: null,

@@ -2033,14 +2033,14 @@ void main() {
         await tester.tap(find.text('举报内容'));
         await tester.pumpAndSettle();
         final l10n = AppLocalizations.of(
-          tester.element(find.byType(DropdownButtonFormField<String>)),
+          tester.element(find.byType(GfDropdownButtonFormField<String>)),
         );
         final submit = find.widgetWithText(
           FilledButton,
           l10n.topicReportSubmit,
         );
         expect(tester.widget<FilledButton>(submit).onPressed, isNull);
-        await tester.tap(find.byType(DropdownButtonFormField<String>));
+        await tester.tap(find.byType(GfDropdownButtonFormField<String>));
         await tester.pumpAndSettle();
         await tester.tap(find.text('垃圾信息').last);
         await tester.pumpAndSettle();
@@ -2072,7 +2072,7 @@ void main() {
       await _openReviewMenu(tester, 1);
       await tester.tap(find.text('举报内容'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.tap(find.byType(GfDropdownButtonFormField<String>));
       await tester.pumpAndSettle();
       await tester.tap(find.text('垃圾信息').last);
       await tester.pumpAndSettle();
@@ -2526,9 +2526,9 @@ void main() {
       await tester.tap(find.text('举报内容'));
       await tester.pumpAndSettle();
       final l10n = AppLocalizations.of(
-        tester.element(find.byType(DropdownButtonFormField<String>)),
+        tester.element(find.byType(GfDropdownButtonFormField<String>)),
       );
-      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.tap(find.byType(GfDropdownButtonFormField<String>));
       await tester.pumpAndSettle();
       await tester.tap(find.text('垃圾信息').last);
       await tester.pumpAndSettle();
@@ -2542,7 +2542,7 @@ void main() {
 
       course.waitReport!.complete();
       await tester.pumpAndSettle();
-      expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+      expect(find.byType(GfDropdownButtonFormField<String>), findsNothing);
     });
 
     testWidgets('展示评分分布、开课班级、相关课程与沿革', (tester) async {

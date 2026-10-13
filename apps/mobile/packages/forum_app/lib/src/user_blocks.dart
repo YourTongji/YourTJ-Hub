@@ -75,7 +75,7 @@ class _UserBlockButtonState extends ConsumerState<UserBlockButton> {
         ? l10n.userUnblock
         : l10n.userBlock;
     if (widget.moreMenu) {
-      return PopupMenuButton<String>(
+      return GfPopupMenuButton<String>(
         tooltip: l10n.profileMore,
         icon: const GfSymbol('ellipsis'),
         useRootNavigator: true,
@@ -89,7 +89,7 @@ class _UserBlockButtonState extends ConsumerState<UserBlockButton> {
           }
         },
         itemBuilder: (_) => [
-          PopupMenuItem<String>(
+          GfPopupMenuItem<String>(
             value: 'block',
             enabled: !list.isLoading,
             child: Row(
@@ -104,7 +104,7 @@ class _UserBlockButtonState extends ConsumerState<UserBlockButton> {
                   size: 20,
                 ),
                 const SizedBox(width: 12),
-                Text(label),
+                Flexible(child: Text(label)),
               ],
             ),
           ),
@@ -136,19 +136,19 @@ Future<void> changeUserBlock(
 }) async {
   final epoch = ref.read(offlineCacheEpochProvider);
   final l10n = AppLocalizations.of(context);
-  final approved = await showDialog<bool>(
-    context: context,
-    animationStyle: GfMotion.dialogStyle(context),
-    builder: (ctx) => AlertDialog(
-      scrollable: true,
+  final approved = await showGfAlertDialog<bool>(
+    context,
+    builder: (ctx) => GfAlertDialog(
       title: Text(blocked ? l10n.userBlock : l10n.userUnblock),
       content: Text(l10n.userBlockExplanation),
       actions: [
-        TextButton(
+        GfDialogAction(
           onPressed: () => Navigator.pop(ctx, false),
           child: Text(l10n.commonCancel),
         ),
-        FilledButton(
+        GfDialogAction(
+          destructive: blocked,
+          filled: true,
           onPressed: () => Navigator.pop(ctx, true),
           child: Text(blocked ? l10n.userBlock : l10n.userUnblock),
         ),

@@ -1,3 +1,4 @@
+import '../../navigation/reading_window.dart';
 import '../../user_blocks.dart';
 import 'dart:async';
 
@@ -104,6 +105,21 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final ImagePicker _imagePicker = ImagePicker();
   final Set<Route<dynamic>> _profileEditRoutes = {};
 
+  double get _layoutTextScale =>
+      (MediaQuery.textScalerOf(context).scale(16) / 16).clamp(
+        1.0,
+        double.infinity,
+      );
+  bool get _hasDirectory =>
+      MediaQuery.sizeOf(context).width >= 800 * _layoutTextScale;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Wide settings opens a useful device preference without fetching an account.
+    if (_hasDirectory && _tab == null) _tab = _SettingsTab.appearance;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -196,7 +212,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       navigator.pop();
       return;
     }
-    if (_tab != null) {
+    if (_tab != null && !_hasDirectory) {
       setState(() => _tab = null);
       return;
     }
@@ -270,15 +286,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final epoch = ref.read(offlineCacheEpochProvider);
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => BadgeDisplayDialog(
-          badges: user.badges,
-          selected: user.displayBadges ?? user.badges.take(5).toList(),
-          onSave: (codes) async {
-            if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
-              throw const UnauthorizedException();
-            }
-            await ref.read(userRepositoryProvider).displayBadges(codes);
-          },
+        builder: (_) => ReadingPageWindow(
+          child: BadgeDisplayDialog(
+            badges: user.badges,
+            selected: user.displayBadges ?? user.badges.take(5).toList(),
+            onSave: (codes) async {
+              if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
+                throw const UnauthorizedException();
+              }
+              await ref.read(userRepositoryProvider).displayBadges(codes);
+            },
+          ),
         ),
       ),
     );
@@ -289,18 +307,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final epoch = ref.read(offlineCacheEpochProvider);
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => PasswordEditPage(
-          onSave: (oldPassword, newPassword) async {
-            if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
-              throw const UnauthorizedException();
-            }
-            await ref
-                .read(userRepositoryProvider)
-                .changePassword(
-                  oldPassword: oldPassword,
-                  newPassword: newPassword,
-                );
-          },
+        builder: (_) => ReadingPageWindow(
+          child: PasswordEditPage(
+            onSave: (oldPassword, newPassword) async {
+              if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
+                throw const UnauthorizedException();
+              }
+              await ref
+                  .read(userRepositoryProvider)
+                  .changePassword(
+                    oldPassword: oldPassword,
+                    newPassword: newPassword,
+                  );
+            },
+          ),
         ),
       ),
     );
@@ -405,7 +425,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final epoch = ref.read(offlineCacheEpochProvider);
     final session = _ProfileEditSession();
     final saved = await _pushProfileEditRoute<bool>(
-      (_) => _profileEditor(user, epoch, session),
+      (_) => ReadingPageWindow(child: _profileEditor(user, epoch, session)),
     );
     if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
     // A cancelled retry may still have acknowledged earlier independent steps.
@@ -482,25 +502,33 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
-  Future<void> _chooseAvatar() async {
+  Future<void> _chooseAvatar(BuildContext anchor) async {
     final l10n = AppLocalizations.of(context);
-    final preset = await showGfBottomSheet<bool>(
+    final preset = await showGfActionSheet<bool>(
       context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const GfSymbol('image'),
-            title: Text(l10n.settingsAvatarUpload),
-            onTap: () => Navigator.pop(context, false),
+      anchorContext: anchor,
+      items: [
+        GfPopupMenuItem(
+          value: false,
+          child: Row(
+            children: [
+              GfSymbol('image', size: 22),
+              const SizedBox(width: 12),
+              Expanded(child: Text(l10n.settingsAvatarUpload)),
+            ],
           ),
-          ListTile(
-            leading: const GfSymbol('user-round'),
-            title: Text(l10n.settingsPresetAvatar),
-            onTap: () => Navigator.pop(context, true),
+        ),
+        GfPopupMenuItem(
+          value: true,
+          child: Row(
+            children: [
+              GfSymbol('user-round', size: 22),
+              const SizedBox(width: 12),
+              Expanded(child: Text(l10n.settingsPresetAvatar)),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
     if (!mounted || preset == null) return;
     if (preset) {
@@ -596,6 +624,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Future<T?> _showAccountDialog<T>(int epoch, Widget child) =>
       showGfAlertDialog<T>(
         context,
+        adaptive: false,
         builder: (_) => _SettingsAccountDialog(epoch: epoch, child: child),
       );
 
@@ -924,18 +953,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<void> _removeCover() async {
     final l10n = AppLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      animationStyle: GfMotion.dialogStyle(context),
-      builder: (context) => AlertDialog(
+    final confirmed = await showGfAlertDialog<bool>(
+      context,
+      builder: (context) => GfAlertDialog(
         title: Text(l10n.settingsCoverRemove),
         content: Text(l10n.settingsCoverRemoveConfirm),
         actions: [
-          TextButton(
+          GfDialogAction(
             onPressed: () => Navigator.pop(context, false),
             child: Text(l10n.commonCancel),
           ),
-          FilledButton(
+          GfDialogAction(
+            destructive: true,
+            filled: true,
             onPressed: () => Navigator.pop(context, true),
             child: Text(l10n.commonConfirm),
           ),
@@ -999,6 +1029,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
     final title = _tab?.label(l10n) ?? l10n.settingsTitle;
     final colors = GfTheme.colorsOf(context);
+    final hasDirectory = _hasDirectory;
     return Scaffold(
       backgroundColor: colors.base200,
       appBar: GfAppBar(
@@ -1007,15 +1038,67 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           tooltip: l10n.commonBack,
           onPressed: _leaveSettings,
         ),
-        title: Text(title),
+        title: Text(hasDirectory ? l10n.settingsTitle : title),
       ),
       body: SafeArea(
         top: false,
         child: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: _tab == null ? _buildIndex(l10n) : _buildTabBody(l10n),
+            constraints: const BoxConstraints(maxWidth: 1120),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Offstage(
+                  offstage: !hasDirectory,
+                  child: SizedBox(
+                    key: const ValueKey('settings-directory'),
+                    width: 260 * _layoutTextScale,
+                    child: _buildIndex(l10n),
+                  ),
+                ),
+                SizedBox(
+                  width: hasDirectory ? 1 : 0,
+                  child: ColoredBox(color: colors.line),
+                ),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 720),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              16,
+                              hasDirectory ? 24 : 0,
+                              16,
+                              hasDirectory ? 12 : 0,
+                            ),
+                            child: hasDirectory
+                                ? Text(
+                                    title,
+                                    key: const ValueKey(
+                                      'settings-detail-title',
+                                    ),
+                                    style: GfTheme.typographyOf(context).title2,
+                                  )
+                                : const SizedBox.shrink(),
+                          ),
+                          Expanded(
+                            key: const ValueKey('settings-detail'),
+                            child: _tab == null
+                                ? _buildIndex(l10n)
+                                : _buildTabBody(l10n),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1023,9 +1106,22 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   void _openSection(_SettingsTab section) {
+    if (_hasDirectory) {
+      setState(() => _tab = section);
+      if (_signedIn == true) {
+        if (_needsUser && !_user.hasValue) unawaited(_loadUser());
+        if (section == _SettingsTab.security && !_sessions.hasValue) {
+          unawaited(_loadSessions());
+        }
+      }
+      return;
+    }
     Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) => SettingsPage(initialSection: section.name),
+        builder: (_) => ReadingPageWindow(
+          maxContentWidth: 1120,
+          child: SettingsPage(initialSection: section.name),
+        ),
       ),
     );
   }
@@ -1040,6 +1136,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           children: [
             _categoryRow(
               key: const ValueKey('settings-category-appearance'),
+              section: _SettingsTab.appearance,
               symbol: 'palette',
               title: l10n.settingsAppearance,
               description: switch (ref.watch(themeModeProvider)) {
@@ -1050,20 +1147,23 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               onTap: () => _openSection(_SettingsTab.appearance),
             ),
             const GfDivider(),
-            _categoryRow(
-              key: const ValueKey('settings-category-language'),
-              symbol: 'languages',
-              title: l10n.settingsAppLanguage,
-              description:
-                  appLanguageNames[ref
-                      .watch(appLocaleProvider)
-                      ?.languageCode] ??
-                  l10n.settingsLanguageSystem,
-              onTap: () => showAppLanguagePicker(context),
+            Builder(
+              builder: (anchor) => _categoryRow(
+                key: const ValueKey('settings-category-language'),
+                symbol: 'languages',
+                title: l10n.settingsAppLanguage,
+                description:
+                    appLanguageNames[ref
+                        .watch(appLocaleProvider)
+                        ?.languageCode] ??
+                    l10n.settingsLanguageSystem,
+                onTap: () => showAppLanguagePicker(anchor),
+              ),
             ),
             const GfDivider(),
             _categoryRow(
               key: const ValueKey('settings-category-privacy'),
+              section: _SettingsTab.privacy,
               symbol: 'archive',
               title: l10n.settingsDataStorage,
               onTap: () => _openSection(_SettingsTab.privacy),
@@ -1094,6 +1194,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 if (section != _SettingsTab.profile) const GfDivider(),
                 _categoryRow(
                   key: ValueKey('settings-category-${section.name}'),
+                  section: section,
                   symbol: switch (section) {
                     _SettingsTab.profile => 'user-round',
                     _SettingsTab.account => 'at-sign',
@@ -1120,7 +1221,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     title: StickerStrings(context).title,
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => const StickerLibraryPage(),
+                        builder: (_) => ReadingPageWindow(
+                          child: const StickerLibraryPage(),
+                        ),
                       ),
                     ),
                   ),
@@ -1160,22 +1263,51 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Widget _categoryRow({
     Key? key,
+    _SettingsTab? section,
     required String symbol,
     required String title,
     String? description,
     required VoidCallback onTap,
-  }) => GfSettingRow(
-    key: key,
-    symbol: symbol,
-    title: title,
-    description: description,
-    onTap: onTap,
-  );
+  }) {
+    final selected = _hasDirectory && section != null && _tab == section;
+    return Semantics(
+      selected: section == null ? null : selected,
+      child: ColoredBox(
+        color: selected
+            ? GfTheme.colorsOf(context).primary.withValues(alpha: .08)
+            : Colors.transparent,
+        child: GfSettingRow(
+          key: key,
+          symbol: symbol,
+          title: title,
+          description: description,
+          trailing: selected
+              ? GfSymbol(
+                  'check',
+                  size: 18,
+                  color: GfTheme.colorsOf(context).primary,
+                )
+              : null,
+          onTap: onTap,
+        ),
+      ),
+    );
+  }
 
   Widget _buildTabBody(AppLocalizations l10n) {
     if (_tab != _SettingsTab.appearance && _tab != _SettingsTab.privacy) {
       if (_signedIn == null) return const GfSettingsSkeleton();
-      if (_signedIn == false) return _buildIndex(l10n);
+      if (_signedIn == false) {
+        if (!_hasDirectory) return _buildIndex(l10n);
+        return Center(
+          child: GfButton(
+            label: l10n.authLoginTitle,
+            onPressed: () => context.push(
+              authLoginLocation(returnTo: '/settings/${_tab!.name}'),
+            ),
+          ),
+        );
+      }
     }
     if (_needsUser && _user.isLoading && !_user.hasValue) {
       return const GfSettingsSkeleton();
@@ -1229,7 +1361,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             child: Column(
               children: [
                 for (final choice in ThemeMode.values)
-                  RadioListTile<ThemeMode>(
+                  GfRadioListTile<ThemeMode>(
                     key: ValueKey('settings-theme-${choice.name}'),
                     title: Text(switch (choice) {
                       ThemeMode.system => l10n.settingsLanguageSystem,
@@ -1307,19 +1439,21 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 onTap: user == null ? null : () => _editProfile(user),
               ),
               const GfDivider(),
-              GfSettingRow(
-                symbol: 'camera',
-                title: l10n.settingsAvatar,
-                description: _uploadingAvatar
-                    ? l10n.settingsAvatarUploading
-                    : null,
-                leading: user == null
-                    ? null
-                    : GfAvatar(
-                        src: resolveApiAssetUrl(user.avatarUrl),
-                        size: 32,
-                      ),
-                onTap: _uploadingAvatar ? null : _chooseAvatar,
+              Builder(
+                builder: (anchor) => GfSettingRow(
+                  symbol: 'camera',
+                  title: l10n.settingsAvatar,
+                  description: _uploadingAvatar
+                      ? l10n.settingsAvatarUploading
+                      : null,
+                  leading: user == null
+                      ? null
+                      : GfAvatar(
+                          src: resolveApiAssetUrl(user.avatarUrl),
+                          size: 32,
+                        ),
+                  onTap: _uploadingAvatar ? null : () => _chooseAvatar(anchor),
+                ),
               ),
               const GfDivider(),
               GfSettingRow(
@@ -1962,6 +2096,7 @@ class _SettingsCredentialDialogState<T>
     return PopScope(
       canPop: !_saving,
       child: GfAlertDialog(
+        adaptive: false,
         title: Text(widget.title),
         content: AutofillGroup(
           onDisposeAction: AutofillContextAction.cancel,

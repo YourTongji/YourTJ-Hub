@@ -1,6 +1,7 @@
 import 'dart:ui' show Tristate, SemanticsAction;
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -139,8 +140,14 @@ void main() {
         expect(find.byType(GfBottomNavigation), findsNothing);
         expect(
           tester.getSize(find.byKey(const ValueKey('body-/'))).width,
-          lessThanOrEqualTo(720),
+          lessThanOrEqualTo(1120),
         );
+        if (width >= 1024) {
+          expect(
+            tester.getSize(find.byKey(const ValueKey('body-/'))).width,
+            greaterThan(720),
+          );
+        }
         expect(tester.state(find.byType(_ReadingPage)), same(state));
         expect(state.input.text, 'Retained work');
         expect(state.scroll.offset, 300);
@@ -174,6 +181,39 @@ void main() {
       );
       await tester.pumpAndSettle();
       final l10n = AppLocalizations.of(tester.element(find.byType(GfShell)));
+      await tester.ensureVisible(find.byTooltip(l10n.navHome));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byType(ReadingNavigationRail),
+          matching: find.text(l10n.navCampus),
+        ),
+        findsOneWidget,
+        reason: 'wide navigation must identify destinations without a tooltip',
+      );
+      for (final text
+          in find
+              .descendant(
+                of: find.byType(ReadingNavigationRail),
+                matching: find.byType(Text),
+              )
+              .evaluate()) {
+        final paragraph = text.renderObject! as RenderParagraph;
+        expect(paragraph.didExceedMaxLines, isFalse);
+        for (final box in paragraph.getBoxesForSelection(
+          TextSelection(
+            baseOffset: 0,
+            extentOffset: (text.widget as Text).data!.length,
+          ),
+        )) {
+          expect(box.left, greaterThanOrEqualTo(-1));
+          expect(
+            box.right,
+            lessThanOrEqualTo(paragraph.size.width + 1),
+            reason: 'navigation names must wrap inside the visible rail',
+          );
+        }
+      }
       final semantics = tester.ensureSemantics();
       await tester.pumpAndSettle();
       final campusNode = tester.getSemantics(
@@ -216,8 +256,11 @@ void main() {
         tester.getSize(find.byKey(const ValueKey('body-/campus'))).width,
         greaterThan(720),
       );
+      await tester.ensureVisible(find.byTooltip(l10n.navHome));
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip(l10n.navHome));
       await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/');
       expect(state.scroll.offset, 300);
       tester.view.physicalSize = const Size(320, 640);
       await tester.pumpAndSettle();

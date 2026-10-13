@@ -5178,7 +5178,19 @@ void main() {
       pageRepo.complete(settingsPayloadJson());
       await tester.pumpAndSettle();
       expect(find.byType(GfSettingsSkeleton), findsNothing);
-      expect(find.text('个人资料与展示'), findsOneWidget);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('settings-detail-title')))
+            .data,
+        '个人资料与展示',
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('settings-detail')),
+          matching: find.text('编辑资料'),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('下拉刷新再次请求设置数据', (tester) async {
@@ -5199,7 +5211,10 @@ void main() {
       final int callsBefore = pageRepo.fetchCalls;
 
       await tester.fling(
-        find.byType(ListView).first,
+        find.descendant(
+          of: find.byKey(const ValueKey('settings-detail')),
+          matching: find.byType(ListView),
+        ),
         const Offset(0, 400),
         1200,
       );
@@ -5385,27 +5400,48 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 安全分类不再提供登出；返回索引即可直接退出登录。
-      await tester.tap(find.text('安全'));
+      final directory = find.byKey(const ValueKey('settings-directory'));
+      final detail = find.byKey(const ValueKey('settings-detail'));
+      final logout = find.descendant(
+        of: directory,
+        matching: find.widgetWithText(GfButton, '退出登录'),
+      );
+      // 宽屏安全详情不提供登出；持久目录保留该操作。
+      await tester.tap(
+        find.descendant(of: directory, matching: find.text('安全')),
+      );
       await tester.pumpAndSettle();
-      expect(find.text('退出登录'), findsNothing);
-      await tester.tap(find.byTooltip('返回'));
-      await tester.pumpAndSettle();
-      expect(find.text('退出登录'), findsOneWidget);
+      expect(
+        find.descendant(of: detail, matching: find.text('退出登录')),
+        findsNothing,
+      );
+      expect(logout, findsOneWidget);
 
-      await tester.tap(find.text('退出登录'));
+      await tester.tap(logout);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('取消'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(GfAlertDialog),
+          matching: find.text('取消'),
+        ),
+      );
       await tester.pumpAndSettle();
+      expect(find.byType(GfAlertDialog), findsNothing);
+      expect(logout, findsOneWidget);
       expect(authRepo.logoutCalls, 0);
       expect(await storage.read(), 'token');
       expect(topicCache.clears + chatCache.clears, 0);
       expect(router.state.uri.path, '/settings');
 
       // 点击登出 → 确认对话框 → 确认。
-      await tester.tap(find.text('退出登录'));
+      await tester.tap(logout);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('退出登录').last);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(GfAlertDialog),
+          matching: find.text('退出登录'),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(authRepo.logoutCalls, 1, reason: '登出应调用 authRepository.logout');

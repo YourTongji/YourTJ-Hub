@@ -429,17 +429,17 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
         ),
         actions: [
           if (_canManageCourses)
-            PopupMenuButton<String>(
+            GfPopupMenuButton<String>(
               tooltip: l10n.coursesManagement,
               icon: const GfSymbol('ellipsis', size: 20),
               useRootNavigator: true,
               onSelected: (path) => context.push(path),
               itemBuilder: (_) => [
-                PopupMenuItem(
+                GfPopupMenuItem(
                   value: '/moderation/courses',
                   child: Text(l10n.coursesManagement),
                 ),
-                PopupMenuItem(
+                GfPopupMenuItem(
                   value: '/moderation/course-reviews',
                   child: Text(l10n.coursesReviewModeration),
                 ),

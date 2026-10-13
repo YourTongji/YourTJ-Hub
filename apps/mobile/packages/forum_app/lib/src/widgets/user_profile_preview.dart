@@ -531,7 +531,7 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                                               if (viewer != null &&
                                                   viewer.id != user.userId) ...[
                                                 const SizedBox(width: 6),
-                                                PopupMenuButton<String>(
+                                                GfPopupMenuButton<String>(
                                                   tooltip: l10n.profileMore,
                                                   useRootNavigator: true,
                                                   icon: const GfSymbol(
@@ -577,7 +577,7 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                                                     if (userBlocks?.hasError ==
                                                         true) {
                                                       return [
-                                                        PopupMenuItem(
+                                                        GfPopupMenuItem(
                                                           value: 'retry',
                                                           child: Row(
                                                             mainAxisSize:
@@ -591,8 +591,10 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                                                               const SizedBox(
                                                                 width: 10,
                                                               ),
-                                                              Text(
-                                                                l10n.commonRetry,
+                                                              Flexible(
+                                                                child: Text(
+                                                                  l10n.commonRetry,
+                                                                ),
                                                               ),
                                                             ],
                                                           ),
@@ -603,7 +605,7 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                                                         userBlocks?.valueOrNull;
                                                     if (blockPayload == null) {
                                                       return [
-                                                        PopupMenuItem(
+                                                        GfPopupMenuItem(
                                                           enabled: false,
                                                           child: Text(
                                                             l10n.commonLoading,
@@ -618,7 +620,7 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                                                               user.userId,
                                                         );
                                                     return [
-                                                      PopupMenuItem(
+                                                      GfPopupMenuItem(
                                                         value: isBlocked
                                                             ? 'unblock'
                                                             : 'block',

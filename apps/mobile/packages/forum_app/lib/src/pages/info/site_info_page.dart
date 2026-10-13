@@ -13,6 +13,7 @@ import '../../providers.dart';
 import '../../widgets/status_views.dart';
 import '../../updates/update_host.dart';
 import '../../updates/release_notes_page.dart';
+import '../../navigation/reading_window.dart';
 
 enum SiteInfoKind { links, sponsors, terms, privacy }
 
@@ -52,7 +53,10 @@ class SiteInfoIndexPage extends StatelessWidget {
               title: Text(l10n.releaseNotesHistory),
               trailing: const GfSymbol('chevron-right'),
               onTap: () => Navigator.of(context).push<void>(
-                MaterialPageRoute(builder: (_) => const ReleaseNotesPage()),
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const ReadingPageWindow(child: ReleaseNotesPage()),
+                ),
               ),
             ),
           for (final kind in SiteInfoKind.values)
@@ -69,7 +73,9 @@ class SiteInfoIndexPage extends StatelessWidget {
             trailing: const GfSymbol('chevron-right'),
             onTap: () => Navigator.of(context).push<void>(
               MaterialPageRoute(
-                builder: (_) => const _VisitorAnalyticsDisclosurePage(),
+                builder: (_) => const ReadingPageWindow(
+                  child: _VisitorAnalyticsDisclosurePage(),
+                ),
               ),
             ),
           ),

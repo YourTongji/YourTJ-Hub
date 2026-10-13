@@ -88,18 +88,18 @@ class _ContentPageState extends ConsumerState<ContentPage> {
   }
 
   Future<bool> _confirm(String title, String message) async =>
-      await showDialog<bool>(
-        context: context,
-        animationStyle: GfMotion.dialogStyle(context),
-        builder: (context) => AlertDialog(
+      await showGfAlertDialog<bool>(
+        context,
+        builder: (context) => GfAlertDialog(
           title: Text(title),
           content: Text(message),
           actions: [
-            TextButton(
+            GfDialogAction(
               onPressed: () => Navigator.pop(context, false),
               child: Text(AppLocalizations.of(context).commonCancel),
             ),
-            TextButton(
+            GfDialogAction(
+              destructive: true,
               onPressed: () => Navigator.pop(context, true),
               child: Text(title),
             ),
@@ -416,29 +416,30 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                   !item.canRestore &&
                                   !item.canPermanent
                               ? null
-                              : PopupMenuButton<String>(
+                              : GfPopupMenuButton<String>(
                                   icon: const GfSymbol('ellipsis', size: 20),
                                   useRootNavigator: true,
                                   enabled: !_busy,
                                   onSelected: (action) => _act(item, action),
                                   itemBuilder: (_) => [
                                     if (!widget.deleted) ...[
-                                      PopupMenuItem(
+                                      GfPopupMenuItem(
                                         value: 'view',
                                         child: Text(l10n.contentReviewView),
                                       ),
-                                      PopupMenuItem(
+                                      GfPopupMenuItem(
                                         value: 'edit',
                                         child: Text(l10n.contentReviewRetry),
                                       ),
                                     ],
                                     if (item.canRestore)
-                                      PopupMenuItem(
+                                      GfPopupMenuItem(
                                         value: 'restore',
                                         child: Text(l10n.contentRestore),
                                       ),
                                     if (item.canPermanent)
-                                      PopupMenuItem(
+                                      GfPopupMenuItem(
+                                        destructive: true,
                                         value: 'purge',
                                         child: Text(l10n.contentPurge),
                                       ),

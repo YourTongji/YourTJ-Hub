@@ -949,7 +949,12 @@ class _HomePageState extends ConsumerState<HomePage> {
         _feeds[_swipeLoadingFeedKey]?.page.isLoading != true) {
       _swipeLoadingFeedKey = null;
     }
-    return RootSurface(
+    final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+    final showCategorySidebar =
+        categories.isNotEmpty &&
+        MediaQuery.sizeOf(context).width >=
+            math.max(760, 220 + 540 * math.max(1, textScale));
+    final surface = RootSurface(
       swipeTabIndex: selectedSortIndex,
       swipeTabCount: sortKeys.length,
       onSwipeTabChanged: (index) =>
@@ -964,11 +969,13 @@ class _HomePageState extends ConsumerState<HomePage> {
       ],
       toolbarHeight:
           GfTabBar.heightFor(context) +
-          (categories.isEmpty ? 0 : _categoryRailHeight(context)),
+          (showCategorySidebar || categories.isEmpty
+              ? 0
+              : _categoryRailHeight(context)),
       toolbar: _HomeToolbar(
         dailyRanking: _dailyRanking,
         props: toolbarProps,
-        categories: categories,
+        categories: showCategorySidebar ? const [] : categories,
         activeCategory: _category,
         onCategorySelected: _switchCategory,
         selected: selectedSort,
@@ -1003,6 +1010,45 @@ class _HomePageState extends ConsumerState<HomePage> {
               _buildFeed(feed, controller, top, bottom, swipePreview: true),
         );
       },
+    );
+    // Keep the retained feed in the same element path across window changes.
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Padding(
+            padding: EdgeInsets.only(left: showCategorySidebar ? 220 : 0),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: LayoutBuilder(
+                  builder: (context, constraints) => MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                      size: Size(constraints.maxWidth, constraints.maxHeight),
+                    ),
+                    child: surface,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (showCategorySidebar)
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 220,
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (_) => true,
+              child: _CategorySidebar(
+                categories: categories,
+                selectedId: _category?.id,
+                onSelected: _switchCategory,
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -1145,15 +1191,17 @@ class _HomeToolbar extends ConsumerWidget {
                   onSelected: (value) => onSelected(value as String),
                 ),
               ),
-              IconButton(
-                tooltip: l10n.homeFeedOptions,
-                icon: GfSymbol(
-                  feedMode == GfTopicFeedMode.card
-                      ? 'layout-grid'
-                      : 'list-square',
-                  size: 20,
+              Builder(
+                builder: (anchor) => IconButton(
+                  tooltip: l10n.homeFeedOptions,
+                  icon: GfSymbol(
+                    feedMode == GfTopicFeedMode.card
+                        ? 'layout-grid'
+                        : 'list-square',
+                    size: 20,
+                  ),
+                  onPressed: () => _showOptions(anchor),
                 ),
-                onPressed: () => _showOptions(context),
               ),
               const SizedBox(width: 4),
             ],
@@ -1171,43 +1219,21 @@ class _HomeToolbar extends ConsumerWidget {
 
   Future<void> _showOptions(BuildContext context) async {
     final l10n = AppLocalizations.of(context);
-    final selected = await showGfBottomSheet<GfTopicFeedMode>(
+    final selected = await showGfActionSheet<GfTopicFeedMode>(
       context,
-      builder: (sheetContext) => SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
-              child: Text(
-                l10n.homeFeedOptions,
-                style: GfTheme.typographyOf(context).title2,
-              ),
+      title: Text(l10n.homeFeedOptions),
+      initialValue: feedMode,
+      items: [
+        for (final mode in GfTopicFeedMode.values)
+          GfPopupMenuItem(
+            value: mode,
+            child: Text(
+              mode == GfTopicFeedMode.card
+                  ? l10n.topicFeedModeCard
+                  : l10n.topicFeedModeList,
             ),
-            for (final mode in GfTopicFeedMode.values)
-              ListTile(
-                leading: GfSymbol(
-                  mode == GfTopicFeedMode.card ? 'layout-grid' : 'list-square',
-                ),
-                title: Text(
-                  mode == GfTopicFeedMode.card
-                      ? l10n.topicFeedModeCard
-                      : l10n.topicFeedModeList,
-                ),
-                trailing: feedMode == mode
-                    ? const GfSymbol('check', size: 20)
-                    : null,
-                selected: feedMode == mode,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                onTap: () => Navigator.pop(sheetContext, mode),
-              ),
-          ],
-        ),
-      ),
+          ),
+      ],
     );
     if (!context.mounted) return;
     if (selected != null) onFeedModeSelected(selected);
@@ -1225,6 +1251,159 @@ class _HomeToolbar extends ConsumerWidget {
       'new' => l10n.sortNew,
       _ => label.isNotEmpty ? label : key,
     };
+  }
+}
+
+/// Tablet category navigation shares selection and feeds with the compact rail.
+class _CategorySidebar extends StatefulWidget {
+  const _CategorySidebar({
+    required this.categories,
+    required this.selectedId,
+    required this.onSelected,
+  });
+
+  final List<CategoryNavPayload> categories;
+  final int? selectedId;
+  final ValueChanged<CategoryNavPayload?> onSelected;
+
+  @override
+  State<_CategorySidebar> createState() => _CategorySidebarState();
+}
+
+class _CategorySidebarState extends State<_CategorySidebar> {
+  final _controller = ScrollController();
+  final _itemKeys = <int?, GlobalKey>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _revealSelected();
+  }
+
+  @override
+  void didUpdateWidget(covariant _CategorySidebar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedId != widget.selectedId) _revealSelected();
+  }
+
+  void _revealSelected() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_controller.hasClients) return;
+      final target = _itemKeys[widget.selectedId]?.currentContext
+          ?.findRenderObject();
+      if (target != null && target.attached) {
+        _controller.position.ensureVisible(target, alignment: .5);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = GfTheme.colorsOf(context);
+    final l10n = AppLocalizations.of(context);
+    final ids = <int?>{null, ...widget.categories.map((item) => item.id)};
+    _itemKeys.removeWhere((id, _) => !ids.contains(id));
+    return ColoredBox(
+      color: colors.base200,
+      child: SafeArea(
+        bottom: false,
+        child: ListView(
+          key: const ValueKey('home-category-sidebar'),
+          controller: _controller,
+          padding: const EdgeInsets.fromLTRB(12, 18, 12, 24),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Text(
+                l10n.categoryTitle,
+                style: GfTheme.typographyOf(context).title3,
+              ),
+            ),
+            for (final category in <CategoryNavPayload?>[
+              null,
+              ...widget.categories,
+            ])
+              Padding(
+                key: _itemKeys.putIfAbsent(category?.id, GlobalKey.new),
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Semantics(
+                  key: ValueKey('home-category-${category?.id ?? 'all'}'),
+                  button: true,
+                  selected: widget.selectedId == category?.id,
+                  child: Material(
+                    color: widget.selectedId == category?.id
+                        ? colors.primary.withValues(alpha: .10)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => widget.onSelected(category),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 48),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                          child: Row(
+                            children: [
+                              if (widget.selectedId == category?.id)
+                                GfSymbol(
+                                  'check',
+                                  size: 16,
+                                  color: colors.primary,
+                                )
+                              else
+                                SizedBox(
+                                  width: 16,
+                                  child: Center(
+                                    child: Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: category == null
+                                            ? colors.primary
+                                            : colorFromHex(category.color),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  category?.label ?? l10n.homeAllCategories,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    height: 1.4,
+                                    color: widget.selectedId == category?.id
+                                        ? colors.primary
+                                        : colors.baseContent,
+                                    fontWeight:
+                                        widget.selectedId == category?.id
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

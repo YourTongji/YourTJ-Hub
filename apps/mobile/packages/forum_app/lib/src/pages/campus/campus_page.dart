@@ -14,6 +14,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../current_user.dart';
 import '../../providers.dart';
 import '../../navigation/tab_scroll_registry.dart';
+import '../../navigation/reading_window.dart';
 import '../../widgets/app_refresh_indicator.dart';
 import '../../widgets/root_surface.dart';
 import '../../widgets/logo_motion_loader.dart';
@@ -441,7 +442,10 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
         for (final m in messages)
           GfCard(
             onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => CampusMessagePage(id: m.id)),
+              MaterialPageRoute(
+                builder: (_) =>
+                    ReadingPageWindow(child: CampusMessagePage(id: m.id)),
+              ),
             ),
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Column(

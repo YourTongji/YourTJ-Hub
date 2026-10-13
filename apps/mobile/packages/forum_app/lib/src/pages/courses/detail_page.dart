@@ -2265,7 +2265,7 @@ class _ReviewRow extends StatelessWidget {
     CourseCopy copy,
     GfColors colors,
   ) {
-    return PopupMenuButton<String>(
+    return GfPopupMenuButton<String>(
       key: ValueKey<String>('review-menu-${review.id}'),
       tooltip: l10n.profileMore,
       icon: const GfSymbol('ellipsis', size: 20),
@@ -2282,14 +2282,15 @@ class _ReviewRow extends StatelessWidget {
       },
       itemBuilder: (_) => <PopupMenuEntry<String>>[
         if (onEdit != null)
-          PopupMenuItem<String>(value: 'edit', child: Text(l10n.commonEdit)),
+          GfPopupMenuItem<String>(value: 'edit', child: Text(l10n.commonEdit)),
         if (onDelete != null)
-          PopupMenuItem<String>(
+          GfPopupMenuItem<String>(
+            destructive: true,
             value: 'delete',
             child: Text(copy.delete, style: TextStyle(color: colors.error)),
           ),
         if (onReport != null)
-          PopupMenuItem<String>(
+          GfPopupMenuItem<String>(
             value: 'report',
             enabled: !reportBusy,
             child: Text(l10n.contentReport),

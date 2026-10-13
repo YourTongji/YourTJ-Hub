@@ -14,7 +14,9 @@ Future<void> showComposeMenu(
 }) async {
   final l10n = AppLocalizations.of(context);
   final source = context.findRenderObject();
-  final window = MediaQuery.of(context);
+  final window = MediaQuery.of(
+    Navigator.of(context, rootNavigator: true).context,
+  );
   final sourceRight = source is RenderBox && source.hasSize
       ? source.localToGlobal(Offset(source.size.width, 0)).dx
       : window.size.width;
