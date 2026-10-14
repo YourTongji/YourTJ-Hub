@@ -3629,10 +3629,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get profilePrivacyViewProfile => '自分のプロフィールを見る';
 
   @override
-  String get profilePrivacyTopics => 'トピック';
+  String get profilePrivacyTopics => '投稿';
 
   @override
-  String get profilePrivacyTopicsDescription => '投稿したトピックの一覧と、概要の最近のトピック';
+  String get profilePrivacyTopicsDescription => 'あなたの投稿の一覧';
 
   @override
   String get profilePrivacyActivity => 'アクティビティ';
@@ -3642,10 +3642,10 @@ class AppLocalizationsJa extends AppLocalizations {
       '返信などの記録。投稿・いいね・フォローの記録はそれぞれの設定にも従います';
 
   @override
-  String get profilePrivacyLikes => 'いいねしたトピック';
+  String get profilePrivacyLikes => 'いいねした投稿';
 
   @override
-  String get profilePrivacyLikesDescription => 'いいねしたトピックの一覧';
+  String get profilePrivacyLikesDescription => 'いいねした投稿の一覧';
 
   @override
   String get profilePrivacyFollowing => 'フォロー中のリスト';

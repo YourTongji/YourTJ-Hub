@@ -6801,13 +6801,13 @@ abstract class AppLocalizations {
   /// No description provided for @profilePrivacyTopics.
   ///
   /// In en, this message translates to:
-  /// **'Topics'**
+  /// **'Posts'**
   String get profilePrivacyTopics;
 
   /// No description provided for @profilePrivacyTopicsDescription.
   ///
   /// In en, this message translates to:
-  /// **'Your topic list and the recent topics in your summary'**
+  /// **'Posts you published'**
   String get profilePrivacyTopicsDescription;
 
   /// No description provided for @profilePrivacyActivity.
@@ -6825,13 +6825,13 @@ abstract class AppLocalizations {
   /// No description provided for @profilePrivacyLikes.
   ///
   /// In en, this message translates to:
-  /// **'Liked topics'**
+  /// **'Liked posts'**
   String get profilePrivacyLikes;
 
   /// No description provided for @profilePrivacyLikesDescription.
   ///
   /// In en, this message translates to:
-  /// **'Topics you liked'**
+  /// **'Posts you liked'**
   String get profilePrivacyLikesDescription;
 
   /// No description provided for @profilePrivacyFollowing.
@@ -6909,7 +6909,7 @@ abstract class AppLocalizations {
   /// No description provided for @profilePrivacySaveFailed.
   ///
   /// In en, this message translates to:
-  /// **'Unable to save. Your previous setting is kept. Check your connection and try again.'**
+  /// **'Unable to save. Your setting hasn’t changed. Check your connection and try again.'**
   String get profilePrivacySaveFailed;
 
   /// No description provided for @profilePrivacyWidenTitle.

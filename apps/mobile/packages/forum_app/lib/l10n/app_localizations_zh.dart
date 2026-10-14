@@ -3591,7 +3591,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profilePrivacyTopics => '内容';
 
   @override
-  String get profilePrivacyTopicsDescription => '你发布的内容列表，以及概览里的近期内容';
+  String get profilePrivacyTopicsDescription => '你发布的内容列表';
 
   @override
   String get profilePrivacyActivity => '动态';
@@ -3642,7 +3642,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profilePrivacyLoadFailed => '无法加载个人主页可见范围。';
 
   @override
-  String get profilePrivacySaved => '可见范围已保存到你的账户';
+  String get profilePrivacySaved => '可见范围已保存到你的账号';
 
   @override
   String get profilePrivacySaveFailed => '未能保存，设置保持不变。请检查网络后重试。';

@@ -2153,7 +2153,7 @@ async function toggleBinding(provider: string) {
           <section v-show="activeTab === 'privacy'">
             <SectionHeader :icon="Shield" :title="t('settings.privacy.title')" />
             <div class="max-w-2xl divide-y divide-line p-4">
-              <ProfilePrivacySettings v-if="activeTab === 'privacy'" :key="`profile-privacy-${page.layout.viewer.id}`" :profile-url="profileUrl" @saved="showStatus" />
+              <ProfilePrivacySettings v-if="activeTab === 'privacy'" :key="`profile-privacy-${page.layout.viewer.id}`" :profile-url="profileUrl" />
               <AnonymousIdentitySettings v-if="activeTab === 'privacy'" :key="page.layout.viewer.id" />
             </div>
           </section>

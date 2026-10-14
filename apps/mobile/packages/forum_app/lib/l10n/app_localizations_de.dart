@@ -3807,11 +3807,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get profilePrivacyViewProfile => 'Mein Profil ansehen';
 
   @override
-  String get profilePrivacyTopics => 'Themen';
+  String get profilePrivacyTopics => 'Beiträge';
 
   @override
   String get profilePrivacyTopicsDescription =>
-      'Deine Themenliste und die neuesten Themen in der Übersicht';
+      'Deine veröffentlichten Beiträge';
 
   @override
   String get profilePrivacyActivity => 'Aktivität';
@@ -3821,10 +3821,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Antworten und andere Aktivitäten. Beiträge, Likes und Follows darin folgen zusätzlich ihren eigenen Einstellungen';
 
   @override
-  String get profilePrivacyLikes => 'Gelikte Themen';
+  String get profilePrivacyLikes => 'Gelikte Beiträge';
 
   @override
-  String get profilePrivacyLikesDescription => 'Themen, die dir gefallen';
+  String get profilePrivacyLikesDescription => 'Beiträge, die dir gefallen';
 
   @override
   String get profilePrivacyFollowing => 'Liste „Folgt“';
@@ -3867,7 +3867,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get profilePrivacySaveFailed =>
-      'Speichern fehlgeschlagen. Deine vorherige Einstellung bleibt erhalten. Prüfe deine Verbindung und versuche es erneut.';
+      'Speichern fehlgeschlagen. Deine Einstellung bleibt unverändert. Prüfe deine Verbindung und versuche es erneut.';
 
   @override
   String get profilePrivacyWidenTitle => 'Für mehr Personen sichtbar machen?';

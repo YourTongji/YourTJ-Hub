@@ -16,6 +16,7 @@ import {
   FileText,
   Heart,
   List,
+  Lock,
   MessageCircle,
   MessageSquare,
   Feather,
@@ -64,6 +65,9 @@ let observer: IntersectionObserver | undefined
 let contentGeneration = 0
 let loadedContentPages = 1
 const refreshingContent = ref(false)
+// Server props re-read after a follow change (issue #1124); null until then.
+const refreshedProps = ref<UserProfileProps | null>(null)
+const view = computed(() => refreshedProps.value ?? page.props)
 
 const displayName = computed(() => userDisplayName(page.props.user.userId, page.props.user.username, page.props.user.nickname))
 // 简介行只承载 bio：签名永远以独立签名块呈现，不做 fallback 展示
@@ -72,10 +76,10 @@ const hasBio = computed(() => Boolean(page.props.user.bio?.trim()))
 const hasSignature = computed(() => Boolean(page.props.user.signature?.trim()))
 const showStandaloneSignature = computed(() => hasSignature.value)
 const bioIsEmpty = computed(() => !hasBio.value)
-const visibleTopics = computed(() => page.props.topics)
+const visibleTopics = computed(() => view.value.topics)
 const visibleBadges = computed(() => page.props.user.displayBadges ?? page.props.badges.slice(0, 5))
 const isStandaloneConnections = computed(() => page.props.section === 'following' || page.props.section === 'followers')
-const activeConnections = computed(() => isStandaloneConnections.value ? connections.value : page.props.activityTab === 'following' ? page.props.following : page.props.followers)
+const activeConnections = computed(() => isStandaloneConnections.value ? connections.value : page.props.activityTab === 'following' ? view.value.following : view.value.followers)
 const isWaterfallTab = computed(() => isStandaloneConnections.value || page.props.section === 'bookmarks' || (page.props.section === 'activity' && (page.props.activityTab === 'timeline' || page.props.activityTab === 'topics' || page.props.activityTab === 'likes' || page.props.activityTab === 'bookmarks')))
 const connectionTabItems = computed(() => [
   { key: 'following', label: t('user.tabs.following'), url: `/u/${page.props.user.userId}/following` },
@@ -83,7 +87,7 @@ const connectionTabItems = computed(() => [
 ])
 // Server-resolved visibility (issue #1124); a hidden section never renders a
 // list, empty state or pagination, even if stale client state holds rows.
-const visibility = computed(() => page.props.visibility)
+const visibility = computed(() => view.value.visibility)
 const isVisible = (state?: ProfileSectionVisibility) => state?.visible !== false
 const connectionVisibility = computed(() => {
   const key = isStandaloneConnections.value ? page.props.section : page.props.activityTab
@@ -99,6 +103,22 @@ const activityVisibility = computed(() => {
     default: return undefined
   }
 })
+const tabSections: Record<string, keyof NonNullable<UserProfileProps['visibility']>> = {
+  timeline: 'profileActivity',
+  topics: 'profileTopics',
+  likes: 'profileLikes',
+  following: 'followingList',
+  followers: 'followersList',
+}
+// Mark locked tabs before they are opened: visitors see which sections are
+// not public to them, the owner sees which ones have a narrower audience.
+function tabLock(key: string): '' | 'hidden' | 'restricted' {
+  const section = tabSections[key]
+  const state = section ? visibility.value?.[section] : undefined
+  if (!state) return ''
+  if (!state.visible) return 'hidden'
+  return page.props.isOwnProfile && state.audience && state.audience !== 'everyone' ? 'restricted' : ''
+}
 const privacyProps = computed(() => ({
   isOwnProfile: page.props.isOwnProfile,
   authenticated: Boolean(page.layout.viewer?.isAuthenticated),
@@ -144,6 +164,7 @@ watch(
   () => {
     contentGeneration++
     loadedContentPages = 1
+    refreshedProps.value = null
     refreshingContent.value = false
     loadingMore.value = false
     isFollowing.value = page.props.user.isFollowing
@@ -172,10 +193,40 @@ async function toggleFollow() {
     await followUser(page.props.user.userId, isFollowing.value)
     isFollowing.value = !isFollowing.value
     broadcastFollowChange(page.props.user.userId, isFollowing.value)
+    if (isFollowing.value && followCanReveal()) void refreshAfterFollowChange()
   } catch (error) {
     followError.value = error instanceof Error ? error.message : t('api.followFailed')
   } finally {
     followLoading.value = false
+  }
+}
+
+// Whether following could open a section this viewer cannot see yet.
+function followCanReveal() {
+  return Object.values(visibility.value ?? {}).some(state => !state.visible && (state.reason === 'followers' || state.reason === 'mutual'))
+}
+
+// Following can reveal followers-only sections, so re-read the page instead
+// of asking the viewer to reload (issue #1124). Unfollowing keeps what was
+// already seen until the next read, which the server checks again.
+async function refreshAfterFollowChange() {
+  if (page.props.isOwnProfile) return
+  const generation = ++contentGeneration
+  loadingMore.value = false
+  try {
+    const payload = await fetchPage(new URL(`${window.location.pathname}${window.location.search}`, window.location.origin)) as PagePayload<UserProfileProps>
+    if (generation !== contentGeneration || payload.props?.user?.userId !== page.props.user.userId) return
+    const next = payload.props
+    refreshedProps.value = next
+    activityTopics.value = [...next.topics]
+    activities.value = [...next.activities]
+    likes.value = [...next.likes]
+    if (isStandaloneConnections.value) connections.value = [...(page.props.section === 'following' ? next.following : next.followers)]
+    pagination.value = next.pagination
+    loadedContentPages = 1
+    void nextTick(observeSentinel)
+  } catch {
+    // Keep the current view; the next navigation reads the server state.
   }
 }
 
@@ -337,7 +388,9 @@ onMounted(() => {
   observeSentinel()
   // 用户卡片上的关注/取关广播回来时，同步本页按钮状态
   offFollowChange = onFollowChange(({ userId, isFollowing: following }) => {
-    if (userId === page.props.user.userId) isFollowing.value = following
+    if (userId !== page.props.user.userId || isFollowing.value === following) return
+    isFollowing.value = following
+    if (following && followCanReveal()) void refreshAfterFollowChange()
   })
 })
 onActivated(() => {
@@ -392,6 +445,10 @@ function safeProfileUrl(value?: string) {
           >
             <UserPlus class="h-4 w-4 shrink-0" />
             <span class="break-words text-center">{{ tab.label }}</span>
+            <template v-if="tabLock(tab.key)">
+              <Lock class="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" data-test="profile-tab-lock" />
+              <span class="sr-only">{{ t(tabLock(tab.key) === 'hidden' ? 'user.privacy.tabHidden' : 'user.privacy.tabRestricted') }}</span>
+            </template>
           </a>
         </nav>
         <p v-if="followError" class="px-4 pt-3 text-sm text-error sm:px-5">{{ followError }}</p>
@@ -625,11 +682,11 @@ function safeProfileUrl(value?: string) {
                 </div>
               </section>
 
-              <section v-if="page.props.activities.length">
+              <section v-if="view.activities.length">
                 <h2 class="mb-2 text-sm font-semibold text-base-content/75">{{ t('user.summarySections.recentActivity') }}</h2>
                 <div class="divide-y divide-line">
                   <a
-                    v-for="activity in page.props.activities"
+                    v-for="activity in view.activities"
                     :key="activity.id"
                     :href="activity.url || '#'"
                     class="flex gap-3 py-3"
@@ -667,6 +724,10 @@ function safeProfileUrl(value?: string) {
               <UserPlus v-else-if="tab.key === 'following'" class="h-4 w-4 shrink-0" />
               <UserRound v-else class="h-4 w-4 shrink-0" />
               {{ tab.label }}
+              <template v-if="tabLock(tab.key)">
+                <Lock class="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" data-test="profile-tab-lock" />
+                <span class="sr-only">{{ t(tabLock(tab.key) === 'hidden' ? 'user.privacy.tabHidden' : 'user.privacy.tabRestricted') }}</span>
+              </template>
             </a>
           </div>
 

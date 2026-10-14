@@ -55,10 +55,14 @@ for (const width of [320, 1280]) {
       assert.ok(await fits(page), 'privacy settings must not overflow horizontally')
       assert.equal(await page.getByRole('combobox', { name: '谁能看到关注列表' }).textContent().then(t => t.trim()), '仅自己')
 
-      // Narrowing saves straight away.
+      // Narrowing saves straight away and confirms on the row without moving it.
+      const top = () => row.evaluate(el => el.getBoundingClientRect().top + window.scrollY)
+      const before = await top()
       await pick(page, 'profileLikes', '仅自己')
-      await page.getByText('可见范围已保存到你的账号').waitFor()
+      await row.locator('[data-test="profile-privacy-saved"]').waitFor()
       assert.deepEqual(patches.at(-1), { profileLikes: 'self' })
+      assert.equal(await top(), before, 'saving must not shift the settings layout')
+      assert.equal(await page.locator('[data-test="profile-privacy-announcement"]').textContent(), '可见范围已保存到你的账号')
 
       // A failed save keeps the confirmed value and explains next to the row.
       failNext()

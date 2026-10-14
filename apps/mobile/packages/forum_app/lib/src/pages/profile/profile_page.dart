@@ -389,11 +389,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   Future<void> _toggleFollow(UserCardPayload user) async {
     if (user.isSelf) return;
+    final wasFollowing =
+        ref.read(userFollowStateProvider(user.userId)).following ??
+        user.isFollowing;
     try {
       await ref
           .read(userFollowStateProvider(user.userId).notifier)
           .toggle(userId: user.userId, fallback: user.isFollowing);
       invalidateUserProfilePreview(user.userId);
+      if (mounted && !wasFollowing && _followCanReveal()) {
+        _refreshAfterFollowChange();
+      }
     } catch (error) {
       if (mounted) {
         showGfToast(
@@ -403,6 +409,35 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         );
       }
     }
+  }
+
+  /// Whether following could open a section this viewer cannot see yet.
+  bool _followCanReveal() {
+    final visibility = _active.props?.visibility;
+    if (visibility == null) return false;
+    return [
+      visibility.profileTopics,
+      visibility.profileActivity,
+      visibility.profileLikes,
+      visibility.followingList,
+      visibility.followersList,
+    ].any(
+      (section) =>
+          !section.visible &&
+          (section.reason == 'followers' || section.reason == 'mutual'),
+    );
+  }
+
+  /// Following can reveal followers-only sections (issue #1124): drop the
+  /// other cached tabs and re-read this one in place, so nobody has to pull
+  /// to refresh after tapping Follow. Unfollowing keeps what was already
+  /// seen until the next read, which the server checks again.
+  void _refreshAfterFollowChange() {
+    for (final key in _streams.keys.toList()) {
+      if (key == _stream) continue;
+      _cancelStreamRead(_streams.remove(key)!);
+    }
+    _load(streamKey: _stream);
   }
 
   Future<void> _toggleConnection(UserConnectionPayload user) async {

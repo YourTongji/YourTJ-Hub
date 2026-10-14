@@ -35,14 +35,30 @@ const _activityRow = '发布了话题 移动端测试话题';
 class _Profile extends PageRepository {
   _Profile({required this.own, this.visibility}) : super(_client());
   final bool own;
-  final Map<String, dynamic>? visibility;
+  Map<String, dynamic>? visibility;
+  int fetches = 0;
 
   @override
   Future<PagePayload> fetch(String path, {CancelToken? cancelToken}) async {
+    fetches++;
     final json = own ? userProfilePayloadJson() : peerProfilePayloadJson();
     final props = json['props'] as Map<String, dynamic>;
     if (visibility != null) props['visibility'] = visibility;
     return parsePayload(json);
+  }
+}
+
+class _Follows extends TopicRepository {
+  _Follows() : super(_client());
+  final calls = <bool>[];
+
+  @override
+  Future<bool> followUser({
+    required int userId,
+    required bool isFollowing,
+  }) async {
+    calls.add(isFollowing);
+    return true;
   }
 }
 
@@ -210,6 +226,40 @@ void main() {
       expect(find.text(_activityRow), findsNothing);
     });
 
+    testWidgets('following reveals a followers-only section in place', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final profile = _Profile(
+        own: false,
+        visibility: _visibility({'visible': false, 'reason': 'followers'}),
+      );
+      final follows = _Follows();
+      await tester.pumpWidget(
+        _app([
+          currentUserProvider.overrideWith(
+            (_) async => const CurrentUser(id: 9, username: 'c'),
+          ),
+          pageRepositoryProvider.overrideWithValue(profile),
+          topicRepositoryProvider.overrideWithValue(follows),
+        ], const ProfilePage(userId: 2)),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('profile-section-hidden')), findsOne);
+
+      // The server now counts the viewer as a follower.
+      profile.visibility = _visibility({'visible': true});
+      final reads = profile.fetches;
+      await tester.tap(find.text('Follow'));
+      await tester.pumpAndSettle();
+      expect(follows.calls, [false]);
+      expect(profile.fetches, greaterThan(reads));
+      expect(find.byKey(const ValueKey('profile-section-hidden')), findsNothing);
+      expect(find.text(_activityRow), findsOneWidget);
+    });
+
     testWidgets('the owner keeps the rows and sees who else can see them', (
       tester,
     ) async {
@@ -250,7 +300,7 @@ void main() {
         find.byKey(const ValueKey('profile-privacy-row-profileLikes')),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Who can see Liked topics'), findsOneWidget);
+      expect(find.text('Who can see Liked posts'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('profile-privacy-option-members')),
         findsNothing,

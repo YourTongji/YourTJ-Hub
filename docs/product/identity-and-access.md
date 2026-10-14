@@ -168,6 +168,9 @@ cursor, and timeline posts, likes and follows also obey their own sections. The 
 everything, with a note naming who else can see a restricted section. Other members and guests see
 a "not public" state that names the owner and the reason; guests get a sign-in action only when
 signing in could reveal the section. Blocked viewers and failed reads see the section as hidden.
+Web profile tabs mark hidden sections for visitors and restricted ones for the owner. When a section
+is hidden for followers or mutual follows, following from the profile re-reads it so it opens in
+place; unfollowing keeps what was already shown until the next load.
 Changes apply on the next request; profile pages are `private, no-store`. Widening an audience asks
 for confirmation because older activity becomes visible again. Old Web switches that were stored only
 in the browser are offered once for migration and never applied silently. See

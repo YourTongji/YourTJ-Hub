@@ -3769,11 +3769,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profilePrivacyViewProfile => 'View my profile';
 
   @override
-  String get profilePrivacyTopics => 'Topics';
+  String get profilePrivacyTopics => 'Posts';
 
   @override
-  String get profilePrivacyTopicsDescription =>
-      'Your topic list and the recent topics in your summary';
+  String get profilePrivacyTopicsDescription => 'Posts you published';
 
   @override
   String get profilePrivacyActivity => 'Activity';
@@ -3783,10 +3782,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Replies and other activity. Posts, likes and follows in it also follow their own settings';
 
   @override
-  String get profilePrivacyLikes => 'Liked topics';
+  String get profilePrivacyLikes => 'Liked posts';
 
   @override
-  String get profilePrivacyLikesDescription => 'Topics you liked';
+  String get profilePrivacyLikesDescription => 'Posts you liked';
 
   @override
   String get profilePrivacyFollowing => 'Following list';
@@ -3828,7 +3827,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profilePrivacySaveFailed =>
-      'Unable to save. Your previous setting is kept. Check your connection and try again.';
+      'Unable to save. Your setting hasn’t changed. Check your connection and try again.';
 
   @override
   String get profilePrivacyWidenTitle => 'Show to more people?';

@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { ProfileSectionVisibility, UserProfileProps } from '@gooseforum/client'
 import { i18n, setLocale } from '../src/runtime/i18n'
-import { getPrivacySettings, updatePrivacySettings, type UserPrivacySettings } from '../src/runtime/api'
+import { followUser, getPrivacySettings, updatePrivacySettings, type UserPrivacySettings } from '../src/runtime/api'
+import { fetchPage } from '../src/runtime/router'
 import { LEGACY_PRIVACY_KEY, readLegacyPrivacy, widensAudience } from '../src/runtime/profile-privacy'
 import ProfileSectionPrivacy from '../src/site/components/ProfileSectionPrivacy.vue'
 import ProfilePrivacySettings from '../src/site/components/ProfilePrivacySettings.vue'
@@ -18,7 +19,9 @@ vi.mock('../src/runtime/api', async importOriginal => ({
   ...await importOriginal<typeof import('../src/runtime/api')>(),
   getPrivacySettings: vi.fn(),
   updatePrivacySettings: vi.fn(),
+  followUser: vi.fn(),
 }))
+vi.mock('../src/runtime/router', () => ({ fetchPage: vi.fn() }))
 vi.mock('../src/runtime/content-updates', () => ({ useContentUpdates: vi.fn() }))
 
 const defaults: UserPrivacySettings = {
@@ -106,6 +109,65 @@ describe('UserPage visibility', () => {
     expect(wrapper.text()).not.toContain(memberProfile.topics[0].title)
   })
 
+  test('locked tabs are marked before they are opened', () => {
+    const activityTabs = ['timeline', 'topics', 'likes'].map(key => ({ key, label: key, url: key === 'timeline' ? '/u/1024/activity' : `/u/1024/activity/${key}`, active: key === 'timeline' }))
+    const props = profile({
+      section: 'activity', activityTab: 'timeline', activityTabs,
+      visibility: { ...memberProfile.visibility, profileLikes: { visible: false, reason: 'followers' } },
+    })
+    wrapper = mount(UserPage, { props: { layout, props }, global })
+    const locked = wrapper.findAll('a').filter(a => a.find('[data-test="profile-tab-lock"]').exists())
+    expect(locked.map(a => a.attributes('href'))).toEqual(['/u/1024/activity/likes'])
+    expect(locked[0].text()).toContain('未公开')
+    wrapper.unmount()
+
+    // The owner sees which sections have a narrower audience instead.
+    const own: UserProfileProps = {
+      ...memberProfile, section: 'activity', activityTab: 'timeline', activityTabs,
+      visibility: { ...memberProfile.visibility, profileTopics: { visible: true, audience: 'followers' } },
+    }
+    wrapper = mount(UserPage, { props: { layout, props: own }, global })
+    const restricted = wrapper.findAll('a').filter(a => a.find('[data-test="profile-tab-lock"]').exists())
+    expect(restricted.map(a => a.attributes('href'))).toEqual(['/u/1024/activity/topics'])
+    expect(restricted[0].text()).toContain('已限制可见范围')
+  })
+
+  test('following reveals a followers-only section without a reload', async () => {
+    const like = { id: 7, topicId: 7, title: '只给关注者看的点赞', url: '/p/post/7', likedAt: '2026-10-01T00:00:00Z' }
+    const hidden = profile({
+      section: 'activity', activityTab: 'likes', canFollow: true, likes: [],
+      user: { ...memberProfile.user, isSelf: false, isFollowing: false },
+      visibility: { ...memberProfile.visibility, profileLikes: { visible: false, reason: 'followers' } },
+    })
+    const shown = { ...hidden, likes: [like], user: { ...hidden.user, isFollowing: true }, visibility: { ...hidden.visibility, profileLikes: { visible: true } } }
+    vi.mocked(followUser).mockResolvedValue(undefined as never)
+    vi.mocked(fetchPage).mockResolvedValueOnce({ props: shown } as never)
+    wrapper = mount(UserPage, { props: { layout, props: hidden }, global })
+    expect(wrapper.find('[data-test="profile-section-hidden"]').exists()).toBe(true)
+
+    const followButton = () => wrapper!.findAll('button').find(b => /关注/.test(b.text()))!
+    await followButton().trigger('click')
+    await flushPromises()
+    expect(fetchPage).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-test="profile-section-hidden"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain(like.title)
+
+    // Unfollowing keeps what was already seen until the next server read.
+    await followButton().trigger('click')
+    await flushPromises()
+    expect(fetchPage).toHaveBeenCalledTimes(1)
+  })
+
+  test('following does not re-read the page when nothing is hidden for followers', async () => {
+    const open = profile({ section: 'activity', activityTab: 'likes', canFollow: true, user: { ...memberProfile.user, isSelf: false, isFollowing: false } })
+    vi.mocked(followUser).mockResolvedValue(undefined as never)
+    wrapper = mount(UserPage, { props: { layout, props: open }, global })
+    await wrapper.findAll('button').find(b => /关注/.test(b.text()))!.trigger('click')
+    await flushPromises()
+    expect(followUser).toHaveBeenCalledTimes(1)
+    expect(fetchPage).not.toHaveBeenCalled()
+  })
+
   test('the summary hides recent topics behind an inline note', () => {
     const props = profile({ visibility: { ...memberProfile.visibility, profileTopics: { visible: false, reason: 'private' } } })
     wrapper = mount(UserPage, { props: { layout, props }, global })
@@ -155,7 +217,8 @@ describe('ProfilePrivacySettings', () => {
     expect(w.find('[data-test="profile-privacy-row-profileTopics"]').exists()).toBe(true)
   })
 
-  test('narrowing saves immediately and reports success', async () => {
+  test('narrowing saves immediately and confirms on the row', async () => {
+    vi.useFakeTimers()
     vi.mocked(getPrivacySettings).mockResolvedValue(defaults)
     vi.mocked(updatePrivacySettings).mockResolvedValue({ ...defaults, profileLikes: 'self' })
     const w = await mountSettings()
@@ -163,7 +226,14 @@ describe('ProfilePrivacySettings', () => {
     await flushPromises()
     expect(updatePrivacySettings).toHaveBeenCalledWith({ profileLikes: 'self' })
     expect(select(w, 'profileLikes').props('modelValue')).toBe('self')
-    expect(w.emitted('saved')?.[0]).toEqual(['可见范围已保存到你的账号'])
+    // Confirmation stays next to the edited row; no page banner shifts the layout.
+    expect(w.get('[data-test="profile-privacy-row-profileLikes"] [data-test="profile-privacy-saved"]').text()).toBe('已保存')
+    expect(w.findAll('[data-test="profile-privacy-saved"]')).toHaveLength(1)
+    expect(w.get('[data-test="profile-privacy-announcement"]').text()).toBe('可见范围已保存到你的账号')
+    vi.advanceTimersByTime(2000)
+    await flushPromises()
+    expect(w.find('[data-test="profile-privacy-saved"]').exists()).toBe(false)
+    vi.useRealTimers()
   })
 
   test('a failed save keeps the confirmed value and explains next to the row', async () => {
@@ -174,7 +244,8 @@ describe('ProfilePrivacySettings', () => {
     await flushPromises()
     expect(select(w, 'profileTopics').props('modelValue')).toBe('everyone')
     expect(w.get('[data-test="profile-privacy-row-profileTopics"] [role="alert"]').text()).toContain('未能保存')
-    expect(w.emitted('saved')).toBeUndefined()
+    expect(w.find('[data-test="profile-privacy-saved"]').exists()).toBe(false)
+    expect(w.get('[data-test="profile-privacy-announcement"]').text()).toBe('')
   })
 
   test('widening asks first; cancel sends nothing, confirm saves', async () => {

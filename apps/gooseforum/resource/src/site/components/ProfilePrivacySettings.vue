@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { Info, Loader2 } from '@lucide/vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Check, Info, Loader2 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import SiteSelect from '@/site/components/SiteSelect.vue'
@@ -19,7 +19,6 @@ import {
 } from '@/runtime/profile-privacy'
 
 const props = defineProps<{ profileUrl: string }>()
-const emit = defineEmits<{ saved: [message: string] }>()
 const { t } = useI18n()
 
 const settings = ref<UserPrivacySettings | null>(null)
@@ -32,6 +31,20 @@ const legacyUpdate = ref<Partial<UserPrivacySettings> | null>(null)
 const widenCancel = ref<HTMLButtonElement | null>(null)
 const root = ref<HTMLElement | null>(null)
 const widenReturnKey = ref<ProfilePrivacySection | null>(null)
+// Saves confirm on the row itself; a page-level banner would shift the
+// layout under the select the user is still working with.
+const savedSection = ref<ProfilePrivacySection | 'legacy' | null>(null)
+const announcement = ref('')
+let savedTimer: number | undefined
+
+function markSaved(target: ProfilePrivacySection | 'legacy') {
+  window.clearTimeout(savedTimer)
+  savedSection.value = target
+  announcement.value = t('settings.status.profileVisibilitySaved')
+  savedTimer = window.setTimeout(() => { savedSection.value = null }, 2000)
+}
+
+onBeforeUnmount(() => window.clearTimeout(savedTimer))
 
 // Start the confirmation on the safe choice so Enter never widens by accident.
 function focusWidenCancel(event: Event) {
@@ -94,11 +107,13 @@ function confirmWiden() {
 async function save(target: ProfilePrivacySection | 'legacy', update: Partial<UserPrivacySettings>) {
   saving.value = target
   failedSection.value = null
+  savedSection.value = null
+  announcement.value = ''
   try {
     // The select stays on the confirmed server value until this resolves, so a
     // failure needs no rollback and never shows an unsaved choice as saved.
     settings.value = await updatePrivacySettings(update)
-    emit('saved', t('settings.status.profileVisibilitySaved'))
+    markSaved(target)
     return true
   } catch {
     failedSection.value = target
@@ -180,12 +195,18 @@ const widenDescription = computed(() => pendingWiden.value
         :data-test="`profile-privacy-row-${row.key}`"
       >
         <div class="min-w-0">
-          <p class="text-sm font-semibold text-base-content">{{ row.label }}</p>
+          <p class="flex items-center gap-1.5 text-sm font-semibold text-base-content">
+            {{ row.label }}
+            <Loader2 v-if="saving === row.key" class="h-3.5 w-3.5 shrink-0 animate-spin text-base-content/55" aria-hidden="true" />
+            <span v-else-if="savedSection === row.key" class="inline-flex items-center gap-1 text-xs font-medium text-success" data-test="profile-privacy-saved">
+              <Check class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {{ t('settings.privacy.saved') }}
+            </span>
+          </p>
           <p class="mt-0.5 text-sm text-base-content/55">{{ row.description }}</p>
           <p v-if="failedSection === row.key" role="alert" class="mt-1 text-xs text-error">{{ t('settings.privacy.saveFailed') }}</p>
         </div>
-        <div class="flex items-center gap-2 sm:shrink-0">
-          <Loader2 v-if="saving === row.key" class="h-4 w-4 shrink-0 animate-spin text-base-content/55" aria-hidden="true" />
+        <div class="sm:shrink-0">
           <SiteSelect
             class="w-full sm:w-44"
             :model-value="settings[row.key]"
@@ -197,6 +218,8 @@ const widenDescription = computed(() => pendingWiden.value
         </div>
       </div>
     </div>
+
+    <p class="sr-only" aria-live="polite" data-test="profile-privacy-announcement">{{ announcement }}</p>
 
     <p class="mt-3 flex gap-2 text-xs leading-relaxed text-base-content/55">
       <Info class="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
