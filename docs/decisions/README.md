@@ -182,3 +182,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0082](0082-hub-decoration-entitlement-ownership.md) — Hub 唯一持有装饰权益与装备，商城通过所有者接口联动，首版仅管理员授予。
 - [0083](0083-notification-policy-and-private-chat-push.md) — 提及原因类型化与账号级推送偏好（六类活动分类）；私信经既有 outbox 提交源推送，正文与未公开标题不出第三方负载。
 - [0086](0086-unique-decision-numbers-with-gaps.md) — 编号是唯一标识、允许空号：并行 PR 各自预留编号，verifier 只拒绝重复编号。
+- [0090](0090-xp-ledger-and-dynamic-levels.md) — XP 使用独立只追加账本与原子余额投影，规则按版本保存，等级动态推导。

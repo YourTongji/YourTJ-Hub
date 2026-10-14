@@ -11,6 +11,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/xpservice"
 )
 
 func runVersionedDataMigrations() error {
@@ -439,6 +440,15 @@ func runVersionedDataMigrations() error {
 			return err
 		}
 		currentVersion = 32
+	}
+	if currentVersion < 33 {
+		if err := xpservice.EnsureInitialRules(context.Background(), dbconnect.Connect()); err != nil {
+			return fmt.Errorf("app migration v33 initial XP rules: %w", err)
+		}
+		if err := pageConfig.SyncMigrationVersion(33); err != nil {
+			return err
+		}
+		currentVersion = 33
 	}
 	slog.Info("app migration end", "version", currentVersion)
 	return nil
