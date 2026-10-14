@@ -34,7 +34,7 @@ The first non-empty line under `## Status` is the status value. Valid values:
 
 New supersession statuses use the linked form. The verifier also accepts the exact legacy form `Superseded by NNNN` while its numbered target exists; other free-form or mismatched references are invalid.
 
-A record whose status is `Accepted`, `Deprecated`, or `Superseded by …` describes current or frozen reality. It is never rewritten into a different decision: to change a decision, add a new record and mark the old one `Superseded by NNNN`. Both records stay, cross-linked.
+A record whose status is `Accepted`, `Deprecated`, or `Superseded by …` describes current or frozen reality. It is never rewritten into a different decision: to change a decision, add a new record and mark the old one `Superseded by [NNNN](NNNN-title.md)`. Both records stay, cross-linked.
 
 ### Class line (extension)
 
@@ -53,7 +53,7 @@ A missing `Class:` line is valid (it is an extension); an invalid value is a vio
 
 ## Lifecycle
 
-A decision starts `Proposed`. Once implemented, its status becomes `Accepted` and the record is kept current with what actually shipped (facts only — names, paths, structure — not the decision itself). A declined proposal is `Rejected`; delete a rejected record only when its rationale no longer prevents a plausible mistake. An obsolete accepted decision becomes `Superseded by NNNN` or `Deprecated`; never edit it into its opposite.
+A decision starts `Proposed`. Once implemented, its status becomes `Accepted` and the record is kept current with what actually shipped (facts only — names, paths, structure — not the decision itself). A declined proposal is `Rejected`; delete a rejected record only when its rationale no longer prevents a plausible mistake. An obsolete accepted decision becomes `Superseded by [NNNN](NNNN-title.md)` or `Deprecated`; never edit it into its opposite.
 
 ## Writing rules
 
@@ -72,7 +72,7 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 
 ## Verifier
 
-`scripts/verify-decisions.mjs` enforces: file naming, unique numbering (gaps permitted for reserved or unmerged records), required sections, valid status values, valid `Class:` values when present, and `Superseded by NNNN` targets that exist. It exits non-zero on any violation. `scripts/run-gates.mjs` selects it from the manifest.
+`scripts/verify-decisions.mjs` enforces: file naming, unique numbering (gaps permitted for reserved or unmerged records), required sections, valid status values, valid `Class:` values when present, and `Superseded by` references whose targets exist. It exits non-zero on any violation. `scripts/run-gates.mjs` selects it from the manifest.
 
 ## Index
 
