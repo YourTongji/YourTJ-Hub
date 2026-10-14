@@ -181,3 +181,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0081](0081-mobile-editor-caret-follow-and-image-height-cap.md) — 移动端编辑器由跟随器按光标行驱动外层滚动，正文图片铺满宽度并把高度限制在 0.6 倍视口高。
 
 - [0082](0082-hub-decoration-entitlement-ownership.md) — Hub 唯一持有装饰权益与装备，商城通过所有者接口联动，首版仅管理员授予。
+- [0086](0086-unique-decision-numbers-with-gaps.md) — 编号是唯一标识、允许空号：并行 PR 各自预留编号，verifier 只拒绝重复编号。
