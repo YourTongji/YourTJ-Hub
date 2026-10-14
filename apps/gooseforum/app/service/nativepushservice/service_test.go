@@ -25,6 +25,9 @@ func setupNativePushTestDB(t *testing.T) {
 	conn.Unscoped().Where("1 = 1").Delete(&taskQueue.Entity{})
 	conn.Unscoped().Where("1 = 1").Delete(&pushDevice.Entity{})
 	conn.Unscoped().Where("1 = 1").Delete(&users.EntityComplete{})
+	if err := conn.Create(&users.EntityComplete{Id: 1, Username: "push-recipient"}).Error; err != nil {
+		t.Fatal(err)
+	}
 }
 
 // clearNativePushConfig 清空测试注入的原生推送配置，避免泄漏到其他测试。

@@ -46,7 +46,7 @@ func SendCommentNotification(userId uint64, topicId uint64, commentContent strin
 }
 
 // SendPostReplyNotification 发送 post 回复通知
-func SendPostReplyNotification(userId uint64, postId uint64, postNo uint64, topicId uint64, replyContent string, replierId uint64) error {
+func SendPostReplyNotification(userId uint64, postId uint64, postNo uint64, topicId uint64, replyContent string, replierId uint64, directMention ...bool) error {
 	payload := eventNotification.NotificationPayload{
 		Content:     replyContent,
 		TemplateKey: eventNotification.TemplatePostReply,
@@ -64,6 +64,11 @@ func SendPostReplyNotification(userId uint64, postId uint64, postNo uint64, topi
 		EventType: eventNotification.EventTypePostReply,
 		TopicID:   topicId,
 		Payload:   payload,
+	}
+
+	if len(directMention) > 0 && directMention[0] {
+		notification.HasDirectMention = true
+		notification.Payload.HasDirectMention = true
 	}
 
 	created, err := persistInteractions(db.Connect(), []*eventNotification.Entity{notification})
@@ -133,12 +138,14 @@ func SendMentionNotifications(userIds []uint64, topicId uint64, postId uint64, p
 			continue
 		}
 		notifications = append(notifications, &eventNotification.Entity{
-			UserId:    userId,
-			EventType: eventNotification.EventTypeMention,
-			TopicID:   topicId,
+			UserId:           userId,
+			HasDirectMention: true,
+			EventType:        eventNotification.EventTypeMention,
+			TopicID:          topicId,
 			Payload: eventNotification.NotificationPayload{
-				Content:     preview,
-				TemplateKey: eventNotification.TemplateMention,
+				HasDirectMention: true,
+				Content:          preview,
+				TemplateKey:      eventNotification.TemplateMention,
 				TemplateParams: eventNotification.NotificationTemplateParams{
 					Preview: preview,
 				},
@@ -157,6 +164,8 @@ func SendMentionNotifications(userIds []uint64, topicId uint64, postId uint64, p
 	if err == nil {
 		for _, notification := range created {
 			notificationCommitted(notification.UserId)
+			webpushservice.EnqueueNotification(notification.UserId, notification.Id)
+			nativepushservice.EnqueueNotification(notification.UserId, notification.Id)
 		}
 	}
 	return err

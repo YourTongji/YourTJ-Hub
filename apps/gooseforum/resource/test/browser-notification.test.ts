@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 const { fetchNotifications } = vi.hoisted(() => ({ fetchNotifications: vi.fn() }))
 vi.mock('../src/runtime/api', () => ({ fetchNotifications }))
+vi.mock('../src/runtime/web-push', () => ({ getPushPreferences: vi.fn(async () => ({chat:true,mentionsAndReplies:true,activity:true,following:true,system:true,systemDefaultOnly:false})) }))
 
 import type * as BrowserNotificationModule from '../src/runtime/browser-notification'
 
@@ -187,7 +188,7 @@ describe('showBrowserNotification', () => {
     expect(FakeNotification.instances).toHaveLength(1)
     const notification = FakeNotification.instances[0]
     expect(notification.title).toBe('通知')
-    expect(notification.options.body).toBe('关注了你')
+    expect(notification.options.body).toBe('用户 关注了你')
     expect(notification.options.icon).toBe('/static/pic/icon_300.webp')
     expect(notification.options.tag).toBe('goose:unread')
   })
@@ -198,14 +199,14 @@ describe('showBrowserNotification', () => {
     vi.advanceTimersByTime(60_000)
     mod.showBrowserNotification('badge')
     expect(FakeNotification.instances).toHaveLength(2)
-    expect(FakeNotification.instances[0].options.body).toBe('有新的评论回复')
+    expect(FakeNotification.instances[0].options.body).toBe('用户 评论了你的主题')
     expect(FakeNotification.instances[1].options.body).toBe('你获得了新的徽章')
   })
 
   test('未知类型回落通用文案', () => {
     enableForTest()
     expect(mod.showBrowserNotification('system')).toBe(true)
-    expect(FakeNotification.instances[0].options.body).toBe('有新的通知')
+    expect(FakeNotification.instances[0].options.body).toBe('你有一条新的系统通知')
   })
 
   test('点击通知聚焦页面并跳转通知中心', () => {
@@ -257,58 +258,58 @@ describe('maybeNotifyUnread 翻转检测', () => {
     enableForTest()
     mod.maybeNotifyUnread(false, true, 'comment')
     expect(FakeNotification.instances).toHaveLength(1)
-    expect(FakeNotification.instances[0].options.body).toBe('有新的评论回复')
+    expect(FakeNotification.instances[0].options.body).toBe('用户 评论了你的主题')
   })
 })
 
-describe('maybeNotifyUnread id 触发', () => {
-  test('连续未读期间新 id 前移仍触发', () => {
+describe('maybeNotifyUnread id 触发', async () => {
+  test('连续未读期间新 id 前移仍触发', async () => {
     enableForTest()
-    mod.maybeNotifyUnread(false, true, 'comment', 100)
+    await mod.maybeNotifyUnread(false, true, 'comment', 100)
     expect(FakeNotification.instances).toHaveLength(1)
     vi.advanceTimersByTime(60_000)
-    mod.maybeNotifyUnread(true, true, 'post_reply', 200)
+    await mod.maybeNotifyUnread(true, true, 'post_reply', 200)
     expect(FakeNotification.instances).toHaveLength(2)
   })
 
-  test('同 id 不重复触发（id 去重独立于时间窗）', () => {
+  test('同 id 不重复触发（id 去重独立于时间窗）', async () => {
     enableForTest()
-    mod.maybeNotifyUnread(false, true, 'comment', 100)
+    await mod.maybeNotifyUnread(false, true, 'comment', 100)
     expect(FakeNotification.instances).toHaveLength(1)
     vi.advanceTimersByTime(60_000)
-    mod.maybeNotifyUnread(true, true, 'comment', 100)
+    await mod.maybeNotifyUnread(true, true, 'comment', 100)
     expect(FakeNotification.instances).toHaveLength(1)
   })
 
-  test('已读清零重置游标后可再次触发', () => {
+  test('已读清零重置游标后可再次触发', async () => {
     enableForTest()
-    mod.maybeNotifyUnread(false, true, 'comment', 100)
+    await mod.maybeNotifyUnread(false, true, 'comment', 100)
     expect(FakeNotification.instances).toHaveLength(1)
-    mod.maybeNotifyUnread(true, false, '', 0)
+    await mod.maybeNotifyUnread(true, false, '', 0)
     expect(FakeNotification.instances).toHaveLength(1)
     vi.advanceTimersByTime(60_000)
-    mod.maybeNotifyUnread(false, true, 'comment', 300)
+    await mod.maybeNotifyUnread(false, true, 'comment', 300)
     expect(FakeNotification.instances).toHaveLength(2)
   })
 
-  test('页面可见时只推进游标不弹，切后台后新 id 才触发', () => {
+  test('页面可见时只推进游标不弹，切后台后新 id 才触发', async () => {
     enableForTest()
     pageHidden = false
-    mod.maybeNotifyUnread(false, true, 'comment', 100)
+    await mod.maybeNotifyUnread(false, true, 'comment', 100)
     expect(FakeNotification.instances).toHaveLength(0)
     pageHidden = true
-    mod.maybeNotifyUnread(true, true, 'comment', 100)
+    await mod.maybeNotifyUnread(true, true, 'comment', 100)
     expect(FakeNotification.instances).toHaveLength(0)
-    mod.maybeNotifyUnread(true, true, 'post_reply', 200)
+    await mod.maybeNotifyUnread(true, true, 'post_reply', 200)
     expect(FakeNotification.instances).toHaveLength(1)
   })
 
-  test('无 id 响应回落原翻转语义', () => {
+  test('无 id 响应回落原翻转语义', async () => {
     enableForTest()
-    mod.maybeNotifyUnread(true, true, 'comment', 0)
+    await mod.maybeNotifyUnread(true, true, 'comment', 0)
     expect(FakeNotification.instances).toHaveLength(0)
     vi.advanceTimersByTime(60_000)
-    mod.maybeNotifyUnread(false, true, 'comment', 0)
+    await mod.maybeNotifyUnread(false, true, 'comment', 0)
     expect(FakeNotification.instances).toHaveLength(1)
   })
 })
@@ -329,7 +330,7 @@ describe('通知点击 SPA 导航桥', () => {
 })
 
 describe('mention notifications', () => {
-  test.each([['zh', '提到了你'], ['en', 'mentioned you'], ['ja', 'あなたにメンションしました'], ['de', 'hat dich erwähnt']])('uses mention copy in %s', async (locale, body) => {
+  test.each([['zh', '用户 提到了你'], ['en', 'User mentioned you'], ['ja', 'ユーザー があなたに言及しました'], ['de', 'Benutzer hat dich erwähnt']])('uses mention copy in %s', async (locale, body) => {
     enableForTest()
     const { setLocale } = await import('../src/runtime/i18n')
     await setLocale(locale as 'zh' | 'en' | 'ja' | 'de')
@@ -353,7 +354,7 @@ describe('mention notifications', () => {
     fetchNotifications.mockRejectedValue(new Error('offline'))
     await mod.maybeNotifyUnread(false, true, 'mention', 100)
     const notice = FakeNotification.instances[0]
-    expect(notice.options.body).toBe('提到了你')
+    expect(notice.options.body).toBe('用户 提到了你')
     notice.onclick?.()
     expect(window.location.href).toBe('/notifications')
   })
@@ -384,4 +385,42 @@ describe('mention notifications', () => {
     await mod.maybeNotifyUnread(true, true, 'mention', 200)
     expect(fetchNotifications).not.toHaveBeenCalled()
   })
+})
+
+
+describe('source-aware notification dedup', () => {
+ test('different source IDs within one minute are preserved; repeats across tabs are suppressed', async () => {
+  enableForTest()
+  vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel)
+  await loadModule()
+  await mod.maybeNotifyUnread(false,true,'comment',401)
+  await mod.maybeNotifyUnread(true,true,'comment',402)
+  expect(FakeNotification.instances).toHaveLength(2)
+  await loadModule()
+  await mod.maybeNotifyUnread(false,true,'comment',402)
+  expect(FakeNotification.instances).toHaveLength(2)
+  FakeBroadcastChannel.instances.at(-1)?.onmessage?.({data:{source:'notification:403',at:Date.now()}} as MessageEvent)
+  await mod.maybeNotifyUnread(true,true,'comment',403)
+  expect(FakeNotification.instances).toHaveLength(2)
+ })
+})
+
+describe('browser notification delivery preferences', () => {
+ test('disabled groups retain unread facts without external presentation',async()=>{
+  enableForTest()
+  const {getPushPreferences}=await import('../src/runtime/web-push')
+  vi.mocked(getPushPreferences).mockResolvedValueOnce({chat:true,mentionsAndReplies:false,activity:false,following:false,system:true,systemDefaultOnly:true})
+  await mod.maybeNotifyUnread(false,true,'mention',701)
+  expect(FakeNotification.instances).toHaveLength(0)
+ })
+ test('default system policy permits moderation results but keeps ordinary system notices quiet',async()=>{
+  enableForTest()
+  const {getPushPreferences}=await import('../src/runtime/web-push')
+  vi.mocked(getPushPreferences).mockResolvedValueOnce({chat:true,mentionsAndReplies:true,activity:false,following:false,system:true,systemDefaultOnly:true})
+  await mod.maybeNotifyUnread(false,true,'system',702)
+  expect(FakeNotification.instances).toHaveLength(0)
+  vi.mocked(getPushPreferences).mockResolvedValueOnce({chat:true,mentionsAndReplies:true,activity:false,following:false,system:true,systemDefaultOnly:true})
+  await mod.maybeNotifyUnread(true,true,'review_approved',703)
+  expect(FakeNotification.instances).toHaveLength(1)
+ })
 })

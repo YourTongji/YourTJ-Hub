@@ -90,7 +90,7 @@ func TestBuildPushContentComment(t *testing.T) {
 	if content == nil {
 		t.Fatal("comment content is nil")
 	}
-	if content.Body != "评论了你的内容" {
+	if content.Body != "一位用户 评论了你的内容" {
 		t.Errorf("comment body = %q, want zh comment copy", content.Body)
 	}
 	wantURL := urlconfig.PostDetail(1001) + "/3"
@@ -161,7 +161,7 @@ func TestBuildPushContentBadgeReplacesPlaceholder(t *testing.T) {
 	if content == nil {
 		t.Fatal("badge content is nil")
 	}
-	if content.Body != "获得了「灌水大师」徽章" {
+	if content.Body != "你获得了「灌水大师」徽章" {
 		t.Errorf("badge body = %q, want {badge} replaced with BadgeName", content.Body)
 	}
 	if strings.Contains(content.Body, "{badge}") {
@@ -197,7 +197,7 @@ func TestBuildPushContentSystem(t *testing.T) {
 		if content == nil {
 			t.Fatalf("system %s content is nil", lang)
 		}
-		if content.Body != body {
+		if !strings.HasSuffix(content.Body, body) {
 			t.Errorf("system %s body = %q, want %q", lang, content.Body, body)
 		}
 		if content.URL != urlconfig.Notifications() {
@@ -257,7 +257,7 @@ func TestBuildPushContentMention(t *testing.T) {
 			if postNo > 0 {
 				wantURL = urlconfig.PostDetail(512) + "/8"
 			}
-			if content == nil || content.Body != body || content.URL != wantURL {
+			if content == nil || !strings.HasSuffix(content.Body, body) || content.URL != wantURL {
 				t.Fatalf("mention %s/%d: %#v", lang, postNo, content)
 			}
 		}
@@ -275,7 +275,7 @@ func TestBuildPushContentReviewResult(t *testing.T) {
 	rejected := eventNotification.Entity{Id: 8, EventType: eventNotification.EventTypeReviewRejected,
 		Payload: eventNotification.NotificationPayload{TopicTitle: "被拒的话题"}}
 	content = buildPushContent(rejected, "en")
-	if content == nil || content.URL != "/settings?tab=content" || content.Title != "被******题" || !strings.Contains(content.Body, "wasn’t approved") {
+	if content == nil || content.URL != "/settings?tab=content" || strings.Contains(content.Title, "被拒的话题") || !strings.Contains(content.Body, "wasn’t approved") {
 		t.Fatalf("rejected push = %+v", content)
 	}
 }

@@ -47,6 +47,8 @@ func setupNotificationChatContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	forumLoginAPI.GET("/notifications", middleware.NoUpdateUserActivity, UpQueryReq(api.NotificationList))
 	forumLoginAPI.POST("/notification/mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAsRead))
 	forumLoginAPI.POST("/notification/mark-all-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAllAsRead))
+	forumLoginAPI.GET("/push/preferences", middleware.NoUpdateUserActivity, UpButterReq(api.GetPushPreferences))
+	forumLoginAPI.PUT("/push/preferences", middleware.CheckWritableAccount, UpButterReq(api.UpdatePushPreferences))
 	forumLoginAPI.GET("/push/config", middleware.NoUpdateUserActivity, UpButterReq(api.GetPushConfig))
 	forumLoginAPI.POST("/push/subscribe", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.SubscribePush))
 	forumLoginAPI.POST("/push/unsubscribe", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.UnsubscribePush))
@@ -67,14 +69,15 @@ func setupNotificationChatContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 func createContractNotification(t *testing.T, conn *gorm.DB, id, userID uint64, eventType string, isRead bool, payload eventNotification.NotificationPayload, createdAt time.Time) {
 	t.Helper()
 	entity := eventNotification.Entity{
-		Id:        id,
-		UserId:    userID,
-		TopicID:   payload.TopicId,
-		Payload:   payload,
-		EventType: eventType,
-		IsRead:    isRead,
-		CreatedAt: createdAt,
-		UpdatedAt: createdAt,
+		HasDirectMention: payload.HasDirectMention,
+		Id:               id,
+		UserId:           userID,
+		TopicID:          payload.TopicId,
+		Payload:          payload,
+		EventType:        eventType,
+		IsRead:           isRead,
+		CreatedAt:        createdAt,
+		UpdatedAt:        createdAt,
 	}
 	if err := conn.Create(&entity).Error; err != nil {
 		t.Fatalf("create contract notification: %v", err)
@@ -231,19 +234,20 @@ func TestNotificationListHTTPContract(t *testing.T) {
 		// fixture 精确一致。
 		createContractNotification(t, conn, 2049, user.Id, eventNotification.EventTypeMention, false,
 			eventNotification.NotificationPayload{
-				Title:          "notifications.templates.mention",
-				TemplateKey:    eventNotification.TemplateMention,
-				TemplateParams: eventNotification.NotificationTemplateParams{Preview: "正文预览"},
-				Content:        "tongji_user 提到了你",
-				ActorId:        1024,
-				ActorName:      "tongji_user",
-				TopicId:        512,
-				TopicTitle:     "期中复习资料汇总",
-				PostId:         4096,
-				PostNo:         8,
+				HasDirectMention: true,
+				Title:            "notifications.templates.mention",
+				TemplateKey:      eventNotification.TemplateMention,
+				TemplateParams:   eventNotification.NotificationTemplateParams{Preview: "正文预览"},
+				Content:          "tongji_user 提到了你",
+				ActorId:          1024,
+				ActorName:        "tongji_user",
+				TopicId:          512,
+				TopicTitle:       "期中复习资料汇总",
+				PostId:           4096,
+				PostNo:           8,
 			},
 			time.Date(2026, 8, 15, 10, 20, 30, 0, time.UTC))
-		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/notifications?cursor=2050&limit=1", "", contractSessionToken(t, user))
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/notifications?category=mentions&filter=unread&cursor=2050&limit=1", "", contractSessionToken(t, user))
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("notifications status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
@@ -265,6 +269,16 @@ func TestNotificationListHTTPContract(t *testing.T) {
 		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/notifications?filter=bogus", "", contractSessionToken(t, user))
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("invalid filter status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
+	})
+
+	t.Run("unknown category stays a legacy HTTP 200 validation failure", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/notifications?category=bogus", "", contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("invalid category status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})

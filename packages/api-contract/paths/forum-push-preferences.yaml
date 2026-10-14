@@ -1,0 +1,93 @@
+preferences:
+  get:
+    operationId: getPushPreferences
+    tags: [Forum]
+    summary: Read current account system push groups
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Effective preferences; selective system defaults apply until explicitly changed.
+        content:
+          application/json:
+            schema:
+              $ref: '#/response'
+            examples:
+              defaults:
+                externalValue: ../fixtures/push-preferences-defaults.json
+
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+  put:
+    operationId: updatePushPreferences
+    tags: [Forum]
+    summary: Update only explicitly named account push groups
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/changes'
+    responses:
+      '200':
+        description: Effective preferences after the partial update; station notifications and chat remain intact.
+        content:
+          application/json:
+            schema:
+              $ref: '#/response'
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '400':
+        description: Malformed JSON or invalid group value types.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+values:
+  type: object
+  required: [chat, mentionsAndReplies, activity, following, system, systemDefaultOnly]
+  additionalProperties: false
+  properties:
+    chat: {type: boolean, default: true}
+    mentionsAndReplies: {type: boolean, default: true}
+    activity: {type: boolean, default: false}
+    following: {type: boolean, default: false}
+    systemDefaultOnly:
+      type: boolean
+      readOnly: true
+      description: True until system has an explicit override; ordinary system, badge and pending review remain silent.
+    system:
+      type: boolean
+      default: true
+      description: Defaults allow review approval/rejection only. Explicit true also enables ordinary system, badges and review pending.
+changes:
+  type: object
+  additionalProperties: false
+  properties:
+    chat: {type: boolean}
+    mentionsAndReplies: {type: boolean}
+    activity: {type: boolean}
+    following: {type: boolean}
+    system: {type: boolean}
+response:
+  oneOf:
+    - allOf:
+        - $ref: ../components/schemas.yaml#/ApiSuccess
+        - type: object
+          required: [result]
+          properties:
+            result: {$ref: '#/values'}
+    - $ref: ../components/schemas.yaml#/ApiFailure

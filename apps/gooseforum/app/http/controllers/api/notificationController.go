@@ -25,9 +25,10 @@ func GetUnreadStatus(req component.BetterRequest[GetUnreadCountReq]) component.R
 }
 
 type NotificationListReq struct {
-	Filter string `form:"filter"`
-	Cursor uint64 `form:"cursor"`
-	Limit  int    `form:"limit"`
+	Category string `form:"category"`
+	Filter   string `form:"filter"`
+	Cursor   uint64 `form:"cursor"`
+	Limit    int    `form:"limit"`
 }
 
 type NotificationListResp struct {
@@ -38,6 +39,9 @@ type NotificationListResp struct {
 }
 
 func NotificationList(req component.BetterRequest[NotificationListReq]) component.Response {
+	if !eventNotification.ValidCategory(req.Params.Category) {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
 	unreadOnly := false
 	switch req.Params.Filter {
 	case "", "all":
@@ -52,6 +56,7 @@ func NotificationList(req component.BetterRequest[NotificationListReq]) componen
 		req.Params.Limit,
 		req.Params.Cursor,
 		unreadOnly,
+		req.Params.Category,
 	)
 	if err != nil {
 		return component.FailResponseCode(component.MessageRequestParseFailed, component.MessageParams{"error": err.Error()})

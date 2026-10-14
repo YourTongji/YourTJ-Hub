@@ -350,7 +350,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final bool canPop = Navigator.canPop(context);
 
-    return Scaffold(
+    final scaffold = Scaffold(
       body: SafeArea(
         bottom: false,
         child: Align(
@@ -403,6 +403,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           ),
         ),
       ),
+    );
+    return GfStatusBarScrollToTop(
+      controller: _scrollToTopController,
+      child: scaffold,
     );
   }
 

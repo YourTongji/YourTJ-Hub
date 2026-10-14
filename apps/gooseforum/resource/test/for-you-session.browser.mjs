@@ -184,7 +184,11 @@ test('return after more than thirty seconds without a detail action preserves th
     await page.locator('[data-feed-id="10"] a[href="/p/post/10"]').first().click()
     await page.locator('[data-testid="detail"]').waitFor()
     await page.waitForTimeout(31000)
-    await page.goBack(); await page.locator('[data-feed-id="20"]').waitFor(); await page.waitForTimeout(250)
+    await page.goBack(); await page.locator('[data-feed-id="20"]').waitFor()
+    await page.waitForFunction(() => {
+      const row = document.querySelector('[data-feed-id="10"]')
+      return row && Math.abs(row.getBoundingClientRect().top - 80) < 3
+    })
     assert.equal(await page.locator('[data-feed-id]').count(), 20)
     assert.ok(Math.abs(await page.locator('[data-feed-id="10"]').evaluate((row) => row.getBoundingClientRect().top) - 80) < 3)
     assert.equal(state.firstPages, 0); assert.equal(state.refreshes.length, 0)

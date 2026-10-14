@@ -5078,6 +5078,10 @@ NotificationPayload:
     payload:
       type: object
       additionalProperties: true
+      properties:
+        hasDirectMention:
+          type: boolean
+          description: Structured direct mention reason; absent for historical rows without known reasons.
       description: Raw event payload (title/content/templateKey/templateParams/actorId/topicId/postId/metadata and friends); shape varies by eventType.
   additionalProperties: false
 

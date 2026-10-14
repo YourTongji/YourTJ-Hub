@@ -260,7 +260,7 @@ class _WikiPageState extends ConsumerState<WikiPage> {
     final AppLocalizations l10n = AppLocalizations.of(context);
     // valueOrNull:AsyncValue.error 时直接读 .value 会重抛错误。
     final WikiPageDetail? page = _detail.valueOrNull;
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: GfAppBar(
         title: Text(
           page?.title ?? l10n.wikiTitle,
@@ -327,6 +327,10 @@ class _WikiPageState extends ConsumerState<WikiPage> {
           onImageTap: _openImageViewer,
         ),
       ),
+    );
+    return GfStatusBarScrollToTop(
+      scrollController: _scrollController,
+      child: scaffold,
     );
   }
 }

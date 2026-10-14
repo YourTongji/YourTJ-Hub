@@ -270,6 +270,24 @@ identifiers for the iOS bridge and all seven Android push adapters. These APKs a
 A passing SDK build is not a delivery test. The provider decision is
 [0019](../decisions/0019-native-push-providers.md).
 
+Use isolated provider credentials and test device registrations for delivery checks. An instance without
+provider configuration remains fail-closed even when its database snapshot contains production tokens.
+Debug-level `push delivery` records carry channel, source kind/ID, recipient ID and reason enums such as
+`server_channel_disabled`, `no_device`, `user_disabled`, `committed`, `outbox_staged`, `attempted`,
+`provider_accepted`,
+`provider_rejected` and `token_expired`; no message body, device token or provider secret belongs in logs.
+An `outbox_staged` marker can precede transaction commit; confirm the committed task row before
+counting it as queued. Provider acceptance is separate from an OS display claim. Terminal task
+cleanup bounds retention; low-value throttle history survives process restart.
+
+Keep signed-device results `Partial` until independently checking iOS sandbox/production, JPush live
+connection and each configured OEM with foreground/current-chat, other-chat, background, process-ended,
+lock screen, Focus/Do Not Disturb, denied permission and account-switch scenarios. Verify a push opt-out
+preserves REST/SSE history, a replay/rolled-back forward has no extra notification, and tray clicks open
+only the current owner's object. Android v2 channels retain the legacy channel rather than overwrite
+its immutable OS settings. A provider HTTP success or simulator build alone cannot fill a device cell.
+
+
 iOS uses APNs directly; no Firebase project or Firebase Dart defines are required. Enable **Push
 Notifications** on Apple Developer's `tj.yourtj.forumApp` App ID. Create an APNs authentication key
 under **Certificates, Identifiers & Profiles → Keys**, grant production access for distribution,

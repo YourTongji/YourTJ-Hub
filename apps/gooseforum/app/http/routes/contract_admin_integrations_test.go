@@ -449,7 +449,7 @@ func TestAdminGetScheduleSettingsHTTPContract(t *testing.T) {
 		persistContractPageConfig(t, conn, pageConfig.ScheduleSettings, pageConfig.ScheduleSettingsConfig{
 			// 现行 11 节制默认作息：白天 1-8 节 + 晚间 9/10/11 节（18:30 起）；
 			// 保存/种子均带现行编号盖章（未盖章的存量行走读取侧旧编号归一）。
-			Numbering:    pageConfig.ScheduleNumberingCurrent,
+			Numbering: pageConfig.ScheduleNumberingCurrent,
 			SectionTimes: []pageConfig.ScheduleSectionTime{
 				{Section: 1, Start: "08:00", End: "08:45"},
 				{Section: 2, Start: "08:50", End: "09:35"},

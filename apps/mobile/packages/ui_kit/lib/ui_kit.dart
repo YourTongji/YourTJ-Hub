@@ -29,6 +29,7 @@ export 'src/components/gf_action_feedback.dart';
 export 'src/components/surfaces/gf_empty.dart';
 export 'src/components/surfaces/gf_app_bar.dart';
 export 'src/components/surfaces/gf_scroll_to_top.dart';
+export 'src/components/surfaces/gf_status_bar_scroll_to_top.dart';
 export 'src/components/surfaces/gf_alert_dialog.dart';
 export 'src/components/surfaces/gf_bottom_sheet.dart';
 export 'src/components/surfaces/gf_floating_surface.dart';

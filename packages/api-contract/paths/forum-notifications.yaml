@@ -48,6 +48,13 @@ getNotifications:
       - bearerAuth: []
       - accessTokenCookie: []
     parameters:
+      - name: category
+        in: query
+        schema:
+          type: string
+          enum: [all, mentions, replies, likes, following, system]
+          default: all
+          description: Filter before pagination, independent of read status. Direct mentions take precedence over replies; unknown historical event types belong to system.
       - name: filter
         in: query
         schema:

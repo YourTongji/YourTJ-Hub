@@ -15,12 +15,16 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pushpolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/webpushservice"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"log/slog"
 )
 
 const (
@@ -78,6 +82,7 @@ func sendMessageWithEffectsAndReply(conn *gorm.DB, senderId, peerId uint64, cont
 	// entire transaction before a bounded retry finds the winner's config.
 	for attempt := 0; attempt < 3; attempt++ {
 		var convId uint64
+		var newMessageID uint64
 		replayed := false
 		err := conn.Transaction(func(tx *gorm.DB) error {
 			if err := users.LockInteractionUsers(tx, senderId, peerId); err != nil {
@@ -167,12 +172,32 @@ func sendMessageWithEffectsAndReply(conn *gorm.DB, senderId, peerId uint64, cont
 				return errors.New("conversation membership changed")
 			}
 			now := time.Now()
-			if err := tx.Create(&messages.Entity{
+			message := &messages.Entity{
 				ClientMessageID: key, ReplyToMessageID: replyTarget, ConvId: convId, SenderId: senderId, Content: content,
 				MsgType: msgType, IsRead: 0, CreatedAt: now,
-			}).Error; err != nil {
+			}
+			if err := tx.Create(message).Error; err != nil {
 				return err
 			}
+			newMessageID = message.Id
+			// A savepoint isolates best-effort outbox failures from the committed message.
+			if err := tx.SavePoint("chat_push").Error; err == nil {
+				err = webpushservice.EnqueueChatTx(tx, peerId, message.Id)
+				if err == nil {
+					err = nativepushservice.EnqueueChatTx(tx, peerId, message.Id)
+				}
+				if err != nil {
+					if rollbackErr := tx.RollbackTo("chat_push").Error; rollbackErr != nil {
+						return rollbackErr
+					}
+					slog.Warn("chat push enqueue failed", "messageId", message.Id, "err", err)
+				}
+			} else {
+				// An unavailable savepoint skips both channels as well; the message
+				// still commits, so record the lost push instead of failing the send.
+				slog.Warn("chat push savepoint failed", "messageId", message.Id, "err", err)
+			}
+
 			if err := tx.Model(&imConversations.Entity{}).Where("id = ?", convId).
 				Updates(map[string]any{"last_msg_content": imConversations.MessagePreview(messages.DisplayContent(content, msgType)), "last_msg_time": now}).Error; err != nil {
 				return err
@@ -188,6 +213,7 @@ func sendMessageWithEffectsAndReply(conn *gorm.DB, senderId, peerId uint64, cont
 			if replayed || !publish {
 				return convId, nil
 			}
+			pushpolicy.Trace("chat", "committed", pushpolicy.Task{UserId: peerId, SourceKind: pushpolicy.ChatMessage, SourceId: newMessageID})
 			imUserChatConfigs.InvalidateConversationAccess(senderId, convId)
 			imUserChatConfigs.InvalidateConversationAccess(peerId, convId)
 			unreadservice.Invalidate(peerId)

@@ -1,7 +1,11 @@
 package notificationservice
 
 import (
+	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"strings"
 	"testing"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -166,5 +170,36 @@ func TestInteractionsDoNotWakeBotsThroughHumanNotifications(t *testing.T) {
 	conn.Model(&eventNotification.Entity{}).Where("user_id = ?", bot.Id).Count(&count)
 	if count != 0 {
 		t.Fatalf("bot received %d legacy wakeups; Agent events must be its only interaction channel", count)
+	}
+}
+
+func TestMentionEnqueuesBothPushChannels(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &posts.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}, &taskQueue.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	config := map[string]string{"webpush.vapid_public_key": strings.Repeat("A", 87), "webpush.vapid_private_key": strings.Repeat("B", 43), "push.fcm.credentials_path": "test-only.json", "push.fcm.project_id": "test-only"}
+	for key, value := range config {
+		preferences.Set(key, value)
+	}
+	t.Cleanup(func() {
+		for key := range config {
+			preferences.Set(key, "")
+		}
+		conn.Where("user_id = ?", 8765).Delete(&eventNotification.Entity{})
+	})
+	if err := SendMentionNotifications([]uint64{8765}, 1, 2, 3, "preview", 4); err != nil {
+		t.Fatal(err)
+	}
+	var n eventNotification.Entity
+	if err := conn.Where("user_id = ?", 8765).Last(&n).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, prefix := range []string{"webpush.", "nativepush."} {
+		var count int64
+		conn.Model(&taskQueue.Entity{}).Where("type = ?", fmt.Sprintf("%s%d", prefix, n.Id)).Count(&count)
+		if count != 1 {
+			t.Errorf("%s tasks=%d, want 1", prefix, count)
+		}
 	}
 }

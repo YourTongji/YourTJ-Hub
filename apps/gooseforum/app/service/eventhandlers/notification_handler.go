@@ -34,8 +34,9 @@ const (
 )
 
 type notificationRecipient struct {
-	userID    uint64
-	eventType string
+	userID           uint64
+	eventType        string
+	hasDirectMention bool
 }
 
 // TakeUpTo64Chars 按字符数截取字符串，最多取 64 个字符
@@ -79,7 +80,7 @@ func handleCommentCreated(ctx context.Context, event *CommentCreatedEvent) error
 	for _, recipient := range recipients {
 		switch recipient.eventType {
 		case eventNotification.EventTypePostReply:
-			_ = notificationservice.SendPostReplyNotification(recipient.userID, event.PostId, event.PostNo, event.TopicId, contentPreview, event.UserId)
+			_ = notificationservice.SendPostReplyNotification(recipient.userID, event.PostId, event.PostNo, event.TopicId, contentPreview, event.UserId, recipient.hasDirectMention)
 		case eventNotification.EventTypeComment:
 			_ = notificationservice.SendCommentNotification(recipient.userID, event.TopicId, contentPreview, event.UserId, event.PostId, event.PostNo)
 		}
@@ -140,9 +141,13 @@ func priorityRecipients(event *CommentCreatedEvent, mentionUserIDs []uint64) []n
 		set(userID, eventNotification.EventTypeMention, notificationPriorityMention)
 	}
 
+	mentioned := make(map[uint64]bool, len(mentionUserIDs))
+	for _, id := range mentionUserIDs {
+		mentioned[id] = true
+	}
 	recipients := make([]notificationRecipient, 0, len(winner))
 	for userID, eventType := range winner {
-		recipients = append(recipients, notificationRecipient{userID: userID, eventType: eventType})
+		recipients = append(recipients, notificationRecipient{userID: userID, eventType: eventType, hasDirectMention: mentioned[userID]})
 	}
 	sort.Slice(recipients, func(i, j int) bool { return recipients[i].userID < recipients[j].userID })
 	return recipients

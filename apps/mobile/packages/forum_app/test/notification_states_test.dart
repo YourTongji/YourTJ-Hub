@@ -35,17 +35,20 @@ class _Pages extends PageRepository {
 class _Notifications extends NotificationRepository {
   _Notifications() : super(_client());
   final requests = <(String, int, Completer<NotificationListResponse>)>[];
+  final categories = <String>[];
   final markAll = <Completer<bool>>[];
   final markOne = <(int, Completer<bool>)>[];
   @override
   Future<NotificationListResponse> fetchNotifications({
     String filter = 'all',
+    String category = 'all',
     int cursor = 0,
     int limit = 20,
     CancelToken? cancelToken,
   }) {
     final result = Completer<NotificationListResponse>();
     requests.add((filter, cursor, result));
+    categories.add(category);
     return result.future;
   }
 
@@ -144,6 +147,31 @@ Future<ProviderContainer> _mount(
 }
 
 void main() {
+  testWidgets(
+    'six categories combine with unread and reject a stale category response',
+    (tester) async {
+      final repo = _Notifications();
+      await _mount(tester, repo);
+      repo.requests[0].$3.complete(_page('initial'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mentions'));
+      await tester.pump();
+      expect(repo.categories.last, 'mentions');
+      expect(repo.requests.last.$1, 'all');
+      final stale = repo.requests.last.$3;
+      await tester.tap(find.text('Unread'));
+      await tester.pump();
+      expect(repo.categories.last, 'mentions');
+      expect(repo.requests.last.$1, 'unread');
+      repo.requests.last.$3.complete(_page('unread mention'));
+      await tester.pumpAndSettle();
+      stale.complete(_page('stale category'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('unread mention'), findsOneWidget);
+      expect(find.textContaining('stale category'), findsNothing);
+    },
+  );
+
   for (final language in ['zh', 'en', 'ja', 'de']) {
     for (final hasActor in [false, true]) {
       testWidgets(
@@ -221,7 +249,12 @@ void main() {
                 return true;
               });
             }
-            expect(bold, hasActor ? ['Alice'] : isEmpty);
+            expect(
+              bold,
+              hasActor && items[index].eventType != 'wiki_updated'
+                  ? ['Alice']
+                  : isEmpty,
+            );
             expect(row.actorName, hasActor ? 'Alice' : '');
           }
           expect(tester.takeException(), isNull);
@@ -394,13 +427,17 @@ void main() {
           'topic_post' => l10n.notificationTopicPost('Alice'),
           'follow' => l10n.notificationFollow('Alice'),
           'like' => l10n.notificationLike('Alice'),
-          'wiki_updated' => l10n.notificationWikiUpdated('Alice'),
+          // Wiki copy names the subscribed page, not the actor.
+          'wiki_updated' => l10n.notificationWikiUpdated,
           _ => throw StateError('Unexpected social notification: $eventType'),
         };
 
         expect(row.actorName, 'Alice');
         expect(row.title, expectedTitle);
-        expect(_boldedNotificationSegments(tester, row.title), ['Alice']);
+        expect(
+          _boldedNotificationSegments(tester, row.title),
+          eventType == 'wiki_updated' ? isEmpty : equals(['Alice']),
+        );
       });
     }
   }

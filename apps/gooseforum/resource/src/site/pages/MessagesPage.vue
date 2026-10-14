@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import UserNickname from '@/site/components/UserNickname.vue'
 import { userDisplayName } from '@/runtime/private-notes'
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ArrowLeft, MessageSquare, MessageSquarePlus, MoreVertical, Search, Send, Smile, X } from '@lucide/vue'
 import { getChatMessages, markChatRead, sendChatMessage, sensitiveWordsFromError, type ChatMessagePayload } from '@/runtime/api'
 import { containsSensitiveText } from '@/site/utils/sensitive-highlight'
@@ -46,6 +46,20 @@ const messageInput = ref<HTMLTextAreaElement | null>(null)
 const unreadStatus = useUnreadStatus()
 const { resolvedUrls, ensureContentStickers } = useResolvedStickers()
 const stickerUrlMap = resolvedUrls
+const visibleChatPeer = computed(() => active.value?.messagesLoaded && !active.value.loading && !showNewChat.value ? active.value.peerId : 0)
+let chatMounted = true
+function reportVisibleChat() {
+  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+    void navigator.serviceWorker.getRegistration('/sw.js').then(registration => {
+      registration?.active?.postMessage({ type: 'goose:active-chat', peerId: chatMounted ? visibleChatPeer.value : 0 })
+    }).catch(() => undefined)
+  }
+}
+watch(visibleChatPeer, reportVisibleChat, { immediate: true })
+onBeforeUnmount(() => {
+  chatMounted = false
+  reportVisibleChat()
+})
 watch(
   () => active.value?.messages.map((message) => message.content) ?? [],
   (contents) => { void ensureContentStickers(contents) },

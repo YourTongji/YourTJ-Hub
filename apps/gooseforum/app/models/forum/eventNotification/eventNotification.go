@@ -63,10 +63,11 @@ const (
 
 // NotificationPayload 通知内容的基础结构
 type NotificationPayload struct {
-	Title          string                     `json:"title,omitempty"`
-	Content        string                     `json:"content,omitempty"`
-	TemplateKey    string                     `json:"templateKey,omitempty"`
-	TemplateParams NotificationTemplateParams `json:"templateParams"`
+	HasDirectMention bool                       `json:"hasDirectMention,omitempty"`
+	Title            string                     `json:"title,omitempty"`
+	Content          string                     `json:"content,omitempty"`
+	TemplateKey      string                     `json:"templateKey,omitempty"`
+	TemplateParams   NotificationTemplateParams `json:"templateParams"`
 	// 通用字段
 	ActorPersonaUID string `json:"actorPersonaUid,omitempty"`
 	ActorId         uint64 `json:"actorId"`             // 触发者ID
@@ -95,9 +96,10 @@ type Extra struct {
 }
 
 type Entity struct {
-	PrivateActorID uint64 `gorm:"not null;default:0" json:"-"`
-	Id             uint64 `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_user_id_desc,priority:2;index:idx_user_read_id,priority:3" json:"id"`
-	UserId         uint64 `gorm:"column:user_id;type:bigint;index:idx_user_id_event_type_read;index:idx_user_read;index:idx_user_id_desc,priority:1;index:idx_user_read_id,priority:1" json:"userId"` // 接收通知的用户ID
+	HasDirectMention bool   `gorm:"not null;default:false;index:idx_user_mention_id,priority:2" json:"-"`
+	PrivateActorID   uint64 `gorm:"not null;default:0" json:"-"`
+	Id               uint64 `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_user_id_desc,priority:2;index:idx_user_read_id,priority:3;index:idx_user_mention_id,priority:3" json:"id"`
+	UserId           uint64 `gorm:"column:user_id;type:bigint;index:idx_user_id_event_type_read;index:idx_user_read;index:idx_user_id_desc,priority:1;index:idx_user_read_id,priority:1;index:idx_user_mention_id,priority:1" json:"userId"` // 接收通知的用户ID
 	// TopicID 冗余列：与 Payload.TopicId 同步维护，供删除联动按 SQL 过滤而非全表扫描。
 	// 非话题类通知（badge/follow）该列为 0。跨库 JSON 查询语法不一致，SQL 过滤需要此列。
 	TopicID   uint64              `gorm:"column:topic_id;not null;default:0;index:idx_event_notification_topic" json:"-"`

@@ -1809,12 +1809,12 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String notificationComment(String actor) {
-    return '$actorがあなたのトピックにコメントしました';
+    return '$actor があなたのトピックにコメントしました';
   }
 
   @override
   String notificationMention(String actor) {
-    return '$actorがあなたにメンションしました';
+    return '$actor があなたに言及しました';
   }
 
   @override
@@ -1846,28 +1846,26 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String notificationPostReply(String actor) {
-    return '$actorがあなたに返信しました';
+    return '$actor があなたに返信しました';
   }
 
   @override
   String notificationTopicPost(String actor) {
-    return '$actorがフォロー中のトピックに投稿しました';
+    return '$actor がフォロー中のトピックに返信しました';
   }
 
   @override
   String notificationFollow(String actor) {
-    return '$actor さんがあなたをフォローしました';
+    return '$actor があなたをフォローしました';
   }
 
   @override
   String notificationLike(String actor) {
-    return '$actorがあなたの返信に「いいね」しました';
+    return '$actor があなたの返信にいいねしました';
   }
 
   @override
-  String notificationWikiUpdated(String actor) {
-    return '$actorがフォロー中のWikiページを更新しました';
-  }
+  String get notificationWikiUpdated => '購読中の Wiki ページが更新されました';
 
   @override
   String notificationBadge(String badge) {
@@ -1875,7 +1873,7 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get notificationNew => '新しい通知があります';
+  String get notificationNew => '新しいシステム通知があります';
 
   @override
   String get notificationSomeone => '誰か';
@@ -3745,4 +3743,54 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get profilePrivacyManage => '公開範囲を変更';
+
+  @override
+  String get notificationsMentions => 'メンション';
+
+  @override
+  String get notificationsReplies => '返信';
+
+  @override
+  String get notificationsLikes => 'いいね';
+
+  @override
+  String get notificationsFollowing => 'フォロー';
+
+  @override
+  String get notificationsSystem => 'システム';
+
+  @override
+  String get pushChat => 'ダイレクトメッセージ';
+
+  @override
+  String get pushMentionsAndReplies => 'メンションと返信';
+
+  @override
+  String get pushActivity => 'いいね';
+
+  @override
+  String get pushFollowing => 'フォローの更新';
+
+  @override
+  String get pushSystem => 'システムと審査';
+
+  @override
+  String notificationMentionTopic(String actor, String topic) {
+    return '$actor が「$topic」であなたに言及しました';
+  }
+
+  @override
+  String notificationCommentTopic(String actor, String topic) {
+    return '$actor が「$topic」にコメントしました';
+  }
+
+  @override
+  String notificationTopicPostTopic(String actor, String topic) {
+    return '$actor がフォロー中の「$topic」に返信しました';
+  }
+
+  @override
+  String notificationWikiTopic(String topic) {
+    return '「$topic」が更新されました';
+  }
 }

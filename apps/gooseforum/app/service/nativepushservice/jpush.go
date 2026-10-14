@@ -33,8 +33,8 @@ func sendJPush(ctx context.Context, cfg JPushConfig, registrationID string, msg 
 		"platform": "android",
 		"audience": map[string]any{"registration_id": []string{registrationID}},
 		"notification": map[string]any{"android": map[string]any{
-			"alert": msg.Body, "title": msg.Title, "channel_id": "yourtj_activity",
-			"extras": map[string]string{"route": msg.Route},
+			"alert": msg.Body, "title": msg.Title, "channel_id": msg.Channel,
+			"extras": msg.Data(),
 			// OEM notification clicks start this dedicated, allowlisted receiver activity.
 			"intent": map[string]string{"url": "intent:#Intent;action=tj.yourtj.forum_app.OPEN_PUSH;component=tj.yourtj.forum_app/tj.yourtj.forum_app.PushOpenActivity;end"},
 		}},

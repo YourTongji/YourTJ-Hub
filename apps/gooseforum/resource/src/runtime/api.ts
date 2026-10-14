@@ -4,7 +4,7 @@ import type { TopicPayload } from '@gooseforum/client'
 // CourseSummaryPayload（AI 总结：consensus/keywords/pros/cons），二者同名异物。
 // 这里导入的是课程卡片（id/name/ratingAvg/...），故别名为 CourseCatalogItem 避免混淆。
 import type { components } from '@gooseforum/client'
-import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, MentionTarget, ModerationApprovalActionView, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
+import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, MentionTarget, ModerationApprovalActionView, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationCategory, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import type { ReviewQueueItem } from '@/admin/types'
 import { resolveApiMessage } from './api-message'
@@ -733,9 +733,10 @@ export async function markNotificationRead(notificationId: number): Promise<bool
   return readApiResponse<boolean>(response, t('api.markReadFailed'))
 }
 
-export async function fetchNotifications(filter: NotificationFilter, cursor = 0, limit = 20): Promise<NotificationListResponse> {
+export async function fetchNotifications(filter: NotificationFilter, cursor = 0, limit = 20, category: NotificationCategory = 'all'): Promise<NotificationListResponse> {
   const params = new URLSearchParams({
     filter,
+    category,
     cursor: String(cursor),
     limit: String(limit),
   })

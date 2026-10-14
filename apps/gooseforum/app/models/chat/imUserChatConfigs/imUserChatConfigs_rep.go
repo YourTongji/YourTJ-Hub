@@ -91,3 +91,10 @@ func Touch(convId, userId uint64) {
 func ClearUnread(convId, userId uint64) {
 	builder().Where("conv_id = ? AND user_id = ?", convId, userId).Update("unread_count", 0)
 }
+
+// PushRecipientAllowed uses current membership rather than the access cache.
+func PushRecipientAllowed(userID, senderID, convID uint64) (bool, error) {
+	var count int64
+	err := builder().Where("user_id = ? AND peer_id = ? AND conv_id = ? AND is_deleted = 0 AND is_muted = 0", userID, senderID, convID).Count(&count).Error
+	return count == 1, err
+}

@@ -246,7 +246,11 @@ void main() {
           l10n,
         );
         expect(title, isNot(contains('notifications.')));
-        expect(title, contains(key == 'badge' ? '维护者' : 'Alice'));
+        if (key != 'wikiUpdated') {
+          expect(title, contains(key == 'badge' ? '维护者' : 'Alice'));
+        } else {
+          expect(title, l10n.notificationWikiUpdated);
+        }
         expect(subtitle, 'Actual preview');
       }
     }

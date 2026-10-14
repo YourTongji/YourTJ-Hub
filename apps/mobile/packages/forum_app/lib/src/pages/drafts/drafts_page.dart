@@ -27,6 +27,8 @@ class DraftsPage extends ConsumerStatefulWidget {
 class _DraftsPageState extends ConsumerState<DraftsPage> {
   AsyncValue<DraftsPageProps> _page = const AsyncValue.loading();
   final _search = TextEditingController();
+  final GfScrollToTopController _scrollToTopController =
+      GfScrollToTopController();
   _DraftFilter _filter = _DraftFilter.all;
   List<LocalDraft> _localDrafts = [];
   bool _localLoaded = false;
@@ -509,7 +511,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
     final count = local.length + cloud.length;
     final ready =
         (!showLocal || _localLoaded) && (!showCloud || _page.hasValue);
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: GfAppBar(
         title: Text(l10n.draftsTitle),
         actions: [
@@ -585,6 +587,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
               ),
             ),
       body: GfScrollToTop(
+        controller: _scrollToTopController,
         semanticLabel: l10n.commonBackToTop,
         threshold: 360,
         builder: (context, controller) => AppRefreshIndicator(
@@ -754,6 +757,10 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
           ),
         ),
       ),
+    );
+    return GfStatusBarScrollToTop(
+      controller: _scrollToTopController,
+      child: scaffold,
     );
   }
 }

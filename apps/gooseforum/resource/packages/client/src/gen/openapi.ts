@@ -2898,6 +2898,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/push/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read current account system push groups */
+        get: operations["getPushPreferences"];
+        /** Update only explicitly named account push groups */
+        put: operations["updatePushPreferences"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/push/config": {
         parameters: {
             query?: never;
@@ -9575,6 +9593,9 @@ export interface components {
             topic?: components["schemas"]["NotificationTopicRef"];
             /** @description Raw event payload (title/content/templateKey/templateParams/actorId/topicId/postId/metadata and friends); shape varies by eventType. */
             payload: {
+                /** @description Structured direct mention reason; absent for historical rows without known reasons. */
+                hasDirectMention?: boolean;
+            } & {
                 [key: string]: unknown;
             };
         };
@@ -14666,6 +14687,33 @@ export interface components {
             avatarUrl: string;
             /** @description Present only when the user wears a badge. */
             wornBadge?: Record<string, never> | null;
+        };
+        values: {
+            /** @default true */
+            chat: boolean;
+            /** @default true */
+            mentionsAndReplies: boolean;
+            /** @default false */
+            activity: boolean;
+            /** @default false */
+            following: boolean;
+            /** @description True until system has an explicit override; ordinary system, badge and pending review remain silent. */
+            readonly systemDefaultOnly: boolean;
+            /**
+             * @description Defaults allow review approval/rejection only. Explicit true also enables ordinary system, badges and review pending.
+             * @default true
+             */
+            system: boolean;
+        };
+        response: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["values"];
+        }) | components["schemas"]["ApiFailure"];
+        changes: {
+            chat?: boolean;
+            mentionsAndReplies?: boolean;
+            activity?: boolean;
+            following?: boolean;
+            system?: boolean;
         };
         ForwardChatMessagesRequest: {
             /** Format: uint64 */
@@ -20556,6 +20604,7 @@ export interface operations {
     getNotifications: {
         parameters: {
             query?: {
+                category?: "all" | "mentions" | "replies" | "likes" | "following" | "system";
                 filter?: "" | "all" | "unread";
                 cursor?: number;
                 limit?: number;
@@ -20666,6 +20715,77 @@ export interface operations {
             };
             /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getPushPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Effective preferences; selective system defaults apply until explicitly changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["response"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    updatePushPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["changes"];
+            };
+        };
+        responses: {
+            /** @description Effective preferences after the partial update; station notifications and chat remain intact. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["response"];
+                };
+            };
+            /** @description Malformed JSON or invalid group value types. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

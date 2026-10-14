@@ -22,6 +22,7 @@ const (
 const LeaseDuration = 10 * time.Minute
 
 type Entity struct {
+	DedupKey      *string    `gorm:"column:dedup_key;type:varchar(128);uniqueIndex:idx_task_dedup" json:"-"`
 	NextRunAt     *time.Time `gorm:"column:next_run_at;index" json:"nextRunAt,omitempty"`
 	ScheduleGroup string     `gorm:"column:schedule_group;type:varchar(64);not null;default:'';index" json:"-"`
 

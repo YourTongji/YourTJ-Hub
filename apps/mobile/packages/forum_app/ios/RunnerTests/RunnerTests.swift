@@ -5,6 +5,20 @@ import XCTest
 
 class RunnerTests: XCTestCase {
 
+  func testPushPresentationSuppressesOnlyVisibleConversationAndWrongAccount() {
+    let message: [AnyHashable: Any] = ["route": "/chat?userId=7&recipientId=9",
+      "sourceKind": "chat_message", "sourceId": 12, "recipientId": 9]
+    XCTAssertFalse(AppDelegate.shouldPresentPush(message, userID: 9, peerID: 7, foreground: true))
+    XCTAssertTrue(AppDelegate.shouldPresentPush(message, userID: 9, peerID: 8, foreground: true))
+    XCTAssertTrue(AppDelegate.shouldPresentPush(message, userID: 9, peerID: 7, foreground: false))
+    XCTAssertFalse(AppDelegate.shouldPresentPush(message, userID: 10, peerID: 7, foreground: false))
+    XCTAssertFalse(AppDelegate.shouldPresentPush(["route": "/chat?userId=7"], userID: 9, peerID: 0, foreground: false))
+    XCTAssertEqual(AppDelegate.pushSourceKey(message, userID: 9), "9:chat_message:12")
+    XCTAssertNotEqual(AppDelegate.pushSourceKey(message, userID: 10), AppDelegate.pushSourceKey(message, userID: 9))
+    XCTAssertNil(AppDelegate.pushSourceKey(["route": "/notifications"], userID: 9))
+  }
+
+
   func testStorageBackupPolicyDoesNotModifySystemOwnedAppGroupRoot() throws {
     let manager = FileManager.default
     let root = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

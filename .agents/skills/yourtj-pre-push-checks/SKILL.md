@@ -6,9 +6,17 @@ description: Use before pushing, force-pushing, marking ready for review, or cla
 # yourtj Pre-Push Checks
 
 Use this skill to run the relevant local evidence once before pushing a yourtj-hub branch. Git hooks are
-intentionally narrow: pre-commit checks staged whitespace and gofmt; pre-push runs `go vet` + `golangci-lint`
-(incremental against `origin/dev`, full fallback) + `pnpm typecheck` + the web i18n gate (`pnpm check`). CI
-owns exhaustive coverage and the platform matrix.
+intentionally narrow: pre-commit checks staged whitespace and gofmt; pre-push runs `go vet` + incremental
+`golangci-lint` against the freshly fetched PR base + `pnpm typecheck` + the web i18n gate (`pnpm check`).
+The hook reads an existing PR's base with GitHub CLI, finds a configured remote by repository URL rather
+than remote name, and fetches that exact branch before linting. If the configured remote transport fails,
+it retries over HTTPS for the same repository and branch. When GitHub CLI confirms that no PR exists, the
+hook uses the documented default `YourTongji/YourTJ-Hub:dev`. Set `YOURTJ_LINT_BASE=owner/repo:branch` for
+a different planned base or when GitHub CLI is unavailable. A successfully read open PR base takes
+precedence over the override; the override is used when no PR is found or GitHub CLI cannot identify one.
+If a PR is identified but its actual base cannot be read, the hook fails even when an override is set. An
+unresolved or unfetchable base fails the hook with guidance; it never substitutes a stale ref or skips lint.
+CI owns exhaustive coverage and the platform matrix.
 
 ## Inspect the outgoing change
 
@@ -22,12 +30,12 @@ git rev-parse --show-toplevel
 2. Inspect the scope against the verified base:
 
 ```sh
-git diff origin/dev...HEAD --stat
+git diff FETCH_HEAD...HEAD --stat
 ```
 
-Use the verified PR base when it differs from `origin/dev`; if the local ref is stale or missing, fetch
-the specific base before relying on it. Do not silently choose a different base. After a base merge or
-rebase, rerun the diff and reassess which checks the combined scope invalidates.
+The hook refreshes this worktree's `FETCH_HEAD` from the selected PR base before running lint. If reviewing
+before the hook has run, resolve the actual PR base and fetch it first; do not silently choose a different
+base. After a base merge or rebase, rerun the diff and reassess which checks the combined scope invalidates.
 For a pre-commit readiness check, also inspect staged, unstaged and relevant untracked files; the
 three-dot committed diff above does not include them.
 
@@ -59,6 +67,7 @@ manually:
 
 ```sh
 lefthook run pre-push
+node --test scripts/test-pre-push-base.mjs
 ```
 
 ## Handle failures

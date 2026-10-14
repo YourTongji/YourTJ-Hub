@@ -179,7 +179,7 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0079](0079-feed-block-exclusion.md) — 公开列表与推荐统一的双向屏蔽排除；带屏蔽关系读者绕过共享列表缓存，关系检查按读者短 TTL 缓存并由写路径失效，搜索与回复楼层为文档边界。
 - [0080](0080-personal-sticker-pre-review.md) — 个人上传表情先审核后使用，AI 未决结果进入站点管理员专属队列。
 - [0081](0081-mobile-editor-caret-follow-and-image-height-cap.md) — 移动端编辑器由跟随器按光标行驱动外层滚动，正文图片铺满宽度并把高度限制在 0.6 倍视口高。
-
 - [0082](0082-hub-decoration-entitlement-ownership.md) — Hub 唯一持有装饰权益与装备，商城通过所有者接口联动，首版仅管理员授予。
+- [0083](0083-notification-policy-and-private-chat-push.md) — 提及原因类型化与账号级推送偏好（六类活动分类）；私信经既有 outbox 提交源推送，正文与未公开标题不出第三方负载。
 - [0086](0086-unique-decision-numbers-with-gaps.md) — 编号是唯一标识、允许空号：并行 PR 各自预留编号，verifier 只拒绝重复编号。
 - [0088](0088-profile-section-privacy.md) — 个人主页分区可见范围由服务端执行；只控制主页聚合，不引入私密账号。

@@ -9,6 +9,7 @@ import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/push/push_service.dart';
 import 'package:forum_app/src/router.dart';
+import 'package:forum_app/src/pages/notifications/notification_text.dart';
 
 class MemoryStorage implements TokenStorage {
   String? value = 'session';
@@ -30,6 +31,7 @@ class Driver extends PushDriver {
   bool supported = true, allowed = true;
   int requests = 0, registrations = 0, stopped = 0;
   String? deviceToken = 'native-token';
+  String? pendingRoute;
   void Function(String)? changed;
   Completer<String?>? pending;
   Completer<bool>? pendingPermission;
@@ -59,7 +61,12 @@ class Driver extends PushDriver {
   }
 
   @override
-  Future<String?> initialRoute() async => null;
+  Future<String?> initialRoute() async {
+    final route = pendingRoute;
+    pendingRoute = null;
+    return route;
+  }
+
   @override
   void listen(
     void Function(String) tokenChanged,
@@ -686,6 +693,44 @@ void main() {
       false,
     );
   });
+  for (final failure in ['registration', 'offline', 'serverDisabled']) {
+    test('cold tap opens restored account despite $failure', () async {
+      appRouter.go('/');
+      addTearDown(() => appRouter.go('/'));
+      SharedPreferences.setMockInitialValues({
+        'push_enabled': true,
+        'push_permission_requested': true,
+      });
+      driver.pendingRoute = '/chat?userId=7&recipientId=1';
+      if (failure == 'registration') repo.reject = true;
+      if (failure == 'offline') repo.offline = true;
+      if (failure == 'serverDisabled') {
+        repo.configValue = const PushConfigPayload(configured: false);
+      }
+      await settle();
+      expect(
+        appRouter.routeInformationProvider.value.uri.toString(),
+        '/chat?userId=7',
+      );
+      expect(driver.pendingRoute, isNull);
+      repo.reject = false;
+      repo.offline = false;
+      appRouter.go('/');
+      await controller().refresh();
+      expect(appRouter.routeInformationProvider.value.uri.path, '/');
+    });
+  }
+  test('restored new account never opens an old recipient chat tap', () async {
+    appRouter.go('/');
+    addTearDown(() => appRouter.go('/'));
+    driver.pendingRoute = '/chat?userId=7&recipientId=1';
+    user = const CurrentUser(id: 2, username: 'two');
+    container.invalidate(currentUserProvider);
+    repo.offline = true;
+    await settle();
+    expect(appRouter.routeInformationProvider.value.uri.path, '/notifications');
+    expect(driver.pendingRoute, isNull);
+  });
   test('notification navigation is restricted to actual app routes', () {
     for (final route in [
       '/p/12',
@@ -693,6 +738,8 @@ void main() {
       '/u/34',
       '/notifications',
       '/my-content',
+      '/chat?userId=7&recipientId=9',
+      '/wiki/campus/library',
     ]) {
       expect(pushRoute(route), route);
     }
@@ -702,8 +749,26 @@ void main() {
       '/admin',
       '/p/no',
       '/login',
+      '/chat?userId=0',
+      '/chat?userId=7&userId=8',
+      '/chat?userId=7&redirect=https://evil.test',
+      '/wiki/../settings',
+      '/p/12?redirect=https://evil.test',
     ]) {
       expect(pushRoute(route), null);
     }
+  });
+  test('direct mention reason wins over the legacy reply event', () {
+    final item = NotificationPayload.fromJson({
+      'id': 1,
+      'eventType': 'post_reply',
+      'isRead': false,
+      'createdAt': '',
+      'title': '',
+      'content': '',
+      'actor': {'id': 7, 'username': 'Alice'},
+      'payload': {'actorId': 7, 'hasDirectMention': true},
+    });
+    expect(notificationEvent(item), 'mention');
   });
 }

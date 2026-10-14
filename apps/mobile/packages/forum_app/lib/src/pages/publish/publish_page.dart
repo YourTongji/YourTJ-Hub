@@ -1316,7 +1316,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     }
     final AppLocalizations l10n = AppLocalizations.of(context);
 
-    return PopScope(
+    final page = PopScope(
       canPop:
           !_stickerOpen &&
           !_submitting &&
@@ -1415,6 +1415,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
               )
             : null,
       ),
+    );
+    return GfStatusBarScrollToTop(
+      scrollController: _pageScrollController,
+      child: page,
     );
   }
 

@@ -45,6 +45,8 @@ vi.mock('../src/runtime/api', () => ({
   wearBadge: vi.fn(async () => true),
 }))
 vi.mock('../src/runtime/web-push', () => ({
+  getPushPreferences: vi.fn(async () => ({ chat: true, mentionsAndReplies: true, activity: false, following: false, system: true, systemDefaultOnly: true })),
+  updatePushPreferences: vi.fn(async (changes: Record<string, boolean>) => ({ chat: true, mentionsAndReplies: true, activity: false, following: false, system: true, systemDefaultOnly: true, ...changes })),
   PushError: class PushError extends Error {},
   currentPushSubscription: vi.fn(async () => null),
   disableWebPush: vi.fn(async () => true),

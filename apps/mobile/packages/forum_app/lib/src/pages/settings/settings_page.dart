@@ -28,6 +28,7 @@ import '../../widgets/language_picker.dart';
 import '../../widgets/user_badge.dart';
 import '../../site_theme.dart';
 import '../../push/push_service.dart';
+import '../../push/push_preferences_panel.dart';
 import '../../widgets/status_views.dart';
 import '../../current_user.dart';
 import '../../navigation/auth_navigation.dart';
@@ -102,6 +103,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _googleOAuthReady = false;
   bool _appleOAuthReady = false;
   bool _autoEditProfileActive = false;
+  final GfScrollToTopController _scrollToTopController =
+      GfScrollToTopController();
   _ProfileEditSession _autoEditSession = _ProfileEditSession();
   final ImagePicker _imagePicker = ImagePicker();
   final Set<Route<dynamic>> _profileEditRoutes = {};
@@ -1001,7 +1004,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
     final title = _tab?.label(l10n) ?? l10n.settingsTitle;
     final colors = GfTheme.colorsOf(context);
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: colors.base200,
       appBar: GfAppBar(
         leading: IconButton(
@@ -1022,6 +1025,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ),
       ),
     );
+    return GfStatusBarScrollToTop(
+      controller: _scrollToTopController,
+      child: scaffold,
+    );
   }
 
   void _openSection(_SettingsTab section) {
@@ -1032,7 +1039,21 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
-  Widget _buildIndex(AppLocalizations l10n) => ListView(
+  Widget _buildIndex(AppLocalizations l10n) => GfScrollToTop(
+    controller: _scrollToTopController,
+    semanticLabel: l10n.commonBackToTop,
+    showButton: false,
+    builder: (_, ScrollController controller) => _buildIndexList(
+      l10n,
+      controller,
+    ),
+  );
+
+  Widget _buildIndexList(
+    AppLocalizations l10n,
+    ScrollController controller,
+  ) => ListView(
+    controller: controller,
     padding: const EdgeInsets.all(16),
     children: [
       _settingsSection(
@@ -1196,6 +1217,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       );
     }
     return GfScrollToTop(
+      controller: _scrollToTopController,
       semanticLabel: l10n.commonBackToTop,
       key: ValueKey<_SettingsTab?>(_tab),
       builder: (_, ScrollController controller) {
@@ -1564,6 +1586,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       ? () => ref.read(pushControllerProvider.notifier).enable()
                       : null,
                 ),
+                const PushPreferencesPanel(),
                 if (!isIOS) ...[
                   const GfDivider(),
                   GfSettingRow(

@@ -6,6 +6,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import type { LayoutPayload, NotificationPayload } from '@gooseforum/client'
 import { i18n } from '../src/runtime/i18n'
+import { notificationText } from '../src/runtime/notification-text'
 import AvatarStack from '../src/site/components/AvatarStack.vue'
 import NotificationsPage from '../src/site/pages/NotificationsPage.vue'
 
@@ -42,13 +43,14 @@ function createNotification(): NotificationPayload {
 
 it('渲染通知 actor 时传入昵称（note(display name)）', async () => {
   vi.stubGlobal('IntersectionObserver', class { observe() {} unobserve() {} disconnect() {} })
+  const notification = createNotification()
   wrapper = mount(NotificationsPage, {
     props: {
       layout: { viewer: { id: 1, username: 'alice', avatarUrl: '' } } as LayoutPayload,
       props: {
         total: 1,
         unreadCount: 0,
-        notifications: [createNotification()],
+        notifications: [notification],
         pagination: { page: 1, nextPage: 0, hasNext: false, nextUrl: '' },
       },
     },
@@ -57,6 +59,10 @@ it('渲染通知 actor 时传入昵称（note(display name)）', async () => {
   await flushPromises()
   // actor.name 命中备注后按当前昵称渲染；传 username 会得到 `备注(actor)`。
   expect(wrapper.text()).toContain('备注(昵称甲)')
+  const publicCopy = notificationText(notification, i18n.global.t)
+  expect(publicCopy).toContain('actor')
+  expect(publicCopy).not.toContain('备注')
+  expect(publicCopy).not.toContain('昵称甲')
 })
 
 it('渲染参与者头像时传入昵称（note(display name)）', () => {

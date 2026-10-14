@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/navigation/reading_chrome.dart';
+import 'package:forum_app/src/navigation/tab_scroll_registry.dart';
 import 'package:forum_app/src/pages/home/home_page.dart';
 import 'package:forum_app/src/pages/topic/topic_page.dart';
 import 'package:forum_app/src/providers.dart';
@@ -25,6 +26,15 @@ class _Tokens implements TokenStorage {
   Future<void> write(String token) async {}
   @override
   Future<void> clear() async {}
+}
+
+class _CountingNavigatorObserver extends NavigatorObserver {
+  int pushes = 0;
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    pushes++;
+  }
 }
 
 GfApiClient _client() =>
@@ -294,6 +304,7 @@ void main() {
     _Topics topics, {
     bool settle = true,
     double textScale = 1,
+    NavigatorObserver? navigatorObserver,
   }) async {
     SharedPreferences.setMockInitialValues({});
     final container = ProviderContainer(
@@ -310,6 +321,9 @@ void main() {
           locale: const Locale('zh'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
+          navigatorObservers: [
+            ?navigatorObserver,
+          ],
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(
               context,
@@ -490,6 +504,135 @@ void main() {
     expect(list.controller!.offset, 800);
     expect(pages.calls['latest'], initialLatestCalls);
   });
+
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+    testWidgets(
+      'home logo smoothly scrolls only the selected feed on ${platform.name}',
+      (tester) async {
+        if (platform == TargetPlatform.iOS) {
+          const statusBarInsets = FakeViewPadding(top: 59, bottom: 34);
+          addTearDown(tester.view.reset);
+          // These dimensions are logical iPhone points. The iOS platform
+          // variant may use a 3x test device-pixel ratio, so pin the ratio to
+          // 1 to keep the 390x844 fixture at its intended logical size.
+          tester.view.devicePixelRatio = 1;
+          tester.view.physicalSize = const Size(390, 844);
+          tester.view.padding = statusBarInsets;
+          tester.view.viewPadding = statusBarInsets;
+        }
+        final pages = _SortedPages();
+        final observer = _CountingNavigatorObserver();
+        final container = await pump(
+          tester,
+          pages,
+          _Topics(pages),
+          navigatorObserver: observer,
+        );
+        final latest = tester.widget<GfTopicList>(find.byType(GfTopicList));
+        latest.controller!.jumpTo(800);
+        await tester.pump();
+
+        await tester.tap(find.text('热门'));
+        await tester.pumpAndSettle();
+        final hot = tester.widget<GfTopicList>(find.byType(GfTopicList));
+        hot.controller!.jumpTo(500);
+        await tester.pump();
+        final statusBarSurface = tester.widget<GfStatusBarScrollToTop>(
+          find.byType(GfStatusBarScrollToTop),
+        );
+        expect(statusBarSurface.controller?.isAttached, isTrue);
+        expect(
+          statusBarSurface.controller?.scrollController,
+          same(hot.controller),
+        );
+
+        final logoButton = find.byKey(
+          const ValueKey<String>('home-logo-scroll-to-top'),
+        );
+        expect(logoButton, findsOneWidget);
+        expect(tester.getSize(logoButton).width, greaterThanOrEqualTo(48));
+        expect(tester.getSize(logoButton).height, greaterThanOrEqualTo(48));
+        expect(
+          tester.getSize(
+            find.descendant(of: logoButton, matching: find.byType(GfLogo)),
+          ),
+          const Size(32, 32),
+        );
+
+        final callsBeforeLogoTap = Map<String, int>.of(pages.calls);
+        final nextCallsBeforeLogoTap = List<String>.of(pages.nextCalls);
+        final routePushesBeforeLogoTap = observer.pushes;
+        expect(logoButton.hitTestable(), findsOneWidget);
+        await tester.tap(logoButton);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(hot.controller!.offset, greaterThan(0));
+        expect(hot.controller!.offset, lessThan(500));
+        await tester.pumpAndSettle();
+        expect(hot.controller!.offset, closeTo(0, 1));
+        expect(pages.calls, callsBeforeLogoTap);
+        expect(pages.nextCalls, nextCallsBeforeLogoTap);
+        expect(observer.pushes, routePushesBeforeLogoTap);
+
+        // Repeating the action at the top is safe and does not read the feed.
+        await tester.tap(logoButton);
+        await tester.pumpAndSettle();
+        expect(hot.controller!.offset, closeTo(0, 1));
+        expect(pages.calls, callsBeforeLogoTap);
+        expect(pages.nextCalls, nextCallsBeforeLogoTap);
+
+        await tester.tap(find.text('最新'));
+        await tester.pumpAndSettle();
+        final restoredLatest = tester.widget<GfTopicList>(
+          find.byType(GfTopicList),
+        );
+        expect(restoredLatest.controller!.offset, closeTo(800, 1));
+        await tester.tap(logoButton);
+        await tester.pumpAndSettle();
+        expect(restoredLatest.controller!.offset, closeTo(0, 1));
+        expect(observer.pushes, routePushesBeforeLogoTap);
+
+        // The shell's existing reselect action still targets the active feed.
+        restoredLatest.controller!.jumpTo(700);
+        await tester.pump();
+        final shellScroll = container
+            .read(tabScrollRegistryProvider)
+            .scrollToTop(GfShellDestination.home);
+        await tester.pumpAndSettle();
+        await shellScroll;
+        expect(restoredLatest.controller!.offset, closeTo(0, 1));
+
+        if (platform == TargetPlatform.iOS) {
+          restoredLatest.controller!.jumpTo(600);
+          await tester.pump();
+          final activeStatusBarSurface =
+              tester.widget<GfStatusBarScrollToTop>(
+                find.byType(GfStatusBarScrollToTop),
+              );
+          final scaffoldContext = tester.element(find.byType(Scaffold));
+          expect(
+            activeStatusBarSurface.controller?.scrollController,
+            same(restoredLatest.controller),
+          );
+          expect(
+            PrimaryScrollController.maybeOf(scaffoldContext),
+            same(restoredLatest.controller),
+          );
+          tester
+              .state<ScaffoldState>(find.byType(Scaffold))
+              .handleStatusBarTap();
+          await tester.pumpAndSettle();
+          expect(restoredLatest.controller!.offset, closeTo(0, 1));
+        }
+
+        expect(pages.calls, callsBeforeLogoTap);
+        expect(pages.nextCalls, nextCallsBeforeLogoTap);
+        expect(observer.pushes, routePushesBeforeLogoTap);
+        expect(tester.takeException(), isNull);
+      },
+      variant: TargetPlatformVariant.only(platform),
+    );
+  }
 
   testWidgets('swiping with hidden chrome retains each sort scroll offset', (
     tester,

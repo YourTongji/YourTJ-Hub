@@ -1,6 +1,8 @@
 package nativepushservice
 
 import (
+	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -12,9 +14,14 @@ import (
 // route 为 App 内路由（如 /p/123）。文案复用 webpushservice 的共享文案表
 // （同一事件 × 语言只维护一份），route 由 web 形态深链转换为 App 路由。
 type nativePayload struct {
-	Title string `json:"title"`
-	Body  string `json:"body"`
-	Route string `json:"route"`
+	Title       string `json:"title"`
+	Body        string `json:"body"`
+	Route       string `json:"route"`
+	SourceKind  string `json:"sourceKind"`
+	SourceId    uint64 `json:"sourceId"`
+	RecipientId uint64 `json:"recipientId"`
+	Channel     string `json:"channel"`
+	Thread      string `json:"thread"`
 }
 
 // mobileFallbackRoute 是无法映射到 App 路由时的兜底页（通知中心）。
@@ -36,10 +43,37 @@ func buildNativePayload(notification eventNotification.Entity, locale string) *n
 
 // webRouteToMobile 把 web 深链（/p/post/{topicId}[/{postNo}]、/u/{userId}、
 // /wiki/...）映射为移动端 App 路由（router.dart：/p/:postId、/u/:userId；
-// wiki 与未知路径回落通知中心）。楼层号复用 TopicPage 的 postNo 查询参数；
+// wiki 保留合法页面路径，未知路径回落通知中心）。楼层号复用 TopicPage 的 postNo 查询参数；
 // 只有旧 postId 锚点而没有楼层号时回退话题。
 func webRouteToMobile(webURL string) string {
 	path := strings.TrimSpace(webURL)
+	parsed, err := url.Parse(path)
+	if err != nil || parsed.IsAbs() || parsed.Host != "" {
+		return mobileFallbackRoute
+	}
+	if strings.Contains(path, "\\") || strings.IndexFunc(parsed.Path, func(r rune) bool { return r <= 0x20 || r == 0x7f }) >= 0 {
+		return mobileFallbackRoute
+	}
+	if parsed.Path == "/chat" || parsed.Path == "/messages" {
+		id, err := strconv.ParseUint(parsed.Query().Get("userId"), 10, 64)
+		if err == nil && id > 0 {
+			return "/chat?userId=" + strconv.FormatUint(id, 10)
+		}
+		return mobileFallbackRoute
+	}
+	if strings.HasPrefix(parsed.Path, "/wiki/") && parsed.RawQuery == "" && parsed.Fragment == "" {
+		// RawPath keeps an encoded separator that Path decoding already turned
+		// into a real one; reject it before splitting into segments.
+		if strings.Contains(strings.ToLower(parsed.RawPath), "%2f") {
+			return mobileFallbackRoute
+		}
+		for _, part := range strings.Split(strings.TrimPrefix(parsed.Path, "/wiki/"), "/") {
+			if part == "" || part == "." || part == ".." || strings.ContainsAny(part, "\\?#%") {
+				return mobileFallbackRoute
+			}
+		}
+		return parsed.EscapedPath()
+	}
 	if path == "/settings?tab=content" {
 		return "/my-content"
 	}
@@ -59,7 +93,11 @@ func webRouteToMobile(webURL string) string {
 		case "topics":
 			return mobileTopicRoute(segs[1:])
 		case "u":
-			return "/u/" + segs[1]
+			id, err := strconv.ParseUint(segs[1], 10, 64)
+			if err != nil || id == 0 {
+				return mobileFallbackRoute
+			}
+			return "/u/" + strconv.FormatUint(id, 10)
 		}
 	}
 	return mobileFallbackRoute
@@ -77,4 +115,20 @@ func mobileTopicRoute(segments []string) string {
 		}
 	}
 	return route
+}
+
+func (p *nativePayload) Data() map[string]string {
+	return map[string]string{"route": p.Route, "sourceKind": p.SourceKind, "sourceId": fmt.Sprint(p.SourceId), "recipientId": fmt.Sprint(p.RecipientId), "channel": p.Channel, "thread": p.Thread}
+}
+func channelFor(group string) string {
+	switch group {
+	case "chat":
+		return "yourtj_chat_v2"
+	case "mentionsAndReplies":
+		return "yourtj_mentions_and_replies_v2"
+	case "system":
+		return "yourtj_system_v2"
+	default:
+		return "yourtj_activity_v2"
+	}
 }

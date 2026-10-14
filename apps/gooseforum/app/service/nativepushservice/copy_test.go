@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/webpushservice"
 )
 
 // buildNativePayload 按事件类型渲染标题/正文；route 为移动端 App 路由
@@ -24,7 +25,7 @@ func TestBuildNativePayloadComment(t *testing.T) {
 	if msg == nil {
 		t.Fatal("comment payload is nil")
 	}
-	if msg.Body != "评论了你的内容" {
+	if msg.Body != "一位用户 评论了你的内容" {
 		t.Errorf("comment body = %q, want zh comment copy", msg.Body)
 	}
 	if msg.Title != "话题标题" {
@@ -54,7 +55,7 @@ func TestBuildNativePayloadUnknownNil(t *testing.T) {
 	}
 	if msg := buildNativePayload(comment, "fr"); msg == nil {
 		t.Fatal("unknown-lang payload = nil, want zh fallback")
-	} else if msg.Body != "评论了你的内容" {
+	} else if msg.Body != "一位用户 评论了你的内容" {
 		t.Errorf("unknown-lang body = %q, want zh fallback body", msg.Body)
 	}
 }
@@ -93,7 +94,7 @@ func TestBuildNativePayloadWikiFallback(t *testing.T) {
 	if msg.Title != "《使用指南》更新" {
 		t.Errorf("wiki title = %q, want payload Title", msg.Title)
 	}
-	if msg.Route != mobileFallbackRoute {
+	if msg.Route != "/wiki/guide/intro" {
 		t.Errorf("wiki route = %q, want %q", msg.Route, mobileFallbackRoute)
 	}
 }
@@ -111,7 +112,7 @@ func TestWebRouteToMobile(t *testing.T) {
 		{"/topics/42", "/p/42"},
 		{"/topics/42/1", "/p/42?postNo=1"},
 		{"/u/7", "/u/7"},
-		{"/wiki/guide/intro", mobileFallbackRoute},
+		{"/wiki/guide/intro", "/wiki/guide/intro"},
 		{"/notifications", mobileFallbackRoute},
 		{"/settings?tab=content", "/my-content"},
 		{"https://forum.example.com/p/post/1001", mobileFallbackRoute}, // 全 URL 非站内路径
@@ -126,7 +127,7 @@ func TestWebRouteToMobile(t *testing.T) {
 func TestBuildNativePayloadMention(t *testing.T) {
 	for locale, body := range map[string]string{"zh": "提到了你", "en": "mentioned you", "ja": "あなたをメンションしました", "de": "hat dich erwähnt"} {
 		msg := buildNativePayload(eventNotification.Entity{EventType: eventNotification.EventTypeMention, Payload: eventNotification.NotificationPayload{TopicId: 512, PostId: 4096, PostNo: 8}}, locale)
-		if msg == nil || msg.Body != body || msg.Route != "/p/512?postNo=8" {
+		if msg == nil || !strings.HasSuffix(msg.Body, body) || msg.Route != "/p/512?postNo=8" {
 			t.Fatalf("mention %s: %#v", locale, msg)
 		}
 	}
@@ -137,13 +138,24 @@ func TestBuildNativePayloadReviewSubject(t *testing.T) {
 		for _, event := range []string{eventNotification.EventTypeReviewPending, eventNotification.EventTypeReviewApproved, eventNotification.EventTypeReviewRejected} {
 			notification := eventNotification.Entity{EventType: event, Payload: eventNotification.NotificationPayload{TopicId: 42, PostNo: 1, TopicTitle: "无标题送审正文摘要", Content: "must not expose the raw preview"}}
 			wantTitle, wantRoute := "无标题送审正文摘要", "/p/42?postNo=1"
+			if event == eventNotification.EventTypeReviewPending {
+				wantTitle, wantRoute = webpushservice.BuildPushCopy(notification, locale).Title, "/my-content"
+			}
 			if event == eventNotification.EventTypeReviewRejected {
-				wantTitle, wantRoute = "无******要", "/my-content"
+				wantTitle, wantRoute = webpushservice.BuildPushCopy(notification, locale).Title, "/my-content"
 			}
 			msg := buildNativePayload(notification, locale)
 			if msg == nil || msg.Title != wantTitle || msg.Route != wantRoute || strings.Contains(msg.Body, notification.Payload.Content) {
 				t.Fatalf("%s/%s push=%+v", locale, event, msg)
 			}
+		}
+	}
+}
+
+func TestControlledChatWikiTargets(t *testing.T) {
+	for target, want := range map[string]string{"/messages?userId=32": "/chat?userId=32", "/chat?userId=0": "/notifications", "/chat?userId=32&recipientId=1": "/chat?userId=32", "//evil.example/wiki/a": "/notifications", "/wiki/%2e%2e/private": "/notifications", "/wiki/a%5cb": "/notifications", "/u/nope": "/notifications", "/wiki/a%2Fb": "/notifications", "/wiki/a%252Fb": "/notifications", "/wiki/a b": "/notifications", "/wiki/a%7Fb": "/notifications"} {
+		if got := webRouteToMobile(target); got != want {
+			t.Errorf("%s => %s want %s", target, got, want)
 		}
 	}
 }

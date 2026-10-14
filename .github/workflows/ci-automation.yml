@@ -16,7 +16,7 @@ jobs:
       - run: python3 -m unittest discover -s scripts/release -p 'test_*.py'
       - run: python3 -m unittest discover -s scripts/ci -p 'test_*.py'
       - run: python3 -m unittest discover -s scripts/mobile-release -p 'test_*.py'
-      - run: node --test scripts/test-mobile-ci-*.mjs scripts/test-oryn-validation.mjs
+      - run: node --test scripts/test-mobile-ci-*.mjs scripts/test-oryn-validation.mjs scripts/test-pre-push-base.mjs
       - run: bash deploy/scripts/pgdsn_test.sh
       - run: python3 deploy/render_config_test.py
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e

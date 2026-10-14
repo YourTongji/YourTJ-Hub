@@ -35,6 +35,7 @@ class _Notifications extends NotificationRepository {
   @override
   Future<NotificationListResponse> fetchNotifications({
     String filter = 'all',
+    String category = 'all',
     int cursor = 0,
     int limit = 20,
     CancelToken? cancelToken,

@@ -971,6 +971,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
         selected: _tab,
         onSelected: (value) => _select(value as String),
       ),
+      statusBarScrollToTopController: _scroll,
       body: (top, bottom) => scrollPage(_tab, top, bottom),
     );
   }

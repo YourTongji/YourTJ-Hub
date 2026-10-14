@@ -10,11 +10,26 @@
 // clients.claim: pure push needs neither.
 
 const FALLBACK_URL = '/notifications';
-// 与轮询型浏览器通知（resource/src/runtime/browser-notification.ts）共享去重
-// 频道：Web Push（即时到达）真正弹出后广播时间戳 {at}，轮询通道在同一去重
-// 窗口（60s）内让位，避免同一事件在系统层双弹。频道名与页面端
-// DEDUP_CHANNEL_NAME 保持一致，改动需两侧同步。
+// Share source IDs and a bounded durable ledger with page notifications.
+// The timestamp preserves compatibility with pages running the previous worker.
 const DEDUP_CHANNEL_NAME = 'goose:browser-notifications-dedup';
+// Client id → peer id of the conversation that client currently shows.
+const activeChats = new Map();
+self.addEventListener('message', event => {
+  if (event.source && event.data && event.data.type === 'goose:active-chat') {
+    activeChats.set(event.source.id, Number(event.data.peerId) || 0);
+  }
+});
+async function currentRecipientMatches(recipientId) {
+  if (!Number.isSafeInteger(recipientId) || recipientId <= 0) return false;
+  try {
+    const response = await fetch('/messages', {headers: {'X-Goose-Page': 'true', 'X-Goose-Prefetch': '1', Accept: 'application/json'}, credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(5000)});
+    if (!response.ok) return false;
+    const page = await response.json();
+    return page.layout && page.layout.viewer && page.layout.viewer.isAuthenticated && page.layout.viewer.id === recipientId;
+  } catch { return false; }
+}
+
 
 // Show a push notification unless the user is currently looking at a focused
 // window of this site. Whether to push while a page is visible is the
@@ -32,24 +47,57 @@ self.addEventListener('push', (event) => {
   if (!payload || !payload.title) return;
 
   event.waitUntil((async () => {
+    if ((payload.recipientId != null || payload.sourceKind === 'chat_message') && !await currentRecipientMatches(payload.recipientId)) return;
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    if (windows.some((client) => client.focused)) return; // reader is watching the site
+    if (windows.some(client => {
+      if (!client.focused) return false;
+      if (payload.sourceKind !== 'chat_message') return true;
+      try {
+        const url = new URL(client.url);
+        const peer = Number(new URL(payload.url, client.url).searchParams.get('userId'));
+        return url.pathname === '/messages' && activeChats.get(client.id) === peer;
+      } catch { return false; }
+    })) return;
+    const source = payload.id != null ? `${payload.sourceKind || 'notification'}:${payload.id}` : '';
     const notificationOptions = {
       body: payload.body,
       icon: payload.icon,
-      data: { url: payload.url },
+      data: { url: payload.url, recipientId: payload.recipientId, sourceKind: payload.sourceKind },
     };
     // 以服务端下发的数字 id 作为独立 tag，新通知不会在系统托盘静默覆盖旧通知；
     // payload 缺 id 时不设 tag，各通知按默认行为分别展示。
-    if (payload.id != null) notificationOptions.tag = 'goose-push-' + payload.id;
-    await self.registration.showNotification(payload.title, notificationOptions);
+    if (source) notificationOptions.tag = 'goose-push-' + source;
+    const show = async () => {
+      let cache;
+      const key = new URL(`/__notification-source/${source}`, self.location.origin).href;
+      try {
+        if (source && typeof caches !== 'undefined') {
+          cache = await caches.open('goose-notification-sources-v1');
+          if (await cache.match(key)) return false;
+        }
+      } catch { cache = undefined; }
+      await self.registration.showNotification(payload.title, notificationOptions);
+      try { if (cache) {
+        await cache.put(key, new Response('1'));
+        // The ledger only needs to cover the replay window; 256 newest entries
+        // are enough for the polling interval. A longer window needs expiry.
+        const keys = await cache.keys();
+        for (const old of keys.slice(0, Math.max(0, keys.length - 256))) await cache.delete(old);
+      } } catch {}
+      return true;
+    };
+    let shown;
+    try { shown = source && self.navigator && self.navigator.locks
+      ? await self.navigator.locks.request(`goose-notification:${source}`, show) : await show(); }
+    catch { shown = await show(); }
+    if (!shown) return;
     // 仅在真正弹出后广播：前台聚焦的窗口会提前 return，不广播（SW 未弹出时
     // 轮询通道应正常兜底）。页面端 browser-notification.ts 模块加载即监听
     // 同一频道，收到 {at} 后在去重窗口内不再重复弹出。
     if (typeof BroadcastChannel !== 'undefined') {
       try {
         const dedupChannel = new BroadcastChannel(DEDUP_CHANNEL_NAME);
-        dedupChannel.postMessage({ at: Date.now() });
+        dedupChannel.postMessage({ at: Date.now(), source });
         dedupChannel.close();
       } catch {
         // 广播失败只影响去重：轮询通道可能重复弹一次，可接受。
@@ -68,15 +116,20 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil((async () => {
     const payloadUrl = event.notification.data && event.notification.data.url;
-    const target = payloadUrl || FALLBACK_URL;
+    let target = FALLBACK_URL;
+    try {
+      const parsed = new URL(payloadUrl || FALLBACK_URL, self.location.origin);
+      if (parsed.origin === self.location.origin) target = parsed.pathname + parsed.search + parsed.hash;
+    } catch {}
+    if (event.notification.data && (event.notification.data.recipientId != null || event.notification.data.sourceKind === 'chat_message') && !await currentRecipientMatches(event.notification.data.recipientId)) target = event.notification.data.sourceKind === 'chat_message' ? '/messages' : FALLBACK_URL;
     const windows = await self.clients.matchAll({ type: 'window' });
-    // 第一遍：已有窗口停留在目标页（同 origin + pathname，忽略 query/hash）时只聚焦。
+    // Only focus an existing window when its full target, including the conversation/floor, matches.
     for (const client of windows) {
       if (!('focus' in client)) continue;
       try {
         const clientUrl = new URL(client.url);
         const targetUrl = new URL(target, client.url);
-        if (clientUrl.origin === targetUrl.origin && clientUrl.pathname === targetUrl.pathname) {
+        if (clientUrl.origin === targetUrl.origin && clientUrl.pathname === targetUrl.pathname && clientUrl.search === targetUrl.search && clientUrl.hash === targetUrl.hash) {
           return client.focus();
         }
       } catch {

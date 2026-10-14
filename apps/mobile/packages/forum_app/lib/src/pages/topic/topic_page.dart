@@ -2159,7 +2159,10 @@ class _TopicPageState extends ConsumerState<TopicPage>
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _goBack();
       },
-      child: scaffold,
+      child: GfStatusBarScrollToTop(
+        controller: _scrollToTop,
+        child: scaffold,
+      ),
     );
   }
 

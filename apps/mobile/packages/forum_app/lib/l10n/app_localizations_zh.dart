@@ -1847,7 +1847,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String notificationTopicPost(String actor) {
-    return '$actor 在你关注的主题中发表了回复';
+    return '$actor 在你关注的主题中发表了新回复';
   }
 
   @override
@@ -1861,17 +1861,15 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String notificationWikiUpdated(String actor) {
-    return '$actor 更新了你关注的 Wiki 页面';
-  }
+  String get notificationWikiUpdated => '你订阅的 Wiki 页面有更新';
 
   @override
   String notificationBadge(String badge) {
-    return '你获得了“$badge”徽章';
+    return '你获得了「$badge」徽章';
   }
 
   @override
-  String get notificationNew => '新通知';
+  String get notificationNew => '你有一条新的系统通知';
 
   @override
   String get notificationSomeone => '有人';
@@ -3703,4 +3701,54 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get profilePrivacyManage => '修改可见范围';
+
+  @override
+  String get notificationsMentions => '@我';
+
+  @override
+  String get notificationsReplies => '回复';
+
+  @override
+  String get notificationsLikes => '赞';
+
+  @override
+  String get notificationsFollowing => '关注';
+
+  @override
+  String get notificationsSystem => '系统';
+
+  @override
+  String get pushChat => '私信';
+
+  @override
+  String get pushMentionsAndReplies => '提及和回复';
+
+  @override
+  String get pushActivity => '赞';
+
+  @override
+  String get pushFollowing => '关注动态';
+
+  @override
+  String get pushSystem => '系统与审核';
+
+  @override
+  String notificationMentionTopic(String actor, String topic) {
+    return '$actor 在《$topic》中提到了你';
+  }
+
+  @override
+  String notificationCommentTopic(String actor, String topic) {
+    return '$actor 评论了《$topic》';
+  }
+
+  @override
+  String notificationTopicPostTopic(String actor, String topic) {
+    return '$actor 在你关注的《$topic》中发表了新回复';
+  }
+
+  @override
+  String notificationWikiTopic(String topic) {
+    return '《$topic》有更新';
+  }
 }

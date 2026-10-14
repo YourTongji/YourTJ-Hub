@@ -205,3 +205,17 @@ export async function disableWebPush(): Promise<void> {
     throw new PushError('unsubscribe-failed')
   }
 }
+
+export interface PushPreferences { chat: boolean; mentionsAndReplies: boolean; activity: boolean; following: boolean; system: boolean; systemDefaultOnly: boolean }
+export async function getPushPreferences(): Promise<PushPreferences> {
+ const response = await fetch('/api/forum/push/preferences', { credentials: 'same-origin' })
+ const body = await response.json()
+ if (!response.ok || body.code !== 0) throw new Error('push.preferences.failed')
+ return body.result as PushPreferences
+}
+export async function updatePushPreferences(changes: Partial<Omit<PushPreferences, 'systemDefaultOnly'>>): Promise<PushPreferences> {
+ const response = await fetch('/api/forum/push/preferences', { method: 'PUT', credentials: 'same-origin', headers: {'Content-Type':'application/json'}, body:JSON.stringify(changes) })
+ const body = await response.json()
+ if (!response.ok || body.code !== 0) throw new Error('push.preferences.failed')
+ return body.result as PushPreferences
+}

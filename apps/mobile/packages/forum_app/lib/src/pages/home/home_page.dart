@@ -954,7 +954,14 @@ class _HomePageState extends ConsumerState<HomePage> {
       swipeTabCount: sortKeys.length,
       onSwipeTabChanged: (index) =>
           _switchSort(sortKeys[index], fromSwipe: true),
-      titleWidget: const GfLogo(size: 32),
+      titleWidget: IconButton(
+        key: const ValueKey<String>('home-logo-scroll-to-top'),
+        onPressed: () => unawaited(_scrollToTopController.scrollToTop()),
+        tooltip: l10n.commonBackToTop,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+        icon: const GfLogo(size: 32),
+      ),
       actions: [
         IconButton(
           tooltip: l10n.commonSearch,
@@ -976,6 +983,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         onSelected: _switchSort,
         onFeedModeSelected: _setFeedMode,
       ),
+      statusBarScrollToTopController: _activeFeed.scrollToTop,
       body: (top, bottom) => GfScrollToTop(
         key: _activeFeed.scrollKey,
         semanticLabel: l10n.commonBackToTop,

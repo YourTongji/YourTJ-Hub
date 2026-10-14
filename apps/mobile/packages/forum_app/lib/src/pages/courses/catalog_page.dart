@@ -420,7 +420,7 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
       return const SizedBox.shrink();
     }
     final AppLocalizations l10n = AppLocalizations.of(context);
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: GfAppBar(
         title: Text(
           l10n.coursesTitle,
@@ -482,6 +482,10 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
           ),
         ],
       ),
+    );
+    return GfStatusBarScrollToTop(
+      scrollController: _scrollController,
+      child: scaffold,
     );
   }
 

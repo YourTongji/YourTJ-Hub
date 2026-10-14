@@ -8,6 +8,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushDevice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushSubscription"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pushpolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/webpushservice"
 )
 
@@ -156,4 +157,19 @@ func UnsubscribePush(req component.BetterRequest[UnsubscribePushReq]) component.
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 	return component.SuccessResponse(true)
+}
+
+func GetPushPreferences(req component.BetterRequest[GetPushConfigReq]) component.Response {
+	prefs, err := pushpolicy.Get(req.UserId)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	return component.SuccessResponse(prefs)
+}
+func UpdatePushPreferences(req component.BetterRequest[pushpolicy.Changes]) component.Response {
+	prefs, err := pushpolicy.Update(req.UserId, req.Params)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	return component.SuccessResponse(prefs)
 }

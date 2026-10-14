@@ -604,6 +604,8 @@ type SponsorsContactPayload = pageConfig.SponsorsContact
 type SponsorsRulePayload = pageConfig.SponsorsRule
 
 type NotificationsPageProps struct {
+	Category      string                `json:"category"`
+	Filter        string                `json:"filter"`
 	Total         int64                 `json:"total"`
 	UnreadCount   int64                 `json:"unreadCount"`
 	Notifications []NotificationPayload `json:"notifications"`
@@ -3053,7 +3055,15 @@ func buildSponsorsMeta(c *gin.Context) PageMeta {
 
 func buildNotificationsPageProps(c *gin.Context) NotificationsPageProps {
 	userID := component.LoginUserId(c)
-	notifications, nextCursor, hasNext, _ := notificationservice.GetNotificationCursorList(userID, notificationservice.DefaultNotificationPageSize, 0, false)
+	category := c.Query("category")
+	if !eventNotification.ValidCategory(category) || category == "" {
+		category = "all"
+	}
+	filter := "all"
+	if c.Query("filter") == "unread" {
+		filter = "unread"
+	}
+	notifications, nextCursor, hasNext, _ := notificationservice.GetNotificationCursorList(userID, notificationservice.DefaultNotificationPageSize, 0, filter == "unread", category)
 	unreadCount, _ := eventNotification.GetUnreadCount(userID)
 	items := BuildNotificationPayloads(notifications)
 	nextPage := 0
@@ -3061,6 +3071,7 @@ func buildNotificationsPageProps(c *gin.Context) NotificationsPageProps {
 		nextPage = 2
 	}
 	return NotificationsPageProps{
+		Category: category, Filter: filter,
 		Total:         int64(len(items)),
 		UnreadCount:   unreadCount,
 		Notifications: items,
@@ -3068,7 +3079,7 @@ func buildNotificationsPageProps(c *gin.Context) NotificationsPageProps {
 			Page:     1,
 			NextPage: nextPage,
 			HasNext:  hasNext,
-			NextURL:  fmt.Sprintf("/api/forum/notifications?filter=all&cursor=%d&limit=%d", nextCursor, notificationservice.DefaultNotificationPageSize),
+			NextURL:  fmt.Sprintf("/api/forum/notifications?category=%s&filter=%s&cursor=%d&limit=%d", category, filter, nextCursor, notificationservice.DefaultNotificationPageSize),
 		},
 	}
 }

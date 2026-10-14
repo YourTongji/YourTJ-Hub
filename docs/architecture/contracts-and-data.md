@@ -368,9 +368,19 @@ complete operation coverage and the precondition for such a gate is met.
   - `import` (staged, checksum-addressed JSON import)
   - `file-migrate` (BLOB → object storage migration)
   - `topic-search.*`, `user-search.*`, `category-search.*`, and `course-search.*` (search projections)
-  - `webpush.*` (Web Push browser-channel notifications; VAPID endpoints, 404/410 cleanup)
-  - `nativepush.*` (native APNs/FCM push; same enqueue points as `webpush.*`, terminal-task
+  - `webpush.*` (Web Push notification/chat-message sources; VAPID endpoints, 404/410 cleanup)
+  - `nativepush.*` (native APNs/JPush/FCM notification/chat-message sources; terminal-task
     cleanup cron at `12 3 * * *`)
+
+Push tasks carry a recipient and a typed committed source (`notification` or `chat_message`).
+Nullable unique `dedup_key` values bind channel/source/id/recipient without constraining other task
+families. Chat queue rows participate in the message/forward transaction; a savepoint isolates queue
+failure, and workers cannot see rolled-back rows. Activity enqueue follows persisted notification IDs.
+Delivery rechecks ownership, visibility, blocks, read state, mute and account policy. Sparse user
+`push_preferences` JSON distinguishes selective defaults from explicit group choices. New notification
+rows persist a separate direct-mention reason for portable SQL filtering; historical rows default false.
+Push is a best-effort projection, not a read or delivery fact. Clients reconcile through REST/SSE.
+
 - Task claiming is **atomic with a lease** (issue #138): a worker claims a row via a CAS update
   (`pending/retrying → running`, `RowsAffected = 1`), so concurrent workers/processes never execute
   the same task simultaneously from the queue's perspective. Each claim generates a fresh,

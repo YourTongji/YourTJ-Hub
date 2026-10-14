@@ -1914,12 +1914,12 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String notificationTopicPost(String actor) {
-    return '$actor hat in einem von dir verfolgten Thema geschrieben';
+    return '$actor hat in einem abonnierten Thema geantwortet';
   }
 
   @override
   String notificationFollow(String actor) {
-    return '$actor folgt dir jetzt';
+    return '$actor folgt dir';
   }
 
   @override
@@ -1928,9 +1928,8 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String notificationWikiUpdated(String actor) {
-    return '$actor hat eine von dir verfolgte Wiki-Seite aktualisiert';
-  }
+  String get notificationWikiUpdated =>
+      'Eine abonnierte Wiki-Seite wurde aktualisiert';
 
   @override
   String notificationBadge(String badge) {
@@ -1938,7 +1937,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get notificationNew => 'Neue Benachrichtigung';
+  String get notificationNew => 'Du hast eine neue Systembenachrichtigung';
 
   @override
   String get notificationSomeone => 'Jemand';
@@ -3926,4 +3925,54 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get profilePrivacyManage => 'Sichtbarkeit ändern';
+
+  @override
+  String get notificationsMentions => 'Erwähnungen';
+
+  @override
+  String get notificationsReplies => 'Antworten';
+
+  @override
+  String get notificationsLikes => 'Likes';
+
+  @override
+  String get notificationsFollowing => 'Abonniert';
+
+  @override
+  String get notificationsSystem => 'System';
+
+  @override
+  String get pushChat => 'Direktnachrichten';
+
+  @override
+  String get pushMentionsAndReplies => 'Erwähnungen und Antworten';
+
+  @override
+  String get pushActivity => 'Likes';
+
+  @override
+  String get pushFollowing => 'Abonnierte Aktivitäten';
+
+  @override
+  String get pushSystem => 'System und Moderation';
+
+  @override
+  String notificationMentionTopic(String actor, String topic) {
+    return '$actor hat dich in „$topic“ erwähnt';
+  }
+
+  @override
+  String notificationCommentTopic(String actor, String topic) {
+    return '$actor hat „$topic“ kommentiert';
+  }
+
+  @override
+  String notificationTopicPostTopic(String actor, String topic) {
+    return '$actor hat im abonnierten Thema „$topic“ geantwortet';
+  }
+
+  @override
+  String notificationWikiTopic(String topic) {
+    return '„$topic“ wurde aktualisiert';
+  }
 }

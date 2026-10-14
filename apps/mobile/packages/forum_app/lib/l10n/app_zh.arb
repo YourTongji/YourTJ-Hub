@@ -927,7 +927,7 @@
       }
     }
   },
-  "notificationTopicPost": "{actor} 在你关注的主题中发表了回复",
+  "notificationTopicPost": "{actor} 在你关注的主题中发表了新回复",
   "@notificationTopicPost": {
     "placeholders": {
       "actor": {
@@ -951,15 +951,11 @@
       }
     }
   },
-  "notificationWikiUpdated": "{actor} 更新了你关注的 Wiki 页面",
+  "notificationWikiUpdated": "你订阅的 Wiki 页面有更新",
   "@notificationWikiUpdated": {
-    "placeholders": {
-      "actor": {
-        "type": "String"
-      }
-    }
+    "placeholders": {}
   },
-  "notificationBadge": "你获得了“{badge}”徽章",
+  "notificationBadge": "你获得了「{badge}」徽章",
   "@notificationBadge": {
     "placeholders": {
       "badge": {
@@ -967,7 +963,7 @@
       }
     }
   },
-  "notificationNew": "新通知",
+  "notificationNew": "你有一条新的系统通知",
   "notificationSomeone": "有人",
   "profileRoleAdmin": "管理员",
   "profileOnline": "在线",
@@ -1682,5 +1678,19 @@
   "profileOwnerFollowers": "只有关注你的人能看到这部分内容。",
   "profileOwnerMutual": "只有和你互相关注的人能看到这部分内容。",
   "profileOwnerSelf": "只有你能看到这部分内容。",
-  "profilePrivacyManage": "修改可见范围"
+  "profilePrivacyManage": "修改可见范围",
+  "notificationsMentions": "@我",
+  "notificationsReplies": "回复",
+  "notificationsLikes": "赞",
+  "notificationsFollowing": "关注",
+  "notificationsSystem": "系统",
+  "pushChat": "私信",
+  "pushMentionsAndReplies": "提及和回复",
+  "pushActivity": "赞",
+  "pushFollowing": "关注动态",
+  "pushSystem": "系统与审核",
+  "notificationMentionTopic": "{actor} 在《{topic}》中提到了你",
+  "notificationCommentTopic": "{actor} 评论了《{topic}》",
+  "notificationTopicPostTopic": "{actor} 在你关注的《{topic}》中发表了新回复",
+  "notificationWikiTopic": "《{topic}》有更新"
 }

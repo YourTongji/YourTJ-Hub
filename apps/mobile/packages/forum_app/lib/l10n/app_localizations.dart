@@ -3531,7 +3531,7 @@ abstract class AppLocalizations {
   /// No description provided for @notificationTopicPost.
   ///
   /// In en, this message translates to:
-  /// **'{actor} posted in a topic you watch'**
+  /// **'{actor} posted a reply in a topic you follow'**
   String notificationTopicPost(String actor);
 
   /// No description provided for @notificationFollow.
@@ -3549,8 +3549,8 @@ abstract class AppLocalizations {
   /// No description provided for @notificationWikiUpdated.
   ///
   /// In en, this message translates to:
-  /// **'{actor} updated a wiki page you watch'**
-  String notificationWikiUpdated(String actor);
+  /// **'A Wiki page you follow was updated'**
+  String get notificationWikiUpdated;
 
   /// No description provided for @notificationBadge.
   ///
@@ -3561,7 +3561,7 @@ abstract class AppLocalizations {
   /// No description provided for @notificationNew.
   ///
   /// In en, this message translates to:
-  /// **'New notification'**
+  /// **'You have a new system notification'**
   String get notificationNew;
 
   /// No description provided for @notificationSomeone.
@@ -7001,6 +7001,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Change visibility'**
   String get profilePrivacyManage;
+
+  /// No description provided for @notificationsMentions.
+  ///
+  /// In en, this message translates to:
+  /// **'Mentions'**
+  String get notificationsMentions;
+
+  /// No description provided for @notificationsReplies.
+  ///
+  /// In en, this message translates to:
+  /// **'Replies'**
+  String get notificationsReplies;
+
+  /// No description provided for @notificationsLikes.
+  ///
+  /// In en, this message translates to:
+  /// **'Likes'**
+  String get notificationsLikes;
+
+  /// No description provided for @notificationsFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'Following'**
+  String get notificationsFollowing;
+
+  /// No description provided for @notificationsSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System'**
+  String get notificationsSystem;
+
+  /// No description provided for @pushChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct messages'**
+  String get pushChat;
+
+  /// No description provided for @pushMentionsAndReplies.
+  ///
+  /// In en, this message translates to:
+  /// **'Mentions and replies'**
+  String get pushMentionsAndReplies;
+
+  /// No description provided for @pushActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'Likes'**
+  String get pushActivity;
+
+  /// No description provided for @pushFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'Following activity'**
+  String get pushFollowing;
+
+  /// No description provided for @pushSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System and moderation'**
+  String get pushSystem;
+
+  /// No description provided for @notificationMentionTopic.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} mentioned you in “{topic}”'**
+  String notificationMentionTopic(String actor, String topic);
+
+  /// No description provided for @notificationCommentTopic.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} commented on “{topic}”'**
+  String notificationCommentTopic(String actor, String topic);
+
+  /// No description provided for @notificationTopicPostTopic.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} posted a reply in “{topic}”, which you follow'**
+  String notificationTopicPostTopic(String actor, String topic);
+
+  /// No description provided for @notificationWikiTopic.
+  ///
+  /// In en, this message translates to:
+  /// **'“{topic}” was updated'**
+  String notificationWikiTopic(String topic);
 }
 
 class _AppLocalizationsDelegate

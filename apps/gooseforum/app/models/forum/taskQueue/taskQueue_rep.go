@@ -8,6 +8,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func Create(entity *Entity) error {
@@ -331,4 +332,32 @@ func ActivePayloads(taskType string, payloads []string) (result []string) {
 	}
 	builder().Where("type = ? AND task_json IN ? AND status IN ?", taskType, payloads, []uint8{StatusPending, StatusRunning, StatusRetrying}).Pluck("task_json", &result)
 	return
+}
+
+// CreateDeduplicatedTx keeps source/recipient/channel identity unique.
+func CreateDeduplicatedTx(tx *gorm.DB, entity *Entity) error {
+	return tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "dedup_key"}}, DoNothing: true}).Create(entity).Error
+}
+
+// ThrottlePush reserves a recent low-value group before sending; PostgreSQL
+// advisory locks serialize the same group across server workers.
+func ThrottlePush(id uint64, group string, before time.Time) (bool, error) {
+	blocked := false
+	err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		if tx.Name() == "postgres" {
+			if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtext(?))", group).Error; err != nil {
+				return err
+			}
+		}
+		var count int64
+		if err := tx.Model(&Entity{}).Where("schedule_group = ? AND id <> ? AND status IN (?, ?) AND processed_at > ?", group, id, StatusRunning, StatusSuccess, before).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			blocked = true
+			return nil
+		}
+		return tx.Model(&Entity{}).Where("id = ?", id).Update("schedule_group", group).Error
+	})
+	return blocked, err
 }

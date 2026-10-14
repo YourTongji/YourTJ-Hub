@@ -95,3 +95,10 @@ func CountByUser(userId uint64) int64 {
 	builder().Where(queryopt.Eq("user_id", userId)).Count(&total)
 	return total
 }
+
+// IsOwned rechecks logout/account switches after the worker's fan-out snapshot.
+func IsOwned(token string, userID uint64) (bool, error) {
+	var count int64
+	err := builder().Where("token = ? AND user_id = ?", token, userID).Count(&count).Error
+	return count == 1, err
+}

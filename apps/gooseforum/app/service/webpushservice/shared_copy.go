@@ -1,5 +1,6 @@
 package webpushservice
 
+import "fmt"
 import "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 
 // PushCopy 是跨推送通道共享的通知文案负载：Web Push 与原生推送（APNs/FCM）
@@ -25,4 +26,15 @@ func BuildPushCopy(notification eventNotification.Entity, lang string) *PushCopy
 // 导出供原生推送按账号 locale 取文案语言。
 func NormalizeLang(lang string) string {
 	return normalizeLang(lang)
+}
+
+// BuildChatCopy never reads message text or private contact aliases.
+func BuildChatCopy(senderID uint64, lang string) *PushCopy {
+	name := actorName(eventNotification.NotificationPayload{ActorId: senderID})
+	fallback := map[string]string{"zh": "一位用户", "en": "A user", "ja": "ユーザー", "de": "Ein Nutzer"}
+	if name == "" {
+		name = fallback[lang]
+	}
+	body := map[string]string{"zh": "发来一条私信", "en": "sent you a private message", "ja": "からプライベートメッセージが届きました", "de": "hat dir eine private Nachricht gesendet"}[lang]
+	return &PushCopy{Title: truncateTitle(name) + " " + body, Body: map[string]string{"zh": "打开消息阅读", "en": "Open Messages to read it", "ja": "メッセージを開いて読む", "de": "Öffne Nachrichten zum Lesen"}[lang], URL: fmt.Sprintf("/messages?userId=%d", senderID)}
 }

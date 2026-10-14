@@ -150,6 +150,24 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   left edge. Android keeps the shared mobile fade/rise transition. Horizontal
   scroll rails keep working; the back gesture only claims the narrow left-edge
   band.
+- `Partial`: iOS status-bar taps use Flutter `Scaffold`'s built-in callback and
+  `PrimaryScrollController` for the active main scroll region. Root feeds,
+  notifications, messages, campus tabs, topic/profile/search pages, drafts,
+  settings, publishing, course catalog/detail, Wiki detail and conversation
+  detail provide their current explicit controller; profile's nested scroll
+  view keeps its coordinated outer/inner behavior. Ordinary vertical scroll
+  views without an explicit controller continue using the route's default
+  primary controller. Programmatic scrolling does not create a drag gesture,
+  so it does not arm pull-to-refresh or footer pagination. Android and Web do
+  not receive this adapter. Widget tests cover target selection and callback
+  behavior; a real iOS status-bar tap still requires simulator or device
+  verification. In-app browser content and modal/editor-local scroll regions
+  are outside this Flutter page-level behavior.
+- `Current`: the centered YourTJ mark in the Home header is an accessible
+  48-by-48 logical-pixel action. On iOS and Android it smoothly returns the
+  selected feed (`最新`, `关注`, `热门`, `流行`, or the available feed tabs) to
+  the top using that feed's existing scroll controller. Other tabs retain their
+  reading position; the action does not reload data or navigate.
 - `Current`: four persistent destinations — Home, Campus, Notifications and Messages — use an
   icon-only bottom bar on compact windows, with the selected Filled icon, indicator and unread state
   kept together at a fixed compact height, so labels never add height or grow with text size. Each
@@ -1377,8 +1395,12 @@ native cleanup is pending.
   Enable taps during startup/resume or stop are queued; a later disable or account change cancels
   queued consent. Failed unbinding is retained and retried on resume while push stays disabled,
   using the owning account; signing in to a different account does not acknowledge that cleanup.
-- `Current`: notifications use the existing event copy and only navigate to supported in-app topic,
-  profile and notification routes. Logout stops native delivery and attempts server unbinding;
+- `Current`: notifications use four-language actor/action/object copy and controlled topic-floor, profile,
+  Wiki and chat routes. A push recipient must match the restored account before opening a private
+  conversation; object pages re-authorize access. A loaded, uncovered foreground conversation
+  suppresses its own system alert; other conversations remain eligible. Account-level grouped
+  preferences are independent of OS permission, and private chat text never enters push payloads. Logout stops native delivery and attempts server
+  unbinding;
   the next account requires fresh consent. Optional JPush analytics/location collection is disabled.
 - See [activation and device validation](../operations/mobile-releases.md#native-push-activation-and-verification)
   for credentials, supported OEMs and delivery limitations.

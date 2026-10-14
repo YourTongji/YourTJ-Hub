@@ -284,6 +284,8 @@ paths:
     $ref: ./paths/forum-notifications.yaml#/markNotificationRead
   /api/forum/notification/mark-all-read:
     $ref: ./paths/forum-notifications.yaml#/markAllNotificationsRead
+  /api/forum/push/preferences:
+    $ref: ./paths/forum-push-preferences.yaml#/preferences
   /api/forum/push/config:
     $ref: ./paths/forum-notifications.yaml#/getPushConfig
   /api/forum/push/subscribe:

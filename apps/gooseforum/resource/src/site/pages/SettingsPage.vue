@@ -79,6 +79,9 @@ import { ApiResponseError } from '@/runtime/api'
 import { containsSensitiveText } from '@/site/utils/sensitive-highlight'
 import { useSiteTheme } from '@/runtime/site-theme'
 import {
+  getPushPreferences,
+  updatePushPreferences,
+  type PushPreferences,
   currentPushSubscription,
   disableWebPush,
   enableWebPush,
@@ -284,6 +287,17 @@ const passwordForm = reactive({
   confirmPassword: '',
 })
 
+const pushPreferences = ref<PushPreferences | null>(null)
+const pushPreferenceBusy = ref(false)
+const pushGroups = ['chat', 'mentionsAndReplies', 'activity', 'following', 'system'] as const
+async function setPushGroup(group: typeof pushGroups[number], enabled: boolean) {
+ if (pushPreferenceBusy.value) return
+ pushPreferenceBusy.value = true
+ try { pushPreferences.value = await updatePushPreferences({[group]: enabled}) }
+ catch { showError(t('api.operationFailed')) }
+ finally { pushPreferenceBusy.value = false }
+}
+
 // Web Push（issue #444 第二通道）：开关状态以浏览器真实订阅为准。
 const webPushAvailable = ref(false)
 const webPushEnabled = ref(false)
@@ -389,6 +403,7 @@ onMounted(() => {
   void loadSessions()
   void loadTotpStatus()
   void initWebPush()
+  void getPushPreferences().then(value => { pushPreferences.value = value }).catch(() => showError(t('api.operationFailed')))
 })
 
 watch(activeTab, (tab) => {
@@ -2161,6 +2176,16 @@ async function toggleBinding(provider: string) {
           <section v-show="activeTab === 'notifications'">
             <SectionHeader :icon="Bell" :title="t('settings.privacy.notificationsTitle')" />
             <div class="max-w-2xl divide-y divide-line p-4">
+              <div v-if="pushPreferences" class="py-3">
+                <h3 class="text-sm font-semibold">{{ t('notifications.pushGroups.title') }}</h3>
+                <label v-for="group in pushGroups" :key="group" class="flex items-center justify-between gap-4 py-2">
+                  <span class="text-sm">
+                    {{ t(`notifications.pushGroups.${group}`) }}
+                    <span v-if="group === 'system' && pushPreferences.systemDefaultOnly" class="mt-1 block text-xs text-base-content/55">{{ t('notifications.systemPushDefaultDescription') }}</span>
+                  </span>
+                  <GfSwitch :model-value="pushPreferences[group]" :disabled="pushPreferenceBusy" @update:model-value="setPushGroup(group, $event)" />
+                </label>
+              </div>
               <label v-if="webPushAvailable" class="flex items-center justify-between gap-4 py-4">
                 <span>
                   <span class="block text-sm font-semibold text-base-content">{{ t('settings.privacy.webPushNotifications') }}</span>
