@@ -3044,6 +3044,7 @@ export default {
         followersList: 'Follower-Liste',
         followersListDescription: 'Personen, die dir folgen',
       },
+      bookmarksDescription: 'Deine gespeicherten Beiträge. Immer nur für dich sichtbar',
       audiences: {
         everyone: 'Alle',
         members: 'Angemeldete Mitglieder',

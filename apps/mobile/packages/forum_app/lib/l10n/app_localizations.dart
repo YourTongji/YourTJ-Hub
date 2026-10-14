@@ -1269,7 +1269,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsTabAccount.
   ///
   /// In en, this message translates to:
-  /// **'Account'**
+  /// **'Account, security & privacy'**
   String get settingsTabAccount;
 
   /// No description provided for @settingsTabPrivacy.
@@ -6858,6 +6858,12 @@ abstract class AppLocalizations {
   /// **'People who follow you'**
   String get profilePrivacyFollowersDescription;
 
+  /// No description provided for @profilePrivacyBookmarksDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts you bookmarked. Always visible only to you'**
+  String get profilePrivacyBookmarksDescription;
+
   /// No description provided for @profilePrivacyEveryone.
   ///
   /// In en, this message translates to:
@@ -6995,12 +7001,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Only you can see this.'**
   String get profileOwnerSelf;
-
-  /// No description provided for @profilePrivacyManage.
-  ///
-  /// In en, this message translates to:
-  /// **'Change visibility'**
-  String get profilePrivacyManage;
 
   /// No description provided for @notificationsMentions.
   ///

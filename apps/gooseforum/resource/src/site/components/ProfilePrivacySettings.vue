@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Check, Info, Loader2 } from '@lucide/vue'
+import { Check, Info, Loader2, Lock } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import SiteSelect from '@/site/components/SiteSelect.vue'
@@ -216,6 +216,17 @@ const widenDescription = computed(() => pendingWiden.value
             @update:model-value="choose(row.key, $event)"
           />
         </div>
+      </div>
+      <!-- Bookmarks have no audience to choose; listing them keeps that from reading as public. -->
+      <div class="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6" data-test="profile-privacy-row-bookmarks">
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-base-content">{{ t('user.tabs.bookmarks') }}</p>
+          <p class="mt-0.5 text-sm text-base-content/55">{{ t('settings.privacy.bookmarksDescription') }}</p>
+        </div>
+        <p class="flex items-center gap-1.5 text-sm text-base-content/60 sm:w-44 sm:shrink-0 sm:justify-between sm:px-3" data-test="profile-privacy-bookmarks-audience">
+          <span>{{ t('settings.privacy.audiences.self') }}</span>
+          <Lock class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        </p>
       </div>
     </div>
 

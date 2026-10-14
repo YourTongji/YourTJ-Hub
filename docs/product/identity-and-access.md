@@ -160,15 +160,18 @@ and account recovery; it is not included in the public user card or profile.
 
 `Current`: members choose who can see five profile sections — topics, activity, liked topics,
 following list and followers list — from Web Settings → Privacy → Profile visibility and the
-app's Settings → Your account → Profile visibility. Audiences are everyone, signed-in members,
+app's account settings (Account, security & privacy) → Privacy → Profile visibility. Audiences
+are everyone, signed-in members,
 your followers, mutual follows and only you; liked topics offer everyone, followers and only you;
 follow lists omit signed-in members. Every account starts with everyone. The server enforces the
 choice for profile HTML, page JSON and the app: hidden sections return no rows or pagination
 cursor, and timeline posts, likes and follows also obey their own sections. The owner always sees
-everything, with a note naming who else can see a restricted section. Other members and guests see
+everything: Web adds a note above a restricted list naming who else can see it, and the app puts
+that on the tab lock instead. Other members and guests see
 a "not public" state that names the owner and the reason; guests get a sign-in action only when
 signing in could reveal the section. Blocked viewers and failed reads see the section as hidden.
-Web profile tabs mark hidden sections for visitors and restricted ones for the owner. When a section
+Web and app profile tabs carry a small lock on hidden sections for visitors and on restricted ones
+for the owner. When a section
 is hidden for followers or mutual follows, following from the profile re-reads it so it opens in
 place; unfollowing keeps what was already shown until the next load.
 Changes apply on the next request; profile pages are `private, no-store`. Widening an audience asks
@@ -178,7 +181,8 @@ in the browser are offered once for migration and never applied silently. See
 
 `Current`: profile visibility controls profile aggregation only. Topics and replies stay visible in
 categories, search and their discussions; user cards keep follower, topic and like counts; bookmarks
-remain owner-only. Settings copy states this scope.
+remain owner-only. Settings copy states this scope, and Web and app settings list bookmarks as a
+fixed "only you" row with no picker; the owner's bookmarks tab carries the lock too.
 
 `Decision needed`: private accounts with follow approval, message and mention permissions, hiding
 social counts and badges, and moderator access rules beyond today's public profile.

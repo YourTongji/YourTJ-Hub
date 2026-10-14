@@ -3044,6 +3044,7 @@ export default {
         followersList: 'フォロワーのリスト',
         followersListDescription: 'あなたをフォローしている人',
       },
+      bookmarksDescription: 'ブックマークした投稿。常にあなただけが見られます',
       audiences: {
         everyone: '全員',
         members: 'ログイン中のユーザー',

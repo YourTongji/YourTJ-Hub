@@ -121,15 +121,16 @@ describe('UserPage visibility', () => {
     expect(locked[0].text()).toContain('未公开')
     wrapper.unmount()
 
-    // The owner sees which sections have a narrower audience instead.
+    // The owner sees which sections have a narrower audience instead, plus
+    // bookmarks, which nobody else can ever see.
     const own: UserProfileProps = {
       ...memberProfile, section: 'activity', activityTab: 'timeline', activityTabs,
       visibility: { ...memberProfile.visibility, profileTopics: { visible: true, audience: 'followers' } },
     }
     wrapper = mount(UserPage, { props: { layout, props: own }, global })
     const restricted = wrapper.findAll('a').filter(a => a.find('[data-test="profile-tab-lock"]').exists())
-    expect(restricted.map(a => a.attributes('href'))).toEqual(['/u/1024/activity/topics'])
-    expect(restricted[0].text()).toContain('已限制可见范围')
+    expect(restricted.map(a => a.attributes('href'))).toEqual(['/u/1024/bookmarks', '/u/1024/activity/topics'])
+    expect(restricted.every(a => a.text().includes('已限制可见范围'))).toBe(true)
   })
 
   test('following reveals a followers-only section without a reload', async () => {
@@ -206,6 +207,17 @@ describe('ProfilePrivacySettings', () => {
     expect(select(wrapper, 'profileLikes').props('options').map((o: { value: string }) => o.value)).toEqual(['everyone', 'followers', 'self'])
     expect(select(wrapper, 'followingList').props('options').map((o: { value: string }) => o.value)).toEqual(['everyone', 'followers', 'mutual', 'self'])
     expect(wrapper.get('a[href="/u/1024"]').text()).toBe('查看我的主页')
+  })
+
+  test('bookmarks are listed as only-you with nothing to choose', async () => {
+    vi.mocked(getPrivacySettings).mockResolvedValue(defaults)
+    const w = await mountSettings()
+    const row = w.get('[data-test="profile-privacy-row-bookmarks"]')
+    expect(row.text()).toContain('收藏')
+    expect(row.text()).toContain('始终只有你能看到')
+    expect(row.text()).toContain('仅自己')
+    expect(row.findComponent(SiteSelect).exists()).toBe(false)
+    expect(row.find('button, select, [role="combobox"]').exists()).toBe(false)
   })
 
   test('a load failure offers retry', async () => {

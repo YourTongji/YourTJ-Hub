@@ -633,7 +633,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsTabProfile => 'プロフィール';
 
   @override
-  String get settingsTabAccount => 'アカウント';
+  String get settingsTabAccount => 'アカウント・セキュリティ・プライバシー';
 
   @override
   String get settingsTabPrivacy => 'プライバシー';
@@ -3658,6 +3658,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get profilePrivacyFollowersDescription => 'あなたをフォローしている人';
 
   @override
+  String get profilePrivacyBookmarksDescription => 'ブックマークした投稿。常にあなただけが見られます';
+
+  @override
   String get profilePrivacyEveryone => '全員';
 
   @override
@@ -3740,9 +3743,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get profileOwnerSelf => 'この項目を見られるのはあなただけです。';
-
-  @override
-  String get profilePrivacyManage => '公開範囲を変更';
 
   @override
   String get notificationsMentions => 'メンション';

@@ -3022,6 +3022,7 @@ export default {
         followersList: 'Followers list',
         followersListDescription: 'People who follow you',
       },
+      bookmarksDescription: 'Posts you bookmarked. Always visible only to you',
       audiences: {
         everyone: 'Everyone',
         members: 'Signed-in members',

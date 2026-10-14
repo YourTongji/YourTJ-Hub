@@ -1105,13 +1105,17 @@ or production push delivery behavior. The shared business and privacy rules are 
 
 ## Profile and privacy
 
-- `Current`: Settings → Your account → Profile visibility lists the five profile sections with
-  their saved audience. Tapping a row opens a bottom-sheet picker limited to that section's
+- `Current`: account settings (Account, security & privacy, also on the Settings index) →
+  Privacy → Profile visibility lists the five profile sections with
+  their saved audience, then a fixed, non-tappable bookmarks row reading "only you" with a lock
+  in the chevron slot. Tapping a row opens a bottom-sheet picker limited to that section's
   audiences; a row changes only after the server confirms, failures keep the saved value with an
   error toast, and widening asks for confirmation. Loading uses the settings skeleton, load errors
   offer retry and signed-out visits offer sign-in. Profile streams follow the server-resolved
   visibility: other members and guests see a "not public" state naming the owner and reason, with
-  sign-in only when it could help; the owner sees a note with a Change visibility shortcut. Servers
+  sign-in only when it could help. Profile tabs mark such sections, and for the owner every
+  section narrower than everyone, with a lock badge on the tab icon that leaves tab widths and
+  labels unchanged; long press and screen readers name who can see the section. Servers
   without profile privacy keep every stream public. See
   [profile visibility](identity-and-access.md#profile-visibility).
 

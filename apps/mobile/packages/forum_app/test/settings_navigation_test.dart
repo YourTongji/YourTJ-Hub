@@ -255,29 +255,38 @@ Future<_Harness> _mount(
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  // issue #1124: profile visibility is an account setting, so only signed-in
-  // members get the entry, next to the other account rows.
-  for (final signedIn in [false, true]) {
-    testWidgets('profile visibility entry signedIn=$signedIn', (tester) async {
-      await _mount(tester, signedIn: signedIn, language: 'en');
-      final entry = find.byKey(
-        const ValueKey('settings-category-profile-privacy'),
-      );
-      if (!signedIn) {
-        expect(entry, findsNothing);
-        return;
-      }
-      await tester.scrollUntilVisible(
-        entry,
-        180,
-        scrollable: find.byType(Scrollable).first,
-      );
-      expect(
-        find.descendant(of: entry, matching: find.text('Profile visibility')),
-        findsOneWidget,
-      );
-    });
-  }
+  // issue #1124: profile visibility is an account privacy setting, so it
+  // lives in the account section ("Account, security & privacy" from the
+  // profile menu) rather than on the settings index.
+  testWidgets('settings index no longer lists profile visibility', (
+    tester,
+  ) async {
+    await _mount(tester, signedIn: true, language: 'en');
+    expect(
+      find.byKey(const ValueKey('settings-category-profile-privacy')),
+      findsNothing,
+    );
+    expect(find.text('Profile visibility'), findsNothing);
+  });
+
+  testWidgets('account section lists profile visibility under privacy', (
+    tester,
+  ) async {
+    await _mount(tester, signedIn: true, section: 'account', language: 'en');
+    final entry = find.byKey(
+      const ValueKey('settings-account-profile-privacy'),
+    );
+    await tester.scrollUntilVisible(
+      entry,
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Privacy'), findsOneWidget);
+    expect(
+      find.descendant(of: entry, matching: find.text('Profile visibility')),
+      findsOneWidget,
+    );
+  });
 
   for (final brightness in Brightness.values) {
     for (final signedIn in [false, true]) {
@@ -522,9 +531,7 @@ void main() {
       isTrue,
     );
     expect(
-      tester
-          .widget<TextField>(input('Current password'))
-          .enableSuggestions,
+      tester.widget<TextField>(input('Current password')).enableSuggestions,
       isFalse,
     );
     await tester.enterText(input('New email'), 'next@example.com');

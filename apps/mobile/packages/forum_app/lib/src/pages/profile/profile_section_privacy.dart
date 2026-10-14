@@ -70,57 +70,40 @@ class ProfileSectionHidden extends ConsumerWidget {
   }
 }
 
-/// Reminds the owner who else can see a restricted section.
-class ProfileSectionOwnerNote extends StatelessWidget {
-  const ProfileSectionOwnerNote({super.key, required this.message});
+/// Who else can see a section the owner restricted; `null` when everyone can.
+String? profileOwnerAudienceNote(AppLocalizations l10n, String? audience) =>
+    switch (audience) {
+      'members' => l10n.profileOwnerMembers,
+      'followers' => l10n.profileOwnerFollowers,
+      'mutual' => l10n.profileOwnerMutual,
+      'self' => l10n.profileOwnerSelf,
+      _ => null,
+    };
 
-  final String message;
-
-  /// The note for [audience], or `null` when everyone can see the section.
-  static String? messageFor(AppLocalizations l10n, String? audience) =>
-      switch (audience) {
-        'members' => l10n.profileOwnerMembers,
-        'followers' => l10n.profileOwnerFollowers,
-        'mutual' => l10n.profileOwnerMutual,
-        'self' => l10n.profileOwnerSelf,
-        _ => null,
-      };
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final colors = GfTheme.colorsOf(context);
-    final type = GfTheme.typographyOf(context);
-    return Padding(
-      key: const ValueKey('profile-section-owner-note'),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: colors.base200,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(12, 4, 4, 4),
-          child: Row(
-            children: [
-              GfSymbol('eye', size: 16, color: colors.iconMuted),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  message,
-                  style: type.caption.copyWith(
-                    color: colors.baseContent.withValues(alpha: .75),
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: () => context.push('/settings/profile-privacy'),
-                child: Text(l10n.profilePrivacyManage),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+/// Lock reasons for the profile tab bar: visitors see which sections are not
+/// public to them, the owner sees which ones have a narrower audience.
+Map<String, String> profileTabLocks(
+  AppLocalizations l10n,
+  UserProfileProps props,
+) {
+  final locks = <String, String>{};
+  for (final key in const [
+    'timeline',
+    'topics',
+    'likes',
+    'following',
+    'followers',
+  ]) {
+    final state = profileStreamVisibility(props, key);
+    if (state == null) continue;
+    final note = !state.visible
+        ? l10n.profileHiddenTitle
+        : props.isOwnProfile
+        ? profileOwnerAudienceNote(l10n, state.audience)
+        : null;
+    if (note != null) locks[key] = note;
   }
+  // Bookmarks are never shown to anyone else, whatever the settings say.
+  if (props.isOwnProfile) locks['bookmarks'] = l10n.profileOwnerSelf;
+  return locks;
 }

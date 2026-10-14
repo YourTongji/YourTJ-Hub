@@ -179,6 +179,16 @@ void main() {
       );
       expect(find.byKey(const ValueKey('profile-section-sign-in')), findsOne);
       expect(find.text(_activityRow), findsNothing);
+      // The tab is marked before it is opened; other tabs stay plain.
+      expect(find.byKey(const ValueKey('profile-tab-lock-timeline')), findsOne);
+      expect(
+        find.byKey(const ValueKey('profile-tab-lock-topics')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('profile-tab-lock-bookmarks')),
+        findsNothing,
+      );
       expect(tester.takeException(), isNull);
     });
 
@@ -256,24 +266,60 @@ void main() {
       await tester.pumpAndSettle();
       expect(follows.calls, [false]);
       expect(profile.fetches, greaterThan(reads));
-      expect(find.byKey(const ValueKey('profile-section-hidden')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('profile-section-hidden')),
+        findsNothing,
+      );
       expect(find.text(_activityRow), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('profile-tab-lock-timeline')),
+        findsNothing,
+      );
     });
 
-    testWidgets('the owner keeps the rows and sees who else can see them', (
+    testWidgets('the owner keeps the rows; the tab lock says who can see', (
       tester,
     ) async {
+      final semantics = tester.ensureSemantics();
       await _profile(
         tester,
         own: true,
         signedIn: true,
         visibility: _visibility({'visible': true, 'audience': 'self'}),
       );
-      expect(find.text('Only you can see this.'), findsOneWidget);
-      expect(find.text('Change visibility'), findsOneWidget);
       expect(find.text(_activityRow), findsOneWidget);
       expect(
         find.byKey(const ValueKey('profile-section-hidden')),
+        findsNothing,
+      );
+      // No banner above the list: the audience lives on the tab.
+      expect(find.text('Only you can see this.'), findsNothing);
+      final lock = find.byKey(const ValueKey('profile-tab-lock-timeline'));
+      expect(lock, findsOne);
+      expect(
+        find.bySemanticsLabel(RegExp(r'\nOnly you can see this\.$')),
+        findsNWidgets(2), // activity and the always-private bookmarks
+      );
+
+      await tester.longPress(lock);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Only you can see this.'), findsOne);
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+      semantics.dispose();
+    });
+
+    testWidgets('a public section carries no lock for its owner', (
+      tester,
+    ) async {
+      await _profile(
+        tester,
+        own: true,
+        signedIn: true,
+        visibility: _visibility({'visible': true, 'audience': 'everyone'}),
+      );
+      expect(
+        find.byKey(const ValueKey('profile-tab-lock-timeline')),
         findsNothing,
       );
     });
@@ -284,13 +330,42 @@ void main() {
       await _profile(tester, own: true, signedIn: true);
       expect(find.text(_activityRow), findsOneWidget);
       expect(
-        find.byKey(const ValueKey('profile-section-owner-note')),
+        find.byKey(const ValueKey('profile-tab-lock-timeline')),
         findsNothing,
+      );
+      // Bookmarks were always owner-only, so they stay marked either way.
+      expect(
+        find.byKey(const ValueKey('profile-tab-lock-bookmarks')),
+        findsOne,
       );
     });
   });
 
   group('settings page', () {
+    testWidgets('bookmarks show as fixed to the owner and cannot be picked', (
+      tester,
+    ) async {
+      final repo = await _settings(tester);
+      final row = find.byKey(const ValueKey('profile-privacy-row-bookmarks'));
+      expect(_rowValue(tester, 'bookmarks'), 'Only you');
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.text(
+            'Posts you bookmarked. Always visible only to you',
+          ),
+        ),
+        findsOne,
+      );
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('profile-privacy-option-self')),
+        findsNothing,
+      );
+      expect(repo.updates, isEmpty);
+    });
+
     testWidgets('narrowing saves at once and offers only allowed audiences', (
       tester,
     ) async {

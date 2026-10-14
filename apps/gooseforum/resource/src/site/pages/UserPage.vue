@@ -113,6 +113,8 @@ const tabSections: Record<string, keyof NonNullable<UserProfileProps['visibility
 // Mark locked tabs before they are opened: visitors see which sections are
 // not public to them, the owner sees which ones have a narrower audience.
 function tabLock(key: string): '' | 'hidden' | 'restricted' {
+  // Bookmarks are never shown to anyone else, whatever the settings say.
+  if (key === 'bookmarks') return page.props.isOwnProfile ? 'restricted' : ''
   const section = tabSections[key]
   const state = section ? visibility.value?.[section] : undefined
   if (!state) return ''
@@ -131,7 +133,11 @@ const hasLikes = computed(() => likes.value.length > 0)
 const hasBookmarks = computed(() => bookmarks.value.length > 0)
 const socialKeys = ['github', 'twitter', 'linkedIn', 'weibo', 'bilibili', 'zhihu'] as const
 const tabItems = computed(() => [
-  ...page.props.tabs.map(tab => ({ ...tab, label: userTabLabel(tab.key) })),
+  ...page.props.tabs.map(tab => ({
+    ...tab,
+    label: userTabLabel(tab.key),
+    lock: tabLock(tab.key) ? t(tabLock(tab.key) === 'hidden' ? 'user.privacy.tabHidden' : 'user.privacy.tabRestricted') : '',
+  })),
 ])
 const activityTabItems = computed(() => [
   ...page.props.activityTabs.map(tab => ({ ...tab, label: userActivityTabLabel(tab.key) })),

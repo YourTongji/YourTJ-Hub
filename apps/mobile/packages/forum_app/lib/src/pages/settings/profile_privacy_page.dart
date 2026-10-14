@@ -255,6 +255,39 @@ class _ProfilePrivacyPageState extends ConsumerState<ProfilePrivacyPage> {
                   ),
                 ),
               ],
+              // Bookmarks have no audience to choose: always only the owner.
+              // A fixed row keeps that from reading as public by omission.
+              const GfDivider(),
+              Semantics(
+                value: l10n.profilePrivacySelf,
+                child: GfSettingRow(
+                  key: const ValueKey('profile-privacy-row-bookmarks'),
+                  title: l10n.profileBookmarks,
+                  description: l10n.profilePrivacyBookmarksDescription,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        l10n.profilePrivacySelf,
+                        style: type.small.copyWith(
+                          color: colors.baseContent.withValues(alpha: .7),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      // The chevron's slot, so the label lines up with the
+                      // editable rows above.
+                      SizedBox.square(
+                        dimension: 18,
+                        child: GfSymbol(
+                          'lock-filled',
+                          size: 14,
+                          color: colors.iconMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),

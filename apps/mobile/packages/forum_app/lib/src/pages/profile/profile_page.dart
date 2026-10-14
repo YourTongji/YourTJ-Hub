@@ -1172,6 +1172,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             child: ProfileTabs(
                               tabs: tabs,
                               index: selectedIndex,
+                              locks: profileTabLocks(
+                                l10n,
+                                _active.props ?? props,
+                              ),
                               onChanged: (selected) =>
                                   _selectStream(tabs[selected].key),
                             ),
@@ -1606,17 +1610,7 @@ class _ProfileBody extends StatelessWidget {
         ),
       );
     }
-    final ownerNote = props.isOwnProfile
-        ? ProfileSectionOwnerNote.messageFor(l10n, privacy?.audience)
-        : null;
-    final body = _streamRows(context, l10n);
-    if (ownerNote == null) return body;
-    return SliverMainAxisGroup(
-      slivers: [
-        SliverToBoxAdapter(child: ProfileSectionOwnerNote(message: ownerNote)),
-        body,
-      ],
-    );
+    return _streamRows(context, l10n);
   }
 
   Widget _streamRows(BuildContext context, AppLocalizations l10n) {

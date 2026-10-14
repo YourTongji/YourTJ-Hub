@@ -631,7 +631,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsTabProfile => '资料';
 
   @override
-  String get settingsTabAccount => '账户';
+  String get settingsTabAccount => '账户、安全与隐私';
 
   @override
   String get settingsTabPrivacy => '隐私';
@@ -1498,7 +1498,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileTrash => '回收站';
 
   @override
-  String get profileSecurity => '账号、安全与隐私';
+  String get profileSecurity => '账户、安全与隐私';
 
   @override
   String get profileAdmin => '管理工作台';
@@ -3617,6 +3617,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profilePrivacyFollowersDescription => '关注你的人';
 
   @override
+  String get profilePrivacyBookmarksDescription => '你收藏的内容，始终只有你能看到';
+
+  @override
   String get profilePrivacyEveryone => '所有人';
 
   @override
@@ -3698,9 +3701,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get profileOwnerSelf => '只有你能看到这部分内容。';
-
-  @override
-  String get profilePrivacyManage => '修改可见范围';
 
   @override
   String get notificationsMentions => '@我';

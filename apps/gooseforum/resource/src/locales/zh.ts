@@ -3024,6 +3024,7 @@ export default {
         followersList: '粉丝列表',
         followersListDescription: '关注你的人',
       },
+      bookmarksDescription: '你收藏的内容，始终只有你能看到',
       audiences: {
         everyone: '所有人',
         members: '登录用户',

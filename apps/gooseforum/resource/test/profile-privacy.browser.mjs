@@ -55,6 +55,19 @@ for (const width of [320, 1280]) {
       assert.ok(await fits(page), 'privacy settings must not overflow horizontally')
       assert.equal(await page.getByRole('combobox', { name: '谁能看到关注列表' }).textContent().then(t => t.trim()), '仅自己')
 
+      // Bookmarks are a fixed row; on wide screens its value lines up with the pickers' values.
+      const textBox = selector => page.locator(selector).evaluate(el => {
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, { acceptNode: n => (n.textContent.trim() ? 1 : 3) })
+        const range = document.createRange()
+        range.selectNodeContents(walker.nextNode())
+        const { left, top } = range.getBoundingClientRect()
+        return { left, top }
+      })
+      const fixed = await textBox('[data-test="profile-privacy-bookmarks-audience"]')
+      const picker = await textBox('[data-test="profile-privacy-row-followingList"] [role="combobox"]')
+      if (width >= 640) assert.ok(Math.abs(fixed.left - picker.left) <= 2, `bookmarks value must line up with picker values (${fixed.left} vs ${picker.left})`)
+      assert.equal(await page.locator('[data-test="profile-privacy-row-bookmarks"] [role="combobox"]').count(), 0)
+
       // Narrowing saves straight away and confirms on the row without moving it.
       const top = () => row.evaluate(el => el.getBoundingClientRect().top + window.scrollY)
       const before = await top()

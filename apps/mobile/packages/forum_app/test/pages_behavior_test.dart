@@ -1868,7 +1868,7 @@ void main() {
         find.byWidgetPredicate(
           (w) =>
               w is Semantics &&
-              w.properties.label == label &&
+              w.properties.label?.split('\n').first == label &&
               w.properties.selected == true,
         ),
         findsOneWidget,

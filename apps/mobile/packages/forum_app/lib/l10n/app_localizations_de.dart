@@ -653,7 +653,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsTabProfile => 'Profil';
 
   @override
-  String get settingsTabAccount => 'Konto';
+  String get settingsTabAccount => 'Konto, Sicherheit und Datenschutz';
 
   @override
   String get settingsTabPrivacy => 'Datenschutz';
@@ -3838,6 +3838,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get profilePrivacyFollowersDescription => 'Personen, die dir folgen';
 
   @override
+  String get profilePrivacyBookmarksDescription =>
+      'Deine gespeicherten Beiträge. Immer nur für dich sichtbar';
+
+  @override
   String get profilePrivacyEveryone => 'Alle';
 
   @override
@@ -3922,9 +3926,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get profileOwnerSelf => 'Nur du kannst das sehen.';
-
-  @override
-  String get profilePrivacyManage => 'Sichtbarkeit ändern';
 
   @override
   String get notificationsMentions => 'Erwähnungen';

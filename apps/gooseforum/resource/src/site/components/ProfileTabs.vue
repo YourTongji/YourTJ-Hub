@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Award, Bookmark, FileText, List, MessageCircle, UserRound } from '@lucide/vue'
-defineProps<{ tabs: Array<{ key: string; label: string; url: string; active: boolean }> }>()
+import { Award, Bookmark, FileText, List, Lock, MessageCircle, UserRound } from '@lucide/vue'
+// `lock` is the screen-reader reason a tab is not public (issue #1124).
+defineProps<{ tabs: Array<{ key: string; label: string; url: string; active: boolean; lock?: string }> }>()
 const icons: Record<string, typeof UserRound> = { summary: UserRound, activity: List, bookmarks: Bookmark, badges: Award, topics: FileText, replies: MessageCircle }
 </script>
 <template>
@@ -9,6 +10,10 @@ const icons: Record<string, typeof UserRound> = { summary: UserRound, activity: 
       class="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 px-2 py-2 text-sm font-semibold"
       :class="tab.active ? 'text-primary shadow-[inset_0_-2px_0_var(--gf-color-primary)]' : 'text-base-content/55 hover:text-base-content'">
       <component :is="icons[tab.key] || List" class="h-4 w-4 shrink-0" /><span class="break-words">{{ tab.label }}</span>
+      <template v-if="tab.lock">
+        <Lock class="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" data-test="profile-tab-lock" />
+        <span class="sr-only">{{ tab.lock }}</span>
+      </template>
     </a>
   </nav>
 </template>
