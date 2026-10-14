@@ -211,7 +211,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
             shrinkWrap: true,
             padding: EdgeInsets.zero,
             children: [
-              if (item.isEnabled) ...[
+              if (item.isAvailable) ...[
                 ListTile(
                   leading: const GfSymbol('maximize', size: 22),
                   title: Text(strings.viewLarger),
@@ -371,7 +371,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
                       key: ValueKey(item.name),
                       leading: IgnorePointer(
                         child: Opacity(
-                          opacity: item.isEnabled ? 1 : 0.4,
+                          opacity: item.isAvailable ? 1 : 0.4,
                           child: StickerImage(
                             name: item.name,
                             url: item.url,
@@ -387,16 +387,20 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      subtitle: item.isEnabled
+                      subtitle: item.isAvailable
                           ? null
                           : Text(
-                              strings.unavailable,
+                              item.reviewStatus == 'pending'
+                                  ? strings.reviewPending
+                                  : item.reviewStatus == 'rejected'
+                                  ? strings.reviewRejected
+                                  : strings.unavailable,
                               style: TextStyle(
                                 fontSize: 13,
                                 color: GfTheme.colorsOf(context).iconMuted,
                               ),
                             ),
-                      onTap: busy || (!_selecting && !item.isEnabled)
+                      onTap: busy || (!_selecting && !item.isAvailable)
                           ? null
                           : () {
                               if (_selecting) {

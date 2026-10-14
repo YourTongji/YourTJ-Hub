@@ -75,7 +75,7 @@ func SetBlockedUser(ownerID, targetID uint64, blocked bool) error {
 	if ownerID == 0 || targetID == 0 || ownerID == targetID {
 		return ErrBlockTarget
 	}
-	return db.Connect().Transaction(func(tx *gorm.DB) error {
+	err := db.Connect().Transaction(func(tx *gorm.DB) error {
 		if err := LockInteractionUsers(tx, ownerID, targetID); err != nil {
 			return err
 		}
@@ -112,6 +112,13 @@ func SetBlockedUser(ownerID, targetID uint64, blocked bool) error {
 		}
 		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&BlockEntity{OwnerID: ownerID, TargetUserID: targetID}).Error
 	})
+	if err != nil {
+		return err
+	}
+	// Both sides flip their public-list decision; invalidate after commit so a
+	// reader never caches an answer that predates this relation change.
+	InvalidateBlockedPeersCache(ownerID, targetID)
+	return nil
 }
 
 // FilterInteractionRecipients makes block filtering bounded per fan-out, and
@@ -130,7 +137,8 @@ func BlockedPeerIDsQuery(viewer uint64) *gorm.DB {
 }
 
 // HasBlockedPeers reports whether any block relation touches the user in
-// either direction. Public list loading uses it to decide whether a request
+// either direction. It always reads storage; public list loading goes through
+// HasBlockedPeersCached, the short-TTL variant that decides whether a request
 // needs a viewer-scoped query instead of the shared list cache.
 func HasBlockedPeers(userID uint64) (bool, error) {
 	if userID == 0 {

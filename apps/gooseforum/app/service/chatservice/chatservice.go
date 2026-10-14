@@ -1,7 +1,9 @@
 package chatservice
 
 import (
+	"context"
 	"errors"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/decorationservice"
 	"regexp"
 	"slices"
 	"strings"
@@ -216,6 +218,7 @@ func GetChatList(userId uint64) ([]*vo.ChatItemVo, error) {
 	})
 
 	peers := users.GetMapByIds(peerIds)
+	peerDecorations := decorationservice.EffectiveBatch(context.Background(), peerIds)
 	convs := imConversations.GetMapByIds(convIds)
 
 	list := lo.Map(configs, func(cfg imUserChatConfigs.Entity, _ int) *vo.ChatItemVo {
@@ -234,6 +237,7 @@ func GetChatList(userId uint64) ([]*vo.ChatItemVo, error) {
 			chatItem.PeerUsername = peer.Username
 			chatItem.PeerNickname = peer.Nickname
 			chatItem.PeerAvatar = peer.GetWebAvatarUrl()
+			chatItem.PeerDecoration = peerDecorations[cfg.PeerId]
 		} else {
 			chatItem.PeerUsername = "Unknown User"
 		}

@@ -7,7 +7,8 @@
       "displayName": "smile",
       "pack": "official",
       "isOfficial": true,
-      "isEnabled": true
+      "isEnabled": true,
+      "reviewStatus": "approved"
     }
   ],
   "code": 0

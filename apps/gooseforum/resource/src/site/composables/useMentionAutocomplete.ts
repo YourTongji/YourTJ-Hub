@@ -112,6 +112,7 @@ export function useMentionAutocomplete(options: {
         username: target.username,
         nickname: target.nickname,
         avatarUrl: target.avatarUrl,
+        decoration: target.decoration,
         actorType: target.actorType,
       }))
       if (seq !== searchSeq) return

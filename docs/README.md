@@ -64,6 +64,8 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 - [Campus map](product/campus-map.md)
 - [Server status](product/server-status.md)
 - [Identity, login & account lifecycle](product/identity-and-access.md)
+- [Avatar frames & nickname styles](product/profile-decorations.md)
+- [Avatar frame artwork generation](product/avatar-frame-generation.md)
 - [Points & cross-platform settlement](product/credit-and-escrow.md)
 
 ### Architecture

@@ -1,3 +1,4 @@
+import 'user_decoration.dart';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
@@ -715,6 +716,15 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                 child: Padding(
                   padding: const EdgeInsets.all(4),
                   child: GfAvatar(
+                    frameColors: decorationColors(
+                      context,
+                      user?.decoration?.avatarFrame,
+                    ),
+                    frameAssetUrl: decorationFrameAssetUrl(
+                      user?.decoration?.avatarFrame,
+                    ),
+                    frameScale:
+                        user?.decoration?.avatarFrame?.assetScale ?? 1.25,
                     src: avatarUrl,
                     size: 76,
                     badge: wornBadge == null
@@ -836,6 +846,7 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
       showHeader: false,
       compact: true,
       avatarUrl: '',
+      nicknameColors: decorationColors(context, user.decoration?.nicknameStyle),
       name: privateDisplayName(
         context,
         user.userId,

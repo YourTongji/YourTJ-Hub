@@ -1,3 +1,4 @@
+import '../../widgets/user_decoration.dart';
 import 'package:dio/dio.dart';
 
 import '../../private_notes.dart';
@@ -505,28 +506,48 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                 displayName: (id, name) =>
                                     privateDisplayName(context, id, name),
                               );
+                              final hasActor =
+                                  n.actor.id > 0 || n.actor.publicUid != null;
+                              final actorName = hasActor
+                                  ? notificationActorName(
+                                      n,
+                                      l10n,
+                                      displayName: (id, name) =>
+                                          privateDisplayName(context, id, name),
+                                    )
+                                  : '';
                               return Column(
                                 key: ValueKey(n.id),
                                 children: [
                                   GfNotificationRow(
+                                    avatarFrameColors: n.actor.publicUid != null
+                                        ? const []
+                                        : decorationColors(
+                                            context,
+                                            n.actor.decoration?.avatarFrame,
+                                          ),
+                                    avatarFrameAssetUrl:
+                                        n.actor.publicUid != null
+                                        ? ''
+                                        : decorationFrameAssetUrl(
+                                            n.actor.decoration?.avatarFrame,
+                                          ),
+                                    avatarFrameScale:
+                                        n
+                                            .actor
+                                            .decoration
+                                            ?.avatarFrame
+                                            ?.assetScale ??
+                                        1.25,
+                                    nicknameColors: n.actor.publicUid != null
+                                        ? const []
+                                        : decorationColors(
+                                            context,
+                                            n.actor.decoration?.nicknameStyle,
+                                          ),
                                     symbol: symbol,
-                                    actorName:
-                                        (n.actor.id > 0 ||
-                                            n.actor.publicUid != null)
-                                        ? notificationActorName(
-                                            n,
-                                            l10n,
-                                            displayName: (id, name) =>
-                                                privateDisplayName(
-                                                  context,
-                                                  id,
-                                                  name,
-                                                ),
-                                          )
-                                        : '',
-                                    avatarUrl:
-                                        (n.actor.id > 0 ||
-                                            n.actor.publicUid != null)
+                                    actorName: actorName,
+                                    avatarUrl: hasActor
                                         ? resolveApiAssetUrl(
                                             n.actor.avatarUrl ?? '',
                                           )

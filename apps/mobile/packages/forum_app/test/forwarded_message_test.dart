@@ -164,7 +164,7 @@ void main() {
       final row = tester.widget<GfConversationRow>(
         find.byType(GfConversationRow).first,
       );
-      expect(row.lastMessage, '[Chat history] Bob: [smile]');
+      expect(row.lastMessage, '[Chat history] Bob: [Animated sticker]');
     },
   );
 

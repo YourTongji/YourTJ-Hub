@@ -1,3 +1,4 @@
+import '../atoms/gf_decorated_name.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
@@ -13,6 +14,10 @@ class GfContentRow extends StatelessWidget {
     super.key,
     required this.author,
     required this.avatarUrl,
+    this.avatarFrameColors = const [],
+    this.avatarFrameAssetUrl = '',
+    this.avatarFrameScale = 1.25,
+    this.nicknameColors = const [],
     required this.time,
     required this.text,
     this.title = '',
@@ -24,10 +29,13 @@ class GfContentRow extends StatelessWidget {
     this.footer,
   });
   final String author, avatarUrl, time, text, title, contextLabel, thumbnailUrl;
+  final List<Color> avatarFrameColors, nicknameColors;
   final Widget? footer;
   final String? contextSymbol;
   final VoidCallback? onTap, onAuthorTap;
 
+  final String avatarFrameAssetUrl;
+  final double avatarFrameScale;
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
@@ -54,7 +62,13 @@ class GfContentRow extends StatelessWidget {
                       child: SizedBox.square(
                         dimension: 44,
                         child: Center(
-                          child: GfAvatar(src: avatarUrl, size: 40),
+                          child: GfAvatar(
+                            frameColors: avatarFrameColors,
+                            frameAssetUrl: avatarFrameAssetUrl,
+                            frameScale: avatarFrameScale,
+                            src: avatarUrl,
+                            size: 40,
+                          ),
                         ),
                       ),
                     ),
@@ -70,8 +84,9 @@ class GfContentRow extends StatelessWidget {
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             if (author.isNotEmpty)
-                              Text(
+                              GfDecoratedName(
                                 author,
+                                colors: nicknameColors,
                                 style: TextStyle(
                                   fontSize: 15,
                                   height: 1.4,

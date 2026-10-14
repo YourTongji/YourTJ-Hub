@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UserNickname from '@/site/components/UserNickname.vue'
 import PersonaTag from './PersonaTag.vue'
 import { authorURL } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
@@ -31,7 +32,7 @@ const feedReason = (reason?: string | null) => { const key = feedReasonKey(reaso
 <template>
   <div class="min-w-0">
     <div class="flex items-center gap-2.5">
-      <UserAvatar
+      <UserAvatar :frame="topic.author.decoration?.avatarFrame"
         :src="topic.author.avatarUrl"
         :alt="topic.author.username"
         :badge="topic.author.wornBadge"
@@ -40,7 +41,7 @@ const feedReason = (reason?: string | null) => { const key = feedReasonKey(reaso
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span class="inline-flex max-w-full min-w-0 items-center gap-1.5 text-sm font-semibold leading-5 text-base-content">
-            <span class="min-w-0 truncate">{{ userDisplayName(topic.author.id, topic.author.username, topic.author.nickname) }}</span>
+            <span class="min-w-0 truncate"><UserNickname :style-definition="topic.author.decoration?.nicknameStyle">{{ userDisplayName(topic.author.id, topic.author.username, topic.author.nickname) }}</UserNickname></span>
             <PersonaTag v-if="topic.author.publicUid" />
             <span
               v-if="!topic.title && !topic.description && topic.unseen"
@@ -55,15 +56,15 @@ const feedReason = (reason?: string | null) => { const key = feedReasonKey(reaso
         </div>
         <div class="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
           <!-- Content type badge -->
-          <span v-if="topic.contentType === 1" class="inline-flex h-5 items-center gap-1 rounded-full bg-success/15 px-1.5 text-[11px] font-semibold text-success">
+          <span v-if="topic.contentType === 1" class="inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-success/15 px-1.5 text-[11px] font-semibold text-success">
             <HelpCircle class="h-3 w-3" />
             <span>{{ t('publish.contentTypes.question') }}</span>
           </span>
-          <span v-else-if="topic.contentType === 2" class="inline-flex h-5 items-center gap-1 rounded-full bg-purple-500/15 px-1.5 text-[11px] font-semibold text-purple-600 dark:text-purple-400">
+          <span v-else-if="topic.contentType === 2" class="inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-purple-500/15 px-1.5 text-[11px] font-semibold text-purple-600 dark:text-purple-400">
             <Sparkles class="h-3 w-3" />
             <span>{{ t('publish.contentTypes.thought') }}</span>
           </span>
-          <span v-else-if="topic.contentType === 3" class="inline-flex h-5 items-center gap-1 rounded-full bg-amber-500/15 px-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+          <span v-else-if="topic.contentType === 3" class="inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-amber-500/15 px-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
             <BookOpen class="h-3 w-3" />
             <span>{{ t('publish.contentTypes.article') }}</span>
           </span>
@@ -78,7 +79,7 @@ const feedReason = (reason?: string | null) => { const key = feedReasonKey(reaso
           </a>
           <span
             v-if="showHot && topic.viewCount > 500"
-            class="inline-flex h-5 items-center gap-1 rounded-full bg-warning/10 px-1.5 text-[11px] font-semibold text-warning"
+            class="inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-warning/10 px-1.5 text-[11px] font-semibold text-warning"
           >
             <Sparkles class="h-3 w-3" /> hot
           </span>

@@ -9,6 +9,7 @@ part of 'course_review.dart';
 _$ReviewAuthorPayloadImpl _$$ReviewAuthorPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$ReviewAuthorPayloadImpl(
+  decoration: UserDecoration.parse(json['decoration']),
   kind: json['kind'] as String,
   label: json['label'] as String,
   avatarUrl: json['avatarUrl'] as String?,
@@ -17,6 +18,7 @@ _$ReviewAuthorPayloadImpl _$$ReviewAuthorPayloadImplFromJson(
 Map<String, dynamic> _$$ReviewAuthorPayloadImplToJson(
   _$ReviewAuthorPayloadImpl instance,
 ) => <String, dynamic>{
+  'decoration': instance.decoration,
   'kind': instance.kind,
   'label': instance.label,
   'avatarUrl': instance.avatarUrl,

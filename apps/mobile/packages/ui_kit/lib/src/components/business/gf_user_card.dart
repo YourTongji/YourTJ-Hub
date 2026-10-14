@@ -1,3 +1,4 @@
+import '../atoms/gf_decorated_name.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -35,6 +36,9 @@ class GfUserCardHeader extends StatelessWidget {
   const GfUserCardHeader({
     super.key,
     required this.avatarUrl,
+    this.avatarFrameColors = const [],
+    this.avatarFrameAssetUrl = '',
+    this.avatarFrameScale = 1.25,
     this.coverUrl,
     this.avatarBadge,
     this.actions,
@@ -55,6 +59,9 @@ class GfUserCardHeader extends StatelessWidget {
   );
 
   final String avatarUrl;
+  final List<Color> avatarFrameColors;
+  final String avatarFrameAssetUrl;
+  final double avatarFrameScale;
   final String? coverUrl;
   final Widget? avatarBadge;
   final Widget? actions;
@@ -127,7 +134,14 @@ class GfUserCardHeader extends StatelessWidget {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(4),
-                  child: GfAvatar(src: avatarUrl, size: 88, badge: avatarBadge),
+                  child: GfAvatar(
+                    frameColors: avatarFrameColors,
+                    frameAssetUrl: avatarFrameAssetUrl,
+                    frameScale: avatarFrameScale,
+                    src: avatarUrl,
+                    size: 88,
+                    badge: avatarBadge,
+                  ),
                 ),
               ),
             ),
@@ -146,7 +160,11 @@ class GfUserCard extends StatelessWidget {
   const GfUserCard({
     super.key,
     required this.avatarUrl,
+    this.avatarFrameColors = const [],
+    this.avatarFrameAssetUrl = '',
+    this.avatarFrameScale = 1.25,
     required this.name,
+    this.nicknameColors = const [],
     required this.username,
     this.showUsername = true,
     this.nameBadges = const <Widget>[],
@@ -172,7 +190,11 @@ class GfUserCard extends StatelessWidget {
       math.max((width / 3).clamp(112.0, 200.0), topInset + 104);
 
   final String avatarUrl;
+  final List<Color> avatarFrameColors;
+  final String avatarFrameAssetUrl;
+  final double avatarFrameScale;
   final String name;
+  final List<Color> nicknameColors;
   final String username;
   final bool showUsername;
   final List<Widget> nameBadges;
@@ -217,8 +239,9 @@ class GfUserCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final sectionGap = compact ? 6.0 : 8.0;
-    final nameText = Text(
+    final nameText = GfDecoratedName(
       name,
+      colors: nicknameColors,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
@@ -308,6 +331,9 @@ class GfUserCard extends StatelessWidget {
       children: <Widget>[
         if (showHeader)
           GfUserCardHeader(
+            avatarFrameColors: avatarFrameColors,
+            avatarFrameAssetUrl: avatarFrameAssetUrl,
+            avatarFrameScale: avatarFrameScale,
             avatarUrl: avatarUrl,
             coverUrl: coverUrl,
             avatarBadge: avatarBadge,

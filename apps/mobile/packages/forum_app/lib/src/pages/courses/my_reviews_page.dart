@@ -218,7 +218,7 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          reviewAvatar(item.review, size: 40),
+                          reviewAvatar(item.review, size: 40, context: context),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(

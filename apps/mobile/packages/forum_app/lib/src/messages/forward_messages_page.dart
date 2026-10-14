@@ -1,3 +1,4 @@
+import '../widgets/user_decoration.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -198,15 +199,30 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
                               for (final recipient in batch.recipients)
                                 ListTile(
                                   leading: GfAvatar(
+                                    frameColors: decorationColors(
+                                      context,
+                                      recipient.user.decoration?.avatarFrame,
+                                    ),
+                                    frameAssetUrl: decorationFrameAssetUrl(
+                                      recipient.user.decoration?.avatarFrame,
+                                    ),
+                                    frameScale:
+                                        (recipient.user.decoration?.avatarFrame)
+                                            ?.assetScale ??
+                                        1.25,
                                     src: resolveApiAssetUrl(
                                       recipient.user.avatarUrl,
                                     ),
                                     size: 40,
                                   ),
-                                  title: Text(
+                                  title: GfDecoratedName(
                                     recipient.user.nickname.isEmpty
                                         ? recipient.user.username
                                         : recipient.user.nickname,
+                                    colors: decorationColors(
+                                      context,
+                                      recipient.user.decoration?.nicknameStyle,
+                                    ),
                                   ),
                                   subtitle: Text(switch (recipient.state) {
                                     ForwardDeliveryState.pending =>
@@ -262,13 +278,28 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
                               return CheckboxListTile(
                                 checkboxShape: const CircleBorder(),
                                 secondary: GfAvatar(
+                                  frameColors: decorationColors(
+                                    context,
+                                    user.decoration?.avatarFrame,
+                                  ),
+                                  frameAssetUrl: decorationFrameAssetUrl(
+                                    user.decoration?.avatarFrame,
+                                  ),
+                                  frameScale:
+                                      (user.decoration?.avatarFrame)
+                                          ?.assetScale ??
+                                      1.25,
                                   src: resolveApiAssetUrl(user.avatarUrl),
                                   size: 40,
                                 ),
-                                title: Text(
+                                title: GfDecoratedName(
                                   user.nickname.isEmpty
                                       ? user.username
                                       : user.nickname,
+                                  colors: decorationColors(
+                                    context,
+                                    user.decoration?.nicknameStyle,
+                                  ),
                                 ),
                                 subtitle: Text('@${user.username}'),
                                 value: _selected.contains(user.id),

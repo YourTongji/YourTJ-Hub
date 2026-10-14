@@ -16,7 +16,7 @@ func All() ([]Entity, error) {
 func AllEnabled() ([]Entity, error) {
 	entities := make([]Entity, 0)
 	result := builder().
-		Where("is_enabled = ? AND is_official = ?", true, true).
+		Where("is_enabled = ? AND is_official = ? AND review_status = ?", true, true, ReviewStatusApproved).
 		Order("sort_order ASC").Order("id ASC").
 		Find(&entities)
 	return entities, result.Error
@@ -74,7 +74,7 @@ func EnabledByNames(names []string) ([]Entity, error) {
 	if len(names) == 0 {
 		return entities, nil
 	}
-	err := builder().Where("name IN ? AND is_enabled = ?", names, true).Find(&entities).Error
+	err := builder().Where("name IN ? AND is_enabled = ? AND review_status = ?", names, true, ReviewStatusApproved).Find(&entities).Error
 	return entities, err
 }
 

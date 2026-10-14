@@ -42,11 +42,24 @@ class GfApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final disableAnimations = MediaQuery.disableAnimationsOf(context);
     final ThemeMode mode = ref.watch(themeModeProvider);
-    final GfRuntimeTheme? runtime = ref.watch(storageReadyProvider)
+    final storageReady = ref.watch(storageReadyProvider);
+    final GfRuntimeTheme? runtime = storageReady
         ? ref.watch(
             siteThemeProvider.select((s) => s.following ? s.runtime : null),
           )
         : null;
+    final bootstrap = ref.watch(storageBootstrapProvider);
+    final reset = ref.watch(storageResetStateProvider);
+    // The brand layer holds on top of the storage gate until local data is
+    // prepared, so cold start shows one waiting surface instead of two. The
+    // failed branch mirrors StorageGate: a refreshing value may carry an old
+    // error, so only a settled error counts.
+    final storageLoading = bootstrap.isLoading || reset?.isLoading == true;
+    final readiness = storageReady
+        ? StartupReadiness.ready
+        : (!storageLoading && (bootstrap.hasError || reset?.hasError == true))
+        ? StartupReadiness.failed
+        : StartupReadiness.loading;
 
     return MaterialApp.router(
       title: 'YourTJ',
@@ -68,10 +81,13 @@ class GfApp extends ConsumerWidget {
       routerConfig: appRouter,
       builder: (context, child) => AppTextScaleScope(
         child: AppSystemUiOverlay(
-          child: StorageGate(
-            child: _AppBusinessHosts(
-              locale: locale,
-              child: child ?? const SizedBox.shrink(),
+          child: StartupExperience(
+            readiness: readiness,
+            child: StorageGate(
+              child: _AppBusinessHosts(
+                locale: locale,
+                child: child ?? const SizedBox.shrink(),
+              ),
             ),
           ),
         ),
@@ -132,16 +148,14 @@ class _AppBusinessHosts extends ConsumerWidget {
       apiOrigin: origin,
       readAccessToken: ref.read(tokenStorageProvider).read,
       imageErrorBuilder: mediaImageFailure,
-      child: StartupExperience(
-        child: MobileUpdateHost(
-          key: appUpdateHostKey,
-          navigatorKey: appNavigatorKey,
-          child: SessionOverlayHost(
-            registry: appSessionOverlays,
-            child: AnalyticsHost(
-              router: appRouter,
-              child: PrivateNotesHost(child: child),
-            ),
+      child: MobileUpdateHost(
+        key: appUpdateHostKey,
+        navigatorKey: appNavigatorKey,
+        child: SessionOverlayHost(
+          registry: appSessionOverlays,
+          child: AnalyticsHost(
+            router: appRouter,
+            child: PrivateNotesHost(child: child),
           ),
         ),
       ),

@@ -1,3 +1,4 @@
+import '../../gen/decoration.dart';
 import '../../gen/auth.dart';
 import '../../gen/user.dart';
 import '../gf_api_client.dart';
@@ -7,6 +8,19 @@ class UserRepository {
   UserRepository(this._client);
 
   final GfApiClient _client;
+
+  Future<DecorationState> getDecorations() => _client.get<DecorationState>(
+    '/api/user/decorations',
+    parser: (json) => DecorationState.fromJson(json as Map<String, dynamic>),
+  );
+  Future<DecorationState> equipDecorations({
+    required String avatarFrame,
+    required String nicknameStyle,
+  }) => _client.post<DecorationState>(
+    '/api/user/decorations/equip',
+    body: {'avatarFrame': avatarFrame, 'nicknameStyle': nicknameStyle},
+    parser: (json) => DecorationState.fromJson(json as Map<String, dynamic>),
+  );
 
   Future<UserBlocksPayload> getUserBlocks() => _client.get<UserBlocksPayload>(
     '/api/user-blocks',

@@ -17,6 +17,7 @@ func TestCurrentCapacitiesPreserveExistingLimits(t *testing.T) {
 		UnreadStatus:       2048,
 		ModerationStatus:   2048,
 		ConversationAccess: 4096,
+		BlockedPeers:       4096,
 		BadgeDefinitions:   4,
 		RuntimeTheme:       1,
 		SEOXML:             128,

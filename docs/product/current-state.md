@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-03
+> Last verified: 2026-10-13
 
 本页只汇总具体能力、缺口和维护文档。产品规则在对应规范中维护，接口字段以
 [契约覆盖矩阵](../../packages/api-contract/coverage-matrix.md)为准；历史交付过程由 Git 保存。
@@ -17,7 +17,7 @@
 | 能力 | 状态 | 当前边界与维护入口 |
 |---|---|---|
 | 主题、回复与互动 | `Current` | 提问／瞬间／文章、图集、草稿、楼层视图、点赞收藏、关注频道、通知与私信；首页最新排序提供置顶标题区，默认单行显示置顶标签、标题与总数，可展开其余标题；见[论坛体验](forum.md)。 |
-| 管理后台外壳 | `Current` | 跟随系统并可手动切换的深色主题、按页面名称、路由词和分组检索后台页面并给出候选列表的命令搜索；表单选择统一使用后台组件库，不使用浏览器原生下拉、复选或单选控件。 |
+| 管理后台外壳 | `Current` | 跟随系统并可手动切换的深色主题、按页面名称、路由词和分组检索后台页面并给出候选列表的命令搜索；表单选择统一使用后台组件库，不使用浏览器原生下拉、复选或单选控件。统计页提供内容贡献统计（板块汇总与按日趋势、用户排行与单用户明细），只读公开内容与点赞关系、仅管理员可见，与「推荐统计」互不相干，见[论坛体验](forum.md#content-contribution-statistics)。 |
 | Web 导航外壳 | `Current` | 桌面侧栏可折叠并记忆状态，窄屏使用抽屉；见[论坛阅读规范](forum.md#feed-and-reading)。 |
 | Markdown 与外链 | `Partial` | 阅读支持 Mermaid、数学与受控链接预览；Vditor 替代数学分隔符预览尚缺，见[论坛体验](forum.md#links-markdown-and-stickers)。 |
 | 表情库 | `Partial` | 官方目录、个人素材 API、Web token 渲染及 Flutter 管理／输入可用；Web 个人库管理未实现，见[表情规范](mobile-experience.md#sticker-library)。 |
@@ -29,7 +29,7 @@
 | 校园地图 | `Partial` | Web 六校区／基地导览可用；张江示意图未校准，官方设施核验和 Flutter 原生页尚缺，见[地图规范](campus-map.md)。 |
 | 登录、TOTP 与会话 | `Current` | 密码、GitHub／可选 Google OAuth、同济统一认证、内建 OIDC Provider、TOTP 和可撤销会话；见[身份规范](identity-and-access.md)。 |
 | 外部登录 MFA 策略 | `Decision needed` | OIDC／OAuth 是否复用论坛 TOTP 仍需明确，见[身份规范](identity-and-access.md)。 |
-| Agent API 与 MCP | `Partial` | Agent 生命周期、REST／MCP、持久化互动与广播、签名 Webhook、幂等回复和管理员评论策略已实现；外部运行器／真机验收及 Agent OAuth 仍未完成，见[身份规范](identity-and-access.md)与[架构](../architecture/system-overview.md)。 |
+| Agent API 与 MCP | `Partial` | Agent 生命周期、REST／MCP、持久化互动与广播、签名 Webhook、幂等回复和管理员评论策略已实现；内容贡献统计按 `actorType` 将真人与 Agent 贡献分列，排行与明细默认真人；外部运行器／真机验收及 Agent OAuth 仍未完成，见[身份规范](identity-and-access.md)与[架构](../architecture/system-overview.md)。 |
 | AI 可读公开导出 | `Current` | 索引、全文和单篇 Markdown 独立开关，只导出可见内容并标记截断；见[契约与数据](../architecture/contracts-and-data.md)。 |
 | 聚合搜索与索引管理 | `Partial` | 检索与管理可用；部分用户／生命周期变更在提交后异步入队，不能视为全链路事务同步。故障与重建边界见[契约与数据](../architecture/contracts-and-data.md#managed-search-reconciliation)。 |
 | 移动端页面与语言 | `Current` | 首页／校园／通知／私信四个持久分支，课程／排课／Wiki 原生页面，中英日德四语言；见[移动端体验](mobile-experience.md)。 |

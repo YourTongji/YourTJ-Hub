@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-07
+> Last verified: 2026-10-13
 
 ## Identity and naming
 
@@ -188,6 +188,14 @@ persona, name lock and restricted reveal/governance audits indefinitely. Histori
 the persona attribution and its normal deletion/visibility rules. This approved retention policy is
 separate from the content recovery window. Operations and backup access are defined in
 [anonymous identity operations](../operations/anonymous-identity.md).
+
+`Current`: per-user attribution in the admin content contribution statistics never resolves a persona
+— content published under a persistent persona or the legacy per-post anonymous flag is excluded from
+contributor counts, user ranking and per-user detail, so the private owner cannot be inferred from
+those figures. No differencing path is offered either: the per-user dimension is anonymous-free, and
+the report adds no new owner binding beyond the audited reveal above. After account closure the
+statistics neither restore nor rebuild the closed persona's attribution; the persona's content keeps
+counting toward aggregate content volumes under the ordinary visibility rules.
 
 These identities hide the main-account association, while deliberately linking one persona's own
 history. Content, timing and external copies can still let readers infer a person. Course-review

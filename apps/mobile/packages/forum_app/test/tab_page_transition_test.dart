@@ -6,7 +6,10 @@ import 'package:forum_app/src/navigation/tab_swipe_surface.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 class _Pager extends StatefulWidget {
-  const _Pager();
+  const _Pager({this.width});
+
+  /// Bounds the swipe surface like a centred reading column.
+  final double? width;
 
   @override
   State<_Pager> createState() => _PagerState();
@@ -22,31 +25,35 @@ class _PagerState extends State<_Pager> {
   @override
   Widget build(BuildContext context) => MaterialApp(
     home: Scaffold(
-      body: TabSwipeSurface(
-        index: _index,
-        length: tabs.length,
-        onChanged: (index) => setState(() => _index = index),
-        child: Column(
-          children: [
-            GfTabBar(tabs: tabs, selected: _index, onSelected: (_) {}),
-            Expanded(
-              child: TabPageTransition(
-                index: _index,
-                length: tabs.length,
-                pageKey: (index) => index,
-                pageBuilder: (index, _) => ColoredBox(
-                  key: ValueKey('page-$index'),
-                  color: index == 0 ? Colors.red : Colors.blue,
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: Text('Page $index'),
-                  ),
-                ),
+      body: Center(
+        child: SizedBox(width: widget.width, child: _surface()),
+      ),
+    ),
+  );
+
+  Widget _surface() => TabSwipeSurface(
+    index: _index,
+    length: tabs.length,
+    onChanged: (index) => setState(() => _index = index),
+    child: Column(
+      children: [
+        GfTabBar(tabs: tabs, selected: _index, onSelected: (_) {}),
+        Expanded(
+          child: TabPageTransition(
+            index: _index,
+            length: tabs.length,
+            pageKey: (index) => index,
+            pageBuilder: (index, _) => ColoredBox(
+              key: ValueKey('page-$index'),
+              color: index == 0 ? Colors.red : Colors.blue,
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Text('Page $index'),
               ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     ),
   );
 }
@@ -293,6 +300,25 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(find.text('Page 1')).dx, closeTo(0, 1));
+  });
+
+  testWidgets('a bounded surface tracks the finger at its own width', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1000, 800);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(const _Pager(width: 500));
+    final start = tester.getTopLeft(find.text('Page 0')).dx;
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('Page 0')),
+    );
+    await gesture.moveBy(const Offset(-60, 0));
+    await tester.pump();
+    expect(tester.getTopLeft(find.text('Page 0')).dx, closeTo(start - 60, 1));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.text('Page 1')).dx, closeTo(start, 1));
   });
 
   testWidgets('flinging back cancels a dragged switch', (tester) async {

@@ -15,12 +15,6 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// firstPostVisibleSQL 首楼可见性半连接条件，与详情页/GetPublished 的公开
-// 口径一致：首楼需 process_status 正常且未软删。首楼被删除/擦除后主题无
-// 正文，继续公开展示会产生「有标题无正文」的孤儿条目（issue #492）。
-// 所有公开列表/导出入口应统一附加本条件。
-const firstPostVisibleSQL = "(SELECT posts.process_status FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.deleted_at IS NULL AND posts.visibility_status = 'ACTIVE') = ?"
-
 func SaveOrCreateById(entity *Entity) int64 {
 	if entity.Id == 0 {
 		return builder().Create(entity).RowsAffected
@@ -204,11 +198,8 @@ func GetMapByIdsUnscoped(ids []uint64) map[uint64]Entity {
 
 func GetLatestPublished(limit int) (entities []*Entity, err error) {
 	err = builder().
-		Where(queryopt.Eq("status", 1)).
-		Where(queryopt.Eq("process_status", 0)).
-		Where(queryopt.Eq("visibility_status", VisibilityActive)).
-		Where(queryopt.Eq("topic_type", TopicTypeForum)).
-		Where(firstPostVisibleSQL, ProcessStatusNormal).
+		Where(PublicScopePredicate(tableName)).
+		Where(FirstPostVisiblePredicate(tableName)).
 		Order(queryopt.Desc("updated_at")).
 		Order(queryopt.Desc("id")).
 		Limit(limit).
@@ -224,24 +215,22 @@ func GetPublishedBeforeID(beforeID uint64, limit int) (entities []*Entity, err e
 	}
 	err = builder().
 		Where(queryopt.Lt("id", beforeID)).
-		Where(queryopt.Eq("status", 1)).
-		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
-		Where(queryopt.Eq("visibility_status", VisibilityActive)).
-		Where(queryopt.Eq("topic_type", TopicTypeForum)).
-		Where(firstPostVisibleSQL, ProcessStatusNormal).
+		Where(PublicScopePredicate(tableName)).
+		Where(FirstPostVisiblePredicate(tableName)).
 		Order(queryopt.Desc("id")).
 		Limit(limit).
 		Find(&entities).Error
 	return
 }
 
+// GetPublished 读取单篇公开主题（详情页与单篇 LLM 导出共用入口）：与公开列表口径一致，
+// 复用规范公开谓词 + 首楼可见，因此 wiki 页面主题（topic_type=1）不再经此入口返回
+// （评审 S3 声明并测试的跨范围对齐；全量导出口径见 GetPublishedBeforeID）。
 func GetPublished(id uint64) (entity Entity, err error) {
 	err = builder().
 		Where(queryopt.Eq("id", id)).
-		Where(queryopt.Eq("status", 1)).
-		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
-		Where(queryopt.Eq("visibility_status", VisibilityActive)).
-		Where(firstPostVisibleSQL, ProcessStatusNormal).
+		Where(PublicScopePredicate(tableName)).
+		Where(FirstPostVisiblePredicate(tableName)).
 		First(&entity).Error
 	return
 }
@@ -250,11 +239,8 @@ func GetLatestPublishedByUserId(userId uint64, limit int) ([]*Entity, error) {
 	var entities []*Entity
 	err := builder().
 		Where(queryopt.Eq("user_id", userId)).Where("persona_uid = ?", "").
-		Where(queryopt.Eq("status", 1)).
-		Where(queryopt.Eq("process_status", 0)).
-		Where(queryopt.Eq("visibility_status", VisibilityActive)).
-		Where(queryopt.Eq("topic_type", TopicTypeForum)).
-		Where(firstPostVisibleSQL, ProcessStatusNormal).
+		Where(PublicScopePredicate(tableName)).
+		Where(FirstPostVisiblePredicate(tableName)).
 		Order(queryopt.Desc("updated_at")).
 		Order(queryopt.Desc("id")).
 		Limit(limit).
@@ -275,7 +261,7 @@ func GetProfileTopicsBeforeID(userId uint64, beforeId uint64, limit int, include
 		query = query.Where("process_status IN ?", []int8{ProcessStatusNormal, ProcessStatusPending}).
 			Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status IN ? AND posts.deleted_at IS NULL)", []int8{ProcessStatusNormal, ProcessStatusPending})
 	} else {
-		query = query.Where("process_status = ?", ProcessStatusNormal).Where(firstPostVisibleSQL, ProcessStatusNormal)
+		query = query.Where("process_status = ?", ProcessStatusNormal).Where(FirstPostVisiblePredicate(tableName))
 	}
 	if beforeId > 0 {
 		query = query.Where(queryopt.Lt("id", beforeId))
@@ -419,7 +405,7 @@ func Page(q PageQuery) struct {
 		b.Where(queryopt.Eq("visibility_status", VisibilityActive))
 		// 且首楼仍可见（与 GetPublished/GetPublishedBeforeID 口径一致）：首楼被
 		// 删除/擦除后主题无正文，继续展示会产生「有标题无正文」的孤儿条目（issue #492）。
-		b.Where(firstPostVisibleSQL, ProcessStatusNormal)
+		b.Where(FirstPostVisiblePredicate(tableName))
 	}
 	if q.CategoryId != 0 {
 		b.Where(

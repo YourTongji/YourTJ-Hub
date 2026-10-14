@@ -137,7 +137,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
     final items = source
         .where(
           (item) =>
-              item.isEnabled &&
+              item.isAvailable &&
               (_tab != 2 || _pack == null || item.pack == _pack) &&
               (strings
                       .displayLabel(item)

@@ -77,7 +77,10 @@ void main() {
     final recovery = Completer<void>();
     final app = await pump(tester, () => recovery.future);
     expect(find.byType(GfBottomNavigation), findsNothing);
-    expect(find.byType(StartupExperience), findsNothing);
+    // The brand layer sits above the gate and covers the whole window while
+    // storage prepares; the gate must not mount a second waiting page.
+    expect(find.byType(StartupExperience), findsOneWidget);
+    expect(find.text('Preparing local data…'), findsNothing);
     expect(find.byType(MediaHost), findsNothing);
     expect(app.pages.reads, 0);
     recovery.complete();
@@ -127,7 +130,8 @@ void main() {
           const AsyncValue<void>.loading();
       await tester.pump();
       expect(find.byType(GfBottomNavigation), findsNothing);
-      expect(find.byType(StartupExperience), findsNothing);
+      // The brand layer finished at startup; only the business hosts unmount.
+      expect(find.byType(StartupExperience), findsOneWidget);
       expect(find.byType(MediaHost), findsNothing);
       app.container
           .read(storageResetStateProvider.notifier)
@@ -176,7 +180,8 @@ void main() {
       // without a duration only schedules that frame when the tree is idle.
       await tester.pump(Duration.zero);
       expect(find.byType(GfBottomNavigation), findsNothing);
-      expect(find.byType(StartupExperience), findsNothing);
+      // The brand layer persists above the gate; business hosts unmount.
+      expect(find.byType(StartupExperience), findsOneWidget);
       expect(find.byType(MediaHost), findsNothing);
       retry.complete();
       await tester.pumpAndSettle();

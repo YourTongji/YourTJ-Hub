@@ -16,6 +16,9 @@ import (
 
 // ModerationReviewQueue 列出当前版主可审核的待审话题或回复。
 func ModerationReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response {
+	if req.Params.Kind == "sticker" {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	global, categoryIDs, ok := moderationReviewScope(req.UserId)
 	if !ok {
 		return component.FailResponseCode(component.MessagePermissionDenied, nil)
@@ -29,6 +32,9 @@ func ModerationReviewQueue(req component.BetterRequest[ReviewQueueReq]) componen
 // ModerationReviewAction 版主通过或拒绝一条待审内容（与后台 ReviewAction 同语义：
 // 通过公开内容与图片、补发业务事件并通知作者；拒绝保持不公开并通知作者）。
 func ModerationReviewAction(req component.BetterRequest[ReviewActionReq]) component.Response {
+	if req.Params.Kind == "sticker" {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	if _, _, ok := moderationReviewScope(req.UserId); !ok {
 		return component.FailResponseCode(component.MessagePermissionDenied, nil)
 	}

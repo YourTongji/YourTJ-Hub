@@ -1,0 +1,398 @@
+myDecorations:
+  get:
+    tags:
+    - User
+    summary: Read the account decoration catalog, entitlements and effective equipment
+    operationId: myDecorations
+    description: Hub is the sole decoration entitlement/equipment owner. First release
+      grants are administrator-only. Catalog availability does not confer ownership.
+      Disabled or unowned selections are rejected. Public projections omit anonymous
+      owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF
+      protected for cookies and require a writable account. Admin permissions are
+      checked independently. Grant/revoke requestKey is durable and retries cannot
+      resurrect a revoked grant; changing input for a reused key fails.
+    security:
+    - bearerAuth: []
+    - accessTokenCookie: []
+    responses:
+      '200':
+        description: Success or business failure.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/DecorationStateResponse
+            examples:
+              success:
+                externalValue: ../fixtures/decoration-state-empty.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen/pending account, or missing administration permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/permission-denied.json
+equipDecorations:
+  post:
+    tags:
+    - User
+    summary: Equip or remove each owned decoration slot
+    operationId: equipDecorations
+    description: Hub is the sole decoration entitlement/equipment owner. First release
+      grants are administrator-only. Catalog availability does not confer ownership.
+      Disabled or unowned selections are rejected. Public projections omit anonymous
+      owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF
+      protected for cookies and require a writable account. Admin permissions are
+      checked independently. Grant/revoke requestKey is durable and retries cannot
+      resurrect a revoked grant; changing input for a reused key fails.
+    security:
+    - bearerAuth: []
+    - accessTokenCookie: []
+    responses:
+      '200':
+        description: Success or business failure.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/DecorationStateResponse
+            examples:
+              success:
+                externalValue: ../fixtures/decoration-state-equipped.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen/pending account, or missing administration permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/permission-denied.json
+      '400':
+        description: Malformed JSON/query or body exceeds 4096 bytes.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/parse-failed.json
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/DecorationEquipped
+listDecorations:
+  get:
+    tags:
+    - Admin
+    summary: List decoration definitions (SiteManager)
+    operationId: listDecorations
+    description: Hub is the sole decoration entitlement/equipment owner. First release
+      grants are administrator-only. Catalog availability does not confer ownership.
+      Disabled or unowned selections are rejected. Public projections omit anonymous
+      owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF
+      protected for cookies and require a writable account. Admin permissions are
+      checked independently. Grant/revoke requestKey is durable and retries cannot
+      resurrect a revoked grant; changing input for a reused key fails.
+    security:
+    - bearerAuth: []
+    - accessTokenCookie: []
+    responses:
+      '200':
+        description: Success or business failure.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/DecorationListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/decoration-list-success.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen/pending account, or missing administration permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/permission-denied.json
+saveDecoration:
+  post:
+    tags:
+    - Admin
+    summary: Save a validated decoration definition (SiteManager)
+    operationId: saveDecoration
+    description: Hub is the sole decoration entitlement/equipment owner. First release
+      grants are administrator-only. Catalog availability does not confer ownership.
+      Disabled or unowned selections are rejected. Public projections omit anonymous
+      owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF
+      protected for cookies and require a writable account. Admin permissions are
+      checked independently. Grant/revoke requestKey is durable and retries cannot
+      resurrect a revoked grant; changing input for a reused key fails.
+    security:
+    - bearerAuth: []
+    - accessTokenCookie: []
+    responses:
+      '200':
+        description: Success or business failure.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/DecorationStyleResponse
+            examples:
+              success:
+                externalValue: ../fixtures/decoration-style-success.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen/pending account, or missing administration permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/permission-denied.json
+      '400':
+        description: Malformed JSON/query or body exceeds 4096 bytes.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/parse-failed.json
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/DecorationStyle
+getUserDecorations:
+  get:
+    tags:
+    - Admin
+    summary: Read account equipment and recent audit receipts (UserManager)
+    operationId: getUserDecorations
+    description: Hub is the sole decoration entitlement/equipment owner. First release
+      grants are administrator-only. Catalog availability does not confer ownership.
+      Disabled or unowned selections are rejected. Public projections omit anonymous
+      owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF
+      protected for cookies and require a writable account. Admin permissions are
+      checked independently. Grant/revoke requestKey is durable and retries cannot
+      resurrect a revoked grant; changing input for a reused key fails.
+    security:
+    - bearerAuth: []
+    - accessTokenCookie: []
+    responses:
+      '200':
+        description: Success or business failure.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminDecorationStateResponse
+            examples:
+              success:
+                externalValue: ../fixtures/decoration-admin-state.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen/pending account, or missing administration permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/permission-denied.json
+      '400':
+        description: Malformed JSON/query or body exceeds 4096 bytes.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/parse-failed.json
+    parameters:
+    - name: userId
+      in: query
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+grantDecoration:
+  post:
+    tags:
+    - Admin
+    summary: Grant a decoration entitlement with a durable request key (UserManager)
+    operationId: grantDecoration
+    description: Hub is the sole decoration entitlement/equipment owner. First release
+      grants are administrator-only. Catalog availability does not confer ownership.
+      Disabled or unowned selections are rejected. Public projections omit anonymous
+      owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF
+      protected for cookies and require a writable account. Admin permissions are
+      checked independently. Grant/revoke requestKey is durable and retries cannot
+      resurrect a revoked grant; changing input for a reused key fails.
+    security:
+    - bearerAuth: []
+    - accessTokenCookie: []
+    responses:
+      '200':
+        description: Success or business failure.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/DecorationStateResponse
+            examples:
+              success:
+                externalValue: ../fixtures/decoration-state-owned.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen/pending account, or missing administration permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/permission-denied.json
+      '400':
+        description: Malformed JSON/query or body exceeds 4096 bytes.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/parse-failed.json
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/DecorationAdjustmentRequest
+revokeDecoration:
+  post:
+    tags:
+    - Admin
+    summary: Revoke all entitlement sources for a decoration (UserManager)
+    operationId: revokeDecoration
+    description: Hub is the sole decoration entitlement/equipment owner. First release
+      grants are administrator-only. Catalog availability does not confer ownership.
+      Disabled or unowned selections are rejected. Public projections omit anonymous
+      owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF
+      protected for cookies and require a writable account. Admin permissions are
+      checked independently. Grant/revoke requestKey is durable and retries cannot
+      resurrect a revoked grant; changing input for a reused key fails.
+    security:
+    - bearerAuth: []
+    - accessTokenCookie: []
+    responses:
+      '200':
+        description: Success or business failure.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/DecorationStateResponse
+            examples:
+              success:
+                externalValue: ../fixtures/decoration-state-empty.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen/pending account, or missing administration permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/permission-denied.json
+      '400':
+        description: Malformed JSON/query or body exceeds 4096 bytes.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/parse-failed.json
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/DecorationAdjustmentRequest

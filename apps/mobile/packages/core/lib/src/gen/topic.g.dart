@@ -9,6 +9,7 @@ part of 'topic.dart';
 _$UserBriefPayloadImpl _$$UserBriefPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$UserBriefPayloadImpl(
+  decoration: UserDecoration.parse(json['decoration']),
   id: (json['id'] as num).toInt(),
   kind: json['kind'] as String?,
   publicUid: json['publicUid'] as String?,
@@ -24,6 +25,7 @@ _$UserBriefPayloadImpl _$$UserBriefPayloadImplFromJson(
 Map<String, dynamic> _$$UserBriefPayloadImplToJson(
   _$UserBriefPayloadImpl instance,
 ) => <String, dynamic>{
+  'decoration': instance.decoration,
   'id': instance.id,
   'kind': instance.kind,
   'publicUid': instance.publicUid,

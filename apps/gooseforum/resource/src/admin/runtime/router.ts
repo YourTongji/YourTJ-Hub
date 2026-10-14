@@ -64,6 +64,8 @@ export const adminRouter = createRouter({
       path: '/admin/sponsors',
       component: () => import('@/admin/pages/management/SponsorsManagementPage.vue'),
     },
+    { path: '/admin/decorations', component: () => import('@/admin/pages/management/DecorationsManagementPage.vue') },
+    { path: '/admin/user-decorations', component: () => import('@/admin/pages/management/UserDecorationsManagementPage.vue') },
     {
       path: '/admin/badges',
       component: () => import('@/admin/pages/management/BadgesManagementPage.vue'),

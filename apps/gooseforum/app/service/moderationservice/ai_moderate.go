@@ -54,7 +54,7 @@ const (
 // AIContentInput 待审内容。SubjectID 为 0 表示新建（落库时由 Finish 补齐）。
 type AIContentInput struct {
 	AuthorID    uint64
-	SubjectType string // moderationDecision.SubjectTopic | SubjectPost
+	SubjectType string // moderationDecision.SubjectTopic | SubjectPost | SubjectSticker
 	SubjectID   uint64
 	Title       string
 	Content     string // Markdown 原文

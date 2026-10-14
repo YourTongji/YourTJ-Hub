@@ -73,6 +73,7 @@ Map<String, dynamic> _$$SitePayloadImplToJson(_$SitePayloadImpl instance) =>
 
 _$ViewerPayloadImpl _$$ViewerPayloadImplFromJson(Map<String, dynamic> json) =>
     _$ViewerPayloadImpl(
+      decoration: UserDecoration.parse(json['decoration']),
       id: (json['id'] as num).toInt(),
       username: json['username'] as String,
       email: json['email'] as String,
@@ -88,6 +89,7 @@ _$ViewerPayloadImpl _$$ViewerPayloadImplFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$$ViewerPayloadImplToJson(_$ViewerPayloadImpl instance) =>
     <String, dynamic>{
+      'decoration': instance.decoration,
       'id': instance.id,
       'username': instance.username,
       'email': instance.email,

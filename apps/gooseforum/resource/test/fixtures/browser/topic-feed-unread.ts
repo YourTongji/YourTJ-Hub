@@ -7,7 +7,10 @@ import type { TopicPayload } from '@gooseforum/client'
 await setLocale('zh')
 const base: TopicPayload = {
   id: 101, title: '', description: '终于有时间画画了', url: '/p/101',
-  author: { id: 1, username: 'alice', nickname: '小爱', avatarUrl: '/assets/test/fixtures/browser/topic-feed-art.svg' }, participants: [],
+  author: { id: 1, username: 'alice', nickname: '小爱', avatarUrl: '/assets/test/fixtures/browser/topic-feed-art.svg', decoration: {
+    avatarFrame: { code: 'frame', name: 'Frame', kind: 'avatarFrame', lightColors: ['#166534'], darkColors: ['#86EFAC'], isEnabled: true, sortOrder: 1 },
+    nicknameStyle: { code: 'name', name: 'Name', kind: 'nicknameStyle', lightColors: ['#166534'], darkColors: ['#86EFAC'], isEnabled: true, sortOrder: 1 },
+  } }, participants: [],
   categories: [{ id: 9, name: '瞬间', url: '/c/9', color: '#10b981' }],
   replyCount: 7, viewCount: 100, pinWeight: 0, processStatus: 0,
   activityText: '刚刚', lastUpdateTime: '2026-10-03T00:00:00Z', contentType: 2, unseen: true,

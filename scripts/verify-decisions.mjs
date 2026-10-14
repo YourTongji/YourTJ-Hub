@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // verify-decisions.mjs — decision log gate.
 // Enforces the MADR-based decision log contract in docs/decisions/:
-//   - file naming NNNN-title.md, unique sequential numbering
+//   - file naming NNNN-title.md, unique numbering (gaps allowed for parallel PR reservations)
 //   - required sections, in order
 //   - valid status values
 //   - valid Class: extension values when present
@@ -48,7 +48,7 @@ export function sectionOrder(text) {
   return true;
 }
 
-export function checkStatusAndClass(f, text, nums, errors) {
+export function checkStatusAndClass(f, text, files, errors) {
   const statusMatch = text.match(/^## Status\n+([^\n]+)/m);
   if (!statusMatch) {
     errors.push(`${f}: missing status value`);
@@ -57,14 +57,21 @@ export function checkStatusAndClass(f, text, nums, errors) {
   const statusLine = statusMatch[1].trim();
   let statusOk = VALID_STATUSES.has(statusLine);
   if (!statusOk && statusLine.startsWith(SUPERSEDED_PREFIX)) {
-    const num = statusLine.match(/(\d{4})/);
-    if (num && nums.includes(Number(num[1]))) {
+    const plainReference = statusLine.match(/^Superseded by (\d{4})$/);
+    const linkedReference = statusLine.match(/^Superseded by \[(\d{4})\]\((\d{4}-.+\.md)\)$/);
+    if (plainReference && files.some((file) => file.slice(0, 4) === plainReference[1])) {
       statusOk = true;
-    } else {
+    } else if (linkedReference && linkedReference[1] === linkedReference[2].slice(0, 4) && files.includes(linkedReference[2])) {
+      statusOk = true;
+    } else if (plainReference || (linkedReference && linkedReference[1] === linkedReference[2].slice(0, 4))) {
       errors.push(`${f}: superseded target missing or does not exist: "${statusLine}"`);
+    } else {
+      errors.push(`${f}: invalid superseded reference "${statusLine}"`);
     }
   }
-  if (!statusOk) errors.push(`${f}: invalid status "${statusLine}"`);
+  if (!statusOk && !statusLine.startsWith(SUPERSEDED_PREFIX)) {
+    errors.push(`${f}: invalid status "${statusLine}"`);
+  }
 
   // Class extension: first non-empty line after the status value line.
   const lines = text.split('\n');
@@ -92,22 +99,16 @@ export async function verifyDir(dirPath) {
     .filter((e) => e.isFile() && /^\d{4}-.+\.md$/.test(e.name))
     .map((e) => e.name)
     .sort();
-  const nums = files.map((f) => Number(f.slice(0, 4)));
   const seen = new Set();
-  for (const n of nums) {
+  for (const f of files) {
+    const n = Number(f.slice(0, 4));
     if (seen.has(n)) errors.push(`duplicate decision number ${String(n).padStart(4, '0')}`);
     seen.add(n);
-  }
-  for (let i = 0; i < nums.length; i++) {
-    if (nums[i] !== i) {
-      errors.push(`decision numbers must be sequential starting at 0; found ${files[i]}`);
-      break;
-    }
   }
   for (const f of files) {
     const text = await readFile(path.join(dirPath, f), 'utf8');
     if (!sectionOrder(text)) errors.push(`${f}: required sections missing or out of order`);
-    checkStatusAndClass(f, text, nums, errors);
+    checkStatusAndClass(f, text, files, errors);
   }
   return errors;
 }

@@ -259,8 +259,10 @@ func fileNameFromPublicURL(value, publicPrefix string) string {
 }
 
 // SetStickerUsageTx replaces a sticker reference in the definition transaction.
-func SetStickerUsageTx(tx *gorm.DB, stickerID, userID uint64, fileName string) error {
-	return fileUsage.ReplaceStickerTx(tx, stickerID, userID, fileName)
+// status is the initial file_usage status: ACTIVE for official stickers,
+// PENDING for personal uploads awaiting review (issue #1071).
+func SetStickerUsageTx(tx *gorm.DB, stickerID, userID uint64, fileName, status string) error {
+	return fileUsage.ReplaceStickerTx(tx, stickerID, userID, fileName, status)
 }
 
 // RegisterRevisionImagesTx retains private candidate images without replacing

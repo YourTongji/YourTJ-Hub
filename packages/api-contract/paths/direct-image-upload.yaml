@@ -10,8 +10,10 @@ initDirectImageUpload:
       Starts a post-image upload. The caller declares the original filename, browser MIME type and
       byte size; the server validates them against the posting-settings allowlist and size cap
       before returning a mode. With the local storage provider the response is `mode: "proxy"` and
-      the caller must continue with the existing multipart `POST /file/img-upload`. With an
-      S3-compatible provider the response is `mode: "direct"` and carries a short-lived presigned
+      the caller must continue with the existing multipart `POST /file/img-upload`; the same applies
+      to an S3-compatible provider while the storage setting `forceProxyUpload` is enabled (the
+      server then writes the proxied upload to the bucket). Otherwise, with an S3-compatible
+      provider the response is `mode: "direct"` and carries a short-lived presigned
       POST policy (`upload.url` + `upload.fields`) plus the pending object `name`: the browser
       uploads the file straight to the bucket, then calls `/file/img-upload/complete` to publish.
       Business failures (HTTP 200): `upload.attachment.disabled`, `upload.cooldown` (new-account
@@ -36,7 +38,7 @@ initDirectImageUpload:
               $ref: ../components/schemas.yaml#/DirectImageUploadInitResponse
             examples:
               proxy:
-                summary: Local provider — continue with the multipart proxy upload.
+                summary: Local provider, or S3 with forceProxyUpload — continue with the multipart proxy upload.
                 externalValue: ../fixtures/direct-img-upload-init-proxy.json
               direct:
                 summary: S3 provider — upload to the bucket, then complete.

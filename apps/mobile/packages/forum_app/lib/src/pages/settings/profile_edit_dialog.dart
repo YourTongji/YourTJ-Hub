@@ -215,8 +215,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         textInputAction: lines > 1
             ? TextInputAction.newline
             : TextInputAction.next,
+        // 资料页没有密码字段:enableSuggestions 必须保持默认 true,否则
+        // Flutter Android 引擎会附加密码类 inputType,ColorOS 据此强制
+        // 安全键盘并禁用粘贴(issue #1111)。
         autocorrect: !url,
-        enableSuggestions: !url,
         decoration: InputDecoration(
           labelText: label,
           floatingLabelBehavior: FloatingLabelBehavior.always,

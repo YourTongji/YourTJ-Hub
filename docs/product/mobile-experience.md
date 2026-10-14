@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-11
+> Last verified: 2026-10-12
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -26,9 +26,13 @@ corresponding planned ownership and lifecycle contracts.
 
 `Current`: Android and iOS display a static YourTJ brand mark in their native launch surface.
 Android selects light/dark launch resources using the saved app appearance; Flutter continues with
-the resolved app theme, a transparent animated mark and the caption “未济非终，皆有可能”. The
-animation yields to the interactive app within 1.2 seconds and is skipped for reduced motion.
-Session and Home requests run beneath the launch surface. Home mounts its base sort tabs before
+the resolved app theme, a transparent animated mark and the caption “未济非终，皆有可能”. Local
+storage preparation (database open plus recovery or a pending reset) runs beneath this brand layer:
+the layer holds after its animation until storage is ready, then yields to the interactive app, so
+cold start shows a single waiting surface instead of a separate data-preparation page. A failed
+bootstrap reveals the storage gate's retry UI, and a bootstrap that never settles falls back to the
+same gate after a safety cap. The animation is skipped for reduced motion, which exposes the gate
+states directly. Session and Home requests run beneath the launch surface. Home mounts its base sort tabs before
 server navigation arrives, then fills the existing skeleton. Initial cached/network rows prefetch
 at most four author avatars with a 240-millisecond ceiling using the same image keys as the visible
 avatars. Avatar decode sizes snap to a ladder (24/40/48/64/96 logical pixels; larger avatars round up
@@ -529,17 +533,27 @@ validation; simulator/debug execution does not establish production frame-rate g
   catalog, global search, Wiki and scheduler. Search fields provide a localized clear action and keyboard
   submission where applicable. Clearing global search resets results, scope and pagination, and
   invalidates pending requests; account and publishing forms retain their separate form styling.
-- `Current`: global search starts with guidance and direct course, scheduler and Wiki destinations.
-  Result scope buttons stay available during loading, empty results and failures, and scroll
-  horizontally at larger text sizes. Switching scope or retrying uses the last submitted keyword;
-  typing a different keyword does not search it until submission. Each result section identifies its
-  type and shows displayed rows separately from matching totals; unqueried scopes are not labelled
-  as zero, and the all-scope view does not treat the topic total as an aggregate total.
+- `Current`: global search opens with its field focused beside a back action when entered from
+  inside the app; a deep link to search opens without one. The empty field shows
+  two equal tiles that carry the current input to the native course catalog and Wiki search, followed
+  by recent searches. Recent searches keep up to ten distinct queries per site and account (with a
+  separate guest list), in device preferences only; users can remove one or clear all. Storage
+  failure does not block searching. Before the first submission, typing offers explicit rows to
+  search the forum, courses or the Wiki for the typed text, plus matching recent searches; nothing
+  is sent until a row or keyboard submission is chosen.
+  Result type tabs pair each label with its symbol, share the width evenly and scroll horizontally
+  when they no longer fit, such as at larger text sizes; they stay available during loading, empty
+  results and failures. Swiping the results moves to the adjacent type with the shared tab gesture,
+  normalized to the width of the results area. Switching type or retrying uses the last submitted
+  keyword; typing a different keyword does not search it until submission. Each result section identifies its
+  type and shows displayed rows separately from matching totals; in the all view, See all switches
+  to that type when more matches exist. Unqueried scopes are not labelled as zero, and the all-scope
+  view does not treat the topic total as an aggregate total. Empty results name the submitted keyword
+  in every type; the all and topics views also offer course and Wiki search, and a results-bearing
+  all view keeps a compact course/Wiki row above its groups. Category marks keep at least 3:1
+  contrast against the tinted wash they sit on, shifting the tone toward the text color.
   Users, topics and categories build one row at a time near the viewport. Only topics paginate;
   appending a page retains the other groups, and a failed page keeps the current rows with a retry.
-  Course and Wiki search actions carry the current input into the matching native page.
-  Recent searches keep up to ten distinct queries per site and account (with a separate guest list),
-  in device preferences only; users can clear them. Storage failure does not block searching.
 - `Current`: topic view/reply metrics remain below the body; reply, like, bookmark and watch actions
   share one bottom dock. The AppBar shows a generic topic label until the body title scrolls out of
   view, then shows that title. Actions use Web's semantic tints and localized accessible labels;
@@ -628,6 +642,13 @@ identity survive this layout change. The header keeps a small outer margin for i
   while earlier photos upload in order. Each article photo lands where the caret was when it was
   picked, following later edits; a compact thumbnail tray above the writing row shows progress,
   retry and removal. Save, publish, type switching and leaving still wait for pending photos.
+- `Current`: the article editor follows the caret through the page while typing. The editor body
+  itself does not scroll; once the caret line reaches the bottom of the visible page the page
+  scrolls it back into view with a small margin, and opening the software keyboard re-reveals the
+  line under the shrunken viewport. The course-review sheet keeps its own internal editor scroll,
+  and simple text bodies keep Flutter's built-in caret scrolling. Article body images render at the
+  editor's available width and shrink proportionally under a height cap of 0.6× the viewport
+  height, centred, so a tall photo cannot push the block height — and the caret — far out of view.
 - `Current`: a long-pressed article image lifts as a small card above the fingertip; a drop line
   marks the slot below the paragraph under the finger, with a light haptic tick when that slot
   changes. Near the viewport edges the page auto-scrolls faster the deeper the finger sits. The move
@@ -747,7 +768,7 @@ identity survive this layout change. The header keeps a small outer margin for i
   The Campus bottom destination opens this page directly. Course reviews, the scheduler and Wiki
   have visible shortcuts at the top of its home view, also available to guests, unbound users and
   when school services fail. Pushed tools return to the Campus destination. Explore campus retains
-  public course previews; shortcuts are shared with search discovery. See [campus semantics](campus.md) for binding, privacy and provider limits.
+  public course previews. See [campus semantics](campus.md) for binding, privacy and provider limits.
 - `Current`: while the app stays in the foreground, Campus remembers its selected section,
   independent academic/notice search text and scroll positions, and selected timetable week when
   switching sections, bottom destinations or returning from a pushed page. Scroll restoration waits
@@ -980,7 +1001,10 @@ identity survive this layout change. The header keeps a small outer margin for i
   localized message instead of spending a login attempt. On
   Android, auth-field pointer-down or keyboard Next creates a short-lived target token; if the secure keyboard
   reclaims the password focus during that token's settling window, the app makes at most two
-  bounded attempts to return focus to the explicitly tapped field and then stops. A focused field
+  bounded attempts to return focus to the explicitly tapped field and then stops. Only fields that
+  receive passwords keep `enableSuggestions: false`: the Android engine maps that flag to a
+  password-class inputType, which ColorOS treats as a credential field, force-switching to its
+  secure keyboard and blocking paste; every other field stays a plain text input (issue #1111). A focused field
   also has a finite view-insets-based IME show watchdog. Dismissing an already-visible
   keyboard cancels recovery and is honored as user intent; a transient hidden IME during an
   explicit password-to-username/captcha handoff remains recoverable. Blank-space and button taps
@@ -1428,7 +1452,8 @@ servers that omit interaction fields retain read-only content previews.
   The personal library supports image upload, collecting a shared sticker by long press (in a chat
   message, the bubble's action menu offers the same collection for its resolved stickers),
   private display names, reordering and removal. Each library row opens a single-sticker preview
-  and has a labeled action menu for preview, rename and removal; disabled stickers remain removable.
+  and has a labeled action menu for preview, rename and removal; pending and rejected uploads show
+  their review status and remain removable/reorderable but cannot be inserted or resolved.
   Upload guidance and library rows scroll together so large text does not crowd out the controls.
   Both single and selected removals require confirmation and preserve already-sent stickers. Failed
   removals keep the remaining entries available for retry. Account changes close pending library
@@ -1437,10 +1462,12 @@ servers that omit interaction fields retain read-only content previews.
   file service. Failed requests retain the current input and expose retry. Concurrent collection
   writes are rejected explicitly so a skipped operation cannot report success.
 - `Current`: personal membership is account-private. Shared personal token names can be resolved by
-  recipients; the public directory lists official stickers only. Removing a library entry keeps
+  recipients once review approves the asset (pending uploads are not resolvable); the public
+  directory lists official stickers only. Removing a library entry keeps
   shared posts and messages renderable. Account closure removes collection membership while shared
-  assets retain their history references. [0038](../decisions/0038-personal-sticker-library.md) owns this
-  storage and privacy decision.
+  assets retain their history references. Site administrators review undecided personal uploads in
+  the admin queue; forum moderators have no access to these images. [0038](../decisions/0038-personal-sticker-library.md)
+  owns storage and privacy; [0079](../decisions/0080-personal-sticker-pre-review.md) owns pre-review.
 - `Current`: native post/reply bodies and private messages display image stickers in a 128 × 128
   logical-pixel box, preserving aspect ratio and GIF animation. Consecutive stickers wrap within
   the content width. Picker and draft-preview thumbnails remain 56 × 56, and personal-library
@@ -1561,7 +1588,8 @@ including day/year boundaries.
 
 `Current`: private-message bodies retain their complete text and sticker tokens. Conversation-list
 summaries are limited to 255 Unicode characters, including a truncation marker; a truncated summary
-does not split a sticker token. Long messages therefore remain sendable on PostgreSQL. Send failures
+does not split a sticker token and replaces it with the localized `[Animated sticker]` label, hiding
+random personal token names. Long messages therefore remain sendable on PostgreSQL. Send failures
 show a localized message without disclosing database errors.
 
 ### Apple login on iOS
@@ -1669,3 +1697,10 @@ acceptance; simulator compilation does not establish those results.
   allowlist. Search, notification, Wiki and course pages do not gain a blanket disk cache. The media
   upload queue is not a durable offline-send service. See the authoritative
   [storage boundaries and limits](../architecture/mobile-state-and-cache.md#cache-policy).
+
+## Profile decoration settings
+
+`Current`: native settings expose administrator-granted avatar frames and nickname styles with
+preview, independent removal, save/retry and theme-aware readable presentation. The native identity
+surfaces consume the same effective payload as Web; persona/anonymous identities remain independent.
+See [profile decorations](profile-decorations.md) for ownership and qualification semantics.

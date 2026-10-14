@@ -4,6 +4,146 @@
  */
 
 export interface paths {
+    "/api/user/decorations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the account decoration catalog, entitlements and effective equipment
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        get: operations["myDecorations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/decorations/equip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Equip or remove each owned decoration slot
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        post: operations["equipDecorations"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decorations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List decoration definitions (SiteManager)
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        get: operations["listDecorations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decoration-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save a validated decoration definition (SiteManager)
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        post: operations["saveDecoration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/user-decorations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read account equipment and recent audit receipts (UserManager)
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        get: operations["getUserDecorations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decoration-grant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant a decoration entitlement with a durable request key (UserManager)
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        post: operations["grantDecoration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decoration-revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke all entitlement sources for a decoration (UserManager)
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        post: operations["revokeDecoration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/events": {
         parameters: {
             query?: never;
@@ -1816,6 +1956,9 @@ export interface paths {
          *     global moderators see every pending item; category moderators see only content
          *     whose topic belongs to one of their categories. Versioned topic edits also require
          *     scope over a candidate category; filtering happens before pagination and `total`.
+         *     `kind=sticker` is accepted by validation but always fails here with `permission.denied`:
+         *     personal sticker uploads are decided only by site managers through the admin
+         *     review queue (`/api/admin/review-queue`, MADR 0080).
          */
         post: operations["listModerationReviewQueue"];
         delete?: never;
@@ -1843,7 +1986,9 @@ export interface paths {
          *     the caller's category scope fail with `admin.review.notFound` so the content's
          *     state is not revealed. First-post edits require scope over both the current and
          *     candidate categories, including requests addressed as `kind=post`. Requires a
-         *     writable account.
+         *     writable account. `kind=sticker` is accepted by validation but always fails with
+         *     `permission.denied` here; personal stickers are decided only by site managers
+         *     through the admin review action (`/api/admin/review-action`, MADR 0080).
          */
         post: operations["moderationReviewAction"];
         delete?: never;
@@ -3179,7 +3324,9 @@ export interface paths {
          * @description Lists only the authenticated account's private memberships in saved order.
          *     Labels are private to this account; the same asset may be collected by others.
          *     Disabled assets remain with isEnabled=false so users can remove or reorder
-         *     them, but clients must prevent insertion. Permanent official deletion removes
+         *     them, but clients must prevent insertion. Newly uploaded personal assets return
+         *     reviewStatus=pending and isEnabled=false until AI or a site administrator approves
+         *     them. Permanent official deletion removes
          *     the corresponding memberships.
          *     At most 200 members. Removing a member never deletes an asset or sent history.
          *     Account closure clears this list and fences in-flight membership writes.
@@ -3207,7 +3354,9 @@ export interface paths {
          * @description Supply exactly one of stickerName or fileName. A known enabled sticker token
          *     is collected idempotently. fileName must identify a ready standard image/GIF
          *     uploaded by this account, from 1 byte to 4 MiB; the same file reuses the same
-         *     personal asset on retries. Personal assets have immutable random token names
+         *     personal asset on retries. New personal uploads return reviewStatus=pending and
+         *     isEnabled=false; they cannot be selected, resolved, or rendered until approved
+         *     by AI or a site administrator. Personal assets have immutable random token names
          *     and image content. displayName changes only this account's library label.
          *     Maximum 200 memberships and 1000 retained personal uploads per account;
          *     removing a membership does not reset the retained-asset quota. Limit errors
@@ -4474,6 +4623,201 @@ export interface paths {
          *     malformed body binds to zero values and returns the default 7-day window.
          */
         post: operations["adminTrafficOverview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/stats/category-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Per-category topic/reply/contributor counts over a date range (content contribution stats)
+         * @description Admin console operation gated by the `Admin` role permission; callers without it
+         *     fail with HTTP 403 and `permission.denied`. Both dates are inclusive and sliced by
+         *     server-local calendar day; `coverage.timezone` echoes the zone actually used. An
+         *     empty `startDate` defaults to 7 days before today and an empty `endDate` to today,
+         *     each resolved independently of the other; both ends are inclusive, so the default
+         *     window covers 8 calendar days — the same convention as `adminTrafficOverview`,
+         *     while the console's "last 7 days" preset is a separate UI-level range.
+         *     Content scope is the currently public, undeleted forum content, using the
+         *     repository's canonical public-topic predicate: a topic counts when
+         *     `deleted_at IS NULL AND visibility_status = 'ACTIVE' AND process_status = 0 AND topic_type = 0 AND status = 1`
+         *     (published topics only; `topic_type = 0` excludes wiki pages) and its first floor is
+         *     still visible — the post referenced by `first_post_id` is not soft-deleted, is
+         *     `visibility_status = 'ACTIVE'` and is `process_status = 0`, so a topic whose body
+         *     was removed stops counting instead of surfacing as a body-less orphan. Replies are
+         *     the posts of those same topics with `post_no > 1` (the first floor is the topic body
+         *     itself and is never a reply), so they inherit the topic-level conditions.
+         *     A row is attributed to its effective first-public time
+         *     `COALESCE(first_public_at, created_at)`, not to its last edit. Liked content is
+         *     measured by the likes that are still effective now (topic `like_count`, live
+         *     `post_user_action` rows with `liked_at IS NOT NULL`); an unliked action is not
+         *     counted and no synthetic contribution score is derived.
+         *     Category attribution uses the current membership relation
+         *     (`topic_category_index.effective = 1`), so a topic belonging to several categories
+         *     is counted in each of them and the cross-category sum can exceed `totals`;
+         *     `totals` deduplicates by topic/post id and describes the whole site. `categories`
+         *     always lists every category, zero-filled, ordered by `topicCount` descending then
+         *     `categoryId` ascending.
+         *     `contributorCount` counts the distinct human accounts (`users.actor_type = 0`) that
+         *     authored an in-range topic or reply; anonymous rows (`persona_uid`/`is_anonymous`)
+         *     and soft-deleted users are excluded, and per-day contributor counts are never
+         *     summed. `agentContributorCount` counts bot accounts (`actor_type = 1`) separately
+         *     so agents never inflate human figures. `coverage.estimated` is true when any
+         *     counted row was backfilled from `created_at` (`first_public_estimated`), i.e. its
+         *     exact first-public time is unknown.
+         *     Validation failures (malformed date, `startDate > endDate`, a span over 366 days)
+         *     return HTTP 200 `common.request.invalidParams` with `params.field` naming the
+         *     rejected field — an inverted range blames `endDate`, and an over-long range adds
+         *     `params.maxRangeDays` with the enforced cap; the range is never silently truncated.
+         *     A storage failure returns HTTP 200 `admin.stats.fetchFailed` rather than a
+         *     zero-filled success. JSON binding is lenient: a malformed body binds to zero values
+         *     and therefore falls back to the default window instead of returning a bind error.
+         */
+        post: operations["adminStatsCategorySummary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/stats/category-trend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Daily topic/reply counts of one category over a date range
+         * @description Admin console operation gated by the `Admin` role permission; callers without it
+         *     fail with HTTP 403 and `permission.denied`. `categoryId` is required and must be an
+         *     existing category. Both dates are inclusive and sliced by server-local calendar
+         *     day; omitted dates fall back to the `adminStatsCategorySummary` window (empty
+         *     `startDate` = 7 days before today, empty `endDate` = today, both inclusive, so 8
+         *     calendar days).
+         *     `days` holds one entry per in-range day in ascending order, so days without any
+         *     contribution are present with zero counts and `estimated: false`; a day whose
+         *     counts include a row backfilled from `created_at` is flagged `estimated: true`.
+         *     The counts obey the same scope as `adminStatsCategorySummary`: currently public,
+         *     undeleted, published forum topics of the category with a still-visible first floor
+         *     (`deleted_at IS NULL AND visibility_status = 'ACTIVE' AND process_status = 0 AND topic_type = 0 AND status = 1`,
+         *     `topic_type = 0` excluding wiki pages), and replies as the posts of those topics
+         *     with `post_no > 1`, attributed by `COALESCE(first_public_at, created_at)`, with
+         *     anonymous and soft-deleted authors irrelevant here because per-day counts are
+         *     content counts, not people counts.
+         *     Validation failures (malformed date, `startDate > endDate`, a span over 366 days,
+         *     a missing or unknown `categoryId`) return HTTP 200 `common.request.invalidParams`
+         *     with `params.field` naming the rejected field — an inverted range blames `endDate`,
+         *     and an over-long range adds `params.maxRangeDays` with the enforced cap. A storage
+         *     failure returns HTTP 200 `admin.stats.fetchFailed` rather than a zero-filled
+         *     success. JSON binding is lenient: a malformed body binds to zero values, so a
+         *     missing `categoryId` is rejected as `common.request.invalidParams` instead of
+         *     returning a bind error.
+         */
+        post: operations["adminStatsCategoryTrend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/stats/user-ranking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Paginated contributor ranking over a date range
+         * @description Admin console operation gated by the `Admin` role permission; callers without it
+         *     fail with HTTP 403 and `permission.denied`. Ranks accounts by their in-range
+         *     contribution, optionally restricted to one category. Both dates are inclusive and
+         *     sliced by server-local calendar day; omitted dates fall back to the
+         *     `adminStatsCategorySummary` window (empty `startDate` = 7 days before today, empty
+         *     `endDate` = today, both inclusive, so 8 calendar days); `categoryId` 0 or omitted
+         *     means whole-site.
+         *     Counted content obeys the same public scope as `adminStatsCategorySummary`
+         *     (published, undeleted forum topics with a still-visible first floor, replies as
+         *     their `post_no > 1` posts).
+         *     Attribution is by author account, so anonymous rows (`persona_uid`/`is_anonymous`)
+         *     never surface an identity and soft-deleted users (`users.deleted_at IS NOT NULL`)
+         *     are absent from the ranking even though their public content still counts towards
+         *     content volume. `actorType` selects the population: 0 (default) ranks human
+         *     accounts, 1 ranks agent (bot) accounts; the two are never mixed.
+         *     `sortBy` picks the ordering metric (`topics` default, `replies`, `likes`) and ties
+         *     are broken by `userId` ascending, so paging is stable. `page` is 1-based and echoed
+         *     unchanged; `pageSize` is bounded to 1-100 (default 20) and `total` is the number of
+         *     matching accounts, i.e. the paging denominator. `likes` counts the likes still
+         *     effective now (topic `like_count`, plus live `post_user_action` rows), not the
+         *     likes added during the range. `coverage.estimated` is scoped to the rows this
+         *     ranking actually counts: it is true when any of them was backfilled from
+         *     `created_at`, so anonymous or otherwise excluded content never raises the flag.
+         *     Validation failures (malformed date, `startDate > endDate`, a span over 366 days,
+         *     an unknown `categoryId`, `pageSize` outside 1-100, an unknown `sortBy`, an unknown
+         *     `actorType`) return HTTP 200 `common.request.invalidParams` with `params.field`
+         *     naming the rejected field — an inverted range blames `endDate`, and an over-long
+         *     range adds `params.maxRangeDays` with the enforced cap; defaults are never
+         *     substituted silently for an invalid value. A storage failure returns HTTP 200
+         *     `admin.stats.fetchFailed` rather than an empty page. JSON binding is lenient: a
+         *     malformed body binds to zero values and therefore falls back to the default window
+         *     and filters.
+         */
+        post: operations["adminStatsUserRanking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/stats/user-detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Contribution detail of one account over a date range
+         * @description Admin console operation gated by the `Admin` role permission; callers without it
+         *     fail with HTTP 403 and `permission.denied`. Exactly one of `userId` and `username`
+         *     identifies the account; passing both or neither fails with
+         *     `common.request.invalidParams`. `userId` is the authoritative lookup because the
+         *     forum user id is the identity key, `username` is the by-name convenience form.
+         *     An unknown or soft-deleted (closed) account returns HTTP 200 `user.notFound`; a
+         *     closed account is never resurrected by this read.
+         *     Both dates are inclusive and sliced by server-local calendar day; omitted dates
+         *     fall back to the `adminStatsCategorySummary` window (empty `startDate` = 7 days
+         *     before today, empty `endDate` = today, both inclusive, so 8 calendar days);
+         *     `categoryId` 0 or omitted means whole-site. `summary` holds the account's in-range totals under
+         *     the same scope as the ranking endpoint (`likes` counts likes still effective now),
+         *     and `days` holds one entry per in-range day ascending, zero-filled for days without
+         *     contribution, with `estimated: true` on days whose counts include a row backfilled
+         *     from `created_at`. An account with no contribution in range is not an error: its
+         *     `summary` and `days` are all zero. Anonymous content is never attributed to the
+         *     queried account, and querying an agent account returns its real identity because
+         *     the caller is an administrator.
+         *     A storage failure returns HTTP 200 `admin.stats.fetchFailed` rather than a
+         *     zero-filled success. JSON binding is lenient: a malformed body binds to zero values,
+         *     so a missing account identifier is rejected as `common.request.invalidParams`
+         *     instead of returning a bind error.
+         */
+        post: operations["adminStatsUserDetail"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6642,7 +6986,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Page the manual review queue (pending topics or posts)
+         * Page the manual review queue (pending topics, posts, or personal stickers)
          * @description Admin console operation gated by the `SiteManager` role permission
          *     (SiteManager group); callers without it fail with HTTP 403 and
          *     `permission.denied`. Lists content held for manual review
@@ -6650,7 +6994,9 @@ export interface paths {
          *     `kind=topic` (wiki-station pages and soft-deleted topics excluded),
          *     posts when `kind=post` (wiki first posts excluded — they belong to the
          *     wiki revision review flow — while wiki-station comments with
-         *     `postNo>1` are included). `page` below 1 clamps to 1; `pageSize`
+         *     `postNo>1` are included), or personal sticker uploads when `kind=sticker`.
+         *     Sticker entries are visible only to SiteManager reviewers and include the uploaded image.
+         *     `page` below 1 clamps to 1; `pageSize`
          *     below 1 or above 50 falls back to 20. Any other `kind` fails
          *     validation with HTTP 200 `common.request.invalidParams`. Topic items
          *     omit `topicId`/`postNo`; post items include them and truncate the
@@ -6674,7 +7020,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Approve or reject a queued topic or post
+         * Approve or reject a queued topic, post, or personal sticker
          * @description Admin console operation gated by the `SiteManager` role permission
          *     (SiteManager group); callers without it fail with HTTP 403 and
          *     `permission.denied`. Versioned submissions require the exact `revisionId` returned
@@ -6689,7 +7035,8 @@ export interface paths {
          *     an operation-audit log entry. Business failures (HTTP 200, `code: 1`):
          *     unknown target → `admin.review.notFound`; wiki-station topics and wiki
          *     first posts → `admin.review.targetInvalid` (they belong to the wiki
-         *     revision review flow); target no longer pending →
+         *     revision review flow); sticker approval enables token use and rejection keeps the asset disabled;
+         *     target no longer pending →
          *     `admin.review.processed`; persistence failure → `admin.review.failed`.
          *     A missing/unknown `kind` or a missing `id` fails validation with HTTP
          *     200 `common.request.invalidParams`.
@@ -8005,8 +8352,10 @@ export interface paths {
          * @description Starts a post-image upload. The caller declares the original filename, browser MIME type and
          *     byte size; the server validates them against the posting-settings allowlist and size cap
          *     before returning a mode. With the local storage provider the response is `mode: "proxy"` and
-         *     the caller must continue with the existing multipart `POST /file/img-upload`. With an
-         *     S3-compatible provider the response is `mode: "direct"` and carries a short-lived presigned
+         *     the caller must continue with the existing multipart `POST /file/img-upload`; the same applies
+         *     to an S3-compatible provider while the storage setting `forceProxyUpload` is enabled (the
+         *     server then writes the proxied upload to the bucket). Otherwise, with an S3-compatible
+         *     provider the response is `mode: "direct"` and carries a short-lived presigned
          *     POST policy (`upload.url` + `upload.fields`) plus the pending object `name`: the browser
          *     uploads the file straight to the bucket, then calls `/file/img-upload/complete` to publish.
          *     Business failures (HTTP 200): `upload.attachment.disabled`, `upload.cooldown` (new-account
@@ -8082,6 +8431,82 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        DecorationStyle: {
+            /**
+             * @description Frame artwork diameter relative to the avatar, centered without changing layout; omitted values use 1.25.
+             * @default 1.25
+             */
+            assetScale: number;
+            /** @description Optional same-origin PNG or WebP frame artwork installed under resource/static/decorations. External URLs are rejected. */
+            assetUrl?: string;
+            code: string;
+            name: string;
+            /** @enum {string} */
+            kind: "avatarFrame" | "nicknameStyle";
+            lightColors: string[];
+            darkColors: string[];
+            isEnabled: boolean;
+            sortOrder: number;
+        };
+        DecorationDisplay: {
+            avatarFrame?: components["schemas"]["DecorationStyle"];
+            nicknameStyle?: components["schemas"]["DecorationStyle"];
+        };
+        DecorationEquipped: {
+            avatarFrame: string;
+            nicknameStyle: string;
+        };
+        DecorationState: {
+            catalog: components["schemas"]["DecorationStyle"][];
+            ownedCodes: string[];
+            equipped: components["schemas"]["DecorationEquipped"];
+        };
+        DecorationAdjustmentRequest: {
+            userId: number;
+            code: string;
+            reason: string;
+            requestKey: string;
+        };
+        DecorationAudit: {
+            id: number;
+            requestKey: string;
+            userId: number;
+            code: string;
+            /** @enum {string} */
+            action: "grant" | "revoke" | "equip" | "definition";
+            /** @enum {string} */
+            source: "manual" | "xp" | "trust" | "credit" | "migration" | "self";
+            actorId: number;
+            reason: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AdminDecorationState: {
+            catalog: components["schemas"]["DecorationStyle"][];
+            ownedCodes: string[];
+            equipped: components["schemas"]["DecorationEquipped"];
+            audits: components["schemas"]["DecorationAudit"][];
+        };
+        DecorationStateResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["DecorationState"];
+        } | components["schemas"]["ApiFailure"];
+        AdminDecorationStateResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["AdminDecorationState"];
+        } | components["schemas"]["ApiFailure"];
+        DecorationListResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["DecorationStyle"][];
+        } | components["schemas"]["ApiFailure"];
+        DecorationStyleResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["DecorationStyle"];
+        } | components["schemas"]["ApiFailure"];
         CampusBinding: {
             maskedId: string;
             /**
@@ -8900,6 +9325,7 @@ export interface components {
             grantedAt: string;
         };
         UserCard: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /** Format: uint64 */
             userId: number;
             username: string;
@@ -9693,6 +10119,7 @@ export interface components {
         };
         /** @description Review author display info. Identity fields (userId/username/avatar) are deliberately absent from the review DTO. */
         ReviewAuthorPayload: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /**
              * @description Anonymous and legacy reviews never carry identity fields.
              * @enum {string}
@@ -11393,6 +11820,8 @@ export interface components {
             secretKey: string;
             /** @description Optional public (CDN) prefix; empty means files are served through the `/file/img` proxy. */
             publicUrlPrefix: string;
+            /** @description Operator switch (default false). When true, `/file/img-upload/init` answers `mode: proxy` even with the `s3` provider, so clients upload through `POST /file/img-upload` and the server writes to the bucket. Omitting the field on save keeps the stored value; it is always saved as false when provider is not `s3`. */
+            forceProxyUpload?: boolean;
         };
         AdminStorageSettingsResponse: components["schemas"]["ApiSuccess"] & {
             /** @description Stored storage settings without the credentials (configured state only), or the built-in default when nothing has been saved. */
@@ -11534,7 +11963,7 @@ export interface components {
              * @description Any other value (including empty) fails validation with HTTP 200 `common.request.invalidParams`.
              * @enum {string}
              */
-            kind: "topic" | "post";
+            kind: "topic" | "post" | "sticker";
             /** @description 1-based; values below 1 are clamped to 1. */
             page?: number;
             /** @description Values below 1 or above 50 fall back to 20. */
@@ -11551,12 +11980,12 @@ export interface components {
             reviewReason?: string;
             /**
              * Format: uint64
-             * @description Topic id when kind=topic, post id when kind=post.
+             * @description Topic id when kind=topic, post id when kind=post, sticker asset id when kind=sticker.
              */
             id: number;
-            /** @description Topic title; for posts, the title of the containing topic (empty when the topic is missing). */
+            /** @description Topic title; for posts, the title of the containing topic (empty when the topic is missing); for stickers, the asset token name (the generated `u_` name; this queue is site-manager only, and the uploader also sees their own name in library responses). */
             title: string;
-            /** @description Topic excerpt (falling back to the title) or the post content truncated to 120 bytes. */
+            /** @description Topic excerpt (falling back to the title) or the post content truncated to 120 bytes; empty for stickers (the client localizes the queue row title by kind). */
             excerpt: string;
             /** Format: uint64 */
             userId: number;
@@ -11581,7 +12010,7 @@ export interface components {
              * @description Posts only; omitted for topics.
              */
             postNo?: number;
-            /** @description Image URLs referenced by the pending content (topic gallery/inline images or post Markdown images). Pending images are readable by reviewers through the authorized `/file/img` preview; anonymous readers receive 404. */
+            /** @description Image URLs referenced by pending content or the uploaded image when kind=sticker. Pending topic/post images are readable by authorized reviewers through /file/img and return 404 for anonymous readers (issue #975). Sticker images are additionally visible to the uploader in their own library while pending; after approval the file becomes publicly readable. */
             images?: string[];
             /** @description Present only when AI moderation sent this item to review (issue */
             aiReview?: components["schemas"]["AiModerationDecisionItem"];
@@ -11607,7 +12036,7 @@ export interface components {
             /** @description Optional author-visible rejection reason. */
             reason?: string;
             /** @enum {string} */
-            kind: "topic" | "post";
+            kind: "topic" | "post" | "sticker";
             /** Format: uint64 */
             id: number;
             /** @description True approves (processStatus→0), false rejects (processStatus→1). Wiki-station topics and wiki first posts are rejected with `admin.review.targetInvalid` — they belong to the wiki revision review flow. */
@@ -11702,6 +12131,7 @@ export interface components {
             result: components["schemas"]["AdminImportTaskAcceptedResult"];
         }) | components["schemas"]["ApiFailure"];
         TopicAuthorPayload: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /** @enum {string} */
             kind?: "member" | "persona";
             publicUid?: string;
@@ -12767,6 +13197,245 @@ export interface components {
                 hasNext?: boolean;
             };
         };
+        AdminStatsCategorySummaryRequest: {
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            startDate?: string;
+            /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
+            endDate?: string;
+        };
+        AdminStatsCategorySummaryResult: {
+            /** @description Every category, zero-filled when it has no in-range contribution, ordered by `topicCount` descending then `categoryId` ascending. */
+            categories: components["schemas"]["AdminStatsCategoryItem"][];
+            totals: components["schemas"]["AdminStatsTotals"];
+            coverage: components["schemas"]["AdminStatsCoverage"];
+        };
+        AdminStatsCategorySummaryResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminStatsCategorySummaryResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminStatsCategoryTrendRequest: {
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            startDate?: string;
+            /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
+            endDate?: string;
+            /**
+             * Format: uint64
+             * @description Required category id; an unknown id fails with `common.request.invalidParams`.
+             */
+            categoryId: number;
+        };
+        AdminStatsCategoryTrendResult: {
+            /**
+             * Format: uint64
+             * @description Echo of the requested category id.
+             */
+            categoryId: number;
+            /** @description One entry per in-range day, ascending; days without contribution are present with zero counts. */
+            days: components["schemas"]["AdminStatsDayCount"][];
+            coverage: components["schemas"]["AdminStatsCoverage"];
+        };
+        AdminStatsCategoryTrendResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminStatsCategoryTrendResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminStatsUserRankingRequest: {
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            startDate?: string;
+            /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
+            endDate?: string;
+            /**
+             * Format: uint64
+             * @description Category filter; 0 or omitted means whole-site.
+             */
+            categoryId?: number;
+            /**
+             * @description Ordering metric, descending; empty or omitted defaults to `topics`, and ties break on `userId` ascending.
+             * @enum {string}
+             */
+            sortBy?: "topics" | "replies" | "likes";
+            /** @description 1-based page number, echoed unchanged; omitted defaults to page 1. Values above the 10000 cap are rejected as `common.request.invalidParams` with `params.field = page` rather than clamped or silently truncated, because deeper windows are meaningless and would overflow the offset arithmetic. */
+            page?: number;
+            /** @description Page size; omitted defaults to 20, and values outside 1-100 are rejected rather than clamped. */
+            pageSize?: number;
+            /**
+             * @description Contributor population to rank; 0 = human accounts (default when omitted), 1 = agent (bot) accounts.
+             * @enum {integer}
+             */
+            actorType?: 0 | 1;
+        };
+        AdminStatsUserRankingResult: {
+            /** @description Ranked page; an empty array when nothing matches. Anonymous content and soft-deleted users never appear. */
+            items: components["schemas"]["AdminStatsUserRankingItem"][];
+            /** @description 1-based page number, echoed unchanged. */
+            page: number;
+            /** @description Effective page size. */
+            pageSize: number;
+            /**
+             * Format: int64
+             * @description Number of accounts matching the filters (the paging denominator), independent of `page`.
+             */
+            total: number;
+            coverage: components["schemas"]["AdminStatsCoverage"];
+        };
+        AdminStatsUserRankingResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminStatsUserRankingResult"];
+        }) | components["schemas"]["ApiFailure"];
+        /** @description Exactly one of `userId` and `username` identifies the account; passing both or neither fails with `common.request.invalidParams`. `userId` is the authoritative form (the numeric forum user id), `username` the by-name convenience form. */
+        AdminStatsUserDetailRequest: {
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            startDate?: string;
+            /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
+            endDate?: string;
+            /**
+             * Format: uint64
+             * @description Category filter; 0 or omitted means whole-site.
+             */
+            categoryId?: number;
+            /**
+             * Format: uint64
+             * @description Account id; exactly one of `userId` / `username` must be given.
+             */
+            userId?: number;
+            /** @description Account username; exactly one of `userId` / `username` must be given. */
+            username?: string;
+        };
+        AdminStatsUserDetailResult: {
+            user: components["schemas"]["AdminStatsUserDetailUser"];
+            summary: components["schemas"]["AdminStatsUserDetailSummary"];
+            /** @description One entry per in-range day, ascending, zero-filled for days without contribution. */
+            days: components["schemas"]["AdminStatsDayCount"][];
+            coverage: components["schemas"]["AdminStatsCoverage"];
+        };
+        AdminStatsUserDetailResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminStatsUserDetailResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminStatsCoverage: {
+            /** @description Runtime-derived server-local timezone whose calendar days the range was sliced by (there is no site-level timezone setting). Formatted as `"<abbreviation> (UTC±HH:MM)"`, e.g. `CST (UTC+08:00)` or `UTC (UTC+00:00)`; the abbreviation is the `time.Local` zone name, or `Local` when that name is empty or literally `Local`. */
+            timezone: string;
+            /** @description Inclusive date-range span cap in days currently enforced (366), echoed so the UI can show the limit without hard-coding it. */
+            maxRangeDays: number;
+            /** @description True when any counted row's first-public time was backfilled from `created_at` (`first_public_estimated`), i.e. not an exact audit-time record. */
+            estimated: boolean;
+        };
+        AdminStatsCategoryItem: {
+            /** Format: uint64 */
+            categoryId: number;
+            /** @description Current category name. */
+            name: string;
+            /**
+             * Format: int64
+             * @description In-range topics currently attributed to this category (a topic in several categories counts once per category).
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description In-range replies of those topics (`post_no > 1`; the first floor is not a reply).
+             */
+            replyCount: number;
+            /**
+             * Format: int64
+             * @description Distinct human accounts (`actor_type = 0`) that authored one of them; anonymous rows and soft-deleted users excluded.
+             */
+            contributorCount: number;
+            /**
+             * Format: int64
+             * @description Distinct agent accounts (`actor_type = 1`) that authored one of them, kept separate from `contributorCount`.
+             */
+            agentContributorCount: number;
+        };
+        AdminStatsTotals: {
+            /**
+             * Format: int64
+             * @description Whole-site in-range topics, deduplicated by topic id (unaffected by multi-category attribution).
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description Whole-site in-range replies, deduplicated by post id.
+             */
+            replyCount: number;
+            /**
+             * Format: int64
+             * @description Distinct human accounts contributing site-wide; per-day counts are never summed.
+             */
+            contributorCount: number;
+            /**
+             * Format: int64
+             * @description Distinct agent accounts contributing site-wide.
+             */
+            agentContributorCount: number;
+        };
+        AdminStatsDayCount: {
+            /** @description YYYY-MM-DD, server-local day. */
+            date: string;
+            /**
+             * Format: int64
+             * @description Topics attributed to this day; 0 when the day has no contribution.
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description Replies attributed to this day; 0 when the day has no contribution.
+             */
+            replyCount: number;
+            /** @description True when this day's counts include a row whose first-public time was backfilled from `created_at`. */
+            estimated: boolean;
+        };
+        AdminStatsUserRankingItem: {
+            /**
+             * Format: uint64
+             * @description Numeric forum user id (also the OIDC `sub`).
+             */
+            userId: number;
+            username: string;
+            nickname: string;
+            /**
+             * @description 0 = human account, 1 = agent (bot) account; matches the request `actorType` filter.
+             * @enum {integer}
+             */
+            actorType: 0 | 1;
+            /**
+             * Format: int64
+             * @description In-range topics authored under the requested scope.
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description In-range replies authored under the requested scope.
+             */
+            replyCount: number;
+            /**
+             * Format: int64
+             * @description Likes still effective on those topics and replies; cancelled likes are not counted.
+             */
+            likeCount: number;
+        };
+        AdminStatsUserDetailUser: {
+            /** Format: uint64 */
+            userId: number;
+            username: string;
+            nickname: string;
+            /**
+             * @description 0 = human account, 1 = agent (bot) account.
+             * @enum {integer}
+             */
+            actorType: 0 | 1;
+        };
+        AdminStatsUserDetailSummary: {
+            /**
+             * Format: int64
+             * @description In-range topics authored under the requested scope; 0 when the account had no contribution.
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description In-range replies authored under the requested scope; 0 when the account had no contribution.
+             */
+            replyCount: number;
+            /**
+             * Format: int64
+             * @description Likes still effective on those topics and replies; cancelled likes are not counted.
+             */
+            likeCount: number;
+        };
         AdminTrafficOverviewRequest: {
             /** @description Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago. */
             startDate?: string;
@@ -13004,6 +13673,7 @@ export interface components {
             height: number;
         };
         UserSearchPayload: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /** Format: uint64 */
             id: number;
             username: string;
@@ -13048,7 +13718,8 @@ export interface components {
         };
         DirectImageUploadInitResult: {
             /**
-             * @description `proxy` — continue with the multipart `POST /file/img-upload` (local provider).
+             * @description `proxy` — continue with the multipart `POST /file/img-upload` (local provider, or the
+             *     `s3` provider with the operator switch `forceProxyUpload` enabled).
              *     `direct` — upload to `upload.url` with `upload.fields` + the file, then call
              *     `/file/img-upload/complete` with `name`.
              * @enum {string}
@@ -13137,6 +13808,11 @@ export interface components {
              * @default true
              */
             isEnabled: boolean;
+            /**
+             * @description Personal upload review state. Omitted by older servers and treated as approved for compatibility. Clients must prevent insertion unless approved and enabled.
+             * @enum {string}
+             */
+            reviewStatus?: "pending" | "approved" | "rejected";
         };
         ForumStickerListSuccess: components["schemas"]["ApiSuccess"] & {
             /** @description Sticker items. Official directory is enabled official assets only; personal library preserves user order; resolve includes only explicitly requested enabled tokens. */
@@ -13366,6 +14042,7 @@ export interface components {
         };
         AgentAckResponse: components["schemas"]["AgentAckSuccess"] | components["schemas"]["ApiFailure"];
         MentionTarget: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /** Format: uint64 */
             userId: number;
             username: string;
@@ -13973,6 +14650,7 @@ export interface components {
             messageCode?: string;
         };
         NotificationActorPayload: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /** @enum {string} */
             kind?: "member" | "persona";
             publicUid?: string;
@@ -14380,6 +15058,7 @@ export interface components {
             /** @description Whether a secret key is stored (encrypted with AES-256-GCM). The key itself is never returned (issue */
             secretKeyConfigured: boolean;
             publicUrlPrefix: string;
+            forceProxyUpload: boolean;
         };
         AdminImportTaskAcceptedResult: {
             /**
@@ -14554,6 +15233,335 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    myDecorations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationStateResponse"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    equipDecorations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecorationEquipped"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationStateResponse"];
+                };
+            };
+            /** @description Malformed JSON/query or body exceeds 4096 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listDecorations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationListResponse"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    saveDecoration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecorationStyle"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationStyleResponse"];
+                };
+            };
+            /** @description Malformed JSON/query or body exceeds 4096 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getUserDecorations: {
+        parameters: {
+            query: {
+                userId: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDecorationStateResponse"];
+                };
+            };
+            /** @description Malformed JSON/query or body exceeds 4096 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    grantDecoration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecorationAdjustmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationStateResponse"];
+                };
+            };
+            /** @description Malformed JSON/query or body exceeds 4096 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    revokeDecoration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecorationAdjustmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationStateResponse"];
+                };
+            };
+            /** @description Malformed JSON/query or body exceeds 4096 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     agentListEvents: {
         parameters: {
             query?: {
@@ -23009,6 +24017,174 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminTrafficOverviewResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStatsCategorySummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStatsCategorySummaryRequest"];
+            };
+        };
+        responses: {
+            /** @description Category summary plus site-wide totals, or a legacy business failure envelope (`common.request.invalidParams` / `admin.stats.fetchFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStatsCategorySummaryResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStatsCategoryTrend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStatsCategoryTrendRequest"];
+            };
+        };
+        responses: {
+            /** @description Daily series for the category, or a legacy business failure envelope (`common.request.invalidParams` / `admin.stats.fetchFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStatsCategoryTrendResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStatsUserRanking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStatsUserRankingRequest"];
+            };
+        };
+        responses: {
+            /** @description One page of ranked contributors, or a legacy business failure envelope (`common.request.invalidParams` / `admin.stats.fetchFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStatsUserRankingResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStatsUserDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStatsUserDetailRequest"];
+            };
+        };
+        responses: {
+            /** @description Account identity, in-range summary and daily series, or a legacy business failure envelope (`common.request.invalidParams` / `user.notFound` / `admin.stats.fetchFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStatsUserDetailResponse"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */

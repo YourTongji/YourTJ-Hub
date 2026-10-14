@@ -109,6 +109,65 @@ func TestPersonalStickerLibraryQuotaAndConcurrency(t *testing.T) {
 	assertLibraryConcurrency(t, stickerLibraryDB(t))
 }
 
+func TestSaveToLibraryNamePathMatchesFilePathGuards(t *testing.T) {
+	conn := stickerLibraryDB(t)
+	ctx := context.Background()
+	seedPending := func(name string, owner uint64) sticker.Entity {
+		entity := sticker.Entity{Name: name, FileName: "stickers/" + name + ".png", CreatedBy: owner, IsOfficial: false, IsEnabled: false, ReviewStatus: sticker.ReviewStatusPending}
+		if err := conn.Transaction(func(tx *gorm.DB) error { return sticker.InsertPersonalTx(tx, &entity) }); err != nil {
+			t.Fatal(err)
+		}
+		return entity
+	}
+	pending := seedPending("u_namepath", 7)
+	// The owner relabels their pending upload through the name path, exactly
+	// like the file path allows.
+	label := "待审标签"
+	if _, err := saveToLibrary(conn, ctx, 7, LibrarySaveInput{StickerName: pending.Name, DisplayName: &label}); err != nil {
+		t.Fatalf("owner relabel via name path: %v", err)
+	}
+	var entry sticker.LibraryEntry
+	if err := conn.Where("user_id = ? AND sticker_id = ?", 7, pending.Id).First(&entry).Error; err != nil {
+		t.Fatalf("membership after relabel: %v", err)
+	}
+	if entry.DisplayName != label {
+		t.Fatalf("displayName = %q, want %q", entry.DisplayName, label)
+	}
+	// Another user's pending upload stays invisible through the name path.
+	other := seedPending("u_otherpending", 8)
+	if _, err := saveToLibrary(conn, ctx, 7, LibrarySaveInput{StickerName: other.Name}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("foreign pending via name path err = %v, want ErrNotFound", err)
+	}
+	// A rejected asset of the owner is not reusable through the name path.
+	if err := conn.Model(&sticker.Entity{}).Where("id = ?", pending.Id).Update("review_status", sticker.ReviewStatusRejected).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := saveToLibrary(conn, ctx, 7, LibrarySaveInput{StickerName: pending.Name}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("rejected via name path err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestRejectedPersonalUploadsDoNotConsumeQuota(t *testing.T) {
+	conn := stickerLibraryDB(t)
+	seed := func(name, status string) {
+		entity := sticker.Entity{Name: name, FileName: "stickers/" + name + ".png", CreatedBy: 11, IsOfficial: false, IsEnabled: false, ReviewStatus: status}
+		if err := conn.Transaction(func(tx *gorm.DB) error { return sticker.InsertPersonalTx(tx, &entity) }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seed("u_quota_rejected_a", sticker.ReviewStatusRejected)
+	seed("u_quota_rejected_b", sticker.ReviewStatusRejected)
+	seed("u_quota_pending", sticker.ReviewStatusPending)
+
+	count, err := sticker.CountPersonalUploadsTx(conn, 11)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("quota count = %d, want 1 (only the pending upload counts)", count)
+	}
+}
+
 func TestPersonalStickerLibraryQuotaOnPostgreSQL(t *testing.T) {
 	dsn := os.Getenv("YOURTJ_TEST_PG_URL")
 	if dsn == "" {

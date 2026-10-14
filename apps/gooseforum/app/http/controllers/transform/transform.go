@@ -2,6 +2,8 @@
 package transform
 
 import (
+	"context"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/decorationservice"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
@@ -12,6 +14,7 @@ import (
 // User2userShow maps a user entity to the authenticated user summary payload.
 func User2userShow(user users.EntityComplete) *vo.UserInfoShow {
 	return &vo.UserInfoShow{
+		Decoration:          decorationservice.Effective(context.Background(), user.Id),
 		UserId:              user.Id,
 		Username:            user.Username,
 		Email:               user.Email,
@@ -33,6 +36,7 @@ func User2userShow(user users.EntityComplete) *vo.UserInfoShow {
 func User2UserDetailedVo(user users.EntityComplete) *vo.UserDetailedVo {
 	userBadges := badgeservice.GetUserBadges(user.Id)
 	return &vo.UserDetailedVo{
+		Decoration:          decorationservice.Effective(context.Background(), user.Id),
 		Id:                  user.Id,
 		Username:            user.Username,
 		Email:               user.Email,

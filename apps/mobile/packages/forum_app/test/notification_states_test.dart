@@ -69,23 +69,51 @@ NotificationListResponse _page(
   int id = 1,
   bool more = false,
   bool isRead = false,
+  int actorId = 1,
+  String actorName = 'Alice',
+  String eventType = 'system',
+  String? templateKey,
 }) => NotificationListResponse(
   items: [
     NotificationPayload(
       id: id,
-      eventType: 'system',
+      eventType: eventType,
       isRead: isRead,
       createdAt: '2026-09-24',
       title: text,
       content: '',
-      actor: const NotificationActorPayload(id: 1, username: 'Alice'),
-      payload: const NotificationInnerPayload(actorId: 1),
+      actor: NotificationActorPayload(id: actorId, username: actorName),
+      payload: NotificationInnerPayload(
+        actorId: actorId,
+        templateKey: templateKey,
+      ),
     ),
   ],
   nextCursor: more ? id : 0,
   hasNext: more,
   unreadCount: 1,
 );
+
+Iterable<TextSpan> _textSpans(InlineSpan span) sync* {
+  if (span is! TextSpan) return;
+  yield span;
+  for (final child in span.children ?? const <InlineSpan>[]) {
+    yield* _textSpans(child);
+  }
+}
+
+List<String?> _boldedNotificationSegments(WidgetTester tester, String title) {
+  final richText = tester.widget<RichText>(
+    find.byWidgetPredicate(
+      (widget) =>
+          widget is RichText && widget.text.toPlainText().startsWith(title),
+    ),
+  );
+  return _textSpans(richText.text)
+      .where((child) => child.style?.fontWeight == FontWeight.w700)
+      .map((child) => child.text)
+      .toList();
+}
 
 Future<ProviderContainer> _mount(
   WidgetTester tester,
@@ -269,6 +297,113 @@ void main() {
       expect(repo.markOne, isEmpty);
     },
   );
+
+  testWidgets(
+    'Chinese approval without an actor does not bold someone inside everyone',
+    (tester) async {
+      const title = '你的内容已通过审核，现在所有人都能看到它';
+      final repo = _Notifications();
+      await _mount(tester, repo, locale: const Locale('zh'));
+      repo.requests.first.$3.complete(
+        _page(title, actorId: 0, actorName: '', eventType: 'review_approved'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(_boldedNotificationSegments(tester, title), isEmpty);
+      expect(
+        tester
+            .widget<GfNotificationRow>(find.byType(GfNotificationRow))
+            .actorName,
+        isEmpty,
+      );
+    },
+  );
+
+  for (final locale in [
+    const Locale('zh'),
+    const Locale('en'),
+    const Locale('ja'),
+    const Locale('de'),
+  ]) {
+    const socialEvents = <(String, String)>[
+      ('comment', 'notifications.templates.comment'),
+      ('mention', 'notifications.templates.mention'),
+      ('post_reply', 'notifications.templates.postReply'),
+      ('topic_post', 'notifications.templates.topicPost'),
+      ('follow', 'notifications.templates.follow'),
+      ('like', 'notifications.templates.like'),
+      ('wiki_updated', 'notifications.templates.wikiUpdated'),
+    ];
+    for (final eventType in [
+      'review_approved',
+      'review_rejected',
+      'badge',
+      'system',
+    ]) {
+      testWidgets(
+        '${locale.languageCode} $eventType without an actor does not bold fallback copy',
+        (tester) async {
+          final repo = _Notifications();
+          await _mount(tester, repo, locale: locale);
+          final l10n = AppLocalizations.of(
+            tester.element(find.byType(NotificationsPage)),
+          );
+          final title = 'System notice: ${l10n.notificationSomeone}';
+          repo.requests.first.$3.complete(
+            _page(title, actorId: 0, actorName: '', eventType: eventType),
+          );
+          await tester.pumpAndSettle();
+
+          expect(_boldedNotificationSegments(tester, title), isEmpty);
+          expect(
+            tester
+                .widget<GfNotificationRow>(find.byType(GfNotificationRow))
+                .actorName,
+            isEmpty,
+          );
+        },
+      );
+    }
+
+    for (final (eventType, templateKey) in socialEvents) {
+      testWidgets('${locale.languageCode} $eventType actors remain bold', (
+        tester,
+      ) async {
+        final repo = _Notifications();
+        await _mount(tester, repo, locale: locale);
+        repo.requests.first.$3.complete(
+          _page(
+            'ignored',
+            actorId: 77,
+            actorName: 'Alice',
+            eventType: eventType,
+            templateKey: templateKey,
+          ),
+        );
+        await tester.pumpAndSettle();
+        final row = tester.widget<GfNotificationRow>(
+          find.byType(GfNotificationRow),
+        );
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(NotificationsPage)),
+        );
+        final expectedTitle = switch (eventType) {
+          'comment' => l10n.notificationComment('Alice'),
+          'mention' => l10n.notificationMention('Alice'),
+          'post_reply' => l10n.notificationPostReply('Alice'),
+          'topic_post' => l10n.notificationTopicPost('Alice'),
+          'follow' => l10n.notificationFollow('Alice'),
+          'like' => l10n.notificationLike('Alice'),
+          'wiki_updated' => l10n.notificationWikiUpdated('Alice'),
+          _ => throw StateError('Unexpected social notification: $eventType'),
+        };
+
+        expect(row.actorName, 'Alice');
+        expect(row.title, expectedTitle);
+        expect(_boldedNotificationSegments(tester, row.title), ['Alice']);
+      });
+    }
+  }
 
   for (final locale in [const Locale('en'), const Locale('zh')]) {
     for (final all in [false, true]) {

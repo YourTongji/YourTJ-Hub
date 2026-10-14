@@ -1,3 +1,4 @@
+import '../user_decoration.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -92,7 +93,7 @@ class CourseReviewShareCard extends StatelessWidget {
             const SizedBox(height: 18),
             Container(height: 1, color: colors.line),
             const SizedBox(height: 14),
-            _signature(l10n, copy, colors, type, muted),
+            _signature(context, l10n, copy, colors, type, muted),
           ],
         ),
       ),
@@ -356,6 +357,7 @@ class CourseReviewShareCard extends StatelessWidget {
   }
 
   Widget _signature(
+    BuildContext context,
     AppLocalizations l10n,
     CourseCopy copy,
     GfColors colors,
@@ -378,6 +380,7 @@ class CourseReviewShareCard extends StatelessWidget {
           child: reviewAvatar(
             review,
             size: avatarSize,
+            context: context,
             imageBuilder: (String url, Widget fallback) =>
                 ShareImageNetworkImage(
                   url,
@@ -394,8 +397,14 @@ class CourseReviewShareCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
+              GfDecoratedName(
                 reviewAuthorLabel(review, copy),
+                colors: review.author.kind == 'member'
+                    ? decorationColors(
+                        context,
+                        review.author.decoration?.nicknameStyle,
+                      )
+                    : const [],
                 style: type.bodyStrong.copyWith(
                   fontSize: 14,
                   height: 1.35,

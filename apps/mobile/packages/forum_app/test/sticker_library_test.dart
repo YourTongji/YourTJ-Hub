@@ -33,6 +33,15 @@ const personal = StickerItemPayload(
   isOfficial: false,
 );
 
+const pendingPersonal = StickerItemPayload(
+  name: 'u_pending1',
+  url: '/pending.png',
+  displayName: 'PendingOne',
+  isOfficial: false,
+  isEnabled: false,
+  reviewStatus: 'pending',
+);
+
 class _Repository extends StickerRepository {
   _Repository() : super(GfApiClient(dio: Dio(), tokenStorage: _Tokens()));
   List<StickerItemPayload> members = [official];
@@ -246,6 +255,62 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'pending personal sticker shows review state and remove-only actions',
+    (tester) async {
+      final repository = _Repository()..members = [pendingPersonal];
+      final state = StickerCollection(repository, StickerLibrary(repository));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [stickerCollectionProvider.overrideWith((_) => state)],
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            home: const StickerLibraryPage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('PendingOne'), findsOneWidget);
+      expect(find.text('Under review'), findsOneWidget);
+      // A non-available item must not open the preview on tap.
+      await tester.tap(find.text('PendingOne'));
+      await tester.pumpAndSettle();
+      expect(find.text('Live preview'), findsNothing);
+      // Its action sheet keeps only removal.
+      await tester.tap(find.byTooltip('Sticker actions: PendingOne'));
+      await tester.pumpAndSettle();
+      expect(find.text('Remove'), findsOneWidget);
+      expect(find.text('Rename'), findsNothing);
+      expect(find.text('View larger'), findsNothing);
+    },
+  );
+
+  testWidgets('picker tabs hide pending personal stickers', (tester) async {
+    final repository = _Repository()..members = [pendingPersonal];
+    final state = StickerCollection(repository, StickerLibrary(repository));
+    await state.loadMine();
+    final inserted = <String>[];
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [stickerCollectionProvider.overrideWith((_) => state)],
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          home: Scaffold(
+            body: SizedBox(
+              height: 300,
+              child: StickerPicker(onInsert: inserted.add),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mine'));
+    await tester.pumpAndSettle();
+    expect(find.text('PendingOne'), findsNothing);
+    expect(inserted, isEmpty);
+  });
+
   testWidgets('sticker management clears private page state across accounts', (
     tester,
   ) async {
@@ -407,13 +472,15 @@ void main() {
     },
   );
 
-  test('old servers default stickers to enabled official items', () {
+  test('old servers default stickers to approved enabled official items', () {
     final item = StickerItemPayload.fromJson({
       'name': 'smile',
       'url': '/smile.png',
     });
     expect(item.isEnabled, isTrue);
     expect(item.isOfficial, isTrue);
+    expect(item.reviewStatus, 'approved');
+    expect(item.isAvailable, isTrue);
   });
 
   testWidgets('picker remains usable on narrow enlarged-text windows', (

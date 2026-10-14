@@ -14,6 +14,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
@@ -43,7 +44,16 @@ func TestPersonalStickerHTTPContract(t *testing.T) {
 	otherToken := contractSessionToken(t, other)
 	seedContractSticker(t, conn, contractStickerID, "smile", "stickers/9f1c2d3e-0000-4000-8000-000000000001.png", 1, true)
 	response := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/my-sticker-save", `{"stickerName":"smile"}`, token)
-	assertFixtureEnvelope(t, decodeContractEnvelope(t, response), contractFixture(t, "my-sticker-save-success.json"))
+	actual := decodeContractEnvelope(t, response)
+	fixture := contractFixture(t, "forum-sticker-list-success.json")
+	var expectedItems []stickerservice.StickerItem
+	if err := json.Unmarshal(fixture.Result, &expectedItems); err != nil || actual.Code != fixture.Code || len(expectedItems) != 1 {
+		t.Fatalf("decode official sticker fixture: items=%#v code=%d err=%v", expectedItems, actual.Code, err)
+	}
+	var savedItem stickerservice.StickerItem
+	if err := json.Unmarshal(actual.Result, &savedItem); err != nil || savedItem != expectedItems[0] {
+		t.Fatalf("saved official sticker = %#v, want %#v (err=%v)", savedItem, expectedItems[0], err)
+	}
 	response = serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/my-stickers", "", token)
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, response), contractFixture(t, "forum-sticker-list-success.json"))
 	response = serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/my-stickers", "", otherToken)
@@ -95,6 +105,9 @@ func TestPersonalStickerHTTPContract(t *testing.T) {
 
 func TestPersonalStickerUploadLifecycleHTTPContract(t *testing.T) {
 	conn, router := setupStickerLibraryContractTest(t)
+	if err := conn.AutoMigrate(&moderationDecision.Entity{}); err != nil {
+		t.Fatal(err)
+	}
 	owner := createHTTPContractUser(t, conn, contractTestID())
 	other := createHTTPContractUser(t, conn, contractTestID())
 	token := contractSessionToken(t, owner)
@@ -120,6 +133,15 @@ func TestPersonalStickerUploadLifecycleHTTPContract(t *testing.T) {
 	if envelope.Code != 0 || item.IsOfficial || len(item.Name) != 50 || !strings.HasPrefix(item.Name, "u_") {
 		t.Fatalf("upload result: %s", response.Body.String())
 	}
+	var expectedItem stickerservice.StickerItem
+	if err := json.Unmarshal(contractFixture(t, "my-sticker-save-success.json").Result, &expectedItem); err != nil {
+		t.Fatal(err)
+	}
+	expectedItem.ID, expectedItem.Name = item.ID, item.Name
+	expectedItem.URL, expectedItem.DisplayName = item.URL, item.DisplayName
+	if item != expectedItem {
+		t.Fatalf("upload result = %#v, want fixture result %#v", item, expectedItem)
+	}
 	response = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/my-sticker-save", body, token)
 	if !strings.Contains(response.Body.String(), item.Name) {
 		t.Fatal("upload retry created a new token")
@@ -140,13 +162,24 @@ func TestPersonalStickerUploadLifecycleHTTPContract(t *testing.T) {
 		}
 	}
 	response = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/my-sticker-save", fmt.Sprintf(`{"stickerName":%q}`, item.Name), contractSessionToken(t, other))
-	if !strings.Contains(response.Body.String(), item.Name) {
-		t.Fatal("shared token could not be collected")
+	if !strings.Contains(response.Body.String(), "sticker.unavailable") {
+		t.Fatal("pending sticker could be collected by another account")
 	}
-	if err := stickerservice.CloseLibrary(context.Background(), owner.Id); err != nil {
+	response = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/stickers/resolve", fmt.Sprintf(`{"names":[%q]}`, item.Name), "")
+	if strings.Contains(response.Body.String(), item.Name) {
+		t.Fatal("pending sticker could be resolved")
+	}
+	if err := stickerservice.ReviewPersonalSticker(t.Context(), item.ID, true, owner.Id); err != nil {
+		t.Fatalf("approve personal sticker: %v", err)
+	}
+	response = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/my-sticker-save", fmt.Sprintf(`{"stickerName":%q}`, item.Name), contractSessionToken(t, other))
+	if !strings.Contains(response.Body.String(), item.Name) {
+		t.Fatal("approved shared token could not be collected")
+	}
+	if err := stickerservice.CloseLibrary(t.Context(), owner.Id); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := stickerservice.SaveToLibrary(context.Background(), owner.Id, stickerservice.LibrarySaveInput{StickerName: item.Name}); !errors.Is(err, sticker.ErrLibraryClosed) {
+	if _, err := stickerservice.SaveToLibrary(t.Context(), owner.Id, stickerservice.LibrarySaveInput{StickerName: item.Name}); !errors.Is(err, sticker.ErrLibraryClosed) {
 		t.Fatalf("closed library accepted stale write: %v", err)
 	}
 	response = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/stickers/resolve", fmt.Sprintf(`{"names":[%q]}`, item.Name), "")

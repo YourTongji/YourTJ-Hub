@@ -25,6 +25,8 @@ import 'package:forum_app/src/storage/storage_providers.dart';
 import 'package:forum_app/src/storage/user_work_database.dart';
 import 'package:forum_app/src/theme_mode.dart';
 
+import 'temp_directory_helpers.dart';
+
 class _Paths extends PathProviderPlatform {
   _Paths(this.root);
   final String root;
@@ -245,8 +247,15 @@ void main() {
   tearDown(() async {
     fixture.dispose();
     await database.close();
+    // Defensive ordering, not a handle fix: the shared test config installs an
+    // in-memory UserWorkDatabase.instance for every test, so this close
+    // releases no file in this directory. It stays as the ordering this file
+    // keeps — whatever holds a file under this directory gets closed before
+    // the delete, because Windows cannot delete an open file (#1138). The
+    // config's own later close of the same singleton is a no-op.
+    await UserWorkDatabase.instance.close();
     PathProviderPlatform.instance = oldPaths;
-    await directory.delete(recursive: true);
+    await deleteTempDirectory(directory);
   });
 
   test(

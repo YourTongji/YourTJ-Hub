@@ -1,3 +1,4 @@
+import '../atoms/gf_decorated_name.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
@@ -12,6 +13,10 @@ class GfConversationRow extends StatelessWidget {
     super.key,
     required this.avatarUrl,
     required this.name,
+    this.avatarFrameColors = const [],
+    this.avatarFrameAssetUrl = '',
+    this.avatarFrameScale = 1.25,
+    this.nicknameColors = const [],
     required this.lastMessage,
     required this.time,
     required this.unreadCount,
@@ -22,6 +27,7 @@ class GfConversationRow extends StatelessWidget {
 
   final String avatarUrl;
   final String name;
+  final List<Color> avatarFrameColors, nicknameColors;
   final String lastMessage;
   final String time;
   final int unreadCount;
@@ -29,6 +35,8 @@ class GfConversationRow extends StatelessWidget {
   final bool active;
   final VoidCallback? onTap;
 
+  final String avatarFrameAssetUrl;
+  final double avatarFrameScale;
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
@@ -48,7 +56,14 @@ class GfConversationRow extends StatelessWidget {
             Stack(
               clipBehavior: Clip.none,
               children: <Widget>[
-                GfAvatar(src: avatarUrl, size: 40, ring: true),
+                GfAvatar(
+                  frameColors: avatarFrameColors,
+                  frameAssetUrl: avatarFrameAssetUrl,
+                  frameScale: avatarFrameScale,
+                  src: avatarUrl,
+                  size: 40,
+                  ring: true,
+                ),
                 if (unreadCount > 0)
                   Positioned(
                     right: -1,
@@ -101,8 +116,9 @@ class GfConversationRow extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: Text(
+                            child: GfDecoratedName(
                               name,
+                              colors: nicknameColors,
                               maxLines: largeText ? 2 : 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(

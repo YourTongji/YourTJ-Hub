@@ -80,6 +80,10 @@ String campusError(AppLocalizations l, Object? e) {
       'campus.rulesInvalid' => l.campusRulesUnavailable,
       'campus.calendarEmpty' => l.campusCalendarEmpty,
       'campus.disabled' => l.campusDisabled,
+      'campus.upstreamUnavailable' => l.campusUpstreamUnavailable,
+      'campus.rulesAIUnavailable' => l.campusRulesAIUnavailable,
+      'campus.rulesAIOutput' => l.campusRulesAIOutput,
+      'campus.rulesLimited' => l.campusRulesLimited,
       _ => l.campusUnavailable,
     };
   }

@@ -16,6 +16,8 @@ func (receiver OptEnum) TargetTypeEnum() TargetTypeEnum {
 		return CourseReview
 	case RevealPostAuthor:
 		return Post
+	case ReviewSticker:
+		return Sticker
 	case CreateCourse, UpdateCourse, DeleteCourse:
 		return Course
 	case UpdateReview, DeleteReview:
@@ -47,6 +49,7 @@ const (
 	// RevealPostAuthor 匿名楼层作者揭示（issue #524）：追加在末尾避免改动枚举序列。
 	RevealPostAuthor
 	MaterializePk
+	ReviewSticker
 )
 
 type TargetTypeEnum int
@@ -67,4 +70,5 @@ const (
 	CourseReview                = 7
 	Course                      = 8
 	Post                        = 9
+	Sticker                     = 10
 )

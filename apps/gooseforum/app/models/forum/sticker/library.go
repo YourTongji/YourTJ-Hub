@@ -77,9 +77,12 @@ func PersonalUploadTx(tx *gorm.DB, userID uint64, fileName string) (Entity, erro
 	return entity, err
 }
 
+// CountPersonalUploadsTx counts the user's upload quota; rejected assets are
+// excluded so a refusal cannot permanently consume the quota while the
+// disabled asset stays listed for history.
 func CountPersonalUploadsTx(tx *gorm.DB, userID uint64) (int64, error) {
 	var count int64
-	err := tx.Model(&Entity{}).Where("created_by = ? AND is_official = ?", userID, false).Count(&count).Error
+	err := tx.Model(&Entity{}).Where("created_by = ? AND is_official = ? AND review_status <> ?", userID, false, ReviewStatusRejected).Count(&count).Error
 	return count, err
 }
 
@@ -89,7 +92,11 @@ func InsertPersonalTx(tx *gorm.DB, entity *Entity) error {
 		return err
 	}
 	entity.IsOfficial = false
-	return tx.Model(entity).Update("is_official", false).Error
+	entity.IsEnabled = false
+	return tx.Model(entity).Updates(map[string]any{
+		"is_official": false,
+		"is_enabled":  false,
+	}).Error
 }
 
 // CloseLibraryTx removes private membership and fences requests that passed

@@ -12,6 +12,7 @@ import (
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"gorm.io/gorm"
@@ -145,7 +146,7 @@ func saveToLibrary(conn *gorm.DB, ctx context.Context, userID uint64, input Libr
 		var entity sticker.Entity
 		if input.StickerName != "" {
 			entity, err = sticker.GetByNameTx(tx, input.StickerName)
-			if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && !entity.IsEnabled) {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrNotFound
 			}
 			if err != nil {
@@ -157,8 +158,13 @@ func saveToLibrary(conn *gorm.DB, ctx context.Context, userID uint64, input Libr
 				return err
 			}
 		}
+		// Disabled assets are reusable only as the owner's pending upload (e.g.
+		// relabeling it while it awaits review); rejected assets, other users'
+		// uploads and disabled official assets stay invisible.
 		if entity.Id != 0 && !entity.IsEnabled {
-			return ErrNotFound
+			if entity.CreatedBy != userID || entity.ReviewStatus != sticker.ReviewStatusPending {
+				return ErrNotFound
+			}
 		}
 		for _, entry := range entries {
 			if entry.StickerID != entity.Id {
@@ -188,13 +194,18 @@ func saveToLibrary(conn *gorm.DB, ctx context.Context, userID uint64, input Libr
 			if _, err := rand.Read(random[:]); err != nil {
 				return err
 			}
-			entity = sticker.Entity{Name: "u_" + hex.EncodeToString(random[:]), FileName: fileName, CreatedBy: userID, IsEnabled: true, Pack: "personal", DisplayName: ""}
+			entity = sticker.Entity{Name: "u_" + hex.EncodeToString(random[:]), FileName: fileName, CreatedBy: userID, IsEnabled: false, ReviewStatus: sticker.ReviewStatusPending, Pack: "personal", DisplayName: ""}
 			// The user's chosen label stays only on their membership. Public
 			// resolution never leaks labels belonging to a different account.
 			if err := sticker.InsertPersonalTx(tx, &entity); err != nil {
 				return err
 			}
-			if err := fileusageservice.SetStickerUsageTx(tx, entity.Id, userID, fileName); err != nil {
+			// Personal uploads stay non-public until review approves them: the
+			// file usage starts PENDING so /file/img fails closed (issue #1071).
+			if err := fileusageservice.SetStickerUsageTx(tx, entity.Id, userID, fileName, fileUsage.UsageStatusPending); err != nil {
+				return err
+			}
+			if err := EnqueueReviewTx(tx, entity.Id); err != nil {
 				return err
 			}
 		}

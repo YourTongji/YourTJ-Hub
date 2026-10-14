@@ -20,6 +20,7 @@ import type { UserCardShowDetail } from '@/runtime/user-card-events'
 import type { UserCardPayload } from '@gooseforum/client'
 import { socialIcons, socialLabels, type SimpleIcon } from '@/site/utils/social-icons'
 import { badgeClass, badgeIconURL, badgeTooltip } from '@/site/utils/badge-style'
+import UserNickname from './UserNickname.vue'
 import UserAvatar from './UserAvatar.vue'
 
 const { t } = useI18n()
@@ -42,6 +43,7 @@ let preferredSide: 'top' | 'bottom' | null = null
 const displayName = computed(() => userDisplayName(card.value?.userId || fallbackUser.value?.id, card.value?.username || fallbackUser.value?.username || '', card.value?.nickname))
 const username = computed(() => card.value?.username || fallbackUser.value?.username || '')
 const avatarUrl = computed(() => card.value?.avatarUrl || fallbackUser.value?.avatarUrl || '')
+const decoration = computed(() => card.value?.decoration ?? fallbackUser.value?.decoration)
 const wornBadge = computed(() => card.value?.wornBadge || fallbackUser.value?.wornBadge || null)
 const profileUrl = computed(() => `/u/${card.value?.userId || fallbackUser.value?.id || 0}`)
 // 悬停卡片简介只展示 bio，签名不再回退到简介行
@@ -286,15 +288,15 @@ onBeforeUnmount(() => {
       <div class="flex items-start gap-3">
         <!-- 头像单环：a 固定 56×56 圆环（flex 消除 inline-block 基线空隙，避免 ring 变椭圆） -->
         <a v-if="!isAccountClosed" :href="profileUrl" class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full ring-2 ring-base-100">
-          <UserAvatar :src="avatarUrl" :alt="username" :badge="wornBadge" size="medium" class="h-14 w-14 rounded-full" img-class="rounded-full" />
+          <UserAvatar :frame="!isAccountClosed ? decoration?.avatarFrame : null" :src="avatarUrl" :alt="username" :badge="wornBadge" size="medium" class="h-14 w-14 rounded-full" img-class="rounded-full" />
         </a>
         <span v-else class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full ring-2 ring-base-100">
-          <UserAvatar :src="avatarUrl" :alt="username" :badge="null" size="medium" class="h-14 w-14 rounded-full opacity-80 grayscale" img-class="rounded-full" />
+          <UserAvatar :frame="!isAccountClosed ? decoration?.avatarFrame : null" :src="avatarUrl" :alt="username" :badge="null" size="medium" class="h-14 w-14 rounded-full opacity-80 grayscale" img-class="rounded-full" />
         </span>
         <div class="min-w-0 flex-1">
           <div class="flex min-w-0 items-center gap-2">
-            <a v-if="!isAccountClosed" :href="profileUrl" class="truncate text-base font-bold text-base-content hover:text-primary">{{ displayName }}</a>
-            <span v-else class="truncate text-base font-bold text-base-content/70">{{ displayName }}</span>
+            <a v-if="!isAccountClosed" :href="profileUrl" class="truncate text-base font-bold text-base-content hover:text-primary"><UserNickname :style-definition="!isAccountClosed ? decoration?.nicknameStyle : null">{{ displayName }}</UserNickname></a>
+            <span v-else class="truncate text-base font-bold text-base-content/70"><UserNickname :style-definition="!isAccountClosed ? decoration?.nicknameStyle : null">{{ displayName }}</UserNickname></span>
             <PrivateNoteEditor v-if="card && !isAccountClosed" :user-id="card.userId" :username="card.username" />
             <span v-if="card?.isAdmin" class="gf-badge gf-badge-warning shrink-0 rounded text-[11px]">Admin</span>
             <span v-if="isAccountClosed" class="gf-badge gf-badge-muted shrink-0 rounded text-[11px]">{{ t('userCard.accountClosedBadge') }}</span>

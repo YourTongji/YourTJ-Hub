@@ -390,6 +390,9 @@ listModerationReviewQueue:
       global moderators see every pending item; category moderators see only content
       whose topic belongs to one of their categories. Versioned topic edits also require
       scope over a candidate category; filtering happens before pagination and `total`.
+      `kind=sticker` is accepted by validation but always fails here with `permission.denied`:
+      personal sticker uploads are decided only by site managers through the admin
+      review queue (`/api/admin/review-queue`, MADR 0080).
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -442,7 +445,9 @@ moderationReviewAction:
       the caller's category scope fail with `admin.review.notFound` so the content's
       state is not revealed. First-post edits require scope over both the current and
       candidate categories, including requests addressed as `kind=post`. Requires a
-      writable account.
+      writable account. `kind=sticker` is accepted by validation but always fails with
+      `permission.denied` here; personal stickers are decided only by site managers
+      through the admin review action (`/api/admin/review-action`, MADR 0080).
     security:
       - bearerAuth: []
       - accessTokenCookie: []

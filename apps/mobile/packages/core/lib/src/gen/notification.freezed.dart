@@ -407,6 +407,8 @@ NotificationActorPayload _$NotificationActorPayloadFromJson(
 
 /// @nodoc
 mixin _$NotificationActorPayload {
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
   String? get kind => throw _privateConstructorUsedError;
   String? get publicUid => throw _privateConstructorUsedError;
@@ -433,6 +435,7 @@ abstract class $NotificationActorPayloadCopyWith<$Res> {
   ) = _$NotificationActorPayloadCopyWithImpl<$Res, NotificationActorPayload>;
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int id,
     String? kind,
     String? publicUid,
@@ -461,6 +464,7 @@ class _$NotificationActorPayloadCopyWithImpl<
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
     Object? kind = freezed,
     Object? publicUid = freezed,
@@ -471,6 +475,10 @@ class _$NotificationActorPayloadCopyWithImpl<
   }) {
     return _then(
       _value.copyWith(
+            decoration: freezed == decoration
+                ? _value.decoration
+                : decoration // ignore: cast_nullable_to_non_nullable
+                      as UserDecoration?,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
@@ -515,6 +523,7 @@ abstract class _$$NotificationActorPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int id,
     String? kind,
     String? publicUid,
@@ -543,6 +552,7 @@ class __$$NotificationActorPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
     Object? kind = freezed,
     Object? publicUid = freezed,
@@ -553,6 +563,10 @@ class __$$NotificationActorPayloadImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$NotificationActorPayloadImpl(
+        decoration: freezed == decoration
+            ? _value.decoration
+            : decoration // ignore: cast_nullable_to_non_nullable
+                  as UserDecoration?,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
@@ -590,6 +604,7 @@ class __$$NotificationActorPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$NotificationActorPayloadImpl implements _NotificationActorPayload {
   const _$NotificationActorPayloadImpl({
+    @JsonKey(fromJson: UserDecoration.parse) this.decoration,
     required this.id,
     this.kind,
     this.publicUid,
@@ -602,6 +617,9 @@ class _$NotificationActorPayloadImpl implements _NotificationActorPayload {
   factory _$NotificationActorPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$NotificationActorPayloadImplFromJson(json);
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  final UserDecoration? decoration;
   @override
   final int id;
   @override
@@ -619,7 +637,7 @@ class _$NotificationActorPayloadImpl implements _NotificationActorPayload {
 
   @override
   String toString() {
-    return 'NotificationActorPayload(id: $id, kind: $kind, publicUid: $publicUid, profileUrl: $profileUrl, username: $username, nickname: $nickname, avatarUrl: $avatarUrl)';
+    return 'NotificationActorPayload(decoration: $decoration, id: $id, kind: $kind, publicUid: $publicUid, profileUrl: $profileUrl, username: $username, nickname: $nickname, avatarUrl: $avatarUrl)';
   }
 
   @override
@@ -627,6 +645,8 @@ class _$NotificationActorPayloadImpl implements _NotificationActorPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$NotificationActorPayloadImpl &&
+            (identical(other.decoration, decoration) ||
+                other.decoration == decoration) &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.kind, kind) || other.kind == kind) &&
             (identical(other.publicUid, publicUid) ||
@@ -645,6 +665,7 @@ class _$NotificationActorPayloadImpl implements _NotificationActorPayload {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    decoration,
     id,
     kind,
     publicUid,
@@ -673,6 +694,7 @@ class _$NotificationActorPayloadImpl implements _NotificationActorPayload {
 
 abstract class _NotificationActorPayload implements NotificationActorPayload {
   const factory _NotificationActorPayload({
+    @JsonKey(fromJson: UserDecoration.parse) final UserDecoration? decoration,
     required final int id,
     final String? kind,
     final String? publicUid,
@@ -685,6 +707,9 @@ abstract class _NotificationActorPayload implements NotificationActorPayload {
   factory _NotificationActorPayload.fromJson(Map<String, dynamic> json) =
       _$NotificationActorPayloadImpl.fromJson;
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration;
   @override
   int get id;
   @override

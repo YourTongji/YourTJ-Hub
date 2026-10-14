@@ -89,6 +89,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/decorations"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/feed/summary"
   },
   {
@@ -182,6 +186,10 @@
   {
     "method": "GET",
     "path": "/api/admin/terms-of-service"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/user-decorations"
   },
   {
     "method": "GET",
@@ -382,6 +390,10 @@
   {
     "method": "GET",
     "path": "/api/user-notes"
+  },
+  {
+    "method": "GET",
+    "path": "/api/user/decorations"
   },
   {
     "method": "GET",
@@ -785,6 +797,18 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/decoration-grant"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/decoration-revoke"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/decoration-save"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/file-resources"
   },
   {
@@ -946,6 +970,22 @@
   {
     "method": "POST",
     "path": "/api/admin/set-agent-comment-topic-policy"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/stats/category-summary"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/stats/category-trend"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/stats/user-detail"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/stats/user-ranking"
   },
   {
     "method": "POST",
@@ -1478,6 +1518,10 @@
   {
     "method": "POST",
     "path": "/api/user-note"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/decorations/equip"
   },
   {
     "method": "POST",

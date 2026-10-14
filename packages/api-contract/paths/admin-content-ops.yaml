@@ -193,7 +193,7 @@ adminDeleteBadge:
 adminListReviewQueue:
   post:
     tags: [Admin]
-    summary: Page the manual review queue (pending topics or posts)
+    summary: Page the manual review queue (pending topics, posts, or personal stickers)
     operationId: adminListReviewQueue
     description: |
       Admin console operation gated by the `SiteManager` role permission
@@ -203,7 +203,9 @@ adminListReviewQueue:
       `kind=topic` (wiki-station pages and soft-deleted topics excluded),
       posts when `kind=post` (wiki first posts excluded — they belong to the
       wiki revision review flow — while wiki-station comments with
-      `postNo>1` are included). `page` below 1 clamps to 1; `pageSize`
+      `postNo>1` are included), or personal sticker uploads when `kind=sticker`.
+      Sticker entries are visible only to SiteManager reviewers and include the uploaded image.
+      `page` below 1 clamps to 1; `pageSize`
       below 1 or above 50 falls back to 20. Any other `kind` fails
       validation with HTTP 200 `common.request.invalidParams`. Topic items
       omit `topicId`/`postNo`; post items include them and truncate the
@@ -263,7 +265,7 @@ adminListReviewQueue:
 adminReviewAction:
   post:
     tags: [Admin]
-    summary: Approve or reject a queued topic or post
+    summary: Approve or reject a queued topic, post, or personal sticker
     operationId: adminReviewAction
     description: |
       Admin console operation gated by the `SiteManager` role permission
@@ -280,7 +282,8 @@ adminReviewAction:
       an operation-audit log entry. Business failures (HTTP 200, `code: 1`):
       unknown target → `admin.review.notFound`; wiki-station topics and wiki
       first posts → `admin.review.targetInvalid` (they belong to the wiki
-      revision review flow); target no longer pending →
+      revision review flow); sticker approval enables token use and rejection keeps the asset disabled;
+      target no longer pending →
       `admin.review.processed`; persistence failure → `admin.review.failed`.
       A missing/unknown `kind` or a missing `id` fails validation with HTTP
       200 `common.request.invalidParams`.

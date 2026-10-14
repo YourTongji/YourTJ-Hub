@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UserNickname from '@/site/components/UserNickname.vue'
 import { authorURL } from '@/runtime/anonymous-identity'
 import { useContentUpdates } from '@/runtime/content-updates'
 import AgentReplySetting from '@/site/components/AgentReplySetting.vue'
@@ -231,8 +232,8 @@ function handleTopicState(nextLikeCount: number) {
           class="inline-flex items-center gap-2 font-medium text-base-content/75 hover:text-primary"
           @click="showUserCard(view.topic.author, $event)"
         >
-          <UserAvatar :src="view.topic.author.avatarUrl" :alt="view.topic.author.username" class="h-5 w-5 rounded-full object-cover" />
-          {{ authorDisplayName(view.topic.author) }}
+          <UserAvatar :frame="view.topic.author.decoration?.avatarFrame" :src="view.topic.author.avatarUrl" :alt="view.topic.author.username" class="h-5 w-5 rounded-full object-cover" />
+          <UserNickname :style-definition="view.topic.author.decoration?.nicknameStyle">{{ authorDisplayName(view.topic.author) }}</UserNickname>
         </a>
         <PersonaTag v-if="view.topic.author.publicUid" :own="view.permissions.isOwnTopic" />
         <!-- Content type badge -->
@@ -285,8 +286,8 @@ function handleTopicState(nextLikeCount: number) {
               class="inline-flex items-center gap-1.5 font-medium text-base-content/80 hover:text-primary truncate"
               @click="showUserCard(view.topic.author, $event)"
             >
-              <UserAvatar :src="view.topic.author.avatarUrl" :alt="view.topic.author.username" class="h-5 w-5 rounded-full object-cover" />
-              <span class="truncate">{{ authorDisplayName(view.topic.author) }}</span>
+              <UserAvatar :frame="view.topic.author.decoration?.avatarFrame" :src="view.topic.author.avatarUrl" :alt="view.topic.author.username" class="h-5 w-5 rounded-full object-cover" />
+              <span class="truncate"><UserNickname :style-definition="view.topic.author.decoration?.nicknameStyle">{{ authorDisplayName(view.topic.author) }}</UserNickname></span>
             </a>
             <PersonaTag v-if="view.topic.author.publicUid" :own="view.permissions.isOwnTopic" />
             <span v-if="view.topic.contentType === 1" class="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-semibold text-success">

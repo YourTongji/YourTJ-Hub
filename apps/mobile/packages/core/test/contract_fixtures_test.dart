@@ -642,6 +642,8 @@ void main() {
       expect(list, hasLength(1));
       expect(list.first.name, 'smile');
       expect(list.first.url, startsWith('/file/img/stickers/'));
+      expect(list.first.reviewStatus, 'approved');
+      expect(list.first.isAvailable, isTrue);
     });
 
     test('管理端行与导入结果解析（含 failed 条目）', () {
@@ -674,6 +676,16 @@ void main() {
       final item = StickerItemPayload.fromJson({});
       expect(item.name, '');
       expect(item.url, '');
+      expect(item.reviewStatus, 'approved');
+      expect(item.isAvailable, isTrue);
+      final pending = StickerItemPayload.fromJson({
+        'name': 'u_private',
+        'url': '/private.png',
+        'isOfficial': false,
+        'isEnabled': false,
+        'reviewStatus': 'pending',
+      });
+      expect(pending.isAvailable, isFalse);
       final result = StickerImportResultPayload.fromJson({});
       expect(result.imported, 0);
       expect(result.failed, isEmpty);

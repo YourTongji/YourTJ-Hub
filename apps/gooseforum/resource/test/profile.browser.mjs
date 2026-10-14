@@ -54,3 +54,50 @@ for (const width of [320, 1280]) {
     })
   }
 }
+
+for (const width of [320, 1280]) {
+  test(`personal website tooltip stays readable inside the profile card at ${width}px`, async () => {
+    const page = await browser.newPage({ viewport: { width, height: 900 } })
+    const website = `https://example.com/${'profile/'.repeat(18)}`
+    try {
+      const query = new URLSearchParams({ member: '1', website })
+      await page.goto(`${origin}/assets/test/fixtures/browser/profile.html?${query}`)
+      const websiteLink = page.locator(`a[href="${website}"]`)
+      await websiteLink.waitFor()
+      await websiteLink.hover()
+      const tooltip = websiteLink.locator('.gf-tooltip')
+      await tooltip.waitFor()
+      await page.waitForFunction(element => getComputedStyle(element).opacity === '1', await tooltip.elementHandle())
+
+      const bounds = await page.evaluate(() => {
+        const tooltip = document.querySelector('a[aria-label^="https://example.com/"] .gf-tooltip')
+        const card = tooltip?.closest('section.gf-card')
+        const trigger = tooltip?.parentElement
+        if (!tooltip || !card || !trigger) return null
+        const tooltipRect = tooltip.getBoundingClientRect()
+        const cardRect = card.getBoundingClientRect()
+        const triggerRect = trigger.getBoundingClientRect()
+        return {
+          tooltipLeft: tooltipRect.left,
+          tooltipRight: tooltipRect.right,
+          tooltipBottom: tooltipRect.bottom,
+          cardLeft: cardRect.left,
+          cardRight: cardRect.right,
+          triggerTop: triggerRect.top,
+          tooltipScrollWidth: tooltip.scrollWidth,
+          tooltipClientWidth: tooltip.clientWidth,
+          pageScrollWidth: document.documentElement.scrollWidth,
+        }
+      })
+
+      assert.ok(bounds, 'tooltip and profile card must be mounted')
+      assert.ok(bounds.tooltipLeft >= bounds.cardLeft, 'tooltip must not be clipped at the card left edge')
+      assert.ok(bounds.tooltipRight <= bounds.cardRight, 'tooltip must not be clipped at the card right edge')
+      assert.ok(bounds.tooltipBottom <= bounds.triggerTop, 'tooltip must appear above its icon')
+      assert.ok(bounds.tooltipScrollWidth <= bounds.tooltipClientWidth, 'the complete URL must wrap instead of truncate')
+      assert.ok(bounds.pageScrollWidth <= width, 'tooltip must not introduce horizontal page overflow')
+    } finally {
+      await page.close()
+    }
+  })
+}

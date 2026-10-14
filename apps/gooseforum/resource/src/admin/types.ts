@@ -394,6 +394,8 @@ export interface StorageSettings {
   accessKey: string
   secretKey: string
   publicUrlPrefix: string
+  /** 运维开关：S3 模式下也强制帖子图片走服务端代理上传。 */
+  forceProxyUpload: boolean
   /** GET 回显（issue #324 S3）：凭据是否已配置（服务端加密存储，不回显凭据）。 */
   accessKeyConfigured?: boolean
   secretKeyConfigured?: boolean

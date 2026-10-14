@@ -151,6 +151,8 @@ AgentAckRequest:
 MentionTarget:
   type: object
   properties:
+    decoration:
+      $ref: ./schemas.yaml#/DecorationDisplay
     userId: *id001
     username:
       type: string

@@ -1,3 +1,4 @@
+import type { UserDecoration } from '@gooseforum/client'
 /**
  * 帖子编辑器 @mention 会话纯逻辑（issue #564）。
  * 与 DOM/Vditor 解耦：输入侧喂入光标前文本，输出识别到的 token 与排序后的候选，
@@ -10,6 +11,7 @@ export interface MentionUser {
   id: number
   username: string
   nickname?: string
+  decoration?: UserDecoration
   avatarUrl: string
   /** Actor kind from authoritative mention search, enriched onto matching local context. */
   actorType?: 'human' | 'bot'

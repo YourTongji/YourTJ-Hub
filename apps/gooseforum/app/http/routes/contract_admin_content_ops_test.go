@@ -10,9 +10,12 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
@@ -314,6 +317,35 @@ func TestAdminListReviewQueueHTTPContract(t *testing.T) {
 		}
 	})
 
+	t.Run("sticker queue leaves excerpt localization to the client", func(t *testing.T) {
+		conn, router := setupAdminContentOpsContractTest(t)
+		if err := conn.AutoMigrate(&sticker.Entity{}); err != nil {
+			t.Fatalf("migrate sticker table: %v", err)
+		}
+		author := createHTTPContractUser(t, conn, contractTestID())
+		entity := sticker.Entity{
+			Name: fmt.Sprintf("u_%d", contractTestID()), FileName: "stickers/pending.png",
+			CreatedBy: author.Id, ReviewStatus: sticker.ReviewStatusPending,
+		}
+		if err := conn.Transaction(func(tx *gorm.DB) error { return sticker.InsertPersonalTx(tx, &entity) }); err != nil {
+			t.Fatalf("seed pending sticker: %v", err)
+		}
+		t.Cleanup(func() { conn.Delete(&sticker.Entity{}, entity.Id) })
+
+		result := decodeSiteResult(t, serveAdminSiteRaw(t, conn, router, http.MethodPost, path, `{"kind":"sticker"}`))
+		items, ok := result["items"].([]any)
+		if !ok {
+			t.Fatalf("result.items = %#v, want an array", result["items"])
+		}
+		item := findContractItem(items, float64(entity.Id))
+		if item == nil {
+			t.Fatalf("seeded sticker %d not found in review queue items %#v", entity.Id, items)
+		}
+		if item["excerpt"] != "" {
+			t.Fatalf("sticker excerpt = %#v, want empty so clients can localize it", item["excerpt"])
+		}
+	})
+
 	t.Run("unknown kind fails request validation", func(t *testing.T) {
 		conn, router := setupAdminContentOpsContractTest(t)
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
@@ -424,6 +456,51 @@ func TestAdminReviewActionHTTPContract(t *testing.T) {
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			fmt.Sprintf(`{"kind":"topic","id":%d,"approve":true}`, topic.Id),
+			"admin-review-action-processed.json")
+	})
+
+	t.Run("approve enables the pending personal sticker and publishes its file usage", func(t *testing.T) {
+		conn, router := setupAdminContentOpsContractTest(t)
+		if err := conn.AutoMigrate(&sticker.Entity{}, &fileUsage.Entity{}, &moderationDecision.Entity{}); err != nil {
+			t.Fatalf("migrate sticker tables: %v", err)
+		}
+		author := createHTTPContractUser(t, conn, contractTestID())
+		entity := sticker.Entity{
+			Name: fmt.Sprintf("u_%d", contractTestID()), FileName: "stickers/pending.png",
+			CreatedBy: author.Id, ReviewStatus: sticker.ReviewStatusPending,
+		}
+		if err := conn.Transaction(func(tx *gorm.DB) error { return sticker.InsertPersonalTx(tx, &entity) }); err != nil {
+			t.Fatalf("seed pending sticker: %v", err)
+		}
+		usage := fileUsage.Entity{FileName: entity.FileName, TargetType: fileUsage.TargetSticker, TargetId: entity.Id, UsageType: fileUsage.UsageSticker, UserId: author.Id, Status: fileUsage.UsageStatusPending}
+		if err := conn.Create(&usage).Error; err != nil {
+			t.Fatalf("seed pending usage: %v", err)
+		}
+		t.Cleanup(func() {
+			conn.Delete(&fileUsage.Entity{}, usage.Id)
+			conn.Delete(&sticker.Entity{}, entity.Id)
+		})
+
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			fmt.Sprintf(`{"kind":"sticker","id":%d,"approve":true}`, entity.Id),
+			"admin-agent-disable-success.json")
+		var reviewed sticker.Entity
+		if err := conn.First(&reviewed, entity.Id).Error; err != nil {
+			t.Fatal(err)
+		}
+		if reviewed.ReviewStatus != sticker.ReviewStatusApproved || !reviewed.IsEnabled {
+			t.Fatalf("reviewed sticker = %#v, want approved and enabled", reviewed)
+		}
+		var promoted fileUsage.Entity
+		if err := conn.First(&promoted, usage.Id).Error; err != nil {
+			t.Fatal(err)
+		}
+		if promoted.Status != fileUsage.UsageStatusActive {
+			t.Fatalf("usage status = %q, want ACTIVE after approval", promoted.Status)
+		}
+
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			fmt.Sprintf(`{"kind":"sticker","id":%d,"approve":false}`, entity.Id),
 			"admin-review-action-processed.json")
 	})
 

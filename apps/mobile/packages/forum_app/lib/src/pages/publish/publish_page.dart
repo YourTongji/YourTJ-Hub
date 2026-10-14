@@ -23,6 +23,8 @@ import '../../images/image_upload.dart';
 import '../../images/composer_upload_queue.dart';
 import '../../server_messages.dart';
 import '../../widgets/markdown_view.dart';
+import '../../widgets/editor/editor_caret_follow.dart';
+import '../../widgets/editor/editor_embed_image.dart';
 import '../../widgets/editor/rich_markdown_editor.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/moderation_blocked_dialog.dart';
@@ -2234,8 +2236,20 @@ class _PublishPageState extends ConsumerState<PublishPage>
     ).small.copyWith(color: GfTheme.colorsOf(context).iconMuted),
   );
 
-  Widget _buildEditor(AppLocalizations l10n) =>
-      KeyedSubtree(key: _bodyEditorContainerKey, child: _buildBodyEditor(l10n));
+  /// The page's SingleChildScrollView owns scrolling (the editor body is
+  /// `scrollable: false`), so flutter_quill's own caret reveal never runs
+  /// here; without a follower a caret past the fold is unreachable while
+  /// typing (issue #1122). The simple-text branch has no editor state, so the
+  /// follower stays inert there and Flutter's own input following applies.
+  Widget _buildEditor(AppLocalizations l10n) => EditorCaretFollower(
+    controller: _quill,
+    focusNode: _editorFocusNode,
+    editorKey: _editorKey,
+    child: KeyedSubtree(
+      key: _bodyEditorContainerKey,
+      child: _buildBodyEditor(l10n),
+    ),
+  );
 
   Widget _buildBodyEditor(AppLocalizations l10n) {
     if (_contentType != 3) {
@@ -2470,7 +2484,6 @@ class _PublishPageState extends ConsumerState<PublishPage>
           keyboardType: TextInputType.url,
           hintText: 'https://',
           autocorrect: false,
-          enableSuggestions: false,
           onChanged: (text) => value = text,
         ),
         actions: [
@@ -3192,14 +3205,10 @@ class _ComposerImageBuilder extends EmbedBuilder {
 
   @override
   Widget build(BuildContext context, EmbedContext embedContext) {
-    final Widget image = GfNetworkImage(
-      resolveApiAssetUrl(embedContext.node.value.data.toString()),
-      fit: BoxFit.contain,
-      cacheWidth:
-          (MediaQuery.sizeOf(context).width *
-                  MediaQuery.devicePixelRatioOf(context))
-              .round(),
-      errorBuilder: (_, _, _) => const GfSymbol('image-off'),
+    // Sized and height-capped like every other editor body image so the block
+    // keeps the same footprint in the composer and the editors (issue #1122).
+    final Widget image = EditorEmbedImage(
+      url: resolveApiAssetUrl(embedContext.node.value.data.toString()),
     );
     final Widget thumbnail = GfNetworkImage(
       resolveApiAssetUrl(embedContext.node.value.data.toString()),

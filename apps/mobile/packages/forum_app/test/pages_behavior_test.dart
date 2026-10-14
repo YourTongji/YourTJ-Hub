@@ -335,6 +335,18 @@ class RecordingWritingCleanup extends WritingStore {
   }
 }
 
+/// Simulates the generation fence rejecting a stale write: [forget] advances
+/// the cache epoch (as an account switch does) before throwing.
+class _FailingForgetStore extends WritingStore {
+  _FailingForgetStore(this.onForget);
+  final void Function() onForget;
+  @override
+  Future<void> forget(String scope, String query) async {
+    onForget();
+    throw StateError('Local work operation invalidated');
+  }
+}
+
 class DelayedChatRepository extends RecordingChatRepository {
   DelayedChatRepository(super.client);
   final acknowledgement = Completer<int>();
@@ -2656,12 +2668,25 @@ void main() {
       await tester.pumpAndSettle();
       const query = '高等数学 & 选课';
       await tester.enterText(find.byType(TextField), query);
-      await tester.tap(find.text('搜索课程'));
+      await tester.pump();
+      await tester.tap(find.text('在课程中搜索“$query”'));
       await tester.pumpAndSettle();
       expect(router.state.uri.queryParameters['q'], query);
       router.pop();
       await tester.pumpAndSettle();
+      // The unsent text is kept; clearing it returns to recent searches.
+      expect(find.text('搜索“$query”'), findsOneWidget);
+      await tester.tap(find.byTooltip('清空搜索'));
+      await tester.pumpAndSettle();
       expect(find.text('最近搜索'), findsOneWidget);
+      expect(find.text('搜索课程'), findsOneWidget);
+      expect(find.text('搜索 Wiki'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), '高等');
+      await tester.pump();
+      // Matching history is offered while typing.
+      expect(find.text(query), findsOneWidget);
+      await tester.tap(find.byTooltip('清空搜索'));
+      await tester.pumpAndSettle();
       expect(await container.read(writingStoreProvider).history('site:1'), [
         query,
       ]);
@@ -2672,6 +2697,76 @@ void main() {
         isEmpty,
       );
       expect(find.text('最近搜索'), findsNothing);
+    },
+  );
+
+  testWidgets('a single recent search can be removed', (tester) async {
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: MemTokenStorage(),
+      baseUrl: 'http://fake.local',
+    );
+    final container = await makeContainer(
+      pageRepo: CountingPageRepository(client),
+      extraOverrides: [
+        writingScopeProvider.overrideWith((ref) async => 'site:1'),
+      ],
+    );
+    final store = container.read(writingStoreProvider);
+    await store.remember('site:1', '选课');
+    await store.remember('site:1', '宿舍');
+    await tester.pumpWidget(app(container, const SearchPage()));
+    await tester.pumpAndSettle();
+    expect(find.text('选课'), findsOneWidget);
+    expect(find.text('宿舍'), findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('search-recent-宿舍')),
+        matching: find.byTooltip('从最近搜索中移除'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('宿舍'), findsNothing);
+    expect(find.text('选课'), findsOneWidget);
+    expect(await store.history('site:1'), ['选课']);
+  });
+
+  testWidgets(
+    'a failed recent-search removal during an account switch does not toast',
+    (tester) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      ProviderContainer? holder;
+      final failing = _FailingForgetStore(() {
+        holder!.read(offlineCacheEpochProvider.notifier).invalidate();
+      });
+      final container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        extraOverrides: [
+          writingScopeProvider.overrideWith((ref) async => 'site:1'),
+          writingStoreProvider.overrideWithValue(failing),
+        ],
+      );
+      holder = container;
+      await failing.remember('site:1', '选课');
+      await tester.pumpWidget(app(container, const SearchPage()));
+      await tester.pumpAndSettle();
+      expect(find.text('选课'), findsOneWidget);
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const ValueKey('search-recent-选课')),
+          matching: find.byTooltip('从最近搜索中移除'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // The epoch advanced mid-write, so no meaningless error toast is shown.
+      expect(
+        find.text('Bad state: Local work operation invalidated'),
+        findsNothing,
+      );
     },
   );
 

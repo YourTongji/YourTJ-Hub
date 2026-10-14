@@ -47,9 +47,21 @@ export function parseStickerSegments(content: string, urlByName: Map<string, str
 }
 
 /**
- * 会话列表预览用的可读标签：把 token 缩写为 [name]，
- * 未知/停用 token 同样缩写（预览层不做启停区分）。
+ * 会话列表预览用的可读标签：不暴露随机 token 名；未知/停用 token
+ * 同样显示统一文案（预览层不做启停区分）。
  */
-export function stickerPreviewLabel(content: string): string {
-  return content.replace(STICKER_TOKEN_RE, (_, name: string) => `[${name}]`)
+export function stickerPreviewLabel(content: string, stickerLabel?: string): string {
+  return content.replace(STICKER_TOKEN_RE, (_, name: string) => `[${stickerLabel ?? name}]`)
+}
+
+// 个人上传表情名为 u_ + 48 位小写十六进制（服务端生成规则），可被精确识别。
+const PERSONAL_STICKER_TOKEN_RE = /\[:sticker:u_[0-9a-f]{48}:\]/g
+
+/**
+ * 消息正文渲染用的个人表情遮蔽：待审/被拒的个人 token 无法解析，
+ * 保持原文会把随机名展示给收件人（issue #1071），统一替换为本地化占位。
+ * 官方与可解析 token 不受影响。
+ */
+export function maskPersonalStickerTokens(content: string, stickerLabel: string): string {
+  return content.replace(PERSONAL_STICKER_TOKEN_RE, `[${stickerLabel}]`)
 }

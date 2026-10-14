@@ -59,6 +59,8 @@ iOS 继续使用 Cupertino 原生转场与返回手势。
 具体尺寸见[移动端展示规范](../../../../docs/product/mobile-experience.md#language-and-presentation)。
 `GfChip.tapTargetHeightFor(context)` 与 `GfTabBar.heightFor(context)` 供横向分类栏、页面和悬浮栏
 同步计算大字体高度。
+`GfTab.symbol` 为标签添加跟随选中色的 ReIcon；`GfTabBar(distribute: true)` 在所有标签放得下时均分宽度，
+放不下（窄屏、大字体）时回退为横向滚动。
 `GfEmpty` 支持说明和下一步操作，并适应短屏；资料统计按可用宽度和字号排布，设置行支持多行标题。
 这些组件尺寸适配保留共享语义色与 token 镜像。
 

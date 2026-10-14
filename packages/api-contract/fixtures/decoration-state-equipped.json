@@ -1,0 +1,48 @@
+{
+  "code": 0,
+  "result": {
+    "catalog": [
+      {
+        "code": "frame-lantern",
+        "name": "Lantern frame",
+        "kind": "avatarFrame",
+        "lightColors": [
+          "#166534",
+          "#0D9488"
+        ],
+        "darkColors": [
+          "#86EFAC",
+          "#2DD4BF"
+        ],
+        "isEnabled": true,
+        "sortOrder": 10,
+        "assetUrl": "/static/decorations/frame-lantern.png",
+        "assetScale": 1.25
+      },
+      {
+        "code": "name-moss",
+        "name": "Moss name",
+        "kind": "nicknameStyle",
+        "lightColors": [
+          "#065F46",
+          "#115E59"
+        ],
+        "darkColors": [
+          "#6EE7B7",
+          "#99F6E4"
+        ],
+        "isEnabled": true,
+        "sortOrder": 20,
+        "assetScale": 1.25
+      }
+    ],
+    "ownedCodes": [
+      "frame-lantern",
+      "name-moss"
+    ],
+    "equipped": {
+      "avatarFrame": "frame-lantern",
+      "nicknameStyle": "name-moss"
+    }
+  }
+}

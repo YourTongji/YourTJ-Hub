@@ -281,11 +281,14 @@ func TestAdminSaveStorageSettingsHTTPContract(t *testing.T) {
 			hotdataserve.ClearStorageSettingsConfigCache()
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"settings":{"provider":"s3","endpoint":"https://s3.new.example.test","internalEndpoint":"https://s3-internal.new.example.test","bucket":"new-bucket","region":"r","bucketLookup":"auto","secure":true,"accessKey":"new-ak","secretKey":"new-sk","publicUrlPrefix":""}}`,
+			`{"settings":{"provider":"s3","endpoint":"https://s3.new.example.test","internalEndpoint":"https://s3-internal.new.example.test","bucket":"new-bucket","region":"r","bucketLookup":"auto","secure":true,"accessKey":"new-ak","secretKey":"new-sk","publicUrlPrefix":"","forceProxyUpload":true}}`,
 			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.StorageSettingsPage, pageConfig.StorageSettingsStorage{})
 		if stored.Provider != "s3" || stored.Endpoint != "https://s3.new.example.test" || stored.InternalEndpoint != "https://s3-internal.new.example.test" || stored.Bucket != "new-bucket" {
 			t.Fatalf("stored storage settings = %#v, want submitted values", stored)
+		}
+		if !stored.ForceProxyUpload {
+			t.Fatal("stored forceProxyUpload = false, want true")
 		}
 		if plain, err := securestore.DecryptPurpose(stored.AccessKeyEncrypted, securestore.StorageAccessKeyPurpose); err != nil || plain != "new-ak" {
 			t.Fatalf("stored accessKey decrypt = %q, err %v; want %q", plain, err, "new-ak")
@@ -528,4 +531,53 @@ func TestAdminSaveScheduleSettingsHTTPContract(t *testing.T) {
 	})
 
 	adminIntegrationsGuardScenarios(t, http.MethodPost, path, "admin-save-schedule-settings")
+}
+
+// forceProxyUpload 为可选字段：旧客户端保存时未携带不得关闭已开启的兜底；非 s3 提供方恒归零。
+func TestAdminSaveStorageSettingsForceProxyUploadPreservation(t *testing.T) {
+	path := "/api/admin/save-storage-settings"
+	seed := func(t *testing.T, conn *gorm.DB) {
+		t.Helper()
+		persistContractPageConfig(t, conn, pageConfig.StorageSettingsPage, pageConfig.StorageSettingsStorage{
+			Provider: "s3", Endpoint: "https://s3.contract.example.test", Bucket: "contract-bucket",
+			Region: "r", BucketLookup: "auto", Secure: true, ForceProxyUpload: true,
+		})
+		t.Cleanup(hotdataserve.ClearStorageSettingsConfigCache)
+	}
+	stored := func() pageConfig.StorageSettingsStorage {
+		return pageConfig.GetConfigByPageType(pageConfig.StorageSettingsPage, pageConfig.StorageSettingsStorage{})
+	}
+
+	t.Run("omitted field keeps the stored value", func(t *testing.T) {
+		conn, router := setupAdminIntegrationsContractTest(t)
+		seed(t, conn)
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"provider":"s3","endpoint":"https://s3.contract.example.test","bucket":"contract-bucket","region":"r","bucketLookup":"auto","secure":true,"accessKey":"","secretKey":"","publicUrlPrefix":""}}`,
+			"admin-agent-disable-success.json")
+		if !stored().ForceProxyUpload {
+			t.Fatal("save without forceProxyUpload reset the stored switch to false")
+		}
+	})
+
+	t.Run("explicit false turns the switch off", func(t *testing.T) {
+		conn, router := setupAdminIntegrationsContractTest(t)
+		seed(t, conn)
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"provider":"s3","endpoint":"https://s3.contract.example.test","bucket":"contract-bucket","region":"r","bucketLookup":"auto","secure":true,"accessKey":"","secretKey":"","publicUrlPrefix":"","forceProxyUpload":false}}`,
+			"admin-agent-disable-success.json")
+		if stored().ForceProxyUpload {
+			t.Fatal("explicit forceProxyUpload=false was not saved")
+		}
+	})
+
+	t.Run("non-s3 provider always saves false", func(t *testing.T) {
+		conn, router := setupAdminIntegrationsContractTest(t)
+		seed(t, conn)
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"provider":"local","endpoint":"","bucket":"","region":"","bucketLookup":"auto","secure":true,"accessKey":"","secretKey":"","publicUrlPrefix":"","forceProxyUpload":true}}`,
+			"admin-agent-disable-success.json")
+		if got := stored(); got.Provider != "local" || got.ForceProxyUpload {
+			t.Fatalf("stored = provider %q force %v, want local/false", got.Provider, got.ForceProxyUpload)
+		}
+	})
 }

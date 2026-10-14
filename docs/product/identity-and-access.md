@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers, Security reviewer
 >
-> Last verified: 2026-09-20
+> Last verified: 2026-10-13
 
 ## Identity model
 
@@ -171,7 +171,7 @@ signing in could reveal the section. Blocked viewers and failed reads see the se
 Changes apply on the next request; profile pages are `private, no-store`. Widening an audience asks
 for confirmation because older activity becomes visible again. Old Web switches that were stored only
 in the browser are offered once for migration and never applied silently. See
-[0080](../decisions/0080-profile-section-privacy.md).
+[0088](../decisions/0088-profile-section-privacy.md).
 
 `Current`: profile visibility controls profile aggregation only. Topics and replies stay visible in
 categories, search and their discussions; user cards keep follower, topic and like counts; bookmarks
@@ -272,6 +272,12 @@ social counts and badges, and moderator access rules beyond today's public profi
   change-password form still requires the old password), so email-less OAuth users on mobile
   need the Web settings page or an administrator; administrators retain the console command
   for recovery.
+- Account closure and contribution statistics: `Current`. Closure soft-deletes the `users` row; a
+  closed account is excluded from contributor counts, user ranking and per-user detail, and rebuilding
+  the aggregates never recreates the closed author's identity. Its already-published content keeps
+  counting toward category and site content totals under the ordinary publication rules. Anonymous
+  content never carries user attribution, and per-user figures resolve only public human ownership;
+  counting definitions live in [forum](forum.md#content-contribution-statistics).
 - Ban/freeze: the forum `users.is_frozen` flag is authoritative; the OIDC userinfo endpoint and
   exchange path reject frozen accounts.
 - Content deletion/export: `Current` for the implemented forum and admin flows. Users can list,
@@ -335,6 +341,12 @@ social counts and badges, and moderator access rules beyond today's public profi
 - `Current`: administrators can disable new Agent comments globally or per topic. Already committed
   idempotent writes still replay; topic creation, event delivery and ACK keep their existing gates.
   The [Agent runbook](../operations/agents.md) owns the broadcast bounds and policy controls.
+- `Current`: the admin content contribution statistics keep the two populations apart — category
+  summaries report human (`contributorCount`) and Agent (`agentContributorCount`) contributors in
+  separate fields, and user ranking/detail select exactly one actor type through `actorType` (human
+  by default), so bot contributions never inflate a human figure or the reverse. Agent accounts stay
+  visible by their real identity to administrators; counting definitions live in
+  [forum](forum.md#content-contribution-statistics).
 - `Partial`: external model execution/daily scheduling and Synergy Clarus/Holos processing depend on
   the operator's runner. The [runtime tutorial](../../examples/agent-runtime/README.md) supplies durable
   intake, daily keys and remote MCP configuration; live Synergy and production receivers need external
@@ -459,6 +471,13 @@ responses; the feature does not add notes to search indexes, notifications sent 
 user caches or offline storage.
 
 Private-note editing waits for a successful read of the current owner’s notes. Loading or failed reads keep editing disabled and offer retry, preventing an unseen existing note from being cleared or overwritten.
+
+## Avatar frames and nickname styles
+
+`Current`: administrator-granted avatar frames and nickname styles can be independently previewed,
+equipped and removed in Web and Flutter settings. Hub is the entitlement/equipment source, and
+anonymous identities never inherit their owner's cosmetics. See [profile decorations](profile-decorations.md)
+for selection, administration, recovery and business-integration boundaries.
 
 ## Profile badge display
 

@@ -13,7 +13,7 @@ Write or update a decision record when a change chooses among meaningful alterna
 
 ## Procedure: create a new record
 
-1. Find the next sequential number in `docs/decisions/` and take `max + 1`, zero-padded to 4 digits. Numbers are sequential starting at 0 and never change.
+1. Reserve an unused four-digit number, zero-padded. Check `dev` and open PRs for numbers already used or reserved — the reservation, conflict and gap rules live in [docs/decisions/README.md](../../../docs/decisions/README.md). Gaps are allowed so parallel PRs can reserve numbers independently; once assigned, a number never changes.
 2. Create `docs/decisions/NNNN-kebab-case-title.md`.
 3. Write the required sections in order:
    - `## Status` — first line is the status value; optional `Class: <value>` on the next line.
@@ -40,8 +40,9 @@ Write or update a decision record when a change chooses among meaningful alterna
 The verifier names the violation. Fix the named file:
 
 - `missing status value` — add the status line.
-- `invalid status` — use Proposed/Accepted/Rejected/Deprecated or `Superseded by NNNN`.
+- `invalid status` — use Proposed/Accepted/Rejected/Deprecated or `Superseded by [NNNN](NNNN-title.md)`.
 - `invalid Class` — use architecture/process/testing/feature/bug-fix/simplification.
 - `required sections missing or out of order` — add or reorder the seven required sections.
 - `superseded target missing` — create the target record or point at an existing number.
-- `numbers must be sequential` — renumber or fix the gap.
+- `duplicate decision number NNNN` — two records share a number; move one to another unused number and update its filename, index entry and links.
+- `invalid superseded reference` — use `Superseded by [NNNN](NNNN-title.md)` whose number matches the target filename (the exact legacy form `Superseded by NNNN` is accepted only while its target exists).

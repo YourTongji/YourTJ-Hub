@@ -57,14 +57,17 @@ func GetTopicsByCategorySimpleVo(viewerID uint64, categoryId uint64, sort string
 }
 
 // viewerHasBlocks decides whether a public list request needs the viewer-scoped
-// path. A storage failure fails open (shared cache): lists are public content,
-// a brief unfiltered window is preferable to a blank page, and the failure is
-// never cached as filtered output.
+// path. The per-viewer answer is cached by the users model for a short TTL so a
+// shared-cache hit performs no per-request existence query; block writes
+// invalidate it, so changes still apply immediately. A storage failure fails
+// open (shared cache): lists are public content, a brief unfiltered window is
+// preferable to a blank page, and the failure is never cached as filtered
+// output.
 func viewerHasBlocks(viewerID uint64) bool {
 	if viewerID == 0 {
 		return false
 	}
-	has, err := users.HasBlockedPeers(viewerID)
+	has, err := users.HasBlockedPeersCached(viewerID)
 	if err != nil {
 		return false
 	}

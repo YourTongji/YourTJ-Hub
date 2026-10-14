@@ -1,8 +1,10 @@
 package courseservice
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/decorationservice"
 	"strconv"
 	"strings"
 	"time"
@@ -43,9 +45,10 @@ var (
 // AvatarUrl 仅 member 作者回填（论坛用户头像）；anonymous/legacy 为空字符串，
 // 前端对空头像显示生成的匿名占位头像（boring-avatars）。
 type ReviewAuthorPayload struct {
-	Kind      string `json:"kind"`                // anonymous / member / legacy
-	Label     string `json:"label"`               // 展示名
-	AvatarUrl string `json:"avatarUrl,omitempty"` // 仅在 member 时非空
+	Decoration *decorationservice.Display `json:"decoration,omitempty"`
+	Kind       string                     `json:"kind"`                // anonymous / member / legacy
+	Label      string                     `json:"label"`               // 展示名
+	AvatarUrl  string                     `json:"avatarUrl,omitempty"` // 仅在 member 时非空
 }
 
 // ReviewViewerPayload 当前用户的个性化状态。
@@ -727,6 +730,7 @@ func listReviewPayloads(entities []course.ReviewEntity, viewerId uint64) ([]Revi
 	if len(authorIds) > 0 {
 		userMap = users.GetMapByIds(authorIds)
 	}
+	decorations := decorationservice.EffectiveBatch(context.Background(), authorIds)
 	myHelpful := make(map[uint64]bool)
 	myDisliked := make(map[uint64]bool)
 	if viewerId > 0 {
@@ -760,6 +764,7 @@ func listReviewPayloads(entities []course.ReviewEntity, viewerId uint64) ([]Revi
 					p.Author.Label = user.Nickname
 				}
 				p.Author.AvatarUrl = user.GetWebAvatarUrl()
+				p.Author.Decoration = decorations[user.Id]
 			}
 		}
 		payloads = append(payloads, p)
@@ -809,6 +814,7 @@ func fillReviewAuthorLabel(p *ReviewPayload, authorUserId uint64) {
 		p.Author.Label = user.Nickname
 	}
 	p.Author.AvatarUrl = user.GetWebAvatarUrl()
+	p.Author.Decoration = decorationservice.Effective(context.Background(), user.Id)
 }
 
 // buildReviewPayload 构造公开 DTO：匿名评价不泄漏任何身份信息。

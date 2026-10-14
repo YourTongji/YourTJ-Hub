@@ -193,5 +193,19 @@ void main() {
       await library.load();
       expect(library.urlByName, <String, String>{'smile': '/s.png'});
     });
+
+    test('待审个人表情不会进入 token 解析缓存', () {
+      final StickerLibrary library = StickerLibrary(_FlakyRepository());
+      library.remember([
+        const StickerItemPayload(
+          name: 'u_private',
+          url: '/private.png',
+          isOfficial: false,
+          isEnabled: true,
+          reviewStatus: 'pending',
+        ),
+      ]);
+      expect(library.urlByName, isEmpty);
+    });
   });
 }

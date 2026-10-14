@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -305,6 +306,173 @@ void main() {
 
     expect(find.byType(GfMarkdownView), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('非 fill 编辑器在光标越出视口时滚动外层页面（#1122）', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final converter = MarkdownConverter();
+    final controller = QuillController(
+      document: converter.mdToDocument(
+        List<String>.generate(60, (index) => '第 $index 行正文').join('\n\n'),
+      ),
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+    final focusNode = FocusNode();
+    final library = StickerLibrary(_EmptyStickerRepository());
+    final pageScroll = ScrollController();
+    addTearDown(controller.dispose);
+    addTearDown(focusNode.dispose);
+    addTearDown(library.dispose);
+    addTearDown(pageScroll.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [stickerLibraryProvider.overrideWithValue(library)],
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              controller: pageScroll,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: RichMarkdownEditor(
+                controller: controller,
+                focusNode: focusNode,
+                placeholder: 'Review',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    focusNode.requestFocus();
+    await tester.pumpAndSettle();
+    expect(focusNode.hasFocus, isTrue);
+    expect(pageScroll.offset, 0);
+
+    // 光标移到文末，等价于在文档末尾继续输入。
+    final int end = controller.document.length - 1;
+    controller.replaceText(
+      end,
+      0,
+      '末尾新增的一行',
+      TextSelection.collapsed(offset: end + 7),
+    );
+    await tester.pumpAndSettle();
+
+    // 编辑器自身不滚动（scrollable: false）：由外层页面跟随光标。
+    final Finder pageView = find.byType(SingleChildScrollView).first;
+    expect(pageScroll.offset, greaterThan(0));
+    final Rect viewportRect = tester.getRect(pageView);
+    final EditorState editorState = tester.state<EditorState>(
+      find.byType(QuillRawEditor),
+    );
+    final Offset caret = editorState.renderEditor.localToGlobal(
+      editorState.renderEditor
+          .getLocalRectForCaret(controller.selection.extent)
+          .bottomLeft,
+    );
+    expect(caret.dy, greaterThan(viewportRect.top));
+    expect(caret.dy, lessThanOrEqualTo(viewportRect.bottom - 11));
+
+    // 光标回到文首：视口跟回顶部（光标行停在顶部留白处）。
+    controller.updateSelection(
+      const TextSelection.collapsed(offset: 0),
+      ChangeSource.local,
+    );
+    await tester.pumpAndSettle();
+    final Offset caretTop = editorState.renderEditor.localToGlobal(
+      editorState.renderEditor
+          .getLocalRectForCaret(const TextPosition(offset: 0))
+          .topLeft,
+    );
+    expect(caretTop.dy, closeTo(viewportRect.top + 12, 1.5));
+    expect(pageScroll.offset, lessThan(60));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('正文图片限制在视口高度比例内并等比缩放（#1122）', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final ImageProvider<Object> provider = MemoryImage(
+      img.encodePng(img.Image(width: 1200, height: 2000)),
+    );
+    final converter = MarkdownConverter();
+    final controller = QuillController(
+      document: converter.mdToDocument('前段\n\n![image](u1)\n\n后段\n'),
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+    final focusNode = FocusNode();
+    final library = StickerLibrary(_EmptyStickerRepository());
+    addTearDown(controller.dispose);
+    addTearDown(focusNode.dispose);
+    addTearDown(library.dispose);
+
+    await tester.pumpWidget(
+      GfMediaScope(
+        identity: provider,
+        factory:
+            (
+              _, {
+              int? width,
+              int? height,
+              Set<String>? allowedOrigins,
+              ResizeImagePolicy policy = ResizeImagePolicy.exact,
+            }) => provider,
+        child: ProviderScope(
+          overrides: [stickerLibraryProvider.overrideWithValue(library)],
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: RichMarkdownEditor(
+                  controller: controller,
+                  focusNode: focusNode,
+                  placeholder: 'Review',
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.runAsync(
+      () => precacheImage(provider, tester.element(find.byType(QuillEditor))),
+    );
+    await tester.pumpAndSettle();
+
+    final Rect image = tester.getRect(
+      find.descendant(
+        of: find.byType(QuillEditor),
+        matching: find.byType(Image),
+      ),
+    );
+    final Rect editor = tester.getRect(find.byType(QuillEditor));
+    // 高度上限 = 0.6 倍视口高（规范见 editor_embed_image.dart）。
+    expect(image.height, lessThanOrEqualTo(844 * 0.6 + 0.5));
+    // 等比缩放：1200x2000 的宽高比保持。
+    expect(image.width, closeTo(image.height * 1200 / 2000, 0.5));
+    // 缩放后不超出编辑器宽度并水平居中。
+    expect(image.left, greaterThanOrEqualTo(editor.left - 0.5));
+    expect(image.right, lessThanOrEqualTo(editor.right + 0.5));
+    expect(image.center.dx, closeTo(editor.center.dx, 0.5));
+    expect(tester.takeException(), isNull);
+
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });

@@ -1,3 +1,4 @@
+import 'user_decoration.dart';
 import 'feed_visibility.dart';
 import '../private_notes.dart';
 import 'package:flutter/material.dart';
@@ -315,6 +316,19 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
             children: <Widget>[
               ExcludeSemantics(
                 child: GfAvatar(
+                  frameColors: topic.author.publicUid != null
+                      ? const <Color>[]
+                      : decorationColors(
+                          context,
+                          topic.author.decoration?.avatarFrame,
+                        ),
+                  frameAssetUrl: topic.author.publicUid != null
+                      ? ''
+                      : decorationFrameAssetUrl(
+                          topic.author.decoration?.avatarFrame,
+                        ),
+                  frameScale:
+                      topic.author.decoration?.avatarFrame?.assetScale ?? 1.25,
                   src: resolveApiAssetUrl(topic.author.avatarUrl),
                   size: 20,
                 ),
@@ -445,6 +459,18 @@ Widget _topicRow(
       description: topic.title.isEmpty ? '' : topic.description,
       categories: categories,
       participantAvatarUrls: participantAvatarUrls,
+      participantFrameScales: [
+        for (final participant in topic.participants)
+          participant.decoration?.avatarFrame?.assetScale ?? 1.25,
+      ],
+      participantFrameAssetUrls: [
+        for (final participant in topic.participants)
+          decorationFrameAssetUrl(participant.decoration?.avatarFrame),
+      ],
+      participantFrameColors: [
+        for (final participant in topic.participants)
+          decorationColors(context, participant.decoration?.avatarFrame),
+      ],
       activityText: timeAgo(
         topic.activityText.isNotEmpty
             ? topic.activityText
@@ -504,6 +530,19 @@ Widget buildTopicFeedCard(
     topic: topic,
     reason: _feedReason(l10n, topic.feedReason),
     child: GfTopicCard(
+      avatarFrameColors: decorationColors(
+        context,
+        topic.author.decoration?.avatarFrame,
+      ),
+      avatarFrameAssetUrl: decorationFrameAssetUrl(
+        topic.author.decoration?.avatarFrame,
+      ),
+      avatarFrameScale:
+          topic.author.decoration?.avatarFrame?.assetScale ?? 1.25,
+      nicknameColors: decorationColors(
+        context,
+        topic.author.decoration?.nicknameStyle,
+      ),
       key: ValueKey<int>(topic.id),
       title: topic.processStatus == 2
           ? "${l10n.contentReviewPending} · ${topic.title}"

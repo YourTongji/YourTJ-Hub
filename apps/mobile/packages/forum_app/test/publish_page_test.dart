@@ -490,6 +490,27 @@ void main() {
     },
   );
 
+  testWidgets(
+    'insert-link dialog url field stays a plain text field (issue #1111)',
+    (tester) async {
+      // 与登录页同根因:enableSuggestions:false 会被 Flutter Android 引擎映射为
+      // VISIBLE_PASSWORD inputType,ColorOS 据此强制安全键盘并禁用粘贴。
+      usePhoneViewport(tester);
+      await pumpPublishPage(tester, editing: false, contentType: 3);
+      await tester.tap(find.byTooltip('插入链接'));
+      await tester.pumpAndSettle();
+
+      final dialogField = tester.widget<TextField>(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(TextField),
+        ),
+      );
+      expect(dialogField.enableSuggestions, isTrue);
+      expect(dialogField.keyboardType, TextInputType.url);
+    },
+  );
+
   for (final compact in [false, true]) {
     for (final type in [2, 3]) {
       testWidgets(
@@ -2340,6 +2361,147 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('长文输入时页面跟随光标滚动外层视口（#1122）', (tester) async {
+    usePhoneViewport(tester);
+    await pumpPublishPage(
+      tester,
+      editing: true,
+      contentType: 3,
+      content: List.generate(40, (index) => '第 $index 段').join('\n\n'),
+    );
+    final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+    final Finder pageView = find
+        .ancestor(
+          of: find.byKey(const Key('publish-editor')),
+          matching: find.byType(SingleChildScrollView),
+        )
+        .first;
+    final ScrollController scroll = tester
+        .widget<SingleChildScrollView>(pageView)
+        .controller!;
+    editor.focusNode.requestFocus();
+    await tester.pumpAndSettle();
+    expect(editor.focusNode.hasFocus, isTrue);
+    expect(scroll.offset, 0);
+
+    // 在文末继续输入：光标行超出视口后页面自动跟随。
+    final int end = editor.controller.document.length - 1;
+    editor.controller.replaceText(
+      end,
+      0,
+      '末尾续写',
+      TextSelection.collapsed(offset: end + 4),
+    );
+    await tester.pumpAndSettle();
+
+    expect(scroll.offset, greaterThan(0));
+    final Rect viewportRect = tester.getRect(pageView);
+    final EditorState editorState = tester.state<EditorState>(
+      find.byType(QuillRawEditor),
+    );
+    final Offset caret = editorState.renderEditor.localToGlobal(
+      editorState.renderEditor
+          .getLocalRectForCaret(editor.controller.selection.extent)
+          .bottomLeft,
+    );
+    expect(caret.dy, greaterThan(viewportRect.top));
+    expect(caret.dy, lessThanOrEqualTo(viewportRect.bottom - 11));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 800));
+  });
+
+  testWidgets('键盘弹起压缩视口后光标行保持可见（#1122）', (tester) async {
+    usePhoneViewport(tester);
+    await pumpPublishPage(
+      tester,
+      editing: true,
+      contentType: 3,
+      content: List.generate(40, (index) => '第 $index 段').join('\n\n'),
+    );
+    final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+    final Finder pageView = find
+        .ancestor(
+          of: find.byKey(const Key('publish-editor')),
+          matching: find.byType(SingleChildScrollView),
+        )
+        .first;
+    final ScrollController scroll = tester
+        .widget<SingleChildScrollView>(pageView)
+        .controller!;
+    editor.focusNode.requestFocus();
+    await tester.pumpAndSettle();
+    final int end = editor.controller.document.length - 1;
+    editor.controller.replaceText(
+      end,
+      0,
+      '末尾续写',
+      TextSelection.collapsed(offset: end + 4),
+    );
+    await tester.pumpAndSettle();
+    final double before = scroll.offset;
+
+    // 键盘弹起：视口在光标不动的情况下变矮，跟随逻辑需要把光标行重新带回。
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await tester.pumpAndSettle();
+    expect(scroll.offset, greaterThan(before));
+    final Rect viewportRect = tester.getRect(pageView);
+    final EditorState editorState = tester.state<EditorState>(
+      find.byType(QuillRawEditor),
+    );
+    final Offset caret = editorState.renderEditor.localToGlobal(
+      editorState.renderEditor
+          .getLocalRectForCaret(editor.controller.selection.extent)
+          .bottomLeft,
+    );
+    expect(caret.dy, lessThanOrEqualTo(viewportRect.bottom - 11));
+
+    tester.view.resetViewInsets();
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 800));
+  });
+
+  testWidgets('正文图片在编辑器内等比缩放并限制最大高度（#1122）', (tester) async {
+    usePhoneViewport(tester);
+    final ImageProvider<Object> imageProvider = MemoryImage(
+      img.encodePng(img.Image(width: 1200, height: 2000)),
+    );
+    await pumpPublishPage(
+      tester,
+      editing: true,
+      contentType: 3,
+      content: '第一段\n\n![image](u1)\n\n第三段\n',
+      imageProvider: imageProvider,
+    );
+    await tester.runAsync(
+      () => precacheImage(
+        imageProvider,
+        tester.element(find.byType(QuillEditor)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final Rect image = tester.getRect(
+      find.descendant(
+        of: find.byType(QuillEditor),
+        matching: find.byType(Image),
+      ),
+    );
+    final Rect editor = tester.getRect(find.byType(QuillEditor));
+    // 高度上限 = 0.6 倍视口高（规范见 editor_embed_image.dart）。
+    expect(image.height, lessThanOrEqualTo(844 * 0.6 + 0.5));
+    // 等比缩放：1200x2000 的宽高比保持，且不超出编辑器宽度。
+    expect(image.width, closeTo(image.height * 1200 / 2000, 0.5));
+    expect(image.left, greaterThanOrEqualTo(editor.left - 0.5));
+    expect(image.right, lessThanOrEqualTo(editor.right + 0.5));
+    expect(image.center.dx, closeTo(editor.center.dx, 0.5));
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 800));
   });
 
   testWidgets('访客会话不显示本机保存状态且可正常离开（#705 回归）', (tester) async {

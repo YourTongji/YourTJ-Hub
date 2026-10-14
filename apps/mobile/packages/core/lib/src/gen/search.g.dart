@@ -9,6 +9,7 @@ part of 'search.dart';
 _$UserSearchPayloadImpl _$$UserSearchPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$UserSearchPayloadImpl(
+  decoration: UserDecoration.parse(json['decoration']),
   id: (json['id'] as num).toInt(),
   username: json['username'] as String,
   nickname: json['nickname'] as String,
@@ -19,6 +20,7 @@ _$UserSearchPayloadImpl _$$UserSearchPayloadImplFromJson(
 Map<String, dynamic> _$$UserSearchPayloadImplToJson(
   _$UserSearchPayloadImpl instance,
 ) => <String, dynamic>{
+  'decoration': instance.decoration,
   'id': instance.id,
   'username': instance.username,
   'nickname': instance.nickname,

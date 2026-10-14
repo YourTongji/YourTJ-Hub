@@ -1,3 +1,4 @@
+import '../../widgets/user_decoration.dart';
 import '../../realtime/realtime_updates.dart';
 import 'agent_reply_setting.dart';
 import '../../report_content.dart';
@@ -968,6 +969,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
   MentionUser _toMentionUser(UserBriefPayload user, MentionTag tag) {
     return MentionUser(
       id: user.id,
+      decoration: user.decoration,
       username: user.username,
       nickname: user.nickname,
       avatarUrl: resolveApiAssetUrl(user.avatarUrl),
@@ -2231,6 +2233,19 @@ class _TopicHeader extends StatelessWidget {
                     : null,
                 borderRadius: BorderRadius.circular(40),
                 child: GfAvatar(
+                  frameColors: topic.author.publicUid != null
+                      ? const <Color>[]
+                      : decorationColors(
+                          context,
+                          topic.author.decoration?.avatarFrame,
+                        ),
+                  frameAssetUrl: topic.author.publicUid != null
+                      ? ''
+                      : decorationFrameAssetUrl(
+                          topic.author.decoration?.avatarFrame,
+                        ),
+                  frameScale:
+                      topic.author.decoration?.avatarFrame?.assetScale ?? 1.25,
                   src: resolveApiAssetUrl(topic.author.avatarUrl),
                   size: 40,
                   badge: topic.author.wornBadge == null
@@ -2249,8 +2264,14 @@ class _TopicHeader extends StatelessWidget {
                           : topic.author.id > 0
                           ? () => context.push('/u/${topic.author.id}')
                           : null,
-                      child: Text(
+                      child: GfDecoratedName(
                         authorName,
+                        colors: topic.author.publicUid != null
+                            ? const []
+                            : decorationColors(
+                                context,
+                                topic.author.decoration?.nicknameStyle,
+                              ),
                         style: GfTheme.typographyOf(context).bodyStrong,
                       ),
                     ),
@@ -2528,6 +2549,19 @@ class _PostCard extends StatelessWidget {
                     : null,
                 borderRadius: BorderRadius.circular(24),
                 child: GfAvatar(
+                  frameColors: post.isAnonymous
+                      ? const <Color>[]
+                      : decorationColors(
+                          context,
+                          post.author.decoration?.avatarFrame,
+                        ),
+                  frameAssetUrl: post.isAnonymous
+                      ? ''
+                      : decorationFrameAssetUrl(
+                          post.author.decoration?.avatarFrame,
+                        ),
+                  frameScale:
+                      post.author.decoration?.avatarFrame?.assetScale ?? 1.25,
                   src: resolveApiAssetUrl(post.author.avatarUrl),
                   size: 32,
                   badge: post.isAnonymous || post.author.wornBadge == null
@@ -2543,7 +2577,7 @@ class _PostCard extends StatelessWidget {
                       : post.author.id > 0 && !post.isAnonymous
                       ? () => context.push('/u/${post.author.id}')
                       : null,
-                  child: Text(
+                  child: GfDecoratedName(
                     post.isAnonymous
                         ? (post.author.nickname ?? post.author.username)
                         : privateDisplayName(
@@ -2551,6 +2585,12 @@ class _PostCard extends StatelessWidget {
                             post.author.id,
                             post.author.username,
                             post.author.nickname,
+                          ),
+                    colors: post.isAnonymous
+                        ? const []
+                        : decorationColors(
+                            context,
+                            post.author.decoration?.nicknameStyle,
                           ),
                     style: GfTheme.typographyOf(context).bodyStrong,
                   ),

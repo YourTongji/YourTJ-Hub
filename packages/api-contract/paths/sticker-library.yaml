@@ -57,7 +57,9 @@ myStickers:
       Lists only the authenticated account's private memberships in saved order.
       Labels are private to this account; the same asset may be collected by others.
       Disabled assets remain with isEnabled=false so users can remove or reorder
-      them, but clients must prevent insertion. Permanent official deletion removes
+      them, but clients must prevent insertion. Newly uploaded personal assets return
+      reviewStatus=pending and isEnabled=false until AI or a site administrator approves
+      them. Permanent official deletion removes
       the corresponding memberships.
       At most 200 members. Removing a member never deletes an asset or sent history.
       Account closure clears this list and fences in-flight membership writes.
@@ -95,7 +97,9 @@ saveMySticker:
       Supply exactly one of stickerName or fileName. A known enabled sticker token
       is collected idempotently. fileName must identify a ready standard image/GIF
       uploaded by this account, from 1 byte to 4 MiB; the same file reuses the same
-      personal asset on retries. Personal assets have immutable random token names
+      personal asset on retries. New personal uploads return reviewStatus=pending and
+      isEnabled=false; they cannot be selected, resolved, or rendered until approved
+      by AI or a site administrator. Personal assets have immutable random token names
       and image content. displayName changes only this account's library label.
       Maximum 200 memberships and 1000 retained personal uploads per account;
       removing a membership does not reset the retained-asset quota. Limit errors

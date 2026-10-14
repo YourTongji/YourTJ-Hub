@@ -57,3 +57,11 @@ Forum built-in OIDC Provider (numeric sub = users.id)
   not deployed or wired, and the local ledger is not presented as the future settlement source.
 - No top-up/withdrawal/fiat exchange/free transfers.
 - Cross-platform settlement events are designed after the forum business stabilizes, to avoid early coupling.
+
+## Cosmetic entitlement boundary
+
+`Current`: Hub owns administrator-granted avatar-frame and nickname-style entitlements and equipment.
+`Planned`: Credit/Mall can use that owner boundary for purchase/refund fulfillment; no cosmetic
+payment or price is enabled. Mall does not introduce a competing equipment state. See
+[profile decorations](profile-decorations.md) and the
+[ownership decision](../decisions/0082-hub-decoration-entitlement-ownership.md).

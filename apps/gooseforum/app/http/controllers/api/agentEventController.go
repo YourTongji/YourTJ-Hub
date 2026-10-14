@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/decorationservice"
 	"log/slog"
 	"net/http"
 
@@ -77,11 +78,12 @@ type MentionTargetsReq struct {
 	Limit int    `form:"limit"`
 }
 type MentionTargetItem struct {
-	UserID    uint64 `json:"userId"`
-	Username  string `json:"username"`
-	Nickname  string `json:"nickname"`
-	AvatarURL string `json:"avatarUrl"`
-	ActorType string `json:"actorType"`
+	Decoration *decorationservice.Display `json:"decoration,omitempty"`
+	UserID     uint64                     `json:"userId"`
+	Username   string                     `json:"username"`
+	Nickname   string                     `json:"nickname"`
+	AvatarURL  string                     `json:"avatarUrl"`
+	ActorType  string                     `json:"actorType"`
 }
 
 func MentionTargets(req component.BetterRequest[MentionTargetsReq]) component.Response {
@@ -93,13 +95,18 @@ func MentionTargets(req component.BetterRequest[MentionTargetsReq]) component.Re
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 	list := make([]MentionTargetItem, 0, len(rows))
+	ids := make([]uint64, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.UserID)
+	}
+	decorations := decorationservice.EffectiveBatch(req.GinContext.Request.Context(), ids)
 	for _, r := range rows {
 		actorType := "human"
 		if r.ActorType == users.ActorTypeBot {
 			actorType = "bot"
 		}
 		u := users.EntityComplete{AvatarUrl: r.AvatarURL}
-		list = append(list, MentionTargetItem{r.UserID, r.Username, r.Nickname, u.GetWebAvatarUrl(), actorType})
+		list = append(list, MentionTargetItem{Decoration: decorations[r.UserID], UserID: r.UserID, Username: r.Username, Nickname: r.Nickname, AvatarURL: u.GetWebAvatarUrl(), ActorType: actorType})
 	}
 	return component.SuccessResponse(list)
 }

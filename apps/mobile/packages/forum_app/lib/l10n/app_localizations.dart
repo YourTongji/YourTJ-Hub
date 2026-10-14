@@ -1206,35 +1206,11 @@ abstract class AppLocalizations {
   /// **'Unread'**
   String get notificationsUnread;
 
-  /// No description provided for @searchTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Search'**
-  String get searchTitle;
-
   /// No description provided for @searchHint.
   ///
   /// In en, this message translates to:
   /// **'Search topics, users, categories…'**
   String get searchHint;
-
-  /// No description provided for @searchEmpty.
-  ///
-  /// In en, this message translates to:
-  /// **'Enter keywords to search'**
-  String get searchEmpty;
-
-  /// No description provided for @searchNoUsers.
-  ///
-  /// In en, this message translates to:
-  /// **'No matching users'**
-  String get searchNoUsers;
-
-  /// No description provided for @searchNoCategories.
-  ///
-  /// In en, this message translates to:
-  /// **'No matching categories'**
-  String get searchNoCategories;
 
   /// No description provided for @searchUnavailable.
   ///
@@ -4506,12 +4482,6 @@ abstract class AppLocalizations {
   /// **'No course reviews yet. Explore the course catalog.'**
   String get campusCoursesEmpty;
 
-  /// No description provided for @searchDiscoveryDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Find posts, people and categories, or jump into your campus tools.'**
-  String get searchDiscoveryDescription;
-
   /// No description provided for @notificationsEmptyDescription.
   ///
   /// In en, this message translates to:
@@ -4625,6 +4595,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Search Wiki'**
   String get searchWiki;
+
+  /// No description provided for @searchIdleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search topics, users and categories. Your recent searches will appear here.'**
+  String get searchIdleHint;
+
+  /// No description provided for @searchFor.
+  ///
+  /// In en, this message translates to:
+  /// **'Search for “{query}”'**
+  String searchFor(String query);
+
+  /// No description provided for @searchCoursesFor.
+  ///
+  /// In en, this message translates to:
+  /// **'Search courses for “{query}”'**
+  String searchCoursesFor(String query);
+
+  /// No description provided for @searchWikiFor.
+  ///
+  /// In en, this message translates to:
+  /// **'Search the Wiki for “{query}”'**
+  String searchWikiFor(String query);
+
+  /// No description provided for @searchRemoveRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from recent searches'**
+  String get searchRemoveRecent;
+
+  /// No description provided for @searchSeeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'See all'**
+  String get searchSeeAll;
+
+  /// No description provided for @searchNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No results for “{query}”'**
+  String searchNoResults(String query);
+
+  /// No description provided for @searchNoResultsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Try different keywords, or search courses and the Wiki.'**
+  String get searchNoResultsHint;
 
   /// No description provided for @refreshFailedRetained.
   ///
@@ -4805,6 +4823,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'School data is temporarily unavailable. Try again later.'**
   String get campusUnavailable;
+
+  /// No description provided for @campusUpstreamUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'School services are temporarily unavailable. Try again later.'**
+  String get campusUpstreamUnavailable;
+
+  /// No description provided for @campusRulesAIUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'AI is unavailable. Check the model connection in AI course summaries, or add rules manually.'**
+  String get campusRulesAIUnavailable;
+
+  /// No description provided for @campusRulesAIOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'AI did not return valid rules. Add complete dates and explicit makeup mappings, or edit manually.'**
+  String get campusRulesAIOutput;
+
+  /// No description provided for @campusRulesLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many AI requests. Try again later.'**
+  String get campusRulesLimited;
 
   /// No description provided for @campusNoData.
   ///

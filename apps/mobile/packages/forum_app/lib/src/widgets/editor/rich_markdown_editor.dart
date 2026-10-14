@@ -5,6 +5,8 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../asset_url.dart';
 import '../markdown_view.dart';
+import 'editor_caret_follow.dart';
+import 'editor_embed_image.dart';
 
 /// Shared Quill editing surface. The caller owns the controller and its
 /// Markdown conversion/draft lifecycle; this widget only presents the editor.
@@ -277,6 +279,10 @@ class _QuillBodyState extends State<_QuillBody> {
   /// clients, so every keystroke would reset the body's scroll offset.
   ScrollController? _scrollController;
 
+  /// Caret measurements for the non-fill [EditorCaretFollower]; fill mode
+  /// scrolls the caret into view itself.
+  final GlobalKey<EditorState> _editorKey = GlobalKey<EditorState>();
+
   @override
   void initState() {
     super.initState();
@@ -299,7 +305,7 @@ class _QuillBodyState extends State<_QuillBody> {
 
   @override
   Widget build(BuildContext context) {
-    return AbsorbPointer(
+    final Widget editor = AbsorbPointer(
       absorbing: !widget.enabled,
       child: QuillEditor.basic(
         controller: widget.controller,
@@ -309,6 +315,7 @@ class _QuillBodyState extends State<_QuillBody> {
           // In fill mode the editor owns an internal scroll view so the sheet's
           // pinned toolbar and action row never move while typing.
           scrollable: widget.fill,
+          editorKey: widget.fill ? null : _editorKey,
           minHeight: widget.fill ? 0 : null,
           scrollBottomInset: widget.fill ? 12 : 0,
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -320,6 +327,14 @@ class _QuillBodyState extends State<_QuillBody> {
           ],
         ),
       ),
+    );
+    if (widget.fill) return editor;
+    // Non-fill hosts scroll the page; keep the caret inside that viewport.
+    return EditorCaretFollower(
+      controller: widget.controller,
+      focusNode: widget.focusNode,
+      editorKey: _editorKey,
+      child: editor,
     );
   }
 }
@@ -383,14 +398,8 @@ class _MarkdownImageBuilder extends EmbedBuilder {
   @override
   Widget build(BuildContext context, EmbedContext embedContext) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 4),
-    child: GfNetworkImage(
-      resolveApiAssetUrl(embedContext.node.value.data.toString()),
-      fit: BoxFit.contain,
-      cacheWidth:
-          (MediaQuery.sizeOf(context).width *
-                  MediaQuery.devicePixelRatioOf(context))
-              .round(),
-      errorBuilder: (_, _, _) => const GfSymbol('image-off'),
+    child: EditorEmbedImage(
+      url: resolveApiAssetUrl(embedContext.node.value.data.toString()),
     ),
   );
 }

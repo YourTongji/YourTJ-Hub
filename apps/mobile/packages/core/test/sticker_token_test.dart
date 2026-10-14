@@ -175,5 +175,19 @@ void main() {
       // 预览层不区分启停:未知 token 同样缩写。
       expect(stickerPreviewLabel('[:sticker:ghost:]'), '[ghost]');
     });
+
+    test('私信列表用统一文案隐藏官方和个人 token 名', () {
+      expect(
+        stickerPreviewLabel(
+          '[:sticker:smile:] [:sticker:u_92f1a:]',
+          stickerLabel: '动画表情',
+        ),
+        '[动画表情] [动画表情]',
+      );
+      expect(
+        stickerPreviewLabel('[:sticker:disabled:]', stickerLabel: '动画表情'),
+        '[动画表情]',
+      );
+    });
   });
 }

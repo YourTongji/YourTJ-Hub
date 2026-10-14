@@ -63,13 +63,14 @@ func StemName(fileName string) string {
 // StickerItem is a shared asset view; private-library results can also contain
 // disabled assets so the owner can still remove or reorder their membership.
 type StickerItem struct {
-	ID          uint64 `json:"id"`
-	Name        string `json:"name"`
-	URL         string `json:"url"`
-	DisplayName string `json:"displayName"`
-	Pack        string `json:"pack"`
-	IsOfficial  bool   `json:"isOfficial"`
-	IsEnabled   bool   `json:"isEnabled"`
+	ID           uint64 `json:"id"`
+	Name         string `json:"name"`
+	URL          string `json:"url"`
+	DisplayName  string `json:"displayName"`
+	Pack         string `json:"pack"`
+	IsOfficial   bool   `json:"isOfficial"`
+	IsEnabled    bool   `json:"isEnabled"`
+	ReviewStatus string `json:"reviewStatus"`
 }
 
 // EnabledList returns enabled stickers with public access paths, ordered by
@@ -167,5 +168,5 @@ func itemFor(entity sticker.Entity, label string) StickerItem {
 	if label == "" {
 		label = entity.Name
 	}
-	return StickerItem{ID: entity.Id, Name: entity.Name, URL: ResolveURLFor(entity), DisplayName: label, Pack: entity.Pack, IsOfficial: entity.IsOfficial, IsEnabled: entity.IsEnabled}
+	return StickerItem{ID: entity.Id, Name: entity.Name, URL: ResolveURLFor(entity), DisplayName: label, Pack: entity.Pack, IsOfficial: entity.IsOfficial, IsEnabled: entity.IsEnabled, ReviewStatus: entity.ReviewStatus}
 }

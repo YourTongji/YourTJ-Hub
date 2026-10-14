@@ -2090,6 +2090,13 @@ func SaveStorageSettings(req component.BetterRequest[SaveStorageSettingsReq]) co
 	storage.BucketLookup = input.BucketLookup
 	storage.Secure = input.Secure
 	storage.PublicUrlPrefix = input.PublicUrlPrefix
+	// 缺省时保留已存值（兼容未携带该字段的旧客户端）；非 s3 提供方恒为 false。
+	if input.ForceProxyUpload != nil {
+		storage.ForceProxyUpload = *input.ForceProxyUpload
+	}
+	if provider != storageservice.ProviderS3 {
+		storage.ForceProxyUpload = false
+	}
 	if key := strings.TrimSpace(input.AccessKey); key != "" {
 		sealed, err := securestore.EncryptPurpose(key, securestore.StorageAccessKeyPurpose)
 		if err != nil {
@@ -2314,7 +2321,7 @@ func ImportData(c *gin.Context) {
 
 // 审核队列：待审内容（ProcessStatus=2）
 type ReviewQueueReq struct {
-	Kind     string `json:"kind" validate:"required,oneof=topic post"`
+	Kind     string `json:"kind" validate:"required,oneof=topic post sticker"`
 	Page     int    `json:"page"`
 	PageSize int    `json:"pageSize"`
 }
@@ -2414,7 +2421,34 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 	}
 	items := make([]ReviewQueueItem, 0, pageSize)
 	var total int64
-	if req.Params.Kind == "topic" {
+	if req.Params.Kind == "sticker" {
+		entities, count, err := stickerservice.PendingReview(requestContext(req.GinContext), page, pageSize)
+		if err != nil {
+			slog.Error("admin sticker review queue: load stickers failed", "error", err)
+			return component.BuildResponse(http.StatusInternalServerError,
+				component.FailDataCode(component.MessageAdminReviewFailed, nil))
+		}
+		total = count
+		userIDs := make([]uint64, 0, len(entities))
+		for _, entity := range entities {
+			userIDs = append(userIDs, entity.CreatedBy)
+		}
+		userMap := users.GetMapByIds(userIDs)
+		for _, entity := range entities {
+			username := ""
+			nickname := ""
+			if user, ok := userMap[entity.CreatedBy]; ok {
+				username, nickname = user.Username, user.Nickname
+			}
+			items = append(items, ReviewQueueItem{
+				Id: entity.Id, Title: entity.Name,
+				UserId: entity.CreatedBy, Username: username, Nickname: nickname,
+				ProcessStatus: 2, CreatedAt: entity.CreatedAt.Format(time.RFC3339),
+				Images: []string{stickerservice.ResolveURLFor(entity)},
+			})
+		}
+		attachAiReview(items, moderationDecision.SubjectSticker)
+	} else if req.Params.Kind == "topic" {
 		result := topics.PagePendingReviewInCategories(page, pageSize, categoryIDs)
 		total = result.Total
 		userIDs := make([]uint64, 0, len(result.Data))
@@ -2538,13 +2572,26 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 type ReviewActionReq struct {
 	RevisionId uint64 `json:"revisionId"`
 	Reason     string `json:"reason" validate:"max=512"`
-	Kind       string `json:"kind" validate:"required,oneof=topic post"`
+	Kind       string `json:"kind" validate:"required,oneof=topic post sticker"`
 	Id         uint64 `json:"id" validate:"required"`
 	Approve    bool   `json:"approve"`
 }
 
 // ReviewAction 审核通过（ProcessStatus=0）或拒绝（ProcessStatus=1）。
 func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Response {
+	if req.Params.Kind == "sticker" {
+		err := stickerservice.ReviewPersonalSticker(requestContext(req.GinContext), req.Params.Id, req.Params.Approve, req.UserId)
+		switch {
+		case errors.Is(err, stickerservice.ErrNotFound):
+			return component.FailResponseCode(component.MessageAdminReviewNotFound, nil)
+		case errors.Is(err, stickerservice.ErrReviewProcessed):
+			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+		case err != nil:
+			return component.FailResponseCode(component.MessageAdminReviewFailed, nil)
+		}
+		optlogger.UserOptCode(req.UserId, optlogger.ReviewSticker, req.Params.Id, "admin.opt.review.sticker", optlogger.MessageParams{"approve": req.Params.Approve})
+		return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
+	}
 	return reviewContent(requestContext(req.GinContext), req.Params, req.UserId, false)
 }
 

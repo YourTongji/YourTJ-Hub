@@ -1,3 +1,4 @@
+import 'user_decoration.dart';
 import 'package:core/core.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -343,7 +344,13 @@ class AccountAvatar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final layout = ref.watch(accountLayoutProvider);
     final viewer = layout.isLoading ? null : layout.asData?.value.viewer;
-    return GfAvatar(src: resolveApiAssetUrl(viewer?.avatarUrl ?? ''), size: 30);
+    return GfAvatar(
+      frameColors: decorationColors(context, viewer?.decoration?.avatarFrame),
+      frameAssetUrl: decorationFrameAssetUrl(viewer?.decoration?.avatarFrame),
+      frameScale: viewer?.decoration?.avatarFrame?.assetScale ?? 1.25,
+      src: resolveApiAssetUrl(viewer?.avatarUrl ?? ''),
+      size: 30,
+    );
   }
 }
 
@@ -424,6 +431,20 @@ class AccountDrawer extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(30),
                     onTap: () => open(signedIn ? '/profile' : '/login'),
                     child: GfAvatar(
+                      frameColors: decorationColors(
+                        context,
+                        user?.decoration?.avatarFrame ??
+                            viewer?.decoration?.avatarFrame,
+                      ),
+                      frameAssetUrl: decorationFrameAssetUrl(
+                        user?.decoration?.avatarFrame ??
+                            viewer?.decoration?.avatarFrame,
+                      ),
+                      frameScale:
+                          (user?.decoration?.avatarFrame ??
+                                  viewer?.decoration?.avatarFrame)
+                              ?.assetScale ??
+                          1.25,
                       src: resolveApiAssetUrl(
                         user?.avatarUrl ?? viewer?.avatarUrl ?? '',
                       ),
@@ -431,12 +452,17 @@ class AccountDrawer extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text(
+                  GfDecoratedName(
                     signedIn
                         ? (user?.nickname.isNotEmpty == true
                               ? user!.nickname
                               : viewer!.username)
                         : 'YourTJ',
+                    colors: decorationColors(
+                      context,
+                      user?.decoration?.nicknameStyle ??
+                          viewer?.decoration?.nicknameStyle,
+                    ),
                     style: type.title2.copyWith(fontSize: 20),
                   ),
                   if (signedIn)

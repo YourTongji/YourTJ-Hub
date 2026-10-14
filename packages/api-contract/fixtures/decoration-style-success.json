@@ -1,0 +1,20 @@
+{
+  "code": 0,
+  "result": {
+    "code": "frame-lantern",
+    "name": "Lantern frame",
+    "kind": "avatarFrame",
+    "lightColors": [
+      "#166534",
+      "#0D9488"
+    ],
+    "darkColors": [
+      "#86EFAC",
+      "#2DD4BF"
+    ],
+    "isEnabled": true,
+    "sortOrder": 10,
+    "assetUrl": "/static/decorations/frame-lantern.png",
+    "assetScale": 1.25
+  }
+}

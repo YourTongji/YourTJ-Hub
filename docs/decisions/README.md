@@ -6,7 +6,7 @@ Every durable choice with meaningful alternatives — architecture or process �
 
 The format is **MADR (Markdown Any Decision Records)** with a documented `Class:` extension. Names and structure follow the industry standard so existing MADR tooling keeps working; the extension is ignored by tools that do not know it.
 
-A decision record is a file named `NNNN-title.md` (4-digit zero-padded number, `-`, kebab-case title) directly inside this directory. Numbers are assigned sequentially; the number is the record's identity and never changes.
+A decision record is a file named `NNNN-title.md` (4-digit zero-padded number, `-`, kebab-case title) directly inside this directory. Numbers are assigned as unique identifiers; gaps are allowed so multiple open PRs can reserve numbers independently. Once assigned, a number is the record's identity and never changes. Do not renumber existing records to close gaps.
 
 ### Required sections
 
@@ -32,7 +32,9 @@ The first non-empty line under `## Status` is the status value. Valid values:
 - `Deprecated` — no longer recommended; superseded by a linked record.
 - `Superseded by [NNNN](NNNN-title.md)` — replaced by a newer record; the target must exist.
 
-A record whose status is `Accepted`, `Deprecated`, or `Superseded by …` describes current or frozen reality. It is never rewritten into a different decision: to change a decision, add a new record and mark the old one `Superseded by NNNN`. Both records stay, cross-linked.
+New supersession statuses use the linked form. The verifier also accepts the exact legacy form `Superseded by NNNN` while its numbered target exists; other free-form or mismatched references are invalid.
+
+A record whose status is `Accepted`, `Deprecated`, or `Superseded by …` describes current or frozen reality. It is never rewritten into a different decision: to change a decision, add a new record and mark the old one `Superseded by [NNNN](NNNN-title.md)`. Both records stay, cross-linked.
 
 ### Class line (extension)
 
@@ -51,7 +53,7 @@ A missing `Class:` line is valid (it is an extension); an invalid value is a vio
 
 ## Lifecycle
 
-A decision starts `Proposed`. Once implemented, its status becomes `Accepted` and the record is kept current with what actually shipped (facts only — names, paths, structure — not the decision itself). A declined proposal is `Rejected`; delete a rejected record only when its rationale no longer prevents a plausible mistake. An obsolete accepted decision becomes `Superseded by NNNN` or `Deprecated`; never edit it into its opposite.
+A decision starts `Proposed`. Once implemented, its status becomes `Accepted` and the record is kept current with what actually shipped (facts only — names, paths, structure — not the decision itself). A declined proposal is `Rejected`; delete a rejected record only when its rationale no longer prevents a plausible mistake. An obsolete accepted decision becomes `Superseded by [NNNN](NNNN-title.md)` or `Deprecated`; never edit it into its opposite.
 
 ## Writing rules
 
@@ -61,9 +63,16 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - Cross-reference records with relative Markdown links (`[0001](0001-title.md)`), never bare numbers.
 - Document current reality, not change history. Put change stories in commits; the decision record states the live contract.
 
+## Reserving numbers in parallel PRs
+
+- Before creating a MADR, check `dev` and open PRs for existing or reserved numbers. Reserve a distinct unused four-digit number in your PR or linked Issue (for example, `MADR 0084 reserved for #1171`) so other contributors can coordinate. A reservation is a coordination convention, not a committed placeholder record.
+- A reserved number may be absent from `dev` until its PR merges; other decisions can merge first. Do not create empty placeholder MADRs or renumber another contributor's record to fill a gap.
+- Keep the index entries in numeric order, even across gaps. A reservation becomes active when first published in a PR or linked Issue. If concurrent PRs claim the same number, the earliest published claim keeps it; other PRs must choose another unused number and update their filenames, index entries, and links before merging. If the order is unclear, maintainers resolve the collision before any affected PR merges. Reservations in unmerged branches are not automatically enforced by the verifier.
+- If a proposed decision is abandoned, its reservation may be released explicitly in the Issue/PR; leaving a gap is valid.
+
 ## Verifier
 
-`scripts/verify-decisions.mjs` enforces: file naming, unique sequential numbering, required sections, valid status values, valid `Class:` values when present, and `Superseded by NNNN` targets that exist. It exits non-zero on any violation. `scripts/run-gates.mjs` selects it from the manifest.
+`scripts/verify-decisions.mjs` enforces: file naming, unique numbering (gaps permitted for reserved or unmerged records), required sections, valid status values, valid `Class:` values when present, and `Superseded by` references whose targets exist. It exits non-zero on any violation. `scripts/run-gates.mjs` selects it from the manifest.
 
 ## Index
 
@@ -167,5 +176,10 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0076](0076-anonymous-profile-content-privacy.md) — 匿名主页独立的服务端内容展示偏好；关闭时隐藏聚合历史与数量。
 - [0077](0077-scoped-software-and-data-licenses.md) — YourTJ 软件使用 GPL-3.0-only，上游 GooseForum 保留 MIT，Wiki 与课评数据使用 CC BY-NC-SA 4.0。
 - [0078](0078-for-you-viewport-seen-and-browsing-sessions.md) — 可视卡片已见的30天聚合、同步确认和For You历史会话恢复，保持有限候选与统计边界。
-- [0079](0079-feed-block-exclusion.md) — 公开列表与推荐统一的双向屏蔽排除；带屏蔽关系读者绕过共享列表缓存，搜索与回复楼层为文档边界。
-- [0080](0080-profile-section-privacy.md) — 个人主页分区可见范围由服务端执行；只控制主页聚合，不引入私密账号。
+- [0079](0079-feed-block-exclusion.md) — 公开列表与推荐统一的双向屏蔽排除；带屏蔽关系读者绕过共享列表缓存，关系检查按读者短 TTL 缓存并由写路径失效，搜索与回复楼层为文档边界。
+- [0080](0080-personal-sticker-pre-review.md) — 个人上传表情先审核后使用，AI 未决结果进入站点管理员专属队列。
+- [0081](0081-mobile-editor-caret-follow-and-image-height-cap.md) — 移动端编辑器由跟随器按光标行驱动外层滚动，正文图片铺满宽度并把高度限制在 0.6 倍视口高。
+
+- [0082](0082-hub-decoration-entitlement-ownership.md) — Hub 唯一持有装饰权益与装备，商城通过所有者接口联动，首版仅管理员授予。
+- [0086](0086-unique-decision-numbers-with-gaps.md) — 编号是唯一标识、允许空号：并行 PR 各自预留编号，verifier 只拒绝重复编号。
+- [0088](0088-profile-section-privacy.md) — 个人主页分区可见范围由服务端执行；只控制主页聚合，不引入私密账号。

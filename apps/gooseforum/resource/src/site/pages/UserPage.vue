@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UserNickname from '@/site/components/UserNickname.vue'
 import ProfileHeader from '@/site/components/ProfileHeader.vue'
 import ProfileManageButton from '@/site/components/ProfileManageButton.vue'
 import ProfileTabs from '@/site/components/ProfileTabs.vue'
@@ -378,7 +379,7 @@ function safeProfileUrl(value?: string) {
             class="flex min-w-0 items-center gap-3 rounded-md border border-line bg-base-100 px-3 py-3 text-base font-semibold text-base-content hover:border-primary/30 hover:bg-info/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           >
             <ArrowLeft class="h-4 w-4 shrink-0 text-base-content/55" aria-hidden="true" />
-            <span class="min-w-0 break-words">{{ displayName }}</span>
+            <span class="min-w-0 break-words"><UserNickname :style-definition="page.props.user.decoration?.nicknameStyle">{{ displayName }}</UserNickname></span>
           </a>
         </div>
         <nav class="grid grid-cols-2 border-b border-line" :aria-label="t('user.connectionsLabel')">
@@ -407,9 +408,9 @@ function safeProfileUrl(value?: string) {
               class="flex min-w-0 flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between"
             >
               <a :href="connection.url" class="flex min-w-0 flex-1 gap-3">
-                <UserAvatar :src="connection.avatarUrl" :alt="connection.username" class="h-12 w-12 shrink-0 rounded-full object-cover" />
+                <UserAvatar :frame="connection.decoration?.avatarFrame" :src="connection.avatarUrl" :alt="connection.username" class="h-12 w-12 shrink-0 rounded-full object-cover" />
                 <span class="min-w-0 break-words">
-                  <span class="block break-words text-sm font-semibold text-base-content">{{ userDisplayName(connection.id, connection.username, connection.nickname) }}</span>
+                  <span class="block break-words text-sm font-semibold text-base-content"><UserNickname :style-definition="connection.decoration?.nicknameStyle">{{ userDisplayName(connection.id, connection.username, connection.nickname) }}</UserNickname></span>
                   <span class="mt-0.5 block break-words text-xs text-base-content/55">@{{ connection.username }}</span>
                   <span class="mt-1 block whitespace-pre-wrap break-words text-sm leading-5 text-base-content/65">{{ connection.bio || t('user.noBio') }}</span>
                 </span>
@@ -446,11 +447,12 @@ function safeProfileUrl(value?: string) {
           :avatar-url="page.props.user.avatarUrl"
           :avatar-alt="page.props.user.username"
           :badge="page.props.user.wornBadge"
+          :frame="page.props.user.decoration?.avatarFrame"
           :cover-url="coverUrl"
         >
           <template #identity>
             <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-y-2">
-              <h1 class="truncate text-xl font-bold leading-tight tracking-tight text-base-content sm:text-2xl">{{ displayName }}</h1>
+              <h1 class="truncate text-xl font-bold leading-tight tracking-tight text-base-content sm:text-2xl"><UserNickname :style-definition="page.props.user.decoration?.nicknameStyle">{{ displayName }}</UserNickname></h1>
               <PrivateNoteEditor v-if="!page.props.user.isAccountClosed" :user-id="page.props.user.userId" :username="page.props.user.username" />
               <span v-if="page.props.user.isAdmin" class="gf-badge gf-badge-warning rounded text-[11px]">Admin</span>
               <span v-if="page.props.user.isOnline" class="gf-badge gf-badge-success rounded text-[11px]">
@@ -538,7 +540,7 @@ function safeProfileUrl(value?: string) {
                   :aria-label="page.props.user.websiteName || page.props.user.website"
                 >
                   <Bird class="h-5 w-5" />
-                  <span class="gf-tooltip pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 max-w-40 -translate-x-1/2 truncate opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                  <span class="gf-tooltip pointer-events-none absolute bottom-full left-0 z-10 mb-2 w-max max-w-[min(24rem,calc(100vw-3rem))] break-all whitespace-normal text-left opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 sm:left-auto sm:right-0">
                     {{ page.props.user.websiteName || page.props.user.website }}
                   </span>
                 </a>
@@ -801,9 +803,9 @@ function safeProfileUrl(value?: string) {
               :href="item.url"
               class="flex min-w-0 gap-3 rounded-md border border-line p-3 hover:border-primary/20 hover:bg-info/10"
             >
-              <UserAvatar :src="item.avatarUrl" :alt="item.username" class="h-10 w-10 shrink-0 rounded-full object-cover" />
+              <UserAvatar :frame="item.decoration?.avatarFrame" :src="item.avatarUrl" :alt="item.username" class="h-10 w-10 shrink-0 rounded-full object-cover" />
               <span class="min-w-0 break-words">
-                <span class="block break-words text-sm font-semibold text-base-content">{{ userDisplayName(item.id, item.username, item.nickname) }}</span>
+                <span class="block break-words text-sm font-semibold text-base-content"><UserNickname :style-definition="item.decoration?.nicknameStyle">{{ userDisplayName(item.id, item.username, item.nickname) }}</UserNickname></span>
                 <span class="block break-words text-xs text-base-content/55">@{{ item.username }}</span>
                 <span class="mt-1 block whitespace-pre-wrap break-words text-xs text-base-content/55">{{ item.bio || t('user.noBio') }}</span>
               </span>

@@ -7,6 +7,8 @@
 /// [onSelect] 由宿主写入编辑器，面板不自持业务状态。
 library;
 
+import '../../widgets/user_decoration.dart';
+
 import '../../private_notes.dart';
 
 import 'dart:ui';
@@ -239,15 +241,30 @@ class _MentionCandidateRow extends StatelessWidget {
                 : Colors.transparent,
             child: Row(
               children: [
-                GfAvatar(src: user.avatarUrl, size: 30),
+                GfAvatar(
+                  frameColors: decorationColors(
+                    context,
+                    user.decoration?.avatarFrame,
+                  ),
+                  frameAssetUrl: decorationFrameAssetUrl(
+                    user.decoration?.avatarFrame,
+                  ),
+                  frameScale: user.decoration?.avatarFrame?.assetScale ?? 1.25,
+                  src: user.avatarUrl,
+                  size: 30,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
+                  child: GfDecoratedName(
                     privateDisplayName(
                       context,
                       user.id,
                       user.username,
                       user.nickname,
+                    ),
+                    colors: decorationColors(
+                      context,
+                      user.decoration?.nicknameStyle,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

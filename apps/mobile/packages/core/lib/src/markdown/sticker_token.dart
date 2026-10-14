@@ -176,12 +176,13 @@ List<StickerMessageSegment> parseStickerSegments(
   return segments;
 }
 
-/// 会话列表预览用可读标签：token 缩写为 `[name]`（预览层不区分启停，
-/// 对齐 web stickerPreviewLabel）。
-String stickerPreviewLabel(String content) {
+/// 会话列表预览/回复引用用可读标签。传入 `stickerLabel` 时所有 token
+/// 统一替换为该本地化占位（不暴露随机 token 名，issue #1071）；缺省回退
+/// 为 `[name]`（旧行为兼容，目前仅测试覆盖）。面向用户的预览与引用必须传 label。
+String stickerPreviewLabel(String content, {String? stickerLabel}) {
   if (!containsStickerToken(content)) return content;
   return content.replaceAllMapped(
     stickerTokenPattern,
-    (Match match) => '[${match.group(1)}]',
+    (Match match) => '[${stickerLabel ?? match.group(1)}]',
   );
 }

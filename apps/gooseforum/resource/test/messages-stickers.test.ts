@@ -92,5 +92,5 @@ it.each(['en', 'zh'] as const)('会话列表显示昵称与本地化转发摘要
   await flushPromises()
   expect(wrapper.text()).toContain('鲍勃')
   const label = `[${i18n.global.t('messages.forwardHistory')}]`
-  expect(wrapper.text()).toContain(`${label} Forwarder: ${label} Bob: [smile]`)
+  expect(wrapper.text()).toContain(`${label} Forwarder: ${label} Bob: [${i18n.global.t('stickers.previewAnimation')}]`)
 })

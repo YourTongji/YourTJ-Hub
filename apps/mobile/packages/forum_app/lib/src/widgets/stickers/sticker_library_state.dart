@@ -51,7 +51,7 @@ class StickerCollection extends ChangeNotifier {
       if (!_active) return;
       official = items;
       final enabledNames = items
-          .where((item) => item.isEnabled)
+          .where((item) => item.isAvailable)
           .map((item) => item.name)
           .toSet();
       recent.removeWhere(
@@ -83,7 +83,7 @@ class StickerCollection extends ChangeNotifier {
       mine = items;
       library.remember(items);
       final disabled = items
-          .where((item) => !item.isEnabled)
+          .where((item) => !item.isAvailable)
           .map((item) => item.name)
           .toSet();
       recent.removeWhere((item) => disabled.contains(item.name));
@@ -100,7 +100,7 @@ class StickerCollection extends ChangeNotifier {
   }
 
   void used(StickerItemPayload item) {
-    if (!_active) return;
+    if (!_active || !item.isAvailable) return;
     recent.removeWhere((e) => e.name == item.name);
     recent.insert(0, item);
     if (recent.length > 30) recent.removeLast();

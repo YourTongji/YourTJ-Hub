@@ -66,6 +66,10 @@ void main() {
 
     test('expands sticker tokens to their readable preview label', () {
       expect(chatReplyExcerpt('[:sticker:smile:] 早'), '[smile] 早');
+      expect(
+        chatReplyExcerpt('[:sticker:u_92f1a:]', stickerLabel: '动画表情'),
+        '[动画表情]',
+      );
     });
 
     test('a non-positive bound yields an empty excerpt', () {
@@ -111,6 +115,21 @@ void main() {
       expect(header, endsWith('…'));
     });
 
+    test(
+      'bakes a language-neutral sticker marker instead of the token name',
+      () {
+        expect(
+          composeChatReply(
+            sender: '@bob',
+            content: '[:sticker:u_92f1a:] 早',
+            body: '收到',
+          ),
+          '> @bob: [Sticker] 早\n\n收到',
+        );
+        expect(chatStickerReplyMarker, '[Sticker]');
+      },
+    );
+
     test('keeps multi-line reply bodies intact', () {
       expect(
         composeChatReply(sender: '@bob', content: 'hi', body: 'a\nb'),
@@ -133,5 +152,22 @@ void main() {
         expect(target.compose('收到'), '> @bob: 你好 世界\n\n收到');
       },
     );
+
+    test('bakes the sticker wire marker for sticker content', () {
+      final target = ChatReplyTarget(
+        messageId: 8,
+        sender: '@bob',
+        content: '[:sticker:u_92f1a:]',
+      );
+      expect(target.excerpt, chatStickerReplyMarker);
+      expect(
+        localizedChatReplyExcerpt(
+          target.excerpt,
+          imageLabel: '图片',
+          stickerLabel: '动画表情',
+        ),
+        '[动画表情]',
+      );
+    });
   });
 }

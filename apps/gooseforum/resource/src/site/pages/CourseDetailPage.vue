@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import UserAvatar from '@/site/components/UserAvatar.vue'
+import UserNickname from '@/site/components/UserNickname.vue'
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeft, BookOpen, Building2, CalendarDays, Check, Download, FileText, Flag, GraduationCap, Hash, Loader2, MessageSquareText, Pencil, Share2, Star, ThumbsDown, ThumbsUp, Trash2, UsersRound, X } from '@lucide/vue'
@@ -1138,14 +1140,14 @@ onBeforeUnmount(() => {
           <!-- 头部：左头像 + 作者/开课班信息；右侧星级（对齐 serverless 评论卡） -->
           <div class="flex items-start justify-between gap-3">
             <div class="flex min-w-0 items-center gap-2.5">
-              <img
+              <UserAvatar :frame="review.author.decoration?.avatarFrame"
                 :src="reviewAvatar(review, 36)"
                 :alt="authorLabel(review.author)"
                 class="h-9 w-9 shrink-0 rounded-full object-cover"
                 loading="lazy"
               />
               <div class="min-w-0">
-                <p class="truncate text-[13px] font-medium leading-5 text-base-content">{{ authorLabel(review.author) }}</p>
+                <p class="truncate text-[13px] font-medium leading-5 text-base-content"><UserNickname :style-definition="review.author.decoration?.nicknameStyle">{{ authorLabel(review.author) }}</UserNickname></p>
                 <p class="truncate text-[11px] leading-4 text-base-content/45">
                   {{ offeringLabel(review.offeringId) }} · {{ reviewDateLabel(review) }}
                 </p>
@@ -1595,9 +1597,9 @@ onBeforeUnmount(() => {
 
                 <div class="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div class="flex min-w-0 items-center gap-3">
-                    <img :src="sharePreview.avatarUrl" :alt="authorLabel(sharePreview.review.author)" class="h-12 w-12 rounded-2xl object-cover ring-1 ring-slate-100 sm:h-14 sm:w-14" />
+                    <UserAvatar :frame="sharePreview.review.author.decoration?.avatarFrame" :src="sharePreview.avatarUrl" :alt="authorLabel(sharePreview.review.author)" class="h-12 w-12 rounded-2xl object-cover ring-1 ring-slate-100 sm:h-14 sm:w-14" />
                     <div class="min-w-0">
-                      <div class="truncate text-base font-black text-slate-900 sm:text-lg">{{ authorLabel(sharePreview.review.author) }}</div>
+                      <div class="truncate text-base font-black text-slate-900 sm:text-lg"><UserNickname :style-definition="sharePreview.review.author.decoration?.nicknameStyle">{{ authorLabel(sharePreview.review.author) }}</UserNickname></div>
                       <div class="mt-1 text-xs font-semibold text-slate-400">{{ offeringLabel(sharePreview.review.offeringId) }} · {{ reviewDateLabel(sharePreview.review) }}</div>
                     </div>
                   </div>
@@ -1662,9 +1664,9 @@ onBeforeUnmount(() => {
 
             <div class="mt-5 flex items-center justify-between gap-4">
               <div class="flex min-w-0 items-center gap-3">
-                <img :src="sharePreview.avatarUrl" :alt="authorLabel(sharePreview.review.author)" class="h-14 w-14 rounded-2xl object-cover ring-1 ring-slate-100" />
+                <UserAvatar :frame="sharePreview.review.author.decoration?.avatarFrame" :src="sharePreview.avatarUrl" :alt="authorLabel(sharePreview.review.author)" class="h-14 w-14 rounded-2xl object-cover ring-1 ring-slate-100" />
                 <div class="min-w-0">
-                  <div class="truncate text-lg font-black text-slate-900">{{ authorLabel(sharePreview.review.author) }}</div>
+                  <div class="truncate text-lg font-black text-slate-900"><UserNickname :style-definition="sharePreview.review.author.decoration?.nicknameStyle">{{ authorLabel(sharePreview.review.author) }}</UserNickname></div>
                   <div class="mt-1 text-xs font-semibold text-slate-400">{{ offeringLabel(sharePreview.review.offeringId) }} · {{ reviewDateLabel(sharePreview.review) }}</div>
                 </div>
               </div>
