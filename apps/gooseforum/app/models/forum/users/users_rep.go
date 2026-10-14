@@ -186,6 +186,10 @@ func CloseAccountTx(tx *gorm.DB, userID uint64) error {
 	if err := tx.Where("owner_id = ? OR target_user_id = ?", userID, userID).Delete(&PrivateNoteEntity{}).Error; err != nil {
 		return err
 	}
+	// A closed profile is gone for every viewer, so its audiences are inert.
+	if err := tx.Where("user_id = ?", userID).Delete(&PrivacySettingsEntity{}).Error; err != nil {
+		return err
+	}
 	return tx.Where("owner_id = ? OR target_user_id = ?", userID, userID).Delete(&BlockEntity{}).Error
 }
 

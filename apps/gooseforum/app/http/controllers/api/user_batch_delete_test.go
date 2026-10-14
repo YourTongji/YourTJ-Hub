@@ -27,7 +27,7 @@ func setupBatchDeleteTestDB(t *testing.T) *gorm.DB {
 	conn := dbconnect.Connect()
 	if err := conn.AutoMigrate(
 		&users.EntityComplete{}, &userOAuth.Entity{},
-		&users.PrivateNoteEntity{}, &users.BlockEntity{},
+		&users.PrivateNoteEntity{}, &users.BlockEntity{}, &users.PrivacySettingsEntity{},
 		&topics.Entity{},
 		&posts.Entity{},
 		&optRecord.Entity{},

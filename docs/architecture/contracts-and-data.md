@@ -540,6 +540,8 @@ update and upsert only the supplied columns in one transaction, so two first sav
 sections both persist; the response is re-read from storage. `profileprivacyservice` evaluates the viewer once per
 profile request (follow state in one query, blocks fail closed) before section queries, and the
 timeline query filters `action IN (...)` so hidden actions cannot surface through rows or cursors.
+Account closure deletes the row in the same transaction as private notes and blocks. Anonymous
+profiles never read it, so a persona's page cannot echo its owner's audiences.
 See [0088](../decisions/0088-profile-section-privacy.md).
 
 ## Private user-name overlays

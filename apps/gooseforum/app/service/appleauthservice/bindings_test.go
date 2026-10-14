@@ -95,7 +95,7 @@ func TestAppleRevocationAndAccountClosureAreRetryable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.PrivateNoteEntity{}, &users.BlockEntity{}, &userOAuth.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.PrivateNoteEntity{}, &users.BlockEntity{}, &users.PrivacySettingsEntity{}, &userOAuth.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := conn.Create(&users.EntityComplete{Id: 82001, Username: "apple-revoke-owner"}).Error; err != nil {
