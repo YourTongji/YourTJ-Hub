@@ -23,4 +23,5 @@ jobs:
         with:
           node-version: 24
       - run: node --test scripts/test-doc-links.mjs
+      - run: node --test scripts/test-verify-decisions.mjs
       - run: node scripts/run-gates.mjs
