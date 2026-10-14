@@ -2518,6 +2518,9 @@ mixin _$UserProfileProps {
   bool get canFollow => throw _privateConstructorUsedError;
   String get messageUrl => throw _privateConstructorUsedError;
   String get settingsUrl => throw _privateConstructorUsedError;
+
+  /// issue #1124: server-resolved section visibility. Servers without
+  /// profile privacy omit it, and every section is then public.
   UserProfileVisibilityPayload get visibility =>
       throw _privateConstructorUsedError;
 
@@ -3054,7 +3057,7 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     runtimeType,
     user,
     section,
@@ -3075,7 +3078,7 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
     messageUrl,
     settingsUrl,
     visibility,
-  );
+  ]);
 
   /// Create a copy of UserProfileProps
   /// with the given fields replaced by the non-null parameter values.
