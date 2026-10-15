@@ -28,6 +28,107 @@ class AuthRepository {
     );
   }
 
+  Future<PasskeyStatusPayload> getPasskeyStatus() =>
+      _client.get<PasskeyStatusPayload>(
+        '/api/auth/passkey/status',
+        parser: (json) =>
+            PasskeyStatusPayload.fromJson(json as Map<String, dynamic>),
+      );
+
+  Future<PasskeyBeginPayload> beginPasskeyLogin() =>
+      _client.post<PasskeyBeginPayload>(
+        '/api/auth/passkey/login/begin',
+        body: const <String, dynamic>{},
+        parser: (json) =>
+            PasskeyBeginPayload.fromJson(json as Map<String, dynamic>),
+      );
+
+  Future<void> finishPasskeyLogin({
+    required String ceremonyId,
+    required Map<String, dynamic> credential,
+  }) async {
+    await _client.post<Object?>(
+      '/api/auth/passkey/login/finish',
+      body: <String, dynamic>{'ceremonyId': ceremonyId, 'credential': credential},
+      parser: (_) => null,
+    );
+  }
+
+  Future<PasskeyReauthPayload> reauthenticatePasskeyManagement({
+    required String encryptedPassword,
+    String? totpCode,
+  }) => _client.post<PasskeyReauthPayload>(
+    '/api/user/passkeys/reauth',
+    body: <String, dynamic>{
+      'encryptedPassword': encryptedPassword,
+      if (totpCode != null && totpCode.isNotEmpty) 'totpCode': totpCode,
+    },
+    parser: (json) =>
+        PasskeyReauthPayload.fromJson(json as Map<String, dynamic>),
+  );
+
+  Future<PasskeyBeginPayload> beginPasskeyRegistration({
+    required String proof,
+  }) => _client.post<PasskeyBeginPayload>(
+    '/api/user/passkeys/registration/begin',
+    body: <String, dynamic>{'proof': proof},
+    parser: (json) =>
+        PasskeyBeginPayload.fromJson(json as Map<String, dynamic>),
+  );
+
+  Future<PasskeyCredentialSummary> finishPasskeyRegistration({
+    required String ceremonyId,
+    required String name,
+    required Map<String, dynamic> credential,
+  }) => _client.post<PasskeyCredentialSummary>(
+    '/api/user/passkeys/registration/finish',
+    body: <String, dynamic>{
+      'ceremonyId': ceremonyId,
+      'name': name,
+      'credential': credential,
+    },
+    parser: (json) => PasskeyCredentialSummary.fromJson(
+      json as Map<String, dynamic>,
+    ),
+  );
+
+  Future<List<PasskeyCredentialSummary>> listPasskeyCredentials() =>
+      _client.get<List<PasskeyCredentialSummary>>(
+        '/api/user/passkeys',
+        parser: (json) => (json as List<dynamic>)
+            .map((item) => PasskeyCredentialSummary.fromJson(
+                  item as Map<String, dynamic>,
+                ))
+            .toList(growable: false),
+      );
+
+  Future<void> renamePasskey({
+    required String proof,
+    required String credentialId,
+    required String name,
+  }) async {
+    await _client.post<Object?>(
+      '/api/user/passkeys/rename',
+      body: <String, dynamic>{
+        'proof': proof,
+        'credentialId': credentialId,
+        'name': name,
+      },
+      parser: (_) => null,
+    );
+  }
+
+  Future<void> revokePasskey({
+    required String proof,
+    required String credentialId,
+  }) async {
+    await _client.post<Object?>(
+      '/api/user/passkeys/revoke',
+      body: <String, dynamic>{'proof': proof, 'credentialId': credentialId},
+      parser: (_) => null,
+    );
+  }
+
   /// 登录。成功返回 twoFactorRequired;result 可能是字符串(普通成功)或
   /// `{twoFactorRequired, message}` 映射(TOTP 挑战)。
   Future<LoginResult> login({

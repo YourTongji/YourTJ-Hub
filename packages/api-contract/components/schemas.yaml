@@ -376,6 +376,216 @@ TotpDisableResponse:
     - $ref: '#/TotpDisableSuccess'
     - $ref: '#/ApiFailure'
 
+PasskeyStatusResult:
+  type: object
+  required: [enabled]
+  properties:
+    enabled:
+      type: boolean
+  additionalProperties: false
+
+PasskeyStatusResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              $ref: '#/PasskeyStatusResult'
+    - $ref: '#/ApiFailure'
+
+PasskeyWebAuthnOptions:
+  type: object
+  description: WebAuthn options serialized by the relying-party implementation.
+  additionalProperties: true
+
+PasskeyLoginBeginResult:
+  type: object
+  required: [ceremonyId, publicKey]
+  properties:
+    ceremonyId:
+      type: string
+      minLength: 32
+    publicKey:
+      $ref: '#/PasskeyWebAuthnOptions'
+  additionalProperties: false
+
+PasskeyLoginBeginResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              $ref: '#/PasskeyLoginBeginResult'
+    - $ref: '#/ApiFailure'
+
+PasskeyCredentialResponseObject:
+  type: object
+  description: WebAuthn public-key credential response; base64url encoded binary members.
+  additionalProperties: true
+
+PasskeyLoginFinishRequest:
+  type: object
+  required: [ceremonyId, credential]
+  properties:
+    ceremonyId:
+      type: string
+      minLength: 32
+    credential:
+      $ref: '#/PasskeyCredentialResponseObject'
+  additionalProperties: false
+
+PasskeyReauthRequest:
+  type: object
+  required: [encryptedPassword]
+  properties:
+    encryptedPassword:
+      type: string
+      minLength: 1
+      description: RSA-OAEP-256 encrypted password payload, matching POST /api/login.
+    totpCode:
+      type: string
+      description: Required only when TOTP is enabled.
+  additionalProperties: false
+
+PasskeyReauthResult:
+  type: object
+  required: [proof, expiresInSeconds]
+  properties:
+    proof:
+      type: string
+      minLength: 32
+    expiresInSeconds:
+      type: integer
+      const: 120
+  additionalProperties: false
+
+PasskeyReauthResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              $ref: '#/PasskeyReauthResult'
+    - $ref: '#/ApiFailure'
+
+PasskeyRegistrationBeginRequest:
+  type: object
+  required: [proof]
+  properties:
+    proof:
+      type: string
+      minLength: 32
+      description: One-use proof from POST /api/user/passkeys/reauth.
+  additionalProperties: false
+
+PasskeyRegistrationBeginResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              $ref: '#/PasskeyLoginBeginResult'
+    - $ref: '#/ApiFailure'
+
+PasskeyRegistrationFinishRequest:
+  type: object
+  required: [ceremonyId, credential]
+  properties:
+    ceremonyId:
+      type: string
+      minLength: 32
+    name:
+      type: string
+      maxLength: 80
+      description: Optional user-facing label; defaults to Passkey.
+    credential:
+      $ref: '#/PasskeyCredentialResponseObject'
+  additionalProperties: false
+
+PasskeyCredentialSummary:
+  type: object
+  required: [id, name, createdAt, backupEligible, backupState, transports]
+  properties:
+    id:
+      type: string
+      description: Base64url credential identifier, never a private key.
+    name:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+    lastUsedAt:
+      type: string
+      format: date-time
+    backupEligible:
+      type: boolean
+    backupState:
+      type: boolean
+    transports:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+PasskeyCredentialResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              $ref: '#/PasskeyCredentialSummary'
+    - $ref: '#/ApiFailure'
+
+PasskeyCredentialListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              type: array
+              items:
+                $ref: '#/PasskeyCredentialSummary'
+    - $ref: '#/ApiFailure'
+
+PasskeyCredentialRenameRequest:
+  type: object
+  required: [proof, credentialId, name]
+  properties:
+    proof:
+      type: string
+    credentialId:
+      type: string
+    name:
+      type: string
+      maxLength: 80
+  additionalProperties: false
+
+PasskeyCredentialRevokeRequest:
+  type: object
+  required: [proof, credentialId]
+  properties:
+    proof:
+      type: string
+    credentialId:
+      type: string
+  additionalProperties: false
+
+PasskeyEmptyResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              type: object
+    - $ref: '#/ApiFailure'
+
 AppleCredentialRequest:
   type: object
   required: [authorizationCode, identityToken, nonce]
@@ -4789,6 +4999,11 @@ UploadAvatarRequest:
   type: object
   required: [avatar]
   properties:
+    agentId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Optional managed Bot target; human creator or station admin remains uploader and pays quotas.
     avatar:
       type: string
       format: binary
@@ -6279,8 +6494,18 @@ AdminOperationResponse:
 
 AdminAgentItem:
   type: object
-  required: [agentId, username, nickname, avatarUrl, email, tokenPrefix, webhookEndpoint, enabled, createdBy, lastUsedAt, createdAt, updatedAt, configVersion, eventsEnabled, eventTypes, subscriptionGeneration, webhookEnabled, endpointGeneration, secretConfigured, secretVersion, latestAcceptedAt, pendingCount, pauseReason, summaryUnavailable]
+  required: [agentId, username, nickname, avatarUrl, profileCoverUrl, bio, signature, website, websiteName, email, tokenPrefix, webhookEndpoint, enabled, createdBy, lastUsedAt, createdAt, updatedAt, configVersion, eventsEnabled, eventTypes, subscriptionGeneration, webhookEnabled, endpointGeneration, secretConfigured, secretVersion, latestAcceptedAt, pendingCount, pauseReason, summaryUnavailable]
   properties:
+    profileCoverUrl:
+      type: string
+    bio:
+      type: string
+    signature:
+      type: string
+    website:
+      type: string
+    websiteName:
+      type: string
     configVersion:
       type: integer
       minimum: 0
@@ -6421,6 +6646,29 @@ AdminAgentUpdateRequest:
   type: object
   required: [agentId]
   properties:
+    avatarUrl:
+      type: string
+      description: Applied only when present; must be a built-in preset or ready image file owned by the human actor or target Bot.
+    profileCoverUrl:
+      type: string
+      maxLength: 512
+      description: Applied only when present; empty text clears the field.
+    bio:
+      type: string
+      maxLength: 500
+      description: Applied only when present; empty text clears the field.
+    signature:
+      type: string
+      maxLength: 255
+      description: Applied only when present; empty text clears the field.
+    website:
+      type: string
+      maxLength: 255
+      description: Applied only when present; empty text clears the field.
+    websiteName:
+      type: string
+      maxLength: 64
+      description: Applied only when present; empty text clears the field.
     agentId:
       type: integer
       format: uint64

@@ -171,6 +171,10 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 // browser-only guards (honeypot, captcha, new-user cooldown); every other
 // rule and side effect behaves identically for human and Agent writers.
 func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) component.Response {
+	return writeTopicWithMaintenance(req, agent, nil)
+}
+
+func writeTopicWithMaintenance(req component.BetterRequest[WriteTopicReq], agent bool, maintenance *botContentMaintenance) component.Response {
 	// 获取发布设置
 	postingConfig := hotdataserve.GetPostingSettingsConfigCache()
 
@@ -195,7 +199,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	}
 
 	// 新用户高频发帖触发验证码（浏览器专用，Agent 跳过）
-	if !agent {
+	if !agent && maintenance == nil {
 		rateLimitConfig := hotdataserve.GetRateLimitConfigCache()
 		if newUserCaptchaRequired(userEntity.CreatedAt, req.UserId, "topic.write", rateLimitConfig.NewUserCaptchaAfterPosts, rateLimitConfig.NewUserCaptchaDays) {
 			if ok, needCaptcha := checkCaptchaForRequest(req.GinContext, req.Params.CaptchaId, req.Params.CaptchaCode, true, rateLimitConfig.MinSubmitSeconds, "topic.write"); !ok {
@@ -271,7 +275,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	}
 
 	// 检查新用户冷却时间（浏览器专用，Agent 跳过）
-	if !agent && postingConfig.TextControl.NewUserPostCooldownMinutes > 0 {
+	if !agent && maintenance == nil && postingConfig.TextControl.NewUserPostCooldownMinutes > 0 {
 		cooldownTime := userEntity.CreatedAt.Add(time.Duration(postingConfig.TextControl.NewUserPostCooldownMinutes) * time.Minute)
 		if time.Now().Before(cooldownTime) {
 			minutes := postingConfig.TextControl.NewUserPostCooldownMinutes
@@ -401,7 +405,10 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			if err != nil {
 				return agentWriteFailure(err)
 			}
-		} else if err := publicationservice.Submit(betterRequestContext(req), &topic, &firstPost); err != nil {
+		} else if err := submitMaintainedContent(betterRequestContext(req), &topic, &firstPost, maintenance); err != nil {
+			if maintenance != nil {
+				return botContentFailure(err)
+			}
 			return component.FailResponseCode(component.MessageOperationFailed, nil)
 		}
 		hotdataserve.InvalidateTopicListCacheForCategories(append(oldCategoryIds, topic.CategoryIds...)...)
@@ -441,6 +448,11 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	// 单事务原子提交：话题 + 首帖 + 指针（首/末帖 ID、最后回复时间）+ 分类索引。
 	// 任一步失败整体回滚，不留孤立话题/缺首帖/缺分类索引；事件与缓存失效仅在提交后执行。
 	err = db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
+		if maintenance != nil {
+			if err := maintenance.CheckTx(tx); err != nil {
+				return err
+			}
+		}
 		if agent {
 			var reserveErr error
 			reservation, replay, reserveErr = agentwriteservice.BeginTx(betterRequestContext(req), tx, req.UserId)
@@ -467,7 +479,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 
 			// 首楼编辑追加版本历史 + 最后编辑者/时间（与 UpdatePost 同语义）。
 			// 存量帖子无版本快照时用旧正文惰性播种 v1（状态取编辑前 oldProcessStatus）。
-			if err := postservice.AppendPostRevisionWithOld(tx, &firstPost, req.UserId, firstPost.ProcessStatus, oldContent, oldProcessStatus); err != nil {
+			if err := postservice.AppendPostRevisionWithOld(tx, &firstPost, maintenanceEditor(req.UserId, maintenance), firstPost.ProcessStatus, oldContent, oldProcessStatus); err != nil {
 				return err
 			}
 			// 只更新话题编辑者可写的字段（标题/分类/上下架/摘要/首图等），
@@ -518,7 +530,11 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			}
 		}
 		if !agent {
-			if err := agenteventservice.CapturePublicTx(tx, &firstPost); err != nil {
+			var plan *agenteventservice.WriteCapturePlan
+			if maintenance != nil {
+				plan = maintenance.Capture
+			}
+			if err := agenteventservice.CapturePublicTx(tx, &firstPost, plan); err != nil {
 				return err
 			}
 		}
@@ -527,6 +543,9 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		}
 		if err := searchservice.EnqueueTopicSearchTask(tx, topic.Id); err != nil {
 			return err
+		}
+		if maintenance != nil {
+			return maintenance.AuditTx(tx)
 		}
 		if agent {
 			return agentwriteservice.FinishTx(betterRequestContext(req), tx, req.UserId, reservation, topic.Id, firstPost.Id)
@@ -537,6 +556,9 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		return agentReplayResponse(req.UserId, replay)
 	}
 	if err != nil {
+		if maintenance != nil {
+			return botContentFailure(err)
+		}
 		if agent {
 			return agentWriteFailure(err)
 		}
@@ -952,6 +974,10 @@ type UpdatePostReq struct {
 // 搜索索引；所有内容编辑在同一事务内追加版本历史（post_revisions，
 // 用户只读查看）并更新最后编辑者/时间。
 func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
+	return updatePostWithMaintenance(req, nil)
+}
+
+func updatePostWithMaintenance(req component.BetterRequest[UpdatePostReq], maintenance *botContentMaintenance) component.Response {
 	postingConfig := hotdataserve.GetPostingSettingsConfigCache()
 	postEntity := posts.Get(req.Params.PostId)
 	if postEntity.PersonaUID != "" {
@@ -1062,10 +1088,13 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	}
 
 	if pendingReview {
-		if err := publicationservice.Submit(betterRequestContext(req), &topicEntity, &postEntity); err != nil {
+		if err := submitMaintainedContent(betterRequestContext(req), &topicEntity, &postEntity, maintenance); err != nil {
+			if maintenance != nil {
+				return botContentFailure(err)
+			}
 			return component.FailResponseCode(component.MessagePostUpdateFailed, nil)
 		}
-		return publishSuccess(map[string]any{"id": postEntity.Id, "postNo": postEntity.PostNo, "content": content, "renderedContent": postEntity.RenderedHTML, "updatedAt": time.Now().Format(time.RFC3339), "lastEditorId": req.UserId, "lastEditedAt": postEntity.LastEditedAt.Format(time.RFC3339), "revisionCount": postRevisions.CountByPostIds([]uint64{postEntity.Id})[postEntity.Id]}, true)
+		return publishSuccess(map[string]any{"id": postEntity.Id, "postNo": postEntity.PostNo, "content": content, "renderedContent": postEntity.RenderedHTML, "updatedAt": time.Now().Format(time.RFC3339), "lastEditorId": maintenanceEditor(req.UserId, maintenance), "lastEditedAt": postEntity.LastEditedAt.Format(time.RFC3339), "revisionCount": postRevisions.CountByPostIds([]uint64{postEntity.Id})[postEntity.Id]}, true)
 	}
 	postEntity.ProcessStatus = posts.ProcessStatusNormal
 	if isFirstPost {
@@ -1074,6 +1103,11 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 
 	now := time.Now()
 	if err := db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
+		if maintenance != nil {
+			if err := maintenance.CheckTx(tx); err != nil {
+				return err
+			}
+		}
 		if err := postservice.LockPersonaContentTx(tx, &postEntity); err != nil {
 			return err
 		}
@@ -1090,7 +1124,7 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 			}
 		}
 		// 版本历史与帖子更新同事务：追加失败则整体回滚，不留无版本的编辑。
-		if err := postservice.AppendPostRevisionWithOld(tx, &postEntity, req.UserId, postEntity.ProcessStatus, oldContent, oldProcessStatus); err != nil {
+		if err := postservice.AppendPostRevisionWithOld(tx, &postEntity, maintenanceEditor(req.UserId, maintenance), postEntity.ProcessStatus, oldContent, oldProcessStatus); err != nil {
 			return err
 		}
 		if isFirstPost {
@@ -1105,14 +1139,27 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 				return err
 			}
 		}
-		return agenteventservice.CapturePublicTx(tx, &postEntity)
+		var plan *agenteventservice.WriteCapturePlan
+		if maintenance != nil {
+			plan = maintenance.Capture
+		}
+		if err := agenteventservice.CapturePublicTx(tx, &postEntity, plan); err != nil {
+			return err
+		}
+		if maintenance != nil {
+			return maintenance.AuditTx(tx)
+		}
+		return nil
 	}); err != nil {
+		if maintenance != nil {
+			return botContentFailure(err)
+		}
 		return component.FailResponseCode(
 			component.MessagePostUpdateFailed,
 
 			component.MessageParams{"error": err.Error()})
 	}
-	postEntity.LastEditorId = req.UserId
+	postEntity.LastEditorId = maintenanceEditor(req.UserId, maintenance)
 	postEntity.LastEditedAt = &now
 
 	fileusageservice.RegisterPostInlineImagesOwned(postEntity.Id, req.UserId, postEntity.Content,

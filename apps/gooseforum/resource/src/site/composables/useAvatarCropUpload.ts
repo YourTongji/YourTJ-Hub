@@ -4,6 +4,7 @@ import { i18n } from '@/runtime/i18n'
 import { canvasToImageFile, validateImageFile } from '@/runtime/image'
 
 interface AvatarCropUploadOptions {
+  agentId?: number
   initialAvatarUrl: string
   onStatus: (message: string) => void
   onError: (message: string) => void
@@ -90,7 +91,7 @@ export function useAvatarCropUpload(options: AvatarCropUploadOptions) {
       thumbContext.drawImage(canvas, 0, 0, 96, 96)
       const avatar96 = await canvasToImageFile(thumbCanvas, 'avatar_medium.webp', undefined, 0.9)
 
-      const url = await uploadAvatar([avatar300, avatar96])
+      const url = await uploadAvatar([avatar300, avatar96], options.agentId)
       avatarUrl.value = url
       return url
     } catch (err) {

@@ -59,6 +59,7 @@ abstract class ViewerPayload with _$ViewerPayload {
     required String avatarUrl,
     required bool isAuthenticated,
     required bool canAccessAdmin,
+    @Default(false) bool canManageAgents,
     required bool isModerator,
     required bool requiresEmailVerification,
     List<int>? adminPermissions,

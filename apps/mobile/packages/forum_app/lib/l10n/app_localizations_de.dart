@@ -3976,4 +3976,83 @@ class AppLocalizationsDe extends AppLocalizations {
   String notificationWikiTopic(String topic) {
     return '„$topic“ wurde aktualisiert';
   }
+
+  @override
+  String get authPasskey => 'Mit Passkey anmelden';
+
+  @override
+  String get authPasskeyUnavailable =>
+      'Passkeys sind auf diesem Gerät nicht verfügbar.';
+
+  @override
+  String get authPasskeyFailed =>
+      'Passkey-Anmeldung fehlgeschlagen. Versuche es erneut oder melde dich mit deinem Passwort an.';
+
+  @override
+  String get authPasskeyCancelled =>
+      'Kein Passkey ausgewählt oder verfügbar. Versuche es erneut oder melde dich mit deinem Passwort an.';
+
+  @override
+  String get settingsPasskeyTitle => 'Passkeys';
+
+  @override
+  String get settingsPasskeyManage => 'Passkeys verwalten';
+
+  @override
+  String get settingsPasskeyDescription =>
+      'Melde dich ohne Passwort mit einem Passkey auf deinem Gerät an. Die Passkey-Anmeldung funktioniert auch bei aktivierter Zwei-Faktor-Authentifizierung.';
+
+  @override
+  String get settingsPasskeyReauthHint =>
+      'Zum Hinzufügen, Umbenennen oder Entfernen eines Passkeys brauchst du dein Passwort und bei aktivierter Zwei-Faktor-Authentifizierung einen aktuellen Code.';
+
+  @override
+  String get settingsPasskeyName => 'Passkey-Name';
+
+  @override
+  String get settingsPasskeyPassword => 'Anmeldepasswort';
+
+  @override
+  String get settingsPasskeyAdd => 'Passkey hinzufügen';
+
+  @override
+  String get settingsPasskeyAddedAt => 'Hinzugefügt';
+
+  @override
+  String get settingsPasskeyLastUsed => 'Zuletzt verwendet';
+
+  @override
+  String get settingsPasskeyNeverUsed => 'Noch nicht verwendet';
+
+  @override
+  String get settingsPasskeySyncCapable => 'Synchronisierbar';
+
+  @override
+  String get settingsPasskeyDeviceBound => 'Gerätegebunden';
+
+  @override
+  String get settingsPasskeyBackedUp => 'Synchronisiert';
+
+  @override
+  String get settingsPasskeyRevokedHint =>
+      'Das Entfernen bei YourTJ löscht den Passkey nicht aus deinem Passwortmanager.';
+
+  @override
+  String get settingsPasskeyRename => 'Umbenennen';
+
+  @override
+  String get settingsPasskeyRevoke => 'Entfernen';
+
+  @override
+  String get settingsPasskeyAdded => 'Passkey hinzugefügt';
+
+  @override
+  String get settingsPasskeyRevoked => 'Passkey entfernt';
+
+  @override
+  String get settingsPasskeyEmpty => 'Es sind keine Passkeys registriert.';
+
+  @override
+  String get settingsPasskeyUnavailable =>
+      'Passkeys sind auf diesem Server nicht aktiviert.';
 }

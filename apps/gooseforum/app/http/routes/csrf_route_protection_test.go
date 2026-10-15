@@ -134,6 +134,7 @@ var csrfCookieWriteGroupRoutes = []struct {
 	path string
 }{
 	{"loginApi", "/api/user/sessions/revoke-all"},
+	{"loginApi", "/api/user/passkeys/revoke"},
 	{"forumLoginApi", "/api/forum/notification/mark-all-read"},
 	{"chatApi", "/api/forum/chat/messages"},
 	{"adminApi", "/api/admin/traffic-overview"},
@@ -309,6 +310,7 @@ func TestCSRFGroupChainsRejectCrossSiteSessionWrites(t *testing.T) {
 
 	for _, tc := range []struct{ group, path string }{
 		{"loginApi", "/api/user/sessions/revoke"},
+		{"loginApi", "/api/user/passkeys/revoke"},
 		{"forumLoginApi", "/api/forum/topics/write"},
 		{"chatApi", "/api/forum/chat/send"},
 		{"adminApi", "/api/admin/traffic-overview"},

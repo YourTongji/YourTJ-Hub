@@ -536,6 +536,9 @@ class DioAdapter {
 /// 可编程 AuthRepository fake。
 class FakeAuthRepository implements AuthRepository {
   @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+
+  @override
   Future<String> appleExchange(AppleCredentialRequest request) =>
       throw UnimplementedError();
 

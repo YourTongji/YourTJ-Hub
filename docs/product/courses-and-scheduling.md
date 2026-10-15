@@ -95,7 +95,8 @@ Flutter 提供 CSV／PNG；有冲突时导出前提示，PNG 使用独立海报�
 `Current`：学期 `calendarId >= 120` 使用 11 节作息，历史学期使用内置 12 节表。
 现行作息可由管理员热配置并经 SSR／刷新同步，旧配置按编号版本归一；新配置不影响历史学期。
 当前教学周依赖服务端学期起始日，未配置时禁用定位。排课 API 的字段和操作清单以
-[生成的契约覆盖矩阵](../../packages/api-contract/coverage-matrix.md)为准，不在产品文档手写端点数量。
+[OpenAPI 契约](../../packages/api-contract/openapi.yaml)为准；路由清单通过
+[覆盖报告入口](../../packages/api-contract/coverage-matrix.md)生成，不在产品文档手写端点数量。
 
 ## Plan synchronization
 

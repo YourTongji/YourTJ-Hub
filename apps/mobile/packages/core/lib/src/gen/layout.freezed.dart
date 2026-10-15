@@ -944,6 +944,7 @@ mixin _$ViewerPayload {
   String get avatarUrl => throw _privateConstructorUsedError;
   bool get isAuthenticated => throw _privateConstructorUsedError;
   bool get canAccessAdmin => throw _privateConstructorUsedError;
+  bool get canManageAgents => throw _privateConstructorUsedError;
   bool get isModerator => throw _privateConstructorUsedError;
   bool get requiresEmailVerification => throw _privateConstructorUsedError;
   List<int>? get adminPermissions => throw _privateConstructorUsedError;
@@ -973,6 +974,7 @@ abstract class $ViewerPayloadCopyWith<$Res> {
     String avatarUrl,
     bool isAuthenticated,
     bool canAccessAdmin,
+    bool canManageAgents,
     bool isModerator,
     bool requiresEmailVerification,
     List<int>? adminPermissions,
@@ -1001,6 +1003,7 @@ class _$ViewerPayloadCopyWithImpl<$Res, $Val extends ViewerPayload>
     Object? avatarUrl = null,
     Object? isAuthenticated = null,
     Object? canAccessAdmin = null,
+    Object? canManageAgents = null,
     Object? isModerator = null,
     Object? requiresEmailVerification = null,
     Object? adminPermissions = freezed,
@@ -1034,6 +1037,10 @@ class _$ViewerPayloadCopyWithImpl<$Res, $Val extends ViewerPayload>
             canAccessAdmin: null == canAccessAdmin
                 ? _value.canAccessAdmin
                 : canAccessAdmin // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            canManageAgents: null == canManageAgents
+                ? _value.canManageAgents
+                : canManageAgents // ignore: cast_nullable_to_non_nullable
                       as bool,
             isModerator: null == isModerator
                 ? _value.isModerator
@@ -1070,6 +1077,7 @@ abstract class _$$ViewerPayloadImplCopyWith<$Res>
     String avatarUrl,
     bool isAuthenticated,
     bool canAccessAdmin,
+    bool canManageAgents,
     bool isModerator,
     bool requiresEmailVerification,
     List<int>? adminPermissions,
@@ -1097,6 +1105,7 @@ class __$$ViewerPayloadImplCopyWithImpl<$Res>
     Object? avatarUrl = null,
     Object? isAuthenticated = null,
     Object? canAccessAdmin = null,
+    Object? canManageAgents = null,
     Object? isModerator = null,
     Object? requiresEmailVerification = null,
     Object? adminPermissions = freezed,
@@ -1131,6 +1140,10 @@ class __$$ViewerPayloadImplCopyWithImpl<$Res>
             ? _value.canAccessAdmin
             : canAccessAdmin // ignore: cast_nullable_to_non_nullable
                   as bool,
+        canManageAgents: null == canManageAgents
+            ? _value.canManageAgents
+            : canManageAgents // ignore: cast_nullable_to_non_nullable
+                  as bool,
         isModerator: null == isModerator
             ? _value.isModerator
             : isModerator // ignore: cast_nullable_to_non_nullable
@@ -1159,6 +1172,7 @@ class _$ViewerPayloadImpl implements _ViewerPayload {
     required this.avatarUrl,
     required this.isAuthenticated,
     required this.canAccessAdmin,
+    this.canManageAgents = false,
     required this.isModerator,
     required this.requiresEmailVerification,
     final List<int>? adminPermissions,
@@ -1183,6 +1197,9 @@ class _$ViewerPayloadImpl implements _ViewerPayload {
   @override
   final bool canAccessAdmin;
   @override
+  @JsonKey()
+  final bool canManageAgents;
+  @override
   final bool isModerator;
   @override
   final bool requiresEmailVerification;
@@ -1199,7 +1216,7 @@ class _$ViewerPayloadImpl implements _ViewerPayload {
 
   @override
   String toString() {
-    return 'ViewerPayload(decoration: $decoration, id: $id, username: $username, email: $email, avatarUrl: $avatarUrl, isAuthenticated: $isAuthenticated, canAccessAdmin: $canAccessAdmin, isModerator: $isModerator, requiresEmailVerification: $requiresEmailVerification, adminPermissions: $adminPermissions)';
+    return 'ViewerPayload(decoration: $decoration, id: $id, username: $username, email: $email, avatarUrl: $avatarUrl, isAuthenticated: $isAuthenticated, canAccessAdmin: $canAccessAdmin, canManageAgents: $canManageAgents, isModerator: $isModerator, requiresEmailVerification: $requiresEmailVerification, adminPermissions: $adminPermissions)';
   }
 
   @override
@@ -1219,6 +1236,8 @@ class _$ViewerPayloadImpl implements _ViewerPayload {
                 other.isAuthenticated == isAuthenticated) &&
             (identical(other.canAccessAdmin, canAccessAdmin) ||
                 other.canAccessAdmin == canAccessAdmin) &&
+            (identical(other.canManageAgents, canManageAgents) ||
+                other.canManageAgents == canManageAgents) &&
             (identical(other.isModerator, isModerator) ||
                 other.isModerator == isModerator) &&
             (identical(
@@ -1243,6 +1262,7 @@ class _$ViewerPayloadImpl implements _ViewerPayload {
     avatarUrl,
     isAuthenticated,
     canAccessAdmin,
+    canManageAgents,
     isModerator,
     requiresEmailVerification,
     const DeepCollectionEquality().hash(_adminPermissions),
@@ -1271,6 +1291,7 @@ abstract class _ViewerPayload implements ViewerPayload {
     required final String avatarUrl,
     required final bool isAuthenticated,
     required final bool canAccessAdmin,
+    final bool canManageAgents,
     required final bool isModerator,
     required final bool requiresEmailVerification,
     final List<int>? adminPermissions,
@@ -1294,6 +1315,8 @@ abstract class _ViewerPayload implements ViewerPayload {
   bool get isAuthenticated;
   @override
   bool get canAccessAdmin;
+  @override
+  bool get canManageAgents;
   @override
   bool get isModerator;
   @override

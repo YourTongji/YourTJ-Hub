@@ -3,6 +3,7 @@ import { i18n } from '@/runtime/i18n'
 import { resolveApiMessage } from '@/runtime/api-message'
 import type {
   ApiEnvelope,
+  BotContentSource,
   AdminAgent,
   AdminAgentCommentPolicy,
   AdminAgentCommentTopicPolicy,
@@ -617,7 +618,7 @@ export function createAgent(data: { username: string, nickname?: string, webhook
   return postJson<AdminAgentCreateResult>('/api/admin/agent-create', data, adminText('k00k3'))
 }
 
-export function updateAgent(data: { agentId: number, nickname?: string, webhookEndpoint?: string, enabled?: number }) {
+export function updateAgent(data: { agentId: number, nickname?: string, avatarUrl?: string, profileCoverUrl?: string, bio?: string, signature?: string, website?: string, websiteName?: string, webhookEndpoint?: string, enabled?: number }) {
   return postJson<AdminAgent>('/api/admin/agent-update', data, adminText('k00k4'))
 }
 
@@ -843,4 +844,18 @@ export function getAdminStatsUserRanking(request: AdminStatsUserRankingRequest):
 
 export function getAdminStatsUserDetail(request: AdminStatsUserDetailRequest): Promise<AdminStatsUserDetailResult> {
   return postJson('/api/admin/stats/user-detail', request, t('statsAdmin.loadFailed'))
+}
+
+export function getBotContentSource(data: { topicId?: number, postId?: number }) {
+  return postJson<BotContentSource>('/api/admin/agents/content-source', data)
+}
+
+export async function editBotContent(kind: 'topic' | 'post', data: { topicId?: number, postId?: number, title?: string, content: string, categoryId?: number[], expectedRevisionNo: number }) {
+  const response = await fetch(`/api/admin/agents/edit-${kind}`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  await readApiResponse<unknown>(response.clone(), adminText('k000l'))
+  return await response.json() as ApiEnvelope<unknown>
 }

@@ -247,6 +247,6 @@ HTTP 通知发送失败后复用数据库任务队列有限重试：每次检查
 
 ## Implementation references
 
-- [主题契约](../../packages/api-contract/openapi.yaml)及其生成的[覆盖矩阵](../../packages/api-contract/coverage-matrix.md)。
+- [主题契约](../../packages/api-contract/openapi.yaml)及[路由覆盖报告入口](../../packages/api-contract/coverage-matrix.md)。
 - [Web 组件测试](../../apps/gooseforum/resource/package.json)与[验证指南](../development/testing.md)。
 - [HTTP 安全头实现](../../apps/gooseforum/app/http/middleware/securityHeaders.go)是逐路由响应头的事实源。

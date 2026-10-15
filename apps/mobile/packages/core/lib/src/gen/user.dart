@@ -150,6 +150,7 @@ abstract class UserProfileProps with _$UserProfileProps {
     required List<UserConnectionPayload> following,
     required List<UserConnectionPayload> followers,
     required bool isOwnProfile,
+    @Default(false) bool canManageAgent,
     required bool canMessage,
     required bool canFollow,
     required String messageUrl,

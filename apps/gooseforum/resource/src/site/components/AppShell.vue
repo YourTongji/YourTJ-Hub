@@ -970,6 +970,9 @@ async function loadUserCard() {
                       <a href="/settings" class="gf-menu-item">
                         <Settings class="h-4 w-4 text-icon-muted" /> {{ t('shell.settings') }}
                       </a>
+                      <a v-if="layout.viewer.canManageAgents" href="/admin/agents" class="gf-menu-item">
+                        <Shield class="h-4 w-4 text-icon-muted" /> {{ t('agentContent.management') }}
+                      </a>
                       <a v-if="layout.viewer.canAccessAdmin" href="/theme-preview" class="gf-menu-item">
                         <Palette class="h-4 w-4 text-icon-muted" /> {{ t('shell.themePreview') }}
                       </a>

@@ -161,6 +161,9 @@ func auditAgentWebhook(adminID, agentID uint64, action string) {
 	optlogger.UserOptCode(adminID, optlogger.EditUser, agentID, "admin.opt.agent."+action, optlogger.MessageParams{"agentId": agentID})
 }
 func AgentWebhookConfigure(req component.BetterRequest[AgentWebhookConfigReq]) component.Response {
+	if !agentservice.CanManage(req.UserId, req.Params.AgentID) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	p := req.Params
 	_, err := agentwebhookservice.Configure(p.AgentID, p.ConfigVersion, agentwebhookservice.ConfigParams{EventsEnabled: p.EventsEnabled, EventTypes: p.EventTypes, WebhookEnabled: p.WebhookEnabled, WebhookEndpoint: p.WebhookEndpoint})
 	if err != nil {
@@ -174,6 +177,9 @@ func AgentWebhookConfigure(req component.BetterRequest[AgentWebhookConfigReq]) c
 	return component.SuccessResponse(toAgentItem(*view))
 }
 func AgentWebhookRotateSecret(req component.BetterRequest[AgentWebhookRotateReq]) component.Response {
+	if !agentservice.CanManage(req.UserId, req.Params.AgentID) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	result, err := agentwebhookservice.RotateSecret(req.Params.AgentID, req.Params.ConfigVersion, req.Params.Emergency)
 	if err != nil {
 		return agentWebhookFailure(err)
@@ -185,6 +191,9 @@ func AgentWebhookRotateSecret(req component.BetterRequest[AgentWebhookRotateReq]
 	return component.SuccessResponse(result)
 }
 func AgentWebhookTest(req component.BetterRequest[AgentIdReq]) component.Response {
+	if !agentservice.CanManage(req.UserId, req.Params.AgentId) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	result, err := agentwebhookservice.Test(req.Params.AgentId, req.UserId)
 	if err != nil {
 		return agentWebhookFailure(err)
@@ -193,6 +202,9 @@ func AgentWebhookTest(req component.BetterRequest[AgentIdReq]) component.Respons
 	return component.SuccessResponse(result)
 }
 func AgentWebhookDeliveries(req component.BetterRequest[AgentWebhookPageReq]) component.Response {
+	if !agentservice.CanManage(req.UserId, req.Params.AgentID) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	page, err := agentwebhookservice.ListDeliveries(req.Params.AgentID, req.Params.Page, req.Params.PageSize)
 	if err != nil {
 		return agentWebhookFailure(err)
@@ -212,6 +224,9 @@ func AgentWebhookDeliveries(req component.BetterRequest[AgentWebhookPageReq]) co
 	return component.SuccessResponse(map[string]any{"list": list, "total": page.Total, "page": page.Page, "pageSize": page.Size})
 }
 func AgentWebhookRedeliver(req component.BetterRequest[AgentWebhookRedeliverReq]) component.Response {
+	if !agentservice.CanManage(req.UserId, req.Params.AgentID) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	if err := agentwebhookservice.Redeliver(req.Params.AgentID, req.Params.DeliveryID, req.UserId); err != nil {
 		return agentWebhookFailure(err)
 	}
@@ -219,6 +234,9 @@ func AgentWebhookRedeliver(req component.BetterRequest[AgentWebhookRedeliverReq]
 	return component.SuccessResponse(true)
 }
 func AgentInteractionIntents(req component.BetterRequest[AgentWebhookPageReq]) component.Response {
+	if !agentservice.CanManage(req.UserId, req.Params.AgentID) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	// Service owns recipient filtering and paging; the HTTP layer never queries
 	// task or event tables to reconstruct another domain's recovery state.
 	page, err := agenteventservice.ListAgentIntents(req.Params.AgentID, req.Params.Page, req.Params.PageSize)
@@ -228,6 +246,9 @@ func AgentInteractionIntents(req component.BetterRequest[AgentWebhookPageReq]) c
 	return component.SuccessResponse(page)
 }
 func AgentInteractionReplay(req component.BetterRequest[AgentIntentReplayReq]) component.Response {
+	if !agentservice.CanManage(req.UserId, req.Params.AgentID) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	if err := agenteventservice.ReplayAgentIntent(req.Params.AgentID, req.Params.IntentID); err != nil {
 		return agentEventFailure(err)
 	}

@@ -2,6 +2,22 @@ import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('agent management discovery defaults false and accepts server flag', () {
+    final legacy = <String, dynamic>{
+      'id': 1,
+      'username': 'member',
+      'email': '',
+      'avatarUrl': '',
+      'isAuthenticated': true,
+      'canAccessAdmin': false,
+      'isModerator': false,
+      'requiresEmailVerification': false,
+    };
+    expect(ViewerPayload.fromJson(legacy).canManageAgents, isFalse);
+    final owner = ViewerPayload.fromJson({...legacy, 'canManageAgents': true});
+    expect(owner.canManageAgents, isTrue);
+    expect(owner.toJson()['canManageAgents'], isTrue);
+  });
   test(
     'course workspace discovery requires an authenticated course permission',
     () {

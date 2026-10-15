@@ -33,6 +33,14 @@
   },
   {
     "method": "GET",
+    "path": "/.well-known/apple-app-site-association"
+  },
+  {
+    "method": "GET",
+    "path": "/.well-known/assetlinks.json"
+  },
+  {
+    "method": "GET",
     "path": "/a/:publicUid"
   },
   {
@@ -225,6 +233,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/auth/passkey/status"
+  },
+  {
+    "method": "GET",
     "path": "/api/auth/tongji/registration"
   },
   {
@@ -398,6 +410,10 @@
   {
     "method": "GET",
     "path": "/api/user/decorations"
+  },
+  {
+    "method": "GET",
+    "path": "/api/user/passkeys"
   },
   {
     "method": "GET",
@@ -722,6 +738,18 @@
   {
     "method": "POST",
     "path": "/api/admin/agent-webhook-test"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agents/content-source"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agents/edit-post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agents/edit-topic"
   },
   {
     "method": "POST",
@@ -1090,6 +1118,14 @@
   {
     "method": "POST",
     "path": "/api/auth/oidc/exchange"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/passkey/login/begin"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/passkey/login/finish"
   },
   {
     "method": "POST",
@@ -1526,6 +1562,26 @@
   {
     "method": "POST",
     "path": "/api/user/decorations/equip"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/passkeys/reauth"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/passkeys/registration/begin"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/passkeys/registration/finish"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/passkeys/rename"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/passkeys/revoke"
   },
   {
     "method": "POST",

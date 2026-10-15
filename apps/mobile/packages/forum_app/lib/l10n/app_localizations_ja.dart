@@ -3793,4 +3793,80 @@ class AppLocalizationsJa extends AppLocalizations {
   String notificationWikiTopic(String topic) {
     return '「$topic」が更新されました';
   }
+
+  @override
+  String get authPasskey => 'パスキーでログイン';
+
+  @override
+  String get authPasskeyUnavailable => 'この端末ではパスキーを利用できません。';
+
+  @override
+  String get authPasskeyFailed => 'パスキーでログインできませんでした。再試行するか、パスワードをお使いください。';
+
+  @override
+  String get authPasskeyCancelled =>
+      'パスキーが選択されていないか、利用できません。再試行するか、パスワードでログインしてください。';
+
+  @override
+  String get settingsPasskeyTitle => 'パスキー';
+
+  @override
+  String get settingsPasskeyManage => 'パスキーを管理';
+
+  @override
+  String get settingsPasskeyDescription =>
+      '端末のパスキーを使ってパスワードなしでログインできます。二段階認証が有効でもパスキーでログインできます。';
+
+  @override
+  String get settingsPasskeyReauthHint =>
+      'パスキーの追加、名前変更、削除にはログインパスワードが必要です。二段階認証が有効な場合は現在のコードも必要です。';
+
+  @override
+  String get settingsPasskeyName => 'パスキー名';
+
+  @override
+  String get settingsPasskeyPassword => 'ログインパスワード';
+
+  @override
+  String get settingsPasskeyAdd => 'パスキーを追加';
+
+  @override
+  String get settingsPasskeyAddedAt => '追加日';
+
+  @override
+  String get settingsPasskeyLastUsed => '最終使用';
+
+  @override
+  String get settingsPasskeyNeverUsed => '未使用';
+
+  @override
+  String get settingsPasskeySyncCapable => '同期可能';
+
+  @override
+  String get settingsPasskeyDeviceBound => 'このデバイスのみ';
+
+  @override
+  String get settingsPasskeyBackedUp => '同期済み';
+
+  @override
+  String get settingsPasskeyRevokedHint =>
+      'YourTJ から削除しても、パスワードマネージャーに保存されたパスキーは削除されません。';
+
+  @override
+  String get settingsPasskeyRename => '名前を変更';
+
+  @override
+  String get settingsPasskeyRevoke => '削除';
+
+  @override
+  String get settingsPasskeyAdded => 'パスキーを追加しました';
+
+  @override
+  String get settingsPasskeyRevoked => 'パスキーを削除しました';
+
+  @override
+  String get settingsPasskeyEmpty => '登録済みのパスキーはありません。';
+
+  @override
+  String get settingsPasskeyUnavailable => 'このサーバーではパスキーが有効になっていません。';
 }

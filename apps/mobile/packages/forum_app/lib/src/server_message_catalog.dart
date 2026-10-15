@@ -3,6 +3,8 @@
 // dart format off
 const Map<String, Map<String, String>> serverMessageCatalog = {
   "zh": {
+    "admin.agent.contentConflict": "内容已发生变化。草稿已保留，请先复制草稿再重新加载原文。",
+    "admin.agent.contentUnavailable": "此 Bot 内容不可用，或你无权编辑。",
     "admin.agent.createFailed": "创建 Agent 失败。",
     "admin.agent.disableFailed": "禁用 Agent 失败。",
     "admin.agent.needsRotate": "该 Agent 的令牌已被吊销，请先轮换令牌后再启用。",
@@ -43,6 +45,7 @@ const Map<String, Map<String, String>> serverMessageCatalog = {
     "admin.moderator.notFound": "版主记录不存在。",
     "admin.moderator.userNotFound": "版主用户不存在。",
     "admin.moderator.userRequired": "请输入版主用户。",
+    "admin.opt.agent.contentEdited": "修正 Bot #{agentId} 内容：话题 #{topicId}，帖子 #{postId}，版本 {revisionNo}。",
     "admin.opt.agent.interactionReplayed": "已为 Agent {agentId} 重放互动意图。",
     "admin.opt.agent.webhookConfigured": "已更新 Agent {agentId} 的 Webhook 设置。",
     "admin.opt.agent.webhookRedelivered": "已为 Agent {agentId} 加入 Webhook 重投任务。",
@@ -261,6 +264,8 @@ const Map<String, Map<String, String>> serverMessageCatalog = {
     "wiki.saveFailed": "Wiki 保存失败，请稍后重试。",
   },
   "en": {
+    "admin.agent.contentConflict": "This content changed. Your draft is kept; copy it before reloading the source.",
+    "admin.agent.contentUnavailable": "This bot content is unavailable or you do not have permission to edit it.",
     "admin.agent.createFailed": "Failed to create agent.",
     "admin.agent.disableFailed": "Failed to disable agent.",
     "admin.agent.needsRotate": "The agent token was revoked. Rotate a new token before enabling it.",
@@ -301,6 +306,7 @@ const Map<String, Map<String, String>> serverMessageCatalog = {
     "admin.moderator.notFound": "Moderator record not found.",
     "admin.moderator.userNotFound": "Moderator user not found.",
     "admin.moderator.userRequired": "Please enter a moderator user.",
+    "admin.opt.agent.contentEdited": "Bot #{agentId} content corrected: topic #{topicId}, post #{postId}, revision {revisionNo}.",
     "admin.opt.agent.interactionReplayed": "Replayed an interaction intent for Agent {agentId}.",
     "admin.opt.agent.webhookConfigured": "Updated Webhook settings for Agent {agentId}.",
     "admin.opt.agent.webhookRedelivered": "Queued a Webhook redelivery for Agent {agentId}.",
@@ -519,6 +525,8 @@ const Map<String, Map<String, String>> serverMessageCatalog = {
     "wiki.saveFailed": "Failed to save wiki. Please try again later.",
   },
   "ja": {
+    "admin.agent.contentConflict": "内容が変更されました。下書きは保持されています。コピーしてから原文を再読み込みしてください。",
+    "admin.agent.contentUnavailable": "この Bot の内容は利用できないか、編集権限がありません。",
     "admin.agent.createFailed": "Agent の作成に失敗しました。",
     "admin.agent.disableFailed": "Agent の無効化に失敗しました。",
     "admin.agent.needsRotate": "Agent のトークンは失効しています。有効化する前にトークンを再発行してください。",
@@ -559,6 +567,7 @@ const Map<String, Map<String, String>> serverMessageCatalog = {
     "admin.moderator.notFound": "Moderator record not found.",
     "admin.moderator.userNotFound": "Moderator user not found.",
     "admin.moderator.userRequired": "Please enter a moderator user.",
+    "admin.opt.agent.contentEdited": "Bot #{agentId} の内容を修正：トピック #{topicId}、投稿 #{postId}、版 {revisionNo}。",
     "admin.opt.agent.interactionReplayed": "Agent {agentId} の対話インテントを再実行しました。",
     "admin.opt.agent.webhookConfigured": "Agent {agentId} の Webhook 設定を更新しました。",
     "admin.opt.agent.webhookRedelivered": "Agent {agentId} の Webhook 再送をキューに追加しました。",
@@ -777,6 +786,8 @@ const Map<String, Map<String, String>> serverMessageCatalog = {
     "wiki.saveFailed": "Wiki の保存に失敗しました。後でもう一度お試しください。",
   },
   "de": {
+    "admin.agent.contentConflict": "Der Inhalt wurde geändert. Dein Entwurf bleibt erhalten; kopiere ihn vor dem Neuladen.",
+    "admin.agent.contentUnavailable": "Dieser Bot-Inhalt ist nicht verfügbar oder du darfst ihn nicht bearbeiten.",
     "admin.agent.createFailed": "Erstellung des Agents fehlgeschlagen.",
     "admin.agent.disableFailed": "Deaktivierung des Agents fehlgeschlagen.",
     "admin.agent.needsRotate": "Das Token des Agents wurde widerrufen. Rotiere ein neues Token, bevor du ihn aktivierst.",
@@ -817,6 +828,7 @@ const Map<String, Map<String, String>> serverMessageCatalog = {
     "admin.moderator.notFound": "Moderator-Datensatz nicht gefunden.",
     "admin.moderator.userNotFound": "Moderator-Benutzer nicht gefunden.",
     "admin.moderator.userRequired": "Gib einen Moderator-Benutzer ein.",
+    "admin.opt.agent.contentEdited": "Inhalt von Bot #{agentId} korrigiert: Thema #{topicId}, Beitrag #{postId}, Version {revisionNo}.",
     "admin.opt.agent.interactionReplayed": "Interaktionsabsicht für Agent {agentId} erneut abgespielt.",
     "admin.opt.agent.webhookConfigured": "Webhook-Einstellungen für Agent {agentId} aktualisiert.",
     "admin.opt.agent.webhookRedelivered": "Webhook-Wiederzustellung für Agent {agentId} in die Warteschlange gestellt.",

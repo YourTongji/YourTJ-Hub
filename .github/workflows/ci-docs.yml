@@ -24,4 +24,17 @@ jobs:
           node-version: 24
       - run: node --test scripts/test-doc-links.mjs
       - run: node --test scripts/test-verify-decisions.mjs
+      - run: node --test scripts/test-generate-decisions-index.mjs
       - run: node scripts/run-gates.mjs
+      - name: Generate decision index and job summary
+        run: |
+          source=$(git rev-parse HEAD)
+          node scripts/generate-decisions-index.mjs "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$source/docs/decisions/" > "$RUNNER_TEMP/decisions-index.md"
+          cat "$RUNNER_TEMP/decisions-index.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload decision index
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: decision-index
+          path: ${{ runner.temp }}/decisions-index.md
+          if-no-files-found: error
+          retention-days: 7

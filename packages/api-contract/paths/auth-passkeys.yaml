@@ -1,0 +1,315 @@
+status:
+  get:
+    tags: [Authentication]
+    summary: Return whether passkey sign-in is enabled on this deployment
+    operationId: getPasskeyStatus
+    security: []
+    responses:
+      '200':
+        description: Public passkey availability flag.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PasskeyStatusResponse
+            examples:
+              disabled:
+                externalValue: ../fixtures/passkey-status-disabled.json
+
+appleAssociation:
+  get:
+    tags: [Authentication]
+    summary: Return the configured Apple webcredentials app association
+    operationId: getAppleWebCredentialsAssociation
+    security: []
+    responses:
+      '200':
+        description: AASA association for the configured Apple Team ID and bundle ID.
+        content:
+          application/json:
+            schema:
+              $ref: '#/AppleAssociationResponse'
+            examples:
+              configured:
+                externalValue: ../fixtures/passkey-apple-association.json
+      '404':
+        description: No Apple Team ID is configured; the response contains an empty app list.
+        content:
+          application/json:
+            schema:
+              $ref: '#/AppleAssociationResponse'
+
+androidAssociation:
+  get:
+    tags: [Authentication]
+    summary: Return the configured Android Digital Asset Links association
+    operationId: getAndroidDigitalAssetLinks
+    security: []
+    responses:
+      '200':
+        description: Credential-sharing association for the configured Android package and signing fingerprints, or an empty list.
+        content:
+          application/json:
+            schema:
+              $ref: '#/AndroidAssociationResponse'
+            examples:
+              configured:
+                externalValue: ../fixtures/passkey-android-association.json
+
+loginBegin:
+  post:
+    tags: [Authentication]
+    summary: Begin discoverable passkey sign-in
+    operationId: beginPasskeyLogin
+    security: []
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            maxProperties: 0
+            additionalProperties: false
+    responses:
+      '200':
+        description: Discoverable WebAuthn request options and opaque ceremony ID.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PasskeyLoginBeginResponse
+            examples:
+              success:
+                externalValue: ../fixtures/passkey-login-begin-success.json
+
+loginFinish:
+  post:
+    tags: [Authentication]
+    summary: Verify a passkey assertion and issue a standard forum session
+    operationId: finishPasskeyLogin
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PasskeyLoginFinishRequest
+    responses:
+      '200':
+        description: Success sets the standard New-Token and session cookie; invalid credentials return the normal business failure envelope.
+        headers:
+          New-Token:
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PasskeyEmptyResponse
+            examples:
+              success:
+                externalValue: ../fixtures/passkey-empty-success.json
+      '429':
+        description: Login rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+
+reauth:
+  post:
+    tags: [Authentication]
+    summary: Reauthenticate with password and enabled TOTP before passkey management
+    operationId: reauthenticatePasskeyManagement
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PasskeyReauthRequest
+    responses:
+      '200':
+        description: Short-lived, one-use proof bound to the current user and session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PasskeyReauthResponse
+      '401':
+        description: Missing, invalid, expired, or revoked session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: CSRF or writable-account check rejected the request.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+registrationBegin:
+  post:
+    tags: [Authentication]
+    summary: Begin a discoverable passkey registration for the current account
+    operationId: beginPasskeyRegistration
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PasskeyRegistrationBeginRequest
+    responses:
+      '200':
+        description: WebAuthn credential creation options.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PasskeyRegistrationBeginResponse
+      '401':
+        description: Missing, invalid, expired, or revoked session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+registrationFinish:
+  post:
+    tags: [Authentication]
+    summary: Verify and store a passkey credential
+    operationId: finishPasskeyRegistration
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PasskeyRegistrationFinishRequest
+    responses:
+      '200':
+        description: Created credential summary.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PasskeyCredentialResponse
+      '401':
+        description: Missing, invalid, expired, or revoked session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+credentials:
+  get:
+    tags: [Authentication]
+    summary: List active passkeys for the current account
+    operationId: listPasskeyCredentials
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Credential metadata; raw credential data and public keys are never returned.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PasskeyCredentialListResponse
+      '401':
+        description: Missing, invalid, expired, or revoked session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+rename:
+  post:
+    tags: [Authentication]
+    summary: Rename a passkey using a fresh strong-authentication proof
+    operationId: renamePasskeyCredential
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PasskeyCredentialRenameRequest
+    responses:
+      '200':
+        description: Renamed credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PasskeyEmptyResponse
+
+revoke:
+  post:
+    tags: [Authentication]
+    summary: Revoke a passkey using a fresh strong-authentication proof
+    operationId: revokePasskeyCredential
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PasskeyCredentialRevokeRequest
+    responses:
+      '200':
+        description: Revoked credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PasskeyEmptyResponse
+
+AppleAssociationResponse:
+  type: object
+  required: [webcredentials]
+  properties:
+    webcredentials:
+      type: object
+      required: [apps]
+      properties:
+        apps:
+          type: array
+          items:
+            type: string
+      additionalProperties: false
+  additionalProperties: false
+
+AndroidAssociationResponse:
+  type: array
+  items:
+    type: object
+    required: [relation, target]
+    properties:
+      relation:
+        type: array
+        items:
+          type: string
+      target:
+        type: object
+        required: [namespace, package_name, sha256_cert_fingerprints]
+        properties:
+          namespace:
+            const: android_app
+          package_name:
+            type: string
+          sha256_cert_fingerprints:
+            type: array
+            items:
+              type: string
+        additionalProperties: false
+    additionalProperties: false

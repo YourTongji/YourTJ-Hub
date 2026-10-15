@@ -252,6 +252,7 @@ export interface ViewerPayload {
   isModerator: boolean
   requiresEmailVerification: boolean
   adminPermissions: number[]
+  canManageAgents?: boolean
 }
 
 export interface CategoryNavPayload {
@@ -709,6 +710,7 @@ export interface UserProfileProps {
   following: UserConnectionPayload[]
   followers: UserConnectionPayload[]
   isOwnProfile: boolean
+  canManageAgent?: boolean
   canMessage: boolean
   canFollow: boolean
   messageUrl: string

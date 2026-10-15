@@ -93,9 +93,11 @@ const adminEntryPaths = [
 ]
 
 let permissions = new Set<number>()
+let canManageAgents = false
 
-export function configureAdminAccess(values: number[] = []) {
+export function configureAdminAccess(values: number[] = [], agentManagement = false) {
   permissions = new Set(values)
+  canManageAgents = agentManagement
 }
 
 export function hasAdminPermission(permission: AdminPermission) {
@@ -103,6 +105,7 @@ export function hasAdminPermission(permission: AdminPermission) {
 }
 
 export function canVisitAdminPath(path: string) {
+  if (path === '/admin/agents' && canManageAgents) return true
   if (path === '/admin/anonymous-identities') {
     return hasAdminPermission(AdminPermission.UserManager) && hasAdminPermission(AdminPermission.RevealAnonymousIdentity)
   }

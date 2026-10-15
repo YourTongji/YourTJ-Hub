@@ -35,5 +35,16 @@ jobs:
         run: pnpm run check
       - name: Require generated TypeScript types to be committed
         run: git diff --exit-code -- apps/gooseforum/resource/packages/client/src/gen
-      - name: Require generated route coverage matrix to be committed
-        run: git diff --exit-code -- packages/api-contract/coverage-matrix.md
+      - name: Publish route coverage job summary
+        run: |
+          source=$(git rev-parse HEAD)
+          printf 'Source: [%s](%s/%s/tree/%s)\n\n' "$source" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$source" > "$RUNNER_TEMP/api-route-coverage.md"
+          cat packages/api-contract/.tmp/coverage-matrix.md >> "$RUNNER_TEMP/api-route-coverage.md"
+          cat "$RUNNER_TEMP/api-route-coverage.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload route coverage report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: api-route-coverage
+          path: ${{ runner.temp }}/api-route-coverage.md
+          if-no-files-found: error
+          retention-days: 7

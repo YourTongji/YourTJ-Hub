@@ -120,6 +120,84 @@ abstract class TotpStatusPayload with _$TotpStatusPayload {
       _$TotpStatusPayloadFromJson(json);
 }
 
+/// Dart mirror of the passkey API schemas; these remain intentionally simple
+/// so updating the contract does not require regenerating unrelated Freezed code.
+class PasskeyStatusPayload {
+  const PasskeyStatusPayload({required this.enabled});
+  final bool enabled;
+
+  factory PasskeyStatusPayload.fromJson(Map<String, dynamic> json) =>
+      PasskeyStatusPayload(enabled: json['enabled'] == true);
+}
+
+class PasskeyBeginPayload {
+  const PasskeyBeginPayload({required this.ceremonyId, required this.publicKey});
+  final String ceremonyId;
+  final Map<String, dynamic> publicKey;
+
+  factory PasskeyBeginPayload.fromJson(Map<String, dynamic> json) =>
+      PasskeyBeginPayload(
+        ceremonyId: json['ceremonyId'] as String,
+        publicKey: Map<String, dynamic>.from(json['publicKey'] as Map),
+      );
+}
+
+class PasskeyReauthPayload {
+  const PasskeyReauthPayload({required this.proof, required this.expiresInSeconds});
+  final String proof;
+  final int expiresInSeconds;
+
+  factory PasskeyReauthPayload.fromJson(Map<String, dynamic> json) =>
+      PasskeyReauthPayload(
+        proof: json['proof'] as String,
+        expiresInSeconds: (json['expiresInSeconds'] as num).toInt(),
+      );
+}
+
+class PasskeyCredentialSummary {
+  const PasskeyCredentialSummary({
+    required this.id,
+    required this.name,
+    required this.createdAt,
+    required this.backupEligible,
+    required this.backupState,
+    required this.transports,
+    this.lastUsedAt,
+  });
+  final String id;
+  final String name;
+  final DateTime createdAt;
+  final DateTime? lastUsedAt;
+  final bool backupEligible;
+  final bool backupState;
+  final List<String> transports;
+
+  factory PasskeyCredentialSummary.fromJson(Map<String, dynamic> json) =>
+      PasskeyCredentialSummary(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        lastUsedAt: json['lastUsedAt'] == null
+            ? null
+            : DateTime.parse(json['lastUsedAt'] as String),
+        backupEligible: json['backupEligible'] == true,
+        backupState: json['backupState'] == true,
+        transports: (json['transports'] as List<dynamic>? ?? const <dynamic>[])
+            .map((value) => value as String)
+            .toList(growable: false),
+      );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'id': id,
+    'name': name,
+    'createdAt': createdAt.toIso8601String(),
+    if (lastUsedAt != null) 'lastUsedAt': lastUsedAt!.toIso8601String(),
+    'backupEligible': backupEligible,
+    'backupState': backupState,
+    'transports': transports,
+  };
+}
+
 @freezed
 abstract class OAuthBindingPayload with _$OAuthBindingPayload {
   const factory OAuthBindingPayload({

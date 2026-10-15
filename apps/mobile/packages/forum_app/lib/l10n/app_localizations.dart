@@ -7085,6 +7085,150 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'“{topic}” was updated'**
   String notificationWikiTopic(String topic);
+
+  /// No description provided for @authPasskey.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with a passkey'**
+  String get authPasskey;
+
+  /// No description provided for @authPasskeyUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkeys are not available on this device.'**
+  String get authPasskeyUnavailable;
+
+  /// No description provided for @authPasskeyFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkey sign-in failed. Try again or use your password.'**
+  String get authPasskeyFailed;
+
+  /// No description provided for @authPasskeyCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'No passkey was selected or available. Try again or use your password.'**
+  String get authPasskeyCancelled;
+
+  /// No description provided for @settingsPasskeyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkeys'**
+  String get settingsPasskeyTitle;
+
+  /// No description provided for @settingsPasskeyManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage passkeys'**
+  String get settingsPasskeyManage;
+
+  /// No description provided for @settingsPasskeyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a device passkey to sign in without your password. Passkey sign-in still works when two-factor authentication is enabled.'**
+  String get settingsPasskeyDescription;
+
+  /// No description provided for @settingsPasskeyReauthHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Adding, renaming, or removing a passkey requires your password and, when enabled, a current authenticator code.'**
+  String get settingsPasskeyReauthHint;
+
+  /// No description provided for @settingsPasskeyName.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkey name'**
+  String get settingsPasskeyName;
+
+  /// No description provided for @settingsPasskeyPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Login password'**
+  String get settingsPasskeyPassword;
+
+  /// No description provided for @settingsPasskeyAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a passkey'**
+  String get settingsPasskeyAdd;
+
+  /// No description provided for @settingsPasskeyAddedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Added'**
+  String get settingsPasskeyAddedAt;
+
+  /// No description provided for @settingsPasskeyLastUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Last used'**
+  String get settingsPasskeyLastUsed;
+
+  /// No description provided for @settingsPasskeyNeverUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Not used yet'**
+  String get settingsPasskeyNeverUsed;
+
+  /// No description provided for @settingsPasskeySyncCapable.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync-capable'**
+  String get settingsPasskeySyncCapable;
+
+  /// No description provided for @settingsPasskeyDeviceBound.
+  ///
+  /// In en, this message translates to:
+  /// **'Device-bound'**
+  String get settingsPasskeyDeviceBound;
+
+  /// No description provided for @settingsPasskeyBackedUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Synced'**
+  String get settingsPasskeyBackedUp;
+
+  /// No description provided for @settingsPasskeyRevokedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Removing a passkey from YourTJ does not delete it from your password manager.'**
+  String get settingsPasskeyRevokedHint;
+
+  /// No description provided for @settingsPasskeyRename.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get settingsPasskeyRename;
+
+  /// No description provided for @settingsPasskeyRevoke.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get settingsPasskeyRevoke;
+
+  /// No description provided for @settingsPasskeyAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkey added'**
+  String get settingsPasskeyAdded;
+
+  /// No description provided for @settingsPasskeyRevoked.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkey removed'**
+  String get settingsPasskeyRevoked;
+
+  /// No description provided for @settingsPasskeyEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No passkeys are registered.'**
+  String get settingsPasskeyEmpty;
+
+  /// No description provided for @settingsPasskeyUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkeys are not enabled on this server.'**
+  String get settingsPasskeyUnavailable;
 }
 
 class _AppLocalizationsDelegate

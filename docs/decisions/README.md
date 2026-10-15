@@ -67,7 +67,7 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 
 - Before creating a MADR, check `dev` and open PRs for existing or reserved numbers. Reserve a distinct unused four-digit number in your PR or linked Issue (for example, `MADR 0084 reserved for #1171`) so other contributors can coordinate. A reservation is a coordination convention, not a committed placeholder record.
 - A reserved number may be absent from `dev` until its PR merges; other decisions can merge first. Do not create empty placeholder MADRs or renumber another contributor's record to fill a gap.
-- Keep the index entries in numeric order, even across gaps. A reservation becomes active when first published in a PR or linked Issue. If concurrent PRs claim the same number, the earliest published claim keeps it; other PRs must choose another unused number and update their filenames, index entries, and links before merging. If the order is unclear, maintainers resolve the collision before any affected PR merges. Reservations in unmerged branches are not automatically enforced by the verifier.
+- A reservation becomes active when first published in a PR or linked Issue. If concurrent PRs claim the same number, the earliest published claim keeps it; other PRs must choose another unused number and update their filenames and links before merging. If the order is unclear, maintainers resolve the collision before any affected PR merges. Reservations in unmerged branches are not automatically enforced by the verifier.
 - If a proposed decision is abandoned, its reservation may be released explicitly in the Issue/PR; leaving a gap is valid.
 
 ## Verifier
@@ -76,110 +76,17 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 
 ## Index
 
-- [0000](0000-decisions-live-in-git-madr.md) — 决策记录进 git（本日志的建制决策，取代「ADR 存 note」旧约定）
-- [0001](0001-postgresql-primary-database.md) — 主库支持 PostgreSQL，文件库保留 SQLite，模型去方言化
-- [0002](0002-jwt-session-revocation-user-sessions.md) — 会话吊销：JWT jti + user_sessions 表
-- [0003](0003-aggregate-search-multi-index-pinyin.md) — 聚合搜索：候选 ID 索引 + DB 重构 + 自建拼音 + 三域分组
-- [0004](0004-wiki-single-event-source-write-publish.md) — Wiki 修订单一事件源 + 写即发布（已被 0005 取代）
-- [0005](0005-wiki-github-ssot-pr-collaboration.md) — Wiki GitHub 唯一真实源 + PR 协作编辑
-- [0006](0006-deploy-config-as-artifact.md) — 部署配置治理：config as artifact + Environments secrets + 漂移守卫
-- [0007](0007-dev-instance-no-env-isolation.md) — dev 实例 DB 站点设置无环境隔离（已知边界）
-- [0008](0008-web-push-second-notification-channel.md) — Web Push + Service Worker 第二通知通道
-- [0009](0009-image-egress-internal-proxy.md) — 图片流量成本模型：服务端内网代理读
-- [0010](0010-mobile-route-a-native-alignment.md) — 移动端战略 Route A：原生 Flutter 全功能对齐（导航与管理范围由 0011 更新）
-- [0011](0011-mobile-navigation-and-management.md) — 移动端导航与完整管理工作台
-- [0012](0012-unified-mobile-reading-navigation.md) — Unified mobile reading navigation and shared management.
-- [0013](0013-anonymous-wiki-comments.md) — Wiki 页面评论匿名发布（匿名楼层）
-- [0014](0014-mobile-release-distribution.md) — Mobile release signing, verified APK mirrors and Apple review automation.
+The numbered files in [this directory](./) are the complete, version-specific decision list.
+New decisions do not require editing this README. Generate a sorted list with titles and current
+statuses from the repository root:
 
-- [0015](0015-oryn-repository-local-actions.md) — Repository-local Oryn Actions with scoped GitHub App credentials.
-- [0016](0016-oryn-semantic-freshness.md) — Oryn semantic freshness.
-- [0017](0017-oryn-task-interruption.md) — Oryn task interruption.
-- [0018](0018-oryn-paged-diff-evidence.md) — Oryn paged diff evidence.
-- [0019](0019-native-push-providers.md) — Direct APNs and Android OEM push through JPush.
-- [0020](0020-oryn-failure-diagnostics.md) — Oryn failure diagnostics.
-- [0021](0021-deletion-final-state-data-retention.md) — 删除终态数据保留与管理员取证（R4 降级）。
-- [0022](0022-campus-map-native-atlas.md) — 原生校园地图页面复用地理数据，保持单二进制部署。
-- [0023](0023-course-catalog-search-candidates.md) — 课程目录复用 Meilisearch 候选，数据库校验筛选、可见性与评分排序。
-- [0024](0024-admin-search-index-maintenance.md) — 管理后台检查索引版本与完整性，通过持久化任务原地重建，并隔离复制到 dev 的任务。
-- [0025](0025-oryn-action-reliability.md) — Oryn 重试期间保持 admission ownership、报告预算与发布 artifact 身份一致。
-- [0026](0026-public-status-projection.md) — 论坛内公开状态投影（已被 0027 替代）。
-- [0027](0027-independent-status-netlify.md) — 独立 Netlify 状态站、定时采集和持久化公开快照。
+```bash
+node scripts/generate-decisions-index.mjs
+```
 
-- [0028](0028-mobile-local-writing-recovery.md) — 移动端按站点和账号隔离本机写作恢复，独立于云端草稿
-
-- [0029](0029-two-phase-email-change.md) — 换绑邮箱两阶段切换：确认后原子切换，旧邮箱在切换前保持占用。
-
-- [0030](0030-global-sticker-library.md) — 管理员维护全局表情包库，正文 token 动态展开并复用附件存储生命周期。
-
-- [0031](0031-campus-official-identity.md) — 私密校园连接、双向唯一身份与服务器凭据生命周期
-
-- [0032](0032-tongji-login-and-registration.md) — 同济统一认证登录，原子创建已激活账号并复用校园绑定。
-
-- [0033](0033-campus-foreground-memory-cache.md) — Flutter 校园页使用经绑定核验的五分钟前台内存缓存。
-
-- [0034](0034-tongji-registration-completion.md) — 同济认证后选择用户名和密码，再原子完成注册。
-
-- [0035](0035-campus-device-snapshot-and-schedule-widgets.md) — 校园白名单 Drift 快照派生最小投影，供 Android Glance 与 iOS WidgetKit 离线显示（刷新触发由 0052 取代）。
-
-- [0036](0036-foreground-realtime-invalidation.md) — 前台更新采用进程内 SSE 失效提示与 REST 对账。
-
-- [0037](0037-adaptive-mobile-reading-window.md) — 按窗口宽度选择底栏或常驻侧栏，保留阅读状态并约束正文行宽。
-
-- [0038](0038-personal-sticker-library.md) — 稳定共享表情素材与私有有序收藏库，原生选择、上传、收藏与独立渲染。
-
-- [0039](0039-native-gf-component-foundation.md) — Gf 组件直接组合 Flutter 原生能力，统一输入形状、状态、图标和触控区域。
-
-- [0040](0040-user-blocks-and-private-message-reports.md) — 账号私有屏蔽关系与仅管理员可见的单条私信举报证据（公开内容可见性条款由 0079 取代）。
-
-- [0041](0041-native-apple-login-and-revocation.md) — iOS 原生 Apple 登录、显式账号绑定和用于解绑/注销的加密撤销凭据。
-
-- [0042](0042-optional-moment-titles.md) — 瞬间允许空标题，服务端存空字符串，各端按无标题内容展示。
-
-- [0043](0043-private-message-forward-snapshots.md) — 私信逐条与合并转发采用有界服务端快照，按收件人原子提交与幂等重试。
-- [0044](0044-nested-private-message-history.md) — 再次合并转发保留可逐层打开的记录卡片，整个快照树有界。
-- [0045](0045-mobile-ci-by-input.md) — 移动 CI 按输入拆分行为测试、原生编译与发布工具检查。
-- [0046](0046-status-device-aggregates.md) — 后台读取联合设备统计，仅公开设备、系统和浏览器类别及人数。
-
-- [0047](0047-mobile-visual-acceptance.md) — 移除移动端截图基线，保留行为与布局断言和模拟器/设备视觉验收。
-- [0048](0048-mobile-storage-lifecycle.md) — 按身份、保留期和字节预算管理缓存；加密事务库分离本机作品，清理可恢复并拒绝旧请求回填。
-
-- [0049](0049-android-first-login-notification-permission.md) — Android 登录后一次性请求系统通知权限，并在授权后开启 JPush。
-- [0050](0050-android-stable-download-links.md) — Android 使用独立 mobile-latest 固定下载入口，保留版本化安装包和服务端 Latest。
-- [0051](0051-mobile-automatic-visitor-statistics.md) — 正式移动端自动统计公开页面，移除统计开关与偏好门控，同步升级语义和隐私披露。
-- [0052](0052-campus-daily-entry-refresh.md) — 跨上海日期后首次进入校园页刷新完整快照，以成功提交日期去重，失败保留旧快照并允许重试。
-- [0053](0053-status-collection-cost.md) — Netlify 状态站分级采集、保留期限与正式发布内容比较。
-- [0054](0054-badge-artwork-optical-size.md) — 系统徽章图形按统一光学尺寸归一化并补偿描边，角标图标区改为固定占比。
-- [0055](0055-reviewed-release-pipeline.md) — Reviewed release requests, independent platform notes, Oryn drafting and complete CI aggregation.
-- [0056](0056-ai-image-text-moderation.md) — 发布时 AI 图文审查：视觉证据 + Jev 并行政策概率 + Go resolver，故障一律转人工，待审图片以 PENDING 引用收口。
-- [0057](0057-product-and-engineering-review-evidence.md) — Issue/PR 在保留工程交付栏目的基础上补充产品依据、多角色故事与逐项验收证据，按影响控制流程深度。
-- [0058](0058-status-cloudflare.md) — Cloudflare 静态资源、只读 Worker API、GitHub Actions 定时采集与 R2 条件写快照。
-- [0059](0059-receipt-backed-mobile-release-catalog.md) — Build the public mobile notes catalog from reviewed candidates and successful channel receipts.
-- [0060](0060-status-cron-dispatch.md) — 独立 Cloudflare Cron 触发 main 采集工作流，隔离调度凭据并保留真实数据时间。
-- [0061](0061-versioned-background-moderation.md) — Reuse revisions and durable tasks for background moderation, stable approved versions and editable rejection.
-- [0062](0062-moderation-notification-feedback.md) — Keep automatic approval quiet, notify human review/results, and mask rejected notification subjects.
-- [0063](0063-oryn-review-once-per-version.md) — Keep six-hour Oryn catch-up and deduplicate completed automatic reviews by source version.
-- [0064](0064-moderation-approval-notify-channels.md) — 版主审批通知走 HTTP 通知的通道适配器（通用 JSON／飞书卡片／AstrBot 文本），快捷操作只打开签名确认页并按当前会话复核权限。
-
-
-- [0065](0065-bounded-feed-ranking-and-measurement.md) — Bound materialized ranking, finite personalization and account-level measurement with 30-day raw retention.
-- [0066](0066-persistent-anonymous-forum-persona.md) — 持久匿名 persona、私有绑定和受限审计；全 THUOCL 候选与账号共享配额。
-- [0067](0067-bounded-http-notification-retries.md) — HTTP 通知失败复用持久任务队列做有限重试，并与举报结案保持原子一致。
-- [0068](0068-topic-agent-replies.md) — Author-controlled robot replies with immediate topic settings and transactional publication checks.
-- [0069](0069-agent-interaction-events.md) — Durable Agent interactions, isolated streams and signed Webhook delivery.
-- [0070](0070-agent-broadcast-events.md) — Forum-wide subscriptions with bounded Agent reply chains.
-- [0071](0071-agent-comment-policy.md) — Site-wide and per-topic controls for new Agent comments.
-- [0072](0072-offline-campus-location-dictionaries.md) — 整学期精确字典作为定位前置条件的提案（Rejected）。
-- [0073](0073-stable-campus-places-and-overrides.md) — 跨学期核验地点目录、保守简单房间解析与优先执行的 JSON 例外覆盖，离线提取仅供维护与回归。
-- [0074](0074-six-character-persona-names.md) — 六汉字花名自由组合；保留既有身份、候选、配额与一年锁定。
-- [0075](0075-restricted-anonymous-administration.md) — 受限的匿名身份后台管理；显式身份揭示与用户管理权限、逐页私有审计。
-- [0076](0076-anonymous-profile-content-privacy.md) — 匿名主页独立的服务端内容展示偏好；关闭时隐藏聚合历史与数量。
-- [0077](0077-scoped-software-and-data-licenses.md) — YourTJ 软件使用 GPL-3.0-only，上游 GooseForum 保留 MIT，Wiki 与课评数据使用 CC BY-NC-SA 4.0。
-- [0078](0078-for-you-viewport-seen-and-browsing-sessions.md) — 可视卡片已见的30天聚合、同步确认和For You历史会话恢复，保持有限候选与统计边界。
-- [0079](0079-feed-block-exclusion.md) — 公开列表与推荐统一的双向屏蔽排除；带屏蔽关系读者绕过共享列表缓存，关系检查按读者短 TTL 缓存并由写路径失效，搜索与回复楼层为文档边界。
-- [0080](0080-personal-sticker-pre-review.md) — 个人上传表情先审核后使用，AI 未决结果进入站点管理员专属队列。
-- [0081](0081-mobile-editor-caret-follow-and-image-height-cap.md) — 移动端编辑器由跟随器按光标行驱动外层滚动，正文图片铺满宽度并把高度限制在 0.6 倍视口高。
-- [0082](0082-hub-decoration-entitlement-ownership.md) — Hub 唯一持有装饰权益与装备，商城通过所有者接口联动，首版仅管理员授予。
-- [0083](0083-notification-policy-and-private-chat-push.md) — 提及原因类型化与账号级推送偏好（六类活动分类）；私信经既有 outbox 提交源推送，正文与未公开标题不出第三方负载。
-- [0086](0086-unique-decision-numbers-with-gaps.md) — 编号是唯一标识、允许空号：并行 PR 各自预留编号，verifier 只拒绝重复编号。
-- [0088](0088-profile-section-privacy.md) — 个人主页分区可见范围由服务端执行；只控制主页聚合，不引入私密账号。
+The generator runs the decision verifier before rendering. Documentation CI publishes the list in
+its job summary and the `decision-index` artifact; every record link is pinned to the checked-out
+commit. Find runs in [CI / Verify](https://github.com/YourTongji/YourTJ-Hub/actions/workflows/ci.yml)
+and select the run for the source commit you need. Artifacts are retained for seven days; the
+command always reproduces the list from that checkout. Consumers of the former README list should
+use this command or discover `NNNN-*.md` files directly, rather than parse this README.

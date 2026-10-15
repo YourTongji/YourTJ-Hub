@@ -80,6 +80,7 @@ _$ViewerPayloadImpl _$$ViewerPayloadImplFromJson(Map<String, dynamic> json) =>
       avatarUrl: json['avatarUrl'] as String,
       isAuthenticated: json['isAuthenticated'] as bool,
       canAccessAdmin: json['canAccessAdmin'] as bool,
+      canManageAgents: json['canManageAgents'] as bool? ?? false,
       isModerator: json['isModerator'] as bool,
       requiresEmailVerification: json['requiresEmailVerification'] as bool,
       adminPermissions: (json['adminPermissions'] as List<dynamic>?)
@@ -96,6 +97,7 @@ Map<String, dynamic> _$$ViewerPayloadImplToJson(_$ViewerPayloadImpl instance) =>
       'avatarUrl': instance.avatarUrl,
       'isAuthenticated': instance.isAuthenticated,
       'canAccessAdmin': instance.canAccessAdmin,
+      'canManageAgents': instance.canManageAgents,
       'isModerator': instance.isModerator,
       'requiresEmailVerification': instance.requiresEmailVerification,
       'adminPermissions': instance.adminPermissions,

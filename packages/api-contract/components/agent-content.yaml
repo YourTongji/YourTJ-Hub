@@ -1,0 +1,51 @@
+AgentContentSourceRequest:
+  type: object
+  properties:
+    topicId: {type: integer, format: uint64, minimum: 1}
+    postId: {type: integer, format: uint64, minimum: 1}
+  oneOf:
+    - required: [topicId]
+      not: {required: [postId], properties: {postId: {}}}
+    - required: [postId]
+      not: {required: [topicId], properties: {topicId: {}}}
+AgentContentSource:
+  type: object
+  required: [topicId, postId, title, content, categoryId, revisionNo, botUserId, botName]
+  properties:
+    topicId: {type: integer, format: uint64, minimum: 1}
+    postId: {type: integer, format: uint64, minimum: 1}
+    title: {type: string}
+    content: {type: string}
+    categoryId:
+      type: array
+      items: {type: integer, format: uint64}
+    revisionNo: {type: integer, format: uint64, minimum: 0}
+    botUserId: {type: integer, format: uint64, minimum: 1}
+    botName: {type: string}
+AgentContentSourceResponse:
+  allOf:
+    - $ref: ./schemas.yaml#/ApiSuccess
+    - type: object
+      properties:
+        result:
+          $ref: '#/AgentContentSource'
+AgentEditTopicRequest:
+  type: object
+  required: [topicId, title, content, categoryId, expectedRevisionNo]
+  properties:
+    topicId: {type: integer, format: uint64, minimum: 1}
+    title: {type: string}
+    content: {type: string, minLength: 1}
+    categoryId:
+      type: array
+      minItems: 1
+      maxItems: 3
+      items: {type: integer, format: uint64, minimum: 1}
+    expectedRevisionNo: {type: integer, format: uint64, minimum: 0}
+AgentEditPostRequest:
+  type: object
+  required: [postId, content, expectedRevisionNo]
+  properties:
+    postId: {type: integer, format: uint64, minimum: 1}
+    content: {type: string, minLength: 1}
+    expectedRevisionNo: {type: integer, format: uint64, minimum: 0}

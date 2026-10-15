@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-04
+> Last verified: 2026-10-13
 
 ## Deployment shape
 
@@ -990,6 +990,49 @@ A 404 means routes were not registered; check the deployed configuration and OID
 (including issuer validation and signing-key storage permissions). To disable the provider, set
 `oidc.enabled = false` in the deployment template and apply/restart through the same workflow.
 Password and Web social login remain separate from that switch.
+
+## Passkey configuration
+
+`Partial`: passkeys are disabled in both deployment templates until each instance has verified
+domain association and production app signing identities. The forum itself is the WebAuthn relying
+party; it serves Apple's `/.well-known/apple-app-site-association` and Android's
+`/.well-known/assetlinks.json` from the configured values. Keep the RP ID and each HTTPS web origin
+within the instance hostname boundary. Main and dev use separate RP IDs/origins so their credentials
+remain isolated.
+
+Before enabling an instance, configure its `[passkeys]` section in the reviewed deployment template:
+
+```toml
+[passkeys]
+enabled = true
+rp_id = "f.yourtj.de" # use dev.yourtj.de for the dev instance
+display_name = "YourTJ"
+web_origins = ["https://f.yourtj.de"]
+apple_team_id = "<Apple Developer Team ID>"
+ios_bundle_id = "tj.yourtj.forumApp"
+android_package_name = "tj.yourtj.forum_app"
+android_sha256_cert_fingerprints = ["<SHA-256 app-signing certificate fingerprint>"]
+```
+
+Use the real Apple Team ID and the fingerprints for every Android signing identity that should be
+accepted (including the Play app-signing certificate for Play distribution). Do not use an upload
+key fingerprint in place of Play's app-signing certificate, and verify values against publisher
+records before adding them. iOS Associated Domains include the exact main and dev hosts; the matching
+AASA `appID` must be `<TeamID>.tj.yourtj.forumApp`. Each configured hostname must serve its matching
+AASA or Digital Asset Links document directly over HTTPS without redirects. Android association
+binds the package name to the configured certificate fingerprints. Passkey credential encryption and user handles derive from `app.signingKey`; rotating that key makes existing credentials unusable. Keep it stable and include credential re-enrollment in any planned key rotation.
+
+After a reviewed config rollout, verify both files and the public enabled flag:
+
+```bash
+curl --fail --silent --show-error https://f.yourtj.de/.well-known/apple-app-site-association
+curl --fail --silent --show-error https://f.yourtj.de/.well-known/assetlinks.json
+curl --fail --silent --show-error https://f.yourtj.de/api/auth/passkey/status
+```
+
+Check the corresponding `dev.yourtj.de` paths for dev. Keep `enabled = false` if any signing identity
+or domain association is unknown; invalid enabled configuration fails closed and hides the client
+entry.
 
 ## Runbooks to write
 

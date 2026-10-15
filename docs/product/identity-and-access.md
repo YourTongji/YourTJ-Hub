@@ -2,7 +2,7 @@
 
 > Doc type: product spec
 >
-> Status: Active (auth chain `Partial`; built-in OIDC Provider + password/TOTP/GitHub OAuth/Google OAuth implemented)
+> Status: Active (auth chain `Partial`; built-in OIDC Provider + password/TOTP/GitHub OAuth/Google OAuth implemented; passkeys are opt-in and device acceptance remains `Partial`)
 >
 > Owner: Platform maintainers, Security reviewer
 >
@@ -40,6 +40,15 @@ private binding and restricted audits indefinitely and prevents subsequent perso
   be read, login fails without issuing either a challenge or a session.
   A challenge token can mint at most one session: it is atomically consumed on successful verification
   (`totpservice.ConsumeChallenge`), so replaying it cannot create a second session.
+- Passkey login (`Partial`, deployment opt-in): the forum acts as the WebAuthn relying party and
+  starts a discoverable credential ceremony requiring authenticator user verification. A successful
+  assertion creates the same revocable `jti` + `user_sessions` session as other forum logins. Passkey
+  login is an independent passwordless sign-in path, including for accounts with TOTP enabled; TOTP
+  remains required on password login. Registration is available only to an existing signed-in
+  account. Adding, renaming or revoking a credential requires a fresh password check and, when TOTP
+  is enabled, a current TOTP code. Account closure removes credentials and pending ceremonies.
+  Email/password recovery does not depend on passkeys.
+  The implementation decision is recorded in [MADR 0091](../decisions/0091-forum-owned-cross-platform-passkeys.md).
 - GitHub OAuth and Google OAuth (goth): callbacks bind or sign in and issue a session token. Google
   requests only `openid`, `email`, and `profile` scopes; its email is treated as trusted for account
   binding only when the Google userinfo response contains `verified_email=true`. GitHub/Google OAuth callbacks
@@ -110,6 +119,13 @@ cannot become an account-binding operation if another forum session appears in t
 retains the continuation in its server-side login transaction and resumes the same OIDC bridge; school
 credentials are never returned to Dart.
 
+`Partial`: when the deployment enables passkeys, iOS and Android can sign in with a discoverable
+passkey through the platform credential provider. Existing accounts can add, rename and revoke
+credentials from account security after password reauthentication and TOTP when enabled. Passkey
+sign-in requires user verification and issues the ordinary forum session; email/password recovery
+remains available. Device acceptance, including Android OEM credential-provider behavior, has not
+been completed.
+
 On Android, Google, GitHub and Tongji use one RFC 8252 external-system-browser path. The app builds
 the authorization request itself with PKCE S256, independent `state` and `nonce`, and the provider
 hint, then launches the exact HTTPS authorization URI with `url_launcher` in
@@ -147,6 +163,9 @@ included in the URL, page body or JavaScript. See [mobile experience](mobile-exp
 - **Password login** is protected by forum-side TOTP (RFC 6238, optional, opt-in). Secrets are stored
   AES-256-GCM encrypted (key derived from `app.signingKey`); recovery codes are stored hashed and are
   single-use; verification attempts are rate-limited per user (10 failures / 15 min).
+- Passkey login requires WebAuthn user verification and signs in independently of password/TOTP.
+  TOTP remains an additional step only for password login; credential-management changes still
+  require password and enabled TOTP reauthentication.
 - **GitHub/Google/Tongji and built-in OIDC logins** do not run forum TOTP; MFA for those paths is a
   `Decision needed` (the built-in provider reuses the authenticated forum session, so a future phase
   may enforce forum TOTP there as well).
@@ -315,6 +334,23 @@ social counts and badges, and moderator access rules beyond today's public profi
   instead of silently dropping one new token. Rotation, disablement, and profile edits update only
   their owned columns so concurrent security changes cannot be reverted by a stale full-row save.
   Agent deletion is not supported.
+- `Current`: activated, unfrozen human creators manage only Agents whose `created_by` matches
+  their account; station administrators (`role_id = 1` or a role with `Admin` permission) manage all Agents. This includes profile,
+  credential, event subscription and Webhook recovery operations. Agent creation and the global
+  comment policy retain their administrator permission gates. The management shell does not grant
+  other administrator capabilities.
+- `Current`: the bot's public profile offers an editor to its human creator and station administrators
+  for nickname, avatar, cover, bio, signature and website. Custom avatars use the operator's upload
+  permission and quota, then update the bot's avatar; the operator remains signed in as themselves.
+  Avatar uploads apply immediately, while the other profile fields apply on Save.
+- `Current`: creators and station administrators correct eligible Agent topics and replies directly
+  through the management editor. The bot remains the author, while revisions and the audit record
+  identify the real human operator. Only active, published, nonanonymous forum content is eligible;
+  edits reuse moderation and keep the last approved version public while review is pending.
+  A revision conflict preserves the local draft and requires an explicit reload. This creates no
+  bot login, impersonation session or ability to publish new content as the bot. See
+  [the direct-correction decision](../decisions/0087-agent-owner-content-maintenance.md) and
+  [the Agent runbook](../operations/agents.md#human-management-and-content-correction).
 - Human-auth isolation: bot rows are rejected by password login, forgot/reset password, OAuth
   (goth) login/binding, password change, TOTP setup/enable/disable, and
   human session creation/listing (the JWT session middleware never resolves a bot user). Admin

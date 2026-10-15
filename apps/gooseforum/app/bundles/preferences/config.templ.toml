@@ -23,6 +23,17 @@ gzip = true # 应用层 gzip 开关
 [jwtopt]
 validTime = 604800
 
+# WebAuthn passkeys are disabled until RP and app signing identities are set.
+[passkeys]
+enabled = false
+rp_id = ""
+display_name = "YourTJ"
+web_origins = []
+apple_team_id = ""
+ios_bundle_id = "tj.yourtj.forumApp"
+android_package_name = "tj.yourtj.forum_app"
+android_sha256_cert_fingerprints = []
+
 [db]
 migration = "on" # on,off
 backupSqlite = true

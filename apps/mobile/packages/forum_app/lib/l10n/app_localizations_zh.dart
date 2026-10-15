@@ -3751,4 +3751,78 @@ class AppLocalizationsZh extends AppLocalizations {
   String notificationWikiTopic(String topic) {
     return '《$topic》有更新';
   }
+
+  @override
+  String get authPasskey => '使用通行密钥登录';
+
+  @override
+  String get authPasskeyUnavailable => '此设备暂不支持通行密钥。';
+
+  @override
+  String get authPasskeyFailed => '通行密钥登录失败，请重试或使用密码登录。';
+
+  @override
+  String get authPasskeyCancelled => '未选择或没有可用的通行密钥，请重试或使用密码登录。';
+
+  @override
+  String get settingsPasskeyTitle => '通行密钥';
+
+  @override
+  String get settingsPasskeyManage => '管理通行密钥';
+
+  @override
+  String get settingsPasskeyDescription =>
+      '使用设备通行密钥免密码登录。即使开启两步验证，仍可直接使用通行密钥登录。';
+
+  @override
+  String get settingsPasskeyReauthHint =>
+      '添加、重命名或移除通行密钥都需要登录密码；若已启用两步验证，还需输入当前验证码。';
+
+  @override
+  String get settingsPasskeyName => '通行密钥名称';
+
+  @override
+  String get settingsPasskeyPassword => '登录密码';
+
+  @override
+  String get settingsPasskeyAdd => '添加通行密钥';
+
+  @override
+  String get settingsPasskeyAddedAt => '添加时间';
+
+  @override
+  String get settingsPasskeyLastUsed => '最近使用';
+
+  @override
+  String get settingsPasskeyNeverUsed => '尚未使用';
+
+  @override
+  String get settingsPasskeySyncCapable => '可同步';
+
+  @override
+  String get settingsPasskeyDeviceBound => '仅此设备';
+
+  @override
+  String get settingsPasskeyBackedUp => '已同步';
+
+  @override
+  String get settingsPasskeyRevokedHint => '从 YourTJ 移除通行密钥不会删除密码管理器中保存的凭据。';
+
+  @override
+  String get settingsPasskeyRename => '重命名';
+
+  @override
+  String get settingsPasskeyRevoke => '移除';
+
+  @override
+  String get settingsPasskeyAdded => '已添加通行密钥';
+
+  @override
+  String get settingsPasskeyRevoked => '已移除通行密钥';
+
+  @override
+  String get settingsPasskeyEmpty => '尚未添加通行密钥。';
+
+  @override
+  String get settingsPasskeyUnavailable => '此服务器尚未启用通行密钥。';
 }

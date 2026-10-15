@@ -2,14 +2,17 @@
 // Route coverage gate (issue #277): every Go route registered via RegisterByGin
 // (snapshot: fixtures/routes-snapshot.json, produced by TestRoutesSnapshot) must
 // either appear as an operation in the bundled OpenAPI contract or be listed in
-// route-coverage.json as excluded / knownUncovered. Also regenerates the
-// committed coverage matrix (coverage-matrix.md). Run after `pnpm run bundle:json`.
-import { readFileSync, writeFileSync } from "node:fs";
+// route-coverage.json as excluded / knownUncovered. Generates an untracked
+// .tmp/coverage-matrix.md report. Run after `pnpm run bundle:json`.
+import { readFileSync, writeFileSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const contractDir = join(here, "..");
+const reportPath = join(contractDir, ".tmp", "coverage-matrix.md");
+// A failed check must not leave an old successful report behind.
+rmSync(reportPath, { force: true });
 
 const snapshot = JSON.parse(readFileSync(join(contractDir, "fixtures", "routes-snapshot.json"), "utf8"));
 const bundle = JSON.parse(readFileSync(join(contractDir, ".tmp", "openapi.bundle.json"), "utf8"));
@@ -121,9 +124,9 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-// --- regenerate the committed coverage matrix ---
+// --- regenerate the temporary coverage report ---
 const apiTotal = snapshot.filter((r) => r.path.startsWith("/api/")).length;
-const apiCovered = coveredRows.length;
+const apiCovered = coveredRows.filter(({ route }) => route.path.startsWith("/api/")).length;
 const lines = [];
 lines.push("# Route → Contract 覆盖矩阵");
 lines.push("");
@@ -160,8 +163,8 @@ for (const row of excludedRows) {
 }
 lines.push("");
 
-writeFileSync(join(contractDir, "coverage-matrix.md"), lines.join("\n"));
+writeFileSync(reportPath, lines.join("\n"));
 console.log(
   `[check-route-coverage] OK: ${snapshot.length} routes = ${coveredRows.length} covered + ` +
-    `${knownUncoveredRows.length} known-uncovered + ${excludedRows.length} excluded; coverage-matrix.md regenerated.`
+    `${knownUncoveredRows.length} known-uncovered + ${excludedRows.length} excluded; .tmp/coverage-matrix.md regenerated.`
 );

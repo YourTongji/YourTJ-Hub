@@ -136,6 +136,16 @@ paths:
     $ref: ./paths/auth.yaml#/login
   /api/login-public-key:
     $ref: ./paths/auth-security.yaml#/loginPublicKey
+  /api/auth/passkey/status:
+    $ref: ./paths/auth-passkeys.yaml#/status
+  /.well-known/apple-app-site-association:
+    $ref: ./paths/auth-passkeys.yaml#/appleAssociation
+  /.well-known/assetlinks.json:
+    $ref: ./paths/auth-passkeys.yaml#/androidAssociation
+  /api/auth/passkey/login/begin:
+    $ref: ./paths/auth-passkeys.yaml#/loginBegin
+  /api/auth/passkey/login/finish:
+    $ref: ./paths/auth-passkeys.yaml#/loginFinish
   /api/logout:
     $ref: ./paths/auth-sessions.yaml#/logout
   /api/register:
@@ -156,6 +166,18 @@ paths:
     $ref: ./paths/auth-totp.yaml#/enable
   /api/user/totp/disable:
     $ref: ./paths/auth-totp.yaml#/disable
+  /api/user/passkeys/reauth:
+    $ref: ./paths/auth-passkeys.yaml#/reauth
+  /api/user/passkeys/registration/begin:
+    $ref: ./paths/auth-passkeys.yaml#/registrationBegin
+  /api/user/passkeys/registration/finish:
+    $ref: ./paths/auth-passkeys.yaml#/registrationFinish
+  /api/user/passkeys:
+    $ref: ./paths/auth-passkeys.yaml#/credentials
+  /api/user/passkeys/rename:
+    $ref: ./paths/auth-passkeys.yaml#/rename
+  /api/user/passkeys/revoke:
+    $ref: ./paths/auth-passkeys.yaml#/revoke
   /api/auth/apple/exchange:
     $ref: ./paths/apple-auth.yaml#/exchange
   /api/auth/apple/bind:
@@ -435,6 +457,12 @@ paths:
     $ref: ./paths/admin-topics.yaml#/adminEditTopicCategories
   /api/admin/posts/delete:
     $ref: ./paths/admin-topics.yaml#/adminDeletePost
+  /api/admin/agents/content-source:
+    $ref: ./paths/admin-agent-content.yaml#/adminAgentContentSource
+  /api/admin/agents/edit-topic:
+    $ref: ./paths/admin-agent-content.yaml#/adminAgentEditTopic
+  /api/admin/agents/edit-post:
+    $ref: ./paths/admin-agent-content.yaml#/adminAgentEditPost
   /api/admin/agent-list:
     $ref: ./paths/admin-operations.yaml#/adminAgentList
   /api/admin/agent-create:

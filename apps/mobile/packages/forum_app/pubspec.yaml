@@ -43,6 +43,7 @@ dependencies:
   sqlite3: ^3.5.1
   share_plus: ^11.0.0
   app_settings: ^9.0.0
+  passkeys: ^2.23.1
 
   intl: ^0.20.2
   webview_flutter: ^4.14.1

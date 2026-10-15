@@ -665,6 +665,11 @@ export interface GithubRelease {
 }
 
 export interface AdminAgent {
+  profileCoverUrl: string
+  bio: string
+  signature: string
+  website: string
+  websiteName: string
   agentId: number
   username: string
   nickname: string
@@ -785,3 +790,14 @@ export interface WikiNamespaceTree {
 
 /** Completed local course materialization (the API returns only after commit). */
 export type PkMaterializeResult = import('@gooseforum/client/openapi').components['schemas']['PkMaterializeResult']
+
+export interface BotContentSource {
+  topicId: number
+  postId: number
+  title: string
+  content: string
+  categoryId: number[]
+  revisionNo: number
+  botUserId: number
+  botName: string
+}

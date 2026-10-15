@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPasskeys"
 	"math/rand"
 	"strings"
 	"time"
@@ -175,6 +176,9 @@ func CloseAccount(userID uint64) error {
 // CloseAccountTx lets the owning service coordinate account deletion and other
 // required private-state cleanup in one primary-database transaction.
 func CloseAccountTx(tx *gorm.DB, userID uint64) error {
+	if err := userPasskeys.DeleteUserState(tx, userID); err != nil {
+		return err
+	}
 	if err := feed.MarkActorTx(tx, userID); err != nil {
 		return err
 	}

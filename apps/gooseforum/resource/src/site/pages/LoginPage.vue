@@ -6,7 +6,7 @@ import { useI18n } from 'vue-i18n'
 import TongjiLoginButton from '@/site/components/TongjiLoginButton.vue'
 import PasswordInput from '@/site/components/PasswordInput.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
-import { forgotPassword, getCaptcha, login, register, verifyTotp } from '@/runtime/api'
+import { forgotPassword, getCaptcha, getPasskeyStatus, login, loginWithPasskey, register, verifyTotp } from '@/runtime/api'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
 import { useSiteTheme, setThemePreference } from '@/runtime/site-theme'
@@ -37,8 +37,10 @@ const captchaId = ref('')
 const captchaLoading = ref(false)
 const notice = ref('')
 const error = ref('')
+const passkeyEnabled = ref(false)
 const loading = reactive({
   login: false,
+  passkey: false,
   register: false,
   forgot: false,
   totp: false,
@@ -113,6 +115,14 @@ const brandImage = computed(() => {
 onMounted(() => {
   if (page.props.tongjiRegistration) return
   refreshCaptcha()
+  void getPasskeyStatus().then((status) => {
+    passkeyEnabled.value = status.enabled
+      && window.isSecureContext
+      && !!navigator.credentials
+      && typeof PublicKeyCredential !== 'undefined'
+  }).catch(() => {
+    passkeyEnabled.value = false
+  })
 })
 
 function switchMode(next: Mode) {
@@ -159,6 +169,20 @@ async function handleLogin() {
     refreshCaptcha()
   } finally {
     loading.login = false
+  }
+}
+
+async function handlePasskeyLogin() {
+  if (loading.passkey) return
+  loading.passkey = true
+  error.value = ''
+  try {
+    await loginWithPasskey()
+    window.location.href = homeUrl.value
+  } catch (err) {
+    error.value = errorMessage(err, t('auth.passkeyError'))
+  } finally {
+    loading.passkey = false
   }
 }
 
@@ -414,6 +438,17 @@ function onToggleTheme() {
             <button type="submit" class="gf-button gf-button-xl gf-button-primary w-full" :disabled="loading.login">
               <LoaderCircle v-if="loading.login" class="h-4 w-4 animate-spin" />
               {{ t('shell.login') }}
+            </button>
+            <button
+              v-if="passkeyEnabled"
+              type="button"
+              class="gf-button gf-button-xl gf-button-muted w-full"
+              :disabled="loading.passkey || loading.login"
+              @click="handlePasskeyLogin"
+            >
+              <LoaderCircle v-if="loading.passkey" class="h-4 w-4 animate-spin" />
+              <ShieldCheck v-else class="h-4 w-4" />
+              {{ t(loading.passkey ? 'auth.passkeyWorking' : 'auth.passkeyLogin') }}
             </button>
           </form>
 

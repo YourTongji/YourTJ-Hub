@@ -4,10 +4,10 @@ adminAgentList:
     summary: List all managed Agents (bot personas)
     operationId: adminAgentList
     description: |
-      Admin console operation gated by the `Admin` role permission; only roles
-      holding the Admin permission pass, others fail with HTTP 403 and
-      `permission.denied` (params permission=<localized permission name>).
-      Returns every Agent with its bot user, newest first. The token hash never
+      Requires an activated, unfrozen human Agent creator or station administrator (role_id=1 or Admin permission).
+      Creators see only their own Agents; administrators see all. Other authenticated humans
+      receive an empty list without exposing another Agent.
+      Returns only manageable Agents with its bot user, newest first. The token hash never
       leaves the server; only the non-secret token prefix is exposed. JSON
       binding is lenient: the request body is ignored.
     security:
@@ -15,11 +15,13 @@ adminAgentList:
       - accessTokenCookie: []
     responses:
       '200':
-        description: All Agents (empty array when none exist).
+        description: Manageable Agents (empty when the caller manages none).
         content:
           application/json:
             schema:
-              $ref: ../components/schemas.yaml#/AdminAgentListResponse
+              oneOf:
+                - $ref: ../components/schemas.yaml#/AdminAgentListResponse
+                - $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               success:
                 externalValue: ../fixtures/admin-agent-list-success.json
@@ -36,7 +38,7 @@ adminAgentList:
                 externalValue: ../fixtures/auth-required.json
       '403':
         description: >-
-          Frozen account, or caller lacks the Admin permission.
+          Frozen or non-writable account.
           A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
           by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
           is not cleared (issue #406).
@@ -47,8 +49,6 @@ adminAgentList:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
-              permissionDenied:
-                externalValue: ../fixtures/admin-agent-create-permission-denied.json
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
 
@@ -138,14 +138,21 @@ adminAgentUpdate:
     summary: Update an Agent's nickname, webhook, or enabled state
     operationId: adminAgentUpdate
     description: |
-      Admin console operation gated by the `Admin` role permission; callers
-      without it fail with HTTP 403 and `permission.denied`. Only present
+      Requires an activated, unfrozen human Agent creator or station administrator (role_id=1 or Admin permission).
+      Creators manage only their own Agents; administrators manage all. Ownership denial or
+      an unknown Agent uses HTTP 200 permission.denied without exposing another Agent.
+      Only present
       (non-null) fields are applied. Setting `enabled` to 0 disables the Agent
       and revokes its stored credential (the token hash is cleared, so a leaked
       token can never validate again); re-enabling such an Agent fails with
       `admin.agent.needsRotate` (HTTP 200) until adminAgentRotateToken issues a
-      new token. Unknown agents fail with `admin.agent.notFound` (HTTP 200); an
-      over-long nickname or an `enabled` value outside 0-1 fails with
+      new token. An
+      Profile fields (avatarUrl, profileCoverUrl, bio, signature, website and websiteName)
+      are optional and preserve stored values when absent. Avatar values must be built-in
+      presets or ready image files owned by the human actor or target Bot; cover and website
+      URLs use the safe http(s)/site-path policy. Profile text uses the normal user-profile
+      moderation rules, and mutation rechecks live human authority inside its transaction.
+      An over-long nickname/profile field or an `enabled` value outside 0-1 fails with
       `common.request.invalidParams` (HTTP 200); an invalid webhook endpoint
       fails with `admin.agent.webhookInvalid` (HTTP 200). JSON binding is
       lenient: a malformed body binds to zero values and fails validation as
@@ -167,6 +174,8 @@ adminAgentUpdate:
             schema:
               $ref: ../components/schemas.yaml#/AdminAgentUpdateResponse
             examples:
+              ownershipDenied:
+                externalValue: ../fixtures/permission-denied.json
               success:
                 externalValue: ../fixtures/admin-agent-update-success.json
               notFound:
@@ -186,7 +195,7 @@ adminAgentUpdate:
                 externalValue: ../fixtures/auth-required.json
       '403':
         description: >-
-          Frozen account, or caller lacks the Admin permission.
+          Frozen or non-writable account.
           A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
           by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
           is not cleared (issue #406).
@@ -197,8 +206,6 @@ adminAgentUpdate:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
-              permissionDenied:
-                externalValue: ../fixtures/admin-agent-create-permission-denied.json
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
 
@@ -208,15 +215,16 @@ adminAgentRotateToken:
     summary: Rotate an Agent's bearer token
     operationId: adminAgentRotateToken
     description: |
-      Admin console operation gated by the `Admin` role permission; callers
-      without it fail with HTTP 403 and `permission.denied`. Replaces the
+      Requires an activated, unfrozen human Agent creator or station administrator (role_id=1 or Admin permission).
+      Creators manage only their own Agents; administrators manage all. Ownership denial or
+      an unknown Agent uses HTTP 200 permission.denied without exposing another Agent.
+      Replaces the
       stored token prefix and hash atomically (compare-and-swap), so the old
       token stops resolving immediately and the new plaintext token (`agt_`
       prefix) is returned exactly once. Rotation is also the recovery path
       after a disable revoked the credential: it succeeds and the Agent can
       then be re-enabled. A concurrent rotation loses the compare-and-swap and
-      fails with `admin.agent.rotateConflict` (HTTP 200); unknown agents fail
-      with `admin.agent.notFound` (HTTP 200). JSON binding is lenient: a
+      fails with `admin.agent.rotateConflict` (HTTP 200). JSON binding is lenient: a
       malformed body binds to zero values and fails validation as
       `common.request.invalidParams` (HTTP 200) because agentId is required.
     security:
@@ -236,6 +244,8 @@ adminAgentRotateToken:
             schema:
               $ref: ../components/schemas.yaml#/AdminAgentRotateTokenResponse
             examples:
+              ownershipDenied:
+                externalValue: ../fixtures/permission-denied.json
               success:
                 externalValue: ../fixtures/admin-agent-rotate-token-success.json
               notFound:
@@ -251,7 +261,7 @@ adminAgentRotateToken:
                 externalValue: ../fixtures/auth-required.json
       '403':
         description: >-
-          Frozen account, or caller lacks the Admin permission.
+          Frozen or non-writable account.
           A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
           by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
           is not cleared (issue #406).
@@ -262,8 +272,6 @@ adminAgentRotateToken:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
-              permissionDenied:
-                externalValue: ../fixtures/admin-agent-create-permission-denied.json
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
 
@@ -273,14 +281,15 @@ adminAgentDisable:
     summary: Disable an Agent and revoke its credential
     operationId: adminAgentDisable
     description: |
-      Admin console operation gated by the `Admin` role permission; callers
-      without it fail with HTTP 403 and `permission.denied`. Turns the Agent
+      Requires an activated, unfrozen human Agent creator or station administrator (role_id=1 or Admin permission).
+      Creators manage only their own Agents; administrators manage all. Ownership denial or
+      an unknown Agent uses HTTP 200 permission.denied without exposing another Agent.
+      Turns the Agent
       off and clears the stored token hash, so bearer resolution with the old
       token fails with HTTP 401 immediately and can never validate again, even
       if the Agent is later re-enabled. Re-enabling requires an explicit
       adminAgentRotateToken first (adminAgentUpdate fails with
-      `admin.agent.needsRotate` otherwise). Unknown agents fail with
-      `admin.agent.notFound` (HTTP 200). A successful disable returns result
+      `admin.agent.needsRotate` otherwise). A successful disable returns result
       `success` with messageCode `common.operation.success`. JSON binding is
       lenient: a malformed body binds to zero values and fails validation as
       `common.request.invalidParams` (HTTP 200) because agentId is required.
@@ -301,6 +310,8 @@ adminAgentDisable:
             schema:
               $ref: ../components/schemas.yaml#/AdminAgentDisableResponse
             examples:
+              ownershipDenied:
+                externalValue: ../fixtures/permission-denied.json
               success:
                 externalValue: ../fixtures/admin-agent-disable-success.json
               notFound:
@@ -316,7 +327,7 @@ adminAgentDisable:
                 externalValue: ../fixtures/auth-required.json
       '403':
         description: >-
-          Frozen account, or caller lacks the Admin permission.
+          Frozen or non-writable account.
           A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
           by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
           is not cleared (issue #406).
@@ -327,8 +338,6 @@ adminAgentDisable:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
-              permissionDenied:
-                externalValue: ../fixtures/admin-agent-create-permission-denied.json
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
 

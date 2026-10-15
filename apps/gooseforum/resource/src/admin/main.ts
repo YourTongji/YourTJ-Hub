@@ -14,7 +14,7 @@ applyStoredTheme()
 initSystemThemeListener()
 
 const payload = readAdminPayload()
-configureAdminAccess(payload.layout.viewer.adminPermissions)
+configureAdminAccess(payload.layout.viewer.adminPermissions, payload.layout.viewer.canManageAgents)
 
 document.documentElement.lang = document.documentElement.lang || 'zh-CN'
 

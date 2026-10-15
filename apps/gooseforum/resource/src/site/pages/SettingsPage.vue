@@ -4,6 +4,7 @@ import UserNickname from '@/site/components/UserNickname.vue'
 import type { UserDecoration } from '@gooseforum/client'
 import AnonymousIdentitySettings from '@/site/components/AnonymousIdentitySettings.vue'
 import ProfilePrivacySettings from '@/site/components/ProfilePrivacySettings.vue'
+import PasskeySettings from '@/site/components/PasskeySettings.vue'
 import ManagedContent from '@/site/components/ManagedContent.vue'
 import { useContentUpdates } from '@/runtime/content-updates'
 import BadgeDisplayEditor from '@/site/components/BadgeDisplayEditor.vue'
@@ -2377,6 +2378,7 @@ async function toggleBinding(provider: string) {
                 </button>
               </div>
             </div>
+            <PasskeySettings :totp-enabled="totpEnabled" />
             <div v-if="loadingSessions" class="p-4 py-8 text-center text-sm text-base-content/55">
               <Loader2 class="mx-auto mb-2 h-5 w-5 animate-spin" />
               {{ t('settings.security.loading') }}

@@ -41,6 +41,7 @@ import '../../widgets/stickers/sticker_library_page.dart';
 import '../../widgets/stickers/sticker_strings.dart';
 import 'text_size_settings_page.dart';
 import 'username_edit_dialog.dart';
+import 'passkey_settings_page.dart';
 import 'badge_display_dialog.dart';
 import 'profile_image_editor.dart';
 import 'oauth_bindings_sheet.dart';
@@ -1626,6 +1627,22 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             description: l10n.settingsTotpSetupSecret,
             trailing: const GfSymbol('chevron-right', size: 18),
             onTap: _manageTotp,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _settingsSection(
+          context,
+          title: l10n.settingsPasskeyTitle,
+          child: GfSettingRow(
+            symbol: 'key-round',
+            title: l10n.settingsPasskeyManage,
+            description: l10n.settingsPasskeyDescription,
+            trailing: const GfSymbol('chevron-right', size: 18),
+            onTap: () => Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(
+                builder: (_) => const PasskeySettingsPage(),
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 12),

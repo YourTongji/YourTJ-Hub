@@ -41,6 +41,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/appleauthservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/campusservice"
@@ -205,6 +206,7 @@ type ViewerPayload struct {
 	AvatarURL                 string                     `json:"avatarUrl"`
 	IsAuthenticated           bool                       `json:"isAuthenticated"`
 	CanAccessAdmin            bool                       `json:"canAccessAdmin"`
+	CanManageAgents           bool                       `json:"canManageAgents"`
 	IsModerator               bool                       `json:"isModerator"`
 	RequiresEmailVerification bool                       `json:"requiresEmailVerification"`
 	AdminPermissions          []uint64                   `json:"adminPermissions"`
@@ -447,24 +449,25 @@ type TopicPermissions struct {
 }
 
 type UserProfileProps struct {
-	User         *vo.UserCard             `json:"user"`
-	Section      string                   `json:"section"`
-	ActivityTab  string                   `json:"activityTab"`
-	Tabs         []TabPayload             `json:"tabs"`
-	ActivityTabs []TabPayload             `json:"activityTabs"`
-	Pagination   PaginationPayload        `json:"pagination"`
-	Badges       []badgeservice.UserBadge `json:"badges"`
-	Topics       []TopicPayload           `json:"topics"`
-	Activities   []UserActivityPayload    `json:"activities"`
-	Likes        []UserLikePayload        `json:"likes"`
-	Bookmarks    []UserBookmarkPayload    `json:"bookmarks"`
-	Following    []UserConnectionPayload  `json:"following"`
-	Followers    []UserConnectionPayload  `json:"followers"`
-	IsOwnProfile bool                     `json:"isOwnProfile"`
-	CanMessage   bool                     `json:"canMessage"`
-	CanFollow    bool                     `json:"canFollow"`
-	MessageURL   string                   `json:"messageUrl"`
-	SettingsURL  string                   `json:"settingsUrl"`
+	User           *vo.UserCard             `json:"user"`
+	Section        string                   `json:"section"`
+	ActivityTab    string                   `json:"activityTab"`
+	Tabs           []TabPayload             `json:"tabs"`
+	ActivityTabs   []TabPayload             `json:"activityTabs"`
+	Pagination     PaginationPayload        `json:"pagination"`
+	Badges         []badgeservice.UserBadge `json:"badges"`
+	Topics         []TopicPayload           `json:"topics"`
+	Activities     []UserActivityPayload    `json:"activities"`
+	Likes          []UserLikePayload        `json:"likes"`
+	Bookmarks      []UserBookmarkPayload    `json:"bookmarks"`
+	Following      []UserConnectionPayload  `json:"following"`
+	Followers      []UserConnectionPayload  `json:"followers"`
+	IsOwnProfile   bool                     `json:"isOwnProfile"`
+	CanManageAgent bool                     `json:"canManageAgent"`
+	CanMessage     bool                     `json:"canMessage"`
+	CanFollow      bool                     `json:"canFollow"`
+	MessageURL     string                   `json:"messageUrl"`
+	SettingsURL    string                   `json:"settingsUrl"`
 	// Visibility reports which profile sections this viewer may see.
 	Visibility UserProfileVisibilityPayload `json:"visibility"`
 }
@@ -775,6 +778,7 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 			Decoration:                currentUser.Decoration,
 			IsAuthenticated:           currentUser.UserId > 0,
 			CanAccessAdmin:            currentUser.CanAccessAdmin,
+			CanManageAgents:           agentservice.CanAccessManagement(currentUser.UserId),
 			IsModerator:               moderationservice.CanAccessModeration(currentUser.UserId),
 			RequiresEmailVerification: currentUser.UserId > 0 && securityConfig.EnableEmailVerification && currentUser.IsActivated == users.ActivationPending,
 			AdminPermissions:          buildAdminPermissions(currentUser.UserId),
@@ -2185,25 +2189,26 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 	}
 
 	return UserProfileProps{
-		User:         userCard,
-		Section:      section,
-		ActivityTab:  activityTab,
-		Tabs:         buildUserProfileTabs(user.Id, section, currentUserID == user.Id),
-		ActivityTabs: buildUserProfileActivityTabs(user.Id, section, activityTab),
-		Pagination:   pagination,
-		Badges:       badges,
-		Topics:       topicPayloads,
-		Activities:   activities,
-		Likes:        likes,
-		Bookmarks:    bookmarks,
-		Following:    following,
-		Followers:    followers,
-		IsOwnProfile: currentUserID == user.Id,
-		CanMessage:   currentUserID > 0 && currentUserID != user.Id,
-		CanFollow:    currentUserID > 0 && currentUserID != user.Id,
-		MessageURL:   "/messages?userId=" + strconv.FormatUint(user.Id, 10) + "&username=" + url.QueryEscape(userCard.Nickname) + "&avatar=" + url.QueryEscape(userCard.AvatarUrl),
-		SettingsURL:  "/settings",
-		Visibility:   buildUserProfileVisibility(privacy),
+		User:           userCard,
+		Section:        section,
+		ActivityTab:    activityTab,
+		Tabs:           buildUserProfileTabs(user.Id, section, currentUserID == user.Id),
+		ActivityTabs:   buildUserProfileActivityTabs(user.Id, section, activityTab),
+		Pagination:     pagination,
+		Badges:         badges,
+		Topics:         topicPayloads,
+		Activities:     activities,
+		Likes:          likes,
+		Bookmarks:      bookmarks,
+		Following:      following,
+		Followers:      followers,
+		IsOwnProfile:   currentUserID == user.Id,
+		CanManageAgent: user.IsBot() && agentservice.CanManage(currentUserID, user.Id),
+		CanMessage:     currentUserID > 0 && currentUserID != user.Id,
+		CanFollow:      currentUserID > 0 && currentUserID != user.Id,
+		MessageURL:     "/messages?userId=" + strconv.FormatUint(user.Id, 10) + "&username=" + url.QueryEscape(userCard.Nickname) + "&avatar=" + url.QueryEscape(userCard.AvatarUrl),
+		SettingsURL:    "/settings",
+		Visibility:     buildUserProfileVisibility(privacy),
 	}
 }
 

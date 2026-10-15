@@ -1,0 +1,15 @@
+{
+  "code": 0,
+  "result": {
+    "topicId": 1001,
+    "postId": 2001,
+    "title": "Agent topic",
+    "content": "Editable Markdown",
+    "categoryId": [
+      1
+    ],
+    "revisionNo": 2,
+    "botUserId": 42,
+    "botName": "Agent"
+  }
+}

@@ -15,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/agentinstance"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentwebhookservice"
@@ -30,6 +31,11 @@ type AgentItem struct {
 	Username               string     `json:"username"`
 	Nickname               string     `json:"nickname"`
 	AvatarUrl              string     `json:"avatarUrl"`
+	ProfileCoverUrl        string     `json:"profileCoverUrl"`
+	Bio                    string     `json:"bio"`
+	Signature              string     `json:"signature"`
+	Website                string     `json:"website"`
+	WebsiteName            string     `json:"websiteName"`
 	Email                  string     `json:"email"`
 	TokenPrefix            string     `json:"tokenPrefix"`
 	WebhookEndpoint        string     `json:"webhookEndpoint"`
@@ -73,6 +79,7 @@ func toAgentItem(view agentservice.AgentView) AgentItem {
 		Nickname:        view.User.Nickname,
 		AvatarUrl:       view.User.GetWebAvatarUrl(),
 		Email:           view.User.Email,
+		ProfileCoverUrl: view.User.ProfileCoverUrl, Bio: view.User.Bio, Signature: view.User.Signature, Website: view.User.Website, WebsiteName: view.User.WebsiteName,
 		TokenPrefix:     view.Agent.TokenPrefix,
 		WebhookEndpoint: view.Agent.WebhookEndpoint,
 		Enabled:         view.Agent.Enabled,
@@ -104,6 +111,9 @@ func AgentList(req component.BetterRequest[component.Null]) component.Response {
 	views := agentservice.List()
 	list := make([]AgentItem, 0, len(views))
 	for _, view := range views {
+		if !agentservice.CanManage(req.UserId, view.Agent.UserId) {
+			continue
+		}
 		list = append(list, toAgentItem(view))
 	}
 	return component.SuccessResponse(list)
@@ -150,6 +160,12 @@ func AgentCreate(req component.BetterRequest[AgentCreateReq]) component.Response
 // AgentUpdateReq carries only the mutable fields. Non-nil pointer fields are
 // applied; absent fields stay unchanged.
 type AgentUpdateReq struct {
+	AvatarUrl       *string `json:"avatarUrl"`
+	ProfileCoverUrl *string `json:"profileCoverUrl"`
+	Bio             *string `json:"bio"`
+	Signature       *string `json:"signature"`
+	Website         *string `json:"website"`
+	WebsiteName     *string `json:"websiteName"`
 	AgentId         uint64  `json:"agentId" validate:"required"`
 	Nickname        *string `json:"nickname"`
 	WebhookEndpoint *string `json:"webhookEndpoint"`
@@ -157,14 +173,36 @@ type AgentUpdateReq struct {
 }
 
 func AgentUpdate(req component.BetterRequest[AgentUpdateReq]) component.Response {
+	if !agentservice.CanManage(req.UserId, req.Params.AgentId) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	params := req.Params
+	if params.Nickname != nil {
+		if _, err := moderationservice.CheckNicknameAllowed(strings.TrimSpace(*params.Nickname)); err != nil {
+			return component.FailResponseError(err)
+		}
+	}
+	text := []string{}
+	for _, field := range []*string{params.Bio, params.Signature, params.Website, params.WebsiteName} {
+		if field != nil {
+			text = append(text, *field)
+		}
+	}
+	profileText := strings.Join(text, "\n")
+	if words := moderationservice.FindSensitiveWords(profileText); len(words) > 0 {
+		moderationservice.SensitiveContentBlocked(req.UserId, moderationLog.SubjectUserProfile, req.Params.AgentId, words[0], truncateExcerpt(profileText))
+		return component.FailResponseCode(component.MessageContentSensitiveBlocked, component.MessageParams{"word": words[0], "words": words})
+	}
 	view, err := agentservice.Update(params.AgentId, agentservice.UpdateParams{
+		ActorID: req.UserId, AvatarUrl: params.AvatarUrl, ProfileCoverUrl: params.ProfileCoverUrl, Bio: params.Bio, Signature: params.Signature, Website: params.Website, WebsiteName: params.WebsiteName,
 		Nickname:        params.Nickname,
 		WebhookEndpoint: params.WebhookEndpoint,
 		Enabled:         params.Enabled,
 	})
 	if err != nil {
 		switch {
+		case errors.Is(err, agentservice.ErrManagementDenied):
+			return component.FailResponseCode(component.MessagePermissionDenied, nil)
 		case errors.Is(err, agentservice.ErrAgentNotFound):
 			return component.FailResponseCode(component.MessageAdminAgentNotFound, nil)
 		case errors.Is(err, agentservice.ErrAgentNicknameInvalid):
@@ -193,6 +231,9 @@ type AgentRotateTokenResponse struct {
 }
 
 func AgentRotateToken(req component.BetterRequest[AgentIdReq]) component.Response {
+	if !agentservice.CanManage(req.UserId, req.Params.AgentId) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	token, err := agentservice.RotateToken(req.Params.AgentId)
 	if err != nil {
 		switch {
@@ -212,6 +253,9 @@ func AgentRotateToken(req component.BetterRequest[AgentIdReq]) component.Respons
 }
 
 func AgentDisable(req component.BetterRequest[AgentIdReq]) component.Response {
+	if !agentservice.CanManage(req.UserId, req.Params.AgentId) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	err := agentservice.Disable(req.Params.AgentId)
 	if err != nil {
 		if errors.Is(err, agentservice.ErrAgentNotFound) {

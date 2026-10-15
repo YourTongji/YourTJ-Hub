@@ -28,7 +28,8 @@ description: Review yourtj-hub changes against user needs, research, acceptance 
   还需同步 mobile Dart 镜像（`apps/mobile/packages/core/lib/src/gen/`）与手动维护的 web TS 类型
   （`apps/gooseforum/resource/packages/client/src/contracts/`）。
 - 路由/请求/响应结构是否改变？与 `packages/api-contract/openapi.yaml` 或 `app/http/controllers` 实际行为核对。
-- 新路由是否同步 routes snapshot、coverage matrix，且有 operation 或明确 exclusion？相关 token、
+- 新路由是否同步 routes snapshot，且有 operation 或明确 exclusion？coverage matrix 由门禁重新生成，
+  不要求提交报告；相关 token、
   serverMessages 等跨端镜像是否按 `AGENTS.md` 同步？
 
 ## Database & migration safety

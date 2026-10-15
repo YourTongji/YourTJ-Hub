@@ -814,10 +814,31 @@
   "publishImageOrderTitle": "Image order",
   "publishImageOrderHint": "Long-press and drag to change where each image appears",
   "publishImageOrderPosition": "Image {index}",
-  "@publishImageOrderPosition": {"placeholders": {"index": {"type": "int"}}},
-  "@publishCategoryLimit": {"placeholders": {"count": {"type": "int"}}},
+  "@publishImageOrderPosition": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "@publishCategoryLimit": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "publishStepOf": "Step {current} of {total}",
-  "@publishStepOf": {"placeholders": {"current": {"type": "int"}, "total": {"type": "int"}}},
+  "@publishStepOf": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "publishFormatting": "Formatting",
   "publishClassification": "Choose categories",
   "publishLeaveTitle": "Keep your work?",
@@ -1916,8 +1937,65 @@
   "notificationCommentTopic": "{actor} commented on “{topic}”",
   "notificationTopicPostTopic": "{actor} posted a reply in “{topic}”, which you follow",
   "notificationWikiTopic": "“{topic}” was updated",
-  "@notificationMentionTopic": {"placeholders": {"actor": {"type": "String"}, "topic": {"type": "String"}}},
-  "@notificationCommentTopic": {"placeholders": {"actor": {"type": "String"}, "topic": {"type": "String"}}},
-  "@notificationTopicPostTopic": {"placeholders": {"actor": {"type": "String"}, "topic": {"type": "String"}}},
-  "@notificationWikiTopic": {"placeholders": {"topic": {"type": "String"}}}
+  "@notificationMentionTopic": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      },
+      "topic": {
+        "type": "String"
+      }
+    }
+  },
+  "@notificationCommentTopic": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      },
+      "topic": {
+        "type": "String"
+      }
+    }
+  },
+  "@notificationTopicPostTopic": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      },
+      "topic": {
+        "type": "String"
+      }
+    }
+  },
+  "@notificationWikiTopic": {
+    "placeholders": {
+      "topic": {
+        "type": "String"
+      }
+    }
+  },
+  "authPasskey": "Sign in with a passkey",
+  "authPasskeyUnavailable": "Passkeys are not available on this device.",
+  "authPasskeyFailed": "Passkey sign-in failed. Try again or use your password.",
+  "authPasskeyCancelled": "No passkey was selected or available. Try again or use your password.",
+  "settingsPasskeyTitle": "Passkeys",
+  "settingsPasskeyManage": "Manage passkeys",
+  "settingsPasskeyDescription": "Use a device passkey to sign in without your password. Passkey sign-in still works when two-factor authentication is enabled.",
+  "settingsPasskeyReauthHint": "Adding, renaming, or removing a passkey requires your password and, when enabled, a current authenticator code.",
+  "settingsPasskeyName": "Passkey name",
+  "settingsPasskeyPassword": "Login password",
+  "settingsPasskeyAdd": "Add a passkey",
+  "settingsPasskeyAddedAt": "Added",
+  "settingsPasskeyLastUsed": "Last used",
+  "settingsPasskeyNeverUsed": "Not used yet",
+  "settingsPasskeySyncCapable": "Sync-capable",
+  "settingsPasskeyDeviceBound": "Device-bound",
+  "settingsPasskeyBackedUp": "Synced",
+  "settingsPasskeyRevokedHint": "Removing a passkey from YourTJ does not delete it from your password manager.",
+  "settingsPasskeyRename": "Rename",
+  "settingsPasskeyRevoke": "Remove",
+  "settingsPasskeyAdded": "Passkey added",
+  "settingsPasskeyRevoked": "Passkey removed",
+  "settingsPasskeyEmpty": "No passkeys are registered.",
+  "settingsPasskeyUnavailable": "Passkeys are not enabled on this server."
 }

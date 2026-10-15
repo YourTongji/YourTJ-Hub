@@ -16,7 +16,7 @@ import (
 // 名单检查：命中返回 auth.username.reserved/banned，且不创建 users/agents 行。
 func TestAgentCreateRejectsReservedUsername(t *testing.T) {
 	setupAgentAdminTestDB(t)
-	router := agentAdminRouter(1)
+	router := agentAdminRouter(t)
 	conn := db.Connect()
 	// setupAgentAdminTestDB 未迁移 page_config；策略检查（hotdataserve 缓存读
 	// page_config 行）依赖该表存在。补迁移保证名单可持久化并命中。
@@ -58,8 +58,8 @@ func TestAgentCreateRejectsReservedUsername(t *testing.T) {
 			}
 			var userCount int64
 			conn.Model(&users.EntityComplete{}).Count(&userCount)
-			if userCount != 0 {
-				t.Fatalf("users count = %d, want 0 after rejected create", userCount)
+			if userCount != 1 {
+				t.Fatalf("users count = %d, want only the authenticated admin after rejected create", userCount)
 			}
 		})
 	}
@@ -68,7 +68,7 @@ func TestAgentCreateRejectsReservedUsername(t *testing.T) {
 // TestAgentCreateAllowsUnreservedUsername 名单之外的名字可正常创建（防误伤回归）。
 func TestAgentCreateAllowsUnreservedUsername(t *testing.T) {
 	setupAgentAdminTestDB(t)
-	router := agentAdminRouter(1)
+	router := agentAdminRouter(t)
 	conn := db.Connect()
 	// 同上：补迁移 page_config 表。
 	if err := conn.AutoMigrate(&pageConfig.Entity{}); err != nil {

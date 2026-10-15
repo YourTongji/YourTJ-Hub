@@ -66,6 +66,17 @@ Map<String, dynamic> prodShapeUserProfileJson() => <String, dynamic>{
 };
 
 void main() {
+  test('Agent management flag is optional for old servers and round trips', () {
+    final legacy = prodShapeUserProfileJson();
+    expect(UserProfileProps.fromJson(legacy).canManageAgent, isFalse);
+    final managed = UserProfileProps.fromJson({
+      ...legacy,
+      'canManageAgent': true,
+    });
+    expect(managed.canManageAgent, isTrue);
+    expect(managed.toJson()['canManageAgent'], isTrue);
+  });
+
   group('UserProfileProps · 生产 null 数组容错', () {
     test('activityTabs/badges/user.badges 为 null 时解析为空列表而非抛错', () {
       final UserProfileProps props = UserProfileProps.fromJson(

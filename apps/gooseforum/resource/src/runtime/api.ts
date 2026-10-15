@@ -1186,8 +1186,9 @@ export async function setPassword(newPassword: string): Promise<boolean> {
   return true
 }
 
-export async function uploadAvatar(avatar: Blob | Blob[]): Promise<string> {
+export async function uploadAvatar(avatar: Blob | Blob[], agentId?: number): Promise<string> {
   const formData = new FormData()
+  if (agentId !== undefined) formData.append('agentId', String(agentId))
   const avatars = Array.isArray(avatar) ? avatar : [avatar]
   const fields = ['avatar', 'avatarMedium']
   const filenames = ['avatar.webp', 'avatar_medium.webp']
@@ -1374,6 +1375,206 @@ export async function getTotpStatus(): Promise<TotpStatusPayload> {
     },
   })
   return readApiResponse<TotpStatusPayload>(response, t('api.totpSetupFailed'))
+}
+
+export interface PasskeyStatusPayload {
+  enabled: boolean
+}
+
+export interface PasskeyCredentialSummary {
+  id: string
+  name: string
+  createdAt: string
+  lastUsedAt?: string
+  backupEligible: boolean
+  backupState: boolean
+  transports: string[]
+}
+
+interface PasskeyBeginPayload {
+  ceremonyId: string
+  publicKey: Record<string, unknown>
+}
+
+export async function getPasskeyStatus(): Promise<PasskeyStatusPayload> {
+  const response = await feedFetch('/api/auth/passkey/status', {
+    headers: { Accept: 'application/json' },
+  })
+  return readApiResponse<PasskeyStatusPayload>(response, t('auth.passkeyError'))
+}
+
+export async function listPasskeyCredentials(): Promise<PasskeyCredentialSummary[]> {
+  const response = await feedFetch('/api/user/passkeys', {
+    headers: { Accept: 'application/json' },
+  })
+  return readApiResponse<PasskeyCredentialSummary[]>(response, t('settings.security.passkeyFailed'))
+}
+
+async function passkeyManagementProof(password: string, totpCode: string): Promise<string> {
+  const encryptedPassword = await encryptLoginPassword(password)
+  const response = await feedFetch('/api/user/passkeys/reauth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ encryptedPassword, ...(totpCode ? { totpCode } : {}) }),
+  })
+  const result = await readApiResponse<{ proof: string }>(response, t('settings.security.passkeyFailed'))
+  return result.proof
+}
+
+async function beginPasskeyRegistration(proof: string): Promise<PasskeyBeginPayload> {
+  const response = await feedFetch('/api/user/passkeys/registration/begin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ proof }),
+  })
+  return readApiResponse<PasskeyBeginPayload>(response, t('settings.security.passkeyFailed'))
+}
+
+function decodeBase64Url(value: string): Uint8Array {
+  const base64 = value.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = base64 + '='.repeat((4 - base64.length % 4) % 4)
+  const binary = atob(padded)
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0))
+}
+
+function encodeBase64Url(value: ArrayBuffer): string {
+  const bytes = new Uint8Array(value)
+  let binary = ''
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000))
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+function browserCredentialOptions(raw: Record<string, unknown>, registration: boolean): PublicKeyCredentialCreationOptions | PublicKeyCredentialRequestOptions {
+  const options = { ...raw } as Record<string, any>
+  options.challenge = decodeBase64Url(String(options.challenge || ''))
+  if (registration) {
+    const user = options.user as Record<string, unknown> | undefined
+    if (!user?.id) throw new Error(t('auth.passkeyError'))
+    options.user = { ...user, id: decodeBase64Url(String(user.id)) }
+    options.excludeCredentials = (options.excludeCredentials ?? []).map((item: Record<string, unknown>) => ({
+      ...item,
+      id: decodeBase64Url(String(item.id)),
+    }))
+    return options as PublicKeyCredentialCreationOptions
+  }
+  options.allowCredentials = options.allowCredentials?.map((item: Record<string, unknown>) => ({
+    ...item,
+    id: decodeBase64Url(String(item.id)),
+  }))
+  return options as PublicKeyCredentialRequestOptions
+}
+
+function browserRegistrationCredential(credential: PublicKeyCredential): Record<string, unknown> {
+  const response = credential.response as AuthenticatorAttestationResponse
+  return {
+    id: credential.id,
+    rawId: encodeBase64Url(credential.rawId),
+    type: credential.type,
+    authenticatorAttachment: credential.authenticatorAttachment,
+    response: {
+      clientDataJSON: encodeBase64Url(response.clientDataJSON),
+      attestationObject: encodeBase64Url(response.attestationObject),
+      transports: typeof response.getTransports === 'function' ? response.getTransports() : [],
+    },
+  }
+}
+
+function browserAssertionCredential(credential: PublicKeyCredential): Record<string, unknown> {
+  const response = credential.response as AuthenticatorAssertionResponse
+  return {
+    id: credential.id,
+    rawId: encodeBase64Url(credential.rawId),
+    type: credential.type,
+    authenticatorAttachment: credential.authenticatorAttachment,
+    response: {
+      clientDataJSON: encodeBase64Url(response.clientDataJSON),
+      authenticatorData: encodeBase64Url(response.authenticatorData),
+      signature: encodeBase64Url(response.signature),
+      userHandle: response.userHandle ? encodeBase64Url(response.userHandle) : null,
+    },
+  }
+}
+
+export async function loginWithPasskey(): Promise<void> {
+  if (!window.isSecureContext || !navigator.credentials || typeof PublicKeyCredential === 'undefined') {
+    throw new Error(t('auth.passkeyUnavailable'))
+  }
+  const beginResponse = await feedFetch('/api/auth/passkey/login/begin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+  const begin = await readApiResponse<PasskeyBeginPayload>(beginResponse, t('auth.passkeyError'))
+  let credential: PublicKeyCredential | null
+  try {
+    credential = await navigator.credentials.get({
+      publicKey: browserCredentialOptions(begin.publicKey, false) as PublicKeyCredentialRequestOptions,
+    }) as PublicKeyCredential | null
+  } catch (error) {
+    if (error instanceof DOMException && ['AbortError', 'NotAllowedError'].includes(error.name)) {
+      throw new Error(t('auth.passkeyCancelled'))
+    }
+    if (error instanceof DOMException && error.name === 'SecurityError') {
+      throw new Error(t('auth.passkeyUnavailable'))
+    }
+    throw error
+  }
+  if (!credential) throw new Error(t('auth.passkeyError'))
+  const response = await feedFetch('/api/auth/passkey/login/finish', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ceremonyId: begin.ceremonyId, credential: browserAssertionCredential(credential) }),
+  })
+  await readApiResponse<unknown>(response, t('auth.passkeyError'))
+}
+
+export async function registerPasskey(password: string, totpCode: string, name: string): Promise<PasskeyCredentialSummary> {
+  if (!navigator.credentials || typeof PublicKeyCredential === 'undefined') throw new Error(t('auth.passkeyUnavailable'))
+  const proof = await passkeyManagementProof(password, totpCode)
+  const begin = await beginPasskeyRegistration(proof)
+  let credential: PublicKeyCredential | null
+  try {
+    credential = await navigator.credentials.create({
+      publicKey: browserCredentialOptions(begin.publicKey, true) as PublicKeyCredentialCreationOptions,
+    }) as PublicKeyCredential | null
+  } catch (error) {
+    if (error instanceof DOMException && ['AbortError', 'NotAllowedError'].includes(error.name)) {
+      throw new Error(t('auth.passkeyCancelled'))
+    }
+    if (error instanceof DOMException && error.name === 'SecurityError') {
+      throw new Error(t('auth.passkeyUnavailable'))
+    }
+    throw error
+  }
+  if (!credential) throw new Error(t('settings.security.passkeyFailed'))
+  const response = await feedFetch('/api/user/passkeys/registration/finish', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ceremonyId: begin.ceremonyId, name, credential: browserRegistrationCredential(credential) }),
+  })
+  return readApiResponse<PasskeyCredentialSummary>(response, t('settings.security.passkeyFailed'))
+}
+
+export async function renamePasskey(password: string, totpCode: string, credentialId: string, name: string): Promise<void> {
+  const proof = await passkeyManagementProof(password, totpCode)
+  const response = await feedFetch('/api/user/passkeys/rename', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ proof, credentialId, name }),
+  })
+  await readApiResponse<unknown>(response, t('settings.security.passkeyFailed'))
+}
+
+export async function revokePasskey(password: string, totpCode: string, credentialId: string): Promise<void> {
+  const proof = await passkeyManagementProof(password, totpCode)
+  const response = await feedFetch('/api/user/passkeys/revoke', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ proof, credentialId }),
+  })
+  await readApiResponse<unknown>(response, t('settings.security.passkeyFailed'))
 }
 
 interface CaptchaPayload {

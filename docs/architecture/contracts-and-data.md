@@ -13,7 +13,8 @@
 The contract capability is **Partial** (all JSON routes are described; generated Dart and a few
 protocol surfaces remain open). The controlled OpenAPI 3.1 entry point is
 `packages/api-contract/openapi.yaml`. Every `/api` JSON route is covered by an OpenAPI operation —
-the generated `packages/api-contract/coverage-matrix.md` is the authoritative route-by-route list,
+the [coverage report entry](../../packages/api-contract/coverage-matrix.md) explains how to generate
+the route-by-route list and find the report for a CI run,
 and CI rejects any route that is neither contracted nor listed. By domain:
 
 - auth and account: password login, login public key, TOTP (verify + management), logout,
@@ -267,9 +268,13 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
   then requires every snapshot route to be either an OpenAPI operation or listed in
   `packages/api-contract/route-coverage.json` (`excluded` for non-JSON-API routes such as SSR pages and
   static assets, `knownUncovered` with an owning slice for pending `/api` routes), rejects stale or
-  dangling list entries and contract operations with no matching route, and regenerates the committed
-  `packages/api-contract/coverage-matrix.md` — CI rejects an uncommitted matrix diff, same as the
-  generated TypeScript types. Net effect: a new route that is neither contracted nor listed turns CI red.
+  dangling list entries and contract operations with no matching route, and generates the ignored
+  `packages/api-contract/.tmp/coverage-matrix.md`. CI publishes this report in the contract job summary
+  and `api-route-coverage` artifact with the checked-out source commit. Only generated TypeScript
+  types require a committed diff; route snapshots, coverage exceptions and contracts remain committed
+  inputs. Independent route changes may still require merging those inputs; regenerate the report
+  after merging rather than resolving generated rows. A failed coverage check removes the previous
+  local report. Net effect: a new route that is neither contracted nor listed turns CI red.
 
 Breaking-change comparison is not a current gate. Enable a base-versus-head bundled-spec breaking
 gate (for example `oasdiff` against the bundled base and head specs) in a separate change; that gate

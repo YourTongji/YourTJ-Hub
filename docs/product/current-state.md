@@ -9,7 +9,8 @@
 > Last verified: 2026-10-13
 
 本页只汇总具体能力、缺口和维护文档。产品规则在对应规范中维护，接口字段以
-[契约覆盖矩阵](../../packages/api-contract/coverage-matrix.md)为准；历史交付过程由 Git 保存。
+[OpenAPI 契约](../../packages/api-contract/openapi.yaml)为准；路由覆盖见
+[覆盖报告入口](../../packages/api-contract/coverage-matrix.md)，历史交付过程由 Git 保存。
 状态词定义见[文档中心](../README.md#implementation-status-words)，代码存在不代表部署和真机验收完成。
 
 ## Supported capabilities

@@ -3934,4 +3934,83 @@ class AppLocalizationsEn extends AppLocalizations {
   String notificationWikiTopic(String topic) {
     return '“$topic” was updated';
   }
+
+  @override
+  String get authPasskey => 'Sign in with a passkey';
+
+  @override
+  String get authPasskeyUnavailable =>
+      'Passkeys are not available on this device.';
+
+  @override
+  String get authPasskeyFailed =>
+      'Passkey sign-in failed. Try again or use your password.';
+
+  @override
+  String get authPasskeyCancelled =>
+      'No passkey was selected or available. Try again or use your password.';
+
+  @override
+  String get settingsPasskeyTitle => 'Passkeys';
+
+  @override
+  String get settingsPasskeyManage => 'Manage passkeys';
+
+  @override
+  String get settingsPasskeyDescription =>
+      'Use a device passkey to sign in without your password. Passkey sign-in still works when two-factor authentication is enabled.';
+
+  @override
+  String get settingsPasskeyReauthHint =>
+      'Adding, renaming, or removing a passkey requires your password and, when enabled, a current authenticator code.';
+
+  @override
+  String get settingsPasskeyName => 'Passkey name';
+
+  @override
+  String get settingsPasskeyPassword => 'Login password';
+
+  @override
+  String get settingsPasskeyAdd => 'Add a passkey';
+
+  @override
+  String get settingsPasskeyAddedAt => 'Added';
+
+  @override
+  String get settingsPasskeyLastUsed => 'Last used';
+
+  @override
+  String get settingsPasskeyNeverUsed => 'Not used yet';
+
+  @override
+  String get settingsPasskeySyncCapable => 'Sync-capable';
+
+  @override
+  String get settingsPasskeyDeviceBound => 'Device-bound';
+
+  @override
+  String get settingsPasskeyBackedUp => 'Synced';
+
+  @override
+  String get settingsPasskeyRevokedHint =>
+      'Removing a passkey from YourTJ does not delete it from your password manager.';
+
+  @override
+  String get settingsPasskeyRename => 'Rename';
+
+  @override
+  String get settingsPasskeyRevoke => 'Remove';
+
+  @override
+  String get settingsPasskeyAdded => 'Passkey added';
+
+  @override
+  String get settingsPasskeyRevoked => 'Passkey removed';
+
+  @override
+  String get settingsPasskeyEmpty => 'No passkeys are registered.';
+
+  @override
+  String get settingsPasskeyUnavailable =>
+      'Passkeys are not enabled on this server.';
 }

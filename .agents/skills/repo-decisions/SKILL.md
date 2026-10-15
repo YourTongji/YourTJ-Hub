@@ -25,7 +25,8 @@ Write or update a decision record when a change chooses among meaningful alterna
    - `## Links`
 4. State the decision, what it beats, and what it gives up. `## Considered Options` lists genuine alternatives; `## Pros and Cons of the Options` records why the losers lost. When the record relies on external evidence or an implementation source, cite it descriptively with a stable URL, DOI, or versioned permalink in `## Links`; do not leave research or quantitative claims unlinked.
 5. Cross-reference records with relative Markdown links (`[0001](0001-title.md)`), never bare numbers.
-6. Add the new record to the Index in `docs/decisions/README.md`.
+6. Do not edit a shared index. `node scripts/generate-decisions-index.mjs` discovers numbered records
+   and generates the complete list; CI publishes the index in the documentation job summary and artifact.
 7. Run `node scripts/verify-decisions.mjs`.
 
 ## Procedure: update an existing record
@@ -44,5 +45,5 @@ The verifier names the violation. Fix the named file:
 - `invalid Class` — use architecture/process/testing/feature/bug-fix/simplification.
 - `required sections missing or out of order` — add or reorder the seven required sections.
 - `superseded target missing` — create the target record or point at an existing number.
-- `duplicate decision number NNNN` — two records share a number; move one to another unused number and update its filename, index entry and links.
+- `duplicate decision number NNNN` — two records share a number; move one to another unused number and update its filename and links.
 - `invalid superseded reference` — use `Superseded by [NNNN](NNNN-title.md)` whose number matches the target filename (the exact legacy form `Superseded by NNNN` is accepted only while its target exists).
