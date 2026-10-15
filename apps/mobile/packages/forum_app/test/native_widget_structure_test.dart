@@ -461,7 +461,6 @@ void main() {
     expect(source, contains('func nextClass(at date: Date)'));
     // The iOS home_widget plugin only forwards links carrying this marker.
     expect(source, contains('yourtj://campus/today?homeWidget=true'));
-    expect(source, contains('&homeWidget=true'));
     expect(source, contains('HStack(alignment: .top, spacing: 12)'));
     expect(source, isNot(contains('.teal')));
     expect(source, isNot(contains('.indigo')));

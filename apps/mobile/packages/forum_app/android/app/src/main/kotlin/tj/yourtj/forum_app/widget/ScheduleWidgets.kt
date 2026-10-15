@@ -138,11 +138,10 @@ abstract class ScheduleGlanceWidget : GlanceAppWidget() {
         context: Context,
         description: String,
         transparency: Int,
-        focusId: String? = null,
         horizontalPadding: Dp? = null,
         content: @Composable () -> Unit,
     ) {
-        val uri = Uri.parse("yourtj://campus/today${focusId?.let { "?focus=$it" } ?: ""}")
+        val uri = Uri.parse("yourtj://campus/today")
         val verticalPadding = if (LocalSize.current.height < 80.dp) 8.dp else 12.dp
         Box(
             modifier = GlanceModifier
@@ -275,7 +274,6 @@ class NextClassWidget : ScheduleGlanceWidget() {
             context,
             description,
             transparency,
-            course?.id,
             horizontalPadding = if (nextClassSize(widgetSize) == NextClassSize.WideCompact) 16.dp else null,
         ) {
             when (nextClassSize(widgetSize)) {

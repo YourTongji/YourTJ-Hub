@@ -300,7 +300,7 @@ private struct NextClassView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(accessibility))
-        .widgetURL(URL(string: "yourtj://campus/today?focus=\(state.1?.stableId ?? "")&homeWidget=true"))
+        .widgetURL(URL(string: "yourtj://campus/today?homeWidget=true"))
         .widgetContainerBackground()
     }
 }
