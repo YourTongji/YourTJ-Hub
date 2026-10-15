@@ -32,7 +32,7 @@ jobs:
           node scripts/generate-decisions-index.mjs "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$source/docs/decisions/" > "$RUNNER_TEMP/decisions-index.md"
           cat "$RUNNER_TEMP/decisions-index.md" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload decision index
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: decision-index
           path: ${{ runner.temp }}/decisions-index.md
