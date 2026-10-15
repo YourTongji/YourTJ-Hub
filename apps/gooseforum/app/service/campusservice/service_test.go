@@ -234,6 +234,52 @@ func TestProjectionExcludesPrivateFields(t *testing.T) {
 	}
 }
 
+func TestTimetableRoomResolvesAcrossEntryAndItemFallbacks(t *testing.T) {
+	entry := func(fields map[string]any) map[string]any {
+		base := map[string]any{"dayOfWeek": 4, "timeStart": 1, "timeEnd": 2, "weeks": []any{5}}
+		for k, v := range fields {
+			base[k] = v
+		}
+		return base
+	}
+	v := []any{
+		// 体育课：timeTableList 项只有占位 roomId "0"，显示名在课程项 classRoomI18n。
+		map[string]any{"courseName": "体育(3)", "teacherName": "杜长宏", "classRoomI18n": "体育馆",
+			"timeTableList": []any{entry(map[string]any{"roomId": "0"})}},
+		// 没有任何显示名时，裸 roomId（占位 "0"）不得透出为教室。
+		map[string]any{"courseName": "工程实践", "teacherName": "程宏",
+			"timeTableList": []any{entry(map[string]any{"roomId": "0"})}},
+		// 实验课：教室在 timeTableList 项的 roomLabel，且上游拼写为 roomLable。
+		map[string]any{"courseName": "电路实验",
+			"timeTableList": []any{entry(map[string]any{"roomLable": "电信楼实验室", "roomId": "0"})}},
+		// i18n 优先：roomIdI18n 存在时忽略 roomLabel 与占位 roomId。
+		map[string]any{"courseName": "复变函数", "teacherName": "周羚君",
+			"timeTableList": []any{entry(map[string]any{"roomIdI18n": "广楼G301", "roomLabel": "忽略我", "roomId": "0"})}},
+		// 教师/校区回退到课程项。
+		map[string]any{"courseName": "学术英语", "teacherName": "周羚君", "campus": "四平路校区",
+			"timeTableList": []any{entry(map[string]any{"roomIdI18n": "广楼G204"})}},
+	}
+	d := normalize("timetable", v)
+	if len(d.Events) != 5 {
+		t.Fatalf("expected 5 events, got %d", len(d.Events))
+	}
+	if room := d.Events[0].Room; room != "体育馆" {
+		t.Fatalf("item-level classRoomI18n should resolve over placeholder roomId, got %q", room)
+	}
+	if room := d.Events[1].Room; room != "" {
+		t.Fatalf("bare placeholder roomId must not leak as room label, got %q", room)
+	}
+	if room := d.Events[2].Room; room != "电信楼实验室" {
+		t.Fatalf("roomLable fallback should resolve, got %q", room)
+	}
+	if room := d.Events[3].Room; room != "广楼G301" {
+		t.Fatalf("roomIdI18n should win over roomLabel/roomId, got %q", room)
+	}
+	if d.Events[4].Room != "广楼G204" || d.Events[4].Teacher != "周羚君" || d.Events[4].Campus != "四平路校区" {
+		t.Fatalf("teacher/campus item fallback broken: %#v", d.Events[4])
+	}
+}
+
 func TestGradeProjectionDoesNotInventZeroForUnpublishedGPA(t *testing.T) {
 	v := map[string]any{"term": []any{
 		map[string]any{"termName": "pending", "averagePoint": "未公布"},
