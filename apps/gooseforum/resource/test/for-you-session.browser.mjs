@@ -172,7 +172,10 @@ test('a removed scroll anchor advances to the next surviving card without rerank
     state.removed = [10]
     await page.goBack()
     await page.waitForFunction(() => !document.querySelector('[data-feed-id="10"]'))
-    assert.ok(Math.abs(await page.locator('[data-feed-id="11"]').evaluate((row) => row.getBoundingClientRect().top) - 80) < 3)
+    await page.waitForFunction(() => {
+      const next = document.querySelector('[data-feed-id="11"]')
+      return next && Math.abs(next.getBoundingClientRect().top - 80) < 3
+    })
     assert.equal(state.firstPages, 0); assert.equal(state.refreshes.length, 0)
   } finally { await page.close() }
 })
