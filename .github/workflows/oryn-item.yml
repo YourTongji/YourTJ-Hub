@@ -94,7 +94,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y bubblewrap ripgrep
       - if: inputs.runtime
         run: bun run core:install
-      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510
         id: target
         with:
           client-id: ${{ vars.ORYN_APP_CLIENT_ID }}
@@ -152,7 +152,7 @@ jobs:
           artifact-ids: ${{ needs.run.outputs.result-artifact }}
           merge-multiple: true
           path: .oryn-runtime/.artifacts/result
-      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510
         id: target
         with:
           client-id: ${{ vars.ORYN_APP_CLIENT_ID }}
