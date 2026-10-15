@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../gf_motion.dart';
 
-/// Shows a themed bottom sheet and returns the value passed to `Navigator.pop`.
+/// Shows a centered tablet form or compact bottom sheet and returns the value passed to `Navigator.pop`.
 ///
 /// Short sheets fit their content; long sheets must provide a scrollable body.
 /// [height] includes the optional handle and is constrained to the viewport.
@@ -23,6 +23,66 @@ Future<T?> showGfBottomSheet<T>(
 }) {
   final navigator = Navigator.of(context, rootNavigator: true);
   final localizations = MaterialLocalizations.of(context);
+  if (MediaQuery.sizeOf(navigator.context).width >= 760) {
+    return navigator.push<T>(
+      DialogRoute<T>(
+        context: context,
+        barrierDismissible: barrierDismissible,
+        barrierColor: const Color(0x66000000),
+        animationStyle: GfMotion.dialogStyle(context),
+        builder: (panelContext) => AnimatedPadding(
+          duration: GfMotion.duration(panelContext, GfMotion.content),
+          curve: GfMotion.enterCurve,
+          padding: EdgeInsets.fromLTRB(
+            24,
+            24,
+            24,
+            24 +
+                (keyboardAware
+                    ? MediaQuery.viewInsetsOf(panelContext).bottom
+                    : 0),
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final theme = Theme.of(context);
+              return Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: 640,
+                    maxHeight: constraints.maxHeight,
+                  ),
+                  child: Material(
+                    color:
+                        theme.bottomSheetTheme.backgroundColor ??
+                        theme.colorScheme.surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: height == null
+                          ? null
+                          : math.min(height, constraints.maxHeight),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (height != null)
+                            Expanded(child: Builder(builder: builder))
+                          else
+                            Flexible(child: Builder(builder: builder)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
   // The mobile shell paints its bottom navigation as a sibling overlay of
   // branch Navigators. Present sheets on the app Navigator so the sheet and
   // its scrim own the complete viewport, including the shell chrome.

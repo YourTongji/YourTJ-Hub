@@ -254,6 +254,43 @@ Future<void> _confirmCloudDelete(WidgetTester tester) async {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  testWidgets('wide draft filters preserve search, list and undo on resizing', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1120, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final store = WritingStore();
+    await store.save(_scope, _article);
+    await store.save(_scope, _reply);
+    await _mount(tester, store);
+    expect(find.byKey(const Key('draft-filter-sidebar')), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'Campus');
+    await tester.tap(find.text('本机草稿').first);
+    await tester.pumpAndSettle();
+    final search = tester.widget<TextField>(find.byType(TextField)).controller;
+    final list = tester.element(find.byType(CustomScrollView));
+    await _deleteArticle(tester);
+    await tester.binding.setSurfaceSize(const Size(500, 800));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('draft-filter-sidebar')), findsNothing);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller,
+      same(search),
+    );
+    expect(search!.text, 'Campus');
+    expect(tester.element(find.byType(CustomScrollView)), same(list));
+    await tester.tap(find.text('撤销'));
+    await tester.pumpAndSettle();
+    expect(find.text('Campus notes'), findsOneWidget);
+    expect(find.text('云端未完成内容'), findsNothing);
+    await tester.binding.setSurfaceSize(const Size(1120, 800));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('draft-filter-sidebar')), findsOneWidget);
+    expect(tester.element(find.byType(CustomScrollView)), same(list));
+    expect(await store.drafts(_scope), hasLength(2));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
   testWidgets('device and cloud drafts expose visible delete actions', (
     tester,
   ) async {

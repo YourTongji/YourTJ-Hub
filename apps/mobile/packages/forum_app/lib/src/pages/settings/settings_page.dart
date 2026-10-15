@@ -38,6 +38,7 @@ import 'session_device_label.dart';
 import '../../widgets/stickers/sticker_library_page.dart';
 import '../../widgets/stickers/sticker_strings.dart';
 import 'text_size_settings_page.dart';
+import 'schedule_widget_settings_page.dart';
 import 'username_edit_dialog.dart';
 import 'badge_display_dialog.dart';
 import 'profile_image_editor.dart';
@@ -52,6 +53,8 @@ enum _SettingsTab {
   binding,
   security,
   appearance,
+  textSize,
+  widgets,
   notifications;
 
   String label(AppLocalizations l10n) => switch (this) {
@@ -61,6 +64,8 @@ enum _SettingsTab {
     _SettingsTab.binding => l10n.settingsTabBinding,
     _SettingsTab.security => l10n.settingsTabSecurity,
     _SettingsTab.appearance => l10n.settingsAppearance,
+    _SettingsTab.textSize => l10n.textSizeTitle,
+    _SettingsTab.widgets => l10n.scheduleWidgetSettingsTitle,
     _SettingsTab.notifications => l10n.settingsPush,
   };
 }
@@ -104,6 +109,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   _ProfileEditSession _autoEditSession = _ProfileEditSession();
   final ImagePicker _imagePicker = ImagePicker();
   final Set<Route<dynamic>> _profileEditRoutes = {};
+  final ScrollController _directoryScrollController = ScrollController();
 
   double get _layoutTextScale =>
       (MediaQuery.textScalerOf(context).scale(16) / 16).clamp(
@@ -117,7 +123,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Wide settings opens a useful device preference without fetching an account.
-    if (_hasDirectory && _tab == null) _tab = _SettingsTab.appearance;
+    if (_hasDirectory && _tab == null) {
+      _tab = _SettingsTab.appearance;
+    }
   }
 
   @override
@@ -130,10 +138,22 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _loadSession();
   }
 
+  @override
+  void dispose() {
+    _directoryScrollController.dispose();
+    super.dispose();
+  }
+
   bool get _needsUser =>
       _tab == _SettingsTab.profile ||
       _tab == _SettingsTab.account ||
       _tab == _SettingsTab.binding;
+
+  bool get _devicePage =>
+      _tab == _SettingsTab.appearance ||
+      _tab == _SettingsTab.privacy ||
+      _tab == _SettingsTab.textSize ||
+      _tab == _SettingsTab.widgets;
 
   Future<void> _loadSession() async {
     final request = ++_sessionRequest;
@@ -1031,7 +1051,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final colors = GfTheme.colorsOf(context);
     final hasDirectory = _hasDirectory;
     return Scaffold(
-      backgroundColor: colors.base200,
+      backgroundColor: colors.base100,
       appBar: GfAppBar(
         leading: IconButton(
           icon: const GfSymbol('chevron-left'),
@@ -1053,8 +1073,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   offstage: !hasDirectory,
                   child: SizedBox(
                     key: const ValueKey('settings-directory'),
-                    width: 260 * _layoutTextScale,
-                    child: _buildIndex(l10n),
+                    width: 292 * _layoutTextScale,
+                    child: Scrollbar(
+                      controller: _directoryScrollController,
+                      thumbVisibility: true,
+                      child: PrimaryScrollController(
+                        controller: _directoryScrollController,
+                        child: _buildIndex(l10n),
+                      ),
+                    ),
                   ),
                 ),
                 SizedBox(
@@ -1082,7 +1109,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                     key: const ValueKey(
                                       'settings-detail-title',
                                     ),
-                                    style: GfTheme.typographyOf(context).title2,
+                                    style: GfTheme.typographyOf(context).title2
+                                        .copyWith(fontWeight: FontWeight.w700),
                                   )
                                 : const SizedBox.shrink(),
                           ),
@@ -1145,6 +1173,22 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ThemeMode.dark => l10n.settingsThemeDark,
               },
               onTap: () => _openSection(_SettingsTab.appearance),
+            ),
+            const GfDivider(),
+            _categoryRow(
+              key: const ValueKey('settings-category-textSize'),
+              section: _SettingsTab.textSize,
+              symbol: 'type',
+              title: l10n.textSizeTitle,
+              onTap: () => _openSection(_SettingsTab.textSize),
+            ),
+            const GfDivider(),
+            _categoryRow(
+              key: const ValueKey('settings-category-widgets'),
+              section: _SettingsTab.widgets,
+              symbol: 'calendar-days',
+              title: l10n.scheduleWidgetSettingsTitle,
+              onTap: () => _openSection(_SettingsTab.widgets),
             ),
             const GfDivider(),
             Builder(
@@ -1295,7 +1339,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Widget _buildTabBody(AppLocalizations l10n) {
-    if (_tab != _SettingsTab.appearance && _tab != _SettingsTab.privacy) {
+    if (_tab == _SettingsTab.textSize) {
+      return const TextSizeSettingsPage(embedded: true);
+    }
+    if (_tab == _SettingsTab.widgets) {
+      return const ScheduleWidgetSettingsPage(embedded: true);
+    }
+    if (!_devicePage) {
       if (_signedIn == null) return const GfSettingsSkeleton();
       if (_signedIn == false) {
         if (!_hasDirectory) return _buildIndex(l10n);
@@ -1329,6 +1379,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           _SettingsTab.binding => _buildBindingTab(l10n, controller),
           _SettingsTab.security => _buildSecurityTab(l10n, controller),
           _SettingsTab.appearance => _buildAppearance(l10n, controller),
+          _SettingsTab.textSize || _SettingsTab.widgets => throw StateError(
+            'Device pages use their own scroll views',
+          ),
           _SettingsTab.notifications => _buildNotifications(l10n, controller),
         };
         if (_tab == _SettingsTab.appearance ||
@@ -1385,7 +1438,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               textSizeLabel(l10n, appScale),
               textSizeLabel(l10n, readingScale),
             ),
-            onTap: () => context.push('/settings/text-size'),
+            onTap: () => _openSection(_SettingsTab.textSize),
           ),
         ),
         const SizedBox(height: 12),
@@ -1395,7 +1448,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           child: GfSettingRow(
             symbol: 'calendar-days',
             title: l10n.scheduleWidgetSettingsTitle,
-            onTap: () => context.push('/settings/widgets'),
+            onTap: () => _openSection(_SettingsTab.widgets),
           ),
         ),
         if (siteTheme.available) ...[

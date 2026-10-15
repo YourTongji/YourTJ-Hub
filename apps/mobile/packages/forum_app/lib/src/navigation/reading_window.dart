@@ -18,6 +18,10 @@ class ReadingNavigationRail extends StatelessWidget {
     BuildContext context,
     List<GfBottomNavigationItem> items,
   ) {
+    final textScale = MediaQuery.textScalerOf(context).scale(17) / 17;
+    if (MediaQuery.sizeOf(context).width >= 1100 && textScale <= 1.4) {
+      return 220;
+    }
     var width = 72.0;
     for (final item in items) {
       final painter = TextPainter(
@@ -40,78 +44,109 @@ class ReadingNavigationRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      children: [
-        for (var i = 0; i < items.length; i++)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: MergeSemantics(
-              key: ValueKey('rail-destination-$i'),
-              child: Semantics(
-                label: items[i].semanticsLabel,
-                button: true,
-                enabled: true,
-                selected: currentIndex == i,
-                onTap: () => onSelected(i),
-                child: Tooltip(
-                  message: items[i].label,
-                  excludeFromSemantics: true,
-                  child: ExcludeSemantics(
-                    child: TextButton(
-                      onPressed: () => onSelected(i),
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size(48, 48),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        foregroundColor: currentIndex == i
-                            ? colors.primary
-                            : colors.iconMuted,
-                        backgroundColor: currentIndex == i
-                            ? colors.primary.withValues(alpha: .08)
-                            : Colors.transparent,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Badge(
-                            isLabelVisible: items[i].badge,
-                            backgroundColor: colors.primary,
-                            child: GfSymbol(
-                              currentIndex == i
-                                  ? items[i].selectedSymbol
-                                  : items[i].symbol,
-                              size: 24,
-                              color: currentIndex == i
-                                  ? colors.primary
-                                  : colors.iconMuted,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final extended = constraints.maxWidth >= 200;
+        return ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+          children: [
+            if (extended)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 28),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: GfLogo(size: 36),
+                ),
+              ),
+            for (var i = 0; i < items.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: MergeSemantics(
+                  key: ValueKey('rail-destination-$i'),
+                  child: Semantics(
+                    label: items[i].semanticsLabel,
+                    button: true,
+                    enabled: true,
+                    selected: currentIndex == i,
+                    onTap: () => onSelected(i),
+                    child: Tooltip(
+                      message: items[i].label,
+                      excludeFromSemantics: true,
+                      child: ExcludeSemantics(
+                        child: TextButton(
+                          onPressed: () => onSelected(i),
+                          style: TextButton.styleFrom(
+                            minimumSize: const Size(48, 48),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: extended ? 16 : 4,
+                              vertical: extended ? 16 : 12,
                             ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            foregroundColor: currentIndex == i
+                                ? colors.primary
+                                : colors.iconMuted,
+                            backgroundColor: currentIndex == i
+                                ? colors.primary.withValues(alpha: .08)
+                                : Colors.transparent,
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            items[i].label,
-                            textAlign: TextAlign.center,
-                            style: GfTheme.typographyOf(context).caption
-                                .copyWith(
-                                  fontWeight: currentIndex == i
-                                      ? FontWeight.w600
-                                      : FontWeight.w400,
+                          child: Flex(
+                            direction: extended
+                                ? Axis.horizontal
+                                : Axis.vertical,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Badge(
+                                isLabelVisible: items[i].badge,
+                                backgroundColor: colors.primary,
+                                child: GfSymbol(
+                                  currentIndex == i
+                                      ? items[i].selectedSymbol
+                                      : items[i].symbol,
+                                  size: extended ? 26 : 24,
+                                  color: currentIndex == i
+                                      ? colors.primary
+                                      : colors.iconMuted,
                                 ),
+                              ),
+                              SizedBox(
+                                width: extended ? 16 : 0,
+                                height: extended ? 0 : 6,
+                              ),
+                              Flexible(
+                                fit: extended ? FlexFit.tight : FlexFit.loose,
+                                child: Text(
+                                  items[i].label,
+                                  textAlign: extended
+                                      ? TextAlign.start
+                                      : TextAlign.center,
+                                  style:
+                                      (extended
+                                              ? GfTheme.typographyOf(
+                                                  context,
+                                                ).title3
+                                              : GfTheme.typographyOf(
+                                                  context,
+                                                ).caption)
+                                          .copyWith(
+                                            fontWeight: currentIndex == i
+                                                ? FontWeight.w700
+                                                : FontWeight.w400,
+                                          ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -190,6 +225,12 @@ class ReadingWindow extends StatelessWidget {
       final railWidth = wide
           ? navigationRailWidth + MediaQuery.paddingOf(context).left
           : 0.0;
+      final outerMargin = wide
+          ? ((constraints.maxWidth - railWidth - 1120) / 2).clamp(
+              0.0,
+              double.infinity,
+            )
+          : 0.0;
       return ReadingWindowScope(
         hasRail: wide,
         navigationWidth: constraints.maxWidth,
@@ -202,9 +243,12 @@ class ReadingWindow extends StatelessWidget {
             children: [
               Positioned.fill(
                 child: Padding(
-                  padding: EdgeInsets.only(left: railWidth),
+                  padding: EdgeInsets.only(
+                    left: outerMargin + railWidth,
+                    right: outerMargin,
+                  ),
                   child: Align(
-                    alignment: Alignment.topCenter,
+                    alignment: Alignment.topLeft,
                     child: Container(
                       constraints: BoxConstraints(maxWidth: maxContentWidth),
                       decoration: BoxDecoration(
@@ -250,7 +294,7 @@ class ReadingWindow extends StatelessWidget {
               ),
               if (wide)
                 Positioned(
-                  left: 0,
+                  left: outerMargin,
                   top: 0,
                   bottom: 0,
                   width: railWidth,

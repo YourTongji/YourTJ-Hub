@@ -16,6 +16,7 @@ class _Content extends ContentRepository {
   int deletions = 0;
   bool requirePassword = false;
   final passwords = <String?>[];
+  final listTypes = <String>[];
   @override
   Future<List<ContentDeletionResult>> delete({
     required String contentType,
@@ -40,10 +41,95 @@ class _Content extends ContentRepository {
     required String contentType,
     bool deleted = false,
     int cursor = 0,
-  }) => pending.future;
+  }) {
+    listTypes.add(contentType);
+    return pending.future;
+  }
 }
 
 void main() {
+  for (final deleted in [false, true]) {
+    testWidgets(
+      'wide content keeps type, selection and scroll across resizing deleted=$deleted',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(1120, 800));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final repo = _Content(
+          GfApiClient(
+            dio: Dio(),
+            tokenStorage: MemoryTokenStorage(),
+            baseUrl: 'https://example.test',
+          ),
+        );
+        repo.pending.complete(
+          UserContentPage(
+            items: [
+              for (var i = 1; i <= 30; i++)
+                UserContentItem(
+                  id: i,
+                  contentType: 'post',
+                  title: 'Owned content $i',
+                ),
+            ],
+            hasMore: false,
+            nextCursorId: 0,
+          ),
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [contentRepositoryProvider.overrideWithValue(repo)],
+            child: MaterialApp(
+              theme: gfThemeData(Brightness.light),
+              locale: const Locale('en'),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: ContentPage(deleted: deleted),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('content-type-sidebar')), findsOneWidget);
+        await tester.tap(find.text('Replies'));
+        await tester.pumpAndSettle();
+        if (!deleted) {
+          await tester.tap(find.byType(Checkbox).at(1));
+          await tester.pump();
+        }
+        final list = tester.element(find.byType(ListView));
+        final scrollable = find.descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        );
+        await tester.drag(find.byType(ListView), const Offset(0, -350));
+        await tester.pumpAndSettle();
+        final offset = tester
+            .state<ScrollableState>(scrollable)
+            .position
+            .pixels;
+        final requests = repo.listTypes.length;
+        await tester.binding.setSurfaceSize(const Size(500, 800));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('content-type-sidebar')), findsNothing);
+        expect(tester.element(find.byType(ListView)), same(list));
+        expect(
+          tester.state<ScrollableState>(scrollable).position.pixels,
+          closeTo(offset, .1),
+        );
+        expect(
+          tester
+              .widget<GfSegmented<String>>(find.byType(GfSegmented<String>))
+              .selected,
+          'post',
+        );
+        if (!deleted) expect(find.text('Selected 1 / 50'), findsOneWidget);
+        await tester.binding.setSurfaceSize(const Size(1120, 800));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('content-type-sidebar')), findsOneWidget);
+        expect(repo.listTypes.length, requests);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   testWidgets(
     'content confirmation offers a labeled password field and keyboard submit',
     (tester) async {

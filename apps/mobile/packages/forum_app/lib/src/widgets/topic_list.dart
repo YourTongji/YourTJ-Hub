@@ -264,7 +264,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
                         ),
                       )
                     : Text(
-                        _topicDisplayTitle(topics.first),
+                        topicDisplayTitle(topics.first),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -322,7 +322,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
               const SizedBox(width: 9),
               Expanded(
                 child: Text(
-                  _topicDisplayTitle(topic),
+                  topicDisplayTitle(topic),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -404,7 +404,7 @@ Future<void> _openTopic(
 
 /// 无标题瞬间与 Web TopicRow/SSR 一致：标题为空时摘要在标题位展示（不再重复一行），
 /// 摘要也为空时使用同族颜文字，保证列表行始终有可识别文案。
-String _topicDisplayTitle(TopicPayload topic) => topic.title.isNotEmpty
+String topicDisplayTitle(TopicPayload topic) => topic.title.isNotEmpty
     ? topic.title
     : (topic.description.trim().isNotEmpty ? topic.description : '(｀・ω・´)');
 
@@ -440,8 +440,8 @@ Widget _topicRow(
     reason: _feedReason(l10n, topic.feedReason),
     child: GfTopicRow(
       title: topic.processStatus == 2
-          ? "${l10n.contentReviewPending} · ${_topicDisplayTitle(topic)}"
-          : _topicDisplayTitle(topic),
+          ? "${l10n.contentReviewPending} · ${topicDisplayTitle(topic)}"
+          : topicDisplayTitle(topic),
       description: topic.title.isEmpty ? '' : topic.description,
       categories: categories,
       participantAvatarUrls: participantAvatarUrls,

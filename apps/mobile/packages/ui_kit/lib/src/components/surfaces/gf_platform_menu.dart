@@ -267,7 +267,7 @@ class GfPopupMenuButton<T> extends StatelessWidget {
             context: context,
             anchorContext: anchor,
             items: items,
-            useRootNavigator: true,
+            useRootNavigator: useRootNavigator,
           );
           if (context.mounted && value != null) onSelected?.call(value);
         }

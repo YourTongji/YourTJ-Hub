@@ -26,44 +26,65 @@ class _Tokens implements TokenStorage {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  for (final section in <String?>[null, 'account']) {
-    testWidgets('guest settings retains sign-in intent for $section', (
-      tester,
-    ) async {
-      final router = GoRouter(
-        initialLocation: '/settings',
-        routes: [
-          GoRoute(
-            path: '/settings',
-            builder: (_, _) => SettingsPage(initialSection: section),
+  for (final (width, section, signInIndex) in <(double, String?, int)>[
+    (390, null, 0),
+    (390, 'account', 0),
+    (1024, null, 0),
+    (1024, 'account', 0),
+    (1024, 'account', 1),
+  ]) {
+    testWidgets(
+      'guest settings retains sign-in intent for $section at $width from action $signInIndex',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final router = GoRouter(
+          initialLocation: '/settings',
+          routes: [
+            GoRoute(
+              path: '/settings',
+              builder: (_, _) => SettingsPage(initialSection: section),
+            ),
+            GoRoute(path: '/login', builder: (_, _) => const SizedBox()),
+          ],
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [tokenStorageProvider.overrideWithValue(_Tokens())],
+            child: MaterialApp.router(
+              routerConfig: router,
+              theme: gfThemeData(Brightness.light),
+              locale: const Locale('en'),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+            ),
           ),
-          GoRoute(path: '/login', builder: (_, _) => const SizedBox()),
-        ],
-      );
-      addTearDown(router.dispose);
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [tokenStorageProvider.overrideWithValue(_Tokens())],
-          child: MaterialApp.router(
-            routerConfig: router,
-            theme: gfThemeData(Brightness.light),
-            locale: const Locale('en'),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      final signIn = find.text('Sign in');
-      await tester.ensureVisible(signIn);
-      await tester.tap(signIn);
-      await tester.pumpAndSettle();
-      expect(router.state.uri.path, '/login');
-      expect(
-        router.state.uri.queryParameters['returnTo'],
-        section == null ? '/settings' : '/settings/$section',
-      );
-    });
+        );
+        await tester.pumpAndSettle();
+        final signInActions = find.text('Sign in');
+        expect(
+          signInActions,
+          width >= 800 && section == 'account'
+              ? findsNWidgets(2)
+              : findsOneWidget,
+        );
+        final signIn = signInActions.at(signInIndex);
+        await tester.ensureVisible(signIn);
+        await tester.tap(signIn);
+        await tester.pumpAndSettle();
+        expect(router.state.uri.path, '/login');
+        expect(
+          router.state.uri.queryParameters['returnTo'],
+          section != null
+              ? '/settings/$section'
+              : width >= 800
+              ? '/settings/appearance'
+              : '/settings',
+        );
+      },
+    );
   }
 
   for (final (locale, delayed) in [

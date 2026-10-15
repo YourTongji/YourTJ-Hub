@@ -70,9 +70,12 @@ iOS 继续使用 Cupertino 原生转场与返回手势。
 调用方不再叠加 `viewInsets`。`enableDrag: false` 可保护未保存的编辑。
 `showGfMenu` / `GfPopupMenuButton` 和 `showGfActionSheet` 共享动作值、禁用和破坏性语义。
 iOS 窄窗使用 Cupertino 底部操作面板，宽窗在触发控件附近显示最大380px的可滚动菜单；
-`anchorContext` 指向实际按钮，根 overlay 负责系统安全区和键盘边界。
+`anchorContext` 指向实际按钮，所选导航器的 overlay 负责菜单定位。
+`useRootNavigator` 在两个平台均选择根导航器或最近的导航器；
+`showGfMenu` 默认使用根导航器，`GfPopupMenuButton` 默认使用最近的导航器。
 `GfDropdownButtonFormField` 保留校验、保存、reset和外部初值更新；iOS 用带当前选中标识的菜单，
-Android 保留 Material 下拉框。`GfRadioListTile` 在 iOS 用勾选行，Android 保留单选控件。
+Android 保留 Material 下拉框。`GfRadioListTile` 在 iOS 用勾选行，Android 保留单选控件；
+两个平台均由同类型的 `RadioGroup<T>` 祖先管理选中值和更新。
 `showGfAlertDialog` / `GfAlertDialog` 在 iOS 使用 Cupertino 简单确认，`GfDialogAction` 显式标记破坏性动作；
 复杂表单需在路由入口和内容同时设置 `adaptive: false`，保留原生 `Dialog` 的键盘避让、
 24px圆角、焦点和单层滚动内容。`showGfModal` 保留编辑表面。

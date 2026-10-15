@@ -6,6 +6,7 @@ import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -42,8 +43,6 @@ import 'pages/wiki/wiki_search_page.dart';
 import 'pages/schedule/schedule_page.dart';
 import 'pages/search/search_page.dart';
 import 'pages/settings/settings_page.dart';
-import 'pages/settings/schedule_widget_settings_page.dart';
-import 'pages/settings/text_size_settings_page.dart';
 import 'pages/topic/topic_page.dart';
 import 'providers.dart';
 import 'current_user.dart';
@@ -72,6 +71,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
   CancelToken? _unreadCancel;
   bool _unreadNotifications = false;
   bool _unreadMessages = false;
+  ShortcutRegistryEntry? _shortcuts;
 
   @override
   void initState() {
@@ -83,6 +83,37 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
     unawaited(_purgeStaleOfflineCacheOnBoot());
     unawaited(_pollUnread());
     _onRouteVisibilityChanged();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _shortcuts ??= ShortcutRegistry.of(context).addAll({
+      for (var i = 0; i < 4; i++)
+        SingleActivator(
+          [
+            LogicalKeyboardKey.digit1,
+            LogicalKeyboardKey.digit2,
+            LogicalKeyboardKey.digit3,
+            LogicalKeyboardKey.digit4,
+          ][i],
+          meta: true,
+        ): VoidCallbackIntent(
+          () => _activateShortcut(() => _selectDestination(i)),
+        ),
+      const SingleActivator(
+        LogicalKeyboardKey.keyF,
+        meta: true,
+      ): VoidCallbackIntent(
+        () => _activateShortcut(() => context.push('/search')),
+      ),
+    });
+  }
+
+  void _activateShortcut(VoidCallback action) {
+    if (_activeInTree && routeIsUncovered(context) && !shellDrawerOpen.value) {
+      action();
+    }
   }
 
   ForegroundRealtimeCoordinator _createRealtime() {
@@ -172,6 +203,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     _activeInTree = false;
+    _shortcuts?.dispose();
     _realtime.stop();
     _unreadCancel?.cancel('shell disposed');
     shellDrawerOpen.value = false;
@@ -389,7 +421,10 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
               context,
               destinations,
             ),
-            maxContentWidth: widget.navigationShell.currentIndex <= 1
+            maxContentWidth:
+                widget.navigationShell.currentIndex == 0 ||
+                    widget.navigationShell.currentIndex == 1 ||
+                    widget.navigationShell.currentIndex == 3
                 ? 1120
                 : 720,
             rail: ReadingNavigationRail(
@@ -514,6 +549,7 @@ final GoRouter appRouter = GoRouter(
     ),
     _readingPageRoute(
       path: '/chat',
+      maxContentWidth: 1120,
       redirect: (_, state) =>
           (int.tryParse(state.uri.queryParameters['userId'] ?? '') ?? 0) > 0
           ? null
@@ -524,7 +560,11 @@ final GoRouter appRouter = GoRouter(
         targetAvatarUrl: state.uri.queryParameters['avatar'] ?? '',
       ),
     ),
-    _readingPageRoute(path: '/search', builder: (_, _) => const SearchPage()),
+    _readingPageRoute(
+      path: '/search',
+      maxContentWidth: 1120,
+      builder: (_, _) => const SearchPage(),
+    ),
     _readingPageRoute(
       path: '/publish',
       maxContentWidth: 1120,
@@ -582,11 +622,13 @@ final GoRouter appRouter = GoRouter(
     ),
     _readingPageRoute(
       path: '/settings/widgets',
-      builder: (_, _) => const ScheduleWidgetSettingsPage(),
+      maxContentWidth: 1120,
+      builder: (_, _) => const SettingsPage(initialSection: 'widgets'),
     ),
     _readingPageRoute(
       path: '/settings/text-size',
-      builder: (_, _) => const TextSizeSettingsPage(),
+      maxContentWidth: 1120,
+      builder: (_, _) => const SettingsPage(initialSection: 'textSize'),
     ),
     _readingPageRoute(
       path: '/settings/:section',
@@ -624,11 +666,13 @@ final GoRouter appRouter = GoRouter(
     ),
     _readingPageRoute(
       path: '/about',
+      maxContentWidth: 1120,
       builder: (_, _) => const SiteInfoIndexPage(),
     ),
     for (final kind in SiteInfoKind.values)
       _readingPageRoute(
         path: '/${kind.name}',
+        maxContentWidth: 1120,
         builder: (_, _) => SiteInfoPage(kind: kind),
       ),
     GoRoute(
@@ -647,16 +691,18 @@ final GoRouter appRouter = GoRouter(
       builder: (_, _) => const CampusExplorePage(),
     ),
     GoRoute(path: '/admin', builder: (_, _) => const AdminPage()),
-    _readingPageRoute(path: '/login', builder: (_, _) => const LoginPage()),
+    GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
     _readingPageRoute(path: '/drafts', builder: (_, _) => const DraftsPage()),
     GoRoute(path: '/schedule', builder: (_, _) => const SchedulePage()),
     _readingPageRoute(
       path: '/courses',
+      maxContentWidth: 1120,
       builder: (_, state) =>
           CourseCatalogPage(initialQuery: state.uri.queryParameters['q'] ?? ''),
     ),
     _readingPageRoute(
       path: '/courses/:courseId',
+      maxContentWidth: 1120,
       builder: (BuildContext context, GoRouterState state) => CourseDetailPage(
         courseId: int.parse(state.pathParameters['courseId']!),
         focusReviewId: int.tryParse(
@@ -672,11 +718,16 @@ final GoRouter appRouter = GoRouter(
       builder: (_, state) =>
           WikiSearchPage(initialQuery: state.uri.queryParameters['q'] ?? ''),
     ),
-    _readingPageRoute(path: '/wiki', builder: (_, _) => const WikiHomePage()),
+    _readingPageRoute(
+      path: '/wiki',
+      maxContentWidth: 1120,
+      builder: (_, _) => const WikiHomePage(),
+    ),
     _readingPageRoute(
       // 多段 wiki 路径（如 /wiki/guide/getting-started）经 (.*) 通配捕获；
       // go_router 对 path 参数自动 percent-decode，页面内按段重新编码。
       path: '/wiki/:wikiPath(.*)',
+      maxContentWidth: 1120,
       builder: (BuildContext context, GoRouterState state) => WikiPage(
         wikiPath: state.pathParameters['wikiPath']!,
         // state.uri.fragment 保留 percent-encoded 态;解码后再传给 scrollToAnchor。

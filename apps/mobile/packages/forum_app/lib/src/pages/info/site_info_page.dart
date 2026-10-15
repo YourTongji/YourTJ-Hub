@@ -34,53 +34,171 @@ extension SiteInfoLabel on SiteInfoKind {
 
 class SiteInfoIndexPage extends StatelessWidget {
   const SiteInfoIndexPage({super.key});
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => const _SiteInfoWorkspace();
+}
+
+class SiteInfoPage extends StatelessWidget {
+  const SiteInfoPage({super.key, required this.kind});
+  final SiteInfoKind kind;
+
+  @override
+  Widget build(BuildContext context) =>
+      _SiteInfoWorkspace(key: ValueKey(kind), initialKind: kind);
+}
+
+class _SiteInfoWorkspace extends StatefulWidget {
+  const _SiteInfoWorkspace({super.key, this.initialKind});
+  final SiteInfoKind? initialKind;
+
+  @override
+  State<_SiteInfoWorkspace> createState() => _SiteInfoWorkspaceState();
+}
+
+class _SiteInfoWorkspaceState extends State<_SiteInfoWorkspace> {
+  late SiteInfoKind? _kind = widget.initialKind;
+  late bool _hasSelection = widget.initialKind != null;
+
+  void _select(SiteInfoKind? kind) => setState(() {
+    _kind = kind;
+    _hasSelection = true;
+  });
+
+  Widget _directory(bool wide) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: GfAppBar(title: Text(l10n.siteInfoTitle)),
-      body: ListView(
-        children: [
-          if (supportsMobileReleaseNotes)
-            ListTile(
-              leading: const GfSymbol('download'),
-              title: Text(l10n.updateCheck),
-              onTap: () => appUpdateHostKey.currentState?.check(force: true),
-            ),
-          if (supportsMobileReleaseNotes)
-            ListTile(
-              leading: const GfSymbol('history'),
-              title: Text(l10n.releaseNotesHistory),
-              trailing: const GfSymbol('chevron-right'),
-              onTap: () => Navigator.of(context).push<void>(
-                MaterialPageRoute(
-                  builder: (_) =>
-                      const ReadingPageWindow(child: ReleaseNotesPage()),
-                ),
-              ),
-            ),
-          for (final kind in SiteInfoKind.values)
-            ListTile(
-              leading: GfSymbol(kind.symbol),
-              title: Text(kind.label(l10n)),
-              trailing: const GfSymbol('chevron-right'),
-              onTap: () => context.push('/${kind.name}'),
-            ),
-          ListTile(
-            key: const ValueKey('visitor-analytics-disclosure'),
-            leading: const GfSymbol('monitor'),
-            title: Text(l10n.siteInfoAnalytics),
-            trailing: const GfSymbol('chevron-right'),
+    Widget entry({
+      Key? key,
+      required String symbol,
+      required String label,
+      required VoidCallback onTap,
+      bool selected = false,
+    }) => Semantics(
+      selected: wide && selected,
+      child: Material(
+        color: wide && selected
+            ? GfTheme.colorsOf(context).primary.withValues(alpha: .08)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: GfSettingRow(
+          key: key,
+          symbol: symbol,
+          title: label,
+          trailing: wide ? const SizedBox.shrink() : null,
+          onTap: onTap,
+        ),
+      ),
+    );
+    return ListView(
+      key: const ValueKey('site-info-directory'),
+      padding: const EdgeInsets.fromLTRB(12, 20, 12, 24),
+      children: [
+        if (supportsMobileReleaseNotes) ...[
+          entry(
+            symbol: 'download',
+            label: l10n.updateCheck,
+            onTap: () => appUpdateHostKey.currentState?.check(force: true),
+          ),
+          entry(
+            symbol: 'history',
+            label: l10n.releaseNotesHistory,
             onTap: () => Navigator.of(context).push<void>(
               MaterialPageRoute(
-                builder: (_) => const ReadingPageWindow(
-                  child: _VisitorAnalyticsDisclosurePage(),
-                ),
+                builder: (_) =>
+                    const ReadingPageWindow(child: ReleaseNotesPage()),
               ),
             ),
           ),
         ],
-      ),
+        for (final kind in SiteInfoKind.values)
+          entry(
+            key: ValueKey('site-info-kind-${kind.name}'),
+            symbol: kind.symbol,
+            label: kind.label(l10n),
+            selected: _kind == kind,
+            onTap: () => wide ? _select(kind) : context.push('/${kind.name}'),
+          ),
+        entry(
+          key: const ValueKey('visitor-analytics-disclosure'),
+          symbol: 'monitor',
+          label: l10n.siteInfoAnalytics,
+          selected: _kind == null,
+          onTap: () => wide
+              ? _select(null)
+              : Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (_) => const ReadingPageWindow(
+                      child: _VisitorAnalyticsDisclosurePage(),
+                    ),
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final scale = (MediaQuery.textScalerOf(context).scale(16) / 16).clamp(
+      1.0,
+      double.infinity,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 900 * scale;
+        final showIndex = !wide && !_hasSelection;
+        final title = showIndex
+            ? l10n.siteInfoTitle
+            : _kind?.label(l10n) ?? l10n.siteInfoAnalytics;
+        return Scaffold(
+          appBar: GfAppBar(
+            title: Text(title),
+            leading: !wide && _hasSelection && widget.initialKind == null
+                ? GfIconButton(
+                    symbol: 'arrow-left',
+                    tooltip: l10n.commonBack,
+                    onPressed: () => setState(() => _hasSelection = false),
+                  )
+                : null,
+          ),
+          body: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (wide) ...[
+                SizedBox(width: 264 * scale, child: _directory(true)),
+                VerticalDivider(
+                  width: 1,
+                  thickness: 1,
+                  color: GfTheme.colorsOf(context).line,
+                ),
+              ],
+              Expanded(
+                key: const ValueKey('site-info-detail-slot'),
+                child: showIndex
+                    ? _directory(false)
+                    : Align(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 720),
+                          child: SizedBox.expand(
+                            key: const ValueKey('site-info-content'),
+                            child: _kind == null
+                                ? const _VisitorAnalyticsDisclosureContent()
+                                : _SiteInfoContent(
+                                    key: ValueKey(_kind),
+                                    kind: _kind!,
+                                    onOpenKind: wide ? _select : null,
+                                  ),
+                          ),
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -94,29 +212,37 @@ class _VisitorAnalyticsDisclosurePage extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: GfAppBar(title: Text(l10n.siteInfoAnalytics)),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
-          child: Text(
-            l10n.siteInfoAnalyticsDescription,
-            style: GfTheme.typographyOf(context).body,
-          ),
-        ),
-      ),
+      body: const _VisitorAnalyticsDisclosureContent(),
     );
   }
 }
 
-/// Public Web information, read through the same page payload channel as the
-/// forum. Policy HTML is server-sanitized and rendered without a JavaScript VM.
-class SiteInfoPage extends ConsumerStatefulWidget {
-  const SiteInfoPage({super.key, required this.kind});
-  final SiteInfoKind kind;
+class _VisitorAnalyticsDisclosureContent extends StatelessWidget {
+  const _VisitorAnalyticsDisclosureContent();
+
   @override
-  ConsumerState<SiteInfoPage> createState() => _SiteInfoPageState();
+  Widget build(BuildContext context) => SafeArea(
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+      child: Text(
+        AppLocalizations.of(context).siteInfoAnalyticsDescription,
+        style: GfTheme.typographyOf(context).body,
+      ),
+    ),
+  );
 }
 
-class _SiteInfoPageState extends ConsumerState<SiteInfoPage> {
+/// Public Web information uses the existing sanitized page payload channel.
+class _SiteInfoContent extends ConsumerStatefulWidget {
+  const _SiteInfoContent({super.key, required this.kind, this.onOpenKind});
+  final SiteInfoKind kind;
+  final ValueChanged<SiteInfoKind>? onOpenKind;
+
+  @override
+  ConsumerState<_SiteInfoContent> createState() => _SiteInfoContentState();
+}
+
+class _SiteInfoContentState extends ConsumerState<_SiteInfoContent> {
   AsyncValue<Object> _content = const AsyncValue.loading();
   @override
   void initState() {
@@ -157,7 +283,14 @@ class _SiteInfoPageState extends ConsumerState<SiteInfoPage> {
     if (uri.hasAuthority &&
         uri.origin == origin.origin &&
         SiteInfoKind.values.any((kind) => uri.path == '/${kind.name}')) {
-      context.push(uri.path);
+      final kind = SiteInfoKind.values.firstWhere(
+        (kind) => uri.path == '/${kind.name}',
+      );
+      if (widget.onOpenKind case final onOpenKind?) {
+        onOpenKind(kind);
+      } else {
+        context.push(uri.path);
+      }
       return true;
     }
     try {
@@ -194,83 +327,81 @@ class _SiteInfoPageState extends ConsumerState<SiteInfoPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final type = GfTheme.typographyOf(context);
-    return Scaffold(
-      appBar: GfAppBar(title: Text(widget.kind.label(l10n))),
-      body: _content.when(
-        loading: () => const GfLoading(),
-        error: (_, _) =>
-            GfErrorRetry(message: l10n.commonLoadFailed, onRetry: _load),
-        data: (content) => AppRefreshIndicator(
-          onRefresh: _load,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
-            children: switch (content) {
-              LinksPageProps props => [
-                if (props.totalCount == 0) Text(l10n.siteInfoEmpty),
-                for (final group in props.groups) ...[
-                  Text(
-                    '${group.emoji} ${group.name}'.trim(),
-                    style: type.heading,
-                  ),
-                  for (final link in group.links)
-                    _link(
-                      title: link.name,
-                      description: link.desc,
-                      url: link.url,
-                      image: link.logoUrl,
-                    ),
-                  const SizedBox(height: 24),
-                ],
-              ],
-              SponsorsPageProps props => [
-                Text(props.content.title, style: type.heading),
-                const SizedBox(height: 12),
-                Text(props.content.description),
-                const SizedBox(height: 24),
-                for (final section in props.sections) ...[
-                  Text(section.label, style: type.heading),
-                  for (final sponsor in section.sponsors)
-                    _link(
-                      title: sponsor.name,
-                      description: sponsor.message,
-                      url: sponsor.link,
-                      image: sponsor.avatarUrl,
-                    ),
-                  const SizedBox(height: 24),
-                ],
-                for (final rule in props.rules)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(rule.content),
-                  ),
-                _link(
-                  title: props.contact.title,
-                  description: props.contact.description,
-                  url: '',
+    final body = _content.when(
+      loading: () => const GfLoading(),
+      error: (_, _) =>
+          GfErrorRetry(message: l10n.commonLoadFailed, onRetry: _load),
+      data: (content) => AppRefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+          children: switch (content) {
+            LinksPageProps props => [
+              if (props.totalCount == 0) Text(l10n.siteInfoEmpty),
+              for (final group in props.groups) ...[
+                Text(
+                  '${group.emoji} ${group.name}'.trim(),
+                  style: type.heading,
                 ),
-                if (props.contact.buttonLink.isNotEmpty)
-                  FilledButton(
-                    onPressed: () => _open(props.contact.buttonLink),
-                    child: Text(props.contact.buttonText),
+                for (final link in group.links)
+                  _link(
+                    title: link.name,
+                    description: link.desc,
+                    url: link.url,
+                    image: link.logoUrl,
                   ),
+                const SizedBox(height: 24),
               ],
-              TermsPageProps props => [
-                if (!props.enabled || props.contentHtml.isEmpty)
-                  Text(l10n.siteInfoEmpty)
-                else
-                  HtmlWidget(
-                    props.contentHtml,
-                    baseUrl: Uri.parse(ref.read(apiClientProvider).baseUrl),
-                    onTapUrl: _open,
-                    textStyle: type.body,
+            ],
+            SponsorsPageProps props => [
+              Text(props.content.title, style: type.heading),
+              const SizedBox(height: 12),
+              Text(props.content.description),
+              const SizedBox(height: 24),
+              for (final section in props.sections) ...[
+                Text(section.label, style: type.heading),
+                for (final sponsor in section.sponsors)
+                  _link(
+                    title: sponsor.name,
+                    description: sponsor.message,
+                    url: sponsor.link,
+                    image: sponsor.avatarUrl,
                   ),
+                const SizedBox(height: 24),
               ],
-              _ => [Text(l10n.commonLoadFailed)],
-            },
-          ),
+              for (final rule in props.rules)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(rule.content),
+                ),
+              _link(
+                title: props.contact.title,
+                description: props.contact.description,
+                url: '',
+              ),
+              if (props.contact.buttonLink.isNotEmpty)
+                FilledButton(
+                  onPressed: () => _open(props.contact.buttonLink),
+                  child: Text(props.contact.buttonText),
+                ),
+            ],
+            TermsPageProps props => [
+              if (!props.enabled || props.contentHtml.isEmpty)
+                Text(l10n.siteInfoEmpty)
+              else
+                HtmlWidget(
+                  props.contentHtml,
+                  baseUrl: Uri.parse(ref.read(apiClientProvider).baseUrl),
+                  onTapUrl: _open,
+                  textStyle: type.body,
+                ),
+            ],
+            _ => [Text(l10n.commonLoadFailed)],
+          },
         ),
       ),
     );
+    return body;
   }
 }

@@ -195,6 +195,106 @@ void main() {
     expect(value, 'one');
   });
 
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+    for (final useRootNavigator in [false, true]) {
+      testWidgets(
+        '$platform popup respects useRootNavigator=$useRootNavigator',
+        (tester) async {
+          final root = GlobalKey<NavigatorState>();
+          final nested = GlobalKey<NavigatorState>();
+          String? selected;
+          await tester.pumpWidget(
+            MaterialApp(
+              navigatorKey: root,
+              theme: gfThemeData(Brightness.light).copyWith(platform: platform),
+              home: Navigator(
+                key: nested,
+                onGenerateRoute: (_) => MaterialPageRoute<void>(
+                  builder: (_) => Scaffold(
+                    body: Center(
+                      child: GfPopupMenuButton<String>(
+                        useRootNavigator: useRootNavigator,
+                        onSelected: (value) => selected = value,
+                        itemBuilder: (_) => const [
+                          GfPopupMenuItem(value: 'one', child: Text('One')),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.tap(find.byType(GfPopupMenuButton<String>));
+          await tester.pumpAndSettle();
+          expect(
+            Navigator.of(tester.element(find.text('One'))),
+            same(useRootNavigator ? root.currentState : nested.currentState),
+          );
+          await tester.tap(find.text('One'));
+          await tester.pumpAndSettle();
+          expect(selected, 'one');
+          expect(nested.currentState!.canPop(), isFalse);
+          expect(root.currentState!.canPop(), isFalse);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
+  testWidgets('iOS radio group updates checked rows and selection semantics', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    var selected = 'one';
+    await tester.pumpWidget(
+      _app(
+        StatefulBuilder(
+          builder: (_, setState) => RadioGroup<String>(
+            groupValue: selected,
+            onChanged: (value) => setState(() => selected = value!),
+            child: const Column(
+              children: [
+                GfRadioListTile(value: 'one', title: Text('One')),
+                GfRadioListTile(value: 'two', title: Text('Two')),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.byIcon(CupertinoIcons.check_mark), findsOneWidget);
+    expect(
+      tester.getSemantics(find.text('One')),
+      matchesSemantics(
+        label: 'One',
+        isButton: true,
+        hasEnabledState: true,
+        isEnabled: true,
+        hasSelectedState: true,
+        hasCheckedState: true,
+        isChecked: true,
+        isInMutuallyExclusiveGroup: true,
+        hasTapAction: true,
+        isFocusable: true,
+        hasFocusAction: true,
+      ),
+    );
+    await tester.tap(find.text('Two'));
+    await tester.pump();
+    expect(selected, 'two');
+    expect(find.byIcon(CupertinoIcons.check_mark), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.widgetWithText(ListTile, 'Two'),
+        matching: find.byIcon(CupertinoIcons.check_mark),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
+  });
+
   testWidgets('iOS nullable choice distinguishes selecting null from cancel', (
     tester,
   ) async {

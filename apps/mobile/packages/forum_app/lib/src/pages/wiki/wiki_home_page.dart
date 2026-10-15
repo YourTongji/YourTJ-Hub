@@ -23,6 +23,13 @@ class WikiHomePage extends ConsumerStatefulWidget {
 
 class _WikiHomePageState extends ConsumerState<WikiHomePage> {
   AsyncValue<WikiHomeData> _data = const AsyncValue.loading();
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -60,69 +67,103 @@ class _WikiHomePageState extends ConsumerState<WikiHomePage> {
           if (data.namespaces.isEmpty && data.recent.isEmpty) {
             return GfEmpty(message: l10n.commonEmpty);
           }
-          final List<Widget> children = <Widget>[
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.wikiExploreTitle,
-                    style: GfTheme.typographyOf(context).display,
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final scale = (MediaQuery.textScalerOf(context).scale(16) / 16)
+                  .clamp(1.0, 1.5);
+              final sidebarWidth = 320 * scale;
+              final wide =
+                  data.namespaces.isNotEmpty &&
+                  data.recent.isNotEmpty &&
+                  constraints.maxWidth >= sidebarWidth + 520 * scale;
+              final namespaceChildren = <Widget>[
+                _SectionLabel(l10n.wikiNamespaces),
+                for (int i = 0; i < data.namespaces.length; i++)
+                  _NamespaceCard(
+                    namespace: data.namespaces[i],
+                    showDivider: i < data.namespaces.length - 1,
+                    onTap: data.namespaces[i].firstPagePath.isEmpty
+                        ? null
+                        : () => _openPage(data.namespaces[i].firstPagePath),
                   ),
-                  const SizedBox(height: 16),
-                  InkWell(
-                    onTap: () => context.push('/wiki/search'),
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: GfTheme.colorsOf(context).base200,
-                        borderRadius: BorderRadius.circular(8),
+              ];
+              final List<Widget> children = <Widget>[
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.wikiExploreTitle,
+                        style: GfTheme.typographyOf(context).display,
                       ),
-                      child: Row(
-                        children: [
-                          const GfSymbol('search', size: 20),
-                          const SizedBox(width: 12),
-                          Text(l10n.wikiSearchHint),
-                        ],
+                      const SizedBox(height: 16),
+                      InkWell(
+                        onTap: () => context.push('/wiki/search'),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: GfTheme.colorsOf(context).base200,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              const GfSymbol('search', size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text(l10n.wikiSearchHint)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ];
+              if (!wide && data.namespaces.isNotEmpty) {
+                children.addAll(namespaceChildren);
+              }
+              if (data.recent.isNotEmpty) {
+                children.add(_SectionLabel(l10n.wikiRecent));
+                for (int i = 0; i < data.recent.length; i++) {
+                  final WikiRecentPage page = data.recent[i];
+                  children.add(
+                    _RecentRow(
+                      page: page,
+                      showDivider: i < data.recent.length - 1,
+                      onTap: page.path.isEmpty
+                          ? null
+                          : () => _openPage(page.path),
+                    ),
+                  );
+                }
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Offstage(
+                    offstage: !wide,
+                    child: SizedBox(
+                      width: sidebarWidth,
+                      child: ListView(
+                        key: const Key('wiki-namespace-sidebar'),
+                        children: namespaceChildren,
                       ),
                     ),
                   ),
+                  SizedBox(
+                    width: wide ? 1 : 0,
+                    child: ColoredBox(color: GfTheme.colorsOf(context).line),
+                  ),
+                  Expanded(
+                    child: ListView(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.only(bottom: 24),
+                      children: children,
+                    ),
+                  ),
                 ],
-              ),
-            ),
-          ];
-          if (data.namespaces.isNotEmpty) {
-            children.add(_SectionLabel(l10n.wikiNamespaces));
-            for (int i = 0; i < data.namespaces.length; i++) {
-              final WikiNamespace namespace = data.namespaces[i];
-              children.add(
-                _NamespaceCard(
-                  namespace: namespace,
-                  showDivider: i < data.namespaces.length - 1,
-                  onTap: namespace.firstPagePath.isEmpty
-                      ? null
-                      : () => _openPage(namespace.firstPagePath),
-                ),
               );
-            }
-          }
-          if (data.recent.isNotEmpty) {
-            children.add(_SectionLabel(l10n.wikiRecent));
-            for (int i = 0; i < data.recent.length; i++) {
-              final WikiRecentPage page = data.recent[i];
-              children.add(
-                _RecentRow(
-                  page: page,
-                  showDivider: i < data.recent.length - 1,
-                  onTap: page.path.isEmpty ? null : () => _openPage(page.path),
-                ),
-              );
-            }
-          }
-          return ListView(
-            padding: const EdgeInsets.only(bottom: 24),
-            children: children,
+            },
           );
         },
       ),

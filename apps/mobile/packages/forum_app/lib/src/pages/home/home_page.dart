@@ -112,6 +112,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   String? _swipeLoadingFeedKey;
   int _interactionRevision = 0;
   bool _firstCardFrameRecorded = false;
+  bool _discoveryRequested = false;
   final _pendingInteractions = <(int, bool)>{};
   final _interactionOverrides = <(int, bool), _InteractionOverride>{};
   final _returnedTopicOverrides =
@@ -915,6 +916,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       _navigationProps = null;
       _dailyRanking = false;
       _categories = [];
+      _discoveryRequested = false;
       _tabScrollRegistry.register(
         GfShellDestination.home,
         _scrollToTopController,
@@ -949,11 +951,6 @@ class _HomePageState extends ConsumerState<HomePage> {
         _feeds[_swipeLoadingFeedKey]?.page.isLoading != true) {
       _swipeLoadingFeedKey = null;
     }
-    final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
-    final showCategorySidebar =
-        categories.isNotEmpty &&
-        MediaQuery.sizeOf(context).width >=
-            math.max(760, 220 + 540 * math.max(1, textScale));
     final surface = RootSurface(
       swipeTabIndex: selectedSortIndex,
       swipeTabCount: sortKeys.length,
@@ -969,13 +966,11 @@ class _HomePageState extends ConsumerState<HomePage> {
       ],
       toolbarHeight:
           GfTabBar.heightFor(context) +
-          (showCategorySidebar || categories.isEmpty
-              ? 0
-              : _categoryRailHeight(context)),
+          (categories.isEmpty ? 0 : _categoryRailHeight(context)),
       toolbar: _HomeToolbar(
         dailyRanking: _dailyRanking,
         props: toolbarProps,
-        categories: showCategorySidebar ? const [] : categories,
+        categories: categories,
         activeCategory: _category,
         onCategorySelected: _switchCategory,
         selected: selectedSort,
@@ -1011,14 +1006,27 @@ class _HomePageState extends ConsumerState<HomePage> {
         );
       },
     );
-    // Keep the retained feed in the same element path across window changes.
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: Padding(
-            padding: EdgeInsets.only(left: showCategorySidebar ? 220 : 0),
-            child: Align(
-              alignment: Alignment.topCenter,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = math.max(
+          1.0,
+          MediaQuery.textScalerOf(context).scale(16) / 16,
+        );
+        final wide = constraints.maxWidth >= 900 * scale;
+        if (wide && !_discoveryRequested) {
+          _discoveryRequested = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            final hot = _feeds.putIfAbsent('hot', () => _HomeFeedState('hot'));
+            if (!hot.page.hasValue && hot.loadCancel == null) {
+              unawaited(_load(target: hot));
+            }
+          });
+        }
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Flexible(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 720),
                 child: LayoutBuilder(
@@ -1031,24 +1039,159 @@ class _HomePageState extends ConsumerState<HomePage> {
                 ),
               ),
             ),
-          ),
-        ),
-        if (showCategorySidebar)
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: 220,
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (_) => true,
-              child: _CategorySidebar(
-                categories: categories,
-                selectedId: _category?.id,
-                onSelected: _switchCategory,
+            Offstage(
+              offstage: !wide,
+              child: TickerMode(
+                enabled: wide && TickerMode.valuesOf(context).enabled,
+                child: SizedBox(width: 324, child: _buildDiscovery(context)),
               ),
             ),
-          ),
-      ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDiscovery(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final colors = GfTheme.colorsOf(context);
+    final hot = _feeds['hot'];
+    return NotificationListener<ScrollNotification>(
+      onNotification: (_) => true,
+      child: SafeArea(
+        child: ListView(
+          key: const ValueKey('home-discovery-panel'),
+          padding: const EdgeInsets.fromLTRB(24, 12, 16, 24),
+          children: [
+            Material(
+              color: colors.base300,
+              borderRadius: BorderRadius.circular(28),
+              clipBehavior: Clip.antiAlias,
+              child: Semantics(
+                button: true,
+                child: InkWell(
+                  key: const ValueKey('home-discovery-search'),
+                  onTap: () => context.push('/search'),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        GfSymbol('search', color: colors.iconMuted),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            l10n.commonSearch,
+                            style: GfTheme.typographyOf(
+                              context,
+                            ).body.copyWith(color: colors.iconMuted),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            GfCard(
+              showDivider: false,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      l10n.sortHot,
+                      style: GfTheme.typographyOf(
+                        context,
+                      ).title2.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  if (hot?.cached == true)
+                    CacheSnapshotHint(
+                      savedAt: hot!.snapshotTime,
+                      refreshing: hot.refreshing,
+                      onRetry: () => _load(silent: true, target: hot),
+                    ),
+                  if (hot?.cleared == true)
+                    CacheSnapshotHint(
+                      cleared: true,
+                      onRetry: () => _load(target: hot),
+                    )
+                  else if (hot == null || hot.page.isLoading)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: GfLoading(),
+                    )
+                  else if (hot.page.hasError && !hot.page.hasValue)
+                    GfErrorRetry(
+                      message: resolveErrorMessage(l10n, hot.page.error!),
+                      onRetry: () => _load(target: hot),
+                    )
+                  else if (hot.topics.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(l10n.topicEmpty),
+                    )
+                  else
+                    for (final topic in hot.topics.take(5))
+                      Semantics(
+                        button: true,
+                        child: InkWell(
+                          onTap: () async {
+                            await context.push('/p/${topic.id}');
+                            if (mounted) unawaited(_refreshAfterReturn(hot));
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (topic.categories.isNotEmpty)
+                                  Text(
+                                    topic.categories.first.name,
+                                    style: GfTheme.typographyOf(
+                                      context,
+                                    ).caption.copyWith(color: colors.iconMuted),
+                                  ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  topicDisplayTitle(topic),
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GfTheme.typographyOf(
+                                    context,
+                                  ).body.copyWith(fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  l10n.topicReplies(topic.replyCount),
+                                  style: GfTheme.typographyOf(
+                                    context,
+                                  ).caption.copyWith(color: colors.iconMuted),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  TextButton(
+                    onPressed: () {
+                      _switchCategory(null);
+                      _switchSort('hot');
+                    },
+                    child: Text(l10n.searchSeeAll),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1254,159 +1397,6 @@ class _HomeToolbar extends ConsumerWidget {
   }
 }
 
-/// Tablet category navigation shares selection and feeds with the compact rail.
-class _CategorySidebar extends StatefulWidget {
-  const _CategorySidebar({
-    required this.categories,
-    required this.selectedId,
-    required this.onSelected,
-  });
-
-  final List<CategoryNavPayload> categories;
-  final int? selectedId;
-  final ValueChanged<CategoryNavPayload?> onSelected;
-
-  @override
-  State<_CategorySidebar> createState() => _CategorySidebarState();
-}
-
-class _CategorySidebarState extends State<_CategorySidebar> {
-  final _controller = ScrollController();
-  final _itemKeys = <int?, GlobalKey>{};
-
-  @override
-  void initState() {
-    super.initState();
-    _revealSelected();
-  }
-
-  @override
-  void didUpdateWidget(covariant _CategorySidebar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedId != widget.selectedId) _revealSelected();
-  }
-
-  void _revealSelected() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_controller.hasClients) return;
-      final target = _itemKeys[widget.selectedId]?.currentContext
-          ?.findRenderObject();
-      if (target != null && target.attached) {
-        _controller.position.ensureVisible(target, alignment: .5);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = GfTheme.colorsOf(context);
-    final l10n = AppLocalizations.of(context);
-    final ids = <int?>{null, ...widget.categories.map((item) => item.id)};
-    _itemKeys.removeWhere((id, _) => !ids.contains(id));
-    return ColoredBox(
-      color: colors.base200,
-      child: SafeArea(
-        bottom: false,
-        child: ListView(
-          key: const ValueKey('home-category-sidebar'),
-          controller: _controller,
-          padding: const EdgeInsets.fromLTRB(12, 18, 12, 24),
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Text(
-                l10n.categoryTitle,
-                style: GfTheme.typographyOf(context).title3,
-              ),
-            ),
-            for (final category in <CategoryNavPayload?>[
-              null,
-              ...widget.categories,
-            ])
-              Padding(
-                key: _itemKeys.putIfAbsent(category?.id, GlobalKey.new),
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Semantics(
-                  key: ValueKey('home-category-${category?.id ?? 'all'}'),
-                  button: true,
-                  selected: widget.selectedId == category?.id,
-                  child: Material(
-                    color: widget.selectedId == category?.id
-                        ? colors.primary.withValues(alpha: .10)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => widget.onSelected(category),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(minHeight: 48),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 12,
-                          ),
-                          child: Row(
-                            children: [
-                              if (widget.selectedId == category?.id)
-                                GfSymbol(
-                                  'check',
-                                  size: 16,
-                                  color: colors.primary,
-                                )
-                              else
-                                SizedBox(
-                                  width: 16,
-                                  child: Center(
-                                    child: Container(
-                                      width: 8,
-                                      height: 8,
-                                      decoration: BoxDecoration(
-                                        color: category == null
-                                            ? colors.primary
-                                            : colorFromHex(category.color),
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  category?.label ?? l10n.homeAllCategories,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    height: 1.4,
-                                    color: widget.selectedId == category?.id
-                                        ? colors.primary
-                                        : colors.baseContent,
-                                    fontWeight:
-                                        widget.selectedId == category?.id
-                                        ? FontWeight.w600
-                                        : FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _CategoryRail extends StatefulWidget {
   const _CategoryRail({
     required this.categories,
@@ -1476,33 +1466,36 @@ class _CategoryRailState extends State<_CategoryRail> {
     final ids = items.map((item) => item?.id).toSet();
     _itemKeys.removeWhere((id, _) => !ids.contains(id));
     final colors = GfTheme.colorsOf(context);
-    return SizedBox(
-      height: _categoryRailHeight(context),
-      child: SingleChildScrollView(
-        key: const ValueKey('home-category-rail'),
-        controller: _controller,
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(
-          children: [
-            for (var index = 0; index < items.length; index++) ...[
-              if (index > 0) const SizedBox(width: 8),
-              KeyedSubtree(
-                key: _itemKeys.putIfAbsent(items[index]?.id, GlobalKey.new),
-                child: _CategoryPill(
-                  key: ValueKey('home-category-${items[index]?.id ?? 'all'}'),
-                  label:
-                      items[index]?.label ??
-                      AppLocalizations.of(context).homeAllCategories,
-                  color: items[index] == null
-                      ? colors.primary
-                      : colorFromHex(items[index]!.color),
-                  selected: widget.selectedId == items[index]?.id,
-                  onTap: () => widget.onSelected(items[index]),
+    return NotificationListener<ScrollNotification>(
+      onNotification: (_) => true,
+      child: SizedBox(
+        height: _categoryRailHeight(context),
+        child: SingleChildScrollView(
+          key: const ValueKey('home-category-rail'),
+          controller: _controller,
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              for (var index = 0; index < items.length; index++) ...[
+                if (index > 0) const SizedBox(width: 8),
+                KeyedSubtree(
+                  key: _itemKeys.putIfAbsent(items[index]?.id, GlobalKey.new),
+                  child: _CategoryPill(
+                    key: ValueKey('home-category-${items[index]?.id ?? 'all'}'),
+                    label:
+                        items[index]?.label ??
+                        AppLocalizations.of(context).homeAllCategories,
+                    color: items[index] == null
+                        ? colors.primary
+                        : colorFromHex(items[index]!.color),
+                    selected: widget.selectedId == items[index]?.id,
+                    onTap: () => widget.onSelected(items[index]),
+                  ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

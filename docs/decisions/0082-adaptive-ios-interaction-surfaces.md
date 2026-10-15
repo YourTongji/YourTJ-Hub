@@ -37,14 +37,18 @@ keyboard avoidance and their existing save/error semantics.
 
 Pushed reading and form routes use a centered reading window without an additional navigator. The
 wrapper remains in the widget tree across width changes, consumes horizontal safe areas once and
-gives the page its actual column width. Home uses a category navigator beside its retained feed;
-settings uses a directory beside its current section. These workspaces and publishing can use
+gives the page its actual column width. Home keeps category tabs above its retained feed and uses
+the right column for search and existing Hot topics; settings uses a directory beside its current section.
+Messages pairs its directory with the selected chat, and course and Wiki selectors stay beside their content.
+These workspaces, search and publishing can use
 1120 pixels, while individual reading surfaces retain their reading bounds. Compact windows or
 enlarged text fall back to a single content pane. This supersedes the universal 720-pixel Home
 bound in [0037](0037-adaptive-mobile-reading-window.md); its retained navigator and 600-pixel
 root navigation breakpoint continue to apply. The root rail displays destination labels and measures
-them at the current system text size. Its width grows from 72 to 160 pixels before labels wrap;
-text is not scaled down. Image viewing, the
+them at the current system text size. It uses a 220-pixel sidebar with icon-and-label rows when the
+window is at least 1100 pixels wide and text scale is no greater than 1.4; otherwise its width grows
+from 72 to 160 pixels before labels wrap. Text is not scaled down. Login fills the window with a
+continuous background while its form stays bounded. Image viewing, the
 scheduler and authenticated management keep their full viewport. The component foundation in
 [0039](0039-native-gf-component-foundation.md) and visual acceptance in
 [0047](0047-mobile-visual-acceptance.md) continue to apply.

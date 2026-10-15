@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/settings/settings_page.dart';
+import 'package:forum_app/src/pages/settings/text_size_settings_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/push/push_service.dart';
 import 'package:forum_app/src/reading_preferences.dart';
@@ -287,7 +288,11 @@ void main() {
     final appearance = find.byKey(
       const ValueKey('settings-category-appearance'),
     );
-    await tester.ensureVisible(appearance);
+    await tester.drag(
+      find.byKey(const ValueKey('settings-directory')),
+      const Offset(0, 900),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(appearance);
     await tester.pumpAndSettle();
     expect(tester.state(page), same(state));
@@ -307,6 +312,34 @@ void main() {
       );
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('wide settings keeps its directory around device subpages', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1120, 900);
+    addTearDown(tester.view.reset);
+    final harness = await _mount(tester, section: 'textSize', viewport: null);
+    final page = find.byType(SettingsPage);
+    final state = tester.state(page);
+    expect(find.byKey(const ValueKey('settings-directory')), findsOneWidget);
+    expect(find.byType(TextSizeSettingsPage), findsOneWidget);
+    expect(harness.page.requests, 0);
+    for (final width in [834.0, 390.0, 1120.0]) {
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpAndSettle();
+      expect(tester.state(page), same(state));
+      expect(find.byType(TextSizeSettingsPage), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('settings-directory')),
+        width >= 800 ? findsOneWidget : findsNothing,
+      );
+      expect(harness.page.requests, 0);
+      expect(tester.takeException(), isNull);
+    }
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 500));
   });
 
   testWidgets(
@@ -332,6 +365,53 @@ void main() {
         expect(tester.state(input), same(editor));
         expect(find.text('Unsaved iPad profile'), findsOneWidget);
         expect(harness.user.saveAttempts, 0);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
+  testWidgets(
+    'iPad settings directory scrolls independently and retains selection',
+    (tester) async {
+      final harness = await _mount(
+        tester,
+        signedIn: true,
+        viewport: const Size(1120, 620),
+      );
+      final directory = find.byKey(const ValueKey('settings-directory'));
+      expect(tester.getSize(directory).width, greaterThanOrEqualTo(288));
+      expect(
+        find.descendant(of: directory, matching: find.byType(Scrollbar)),
+        findsOneWidget,
+      );
+      final security = find.byKey(const ValueKey('settings-category-security'));
+      await tester.scrollUntilVisible(
+        security,
+        180,
+        scrollable: find.descendant(
+          of: directory,
+          matching: find.byType(Scrollable),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(security);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('settings-detail-title')),
+        findsOneWidget,
+      );
+      expect(harness.user.requests, 1);
+      final state = tester.state(find.byType(SettingsPage));
+      for (final viewport in [
+        const Size(834, 1120),
+        const Size(620, 834),
+        const Size(1120, 620),
+      ]) {
+        tester.view.physicalSize = viewport;
+        await tester.pumpAndSettle();
+        expect(tester.state(find.byType(SettingsPage)), same(state));
+        expect(find.text('当前设备'), findsOneWidget);
+        expect(harness.user.requests, 1);
         expect(tester.takeException(), isNull);
       }
     },

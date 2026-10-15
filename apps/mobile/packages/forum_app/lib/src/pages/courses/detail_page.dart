@@ -56,6 +56,8 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
 
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _reviewsSectionKey = GlobalKey();
+  final GlobalKey _summaryKey = GlobalKey();
+  final GlobalKey _offeringsKey = GlobalKey();
   final GlobalKey _targetReviewKey = GlobalKey();
   bool _reviewRevealed = false;
 
@@ -656,52 +658,86 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     return Column(
       children: <Widget>[
         Expanded(
-          child: AppRefreshIndicator(
-            onRefresh: () async {
-              await _load();
-              await _loadRelated();
-            },
-            child: CustomScrollView(
-              controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: <Widget>[
-                SliverToBoxAdapter(child: _CourseHeader(detail: detail)),
-                const SliverToBoxAdapter(child: GfDivider()),
-                SliverToBoxAdapter(child: _RatingSection(detail: detail)),
-                const SliverToBoxAdapter(child: GfDivider()),
-                SliverToBoxAdapter(
-                  child: _AiSummaryCard(courseId: widget.courseId),
-                ),
-                const SliverToBoxAdapter(child: GfDivider()),
-                ..._buildReviewsSlivers(l10n, copy, detail),
-                const SliverToBoxAdapter(child: GfDivider()),
-                SliverToBoxAdapter(
-                  child: _OfferingsSection(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final scale = (MediaQuery.textScalerOf(context).scale(16) / 16)
+                  .clamp(1.0, 1.5);
+              final sidebarWidth = 340 * scale;
+              final wide = constraints.maxWidth >= sidebarWidth + 560 * scale;
+              final summary = Column(
+                key: _summaryKey,
+                children: [
+                  _CourseHeader(detail: detail),
+                  const GfDivider(),
+                  _RatingSection(detail: detail),
+                  const GfDivider(),
+                  _AiSummaryCard(courseId: widget.courseId),
+                  const GfDivider(),
+                ],
+              );
+              final offerings = Column(
+                key: _offeringsKey,
+                children: [
+                  _OfferingsSection(
                     offerings:
                         detail.offerings ?? const <CourseOfferingPayload>[],
                     activeOfferingId: _activeOfferingId,
                     onFocusOffering: _focusOffering,
                     copy: copy,
                   ),
-                ),
-                const SliverToBoxAdapter(child: GfDivider()),
-                SliverToBoxAdapter(
-                  child: _RelatedSection(
+                  const GfDivider(),
+                  _RelatedSection(
                     related: _related,
                     courseId: widget.courseId,
-                    onOpenCourse: (int id) =>
+                    onOpenCourse: (id) =>
                         context.pushReplacement('/courses/$id'),
                     copy: copy,
                   ),
-                ),
-                SliverToBoxAdapter(
-                  child: SizedBox(
-                    // dock 现在是真实底栏（不再 overlay），这里只留呼吸间距。
-                    height: 24,
+                ],
+              );
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Offstage(
+                    offstage: !wide,
+                    child: SizedBox(
+                      width: sidebarWidth,
+                      child: ListView(
+                        key: const Key('course-detail-sidebar'),
+                        children: wide ? [summary, offerings] : const [],
+                      ),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                  SizedBox(
+                    width: wide ? 1 : 0,
+                    child: ColoredBox(color: GfTheme.colorsOf(context).line),
+                  ),
+                  Expanded(
+                    child: AppRefreshIndicator(
+                      onRefresh: () async {
+                        await _load();
+                        await _loadRelated();
+                      },
+                      child: CustomScrollView(
+                        controller: _scrollController,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: wide ? const SizedBox.shrink() : summary,
+                          ),
+                          ..._buildReviewsSlivers(l10n, copy, detail),
+                          const SliverToBoxAdapter(child: GfDivider()),
+                          SliverToBoxAdapter(
+                            child: wide ? const SizedBox.shrink() : offerings,
+                          ),
+                          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
         ColoredBox(

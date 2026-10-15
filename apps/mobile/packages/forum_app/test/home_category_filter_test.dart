@@ -11,6 +11,7 @@ import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/status_views.dart';
+import 'package:forum_app/src/widgets/cache_snapshot_hint.dart';
 import 'package:forum_app/src/widgets/account_drawer.dart';
 import 'package:forum_app/src/widgets/topic_list.dart';
 import 'package:go_router/go_router.dart';
@@ -53,6 +54,7 @@ class _Pages extends PageRepository {
   bool failCategory = false;
   bool categoryHasNext = false;
   bool longCategoryRail = false;
+  bool hotMoment = false;
 
   PagePayload payload({
     bool category = false,
@@ -80,8 +82,9 @@ class _Pages extends PageRepository {
         {
           ...first,
           'id': (category ? 1000 : 100) + (next ? 25 : 0) + i,
-          'title':
-              '${category ? 'Category' : 'All'} $sort ${next ? 25 + i : i}',
+          'title': hotMoment && sort == 'hot'
+              ? ''
+              : '${category ? 'Category' : 'All'} $sort ${next ? 25 + i : i}',
         },
     ];
     props['pagination'] = {
@@ -169,6 +172,10 @@ Future<GoRouter> _mount(
         ),
       ),
       GoRoute(
+        path: '/search',
+        builder: (_, _) => const Scaffold(body: Text('search-destination')),
+      ),
+      GoRoute(
         path: '/c/:slug/:id',
         builder: (_, _) =>
             const Scaffold(body: Text('separate-category-route')),
@@ -231,17 +238,72 @@ ScrollPosition _position(WidgetTester tester) => tester
 
 void main() {
   testWidgets(
-    'tablet categories sit beside the feed and resize retains reading state',
+    'discovery retains untitled moments and respects cache clearing',
+    (tester) async {
+      final pages = _Pages()..hotMoment = true;
+      await _mount(tester, pages, size: const Size(1120, 900));
+      final panel = find.byKey(const ValueKey('home-discovery-panel'));
+      expect(
+        find.descendant(of: panel, matching: find.text('这是一条用于 smoke 测试的话题摘要')),
+        findsNWidgets(5),
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(HomePage)),
+      );
+      final calls = List<String>.of(pages.calls);
+      container.read(cacheClearEpochProvider.notifier).invalidate({
+        CacheCategory.forum,
+      });
+      await tester.pumpAndSettle();
+      expect(pages.calls, calls);
+      expect(
+        find.descendant(of: panel, matching: find.byType(CacheSnapshotHint)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: panel, matching: find.text('这是一条用于 smoke 测试的话题摘要')),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
+    'tablet discovery uses real hot feed and preserves reading on resize',
+    (tester) async {
+      final pages = _Pages();
+      final router = await _mount(tester, pages, size: const Size(1120, 900));
+      final panel = find.byKey(const ValueKey('home-discovery-panel'));
+      expect(panel, findsOneWidget);
+      expect(pages.calls.where((call) => call == 'home:hot'), hasLength(1));
+      expect(find.text('All hot 0'), findsOneWidget);
+      _position(tester).jumpTo(210);
+      await tester.pumpAndSettle();
+      final position = _position(tester);
+      final offset = position.pixels;
+      for (final width in [600.0, 1120.0]) {
+        tester.view.physicalSize = Size(width, 900);
+        await tester.pumpAndSettle();
+        expect(_position(tester), same(position));
+        expect(position.pixels, offset);
+        expect(pages.calls.where((call) => call == 'home:hot'), hasLength(1));
+        expect(tester.takeException(), isNull);
+      }
+      await tester.tap(find.byKey(const ValueKey('home-discovery-search')));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/search');
+    },
+  );
+
+  testWidgets(
+    'tablet categories stay above the feed and resize retains reading state',
     (tester) async {
       final pages = _Pages();
       final router = await _mount(tester, pages, size: const Size(1000, 900));
-      final sidebar = find.byKey(const ValueKey('home-category-sidebar'));
-      expect(sidebar, findsOneWidget);
-      expect(find.byKey(const ValueKey('home-category-rail')), findsNothing);
-      expect(
-        tester.getRect(sidebar).right,
-        lessThanOrEqualTo(tester.getRect(find.byType(GfTopicList)).left),
-      );
+      final rail = find.byKey(const ValueKey('home-category-rail'));
+      expect(find.byKey(const ValueKey('home-category-sidebar')), findsNothing);
+      expect(rail, findsOneWidget);
+      expect(tester.getRect(rail).width, lessThanOrEqualTo(720));
+      expect(tester.getRect(rail).height, lessThan(100));
       await _chooseCategory(tester);
       _position(tester).jumpTo(210);
       await tester.pumpAndSettle();
@@ -251,11 +313,11 @@ void main() {
       for (final width in [600.0, 1000.0]) {
         tester.view.physicalSize = Size(width, 900);
         await tester.pumpAndSettle();
-        expect(sidebar, width == 600 ? findsNothing : findsOneWidget);
         expect(
-          find.byKey(const ValueKey('home-category-rail')),
-          width == 600 ? findsOneWidget : findsNothing,
+          find.byKey(const ValueKey('home-category-sidebar')),
+          findsNothing,
         );
+        expect(rail, findsOneWidget);
         expect(
           tester.getRect(find.byType(GfTopicList)).width,
           lessThanOrEqualTo(720),
@@ -295,15 +357,15 @@ void main() {
       onScroll: () => scrollNotifications++,
       tickersEnabled: true,
     );
-    final sidebar = find.byKey(const ValueKey('home-category-sidebar'));
+    final rail = find.byKey(const ValueKey('home-category-rail'));
     scrollNotifications = 0;
     final feedPosition = _position(tester);
     final offset = feedPosition.pixels;
-    await tester.drag(sidebar, const Offset(0, -350));
+    await tester.drag(rail, const Offset(-350, 0));
     await tester.pumpAndSettle();
     final categoryPosition = tester
         .state<ScrollableState>(
-          find.descendant(of: sidebar, matching: find.byType(Scrollable)),
+          find.descendant(of: rail, matching: find.byType(Scrollable)),
         )
         .position;
     expect(categoryPosition.pixels, greaterThan(0));

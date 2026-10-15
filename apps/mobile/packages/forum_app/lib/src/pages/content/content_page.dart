@@ -239,6 +239,22 @@ class _ContentPageState extends ConsumerState<ContentPage> {
     }
   }
 
+  void _selectType(String type) {
+    if (_type == type) return;
+    setState(() {
+      _type = type;
+      _items.clear();
+      _selected.clear();
+    });
+    _load();
+  }
+
+  Widget _typeSelector(AppLocalizations l10n) => GfSegmented<String>(
+    segments: [(l10n.profileTopics, 'topic'), (l10n.profileReplies, 'post')],
+    selected: _type,
+    onSelected: _busy ? (_) {} : _selectType,
+  );
+
   @override
   Widget build(BuildContext context) {
     ref.listen<int>(
@@ -262,195 +278,241 @@ class _ContentPageState extends ConsumerState<ContentPage> {
       appBar: GfAppBar(
         title: Text(widget.deleted ? l10n.profileTrash : l10n.profileContent),
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: GfSegmented<String>(
-              segments: [
-                (l10n.profileTopics, 'topic'),
-                (l10n.profileReplies, 'post'),
-              ],
-              selected: _type,
-              onSelected: _busy
-                  ? (_) {}
-                  : (type) {
-                      if (_type == type) return;
-                      setState(() {
-                        _type = type;
-                        _items.clear();
-                        _selected.clear();
-                      });
-                      _load();
-                    },
-            ),
-          ),
-          if (widget.deleted)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                l10n.contentTrashHint,
-                style: GfTheme.typographyOf(context).caption,
-              ),
-            ),
-          if (!widget.deleted && _items.isNotEmpty)
-            Row(
-              children: [
-                Checkbox(
-                  value: _selected.length == _items.length,
-                  onChanged: _busy
-                      ? null
-                      : (checked) => setState(() {
-                          _selected.clear();
-                          if (checked == true) {
-                            _selected.addAll(
-                              _items.take(50).map((item) => item.id),
-                            );
-                          }
-                        }),
-                ),
-                Expanded(
-                  child: Text(
-                    '${l10n.contentSelected} ${_selected.length} / 50',
-                  ),
-                ),
-                TextButton(
-                  onPressed: _busy || _selected.isEmpty
-                      ? null
-                      : _deleteSelected,
-                  child: Text(l10n.contentDelete),
-                ),
-              ],
-            ),
-          if (_error != null) GfErrorRetry(message: _error!, onRetry: _load),
-          Expanded(
-            child: _loading && _items.isEmpty
-                ? const GfLoading()
-                : AppRefreshIndicator(
-                    onRefresh: _load,
-                    child: ListView.builder(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      itemCount: _items.length + 1,
-                      itemBuilder: (context, index) {
-                        if (index == _items.length) {
-                          return _items.isEmpty
-                              ? GfEmpty(message: l10n.contentEmpty)
-                              : GfListFooter(
-                                  progressKey: _items.length,
-                                  loading: _loading,
-                                  hasMore: _hasMore,
-                                  onLoadMore: () => _load(more: true),
-                                );
-                        }
-                        final item = _items[index];
-                        // 无标题瞬间（标题为空）用正文摘要作主文案，日期退回副文案，
-                        // 避免列表出现空标题行（与 Web TopicRow 的摘要回退一致）。
-                        final String dateText = widget.deleted
-                            ? item.deletedAt
-                            : item.createdAt;
-                        final String primaryText = item.title.isNotEmpty
-                            ? item.title
-                            : (item.excerpt.isNotEmpty
-                                  ? item.excerpt
-                                  : dateText);
-                        final String secondaryText =
-                            item.title.isNotEmpty && item.excerpt.isNotEmpty
-                            ? item.excerpt
-                            : (primaryText == dateText ? '' : dateText);
-                        return ListTile(
-                          leading: widget.deleted
-                              ? const GfSymbol('file-text')
-                              : Checkbox(
-                                  value: _selected.contains(item.id),
-                                  onChanged: _busy
-                                      ? null
-                                      : (selected) => setState(() {
-                                          if (selected == true &&
-                                              _selected.length < 50) {
-                                            _selected.add(item.id);
-                                          } else {
-                                            _selected.remove(item.id);
-                                          }
-                                        }),
-                                ),
-                          title: Text(
-                            primaryText,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: !widget.deleted && item.processStatus != 0
-                              ? Text(
-                                  [
-                                    item.processStatus == 2
-                                        ? l10n.contentReviewPending
-                                        : l10n.contentReviewBlocked,
-                                    if (item.reviewReason.isNotEmpty)
-                                      item.reviewReason,
-                                    if (item.hasPublishedVersion)
-                                      l10n.contentReviewLive,
-                                  ].join('\n'),
-                                )
-                              : secondaryText.isEmpty
-                              ? null
-                              : Text(
-                                  secondaryText,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                          onTap: widget.deleted
-                              ? null
-                              : item.processStatus != 0
-                              ? () => _view(item)
-                              : () => context.push(
-                                  Uri(
-                                    path: '/p/${item.topicId ?? item.id}',
-                                    queryParameters:
-                                        item.contentType == 'post' &&
-                                            item.postNo != null
-                                        ? {'postNo': '${item.postNo}'}
-                                        : null,
-                                  ).toString(),
-                                ),
-                          trailing:
-                              widget.deleted &&
-                                  !item.canRestore &&
-                                  !item.canPermanent
-                              ? null
-                              : GfPopupMenuButton<String>(
-                                  icon: const GfSymbol('ellipsis', size: 20),
-                                  useRootNavigator: true,
-                                  enabled: !_busy,
-                                  onSelected: (action) => _act(item, action),
-                                  itemBuilder: (_) => [
-                                    if (!widget.deleted) ...[
-                                      GfPopupMenuItem(
-                                        value: 'view',
-                                        child: Text(l10n.contentReviewView),
-                                      ),
-                                      GfPopupMenuItem(
-                                        value: 'edit',
-                                        child: Text(l10n.contentReviewRetry),
-                                      ),
-                                    ],
-                                    if (item.canRestore)
-                                      GfPopupMenuItem(
-                                        value: 'restore',
-                                        child: Text(l10n.contentRestore),
-                                      ),
-                                    if (item.canPermanent)
-                                      GfPopupMenuItem(
-                                        destructive: true,
-                                        value: 'purge',
-                                        child: Text(l10n.contentPurge),
-                                      ),
-                                  ],
-                                ),
-                        );
-                      },
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide =
+              constraints.maxWidth >= 900 &&
+              MediaQuery.textScalerOf(context).scale(17) <= 25.5;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Offstage(
+                offstage: !wide,
+                child: SizedBox(
+                  width: 280,
+                  child: Material(
+                    color: GfTheme.colorsOf(context).base200,
+                    child: SingleChildScrollView(
+                      key: const Key('content-type-sidebar'),
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          for (final entry in [
+                            (l10n.profileTopics, 'topic'),
+                            (l10n.profileReplies, 'post'),
+                          ])
+                            ListTile(
+                              title: Text(entry.$1),
+                              selected: _type == entry.$2,
+                              onTap: _busy ? null : () => _selectType(entry.$2),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-          ),
-        ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    Offstage(
+                      offstage: wide,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: _typeSelector(l10n),
+                      ),
+                    ),
+                    if (widget.deleted)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          l10n.contentTrashHint,
+                          style: GfTheme.typographyOf(context).caption,
+                        ),
+                      ),
+                    if (!widget.deleted && _items.isNotEmpty)
+                      Row(
+                        children: [
+                          Checkbox(
+                            value: _selected.length == _items.length,
+                            onChanged: _busy
+                                ? null
+                                : (checked) => setState(() {
+                                    _selected.clear();
+                                    if (checked == true) {
+                                      _selected.addAll(
+                                        _items.take(50).map((item) => item.id),
+                                      );
+                                    }
+                                  }),
+                          ),
+                          Expanded(
+                            child: Text(
+                              '${l10n.contentSelected} ${_selected.length} / 50',
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _busy || _selected.isEmpty
+                                ? null
+                                : _deleteSelected,
+                            child: Text(l10n.contentDelete),
+                          ),
+                        ],
+                      ),
+                    if (_error != null)
+                      GfErrorRetry(message: _error!, onRetry: _load),
+                    Expanded(
+                      child: _loading && _items.isEmpty
+                          ? const GfLoading()
+                          : AppRefreshIndicator(
+                              onRefresh: _load,
+                              child: ListView.builder(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                itemCount: _items.length + 1,
+                                itemBuilder: (context, index) {
+                                  if (index == _items.length) {
+                                    return _items.isEmpty
+                                        ? GfEmpty(message: l10n.contentEmpty)
+                                        : GfListFooter(
+                                            progressKey: _items.length,
+                                            loading: _loading,
+                                            hasMore: _hasMore,
+                                            onLoadMore: () => _load(more: true),
+                                          );
+                                  }
+                                  final item = _items[index];
+                                  // 无标题瞬间（标题为空）用正文摘要作主文案，日期退回副文案，
+                                  // 避免列表出现空标题行（与 Web TopicRow 的摘要回退一致）。
+                                  final String dateText = widget.deleted
+                                      ? item.deletedAt
+                                      : item.createdAt;
+                                  final String primaryText =
+                                      item.title.isNotEmpty
+                                      ? item.title
+                                      : (item.excerpt.isNotEmpty
+                                            ? item.excerpt
+                                            : dateText);
+                                  final String secondaryText =
+                                      item.title.isNotEmpty &&
+                                          item.excerpt.isNotEmpty
+                                      ? item.excerpt
+                                      : (primaryText == dateText
+                                            ? ''
+                                            : dateText);
+                                  return ListTile(
+                                    leading: widget.deleted
+                                        ? const GfSymbol('file-text')
+                                        : Checkbox(
+                                            value: _selected.contains(item.id),
+                                            onChanged: _busy
+                                                ? null
+                                                : (selected) => setState(() {
+                                                    if (selected == true &&
+                                                        _selected.length < 50) {
+                                                      _selected.add(item.id);
+                                                    } else {
+                                                      _selected.remove(item.id);
+                                                    }
+                                                  }),
+                                          ),
+                                    title: Text(
+                                      primaryText,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    subtitle:
+                                        !widget.deleted &&
+                                            item.processStatus != 0
+                                        ? Text(
+                                            [
+                                              item.processStatus == 2
+                                                  ? l10n.contentReviewPending
+                                                  : l10n.contentReviewBlocked,
+                                              if (item.reviewReason.isNotEmpty)
+                                                item.reviewReason,
+                                              if (item.hasPublishedVersion)
+                                                l10n.contentReviewLive,
+                                            ].join('\n'),
+                                          )
+                                        : secondaryText.isEmpty
+                                        ? null
+                                        : Text(
+                                            secondaryText,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                    onTap: widget.deleted
+                                        ? null
+                                        : item.processStatus != 0
+                                        ? () => _view(item)
+                                        : () => context.push(
+                                            Uri(
+                                              path:
+                                                  '/p/${item.topicId ?? item.id}',
+                                              queryParameters:
+                                                  item.contentType == 'post' &&
+                                                      item.postNo != null
+                                                  ? {'postNo': '${item.postNo}'}
+                                                  : null,
+                                            ).toString(),
+                                          ),
+                                    trailing:
+                                        widget.deleted &&
+                                            !item.canRestore &&
+                                            !item.canPermanent
+                                        ? null
+                                        : GfPopupMenuButton<String>(
+                                            icon: const GfSymbol(
+                                              'ellipsis',
+                                              size: 20,
+                                            ),
+                                            useRootNavigator: true,
+                                            enabled: !_busy,
+                                            onSelected: (action) =>
+                                                _act(item, action),
+                                            itemBuilder: (_) => [
+                                              if (!widget.deleted) ...[
+                                                GfPopupMenuItem(
+                                                  value: 'view',
+                                                  child: Text(
+                                                    l10n.contentReviewView,
+                                                  ),
+                                                ),
+                                                GfPopupMenuItem(
+                                                  value: 'edit',
+                                                  child: Text(
+                                                    l10n.contentReviewRetry,
+                                                  ),
+                                                ),
+                                              ],
+                                              if (item.canRestore)
+                                                GfPopupMenuItem(
+                                                  value: 'restore',
+                                                  child: Text(
+                                                    l10n.contentRestore,
+                                                  ),
+                                                ),
+                                              if (item.canPermanent)
+                                                GfPopupMenuItem(
+                                                  destructive: true,
+                                                  value: 'purge',
+                                                  child: Text(
+                                                    l10n.contentPurge,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                  );
+                                },
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

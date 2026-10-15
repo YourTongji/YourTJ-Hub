@@ -50,33 +50,43 @@ labels. See [feed ranking and measurement](feed-ranking.md) for the shared behav
 
 
 `Current`: root layout uses the available window width. Below 600 logical pixels it retains bottom
-destinations; at 600 and above it uses a persistent, scrollable navigation rail, 72–160 pixels wide
-according to localized label width and system text size. Home and Campus can use
-1120 pixels for their workspaces. Notification and conversation lists retain a readable column
-up to 720 pixels wide. Wide layouts reclaim the bottom-navigation inset, keep
+destinations; at 600 and above it uses a persistent, scrollable navigation rail. At 1100 pixels and above with text scale no greater than 1.4, its 220-pixel
+sidebar places destination icons and names in the same row. Smaller windows or larger text use
+a 72–160-pixel rail according to localized label width and system text size. Home, Campus and
+Messages can use 1120 pixels for their workspaces; notifications retain a readable column up to
+720 pixels wide. The rail is anchored to the same workspace edge across destinations; narrower
+content starts beside it, so switching pages does not move navigation. Wide layouts reclaim the bottom-navigation inset, keep
 compose actions inside the content column and anchor their menu to that column. Resizing preserves
 the retained branch navigator, inputs and reading position; opening a keyboard does not change the
 width breakpoint.
 
 `Current`: the rail shares destination icons and unread state with the bottom bar and displays each
-localized destination name below its icon. Labels wrap and the rail scrolls when large system text
+localized destination name beside or below its icon. Labels wrap and the rail scrolls when large system text
 or a short window needs more space. Each action
 exposes its name, selected state and activation in one semantic node. Persistent navigation is
 ordered after the active route in the accessibility tree so iOS does not hide it behind that route.
+On a hardware keyboard, ⌘1–4 select the four shell destinations and ⌘F opens search. These commands
+are inactive while a dialog, drawer or pushed page covers the shell; text editing keeps its platform
+shortcuts. The navigation and keyboard patterns draw on [X for iOS](https://help.x.com/en/using-x/x-ios-app).
 
-`Current`: pushed forum, course, Wiki, account, settings and information pages keep their complete
-header and content in a centered column up to 720 logical pixels wide. Settings, publishing and
+`Current`: pushed forum, account and information pages keep their complete header and content in a
+centered column up to 720 logical pixels wide. Course, Wiki, search, settings, publishing, chat and
 Campus Explore can use 1120 pixels; the scheduler, authenticated management and image viewer use the full viewport.
+Login fills the viewport with one continuous surface while its form stays within 520 pixels.
 Imperative account, message and sticker-library routes share the reading window. Horizontal safe
 areas are consumed once and each bounded page receives its actual column width. Resizing leaves the
 route, input and scroll state mounted; the compact route continues to use the iOS edge-swipe transition.
 
-`Current`: tablet workspaces organize navigation beside their content. Home places category
-selection beside the retained topic feed when the available content width supports both panes;
-compact windows keep the horizontal category controls. Settings places its directory beside the
+`Current`: tablet workspaces organize navigation beside their content. Home keeps its category
+tabs in a horizontal row above the retained topic feed at every window width. Sufficiently wide Home windows add a
+search entry and up to five topics from the existing Hot feed on the right; their loading, empty and retry states
+remain visible. This right column collapses for narrow windows or enlarged text without resetting the reading position.
+Settings places its directory beside the
 selected section, so changing sections updates the detail without a full-screen route transition.
 Enlarged text raises the required width, restoring a single pane when labels or content need more
-space. Publishing uses its existing editor and preview workspace. These layouts follow available
+space. Messages keeps the conversation directory beside the selected chat, courses keep their filters or
+offering selector beside content, and Wiki keeps namespaces or its table of contents beside reading.
+Publishing uses its existing editor and preview workspace. These layouts follow available
 window space rather than device names; see [0082](../decisions/0082-adaptive-ios-interaction-surfaces.md).
 
 

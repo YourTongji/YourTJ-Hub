@@ -643,6 +643,95 @@ void main() {
     );
   });
 
+  testWidgets('wide catalog keeps filters beside results across resizing', (
+    tester,
+  ) async {
+    final repository = FakeCourseRepository(
+      _client(),
+      listPages: {1: (_catalogPageOne(), false)},
+    );
+    final container = _container(
+      courseRepo: repository,
+      pageRepo: FakePageRepository(_client()),
+    );
+    await tester.binding.setSurfaceSize(const Size(1100, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(_app(container, const CourseCatalogPage()));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('course-filter-sidebar')), findsOneWidget);
+    final field = tester.widget<TextField>(find.byType(TextField)).controller!;
+    await tester.enterText(find.byType(TextField), '高等数学');
+    await tester.pump(const Duration(milliseconds: 310));
+    await tester.pumpAndSettle();
+    final calls = repository.listCalls.length;
+    final list = tester.widget<CustomScrollView>(find.byType(CustomScrollView));
+    await tester.binding.setSurfaceSize(const Size(500, 800));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('course-filter-sidebar')), findsNothing);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller,
+      same(field),
+    );
+    expect(field.text, '高等数学');
+    expect(
+      tester.widget<CustomScrollView>(find.byType(CustomScrollView)).controller,
+      same(list.controller),
+    );
+    await tester.binding.setSurfaceSize(const Size(1100, 800));
+    await tester.pumpAndSettle();
+    expect(repository.listCalls.length, calls);
+    expect(find.byKey(const Key('course-filter-sidebar')), findsOneWidget);
+    await tester.pumpWidget(
+      _app(container, const CourseCatalogPage(), textScale: 2),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('course-filter-sidebar')), findsNothing);
+    expect(field.text, '高等数学');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'wide course detail keeps offerings beside the review reading area',
+    (tester) async {
+      final repository = FakeCourseRepository(
+        _client(),
+        detailPayload: _detailPayload(),
+        reviewPayloads: _reviewPayloads(),
+      );
+      final container = _container(courseRepo: repository);
+      await tester.binding.setSurfaceSize(const Size(1100, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _app(container, const CourseDetailPage(courseId: 42)),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('course-detail-sidebar')), findsOneWidget);
+      final scroll = tester
+          .widget<CustomScrollView>(find.byType(CustomScrollView))
+          .controller;
+      final calls = repository.reviewCalls.length;
+      await tester.binding.setSurfaceSize(const Size(500, 800));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('course-detail-sidebar')), findsNothing);
+      expect(
+        tester
+            .widget<CustomScrollView>(find.byType(CustomScrollView))
+            .controller,
+        same(scroll),
+      );
+      await tester.binding.setSurfaceSize(const Size(1100, 800));
+      await tester.pumpAndSettle();
+      expect(repository.reviewCalls.length, calls);
+      expect(find.byKey(const Key('course-detail-sidebar')), findsOneWidget);
+      await tester.pumpWidget(
+        _app(container, const CourseDetailPage(courseId: 42), textScale: 2),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('course-detail-sidebar')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   group('课程目录', () {
     testWidgets('渲染列表行，滚动到底触发 hasNext 翻页', (tester) async {
       final FakeCourseRepository course = FakeCourseRepository(
@@ -2689,6 +2778,60 @@ void main() {
 
       expect(course.reviewCalls.last.offeringId, 902);
       expect(find.textContaining('只看该教学班的评价'), findsOneWidget);
+    });
+
+    testWidgets('wide offering selection focuses the review pane', (
+      tester,
+    ) async {
+      final course = FakeCourseRepository(
+        _client(),
+        detailPayload: _detailPayload(),
+        reviewPayloads: _reviewPayloads(),
+      );
+      await pumpDetail(tester, course, size: const Size(1100, 800));
+      final sidebar = find.byKey(const Key('course-detail-sidebar'));
+      final offering = find.descendant(
+        of: sidebar,
+        matching: find.text('02班'),
+      );
+      await tester.ensureVisible(offering);
+      await tester.pumpAndSettle();
+      await tester.tap(offering);
+      await tester.pumpAndSettle();
+      expect(course.reviewCalls.last.offeringId, 902);
+      expect(
+        find.textContaining('只看该教学班的评价').hitTestable(),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('wide review deep link survives compact and wide resizing', (
+      tester,
+    ) async {
+      final course = FakeCourseRepository(
+        _client(),
+        detailPayload: _detailPayload(),
+        reviewPayloads: [_reviewPayloads().last],
+      );
+      await pumpDetail(
+        tester,
+        course,
+        focusOfferingId: 902,
+        focusReviewId: 4,
+        size: const Size(1100, 800),
+      );
+      expect(course.reviewCalls.first.offeringId, 902);
+      expect(_reviewHtml('很不错').hitTestable(), findsOneWidget);
+      final calls = course.reviewCalls.length;
+      tester.view.physicalSize = const Size(500, 800);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('只看该教学班的评价'), findsOneWidget);
+      tester.view.physicalSize = const Size(1100, 800);
+      await tester.pumpAndSettle();
+      expect(_reviewHtml('很不错').hitTestable(), findsOneWidget);
+      expect(course.reviewCalls.length, calls);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('收藏乐观切换，失败回滚', (tester) async {

@@ -80,6 +80,14 @@ class _PublishPageState extends ConsumerState<PublishPage>
   int get _categoryLimit => _contentType == 3 ? _maxArticleCategories : 1;
   static const double _dragAutoscrollStep = 18;
 
+  bool _hasWideWorkspace(double width) =>
+      width >=
+      _wideWorkspaceBreakpoint *
+          (MediaQuery.textScalerOf(context).scale(16) / 16).clamp(
+            1.0,
+            double.infinity,
+          );
+
   final TextEditingController _simple = TextEditingController();
   final FocusNode _simpleFocusNode = FocusNode(debugLabel: 'simple-body');
   final GlobalKey _bodyEditorContainerKey = GlobalKey();
@@ -422,7 +430,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     _allowPop = false;
     final bool previewVisible =
         _mode == _ComposeMode.preview ||
-        MediaQuery.sizeOf(context).width >= _wideWorkspaceBreakpoint;
+        _hasWideWorkspace(MediaQuery.sizeOf(context).width);
     _previewDebounce?.cancel();
     if (!previewVisible) {
       _previewDebounce = null;
@@ -1495,7 +1503,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final bool wide = constraints.maxWidth >= _wideWorkspaceBreakpoint;
+        final bool wide = _hasWideWorkspace(constraints.maxWidth);
         final typing =
             _mode == _ComposeMode.edit && (keyboardOpen || _stickerOpen);
         final articleImages = _mode == _ComposeMode.preview && _contentType == 3
@@ -1581,7 +1589,21 @@ class _PublishPageState extends ConsumerState<PublishPage>
                       const SizedBox(height: 4),
                     ],
                     if (wide) ...[
-                      _buildBodyHeader(l10n),
+                      Row(
+                        children: [
+                          Expanded(child: _buildBodyHeader(l10n)),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Text(
+                              l10n.composePreview,
+                              style: GfTheme.typographyOf(context).small
+                                  .copyWith(
+                                    color: GfTheme.colorsOf(context).iconMuted,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 8),
                     ],
                     if (wide)
@@ -1590,7 +1612,19 @@ class _PublishPageState extends ConsumerState<PublishPage>
                         children: <Widget>[
                           Expanded(child: _buildEditor(l10n)),
                           const SizedBox(width: 16),
-                          Expanded(child: _buildPreview(l10n, framed: true)),
+                          Expanded(
+                            child: SizedBox(
+                              key: const Key('publish-preview-pane'),
+                              height: (constraints.maxHeight - 140).clamp(
+                                220.0,
+                                520.0,
+                              ),
+                              child: SingleChildScrollView(
+                                padding: EdgeInsets.zero,
+                                child: _buildPreview(l10n, framed: true),
+                              ),
+                            ),
+                          ),
                         ],
                       )
                     else if (_mode == _ComposeMode.edit)

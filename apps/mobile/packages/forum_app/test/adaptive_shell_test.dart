@@ -2,6 +2,7 @@ import 'dart:ui' show Tristate, SemanticsAction;
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -61,6 +62,7 @@ void main() {
       tester.view.padding = const FakeViewPadding(top: 44, bottom: 34);
       tester.view.viewPadding = const FakeViewPadding(top: 44, bottom: 34);
       addTearDown(tester.view.reset);
+      var textScale = 2.0;
       final container = ProviderContainer(
         overrides: [
           tokenStorageProvider.overrideWithValue(MemTokenStorage()),
@@ -75,6 +77,10 @@ void main() {
       addTearDown(container.dispose);
       final router = GoRouter(
         routes: [
+          GoRoute(
+            path: '/search',
+            builder: (_, _) => const Scaffold(body: Text('Search page')),
+          ),
           StatefulShellRoute.indexedStack(
             builder: (_, _, shell) => GfShell(navigationShell: shell),
             branches: [
@@ -105,7 +111,7 @@ void main() {
             supportedLocales: AppLocalizations.supportedLocales,
             builder: (context, child) => MediaQuery(
               data: MediaQuery.of(context).copyWith(
-                textScaler: const TextScaler.linear(2),
+                textScaler: TextScaler.linear(textScale),
                 disableAnimations: true,
               ),
               child: child!,
@@ -138,6 +144,11 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.byType(ReadingNavigationRail), findsOneWidget);
         expect(find.byType(GfBottomNavigation), findsNothing);
+        expect(
+          tester.getRect(find.byType(ReadingNavigationRail)).right,
+          closeTo(tester.getRect(find.byType(_ReadingPage)).left, 1),
+          reason: 'persistent navigation must touch its content workspace',
+        );
         expect(
           tester.getSize(find.byKey(const ValueKey('body-/'))).width,
           lessThanOrEqualTo(1120),
@@ -181,6 +192,11 @@ void main() {
       );
       await tester.pumpAndSettle();
       final l10n = AppLocalizations.of(tester.element(find.byType(GfShell)));
+      await tester.drag(
+        find.byType(ReadingNavigationRail),
+        const Offset(0, 900),
+      );
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.byTooltip(l10n.navHome));
       await tester.pumpAndSettle();
       expect(
@@ -256,6 +272,21 @@ void main() {
         tester.getSize(find.byKey(const ValueKey('body-/campus'))).width,
         greaterThan(720),
       );
+      final railLeft = tester.getRect(find.byType(ReadingNavigationRail)).left;
+      await tester.ensureVisible(find.byTooltip(l10n.notificationsTitle));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip(l10n.notificationsTitle));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byType(ReadingNavigationRail)).left,
+        railLeft,
+        reason: 'switching destinations must not move persistent navigation',
+      );
+      await tester.drag(
+        find.byType(ReadingNavigationRail),
+        const Offset(0, 900),
+      );
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.byTooltip(l10n.navHome));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip(l10n.navHome));
@@ -267,6 +298,66 @@ void main() {
       expect(find.byType(ReadingNavigationRail), findsNothing);
       expect(find.byType(GfBottomNavigation), findsOneWidget);
       expect(tester.state(find.byType(_ReadingPage)), same(state));
+      expect(tester.takeException(), isNull);
+      textScale = 1;
+      tester.view.physicalSize = const Size(1366, 1024);
+      await tester.pumpAndSettle();
+      final rail = find.byType(ReadingNavigationRail);
+      expect(tester.getSize(rail).width, greaterThanOrEqualTo(200));
+      final homeLabel = find.descendant(
+        of: rail,
+        matching: find.text(l10n.navHome),
+      );
+      final homeIcon = find.descendant(
+        of: find.byKey(const ValueKey('rail-destination-0')),
+        matching: find.byType(GfSymbol),
+      );
+      expect(
+        tester.getCenter(homeIcon).dy,
+        closeTo(tester.getCenter(homeLabel).dy, 1),
+      );
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit2);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/campus');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/search');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pumpAndSettle();
+      expect(
+        router.state.uri.path,
+        '/search',
+        reason: 'a pushed page must own keyboard input',
+      );
+      router.pop();
+      await tester.pumpAndSettle();
+      showDialog<void>(
+        context: tester.element(find.byType(_ReadingPage).last),
+        builder: (_) => const AlertDialog(content: Text('Keyboard guard')),
+      );
+      await tester.pumpAndSettle();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pumpAndSettle();
+      expect(
+        router.state.uri.path,
+        '/campus',
+        reason: 'a modal must own keyboard input',
+      );
+      expect(find.text('Keyboard guard'), findsOneWidget);
+      Navigator.of(
+        tester.element(find.text('Keyboard guard')),
+        rootNavigator: true,
+      ).pop();
+      await tester.pumpAndSettle();
+      expect(state.input.text, 'Retained work');
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();

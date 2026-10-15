@@ -68,13 +68,17 @@ space. Compose menus follow their source column and consume system insets once. 
 breakpoints and bounds live in [mobile experience](mobile-experience.md#navigation-and-reading).
 `Current`: pushed reading pages use a centered bounded column, including their headers;
 the page receives the actual column width and retains its state across window changes. Timetable,
-management and image-viewer pages retain their full viewport. The wide rail shows destination names
-below their icons, with wrapping labels and scrolling at enlarged text sizes.
-`Current`: Home presents category navigation beside the topic feed, settings presents its directory
+management, login and image-viewer pages retain their full viewport; login keeps its form bounded on a continuous background.
+The wide rail shows destination names
+beside their icons when space permits, otherwise below them, with wrapping labels and scrolling at enlarged text sizes.
+`Current`: Home presents category navigation in a horizontal row above its topic feed, settings presents its directory
 beside the current section, and publishing presents editor and preview together when space permits.
+Wide Home windows use a right column for search and existing Hot topics. Messages shows its conversation
+directory beside the selected chat; course and Wiki workspaces keep their selectors beside their content.
+Drafts keeps its filters and search beside the retained draft list; content management keeps topic/reply
+selection beside its retained results. Site information keeps its directory beside the selected document.
 The single-pane fallback keeps selected content and input mounted; enlarged text increases the
 space needed for two panes.
-`Planned`: conversation list and chat detail together.
 
 Resizing, rotating or opening the keyboard must not recreate a draft, reset the selected tab, navigate
 away or lose scroll position. No product operation depends solely on hover. Keyboard users can reach

@@ -67,6 +67,53 @@ void main() {
     baseUrl: 'https://example.test',
   );
 
+  testWidgets('wide about page keeps its directory beside bundled disclosure', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: gfThemeData(Brightness.light),
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const SiteInfoIndexPage(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('site-info-directory')), findsOneWidget);
+    expect(find.byKey(const ValueKey('site-info-content')), findsOneWidget);
+    expect(find.textContaining('umi.yourtj.de'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('wide policy page keeps the directory beside readable content', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final api = client();
+    await pump(
+      tester,
+      _Pages(api, SiteInfoKind.privacy, {
+        'enabled': true,
+        'contentHtml': '<h2>Your privacy</h2><p>Only necessary data.</p>',
+      }),
+      api,
+    );
+    expect(find.byKey(const ValueKey('site-info-directory')), findsOneWidget);
+    expect(find.byKey(const ValueKey('site-info-content')), findsOneWidget);
+    expect(find.text('Your privacy', findRichText: true), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('site-info-kind-privacy')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'privacy policy uses privacy payload and refuses executable links',
     (tester) async {
@@ -153,7 +200,21 @@ void main() {
           final disclosure = find.byKey(
             const ValueKey('visitor-analytics-disclosure'),
           );
-          await tester.scrollUntilVisible(disclosure, 200);
+          for (var attempt = 0; attempt < 10; attempt++) {
+            if (disclosure.evaluate().isNotEmpty &&
+                tester.getRect(disclosure).center.dy <= 640) {
+              break;
+            }
+            await tester.drag(
+              find.byKey(const ValueKey('site-info-directory')),
+              const Offset(0, -200),
+            );
+            await tester.pumpAndSettle();
+          }
+          expect(
+            tester.getRect(disclosure).center.dy,
+            inInclusiveRange(0, 640),
+          );
           await tester.tap(disclosure);
           await tester.pumpAndSettle();
           expect(find.textContaining('umi.yourtj.de'), findsOneWidget);

@@ -99,6 +99,71 @@ class _DelayedResume extends FakeCampusRepository {
 }
 
 void main() {
+  testWidgets('iPad campus has persistent modules and a two-column today', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(campusTestApp(FakeCampusRepository()));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('campus-module-directory')), findsOneWidget);
+    final courses = find.byKey(const Key('campus-today-courses'));
+    final notices = find.byKey(const Key('campus-today-notices'));
+    expect(
+      tester.getRect(courses).right,
+      lessThan(tester.getRect(notices).left),
+    );
+    await tester.tap(find.byKey(const Key('campus-module-messages')));
+    await tester.pumpAndSettle();
+    await tester.enterText(_search, '图书馆');
+    final state = tester.state(find.byType(CampusPage));
+    for (final size in [
+      const Size(834, 1120),
+      const Size(620, 834),
+      const Size(1200, 900),
+    ]) {
+      tester.view.physicalSize = size;
+      await tester.pumpAndSettle();
+      expect(tester.state(find.byType(CampusPage)), same(state));
+      expect(tester.widget<TextField>(_search).controller!.text, '图书馆');
+      expect(tester.takeException(), isNull);
+    }
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pumpAndSettle();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pumpAndSettle();
+    expect(find.text('图书馆开放时间调整（演示）'), findsNothing);
+    expect(find.byType(GfSkeleton), findsWidgets);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(_search).controller!.text, '图书馆');
+    expect(find.text('图书馆开放时间调整（演示）'), findsWidgets);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('iPad campus large type stacks today and retains its modules', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(campusTestApp(FakeCampusRepository(), scale: 2));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('campus-module-directory')), findsNothing);
+    final courses = find.byKey(const Key('campus-today-courses'));
+    final notices = find.byKey(const Key('campus-today-notices'));
+    expect(
+      tester.getRect(notices).top,
+      greaterThan(tester.getRect(courses).top),
+    );
+    expect(find.byType(GfTabBar), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('campus tab return preserves selected notice search', (
     tester,
   ) async {
