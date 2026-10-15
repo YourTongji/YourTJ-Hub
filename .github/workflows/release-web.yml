@@ -93,7 +93,7 @@ jobs:
         run: python3 scripts/release/web_artifact.py .source/apps/gooseforum/dist bin "$SOURCE_SHA" "$VERSION"
       - name: Restore original distribution archives
         if: inputs.recover && steps.start.outputs.build_required != 'true' && steps.start.outputs.image == ''
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: web-${{ inputs.tag }}
           run-id: ${{ steps.start.outputs.build_run_id }}
