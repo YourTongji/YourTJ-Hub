@@ -650,10 +650,12 @@ final GoRouter appRouter = GoRouter(
     ),
     _readingPageRoute(
       path: '/my-content',
+      maxContentWidth: 1120,
       builder: (_, _) => const ContentPage(),
     ),
     _readingPageRoute(
       path: '/recycle-bin',
+      maxContentWidth: 1120,
       builder: (_, _) => const ContentPage(deleted: true),
     ),
     _readingPageRoute(
@@ -698,7 +700,11 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(path: '/admin', builder: (_, _) => const AdminPage()),
     GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
-    _readingPageRoute(path: '/drafts', builder: (_, _) => const DraftsPage()),
+    _readingPageRoute(
+      path: '/drafts',
+      maxContentWidth: 1120,
+      builder: (_, _) => const DraftsPage(),
+    ),
     GoRoute(path: '/schedule', builder: (_, _) => const SchedulePage()),
     _readingPageRoute(
       path: '/courses',

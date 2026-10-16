@@ -70,7 +70,7 @@ are inactive while a dialog, drawer or pushed page covers the shell; text editin
 shortcuts. The navigation and keyboard patterns draw on [X for iOS](https://help.x.com/en/using-x/x-ios-app).
 
 `Current`: pushed forum, account and information pages keep their complete header and content in a
-centered column up to 720 logical pixels wide. Course, Wiki, search, settings, publishing, chat and
+centered column up to 720 logical pixels wide. Course, Wiki, search, settings, publishing, chat, drafts, content management and
 Campus Explore can use 1120 pixels; the scheduler, authenticated management and image viewer use the full viewport.
 Login fills the viewport with one continuous surface while its form stays within 520 pixels.
 Imperative account, message and sticker-library routes share the reading window. Horizontal safe

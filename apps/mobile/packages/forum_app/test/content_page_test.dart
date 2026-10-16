@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/content/content_page.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/router.dart';
+import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'pages_smoke_test.dart' show MemoryTokenStorage;
 
@@ -75,15 +77,25 @@ void main() {
             nextCursorId: 0,
           ),
         );
+        final path = deleted ? '/recycle-bin' : '/my-content';
+        final router = GoRouter(
+          initialLocation: path,
+          routes: [
+            appRouter.configuration.routes.whereType<GoRoute>().singleWhere(
+              (route) => route.path == path,
+            ),
+          ],
+        );
+        addTearDown(router.dispose);
         await tester.pumpWidget(
           ProviderScope(
             overrides: [contentRepositoryProvider.overrideWithValue(repo)],
-            child: MaterialApp(
+            child: MaterialApp.router(
+              routerConfig: router,
               theme: gfThemeData(Brightness.light),
               locale: const Locale('en'),
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              home: ContentPage(deleted: deleted),
             ),
           ),
         );

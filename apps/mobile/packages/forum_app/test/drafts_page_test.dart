@@ -9,6 +9,7 @@ import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/pages/drafts/drafts_page.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
 import 'package:forum_app/src/widgets/status_views.dart';
 import 'package:go_router/go_router.dart';
@@ -141,7 +142,9 @@ Future<ProviderContainer> _mount(
   final router = GoRouter(
     initialLocation: '/drafts',
     routes: [
-      GoRoute(path: '/drafts', builder: (_, _) => const DraftsPage()),
+      appRouter.configuration.routes.whereType<GoRoute>().singleWhere(
+        (route) => route.path == '/drafts',
+      ),
       GoRoute(
         path: '/publish',
         builder: (_, state) => Scaffold(
@@ -762,7 +765,9 @@ void main() {
       final router = GoRouter(
         initialLocation: '/drafts',
         routes: [
-          GoRoute(path: '/drafts', builder: (_, _) => const DraftsPage()),
+          appRouter.configuration.routes.whereType<GoRoute>().singleWhere(
+            (route) => route.path == '/drafts',
+          ),
           GoRoute(
             path: '/p/:id',
             builder: (_, state) => Scaffold(
