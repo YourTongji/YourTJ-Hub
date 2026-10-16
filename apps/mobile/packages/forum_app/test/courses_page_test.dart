@@ -2790,19 +2790,13 @@ void main() {
       );
       await pumpDetail(tester, course, size: const Size(1100, 800));
       final sidebar = find.byKey(const Key('course-detail-sidebar'));
-      final offering = find.descendant(
-        of: sidebar,
-        matching: find.text('02班'),
-      );
+      final offering = find.descendant(of: sidebar, matching: find.text('02班'));
       await tester.ensureVisible(offering);
       await tester.pumpAndSettle();
       await tester.tap(offering);
       await tester.pumpAndSettle();
       expect(course.reviewCalls.last.offeringId, 902);
-      expect(
-        find.textContaining('只看该教学班的评价').hitTestable(),
-        findsOneWidget,
-      );
+      expect(find.textContaining('只看该教学班的评价').hitTestable(), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
