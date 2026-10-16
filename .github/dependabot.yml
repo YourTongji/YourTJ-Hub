@@ -9,22 +9,20 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-  # 本地 composite action (.github/actions/*/action.yml) 里钉的 action (issue #1212)。
-  # 上面的 "/" 条目不覆盖它们: github-actions 生态下 "/" 只含 .github/workflows/** 与仓库根目录的
-  # action.yml, 所以这些 pin 拿不到计划性升级 PR, 只能靠人工 sync 提交补。Dependabot alert 同样不覆盖
-  # 它们: GitHub Actions manifest 必须在 .github/workflows/ 下, 且 alert 只对语义化版本引用生成、不对
-  # SHA 钉版生成。directories 支持通配 (directory 不支持), 每个匹配目录各自成为一个更新任务。
+  # GitHub Actions 的 pin 分布在两处: 仓库根部 .github/workflows/** 与本地 composite action
+  # (.github/actions/*/action.yml)。github-actions 生态下 directory "/" 只覆盖前者(以及仓库根目录的
+  # action.yml), 所以两处都要写进 directories (支持通配; directory 不支持)。二者放在同一条目并共用
+  # 一个 group: 同一次 action 升级只产生一个 PR, 避免 workflow 侧与 composite 侧各开一个 PR 而在
+  # 合入顺序上互相不一致 (issue #1212)。
+  # Dependabot alert 不覆盖这些文件: GitHub Actions manifest 必须在 .github/workflows/ 下, 且 alert
+  # 只对语义化版本引用生成、不对 SHA 钉版生成。
   - package-ecosystem: "github-actions"
     directories:
+      - "/"
       - "/.github/actions/*"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
     groups:
-      composite-actions:
+      actions:
         patterns: ["*"]
