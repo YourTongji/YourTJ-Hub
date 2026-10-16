@@ -143,9 +143,9 @@ async function main() {
     console.log(`verify-action-pins: OK (${compositePins.length} pins in ${compositeFiles.length} composite action(s), ${workflowPins.length} pins in ${workflowFiles.length} workflow(s))`);
     return;
   }
-  console.error(`verify-action-pins: ${findings.length} finding(s) — composite action pins must match the workflows' pins`);
+  console.error(`verify-action-pins: ${findings.length} finding(s) — action pins must be consistent`);
   for (const finding of findings) console.error(`  ${formatFinding(finding)}`);
-  console.error('  Land the matching Dependabot PR, or sync the composite action pin, so both sides agree (issue #1212).');
+  console.error(`  Land the matching Dependabot PR, or align the pins so every reference to one action uses the same ref (issue #1212).`);
   process.exit(1);
 }
 

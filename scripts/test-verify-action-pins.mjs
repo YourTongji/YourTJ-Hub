@@ -145,10 +145,27 @@ test('the CLI exits 1 on drift and 0 when the pins agree', (t) => {
 
   const failed = spawnSync(process.execPath, [script, drifting], { encoding: 'utf8' });
   assert.equal(failed.status, 1, failed.stderr);
-  assert.match(failed.stderr, /composite action pins must match the workflows' pins/);
+  assert.match(failed.stderr, /action pins must be consistent/);
   assert.match(failed.stderr, /build-binary\/action\.yml:\d+/);
 
   const passed = spawnSync(process.execPath, [script, consistent], { encoding: 'utf8' });
   assert.equal(passed.status, 0, passed.stderr);
   assert.match(passed.stdout, /verify-action-pins: OK/);
+});
+
+test('the summary header also fits a workflows-only finding', (t) => {
+  // A workflow-divergent finding involves no composite action, so the header must not
+  // describe it as a composite-vs-workflow mismatch.
+  const divergent = fixture({
+    '.github/workflows/ci.yml': workflow([`actions/checkout@${workflowSha}`]),
+    '.github/workflows/ci-docs.yml': workflow([`actions/checkout@${otherSha}`]),
+    '.github/actions/build-binary/action.yml': composite([`actions/checkout@${workflowSha}`]),
+  });
+  t.after(() => rmSync(divergent, { recursive: true, force: true }));
+
+  const result = spawnSync(process.execPath, [script, divergent], { encoding: 'utf8' });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /action pins must be consistent/);
+  assert.doesNotMatch(result.stderr, /composite action pins must match/);
+  assert.match(result.stderr, /pins actions\/checkout at more than one ref/);
 });
