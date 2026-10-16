@@ -42,6 +42,9 @@ go test -p 1 -parallel 1 ./app/... -run 'PostgreSQL|Postgres' -count=1 -v
 # Install GoReleaser on PATH or set YOURTJ_GORELEASER to its executable path; absent tooling skips this test.
 python3 -m unittest discover -s scripts/release -p test_archive_licenses.py -v
 
+# Action pin consistency (issue #1212): composite actions vs repository-root workflows
+node scripts/verify-action-pins.mjs
+
 # Full
 make test
 
@@ -161,6 +164,20 @@ The trade-off between fast source checks and native compile coverage is recorded
 Both mobile workflows pin external actions to full commit SHAs and disable checkout credential
 persistence before running PR-controlled code. `node --test scripts/test-mobile-ci-*.mjs` checks
 the Flutter input selection and these workflow security settings in automation CI.
+
+Pins inside local composite actions are a separate case. Dependabot's `github-actions` ecosystem
+scans only `.github/workflows/**` and the repository-root `action.yml`, so the pins in
+`.github/actions/*/action.yml` need the extra `directories` entry in
+[`.github/dependabot.yml`](../../.github/dependabot.yml) to receive scheduled version-update PRs
+(issue #1212). Dependabot alerts do not cover them: GitHub Actions manifests must live under
+`.github/workflows/`, and alerts are generated only for semantic-version references, not SHA pins.
+`node scripts/verify-action-pins.mjs` reports a composite action whose pinned
+ref differs from the same action's ref in the repository-root workflows, and reports one action
+pinned at two refs inside those workflows; it ignores the nested `apps/gooseforum/.github` tree,
+which GitHub never executes. Automation CI runs it as an advisory step that writes the report to the
+job summary — deleting that step's `continue-on-error` makes it blocking. Run it before changing an
+action pin; Dependabot may deliver the workflow and composite-action bumps as separate PRs, and both
+must land for the check to pass.
 
 ## Documentation and governance
 

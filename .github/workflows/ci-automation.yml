@@ -16,7 +16,16 @@ jobs:
       - run: python3 -m unittest discover -s scripts/release -p 'test_*.py'
       - run: python3 -m unittest discover -s scripts/ci -p 'test_*.py'
       - run: python3 -m unittest discover -s scripts/mobile-release -p 'test_*.py'
-      - run: node --test scripts/test-mobile-ci-*.mjs scripts/test-oryn-validation.mjs scripts/test-pre-push-base.mjs
+      - run: node --test scripts/test-mobile-ci-*.mjs scripts/test-oryn-validation.mjs scripts/test-pre-push-base.mjs scripts/test-verify-action-pins.mjs
+      - name: Check action pin consistency (advisory; issue #1212)
+        # Pins inside .github/actions/*/action.yml are outside Dependabot's github-actions
+        # scan set, so they drift silently when a workflow pin is bumped. Report drift in the
+        # job summary without blocking; drop continue-on-error to make it blocking once clean.
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/verify-action-pins.mjs 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
       - run: bash deploy/scripts/pgdsn_test.sh
       - run: python3 deploy/render_config_test.py
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
