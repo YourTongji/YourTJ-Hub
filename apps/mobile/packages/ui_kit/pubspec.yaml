@@ -23,6 +23,10 @@ flutter:
   assets:
     - assets/icons/
     - assets/logos/
+    - assets/twemoji-public/twemoji/72x72/
     - assets/LICENSE-simple-icons.txt
     - assets/LICENSE-lucide.txt
     - assets/LICENSE-reicon.txt
+    - assets/twemoji-licenses/LICENSE-MIT.txt
+    - assets/twemoji-licenses/LICENSE-CC-BY-4.0.txt
+    - assets/twemoji-licenses/ATTRIBUTION.md

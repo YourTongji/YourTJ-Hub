@@ -325,6 +325,7 @@ const storageForm = reactive<StorageSettings>({
   accessKey: '',
   secretKey: '',
   publicUrlPrefix: '',
+  forceProxyUpload: false,
 })
 
 const termsForm = reactive<TermsOfServiceConfig>({
@@ -788,6 +789,7 @@ function normalizeStorage(settings: Partial<StorageSettings> = {}) {
     accessKeyConfigured: toBool(settings.accessKeyConfigured, false),
     secretKeyConfigured: toBool(settings.secretKeyConfigured, false),
     publicUrlPrefix: settings.publicUrlPrefix ?? '',
+    forceProxyUpload: toBool(settings.forceProxyUpload, false),
   } satisfies StorageSettings
 }
 
@@ -2055,6 +2057,13 @@ onUnmounted(stopSyncPolling)
         <div class="flex items-center justify-between rounded-lg border bg-muted/20 p-4">
           <div><div class="flex items-center gap-2 font-medium"><HardDrive class="size-4" />{{ adminText('k00g2') }}</div></div>
           <Switch v-model="storageForm.secure" :disabled="storageForm.provider !== 's3'" />
+        </div>
+        <div class="flex items-center justify-between gap-4 rounded-lg border bg-muted/20 p-4">
+          <div>
+            <div class="flex items-center gap-2 font-medium"><HardDrive class="size-4" />{{ adminText('k00xr') }}</div>
+            <p class="mt-1 text-xs text-muted-foreground">{{ adminText('k00xs') }}</p>
+          </div>
+          <Switch v-model="storageForm.forceProxyUpload" :disabled="storageForm.provider !== 's3'" />
         </div>
 
         <div class="flex flex-wrap items-center gap-3 border-t pt-6">

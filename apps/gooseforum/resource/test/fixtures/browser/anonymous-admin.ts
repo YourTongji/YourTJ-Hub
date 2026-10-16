@@ -1,4 +1,4 @@
-import { createApp } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import AdminApp from '../../../src/admin/AdminApp.vue'
 import AnonymousManagementPage from '../../../src/admin/pages/management/AnonymousManagementPage.vue'

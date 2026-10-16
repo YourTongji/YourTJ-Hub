@@ -33,6 +33,14 @@
   },
   {
     "method": "GET",
+    "path": "/.well-known/apple-app-site-association"
+  },
+  {
+    "method": "GET",
+    "path": "/.well-known/assetlinks.json"
+  },
+  {
+    "method": "GET",
     "path": "/a/:publicUid"
   },
   {
@@ -86,6 +94,10 @@
   {
     "method": "GET",
     "path": "/api/admin/data/import/tasks"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/decorations"
   },
   {
     "method": "GET",
@@ -185,6 +197,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/user-decorations"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/wiki/sync/cdn"
   },
   {
@@ -214,6 +230,10 @@
   {
     "method": "GET",
     "path": "/api/auth/mobile-web-session"
+  },
+  {
+    "method": "GET",
+    "path": "/api/auth/passkey/status"
   },
   {
     "method": "GET",
@@ -305,6 +325,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/forum/push/preferences"
+  },
+  {
+    "method": "GET",
     "path": "/api/forum/search"
   },
   {
@@ -382,6 +406,18 @@
   {
     "method": "GET",
     "path": "/api/user-notes"
+  },
+  {
+    "method": "GET",
+    "path": "/api/user/decorations"
+  },
+  {
+    "method": "GET",
+    "path": "/api/user/passkeys"
+  },
+  {
+    "method": "GET",
+    "path": "/api/user/privacy-settings"
   },
   {
     "method": "GET",
@@ -649,6 +685,10 @@
   },
   {
     "method": "PATCH",
+    "path": "/api/user/privacy-settings"
+  },
+  {
+    "method": "PATCH",
     "path": "/mcp"
   },
   {
@@ -698,6 +738,18 @@
   {
     "method": "POST",
     "path": "/api/admin/agent-webhook-test"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agents/content-source"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agents/edit-post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agents/edit-topic"
   },
   {
     "method": "POST",
@@ -774,6 +826,18 @@
   {
     "method": "POST",
     "path": "/api/admin/data/import/tasks/:taskId/replay"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/decoration-grant"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/decoration-revoke"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/decoration-save"
   },
   {
     "method": "POST",
@@ -941,6 +1005,22 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/stats/category-summary"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/stats/category-trend"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/stats/user-detail"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/stats/user-ranking"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/sticker-delete"
   },
   {
@@ -1038,6 +1118,14 @@
   {
     "method": "POST",
     "path": "/api/auth/oidc/exchange"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/passkey/login/begin"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/passkey/login/finish"
   },
   {
     "method": "POST",
@@ -1473,6 +1561,30 @@
   },
   {
     "method": "POST",
+    "path": "/api/user/decorations/equip"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/passkeys/reauth"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/passkeys/registration/begin"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/passkeys/registration/finish"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/passkeys/rename"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/passkeys/revoke"
+  },
+  {
+    "method": "POST",
     "path": "/api/user/sessions/revoke"
   },
   {
@@ -1538,6 +1650,10 @@
   {
     "method": "PUT",
     "path": "/api/forum/course-reviews/:reviewId/helpful"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/forum/push/preferences"
   },
   {
     "method": "PUT",

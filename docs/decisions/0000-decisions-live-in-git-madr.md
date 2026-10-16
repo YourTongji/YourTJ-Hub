@@ -54,3 +54,4 @@ Class: process
 - repo-seed decisions 能力：https://github.com/ericSanchezok/repo-seed
 - 治理层引入决策（Agent Note nte_076c3aab0001l2Wdq7UIUwFwIA）
 - PR #507（治理层 PR，本决策随该 PR 落地）
+- [0086](0086-unique-decision-numbers-with-gaps.md) — 编号机制更新：编号唯一、允许空号；本文 Decision Drivers 与 Decision Outcome 中「编号连续、顺序分配」的表述由 0086 更新

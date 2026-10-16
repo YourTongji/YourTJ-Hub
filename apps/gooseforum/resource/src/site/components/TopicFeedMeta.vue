@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UserNickname from '@/site/components/UserNickname.vue'
 import PersonaTag from './PersonaTag.vue'
 import { authorURL } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
@@ -31,7 +32,7 @@ const feedReason = (reason?: string | null) => { const key = feedReasonKey(reaso
 <template>
   <div class="min-w-0">
     <div class="flex items-center gap-2.5">
-      <UserAvatar
+      <UserAvatar :frame="topic.author.decoration?.avatarFrame"
         :src="topic.author.avatarUrl"
         :alt="topic.author.username"
         :badge="topic.author.wornBadge"
@@ -40,7 +41,7 @@ const feedReason = (reason?: string | null) => { const key = feedReasonKey(reaso
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span class="inline-flex max-w-full min-w-0 items-center gap-1.5 text-sm font-semibold leading-5 text-base-content">
-            <span class="min-w-0 truncate">{{ userDisplayName(topic.author.id, topic.author.username, topic.author.nickname) }}</span>
+            <span class="min-w-0 truncate"><UserNickname :style-definition="topic.author.decoration?.nicknameStyle">{{ userDisplayName(topic.author.id, topic.author.username, topic.author.nickname) }}</UserNickname></span>
             <PersonaTag v-if="topic.author.publicUid" />
             <span
               v-if="!topic.title && !topic.description && topic.unseen"

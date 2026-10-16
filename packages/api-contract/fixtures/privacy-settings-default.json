@@ -1,0 +1,10 @@
+{
+  "code": 0,
+  "result": {
+    "profileTopics": "everyone",
+    "profileActivity": "everyone",
+    "profileLikes": "everyone",
+    "followingList": "everyone",
+    "followersList": "everyone"
+  }
+}

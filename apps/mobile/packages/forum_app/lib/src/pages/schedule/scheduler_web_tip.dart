@@ -19,7 +19,7 @@ class SchedulerWebTip extends StatelessWidget {
         message: l10n.schedulerWebTitle,
         child: TextButton.icon(
           icon: GfSymbol('external-link', size: 18, color: colors.primary),
-          label: Text(l10n.scheduleOpenWebShort),
+          label: GfText(l10n.scheduleOpenWebShort),
           onPressed:
               onOpen ??
               () async {
@@ -36,7 +36,7 @@ class SchedulerWebTip extends StatelessWidget {
                 if (context.mounted) {
                   ScaffoldMessenger.of(
                     context,
-                  ).showSnackBar(SnackBar(content: Text(l10n.commonRetry)));
+                  ).showSnackBar(SnackBar(content: GfText(l10n.commonRetry)));
                 }
               },
         ),

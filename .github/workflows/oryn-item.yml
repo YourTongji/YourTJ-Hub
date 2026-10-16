@@ -51,7 +51,7 @@ jobs:
         with:
           client-id: ${{ vars.ORYN_APP_CLIENT_ID }}
           private-key: ${{ secrets.ORYN_APP_PRIVATE_KEY }}
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: plan
           path: .oryn-runtime/.artifacts/plan
@@ -69,7 +69,7 @@ jobs:
           go-version-file: apps/gooseforum/go.mod
           cache: false
       - if: steps.validation.outputs.repair == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: 24
       - if: steps.validation.outputs.repair == 'true'
@@ -94,7 +94,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y bubblewrap ripgrep
       - if: inputs.runtime
         run: bun run core:install
-      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510
         id: target
         with:
           client-id: ${{ vars.ORYN_APP_CLIENT_ID }}
@@ -120,7 +120,7 @@ jobs:
           ORYN_BOT_LOGIN: ${{ steps.target.outputs.app-slug }}[bot]
       - if: always()
         id: result
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: result-${{ inputs.slug }}-${{ inputs.number }}-attempt-${{ github.run_attempt }}
           path: .oryn-runtime/.artifacts/result/
@@ -147,12 +147,12 @@ jobs:
         run: |
           echo "::error::The producing execution has no result artifact ID."
           exit 1
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           artifact-ids: ${{ needs.run.outputs.result-artifact }}
           merge-multiple: true
           path: .oryn-runtime/.artifacts/result
-      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510
         id: target
         with:
           client-id: ${{ vars.ORYN_APP_CLIENT_ID }}

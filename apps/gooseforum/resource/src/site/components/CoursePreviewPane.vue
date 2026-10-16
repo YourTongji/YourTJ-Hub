@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import UserAvatar from '@/site/components/UserAvatar.vue'
+import UserNickname from '@/site/components/UserNickname.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMediaQuery } from '@vueuse/core'
@@ -591,14 +593,14 @@ function courseStars(ratingAvg: number | undefined) {
           <div v-for="review in reviews.list" :key="review.id" class="rounded-xl border border-line/70 bg-base-100 p-4">
             <div class="mb-2 flex items-start justify-between gap-2">
               <div class="flex min-w-0 items-center gap-2.5">
-                <img
+                <UserAvatar :frame="review.author.decoration?.avatarFrame"
                   :src="reviewAvatarSrc(review.author, review.id, 36)"
                   :alt="authorLabel(review.author)"
                   class="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-line/60"
                   loading="lazy"
                 />
                 <div class="min-w-0">
-                  <p class="truncate text-sm font-bold text-base-content">{{ authorLabel(review.author) }}</p>
+                  <p class="truncate text-sm font-bold text-base-content"><UserNickname :style-definition="review.author.decoration?.nicknameStyle">{{ authorLabel(review.author) }}</UserNickname></p>
                   <p class="text-xs text-base-content/50">{{ formatDateTime(review.createdAt) }}</p>
                 </div>
               </div>

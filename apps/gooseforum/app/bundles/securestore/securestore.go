@@ -23,6 +23,10 @@ import (
 // can never be reused for another purpose even if the signing key leaks.
 const derivationLabel = "yourtj-totp-secret"
 
+// PasskeyCredentialPurpose separates WebAuthn credential material from TOTP
+// secrets and every other value encrypted with the application signing key.
+const PasskeyCredentialPurpose = "yourtj-passkey-credential-v1"
+
 var (
 	keyOnce sync.Once
 	key     []byte

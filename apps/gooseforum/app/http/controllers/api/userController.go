@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"mime/multipart"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/emailactivationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
@@ -439,6 +441,24 @@ func UploadAvatar(c *gin.Context) {
 		}
 	}
 
+	targetID := userId
+	if raw := c.PostForm("agentId"); raw != "" {
+		agentID, parseErr := strconv.ParseUint(raw, 10, 64)
+		if parseErr != nil || agentID == 0 {
+			c.JSON(200, component.FailDataCode(component.MessageRequestInvalidParams, nil))
+			return
+		}
+		if !agentservice.CanManage(userId, agentID) {
+			c.JSON(200, component.FailDataCode(component.MessagePermissionDenied, nil))
+			return
+		}
+		view, targetErr := agentservice.Get(agentID)
+		if targetErr != nil {
+			c.JSON(200, component.FailDataCode(component.MessageAdminAgentNotFound, nil))
+			return
+		}
+		targetID = view.User.Id
+	}
 	files, err := avatarFormFiles(c)
 	if err != nil {
 		slog.Error(err.Error())
@@ -508,7 +528,16 @@ func UploadAvatar(c *gin.Context) {
 	}
 
 	userEntity.AvatarUrl = fileEntities[0].Name
-	if err := userservice.UpdateUserFields(userEntity.Id, map[string]any{"avatar_url": userEntity.AvatarUrl}); err != nil {
+	if targetID != userId {
+		_, err = agentservice.Update(targetID, agentservice.UpdateParams{ActorID: userId, AvatarUrl: &userEntity.AvatarUrl})
+	} else {
+		err = userservice.UpdateUserFields(userEntity.Id, map[string]any{"avatar_url": userEntity.AvatarUrl})
+	}
+	if err != nil {
+		if errors.Is(err, agentservice.ErrManagementDenied) {
+			c.JSON(200, component.FailDataCode(component.MessagePermissionDenied, nil))
+			return
+		}
 		c.JSON(200, component.FailDataCode(component.MessageUserUpdateFailed, nil))
 		return
 	}
@@ -519,7 +548,7 @@ func UploadAvatar(c *gin.Context) {
 			fileNames = append(fileNames, fileEntity.Name)
 		}
 	}
-	fileusageservice.ReplaceAvatar(userId, fileNames)
+	fileusageservice.ReplaceAvatar(targetID, fileNames)
 
 	response := map[string]string{
 		"avatarUrl": urlconfig.FilePath(fileEntities[0].Name),

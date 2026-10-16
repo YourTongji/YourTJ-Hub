@@ -25,6 +25,11 @@ export const memberProfile: UserProfileProps = {
   activityTabs: [], pagination: { page: 1, nextPage: 0, hasNext: false, nextUrl: '' },
   badges: [], topics: topics.map(topic => ({ ...topic, author: { id: card.result.userId, username: card.result.username, nickname: card.result.nickname, avatarUrl: card.result.avatarUrl } })), activities: [], likes: [], bookmarks: [], following: [], followers: [],
   isOwnProfile: true, canMessage: false, canFollow: false, messageUrl: '', settingsUrl: '/settings',
+  visibility: {
+    profileTopics: { visible: true, audience: 'everyone' }, profileActivity: { visible: true, audience: 'everyone' },
+    profileLikes: { visible: true, audience: 'everyone' }, followingList: { visible: true, audience: 'everyone' },
+    followersList: { visible: true, audience: 'everyone' },
+  },
 }
 export const anonymousProfile: AnonymousProfileProps = {
   showContent: true, persona, topics, topicCount: topics.length, replyCount: 2, page: 1, hasNext: false,

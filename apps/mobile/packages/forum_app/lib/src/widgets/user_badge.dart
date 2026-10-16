@@ -60,7 +60,8 @@ class UserWornBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = math.max(14.0, avatarSize * .3);
-    final (background, ring) = _wornBadgeColors[badge.color] ??
+    final (background, ring) =
+        _wornBadgeColors[badge.color] ??
         _wornBadgeColors[switch (badge.level) {
           'gold' => 'amber',
           'special' => 'indigo',
@@ -185,7 +186,7 @@ Future<void> showBadgeDetails(
             const SizedBox(height: 16),
             Semantics(
               header: true,
-              child: Text(
+              child: GfText(
                 title,
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -197,7 +198,7 @@ Future<void> showBadgeDetails(
             ),
             if (description.trim().isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text(
+              GfText(
                 description.trim(),
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -211,7 +212,7 @@ Future<void> showBadgeDetails(
                 note != description.trim() &&
                 note != title.trim()) ...[
               const SizedBox(height: 16),
-              Text(
+              GfText(
                 note,
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -223,7 +224,7 @@ Future<void> showBadgeDetails(
             ],
             if (earned != null) ...[
               const SizedBox(height: 16),
-              Text(
+              GfText(
                 earned,
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 13, color: colors.iconMuted),

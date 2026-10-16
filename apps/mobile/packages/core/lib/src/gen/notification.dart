@@ -1,3 +1,4 @@
+import 'decoration.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'common.dart';
@@ -29,6 +30,7 @@ abstract class NotificationPayload with _$NotificationPayload {
 @freezed
 abstract class NotificationActorPayload with _$NotificationActorPayload {
   const factory NotificationActorPayload({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     required int id,
     String? kind,
     String? publicUid,
@@ -64,6 +66,7 @@ abstract class NotificationInnerPayload with _$NotificationInnerPayload {
     required int actorId,
     String? actorName,
     String? actorPersonaUid,
+    @Default(false) bool hasDirectMention,
     int? topicId,
     int? postId,
     int? postNo,

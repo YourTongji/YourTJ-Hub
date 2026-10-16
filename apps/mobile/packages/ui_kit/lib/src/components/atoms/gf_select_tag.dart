@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../gf_symbol.dart';
 
 /// Controlled capsule selection with compact paint and a padded touch target.
@@ -59,7 +60,7 @@ class GfSelectTag extends StatelessWidget {
                     GfSymbol('check', size: 16, color: foreground),
                   const SizedBox(width: 6),
                 ],
-                Flexible(child: Text(label, textAlign: TextAlign.center)),
+                Flexible(child: GfText(label, textAlign: TextAlign.center)),
               ],
             ),
           ),

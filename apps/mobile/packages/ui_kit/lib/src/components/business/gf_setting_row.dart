@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../gf_symbol.dart';
 
 /// Shared navigation/value row. Root and detail settings use the same neutral
@@ -53,7 +54,7 @@ class GfSettingRow extends StatelessWidget {
             ? null
             : GfSymbol('chevron-right', size: 18, color: colors.iconMuted));
     final subtitle =
-        subtitleWidget ?? (description == null ? null : Text(description!));
+        subtitleWidget ?? (description == null ? null : GfText(description!));
     return InkWell(
       onTap: onTap,
       child: ConstrainedBox(
@@ -73,7 +74,7 @@ class GfSettingRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    GfText(
                       title,
                       softWrap: true,
                       style: TextStyle(

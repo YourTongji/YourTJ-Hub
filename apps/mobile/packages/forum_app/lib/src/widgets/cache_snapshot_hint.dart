@@ -57,7 +57,7 @@ class CacheSnapshotHint extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: Text(
+              child: GfText(
                 cleared
                     ? labels.$4
                     : '${labels.$1}$time\n${refreshing ? labels.$2 : labels.$3}',
@@ -67,7 +67,7 @@ class CacheSnapshotHint extends StatelessWidget {
             if (!refreshing && onRetry != null)
               TextButton(
                 onPressed: onRetry,
-                child: Text(
+                child: GfText(
                   cleared
                       ? labels.$5
                       : AppLocalizations.of(context).commonRetry,

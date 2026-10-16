@@ -35,7 +35,7 @@ class AnonymousIdentityPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: GfAppBar(
-      title: Text(AppLocalizations.of(context).anonymousIdentity),
+      title: GfText(AppLocalizations.of(context).anonymousIdentity),
     ),
     body: const SafeArea(top: false, child: _AnonymousIdentityContent()),
   );
@@ -164,7 +164,7 @@ class _AnonymousIdentityContentState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: Text(
+                        child: GfText(
                           s?.persona == null
                               ? l.anonymousSetup
                               : l.anonymousManage,
@@ -190,7 +190,7 @@ class _AnonymousIdentityContentState
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text(
+                                    GfText(
                                       resolveErrorMessage(l, state.error!),
                                       textAlign: TextAlign.center,
                                       style: type.body,
@@ -211,7 +211,7 @@ class _AnonymousIdentityContentState
                     : ListView(
                         padding: const EdgeInsets.all(20),
                         children: [
-                          Text(
+                          GfText(
                             l.anonymousPurpose,
                             style: type.body.copyWith(color: muted),
                           ),
@@ -219,7 +219,7 @@ class _AnonymousIdentityContentState
                           if (error != null || state.hasError) ...[
                             Semantics(
                               liveRegion: true,
-                              child: Text(
+                              child: GfText(
                                 resolveErrorMessage(l, error ?? state.error!),
                                 style: type.body.copyWith(color: colors.error),
                               ),
@@ -293,7 +293,7 @@ class _AnonymousIdentityContentState
                                   if (s.governanceDisabled)
                                     GfSettingRow(
                                       title: l.anonymousActiveLabel,
-                                      subtitleWidget: Text(
+                                      subtitleWidget: GfText(
                                         l.anonymousStatusRestricted,
                                         style: type.caption.copyWith(
                                           color: colors.error,
@@ -320,7 +320,7 @@ class _AnonymousIdentityContentState
                                 padding: const EdgeInsetsDirectional.only(
                                   start: 16,
                                 ),
-                                child: Text(
+                                child: GfText(
                                   l.anonymousLockedUntil(date(s.availableAt!)),
                                   style: type.caption.copyWith(color: muted),
                                 ),
@@ -337,12 +337,12 @@ class _AnonymousIdentityContentState
                             ),
                             const SizedBox(height: 16),
                             if (batch == null) ...[
-                              Text(
+                              GfText(
                                 l.anonymousIntroTitle,
                                 style: type.bodyStrong,
                               ),
                               const SizedBox(height: 4),
-                              Text(
+                              GfText(
                                 l.anonymousIntroBody,
                                 style: type.body.copyWith(color: muted),
                               ),
@@ -350,7 +350,7 @@ class _AnonymousIdentityContentState
                               Row(
                                 children: [
                                   Expanded(
-                                    child: Text(
+                                    child: GfText(
                                       l.anonymousChooseName,
                                       style: type.bodyStrong,
                                     ),
@@ -442,21 +442,21 @@ class _AnonymousIdentityContentState
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              Text(
+                              GfText(
                                 l.anonymousDrawsRemaining(s.remaining),
                                 style: type.caption.copyWith(color: muted),
                               ),
                             ],
                             if (compact && batch != null) ...[
                               const SizedBox(height: 4),
-                              Text(
+                              GfText(
                                 l.anonymousNameLockHint,
                                 style: type.caption.copyWith(color: muted),
                               ),
                             ],
                             if (s.remaining == 0) ...[
                               const SizedBox(height: 8),
-                              Text(
+                              GfText(
                                 l.anonymousQuota(date(s.resetsAt)),
                                 style: type.caption.copyWith(color: muted),
                               ),
@@ -465,18 +465,21 @@ class _AnonymousIdentityContentState
                           ],
                           const GfDivider(),
                           const SizedBox(height: 16),
-                          Text(
+                          GfText(
                             l.anonymousPrivacySummary,
                             style: type.caption.copyWith(color: muted),
                           ),
                           ExpansionTile(
                             tilePadding: EdgeInsets.zero,
                             childrenPadding: const EdgeInsets.only(bottom: 12),
-                            title: Text(l.anonymousRules, style: type.caption),
+                            title: GfText(
+                              l.anonymousRules,
+                              style: type.caption,
+                            ),
                             children: [
-                              Text(l.anonymousBoundary, style: type.caption),
+                              GfText(l.anonymousBoundary, style: type.caption),
                               const SizedBox(height: 8),
-                              Text(
+                              GfText(
                                 l.anonymousLinkabilityHint,
                                 style: type.caption,
                               ),
@@ -507,7 +510,7 @@ class _AnonymousIdentityContentState
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             if (!compact) ...[
-                              Text(
+                              GfText(
                                 l.anonymousNameLockHint,
                                 style: type.caption.copyWith(color: muted),
                               ),
@@ -576,7 +579,7 @@ class _NameStage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          GfText(
             caption,
             style: type.caption.copyWith(
               color: colors.baseContent.withValues(alpha: .7),
@@ -606,7 +609,7 @@ class _NameStage extends StatelessWidget {
                         duration: MediaQuery.disableAnimationsOf(context)
                             ? Duration.zero
                             : const Duration(milliseconds: 150),
-                        child: Text(
+                        child: GfText(
                           name ?? placeholder,
                           key: ValueKey(name),
                           maxLines: 1,
@@ -708,7 +711,7 @@ class _NameOption extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(
+                    child: GfText(
                       word,
                       style: (selected ? type.bodyStrong : type.body).copyWith(
                         color: colors.baseContent,
@@ -768,7 +771,7 @@ class _HistoryToggle extends StatelessWidget {
                   GfSymbol('history', size: 14, color: colors.iconMuted),
                   const SizedBox(width: 6),
                   Flexible(
-                    child: Text(
+                    child: GfText(
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -820,7 +823,7 @@ class _HistoryMenu extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
-            child: Text(
+            child: GfText(
               title,
               style: type.caption.copyWith(
                 color: colors.baseContent.withValues(alpha: .65),
@@ -855,7 +858,7 @@ class _HistoryMenu extends StatelessWidget {
                           children: [
                             SizedBox(
                               width: 56,
-                              child: Text(
+                              child: GfText(
                                 numberLabel(index + 1),
                                 style: type.caption.copyWith(
                                   fontWeight: FontWeight.w600,
@@ -868,7 +871,7 @@ class _HistoryMenu extends StatelessWidget {
                               ),
                             ),
                             Expanded(
-                              child: Text(
+                              child: GfText(
                                 batch.words.join(' · '),
                                 style: type.body.copyWith(
                                   color: colors.baseContent.withValues(

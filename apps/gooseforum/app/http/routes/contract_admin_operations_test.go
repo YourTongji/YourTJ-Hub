@@ -25,9 +25,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// setupAdminOpsContractTest 在共享 harness（setupHTTPContractTest）之上注册 Admin 权限组
-// 7 条路由，中间件链与 route4api.go 的生产注册保持一致
-// （JWTAuthCheck + CheckWritableAccount 公共链 + CheckPermission(Admin) 子组）。
+// setupAdminOpsContractTest mirrors authenticated owner-management and Admin-only route groups.
 // agents / opt_record 表在各子测试间清空，避免同进程共享库中其他测试的数据串扰。
 func setupAdminOpsContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	t.Helper()
@@ -49,15 +47,14 @@ func setupAdminOpsContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	adminAPI := router.Group("/api/admin",
 		middleware.JWTAuthCheck,
 		middleware.CheckWritableAccount,
-		middleware.CheckPermission(permission.Admin),
 	)
 	adminAPI.POST("/agent-list", UpButterReq(api.AgentList))
-	adminAPI.POST("/agent-create", UpButterReq(api.AgentCreate))
+	adminAPI.POST("/agent-create", middleware.CheckPermission(permission.Admin), UpButterReq(api.AgentCreate))
 	adminAPI.POST("/agent-update", UpButterReq(api.AgentUpdate))
 	adminAPI.POST("/agent-rotate-token", UpButterReq(api.AgentRotateToken))
 	adminAPI.POST("/agent-disable", UpButterReq(api.AgentDisable))
-	adminAPI.POST("/opt-record-page", UpButterReq(api.OptRecordPage))
-	adminAPI.POST("/traffic-overview", UpButterReq(api.GetTrafficOverview))
+	adminAPI.POST("/opt-record-page", middleware.CheckPermission(permission.Admin), UpButterReq(api.OptRecordPage))
+	adminAPI.POST("/traffic-overview", middleware.CheckPermission(permission.Admin), UpButterReq(api.GetTrafficOverview))
 	return conn, router
 }
 
@@ -95,9 +92,25 @@ func adminOpsGuardScenarios(t *testing.T, path string, fixturePrefix string) {
 		assertInteractionForbidden(t, conn, router, path, `{}`, "account-frozen.json")
 	})
 
-	t.Run("user without Admin permission returns 403", func(t *testing.T) {
+	t.Run("ordinary user has no unrelated management access", func(t *testing.T) {
 		conn, router := setupAdminOpsContractTest(t)
-		assertAdminOpsPermissionDenied(t, conn, router, path, "admin-agent-create-permission-denied.json")
+		if path == "/api/admin/agent-create" || path == "/api/admin/opt-record-page" || path == "/api/admin/traffic-overview" {
+			assertAdminOpsPermissionDenied(t, conn, router, path, "admin-agent-create-permission-denied.json")
+			return
+		}
+		user := createHTTPContractUser(t, conn, contractTestID())
+		recorder := serveJSON(router, path, `{"agentId":999999}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status=%d: %s", recorder.Code, recorder.Body.String())
+		}
+		envelope := decodeContractEnvelope(t, recorder)
+		if path == "/api/admin/agent-list" {
+			if envelope.Code != 0 || string(envelope.Result) != "[]" {
+				t.Fatalf("list = %+v", envelope)
+			}
+			return
+		}
+		assertFixtureEnvelope(t, envelope, contractFixture(t, "permission-denied.json"))
 	})
 }
 
@@ -430,4 +443,45 @@ func TestAdminTrafficOverviewHTTPContract(t *testing.T) {
 	})
 
 	adminOpsGuardScenarios(t, path, "admin-traffic-overview")
+}
+
+func TestAgentOwnerManagementHTTPContract(t *testing.T) {
+	conn, router := setupAdminOpsContractTest(t)
+	owner := createHTTPContractUser(t, conn, contractTestID())
+	other := createHTTPContractUser(t, conn, contractTestID())
+	own, err := agentservice.Create(agentservice.CreateParams{Username: "owner-contract-agent", CreatedBy: owner.Id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unrelated, err := agentservice.Create(agentservice.CreateParams{Username: "other-contract-agent", CreatedBy: other.Id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := contractSessionToken(t, owner)
+	list := decodeContractEnvelope(t, serveJSON(router, "/api/admin/agent-list", `{}`, token))
+	var rows []api.AgentItem
+	if err := json.Unmarshal(list.Result, &rows); err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].AgentId != own.Agent.UserId {
+		t.Fatalf("owner list = %+v", rows)
+	}
+	for _, agentID := range []uint64{own.Agent.UserId, unrelated.Agent.UserId} {
+		body := `{"agentId":` + strconv.FormatUint(agentID, 10) + `,"nickname":"Corrected"}`
+		response := decodeContractEnvelope(t, serveJSON(router, "/api/admin/agent-update", body, token))
+		if agentID == own.Agent.UserId {
+			if response.Code != 0 {
+				t.Fatalf("owner update = %+v", response)
+			}
+		} else {
+			assertFixtureEnvelope(t, response, contractFixture(t, "permission-denied.json"))
+		}
+	}
+	persisted, err := agentservice.Get(unrelated.Agent.UserId)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.User.Nickname == "Corrected" {
+		t.Fatal("other Agent changed")
+	}
 }

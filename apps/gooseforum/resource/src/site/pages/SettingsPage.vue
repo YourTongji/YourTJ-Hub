@@ -1,5 +1,10 @@
 <script setup lang="ts">
+import DecorationEditor from '@/site/components/DecorationEditor.vue'
+import UserNickname from '@/site/components/UserNickname.vue'
+import type { UserDecoration } from '@gooseforum/client'
 import AnonymousIdentitySettings from '@/site/components/AnonymousIdentitySettings.vue'
+import ProfilePrivacySettings from '@/site/components/ProfilePrivacySettings.vue'
+import PasskeySettings from '@/site/components/PasskeySettings.vue'
 import ManagedContent from '@/site/components/ManagedContent.vue'
 import { useContentUpdates } from '@/runtime/content-updates'
 import BadgeDisplayEditor from '@/site/components/BadgeDisplayEditor.vue'
@@ -9,6 +14,7 @@ import {
   Archive,
   ArrowLeft,
   Ban,
+  Bell,
   CalendarDays,
   Camera,
   Check,
@@ -74,6 +80,9 @@ import { ApiResponseError } from '@/runtime/api'
 import { containsSensitiveText } from '@/site/utils/sensitive-highlight'
 import { useSiteTheme } from '@/runtime/site-theme'
 import {
+  getPushPreferences,
+  updatePushPreferences,
+  type PushPreferences,
   currentPushSubscription,
   disableWebPush,
   enableWebPush,
@@ -120,7 +129,7 @@ const page = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-const tabKeys = ['profile', 'account', 'privacy', 'binding', 'security', 'content', 'deleted', 'general'] as const
+const tabKeys = ['profile', 'account', 'privacy', 'notifications', 'binding', 'security', 'content', 'deleted', 'general'] as const
 type TabKey = (typeof tabKeys)[number]
 
 const activeTab = ref<TabKey>('profile')
@@ -206,6 +215,11 @@ const inlineConfirmClear = ref<InlineProfileField | null>(null)
 const savingPresetAvatar = ref('')
 const savingWornBadge = ref(false)
 const presetAvatarDraft = ref(page.props.user.avatarUrl)
+const decoration = ref<UserDecoration | undefined>(page.props.user.decoration)
+function applyDecoration(value: UserDecoration) {
+  decoration.value = value
+  page.layout.viewer.decoration = value
+}
 const wornBadgeCode = ref(page.props.user.wornBadgeCode || '')
 const coverUrl = ref(page.props.user.profileCoverUrl || '')
 const bindings = ref<OAuthBindingsPayload>({})
@@ -274,19 +288,23 @@ const passwordForm = reactive({
   confirmPassword: '',
 })
 
-const privacy = reactive({
-  showTopics: true,
-  showFollowing: true,
-  emailNotifications: true,
-})
+const pushPreferences = ref<PushPreferences | null>(null)
+const pushPreferenceBusy = ref(false)
+const pushGroups = ['chat', 'mentionsAndReplies', 'activity', 'following', 'system'] as const
+async function setPushGroup(group: typeof pushGroups[number], enabled: boolean) {
+ if (pushPreferenceBusy.value) return
+ pushPreferenceBusy.value = true
+ try { pushPreferences.value = await updatePushPreferences({[group]: enabled}) }
+ catch { showError(t('api.operationFailed')) }
+ finally { pushPreferenceBusy.value = false }
+}
 
-// Web Push（issue #444 第二通道）：开关状态以浏览器真实订阅为准，
-// 不落入 localStorage 偏好（savePrivacy 只持久化展示类偏好）。
+// Web Push（issue #444 第二通道）：开关状态以浏览器真实订阅为准。
 const webPushAvailable = ref(false)
 const webPushEnabled = ref(false)
 const webPushBusy = ref(false)
 
-// 浏览器级通知（Web Notification API，issue #444）：偏好独立于 privacy 存 localStorage，
+// 浏览器级通知（Web Notification API，issue #444）：偏好存 localStorage，
 // 由 runtime/browser-notification 直接读写，权限状态由浏览器维护。
 const browserNotificationsSupported = isBrowserNotificationSupported()
 const browserNotificationsEnabled = ref(isBrowserNotificationEnabled())
@@ -382,14 +400,11 @@ onMounted(() => {
   const urlTab = window.location.hash === '#anonymous-identity' ? 'privacy' : new URL(window.location.href).searchParams.get('tab')
   if (tabKeys.includes(urlTab as TabKey)) activeTab.value = urlTab as TabKey
 
-  const savedPrivacy = localStorage.getItem('goose-privacy-settings')
-  if (savedPrivacy) {
-    Object.assign(privacy, JSON.parse(savedPrivacy))
-  }
   void loadBindings()
   void loadSessions()
   void loadTotpStatus()
   void initWebPush()
+  void getPushPreferences().then(value => { pushPreferences.value = value }).catch(() => showError(t('api.operationFailed')))
 })
 
 watch(activeTab, (tab) => {
@@ -418,6 +433,7 @@ function settingsTabLabel(key: string, fallback?: string) {
   if (key === 'profile') return t('settings.tabs.profile')
   if (key === 'account') return t('settings.tabs.account')
   if (key === 'privacy') return t('settings.tabs.privacy')
+  if (key === 'notifications') return t('settings.tabs.notifications')
   if (key === 'binding') return t('settings.tabs.binding')
   if (key === 'security') return t('settings.tabs.security')
   if (key === 'content') return t('settings.tabs.content')
@@ -1018,10 +1034,6 @@ async function submitPassword() {
   }
 }
 
-function savePrivacy() {
-  localStorage.setItem('goose-privacy-settings', JSON.stringify(privacy))
-  showStatus(t('settings.status.privacySaved'))
-}
 
 /** 初始化推送开关：仅浏览器支持且实例已配置 VAPID 时展示，初始态 = 现有订阅。 */
 async function initWebPush() {
@@ -1432,7 +1444,7 @@ async function toggleBinding(provider: string) {
                 :aria-label="t('settings.avatar.upload')"
                 @click="chooseCustomAvatar"
               >
-                <UserAvatar :src="avatarPreviewUrl" :alt="usernameForm.username" :badge="wornBadgePreview" size="large" class="h-full w-full rounded-full" img-class="rounded-full transition group-hover:brightness-90" />
+                <UserAvatar :src="avatarPreviewUrl" :alt="usernameForm.username" :badge="wornBadgePreview" :frame="decoration?.avatarFrame" size="large" class="h-full w-full rounded-full" img-class="rounded-full transition group-hover:brightness-90" />
                 <span class="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full text-neutral-content">
                   <Loader2 v-if="uploadingAvatar" class="h-8 w-8 animate-spin opacity-100" />
                   <Camera v-else class="h-8 w-8 opacity-0 drop-shadow transition group-hover:opacity-100" />
@@ -1441,7 +1453,7 @@ async function toggleBinding(provider: string) {
 
               <div class="min-w-0 flex-1 sm:pt-3">
                 <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-y-2">
-                  <h2 class="truncate text-xl font-bold leading-tight tracking-tight text-base-content sm:text-2xl">{{ displayName }}</h2>
+                  <h2 class="truncate text-xl font-bold leading-tight tracking-tight text-base-content sm:text-2xl"><UserNickname :style-definition="decoration?.nicknameStyle">{{ displayName }}</UserNickname></h2>
                   <span class="gf-badge gf-badge-info rounded text-[11px]">{{ t('settings.editing') }}</span>
                   <button
                     type="button"
@@ -1748,6 +1760,7 @@ async function toggleBinding(provider: string) {
             </div>
           </section>
 
+          <DecorationEditor :avatar-url="avatarPreviewUrl" :name="displayName" @changed="applyDecoration" />
           <BadgeDisplayEditor v-if="userBadges.length" :badges="userBadges" :selected="props.user.displayBadges ?? userBadges.slice(0, 5)" />
           <section v-if="userBadges.length" class="mt-4 border-t border-line pt-3">
             <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -2156,28 +2169,24 @@ async function toggleBinding(provider: string) {
           <section v-show="activeTab === 'privacy'">
             <SectionHeader :icon="Shield" :title="t('settings.privacy.title')" />
             <div class="max-w-2xl divide-y divide-line p-4">
+              <ProfilePrivacySettings v-if="activeTab === 'privacy'" :key="`profile-privacy-${page.layout.viewer.id}`" :profile-url="profileUrl" />
               <AnonymousIdentitySettings v-if="activeTab === 'privacy'" :key="page.layout.viewer.id" />
-              <label class="flex items-center justify-between gap-4 py-4">
-                <span>
-                  <span class="block text-sm font-semibold text-base-content">{{ t('settings.privacy.showTopics') }}</span>
-                  <span class="text-sm text-base-content/55">{{ t('settings.privacy.showTopicsDescription') }}</span>
-                </span>
-                <GfSwitch :model-value="privacy.showTopics" @update:model-value="privacy.showTopics = $event; savePrivacy()" />
-              </label>
-              <label class="flex items-center justify-between gap-4 py-4">
-                <span>
-                  <span class="block text-sm font-semibold text-base-content">{{ t('settings.privacy.showFollowing') }}</span>
-                  <span class="text-sm text-base-content/55">{{ t('settings.privacy.showFollowingDescription') }}</span>
-                </span>
-                <GfSwitch :model-value="privacy.showFollowing" @update:model-value="privacy.showFollowing = $event; savePrivacy()" />
-              </label>
-              <label class="flex items-center justify-between gap-4 py-4">
-                <span>
-                  <span class="block text-sm font-semibold text-base-content">{{ t('settings.privacy.emailNotifications') }}</span>
-                  <span class="text-sm text-base-content/55">{{ t('settings.privacy.emailNotificationsDescription') }}</span>
-                </span>
-                <GfSwitch :model-value="privacy.emailNotifications" @update:model-value="privacy.emailNotifications = $event; savePrivacy()" />
-              </label>
+            </div>
+          </section>
+
+          <section v-show="activeTab === 'notifications'">
+            <SectionHeader :icon="Bell" :title="t('settings.privacy.notificationsTitle')" />
+            <div class="max-w-2xl divide-y divide-line p-4">
+              <div v-if="pushPreferences" class="py-3">
+                <h3 class="text-sm font-semibold">{{ t('notifications.pushGroups.title') }}</h3>
+                <label v-for="group in pushGroups" :key="group" class="flex items-center justify-between gap-4 py-2">
+                  <span class="text-sm">
+                    {{ t(`notifications.pushGroups.${group}`) }}
+                    <span v-if="group === 'system' && pushPreferences.systemDefaultOnly" class="mt-1 block text-xs text-base-content/55">{{ t('notifications.systemPushDefaultDescription') }}</span>
+                  </span>
+                  <GfSwitch :model-value="pushPreferences[group]" :disabled="pushPreferenceBusy" @update:model-value="setPushGroup(group, $event)" />
+                </label>
+              </div>
               <label v-if="webPushAvailable" class="flex items-center justify-between gap-4 py-4">
                 <span>
                   <span class="block text-sm font-semibold text-base-content">{{ t('settings.privacy.webPushNotifications') }}</span>
@@ -2369,6 +2378,7 @@ async function toggleBinding(provider: string) {
                 </button>
               </div>
             </div>
+            <PasskeySettings :totp-enabled="totpEnabled" />
             <div v-if="loadingSessions" class="p-4 py-8 text-center text-sm text-base-content/55">
               <Loader2 class="mx-auto mb-2 h-5 w-5 animate-spin" />
               {{ t('settings.security.loading') }}

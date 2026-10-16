@@ -19,10 +19,10 @@ const rankColumns = "id,user_id,persona_uid,category_id,first_public_at,first_pu
 // candidate LIMIT in RankTopics/PublicTopics, so planner selectivity estimates
 // cannot turn a small recall into thousands of correlated post lookups.
 func rankingCandidateQuery(ctx context.Context) *gorm.DB {
-	return builder().WithContext(ctx).Where("status = 1 AND process_status = 0 AND visibility_status = ? AND deleted_at IS NULL AND topic_type = ?", VisibilityActive, TopicTypeForum)
+	return builder().WithContext(ctx).Where(PublicScopePredicate(tableName))
 }
 func publicRankingQuery(ctx context.Context) *gorm.DB {
-	return rankingCandidateQuery(ctx).Where(firstPostVisibleSQL, ProcessStatusNormal).Where("user_id IN (?)", users.EligibleIDsQuery(ctx))
+	return rankingCandidateQuery(ctx).Where(FirstPostVisiblePredicate(tableName)).Where("user_id IN (?)", users.EligibleIDsQuery(ctx))
 }
 
 // RankTopic reads no content, excerpts, poster JSON or image lists.
@@ -175,7 +175,7 @@ func NewTopicFactsTx(tx *gorm.DB, ids []uint64) ([]Entity, error) {
 	if len(ids) == 0 {
 		return rows, nil
 	}
-	err := tx.Model(&Entity{}).Select("id,user_id,first_public_at,first_public_estimated").Where("id IN ? AND status = 1 AND process_status = 0 AND visibility_status = ? AND topic_type = ?", ids[:min(len(ids), 20)], VisibilityActive, TopicTypeForum).Where(firstPostVisibleSQL, ProcessStatusNormal).Where("user_id IN (?)", users.EligibleIDsQuery(tx.Statement.Context)).Find(&rows).Error
+	err := tx.Model(&Entity{}).Select("id,user_id,first_public_at,first_public_estimated").Where("id IN ? AND "+PublicScopePredicate(tableName), ids[:min(len(ids), 20)]).Where(FirstPostVisiblePredicate(tableName)).Where("user_id IN (?)", users.EligibleIDsQuery(tx.Statement.Context)).Find(&rows).Error
 	return rows, err
 }
 

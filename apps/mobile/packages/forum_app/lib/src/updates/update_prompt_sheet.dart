@@ -142,7 +142,7 @@ class _UpdatePromptSheetState extends State<UpdatePromptSheet> {
                                 children: [
                                   Semantics(
                                     header: true,
-                                    child: Text(
+                                    child: GfText(
                                       l10n.updateAvailable,
                                       style: type.title2,
                                     ),
@@ -155,7 +155,7 @@ class _UpdatePromptSheetState extends State<UpdatePromptSheet> {
                                     children: [
                                       if (installed != null &&
                                           installed != widget.version) ...[
-                                        Text(
+                                        GfText(
                                           installed,
                                           style: type.caption.copyWith(
                                             color: secondary,
@@ -169,7 +169,7 @@ class _UpdatePromptSheetState extends State<UpdatePromptSheet> {
                                           ),
                                         ),
                                       ],
-                                      Text(
+                                      GfText(
                                         widget.version,
                                         style: type.caption.copyWith(
                                           color: colors.baseContent,
@@ -177,7 +177,7 @@ class _UpdatePromptSheetState extends State<UpdatePromptSheet> {
                                         ),
                                       ),
                                       if (widget.sizeBytes != null)
-                                        Text(
+                                        GfText(
                                           '· ${_megabytes(widget.sizeBytes!)}',
                                           style: type.caption.copyWith(
                                             color: secondary,
@@ -246,7 +246,7 @@ class _UpdatePromptSheetState extends State<UpdatePromptSheet> {
                             liveRegion: true,
                             label: statusText,
                             excludeSemantics: true,
-                            child: Text(
+                            child: GfText(
                               statusText,
                               style: type.caption.copyWith(
                                 color: widget.failed ? colors.error : secondary,
@@ -261,7 +261,7 @@ class _UpdatePromptSheetState extends State<UpdatePromptSheet> {
                             padding: const EdgeInsetsDirectional.only(
                               start: 12,
                             ),
-                            child: Text(
+                            child: GfText(
                               '${_megabytes(widget.receivedBytes)} / ${_megabytes(widget.sizeBytes!)}',
                               style: type.caption.copyWith(color: secondary),
                             ),

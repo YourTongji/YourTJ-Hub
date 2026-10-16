@@ -104,8 +104,14 @@ func metadataStore() DirectUploadMetadataStore {
 }
 
 // SupportsDirectUpload reports whether the active provider can presign direct
-// uploads (currently only the S3 provider).
+// uploads (currently only the S3 provider). The operator switch
+// StorageSettings.ForceProxyUpload disables direct uploads while keeping the
+// S3 provider: clients then use the server-proxied POST /file/img-upload,
+// which still writes to the bucket through Provider.Save.
 func SupportsDirectUpload() bool {
+	if GetStorageSettings().ForceProxyUpload {
+		return false
+	}
 	_, ok := Current().(DirectUploadProvider)
 	return ok
 }

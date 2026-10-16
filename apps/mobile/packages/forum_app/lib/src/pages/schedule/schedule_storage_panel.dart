@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../current_user.dart';
 import '../../providers.dart';
@@ -75,21 +76,21 @@ class _ScheduleStoragePanelState extends ConsumerState<ScheduleStoragePanel> {
     final accepted = await showGfAlertDialog<bool>(
       context,
       builder: (context) => GfAlertDialog(
-        title: Text(strings.review),
+        title: GfText(strings.review),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(strings.explanation),
+              GfText(strings.explanation),
               const SizedBox(height: 12),
-              SelectableText(
+              GfSelectableText(
                 '$site\n${user?.username ?? strings.guest} · ID $owner',
               ),
               const SizedBox(height: 12),
-              Text(strings.summary(_count)),
+              GfText(strings.summary(_count)),
               if (!allowed)
-                Text(
+                GfText(
                   strings.ownerMismatch(oldOwner),
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
@@ -99,11 +100,11 @@ class _ScheduleStoragePanelState extends ConsumerState<ScheduleStoragePanel> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(strings.cancel),
+            child: GfText(strings.cancel),
           ),
           FilledButton(
             onPressed: allowed ? () => Navigator.pop(context, true) : null,
-            child: Text(strings.restore),
+            child: GfText(strings.restore),
           ),
         ],
       ),
@@ -123,7 +124,7 @@ class _ScheduleStoragePanelState extends ConsumerState<ScheduleStoragePanel> {
     if (!mounted) return;
     setState(() => _busy = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(restored ? strings.restored : strings.failed)),
+      SnackBar(content: GfText(restored ? strings.restored : strings.failed)),
     );
     if (restored) {
       // Rebuild CAS state only after the explicit move succeeds.
@@ -158,7 +159,7 @@ class _ScheduleStoragePanelState extends ConsumerState<ScheduleStoragePanel> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(strings.failed)));
+        ).showSnackBar(SnackBar(content: GfText(strings.failed)));
       }
     }
   }
@@ -188,7 +189,7 @@ class _ScheduleStoragePanelState extends ConsumerState<ScheduleStoragePanel> {
           if (error != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
+              child: GfText(
                 strings.storageError,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
@@ -196,16 +197,16 @@ class _ScheduleStoragePanelState extends ConsumerState<ScheduleStoragePanel> {
           if (error != null)
             TextButton(
               onPressed: notifier.retryPersistence,
-              child: Text(strings.retry),
+              child: GfText(strings.retry),
             ),
           if (_readFailed)
-            TextButton(onPressed: _load, child: Text(strings.retry)),
+            TextButton(onPressed: _load, child: GfText(strings.retry)),
           if (_legacy?.isNotEmpty != true && _archive.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: TextButton(
                 onPressed: _busy ? null : _export,
-                child: Text(strings.exportArchive),
+                child: GfText(strings.exportArchive),
               ),
             ),
           if (_legacy?.isNotEmpty == true)
@@ -215,13 +216,13 @@ class _ScheduleStoragePanelState extends ConsumerState<ScheduleStoragePanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    GfText(
                       strings.found,
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                     const SizedBox(height: 6),
-                    Text(strings.summary(_count)),
-                    Text(strings.exportHint),
+                    GfText(strings.summary(_count)),
+                    GfText(strings.exportHint),
                     Wrap(
                       spacing: 8,
                       children: [
@@ -230,11 +231,11 @@ class _ScheduleStoragePanelState extends ConsumerState<ScheduleStoragePanel> {
                               _busy || identity.isLoading || identity.hasError
                               ? null
                               : _review,
-                          child: Text(strings.review),
+                          child: GfText(strings.review),
                         ),
                         TextButton(
                           onPressed: _busy ? null : _export,
-                          child: Text(strings.export),
+                          child: GfText(strings.export),
                         ),
                       ],
                     ),

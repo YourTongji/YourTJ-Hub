@@ -1,3 +1,4 @@
+import 'user_decoration.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -103,6 +104,19 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       GfAvatar(
+                        frameColors: widget.value == 'persona'
+                            ? const []
+                            : decorationColors(
+                                context,
+                                user?.decoration?.avatarFrame,
+                              ),
+                        frameAssetUrl: widget.value == 'persona'
+                            ? ''
+                            : decorationFrameAssetUrl(
+                                user?.decoration?.avatarFrame,
+                              ),
+                        frameScale:
+                            user?.decoration?.avatarFrame?.assetScale ?? 1.25,
                         src: resolveApiAssetUrl(
                           widget.value == 'persona'
                               ? p?.avatarUrl ?? ''
@@ -112,8 +126,14 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
                       ),
                       const SizedBox(width: 8),
                       Flexible(
-                        child: Text(
+                        child: GfDecoratedName(
                           name,
+                          colors: widget.value == 'persona'
+                              ? const []
+                              : decorationColors(
+                                  context,
+                                  user?.decoration?.nicknameStyle,
+                                ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: type.bodyStrong,
@@ -130,7 +150,7 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
                             color: colors.base200,
                             shape: const StadiumBorder(),
                           ),
-                          child: Text(
+                          child: GfText(
                             kind,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -195,7 +215,7 @@ class _IdentityMenu extends ConsumerWidget {
         key: key,
         leading: leading,
         title: title,
-        subtitleWidget: Text(
+        subtitleWidget: GfText(
           subtitle,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -219,11 +239,19 @@ class _IdentityMenu extends ConsumerWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-              child: Text(l.anonymousPublishAs, style: type.title3),
+              child: GfText(l.anonymousPublishAs, style: type.title3),
             ),
             option(
               key: const Key('identity-option-member'),
               leading: GfAvatar(
+                frameColors: decorationColors(
+                  context,
+                  user?.decoration?.avatarFrame,
+                ),
+                frameAssetUrl: decorationFrameAssetUrl(
+                  user?.decoration?.avatarFrame,
+                ),
+                frameScale: user?.decoration?.avatarFrame?.assetScale ?? 1.25,
                 src: resolveApiAssetUrl(user?.avatarUrl ?? ''),
                 size: 36,
               ),

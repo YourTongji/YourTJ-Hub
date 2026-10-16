@@ -1,4 +1,5 @@
-import { createApp, h, ref } from 'vue'
+import { h, ref } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import AgentReplySetting from '../../../src/site/components/AgentReplySetting.vue'
 import { i18n, setLocale } from '../../../src/runtime/i18n'
 import '../../../src/styles/resource.css'

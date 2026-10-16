@@ -11,7 +11,7 @@ Future<String?> showContentPasswordDialog(BuildContext context) {
     context: context,
     animationStyle: GfMotion.dialogStyle(context),
     builder: (context) => AlertDialog(
-      title: Text(l10n.contentPassword),
+      title: GfText(l10n.contentPassword),
       scrollable: true,
       content: GfInput(
         labelText: l10n.contentPassword,
@@ -27,11 +27,11 @@ Future<String?> showContentPasswordDialog(BuildContext context) {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(l10n.commonCancel),
+          child: GfText(l10n.commonCancel),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, enteredPassword),
-          child: Text(l10n.commonConfirm),
+          child: GfText(l10n.commonConfirm),
         ),
       ],
     ),

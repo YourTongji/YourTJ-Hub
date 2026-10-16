@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:core/core.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 /// Viewport-based exposure for recycled rows; background time cannot complete
 /// the continuous one-second, at-least-half-visible threshold.
@@ -135,7 +136,7 @@ class _FeedVisibilityState extends State<FeedVisibility>
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-              child: Text(
+              child: GfText(
                 widget.reason!,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,

@@ -1,4 +1,5 @@
-import { createApp, h } from 'vue'
+import { h } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import LinkPreviewCard from '../../../src/site/components/LinkPreviewCard.vue'
 import { i18n } from '../../../src/runtime/i18n'
 import '../../../src/styles/resource.css'

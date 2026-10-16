@@ -2090,6 +2090,13 @@ func SaveStorageSettings(req component.BetterRequest[SaveStorageSettingsReq]) co
 	storage.BucketLookup = input.BucketLookup
 	storage.Secure = input.Secure
 	storage.PublicUrlPrefix = input.PublicUrlPrefix
+	// 缺省时保留已存值（兼容未携带该字段的旧客户端）；非 s3 提供方恒为 false。
+	if input.ForceProxyUpload != nil {
+		storage.ForceProxyUpload = *input.ForceProxyUpload
+	}
+	if provider != storageservice.ProviderS3 {
+		storage.ForceProxyUpload = false
+	}
 	if key := strings.TrimSpace(input.AccessKey); key != "" {
 		sealed, err := securestore.EncryptPurpose(key, securestore.StorageAccessKeyPurpose)
 		if err != nil {

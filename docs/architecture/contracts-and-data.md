@@ -6,14 +6,15 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-07
+> Last verified: 2026-10-13
 
 ## Contract status
 
 The contract capability is **Partial** (all JSON routes are described; generated Dart and a few
 protocol surfaces remain open). The controlled OpenAPI 3.1 entry point is
 `packages/api-contract/openapi.yaml`. Every `/api` JSON route is covered by an OpenAPI operation —
-the generated `packages/api-contract/coverage-matrix.md` is the authoritative route-by-route list,
+the [coverage report entry](../../packages/api-contract/coverage-matrix.md) explains how to generate
+the route-by-route list and find the report for a CI run,
 and CI rejects any route that is neither contracted nor listed. By domain:
 
 - auth and account: password login, login public key, TOTP (verify + management), logout,
@@ -28,7 +29,9 @@ and CI rejects any route that is neither contracted nor listed. By domain:
   TypeScript is generated into `apps/status/src/generated/`, with fixture and handler validation in
   that application's tests. This API is outside Gin and the forum/mobile client contract.
 - admin console (`/api/admin/*`): user/role/category/moderator management, topic/post moderation,
-  agent administration, operation records, traffic overview, page settings, site settings, and
+  agent administration, operation records, traffic overview, content contribution statistics
+  (`paths/admin-stats.yaml`: `/api/admin/stats/{category-summary,category-trend,user-ranking,user-detail}`,
+  admin-only reads over published content and like relations), page settings, site settings, and
   data import/export;
 - Agent public API (`/api/v1/agent/*`), course catalog + reviews + moderation, and the PK
   scheduler (`/api/pk/*`: public read-only dictionaries/catalog/details plus the login-gated
@@ -265,9 +268,13 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
   then requires every snapshot route to be either an OpenAPI operation or listed in
   `packages/api-contract/route-coverage.json` (`excluded` for non-JSON-API routes such as SSR pages and
   static assets, `knownUncovered` with an owning slice for pending `/api` routes), rejects stale or
-  dangling list entries and contract operations with no matching route, and regenerates the committed
-  `packages/api-contract/coverage-matrix.md` — CI rejects an uncommitted matrix diff, same as the
-  generated TypeScript types. Net effect: a new route that is neither contracted nor listed turns CI red.
+  dangling list entries and contract operations with no matching route, and generates the ignored
+  `packages/api-contract/.tmp/coverage-matrix.md`. CI publishes this report in the contract job summary
+  and `api-route-coverage` artifact with the checked-out source commit. Only generated TypeScript
+  types require a committed diff; route snapshots, coverage exceptions and contracts remain committed
+  inputs. Independent route changes may still require merging those inputs; regenerate the report
+  after merging rather than resolving generated rows. A failed coverage check removes the previous
+  local report. Net effect: a new route that is neither contracted nor listed turns CI red.
 
 Breaking-change comparison is not a current gate. Enable a base-versus-head bundled-spec breaking
 gate (for example `oasdiff` against the bundled base and head specs) in a separate change; that gate
@@ -366,9 +373,19 @@ complete operation coverage and the precondition for such a gate is met.
   - `import` (staged, checksum-addressed JSON import)
   - `file-migrate` (BLOB → object storage migration)
   - `topic-search.*`, `user-search.*`, `category-search.*`, and `course-search.*` (search projections)
-  - `webpush.*` (Web Push browser-channel notifications; VAPID endpoints, 404/410 cleanup)
-  - `nativepush.*` (native APNs/FCM push; same enqueue points as `webpush.*`, terminal-task
+  - `webpush.*` (Web Push notification/chat-message sources; VAPID endpoints, 404/410 cleanup)
+  - `nativepush.*` (native APNs/JPush/FCM notification/chat-message sources; terminal-task
     cleanup cron at `12 3 * * *`)
+
+Push tasks carry a recipient and a typed committed source (`notification` or `chat_message`).
+Nullable unique `dedup_key` values bind channel/source/id/recipient without constraining other task
+families. Chat queue rows participate in the message/forward transaction; a savepoint isolates queue
+failure, and workers cannot see rolled-back rows. Activity enqueue follows persisted notification IDs.
+Delivery rechecks ownership, visibility, blocks, read state, mute and account policy. Sparse user
+`push_preferences` JSON distinguishes selective defaults from explicit group choices. New notification
+rows persist a separate direct-mention reason for portable SQL filtering; historical rows default false.
+Push is a best-effort projection, not a read or delivery fact. Clients reconcile through REST/SSE.
+
 - Task claiming is **atomic with a lease** (issue #138): a worker claims a row via a CAS update
   (`pending/retrying → running`, `RowsAffected = 1`), so concurrent workers/processes never execute
   the same task simultaneously from the queue's perspective. Each claim generates a fresh,
@@ -436,7 +453,11 @@ Principle: projections must be rebuildable from the fact source; never treat a p
 
 The AI-readable exports are public text representations, not JSON API operations in the controlled
 OpenAPI surface. Their visibility boundary is the existing forum publication and moderation state:
-draft, blocked, pending-review, soft-deleted, or first-post-blocked content is excluded. The index follows
+draft, blocked, pending-review, soft-deleted, or first-post-blocked content is excluded. Wiki pages
+(`topics.topic_type = 1`) are excluded as well — the forum export covers forum topics, while wiki
+content is the read-only GitHub-synced projection served under `/wiki` (MADR-0005); the index and
+full-text exports never listed wiki pages, and the per-topic document
+(`GET /p/posts/{id}.md`) follows the same boundary. The index follows
 the llms.txt Markdown structure (site heading, optional description, and a `Topics` link list); full-text
 and per-topic documents preserve the stored Markdown source.
 
@@ -453,6 +474,14 @@ and per-topic documents preserve the stored Markdown source.
 - Automated Dart generation remains Planned; route coverage is a current contract gate as described
   above and is not a Planned capability.
 - Docs status words updated in step (docs/README.md).
+
+`Current`: the read-only admin contribution statistics operations ship through that same chain — the
+four `/api/admin/stats/*` operations are defined in `paths/admin-stats.yaml`, with generated
+TypeScript types, committed fixtures and route-level HTTP tests in the same change, so a new field,
+filter or validation rule cannot land backend-only. They read published content rows and like
+relations only: feed analytics events, exposure/seen records and experiment data are not an input,
+and that telemetry's 30-day retention is unchanged. Product rules and the counting definitions live
+in [forum](../product/forum.md#content-contribution-statistics).
 
 PK plan synchronization is `Current` and follows [issue #714](https://github.com/YourTongji/YourTJ-Hub/issues/714):
 `pk_plan_item` is keyed by numeric user ID and plan ID, with payload JSON, independent integer revision
@@ -520,6 +549,19 @@ each batch checks ownership. Jobs bind to the configured server origin and requi
 `meilisearch.maintenance_enabled`, preventing main snapshot tasks from running on dev.
 Status responses omit raw errors, document bodies and the instance fingerprint.
 See the [maintenance decision](../decisions/0024-admin-search-index-maintenance.md).
+
+## Profile section privacy
+
+`Current`: `user_privacy_settings` keeps one row per member (`user_id` primary key) with a
+`varchar(16)` audience for each profile section, defaulting to `everyone`; a missing row reads as
+all defaults, so existing accounts need no backfill. Writes lock the row, merge a validated partial
+update and upsert only the supplied columns in one transaction, so two first saves of different
+sections both persist; the response is re-read from storage. `profileprivacyservice` evaluates the viewer once per
+profile request (follow state in one query, blocks fail closed) before section queries, and the
+timeline query filters `action IN (...)` so hidden actions cannot surface through rows or cursors.
+Account closure deletes the row in the same transaction as private notes and blocks. Anonymous
+profiles never read it, so a persona's page cannot echo its owner's audiences.
+See [0088](../decisions/0088-profile-section-privacy.md).
 
 ## Private user-name overlays
 
@@ -681,6 +723,11 @@ participation queries exclude anonymous ownership. Persona participant queries b
 results. Notification `private_actor_id` supports private eligibility; payload actor ID zero and
 `actorPersonaUid` support safe hydration and pushes. Public exports redact anonymous authors and
 editors and cannot reconstruct private ownership. Missing personas never resolve through users.
+
+Admin contribution statistics follow the same attribution boundary: per-user figures resolve public
+human ownership only — persona-owned and legacy anonymous rows are excluded from contributor counts,
+ranking and detail, while still counting toward aggregate category and site content volumes. The
+report exposes no owner binding and adds no reveal path beyond the audited one above.
 
 The private anonymous settings/governance and restricted admin list/governance operations live in
 the controlled OpenAPI contract. The admin list paginates at most 50 private mappings and commits

@@ -8,6 +8,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
 )
@@ -89,6 +90,43 @@ func TestMobileWebSessionHTTPContract(t *testing.T) {
 			}
 			if strings.Contains(res.Body.String(), token) || res.Header().Get("New-Token") != "" {
 				t.Fatal("credential exposed outside HttpOnly cookie")
+			}
+		})
+	}
+}
+
+func TestMobileWebSessionAgentManagement(t *testing.T) {
+	conn, router := setupAdminOpsContractTest(t)
+	router.GET("/api/auth/mobile-web-session", api.MobileWebSession)
+	owner := createHTTPContractUser(t, conn, contractTestID())
+	stranger := createHTTPContractUser(t, conn, contractTestID())
+	admin := createContractAdmin(t, conn)
+	if _, err := agentservice.Create(agentservice.CreateParams{Username: "handoff-owned-agent", CreatedBy: owner.Id}); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name   string
+		userID uint64
+		token  string
+		status int
+	}{
+		{"creator", owner.Id, contractSessionToken(t, owner), http.StatusSeeOther},
+		{"stranger", stranger.Id, contractSessionToken(t, stranger), http.StatusForbidden},
+		{"administrator", admin.Id, contractSessionToken(t, admin), http.StatusSeeOther},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/auth/mobile-web-session?target=agents&redirect=https://example.org", nil)
+			req.Header.Set("Authorization", "Bearer "+tc.token)
+			res := httptest.NewRecorder()
+			router.ServeHTTP(res, req)
+			if res.Code != tc.status {
+				t.Fatalf("user %d status %d want %d: %s", tc.userID, res.Code, tc.status, res.Body.String())
+			}
+			if tc.status == http.StatusSeeOther && res.Header().Get("Location") != "/admin/agents" {
+				t.Fatal("Agent handoff must use the fixed management destination")
+			}
+			if tc.status == http.StatusForbidden && len(res.Result().Cookies()) != 0 {
+				t.Fatal("unauthorized Agent handoff set a cookie")
 			}
 		})
 	}

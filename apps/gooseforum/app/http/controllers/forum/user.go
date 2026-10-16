@@ -49,6 +49,9 @@ func UserProfile(c *gin.Context) {
 	}
 
 	props := buildUserProfileProps(c, user, section, activitySection)
+	// Visibility depends on the viewer and live settings; never let a shared
+	// or browser cache replay one viewer's sections to another (issue #1124).
+	c.Header("Cache-Control", "private, no-store")
 	payload := PagePayload{
 		Component: PageComponentUser,
 		Props:     props,

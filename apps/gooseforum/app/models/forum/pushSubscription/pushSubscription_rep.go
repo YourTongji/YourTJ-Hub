@@ -104,3 +104,10 @@ func TouchActive(endpoint string, now time.Time) error {
 		Where(queryopt.Eq("endpoint", endpoint)).
 		Update("last_active_at", now).Error
 }
+
+// IsOwned rechecks logout/account switches after the worker's fan-out snapshot.
+func IsOwned(endpoint string, userID uint64) (bool, error) {
+	var count int64
+	err := builder().Where("endpoint = ? AND user_id = ?", endpoint, userID).Count(&count).Error
+	return count == 1, err
+}

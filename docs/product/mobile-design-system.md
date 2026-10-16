@@ -117,7 +117,7 @@ wide windows place a scrollable surface up to 380 pixels wide near the trigger, 
 and above the keyboard. Simple confirmations use Cupertino alerts; complex credential and editing
 forms retain the bounded Gf surface. Android keeps Material menus, choices and confirmations;
 its short action sheets retain the shared safe-area and width limits. See
-[0082](../decisions/0082-adaptive-ios-interaction-surfaces.md).
+[0094](../decisions/0094-adaptive-ios-interaction-surfaces.md).
 `Partial`: legacy forms still use bounded scrollable sheets; profile, password and course
 review editing confirm discarding changed input.
 Transient feedback uses the existing shared banner; field-specific errors stay beside the field.

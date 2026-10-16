@@ -130,7 +130,7 @@ class _AnonymousProfilePageState extends ConsumerState<AnonymousProfilePage> {
     final d = data;
     if (d == null) {
       return Scaffold(
-        appBar: GfAppBar(title: Text(l.anonymousIdentity)),
+        appBar: GfAppBar(title: GfText(l.anonymousIdentity)),
         body: error == null
             ? const Center(child: CircularProgressIndicator())
             : GfErrorRetry(
@@ -182,7 +182,7 @@ class _AnonymousProfilePageState extends ConsumerState<AnonymousProfilePage> {
                 slivers: [
                   ProfileHeaderSliver(
                     avatarUrl: persona.avatarUrl,
-                    title: Text(
+                    title: GfText(
                       persona.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

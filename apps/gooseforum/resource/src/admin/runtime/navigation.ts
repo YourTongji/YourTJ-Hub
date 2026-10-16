@@ -71,6 +71,8 @@ export function adminNavGroups(): NavGroup[] {
       { title: adminText('k002j'), url: '/admin/links', icon: Link, permission: AdminPermission.PageManager },
       { title: adminText('k00n4'), url: '/admin/wiki', icon: BookOpen, permission: AdminPermission.PageManager },
       { title: adminText('k004o'), url: '/admin/sponsors', icon: Heart, permission: AdminPermission.PageManager },
+      { title: t('decoration.title'), url: '/admin/decorations', icon: Award, permission: AdminPermission.SiteManager },
+      { title: t('decoration.userGrants'), url: '/admin/user-decorations', icon: Award, permission: AdminPermission.UserManager },
       { title: adminText('k0058'), url: '/admin/badges', icon: Award, permission: AdminPermission.SiteManager },
       { title: adminText('k00vg8'), url: '/admin/stickers', icon: Sticker, permission: AdminPermission.SiteManager },
       { title: adminText('k00f6'), url: '/admin/files/resources', icon: Files, permission: AdminPermission.SiteManager },

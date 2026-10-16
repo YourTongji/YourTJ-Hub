@@ -152,3 +152,34 @@ func findByID(t *testing.T, id uint64) Entity {
 	}
 	return Entity{}
 }
+
+func TestCategoriesFilterBeforeLimitAndPreserveMentionReason(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	const owner = 98761
+	t.Cleanup(func() { conn.Where("user_id IN ?", []uint64{owner, owner + 1}).Delete(&Entity{}) })
+	rows := []*Entity{{UserId: owner, EventType: EventTypePostReply, HasDirectMention: true, Payload: NotificationPayload{HasDirectMention: true}}, {UserId: owner, EventType: EventTypeComment}, {UserId: owner, EventType: EventTypeLike}, {UserId: owner, EventType: EventTypeMention, IsRead: true}, {UserId: owner, EventType: "legacy"}}
+	if err := CreateBatch(rows, 100); err != nil {
+		t.Fatal(err)
+	}
+	if err := Create(&Entity{UserId: owner + 1, EventType: EventTypePostReply, HasDirectMention: true}); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		category string
+		unread   bool
+		want     uint64
+	}{{"mentions", true, rows[0].Id}, {"mentions", false, rows[3].Id}, {"replies", true, rows[1].Id}, {"likes", true, rows[2].Id}, {"system", true, rows[4].Id}}
+	for _, tt := range tests {
+		got, err := QueryByUserId(owner, 1, 0, tt.unread, tt.category)
+		if err != nil || len(got) != 1 || got[0].Id != tt.want {
+			t.Fatalf("%s unread=%v got=%+v err=%v", tt.category, tt.unread, got, err)
+		}
+	}
+	got, err := QueryByUserId(owner, 1, rows[3].Id, false, "mentions")
+	if err != nil || len(got) != 1 || got[0].Id != rows[0].Id || !got[0].Payload.HasDirectMention {
+		t.Fatalf("mention cursor reason: %+v %v", got, err)
+	}
+}

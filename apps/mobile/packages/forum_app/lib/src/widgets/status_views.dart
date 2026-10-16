@@ -132,7 +132,7 @@ class _GfListFooterState extends State<GfListFooter> {
       return Padding(
         padding: const EdgeInsets.all(16),
         child: Center(
-          child: Text(
+          child: GfText(
             AppLocalizations.of(context).commonEndOfList,
             style: GfTheme.typographyOf(
               context,
@@ -146,7 +146,7 @@ class _GfListFooterState extends State<GfListFooter> {
       child: Column(
         children: [
           if (widget.error != null)
-            Text(
+            GfText(
               widget.error!,
               textAlign: TextAlign.center,
               style: TextStyle(color: colors.error),

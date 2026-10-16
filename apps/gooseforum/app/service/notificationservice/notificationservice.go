@@ -15,9 +15,9 @@ const (
 	MaxNotificationPageSize     = 50
 )
 
-func GetNotificationCursorList(userId uint64, pageSize int, cursor uint64, unreadOnly bool) ([]*eventNotification.Entity, uint64, bool, error) {
+func GetNotificationCursorList(userId uint64, pageSize int, cursor uint64, unreadOnly bool, category ...string) ([]*eventNotification.Entity, uint64, bool, error) {
 	pageSize = normalizePageSize(pageSize)
-	notifications, err := eventNotification.QueryByUserId(userId, pageSize+1, cursor, unreadOnly)
+	notifications, err := eventNotification.QueryByUserId(userId, pageSize+1, cursor, unreadOnly, category...)
 	if err != nil {
 		return nil, 0, false, err
 	}

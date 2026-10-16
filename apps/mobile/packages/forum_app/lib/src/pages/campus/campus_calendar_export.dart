@@ -85,8 +85,8 @@ class _CampusCalendarExportButtonState
       children: [
         SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero,
-          title: Text(l.campusApplyAdjustments),
-          subtitle: Text(l.campusApplyAdjustmentsHint),
+          title: GfText(l.campusApplyAdjustments),
+          subtitle: GfText(l.campusApplyAdjustmentsHint),
           value: _applyAdjustments,
           onChanged: _busy
               ? null
@@ -107,7 +107,7 @@ class _CampusCalendarExportButtonState
         ),
         const CampusCalendarRulesView(),
         const SizedBox(height: 8),
-        Text(
+        GfText(
           l.campusExportCalendarHint,
           style: GfTheme.typographyOf(context).caption,
         ),
@@ -116,7 +116,7 @@ class _CampusCalendarExportButtonState
             padding: const EdgeInsets.only(top: 8),
             child: Semantics(
               liveRegion: true,
-              child: Text(
+              child: GfText(
                 _error!,
                 style: TextStyle(color: GfTheme.colorsOf(context).error),
               ),

@@ -1,4 +1,5 @@
-import { createApp, h, ref } from 'vue'
+import { h, ref } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import VditorOfficial from '../../../src/site/components/VditorOfficial.vue'
 import ExternalLinkGuard from '../../../src/site/components/ExternalLinkGuard.vue'
 import { i18n } from '../../../src/runtime/i18n'

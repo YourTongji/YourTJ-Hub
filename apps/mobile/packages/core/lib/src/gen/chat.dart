@@ -1,3 +1,4 @@
+import 'decoration.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'user.dart';
@@ -8,6 +9,7 @@ part 'chat.g.dart';
 @freezed
 abstract class ChatItemPayload with _$ChatItemPayload {
   const factory ChatItemPayload({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? peerDecoration,
     required int id,
     required int peerId,
     required String peerUsername,

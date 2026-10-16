@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers.dart';
+import 'campus_lifecycle.dart';
 
-/// Drop private child state on backgrounding, tab exit and session changes.
-/// Only the explicit device snapshot allowlist survives backgrounding; the
-/// separate foreground memory cache is cleared with its request fence.
+/// Drop private child state on backgrounding (paused/hidden), tab exit and
+/// session changes. Only the explicit device snapshot allowlist survives
+/// backgrounding; the separate foreground memory cache is cleared with its
+/// request fence. Transient covers (inactive: notification shade, dialogs)
+/// keep the surface mounted.
 class CampusPrivateSurface extends ConsumerStatefulWidget {
   const CampusPrivateSurface({super.key, required this.builder});
   final WidgetBuilder builder;
@@ -24,7 +27,7 @@ class _CampusPrivateSurfaceState extends ConsumerState<CampusPrivateSurface>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    setState(() => _foreground = state == AppLifecycleState.resumed);
+    setState(() => _foreground = isCampusForeground(state));
   }
 
   @override

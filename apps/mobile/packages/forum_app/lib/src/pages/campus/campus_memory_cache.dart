@@ -3,6 +3,7 @@ import 'package:core/core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers.dart';
+import 'campus_lifecycle.dart';
 
 /// A bounded foreground-only cache, separate from disposable private views.
 /// No credentials, grades, notice bodies or persistent storage belong here.
@@ -101,7 +102,9 @@ class CampusMemoryCache with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    _foreground = state == AppLifecycleState.resumed;
+    // 仅真正被覆盖（paused/hidden/detached）才要求刷新；inactive 瞬时遮挡
+    // 不清缓存（isCampusForeground，见 campus_lifecycle.dart）。
+    _foreground = isCampusForeground(state);
     if (!_foreground) requireFreshRefresh();
   }
 

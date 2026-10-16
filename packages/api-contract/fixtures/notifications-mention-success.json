@@ -33,7 +33,8 @@
           "metadata": {
             "followerName": ""
           },
-          "templateKey": "notifications.templates.mention"
+          "templateKey": "notifications.templates.mention",
+          "hasDirectMention": true
         }
       }
     ],

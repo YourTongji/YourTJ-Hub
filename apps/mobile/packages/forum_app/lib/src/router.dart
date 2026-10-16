@@ -42,6 +42,7 @@ import 'pages/wiki/wiki_page.dart';
 import 'pages/wiki/wiki_search_page.dart';
 import 'pages/schedule/schedule_page.dart';
 import 'pages/search/search_page.dart';
+import 'pages/settings/profile_privacy_page.dart';
 import 'pages/settings/settings_page.dart';
 import 'pages/topic/topic_page.dart';
 import 'providers.dart';
@@ -624,6 +625,11 @@ final GoRouter appRouter = GoRouter(
       path: '/settings/widgets',
       maxContentWidth: 1120,
       builder: (_, _) => const SettingsPage(initialSection: 'widgets'),
+    ),
+    _readingPageRoute(
+      path: '/settings/profile-privacy',
+      maxContentWidth: 1120,
+      builder: (_, _) => const ProfilePrivacyPage(),
     ),
     _readingPageRoute(
       path: '/settings/text-size',

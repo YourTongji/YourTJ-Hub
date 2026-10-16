@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 
 /// Rounded chat content bounded by its conversation pane. Native text selection
 /// and rich inline stickers share the same message body.
@@ -76,8 +77,8 @@ class GfMessageBubble extends StatelessWidget {
       child:
           content ??
           (contentSpan == null
-              ? Text(text)
-              : Text.rich(TextSpan(children: <InlineSpan>[contentSpan!]))),
+              ? GfText(text)
+              : GfText.rich(TextSpan(children: <InlineSpan>[contentSpan!]))),
     );
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -111,12 +112,15 @@ class GfMessageBubble extends StatelessWidget {
           bubble = interactionWrapper!(bubble);
         }
         if (selectable) {
-          bubble = SelectionArea(
-            contextMenuBuilder: (context, selection) =>
+          bubble = GfSelectionArea(
+            // `text` is the original message source, including sticker tokens
+            // represented by rich image spans inside `content`.
+            selectionSource: text,
+            contextMenuBuilder: (context, selection, buttonItems) =>
                 AdaptiveTextSelectionToolbar.buttonItems(
                   anchors: selection.contextMenuAnchors,
                   buttonItems: [
-                    ...selection.contextMenuButtonItems,
+                    ...buttonItems,
                     ContextMenuButtonItem(
                       label: copyMessageLabel,
                       onPressed: () {
@@ -142,7 +146,7 @@ class GfMessageBubble extends StatelessWidget {
                 children: <Widget>[
                   bubble,
                   const SizedBox(height: 4),
-                  Text(
+                  GfText(
                     time!,
                     style: TextStyle(
                       fontSize: 12,

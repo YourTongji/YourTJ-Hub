@@ -67,7 +67,7 @@ class StorageGate extends ConsumerWidget {
                         else
                           const GfLoadingIndicator(),
                         const SizedBox(height: 20),
-                        Text(
+                        GfText(
                           failed
                               ? strings.recoveryBlocked
                               : reset != null
@@ -78,7 +78,7 @@ class StorageGate extends ConsumerWidget {
                         ),
                         if (failed) ...[
                           const SizedBox(height: 12),
-                          Text(
+                          GfText(
                             strings.recoveryRetryHint,
                             textAlign: TextAlign.center,
                             style: typography.body,

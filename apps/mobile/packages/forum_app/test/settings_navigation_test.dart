@@ -384,6 +384,10 @@ void main() {
         find.descendant(of: directory, matching: find.byType(Scrollbar)),
         findsOneWidget,
       );
+      final scrollbar = tester.widget<Scrollbar>(
+        find.descendant(of: directory, matching: find.byType(Scrollbar)),
+      );
+      expect(scrollbar.controller!.hasClients, isTrue);
       final security = find.byKey(const ValueKey('settings-category-security'));
       await tester.scrollUntilVisible(
         security,
@@ -394,6 +398,17 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      expect(scrollbar.controller!.offset, greaterThan(0));
+      final detailScroll = tester.widget<GfScrollToTop>(
+        find.descendant(
+          of: find.byKey(const ValueKey('settings-detail')),
+          matching: find.byType(GfScrollToTop),
+        ),
+      );
+      expect(
+        detailScroll.controller!.scrollController,
+        isNot(same(scrollbar.controller)),
+      );
       await tester.tap(security);
       await tester.pumpAndSettle();
       expect(
@@ -416,6 +431,39 @@ void main() {
       }
     },
   );
+
+  // issue #1124: profile visibility is an account privacy setting, so it
+  // lives in the account section ("Account, security & privacy" from the
+  // profile menu) rather than on the settings index.
+  testWidgets('settings index no longer lists profile visibility', (
+    tester,
+  ) async {
+    await _mount(tester, signedIn: true, language: 'en');
+    expect(
+      find.byKey(const ValueKey('settings-category-profile-privacy')),
+      findsNothing,
+    );
+    expect(find.text('Profile visibility'), findsNothing);
+  });
+
+  testWidgets('account section lists profile visibility under privacy', (
+    tester,
+  ) async {
+    await _mount(tester, signedIn: true, section: 'account', language: 'en');
+    final entry = find.byKey(
+      const ValueKey('settings-account-profile-privacy'),
+    );
+    await tester.scrollUntilVisible(
+      entry,
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Privacy'), findsOneWidget);
+    expect(
+      find.descendant(of: entry, matching: find.text('Profile visibility')),
+      findsOneWidget,
+    );
+  });
 
   for (final brightness in Brightness.values) {
     for (final signedIn in [false, true]) {

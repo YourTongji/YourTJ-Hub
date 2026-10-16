@@ -2,6 +2,7 @@ import { createApp, type App } from 'vue'
 import { resolveLinkPreviews } from '@/runtime/api'
 import { installExternalLinkGuard, setExternalLinkPreviewBlocked } from '@/runtime/external-link-guard'
 import { i18n } from '@/runtime/i18n'
+import { twemojiVuePlugin } from '@/runtime/twemoji'
 import {
   findRenderedLinkCandidates,
   LINK_PREVIEW_REQUEST_LIMIT,
@@ -75,6 +76,7 @@ async function mountPreview(candidate: RenderedLinkCandidate, preview: Parameter
   // 卡片自带文案（校园网卡片的兜底标题/描述由客户端出，服务端不返回中文），
   // 而这里是独立挂载的小应用，必须自己装上共享 i18n 实例。
   app.use(i18n)
+  app.use(twemojiVuePlugin)
   try {
     app.mount(host)
   } catch (error) {

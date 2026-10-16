@@ -16,11 +16,15 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 )
 
 func TestAsyncProfileAndEditorUseAuthorsLatestVersion(t *testing.T) {
 	conn, router, _ := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) { o.TextModeration = true })
+	if err := conn.AutoMigrate(&users.PrivacySettingsEntity{}, &users.BlockEntity{}); err != nil {
+		t.Fatal(err)
+	}
 	router.GET("/u/:userId/:section/:subsection", middleware.JWTAuth, forum.UserProfile)
 	router.GET("/publish", middleware.JWTAuthCheck, forum.Publish)
 	author := createHTTPContractUser(t, conn, contractTestID())

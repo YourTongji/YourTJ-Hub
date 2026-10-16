@@ -78,7 +78,7 @@ class _PostHistorySheetState extends ConsumerState<PostHistorySheet> {
         child: Column(
           children: [
             ListTile(
-              title: Text(
+              title: GfText(
                 l10n.topicHistory,
                 style: GfTheme.typographyOf(context).title3,
               ),
@@ -114,14 +114,14 @@ class _PostHistorySheetState extends ConsumerState<PostHistorySheet> {
                             : GfMotion.content,
                         child: const GfSymbol('chevron-down'),
                       ),
-                      title: Text(
+                      title: GfText(
                         'v${version.version} · ${privateDisplayName(context, version.editor.id, version.editor.username, version.editor.nickname)}',
                       ),
-                      subtitle: Text(version.createdAt),
+                      subtitle: GfText(version.createdAt),
                       childrenPadding: const EdgeInsets.all(12),
                       children: [
                         version.content.isEmpty
-                            ? Text(l10n.topicHistoryUnavailable)
+                            ? GfText(l10n.topicHistoryUnavailable)
                             : GfMarkdownView(
                                 data: version.content,
                                 selectable: true,

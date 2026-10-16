@@ -7,17 +7,17 @@ Future<bool> confirmDiscardEdit(BuildContext context) async {
   return await showGfAlertDialog<bool>(
         context,
         builder: (context) => GfAlertDialog(
-          title: Text(l.settingsUnsavedTitle),
-          content: Text(l.settingsUnsavedBody),
+          title: GfText(l.settingsUnsavedTitle),
+          content: GfText(l.settingsUnsavedBody),
           actions: [
             GfDialogAction(
               onPressed: () => Navigator.pop(context, false),
-              child: Text(l.settingsKeepEditing),
+              child: GfText(l.settingsKeepEditing),
             ),
             GfDialogAction(
               destructive: true,
               onPressed: () => Navigator.pop(context, true),
-              child: Text(l.settingsDiscardChanges),
+              child: GfText(l.settingsDiscardChanges),
             ),
           ],
         ),

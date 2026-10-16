@@ -4,6 +4,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import '../twemoji/twemoji_text.dart';
 import 'gf_motion.dart';
 import 'gf_symbol.dart';
 
@@ -326,7 +327,10 @@ class _Destination extends StatelessWidget {
                                 ? FontWeight.w600
                                 : FontWeight.w500,
                           ),
-                          child: Text(item.label, textAlign: TextAlign.center),
+                          child: GfText(
+                            item.label,
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                     ],
                   ),
@@ -408,7 +412,7 @@ class _ComposeAction extends StatelessWidget {
                   ),
                   const SizedBox(height: 1),
                   if (showLabel)
-                    Text(
+                    GfText(
                       label,
                       textAlign: TextAlign.center,
                       style: _navigationLabelStyle(

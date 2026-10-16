@@ -2,6 +2,7 @@ package chatservice
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -10,10 +11,13 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imConversations"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pushpolicy"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
 	"gorm.io/driver/postgres"
@@ -305,5 +309,102 @@ func TestChatCounterInterleavingOnPostgreSQL(t *testing.T) {
 	}
 	if config.UnreadCount != sends || incoming != sends {
 		t.Fatalf("counter=%d, unread rows=%d, want %d after one effective acknowledgement and concurrent sends", config.UnreadCount, incoming, sends)
+	}
+}
+
+// Fixed base64url keys of the exact byte lengths webpush's Enabled() requires
+// (87-char / 65-byte P-256 public key, 43-char / 32-byte private key). They are
+// not a valid cryptographic pair; the enqueue path only checks length/encoding,
+// so the web push channel is exercised without any provider traffic.
+const (
+	chatTestVapidPublicKey  = "CxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM_W3eTr8vkABw4VHCMqMTg_Rk1UW2JpcHd-hYyTmqGor7a9xMs"
+	chatTestVapidPrivateKey = "HSQrMjlAR05VXGNqcXh_ho2Um6KpsLe-xczT2uHo7_Y"
+)
+
+func TestChatPushOutboxFailureIsolationOnPostgreSQL(t *testing.T) {
+	conn := chatPostgreSQL(t)("chat-push-failure-isolation")
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}, &taskQueue.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Create(&[]users.EntityComplete{{Id: 1, Username: "sender"}, {Id: 2, Username: "peer"}}).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, kv := range []struct{ key, val string }{
+		{"push.jpush.app_key", "test-only"},
+		{"push.jpush.master_secret", "test-only"},
+		{"webpush.vapid_public_key", chatTestVapidPublicKey},
+		{"webpush.vapid_private_key", chatTestVapidPrivateKey},
+	} {
+		old := preferences.GetRaw(kv.key)
+		preferences.Set(kv.key, kv.val)
+		t.Cleanup(func() { preferences.Set(kv.key, old) })
+	}
+	if err := conn.Exec("ALTER TABLE task_queue ADD CONSTRAINT test_reject_native_push CHECK (type NOT LIKE 'nativepush.%')").Error; err != nil {
+		t.Fatal(err)
+	}
+	failedInsert := false
+	const callback = "test:observe_failed_native_push"
+	if err := conn.Callback().Create().After("gorm:create").Register(callback, func(tx *gorm.DB) {
+		if tx.Statement.Table == "task_queue" && tx.Error != nil {
+			failedInsert = true
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Callback().Create().Remove(callback) })
+	convID, err := sendMessageWithEffects(conn, 1, 2, "message survives native push failure", 1, false, "failed-native-outbox")
+	if err != nil {
+		t.Fatalf("native push failure aborted message transaction: %v", err)
+	}
+	if !failedInsert {
+		t.Fatal("native push SQL insert failure was not exercised")
+	}
+	var message messages.Entity
+	if err := conn.Where("sender_id = 1 AND client_message_id = ?", "failed-native-outbox").First(&message).Error; err != nil {
+		t.Fatal(err)
+	}
+	var peer imUserChatConfigs.Entity
+	if err := conn.Where("conv_id = ? AND user_id = 2", convID).First(&peer).Error; err != nil || peer.UnreadCount != 1 {
+		t.Fatalf("membership/unread did not commit despite native push failure: %+v %v", peer, err)
+	}
+	var webCount, nativeCount int64
+	if err := conn.Model(&taskQueue.Entity{}).Where("type LIKE 'webpush.%'").Count(&webCount).Error; err != nil || webCount != 1 {
+		t.Fatalf("native push failure rolled back web task too: web=%d err=%v", webCount, err)
+	}
+	if err := conn.Model(&taskQueue.Entity{}).Where("type LIKE 'nativepush.%'").Count(&nativeCount).Error; err != nil || nativeCount != 0 {
+		t.Fatalf("failed native outbox left %d native tasks: %v", nativeCount, err)
+	}
+	if err := conn.Exec("ALTER TABLE task_queue DROP CONSTRAINT test_reject_native_push").Error; err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		id, err := sendMessageWithEffects(conn, 1, 2, "successful outbox", 1, false, "successful-outbox")
+		if err != nil || id != convID {
+			t.Fatalf("success/replay: conversation=%d err=%v", id, err)
+		}
+	}
+	if err := conn.Model(&taskQueue.Entity{}).Where("type LIKE 'webpush.%'").Count(&webCount).Error; err != nil || webCount != 2 {
+		t.Fatalf("success/replay produced %d web tasks, want 2: %v", webCount, err)
+	}
+	if err := conn.Model(&taskQueue.Entity{}).Where("type LIKE 'nativepush.%'").Count(&nativeCount).Error; err != nil || nativeCount != 1 {
+		t.Fatalf("success/replay produced %d native tasks, want 1: %v", nativeCount, err)
+	}
+	var task taskQueue.Entity
+	if err := conn.Where("type LIKE 'nativepush.%'").First(&task).Error; err != nil {
+		t.Fatal(err)
+	}
+	var payload pushpolicy.Task
+	if err := json.Unmarshal([]byte(task.TaskJson), &payload); err != nil {
+		t.Fatal(err)
+	}
+	message = messages.Entity{}
+	if err := conn.Where("sender_id = 1 AND client_message_id = ?", "successful-outbox").First(&message).Error; err != nil {
+		t.Fatal(err)
+	}
+	if payload.SourceKind != pushpolicy.ChatMessage || payload.SourceId != message.Id || payload.UserId != 2 || task.DedupKey == nil {
+		t.Fatalf("wrong committed source identity: %+v", task)
+	}
+	if err := conn.Where("conv_id = ? AND user_id = 2", convID).First(&peer).Error; err != nil || peer.UnreadCount != 2 {
+		t.Fatalf("replay changed unread count: %+v %v", peer, err)
 	}
 }

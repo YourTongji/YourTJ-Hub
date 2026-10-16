@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 
 /// Accessible horizontal floor selection. A drag previews locally and commits
 /// once on release, so selecting a distant floor does not issue many requests.
@@ -57,9 +58,9 @@ class _GfPostPositionRailState extends State<GfPostPositionRail> {
           children: [
             TextButton(
               onPressed: widget.onEarliest,
-              child: Text(widget.startLabel),
+              child: GfText(widget.startLabel),
             ),
-            Text(
+            GfText(
               widget.currentLabel ?? '${_value.round()} / ${widget.max}',
               style: TextStyle(
                 fontSize: 12,
@@ -69,7 +70,7 @@ class _GfPostPositionRailState extends State<GfPostPositionRail> {
             ),
             TextButton(
               onPressed: widget.onLatest,
-              child: Text(widget.endLabel),
+              child: GfText(widget.endLabel),
             ),
           ],
         ),

@@ -220,7 +220,7 @@ class _ChatReplyQuoteBlock extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (quote.sender.isNotEmpty)
-                          Text(
+                          GfText(
                             quote.sender,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -231,7 +231,7 @@ class _ChatReplyQuoteBlock extends StatelessWidget {
                             ),
                           ),
                         if (quote.excerpt.isNotEmpty)
-                          Text(
+                          GfText(
                             excerpt,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,

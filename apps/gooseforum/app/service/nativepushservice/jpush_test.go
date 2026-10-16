@@ -12,7 +12,14 @@ import (
 	"testing"
 	"time"
 
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushDevice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -50,7 +57,7 @@ func TestJPushRequestAndFailure(t *testing.T) {
 				t.Error("must target exactly the registered device")
 			}
 			android := payload["notification"].(map[string]any)["android"].(map[string]any)
-			if android["channel_id"] != "yourtj_activity" || android["extras"].(map[string]any)["route"] != "/p/42" {
+			if android["channel_id"] != "yourtj_activity_v2" || android["extras"].(map[string]any)["route"] != "/p/42" {
 				t.Error("lost channel or route")
 			}
 			intent := android["intent"].(map[string]any)["url"].(string)
@@ -59,7 +66,7 @@ func TestJPushRequestAndFailure(t *testing.T) {
 			}
 			return &http.Response{StatusCode: tc.status, Body: io.NopCloser(strings.NewReader(tc.body)), Header: make(http.Header)}, nil
 		})}
-		err := sendJPush(context.Background(), JPushConfig{"app", "secret"}, "device", &nativePayload{Title: "YourTJ", Body: "New reply", Route: "/p/42"})
+		err := sendJPush(context.Background(), JPushConfig{"app", "secret"}, "device", &nativePayload{Channel: "yourtj_activity_v2", Title: "YourTJ", Body: "New reply", Route: "/p/42"})
 		if (err == nil) != (tc.status == 200) {
 			t.Errorf("status %d: error=%v", tc.status, err)
 		}
@@ -90,6 +97,18 @@ func TestJPushWorkerRoutesAndPreservesUnmatchedRegistration(t *testing.T) {
 	if err := pushDevice.Upsert(1, "android", "legacy-fcm", time.Now()); err != nil {
 		t.Fatal(err)
 	}
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&topics.Entity{}, &posts.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	conn.Unscoped().Where("id = ?", 42).Delete(&topics.Entity{})
+	if err := conn.Create(&topics.Entity{Id: 42, Title: "Course review", Status: 1, FirstPostId: 4201}).Error; err != nil {
+		t.Fatal(err)
+	}
+	conn.Unscoped().Where("id = ?", 4201).Delete(&posts.Entity{})
+	if err := conn.Create(&posts.Entity{Id: 4201, TopicId: 42, PostNo: 1}).Error; err != nil {
+		t.Fatal(err)
+	}
 	notification := eventNotification.Entity{UserId: 1, EventType: eventNotification.EventTypeComment,
 		Payload: eventNotification.NotificationPayload{TopicId: 42, TopicTitle: "Course review", PostNo: 2}}
 	if err := eventNotification.Create(&notification); err != nil {
@@ -116,5 +135,93 @@ func TestJPushWorkerRoutesAndPreservesUnmatchedRegistration(t *testing.T) {
 	devices := pushDevice.ListByUser(1)
 	if sends != 1 || len(devices) != 2 {
 		t.Fatal("JPush unmatched target must not erase device registrations")
+	}
+}
+
+func TestFCMRejectsFailureAndCarriesSourceEnvelope(t *testing.T) {
+	original := fcmHTTPClient
+	t.Cleanup(func() { fcmHTTPClient = original })
+	for _, status := range []int{200, 400, 401, 404, 429, 503} {
+		fcmHTTPClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			message := body["message"].(map[string]any)
+			data := message["data"].(map[string]any)
+			if data["sourceKind"] != "chat_message" || data["sourceId"] != "42" || data["recipientId"] != "7" {
+				t.Fatal("lost source/recipient identity")
+			}
+			android := message["android"].(map[string]any)["notification"].(map[string]any)
+			if android["channel_id"] != "yourtj_chat_v2" || android["tag"] != "chat_message:42" {
+				t.Fatal("messages must have distinct notification tags")
+			}
+			return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader("")), Header: make(http.Header)}, nil
+		})}
+		err := sendFCM(context.Background(), "fake-access", FCMConfig{ProjectID: "test"}, "device", &nativePayload{Title: "Private message", Body: "Open messages", Route: "/chat?userId=3&recipientId=7", SourceKind: "chat_message", SourceId: 42, RecipientId: 7, Channel: "yourtj_chat_v2", Thread: "chat:9"})
+		if (err == nil) != (status == 200) {
+			t.Errorf("FCM status %d error %v", status, err)
+		}
+		if errors.Is(err, errTokenStale) != (status == 404) {
+			t.Errorf("FCM stale status %d error %v", status, err)
+		}
+	}
+}
+
+func TestJPushChatWorkerUsesPrivateSafeSource(t *testing.T) {
+	setupNativePushTestDB(t)
+	clearNativePushConfig(t)
+	preferences.Set("push.jpush.app_key", "app")
+	preferences.Set("push.jpush.master_secret", "secret")
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&messages.Entity{}, &imUserChatConfigs.Entity{}, &users.BlockEntity{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Create(&users.EntityComplete{Id: 2, Username: "sender"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	conn.Where("id = ?", 4301).Delete(&messages.Entity{})
+	conn.Where("conv_id = ?", 4302).Delete(&imUserChatConfigs.Entity{})
+	if err := conn.Create(&messages.Entity{Id: 4301, ConvId: 4302, SenderId: 2, Content: "PRIVATE MESSAGE BODY"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Create(&imUserChatConfigs.Entity{UserId: 1, PeerId: 2, ConvId: 4302}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := pushDevice.Upsert(1, "android", "chat-device", time.Now(), "jpush"); err != nil {
+		t.Fatal(err)
+	}
+	original := jpushHTTPClient
+	t.Cleanup(func() { jpushHTTPClient = original })
+	sends := 0
+	jpushHTTPClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		sends++
+		raw, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(raw), "PRIVATE MESSAGE BODY") {
+			t.Fatal("chat content leaked into provider payload")
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(raw, &payload); err != nil {
+			t.Fatal(err)
+		}
+		android := payload["notification"].(map[string]any)["android"].(map[string]any)
+		extras := android["extras"].(map[string]any)
+		if extras["sourceKind"] != "chat_message" || extras["sourceId"] != "4301" || extras["recipientId"] != "1" || extras["route"] != "/chat?userId=2&recipientId=1" || android["channel_id"] != "yourtj_chat_v2" {
+			t.Fatalf("wrong private chat envelope: %+v", android)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"msg_id":"chat"}`)), Header: make(http.Header)}, nil
+	})}
+	raw, err := json.Marshal(PushTask{UserId: 1, SourceKind: "chat_message", SourceId: 4301})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := RunPushTask(context.Background(), &taskQueue.Entity{Type: TaskTypeNativePush + "4301", TaskJson: string(raw)}); err != nil {
+		t.Fatal(err)
+	}
+	if sends != 1 {
+		t.Fatalf("chat worker requests = %d want 1", sends)
 	}
 }

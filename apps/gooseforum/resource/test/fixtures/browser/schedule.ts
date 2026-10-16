@@ -1,4 +1,5 @@
-import { createApp, h } from 'vue'
+import { h } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import SchedulePage from '../../../src/site/pages/SchedulePage.vue'
 import { i18n, setLocale } from '../../../src/runtime/i18n'
 import type { LayoutPayload } from '@gooseforum/client'

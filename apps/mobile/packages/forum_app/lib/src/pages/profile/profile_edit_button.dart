@@ -19,7 +19,7 @@ class ProfileEditButton extends StatelessWidget {
       ),
     ),
     onPressed: onPressed,
-    child: Text(
+    child: GfText(
       label ?? AppLocalizations.of(context).settingsEditProfile,
       textAlign: TextAlign.center,
     ),

@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:passkeys/authenticator.dart';
+import 'package:passkeys/types.dart';
 
 import 'package:auth/auth.dart';
 import 'package:core/core.dart';
@@ -24,6 +26,8 @@ import 'auth_ime_stabilizer.dart';
 import 'android_oidc_callback_source.dart';
 import 'android_oidc_coordinator.dart';
 import 'login_captcha_handoff.dart';
+import 'passkey_error_message.dart';
+import 'passkey_availability.dart';
 import 'sign_in_methods_sheet.dart';
 
 /// 登录页模式。
@@ -99,6 +103,8 @@ class _LoginPageState extends ConsumerState<LoginPage>
   bool _agreed = false;
   _AuthMode _mode = _AuthMode.login;
   bool _oidcBusy = false;
+  bool _passkeyEnabled = false;
+  bool _passkeyBusy = false;
   // Restores focus to the "more sign-in methods" control after its sheet
   // closes without a choice.
   final FocusNode _moreMethodsFocusNode = FocusNode();
@@ -203,6 +209,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
       ref.invalidate(currentUserProvider);
       unawaited(_beginLoginSessionBoundary());
       _loadRegistration();
+      unawaited(_loadPasskeyStatus());
       _authIme.metricsChanged();
     });
   }
@@ -593,6 +600,83 @@ class _LoginPageState extends ConsumerState<LoginPage>
     }
     if (mounted && _authController.phase == LoginPhase.authenticated) {
       await _finishAuthentication(saveAutofill: true);
+    }
+  }
+
+  Future<bool> _passkeyAvailableOnDevice() {
+    final availability = PasskeyAuthenticator().getAvailability();
+    return resolvePasskeyAvailability(
+      isWeb: kIsWeb,
+      platform: defaultTargetPlatform,
+      web: () async => (await availability.web()).hasPasskeySupport,
+      android: () async => (await availability.android()).hasPasskeySupport,
+      ios: () async => (await availability.iOS()).hasPasskeySupport,
+    );
+  }
+
+  Future<void> _loadPasskeyStatus() async {
+    try {
+      final status = await AuthRepository(_authClient).getPasskeyStatus();
+      final available = status.enabled && await _passkeyAvailableOnDevice();
+      if (mounted) setState(() => _passkeyEnabled = available);
+    } catch (_) {
+      if (mounted) setState(() => _passkeyEnabled = false);
+    }
+  }
+
+  Future<void> _loginWithPasskey() async {
+    if (_passkeyBusy || _authController.busy || _finishingAuthentication) {
+      return;
+    }
+    final l10n = AppLocalizations.of(context);
+    setState(() {
+      _passkeyBusy = true;
+      _oidcError = '';
+    });
+    try {
+      final authenticator = PasskeyAuthenticator();
+      if (!await _passkeyAvailableOnDevice()) {
+        throw StateError(l10n.authPasskeyUnavailable);
+      }
+      final repository = AuthRepository(_authClient);
+      final begin = await repository.beginPasskeyLogin();
+      final options = begin.publicKey;
+      final request = AuthenticateRequestType(
+        relyingPartyId:
+            (options['rpId'] ?? options['relyingPartyId']) as String,
+        challenge: options['challenge'] as String,
+        mediation: MediationType.Optional,
+        preferImmediatelyAvailableCredentials: false,
+        timeout: (options['timeout'] as num?)?.toInt(),
+        userVerification:
+            (options['userVerification'] as String?) ?? 'required',
+        allowCredentials: (options['allowCredentials'] as List<dynamic>?)
+            ?.map(
+              (item) => CredentialType.fromJson(
+                Map<String, dynamic>.from(item as Map),
+              ),
+            )
+            .toList(growable: false),
+      );
+      final assertion = await authenticator.authenticate(request);
+      await repository.finishPasskeyLogin(
+        ceremonyId: begin.ceremonyId,
+        credential: assertion.toJson(),
+      );
+      if (mounted) await _finishAuthentication();
+    } catch (error) {
+      if (mounted) {
+        final l10n = AppLocalizations.of(context);
+        setState(
+          () => _oidcError = resolvePasskeyErrorMessage(
+            l10n,
+            error,
+            fallback: l10n.authPasskeyFailed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _passkeyBusy = false);
     }
   }
 
@@ -1078,10 +1162,10 @@ class _LoginPageState extends ConsumerState<LoginPage>
             ),
             const SizedBox(height: 16),
           ],
-          Text(_title(l10n), style: GfTheme.typographyOf(context).display),
+          GfText(_title(l10n), style: GfTheme.typographyOf(context).display),
           if (!compactHeader) ...[
             SizedBox(height: registrationHeader ? 8 : 6),
-            Text(
+            GfText(
               _mode == _AuthMode.login && _returnTo != null && _returnTo != '/'
                   ? l10n.authContinueAfterLogin
                   : _subtitle(l10n),
@@ -1175,7 +1259,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                     .map(
                       (domain) => DropdownMenuItem(
                         value: domain,
-                        child: Text('@$domain'),
+                        child: GfText('@$domain'),
                       ),
                     )
                     .toList(),
@@ -1269,7 +1353,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
               if (_registration == null)
                 TextButton(
                   onPressed: _loadRegistration,
-                  child: Text(l10n.commonRetry),
+                  child: GfText(l10n.commonRetry),
                 ),
             ],
             if (_registration?.termsOfServiceEnabled == true ||
@@ -1281,7 +1365,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                   controlAffinity: ListTileControlAffinity.leading,
                   value: _agreed,
                   onChanged: (value) => setState(() => _agreed = value == true),
-                  title: Text(l10n.authAgreePolicies),
+                  title: GfText(l10n.authAgreePolicies),
                 ),
               ),
               Wrap(
@@ -1289,12 +1373,12 @@ class _LoginPageState extends ConsumerState<LoginPage>
                   if (_registration!.termsOfServiceEnabled)
                     TextButton(
                       onPressed: () => context.push('/terms'),
-                      child: Text(l10n.siteInfoTerms),
+                      child: GfText(l10n.siteInfoTerms),
                     ),
                   if (_registration!.privacyPolicyEnabled)
                     TextButton(
                       onPressed: () => context.push('/privacy'),
-                      child: Text(l10n.siteInfoPrivacy),
+                      child: GfText(l10n.siteInfoPrivacy),
                     ),
                 ],
               ),
@@ -1389,11 +1473,30 @@ class _LoginPageState extends ConsumerState<LoginPage>
                 ? null
                 : _submit,
           ),
+          if (_mode == _AuthMode.login && _passkeyEnabled) ...<Widget>[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              key: const Key('login-passkey'),
+              icon: _passkeyBusy
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const GfSymbol('key-round', size: 20),
+              label: GfText(l10n.authPasskey),
+              onPressed:
+                  _passkeyBusy ||
+                      _authController.busy ||
+                      _finishingAuthentication
+                  ? null
+                  : _loginWithPasskey,
+            ),
+          ],
           if (_mode != _AuthMode.forgotPassword) _buildSignInMethods(l10n),
           if (_mode == _AuthMode.login && _registrationError != null)
             TextButton(
               onPressed: _loadRegistration,
-              child: Text(l10n.commonRetry),
+              child: GfText(l10n.commonRetry),
             ),
           if (_mode == _AuthMode.forgotPassword) ...<Widget>[
             const SizedBox(height: 8),
@@ -1427,7 +1530,10 @@ class _LoginPageState extends ConsumerState<LoginPage>
           key: const Key('login-more-methods'),
           focusNode: _moreMethodsFocusNode,
           icon: const GfSymbol('chevron-down', size: 22),
-          label: Text(l10n.authMoreSignInMethods, textAlign: TextAlign.center),
+          label: GfText(
+            l10n.authMoreSignInMethods,
+            textAlign: TextAlign.center,
+          ),
           onPressed:
               _authController.busy || _oidcBusy || _finishingAuthentication
               ? null

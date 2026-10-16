@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 
 /// Status badge, mirroring web `.gf-badge` variants (components.css):
 /// px-2 py-0.5, 12px w500, capsule radius. Tint fills use the 10% alpha
@@ -63,7 +64,7 @@ class GfBadge extends StatelessWidget {
             const SizedBox(width: 4),
           ],
           Flexible(
-            child: Text(
+            child: GfText(
               label,
               style: TextStyle(
                 color: foreground,

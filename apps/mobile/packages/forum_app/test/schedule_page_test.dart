@@ -10,6 +10,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -676,6 +677,40 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('有事'), findsWidgets);
+    });
+
+    testWidgets('resumed 后课表导出边界被强制重绘（issue #1109）', (tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final ScheduleStoreNotifier notifier = await seededNotifier();
+      final ProviderContainer container = makeContainer(notifier);
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(wrapApp(container));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('方案预览'));
+      await tester.tap(find.text('方案预览'));
+      await tester.pumpAndSettle();
+
+      // PNG 导出用的 RepaintBoundary 直接包裹课表网格；按结构精确定位，
+      // 避免误取其它祖先边界。
+      final Finder boundaryFinder = find.byWidgetPredicate(
+        (Widget widget) =>
+            widget is RepaintBoundary && widget.child is ScheduleTimeGrid,
+      );
+      expect(boundaryFinder, findsOneWidget);
+      final RenderRepaintBoundary boundary =
+          tester.renderObject<RenderRepaintBoundary>(boundaryFinder);
+      expect(boundary.debugNeedsPaint, isFalse);
+
+      // 通知栏/分屏覆盖→返回：恢复前台必须弄脏导出边界，强制重新栅格化课表
+      // 图层，否则 Android surface 回收后课表停留在灰色空图层（issue #1109）。
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      expect(boundary.debugNeedsPaint, isTrue);
+
+      await tester.pumpAndSettle();
+      expect(boundary.debugNeedsPaint, isFalse);
+      await tester.pumpWidget(const SizedBox());
     });
 
     testWidgets('方案重命名在小屏大字体和键盘下可保存', (tester) async {

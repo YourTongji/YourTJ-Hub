@@ -1000,4 +1000,6 @@ export default {
   "k00xo": "Dem Callback \"{name}\" fehlt die SID der Zielsitzung",
   "k00xp": "Dem Callback \"{name}\" fehlt ein API-Token",
   "k00xq": "Alle Ereignisse werden als reiner Text gesendet; Prüf- und Meldungsnachrichten enthalten Links zur Bearbeitung. Das Plugin stellt Nachrichten erst in eine Warteschlange, daher bedeutet ein erfolgreicher Test nur, dass das Plugin sie empfangen hat. Wenn im Chat nichts ankommt, prüfen Sie die AstrBot-Logs.",
+  "k00xr": "Server-Proxy-Uploads erzwingen",
+  "k00xs": "Wenn aktiviert, werden Beitragsbilder auch bei S3-Speicher über den Forum-Server hochgeladen (der in den Bucket schreibt) statt direkt aus dem Browser. Vorübergehender Ausweg bei Störungen direkter Uploads; erhöht Bandbreite und Speicherbedarf des Servers, und das Body-Limit des Reverse-Proxys muss mindestens dem Bild-Upload-Limit entsprechen.",
 } as const

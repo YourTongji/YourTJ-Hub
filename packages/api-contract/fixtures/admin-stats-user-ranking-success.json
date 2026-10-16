@@ -1,0 +1,33 @@
+{
+  "result": {
+    "items": [
+      {
+        "userId": 1024,
+        "username": "alice",
+        "nickname": "小艾",
+        "actorType": 0,
+        "topicCount": 2,
+        "replyCount": 1,
+        "likeCount": 5
+      },
+      {
+        "userId": 2049,
+        "username": "bob",
+        "nickname": "小波",
+        "actorType": 0,
+        "topicCount": 0,
+        "replyCount": 1,
+        "likeCount": 1
+      }
+    ],
+    "page": 1,
+    "pageSize": 20,
+    "total": 2,
+    "coverage": {
+      "timezone": "CST (UTC+08:00)",
+      "maxRangeDays": 366,
+      "estimated": false
+    }
+  },
+  "code": 0
+}

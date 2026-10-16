@@ -1,0 +1,4 @@
+{
+  "result": {"chat": true, "mentionsAndReplies": true, "activity": false, "following": false, "system": true, "systemDefaultOnly": true},
+  "code": 0
+}

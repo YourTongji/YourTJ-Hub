@@ -231,7 +231,7 @@
     },
     {
       "path": "scripts/verify-decisions.mjs",
-      "sha256": "2e100efd61d5b16bbd559988f36e205352716c55662ce4d38d6b9933df1e9ac8",
+      "sha256": "891b9a412e42a0580b36e507675ded8f99dc6b1b9f08c57d8ebf3a275d0ac9c0",
       "category": "gate",
       "capability": "decisions"
     }

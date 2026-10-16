@@ -77,7 +77,7 @@ class _ResolvedStickerContentState
               child: TextButton.icon(
                 onPressed: () => setState(() => _names = null),
                 icon: const GfSymbol('refresh-cw', size: 16),
-                label: Text(strings.retry),
+                label: GfText(strings.retry),
               ),
             ),
           ],

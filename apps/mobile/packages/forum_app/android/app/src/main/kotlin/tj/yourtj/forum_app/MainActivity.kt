@@ -163,8 +163,14 @@ class MainActivity : FlutterActivity() {
 
     override fun onResume() {
         super.onResume()
+        PushBridge.setForeground(true)
         if (hasResumedOnce) startupLaunchKind = "hot"
         hasResumedOnce = true
+    }
+
+    override fun onPause() {
+        PushBridge.setForeground(false)
+        super.onPause()
     }
 
     @Suppress("DEPRECATION")

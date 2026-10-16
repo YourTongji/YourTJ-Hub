@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import '../twemoji/twemoji_text.dart';
 import 'gf_motion.dart';
 import 'gf_symbol.dart';
 
@@ -285,7 +286,7 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
         (1 - _indicatorCurve.transform(_settleController.value));
 
     Widget label(GfTab tab) {
-      final text = Text(tab.label, maxLines: 1, softWrap: false);
+      final text = GfText(tab.label, maxLines: 1, softWrap: false);
       if (tab.symbol == null) return text;
       return Row(
         mainAxisSize: MainAxisSize.min,

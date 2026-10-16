@@ -56,7 +56,7 @@ class SignInMethodsSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Text(
+            GfText(
               l10n.authSignInMethods,
               style: GfTheme.typographyOf(context).title2,
             ),
@@ -67,13 +67,13 @@ class SignInMethodsSheet extends StatelessWidget {
             ],
             if (methods.contains(SignInMethod.tongji)) ...<Widget>[
               const SizedBox(height: 4),
-              Text(
+              GfText(
                 l10n.loginTongjiHint,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               if (termsOfServiceEnabled || privacyPolicyEnabled) ...<Widget>[
                 const SizedBox(height: 8),
-                Text(
+                GfText(
                   l10n.loginTongjiPolicies,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
@@ -82,12 +82,12 @@ class SignInMethodsSheet extends StatelessWidget {
                     if (termsOfServiceEnabled)
                       TextButton(
                         onPressed: () => context.push('/terms'),
-                        child: Text(l10n.siteInfoTerms),
+                        child: GfText(l10n.siteInfoTerms),
                       ),
                     if (privacyPolicyEnabled)
                       TextButton(
                         onPressed: () => context.push('/privacy'),
-                        child: Text(l10n.siteInfoPrivacy),
+                        child: GfText(l10n.siteInfoPrivacy),
                       ),
                   ],
                 ),
@@ -123,7 +123,7 @@ class SignInMethodsSheet extends StatelessWidget {
                   : null,
             )
           : GfSymbol(method.name, size: 22),
-      label: Text(switch (method) {
+      label: GfText(switch (method) {
         SignInMethod.tongji => l10n.loginTongji,
         SignInMethod.google => l10n.loginGoogle,
         SignInMethod.github => l10n.loginGithub,

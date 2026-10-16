@@ -45,3 +45,10 @@ func GetInConversation(convId, id uint64) (Entity, error) {
 func MarkMessagesRead(convId, readerId uint64) {
 	builder().Where("conv_id = ? AND sender_id != ? AND is_read = 0", convId, readerId).Update("is_read", 1)
 }
+
+// GetPushSource deliberately excludes private message content.
+func GetPushSource(id uint64) (Entity, error) {
+	var msg Entity
+	err := builder().Select("id", "conv_id", "sender_id", "is_read").First(&msg, id).Error
+	return msg, err
+}

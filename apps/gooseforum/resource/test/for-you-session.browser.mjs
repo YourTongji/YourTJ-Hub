@@ -76,6 +76,10 @@ async function setupPage(width, { failRefresh = false, expired = false, empty = 
   await page.goto(`${origin}/assets/test/fixtures/browser/for-you-session.html${empty ? '?empty=1' : ''}`)
   try { await page.waitForFunction(() => document.documentElement.dataset.ready === 'true') }
   catch (err) { throw new Error(`browser fixture failed to initialize: ${errors.join('; ')}; ${err.message}`) }
+  // 首屏推荐由客户端 watcher 渲染，fixture 的 ready 只代表已挂载：此刻文档仅有空态高度。
+  // 若在这一刻滚到底，滚动不产生位移，续载观察者也不会触发，用例会静默等满 10s（issue #1158）。
+  // 因此把「首屏 20 条已落盘」作为 setup 就绪条件，后续滚动才对应真实用户看到首屏后滚到底。
+  if (!empty) await page.locator('[data-feed-id="20"]').waitFor()
   return { page, state }
 }
 
@@ -168,7 +172,10 @@ test('a removed scroll anchor advances to the next surviving card without rerank
     state.removed = [10]
     await page.goBack()
     await page.waitForFunction(() => !document.querySelector('[data-feed-id="10"]'))
-    assert.ok(Math.abs(await page.locator('[data-feed-id="11"]').evaluate((row) => row.getBoundingClientRect().top) - 80) < 3)
+    await page.waitForFunction(() => {
+      const next = document.querySelector('[data-feed-id="11"]')
+      return next && Math.abs(next.getBoundingClientRect().top - 80) < 3
+    })
     assert.equal(state.firstPages, 0); assert.equal(state.refreshes.length, 0)
   } finally { await page.close() }
 })
@@ -180,7 +187,11 @@ test('return after more than thirty seconds without a detail action preserves th
     await page.locator('[data-feed-id="10"] a[href="/p/post/10"]').first().click()
     await page.locator('[data-testid="detail"]').waitFor()
     await page.waitForTimeout(31000)
-    await page.goBack(); await page.locator('[data-feed-id="20"]').waitFor(); await page.waitForTimeout(250)
+    await page.goBack(); await page.locator('[data-feed-id="20"]').waitFor()
+    await page.waitForFunction(() => {
+      const row = document.querySelector('[data-feed-id="10"]')
+      return row && Math.abs(row.getBoundingClientRect().top - 80) < 3
+    })
     assert.equal(await page.locator('[data-feed-id]').count(), 20)
     assert.ok(Math.abs(await page.locator('[data-feed-id="10"]').evaluate((row) => row.getBoundingClientRect().top) - 80) < 3)
     assert.equal(state.firstPages, 0); assert.equal(state.refreshes.length, 0)

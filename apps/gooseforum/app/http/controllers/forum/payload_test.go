@@ -86,6 +86,7 @@ func TestSettingsTabs(t *testing.T) {
 		{Key: "profile", URL: "/settings", Active: true},
 		{Key: "account", URL: "/settings?tab=account"},
 		{Key: "privacy", URL: "/settings?tab=privacy"},
+		{Key: "notifications", URL: "/settings?tab=notifications"},
 		{Key: "binding", URL: "/settings?tab=binding"},
 		{Key: "security", URL: "/settings?tab=security"},
 		{Key: "content", URL: "/settings?tab=content"},

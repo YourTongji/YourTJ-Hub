@@ -21,6 +21,8 @@ UserSearchPayload _$UserSearchPayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$UserSearchPayload {
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
   String get username => throw _privateConstructorUsedError;
   String get nickname => throw _privateConstructorUsedError;
@@ -45,6 +47,7 @@ abstract class $UserSearchPayloadCopyWith<$Res> {
   ) = _$UserSearchPayloadCopyWithImpl<$Res, UserSearchPayload>;
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int id,
     String username,
     String nickname,
@@ -68,6 +71,7 @@ class _$UserSearchPayloadCopyWithImpl<$Res, $Val extends UserSearchPayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
     Object? username = null,
     Object? nickname = null,
@@ -76,6 +80,10 @@ class _$UserSearchPayloadCopyWithImpl<$Res, $Val extends UserSearchPayload>
   }) {
     return _then(
       _value.copyWith(
+            decoration: freezed == decoration
+                ? _value.decoration
+                : decoration // ignore: cast_nullable_to_non_nullable
+                      as UserDecoration?,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
@@ -112,6 +120,7 @@ abstract class _$$UserSearchPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int id,
     String username,
     String nickname,
@@ -134,6 +143,7 @@ class __$$UserSearchPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
     Object? username = null,
     Object? nickname = null,
@@ -142,6 +152,10 @@ class __$$UserSearchPayloadImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$UserSearchPayloadImpl(
+        decoration: freezed == decoration
+            ? _value.decoration
+            : decoration // ignore: cast_nullable_to_non_nullable
+                  as UserDecoration?,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
@@ -171,6 +185,7 @@ class __$$UserSearchPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$UserSearchPayloadImpl implements _UserSearchPayload {
   const _$UserSearchPayloadImpl({
+    @JsonKey(fromJson: UserDecoration.parse) this.decoration,
     required this.id,
     required this.username,
     required this.nickname,
@@ -181,6 +196,9 @@ class _$UserSearchPayloadImpl implements _UserSearchPayload {
   factory _$UserSearchPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$UserSearchPayloadImplFromJson(json);
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  final UserDecoration? decoration;
   @override
   final int id;
   @override
@@ -194,7 +212,7 @@ class _$UserSearchPayloadImpl implements _UserSearchPayload {
 
   @override
   String toString() {
-    return 'UserSearchPayload(id: $id, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, bio: $bio)';
+    return 'UserSearchPayload(decoration: $decoration, id: $id, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, bio: $bio)';
   }
 
   @override
@@ -202,6 +220,8 @@ class _$UserSearchPayloadImpl implements _UserSearchPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$UserSearchPayloadImpl &&
+            (identical(other.decoration, decoration) ||
+                other.decoration == decoration) &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.username, username) ||
                 other.username == username) &&
@@ -214,8 +234,15 @@ class _$UserSearchPayloadImpl implements _UserSearchPayload {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, username, nickname, avatarUrl, bio);
+  int get hashCode => Object.hash(
+    runtimeType,
+    decoration,
+    id,
+    username,
+    nickname,
+    avatarUrl,
+    bio,
+  );
 
   /// Create a copy of UserSearchPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -236,6 +263,7 @@ class _$UserSearchPayloadImpl implements _UserSearchPayload {
 
 abstract class _UserSearchPayload implements UserSearchPayload {
   const factory _UserSearchPayload({
+    @JsonKey(fromJson: UserDecoration.parse) final UserDecoration? decoration,
     required final int id,
     required final String username,
     required final String nickname,
@@ -246,6 +274,9 @@ abstract class _UserSearchPayload implements UserSearchPayload {
   factory _UserSearchPayload.fromJson(Map<String, dynamic> json) =
       _$UserSearchPayloadImpl.fromJson;
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration;
   @override
   int get id;
   @override

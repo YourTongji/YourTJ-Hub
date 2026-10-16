@@ -58,7 +58,7 @@ class GfCodeBlock extends StatelessWidget {
         final bool bounded = constraints.hasBoundedWidth;
         final Widget languageLabel = Padding(
           padding: const EdgeInsets.only(left: 12),
-          child: Text(
+          child: GfText(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -87,7 +87,10 @@ class GfCodeBlock extends StatelessWidget {
                   // The label is user input (any fenced info string), so it
                   // must shrink instead of overflowing a narrow code block;
                   // the button keeps its 48×48 target either way.
-                  if (bounded) Expanded(child: languageLabel) else languageLabel,
+                  if (bounded)
+                    Expanded(child: languageLabel)
+                  else
+                    languageLabel,
                   IconButton(
                     onPressed: () => _copy(
                       context,
@@ -128,8 +131,8 @@ class GfCodeBlock extends StatelessWidget {
     );
     final bool dark = Theme.of(context).brightness == Brightness.dark;
     final List<InlineSpan>? spans = _highlight(dark, style, plain);
-    if (spans == null) return Text(_source, style: plain);
-    return RichText(text: TextSpan(children: spans, style: style));
+    if (spans == null) return GfText(_source, style: plain);
+    return GfText.rich(TextSpan(children: spans, style: style));
   }
 
   /// Returns null when highlighting is unavailable or fails, so the caller can
@@ -158,7 +161,7 @@ class GfCodeBlock extends StatelessWidget {
       ?..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text(copiedLabel),
+          content: GfText(copiedLabel),
           duration: const Duration(seconds: 2),
         ),
       );

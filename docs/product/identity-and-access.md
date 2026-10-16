@@ -2,11 +2,11 @@
 
 > Doc type: product spec
 >
-> Status: Active (auth chain `Partial`; built-in OIDC Provider + password/TOTP/GitHub OAuth/Google OAuth implemented)
+> Status: Active (auth chain `Partial`; built-in OIDC Provider + password/TOTP/GitHub OAuth/Google OAuth implemented; passkeys are opt-in and device acceptance remains `Partial`)
 >
 > Owner: Platform maintainers, Security reviewer
 >
-> Last verified: 2026-09-20
+> Last verified: 2026-10-13
 
 ## Identity model
 
@@ -40,6 +40,15 @@ private binding and restricted audits indefinitely and prevents subsequent perso
   be read, login fails without issuing either a challenge or a session.
   A challenge token can mint at most one session: it is atomically consumed on successful verification
   (`totpservice.ConsumeChallenge`), so replaying it cannot create a second session.
+- Passkey login (`Partial`, deployment opt-in): the forum acts as the WebAuthn relying party and
+  starts a discoverable credential ceremony requiring authenticator user verification. A successful
+  assertion creates the same revocable `jti` + `user_sessions` session as other forum logins. Passkey
+  login is an independent passwordless sign-in path, including for accounts with TOTP enabled; TOTP
+  remains required on password login. Registration is available only to an existing signed-in
+  account. Adding, renaming or revoking a credential requires a fresh password check and, when TOTP
+  is enabled, a current TOTP code. Account closure removes credentials and pending ceremonies.
+  Email/password recovery does not depend on passkeys.
+  The implementation decision is recorded in [MADR 0091](../decisions/0091-forum-owned-cross-platform-passkeys.md).
 - GitHub OAuth and Google OAuth (goth): callbacks bind or sign in and issue a session token. Google
   requests only `openid`, `email`, and `profile` scopes; its email is treated as trusted for account
   binding only when the Google userinfo response contains `verified_email=true`. GitHub/Google OAuth callbacks
@@ -110,6 +119,13 @@ cannot become an account-binding operation if another forum session appears in t
 retains the continuation in its server-side login transaction and resumes the same OIDC bridge; school
 credentials are never returned to Dart.
 
+`Partial`: when the deployment enables passkeys, iOS and Android can sign in with a discoverable
+passkey through the platform credential provider. Existing accounts can add, rename and revoke
+credentials from account security after password reauthentication and TOTP when enabled. Passkey
+sign-in requires user verification and issues the ordinary forum session; email/password recovery
+remains available. Device acceptance, including Android OEM credential-provider behavior, has not
+been completed.
+
 On Android, Google, GitHub and Tongji use one RFC 8252 external-system-browser path. The app builds
 the authorization request itself with PKCE S256, independent `state` and `nonce`, and the provider
 hint, then launches the exact HTTPS authorization URI with `url_launcher` in
@@ -147,6 +163,9 @@ included in the URL, page body or JavaScript. See [mobile experience](mobile-exp
 - **Password login** is protected by forum-side TOTP (RFC 6238, optional, opt-in). Secrets are stored
   AES-256-GCM encrypted (key derived from `app.signingKey`); recovery codes are stored hashed and are
   single-use; verification attempts are rate-limited per user (10 failures / 15 min).
+- Passkey login requires WebAuthn user verification and signs in independently of password/TOTP.
+  TOTP remains an additional step only for password login; credential-management changes still
+  require password and enabled TOTP reauthentication.
 - **GitHub/Google/Tongji and built-in OIDC logins** do not run forum TOTP; MFA for those paths is a
   `Decision needed` (the built-in provider reuses the authenticated forum session, so a future phase
   may enforce forum TOTP there as well).
@@ -157,6 +176,35 @@ included in the URL, page body or JavaScript. See [mobile experience](mobile-exp
 display name and profile links belong to the public profile. Email, verification notices and pending
 email-change confirmation appear in a separate private section. Email supports sign-in, verification
 and account recovery; it is not included in the public user card or profile.
+
+`Current`: members choose who can see five profile sections — topics, activity, liked topics,
+following list and followers list — from Web Settings → Privacy → Profile visibility and the
+app's account settings (Account, security & privacy) → Privacy → Profile visibility. Audiences
+are everyone, signed-in members,
+your followers, mutual follows and only you; liked topics offer everyone, followers and only you;
+follow lists omit signed-in members. Every account starts with everyone. The server enforces the
+choice for profile HTML, page JSON and the app: hidden sections return no rows or pagination
+cursor, and timeline posts, likes and follows also obey their own sections. The owner always sees
+everything: Web adds a note above a restricted list naming who else can see it, and the app puts
+that on the tab lock instead. Other members and guests see
+a "not public" state that names the owner and the reason; guests get a sign-in action only when
+signing in could reveal the section. Blocked viewers and failed reads see the section as hidden.
+Web and app profile tabs carry a small lock on hidden sections for visitors and on restricted ones
+for the owner. When a section
+is hidden for followers or mutual follows, following from the profile re-reads it so it opens in
+place; unfollowing keeps what was already shown until the next load.
+Changes apply on the next request; profile pages are `private, no-store`. Widening an audience asks
+for confirmation because older activity becomes visible again. Old Web switches that were stored only
+in the browser are offered once for migration and never applied silently. See
+[0088](../decisions/0088-profile-section-privacy.md).
+
+`Current`: profile visibility controls profile aggregation only. Topics and replies stay visible in
+categories, search and their discussions; user cards keep follower, topic and like counts; bookmarks
+remain owner-only. Settings copy states this scope, and Web and app settings list bookmarks as a
+fixed "only you" row with no picker; the owner's bookmarks tab carries the lock too.
+
+`Decision needed`: private accounts with follow approval, message and mention permissions, hiding
+social counts and badges, and moderator access rules beyond today's public profile.
 
 ## Account lifecycle
 
@@ -250,6 +298,12 @@ and account recovery; it is not included in the public user card or profile.
   change-password form still requires the old password), so email-less OAuth users on mobile
   need the Web settings page or an administrator; administrators retain the console command
   for recovery.
+- Account closure and contribution statistics: `Current`. Closure soft-deletes the `users` row; a
+  closed account is excluded from contributor counts, user ranking and per-user detail, and rebuilding
+  the aggregates never recreates the closed author's identity. Its already-published content keeps
+  counting toward category and site content totals under the ordinary publication rules. Anonymous
+  content never carries user attribution, and per-user figures resolve only public human ownership;
+  counting definitions live in [forum](forum.md#content-contribution-statistics).
 - Ban/freeze: the forum `users.is_frozen` flag is authoritative; the OIDC userinfo endpoint and
   exchange path reject frozen accounts.
 - Content deletion/export: `Current` for the implemented forum and admin flows. Users can list,
@@ -280,6 +334,23 @@ and account recovery; it is not included in the public user card or profile.
   instead of silently dropping one new token. Rotation, disablement, and profile edits update only
   their owned columns so concurrent security changes cannot be reverted by a stale full-row save.
   Agent deletion is not supported.
+- `Current`: activated, unfrozen human creators manage only Agents whose `created_by` matches
+  their account; station administrators (`role_id = 1` or a role with `Admin` permission) manage all Agents. This includes profile,
+  credential, event subscription and Webhook recovery operations. Agent creation and the global
+  comment policy retain their administrator permission gates. The management shell does not grant
+  other administrator capabilities.
+- `Current`: the bot's public profile offers an editor to its human creator and station administrators
+  for nickname, avatar, cover, bio, signature and website. Custom avatars use the operator's upload
+  permission and quota, then update the bot's avatar; the operator remains signed in as themselves.
+  Avatar uploads apply immediately, while the other profile fields apply on Save.
+- `Current`: creators and station administrators correct eligible Agent topics and replies directly
+  through the management editor. The bot remains the author, while revisions and the audit record
+  identify the real human operator. Only active, published, nonanonymous forum content is eligible;
+  edits reuse moderation and keep the last approved version public while review is pending.
+  A revision conflict preserves the local draft and requires an explicit reload. This creates no
+  bot login, impersonation session or ability to publish new content as the bot. See
+  [the direct-correction decision](../decisions/0087-agent-owner-content-maintenance.md) and
+  [the Agent runbook](../operations/agents.md#human-management-and-content-correction).
 - Human-auth isolation: bot rows are rejected by password login, forgot/reset password, OAuth
   (goth) login/binding, password change, TOTP setup/enable/disable, and
   human session creation/listing (the JWT session middleware never resolves a bot user). Admin
@@ -313,6 +384,12 @@ and account recovery; it is not included in the public user card or profile.
 - `Current`: administrators can disable new Agent comments globally or per topic. Already committed
   idempotent writes still replay; topic creation, event delivery and ACK keep their existing gates.
   The [Agent runbook](../operations/agents.md) owns the broadcast bounds and policy controls.
+- `Current`: the admin content contribution statistics keep the two populations apart — category
+  summaries report human (`contributorCount`) and Agent (`agentContributorCount`) contributors in
+  separate fields, and user ranking/detail select exactly one actor type through `actorType` (human
+  by default), so bot contributions never inflate a human figure or the reverse. Agent accounts stay
+  visible by their real identity to administrators; counting definitions live in
+  [forum](forum.md#content-contribution-statistics).
 - `Partial`: external model execution/daily scheduling and Synergy Clarus/Holos processing depend on
   the operator's runner. The [runtime tutorial](../../examples/agent-runtime/README.md) supplies durable
   intake, daily keys and remote MCP configuration; live Synergy and production receivers need external
@@ -437,6 +514,13 @@ responses; the feature does not add notes to search indexes, notifications sent 
 user caches or offline storage.
 
 Private-note editing waits for a successful read of the current owner’s notes. Loading or failed reads keep editing disabled and offer retry, preventing an unseen existing note from being cleared or overwritten.
+
+## Avatar frames and nickname styles
+
+`Current`: administrator-granted avatar frames and nickname styles can be independently previewed,
+equipped and removed in Web and Flutter settings. Hub is the entitlement/equipment source, and
+anonymous identities never inherit their owner's cosmetics. See [profile decorations](profile-decorations.md)
+for selection, administration, recovery and business-integration boundaries.
 
 ## Profile badge display
 

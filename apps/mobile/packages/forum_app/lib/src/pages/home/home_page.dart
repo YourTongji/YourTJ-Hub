@@ -956,7 +956,14 @@ class _HomePageState extends ConsumerState<HomePage> {
       swipeTabCount: sortKeys.length,
       onSwipeTabChanged: (index) =>
           _switchSort(sortKeys[index], fromSwipe: true),
-      titleWidget: const GfLogo(size: 32),
+      titleWidget: IconButton(
+        key: const ValueKey<String>('home-logo-scroll-to-top'),
+        onPressed: () => unawaited(_scrollToTopController.scrollToTop()),
+        tooltip: l10n.commonBackToTop,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+        icon: const GfLogo(size: 32),
+      ),
       actions: [
         IconButton(
           tooltip: l10n.commonSearch,
@@ -978,6 +985,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         onSelected: _switchSort,
         onFeedModeSelected: _setFeedMode,
       ),
+      statusBarScrollToTopController: _activeFeed.scrollToTop,
       body: (top, bottom) => GfScrollToTop(
         key: _activeFeed.scrollKey,
         semanticLabel: l10n.commonBackToTop,
@@ -1079,7 +1087,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                         GfSymbol('search', color: colors.iconMuted),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Text(
+                          child: GfText(
                             l10n.commonSearch,
                             style: GfTheme.typographyOf(
                               context,
@@ -1101,7 +1109,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Text(
+                    child: GfText(
                       l10n.sortHot,
                       style: GfTheme.typographyOf(
                         context,
@@ -1132,7 +1140,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   else if (hot.topics.isEmpty)
                     Padding(
                       padding: const EdgeInsets.all(16),
-                      child: Text(l10n.topicEmpty),
+                      child: GfText(l10n.topicEmpty),
                     )
                   else
                     for (final topic in hot.topics.take(5))
@@ -1152,14 +1160,14 @@ class _HomePageState extends ConsumerState<HomePage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 if (topic.categories.isNotEmpty)
-                                  Text(
+                                  GfText(
                                     topic.categories.first.name,
                                     style: GfTheme.typographyOf(
                                       context,
                                     ).caption.copyWith(color: colors.iconMuted),
                                   ),
                                 const SizedBox(height: 4),
-                                Text(
+                                GfText(
                                   topicDisplayTitle(topic),
                                   maxLines: 3,
                                   overflow: TextOverflow.ellipsis,
@@ -1168,7 +1176,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                                   ).body.copyWith(fontWeight: FontWeight.w600),
                                 ),
                                 const SizedBox(height: 4),
-                                Text(
+                                GfText(
                                   l10n.topicReplies(topic.replyCount),
                                   style: GfTheme.typographyOf(
                                     context,
@@ -1184,7 +1192,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                       _switchCategory(null);
                       _switchSort('hot');
                     },
-                    child: Text(l10n.searchSeeAll),
+                    child: GfText(l10n.searchSeeAll),
                   ),
                 ],
               ),
@@ -1364,13 +1372,13 @@ class _HomeToolbar extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final selected = await showGfActionSheet<GfTopicFeedMode>(
       context,
-      title: Text(l10n.homeFeedOptions),
+      title: GfText(l10n.homeFeedOptions),
       initialValue: feedMode,
       items: [
         for (final mode in GfTopicFeedMode.values)
           GfPopupMenuItem(
             value: mode,
-            child: Text(
+            child: GfText(
               mode == GfTopicFeedMode.card
                   ? l10n.topicFeedModeCard
                   : l10n.topicFeedModeList,
@@ -1567,7 +1575,7 @@ class _CategoryPill extends StatelessWidget {
                       ),
                     ),
                   const SizedBox(width: 8),
-                  Text(
+                  GfText(
                     label,
                     softWrap: false,
                     style: TextStyle(

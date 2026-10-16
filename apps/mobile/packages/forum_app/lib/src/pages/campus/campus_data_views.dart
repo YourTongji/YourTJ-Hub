@@ -35,9 +35,9 @@ class CampusMetrics extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(metric.label, style: type.caption),
+                    GfText(metric.label, style: type.caption),
                     const SizedBox(height: 8),
-                    Text(
+                    GfText(
                       metric.value.isEmpty
                           ? '—'
                           : '${metric.value}${metric.unit}',
@@ -72,7 +72,7 @@ class CampusChart extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
+                GfText(
                   '${p.label} · ${p.value.toStringAsFixed(2)}',
                   style: GfTheme.typographyOf(context).small,
                 ),
@@ -114,7 +114,7 @@ class CampusRecords extends StatelessWidget {
         )
         .toList();
     final type = GfTheme.typographyOf(context);
-    if (rows.isEmpty) return Text(AppLocalizations.of(context).campusNoData);
+    if (rows.isEmpty) return GfText(AppLocalizations.of(context).campusNoData);
     return Column(
       children: [
         for (final row in rows)
@@ -123,7 +123,7 @@ class CampusRecords extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
+                GfText(
                   row.length > titleColumn && row[titleColumn].isNotEmpty
                       ? row[titleColumn]
                       : '—',
@@ -136,7 +136,7 @@ class CampusRecords extends StatelessWidget {
                   children: [
                     for (var i = 0; i < data.columns.length; i++)
                       if (i != titleColumn)
-                        Text(
+                        GfText(
                           '${data.columns[i]}：${i < row.length && row[i].isNotEmpty ? row[i] : '—'}',
                           style: type.small,
                         ),
@@ -203,7 +203,7 @@ class _CampusWeekTimetableState extends State<CampusWeekTimetable> {
               onPressed: week > 1 ? () => _selectWeek(week - 1) : null,
               icon: const GfSymbol('chevron-left'),
             ),
-            Text(
+            GfText(
               l.scheduleWeekN(week),
               style: GfTheme.typographyOf(context).heading,
             ),
@@ -216,7 +216,7 @@ class _CampusWeekTimetableState extends State<CampusWeekTimetable> {
             ),
             TextButton(
               onPressed: () => _selectWeek(widget.week),
-              child: Text(l.scheduleCurrentWeek),
+              child: GfText(l.scheduleCurrentWeek),
             ),
           ],
         ),
@@ -243,7 +243,7 @@ class _CampusWeekTimetableState extends State<CampusWeekTimetable> {
         if (campusCoursesForWeek(widget.data.events, week).isEmpty)
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Text(l.campusNoData),
+            child: GfText(l.campusNoData),
           ),
       ],
     );
@@ -277,11 +277,11 @@ class CampusCourseDetails extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (event == null)
-              Text(l.campusNoData)
+              GfText(l.campusNoData)
             else ...[
-              Text(event.name, style: GfTheme.typographyOf(context).title2),
+              GfText(event.name, style: GfTheme.typographyOf(context).title2),
               const SizedBox(height: 12),
-              Text(
+              GfText(
                 [
                   event.teacher,
                   event.room,

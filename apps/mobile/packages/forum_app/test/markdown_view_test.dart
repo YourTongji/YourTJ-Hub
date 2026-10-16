@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_draft_preview.dart';
@@ -51,7 +54,7 @@ class _FakeStickerRepository extends StickerRepository {
 }
 
 class _FakeLinkPreviewRepository extends LinkPreviewRepository {
-  _FakeLinkPreviewRepository(this.previews)
+  _FakeLinkPreviewRepository(this.previews, {this.response})
     : super(
         GfApiClient(
           dio: Dio(BaseOptions(baseUrl: 'http://test')),
@@ -60,12 +63,13 @@ class _FakeLinkPreviewRepository extends LinkPreviewRepository {
       );
 
   final List<LinkPreviewPayload> previews;
+  final Completer<List<LinkPreviewPayload>>? response;
   List<String>? requestedUrls;
 
   @override
   Future<List<LinkPreviewPayload>> resolve(List<String> urls) async {
     requestedUrls = List<String>.of(urls);
-    return previews;
+    return response?.future ?? previews;
   }
 }
 
@@ -73,6 +77,32 @@ Widget _wrap(Widget child) => MaterialApp(
   theme: gfThemeData(Brightness.light),
   home: Scaffold(body: Column(children: [child])),
 );
+
+Offset _textOffsetToPosition(RenderParagraph paragraph, int offset) {
+  const caret = Rect.fromLTWH(0, 0, 2, 20);
+  final localOffset =
+      paragraph.getOffsetForCaret(TextPosition(offset: offset), caret) +
+      Offset(0, paragraph.preferredLineHeight);
+  return paragraph.localToGlobal(localOffset) + const Offset(0, -2);
+}
+
+RenderParagraph _paragraphContaining(WidgetTester tester, String text) {
+  final richText = find.byWidgetPredicate(
+    (widget) =>
+        widget is RichText &&
+        widget.text.toPlainText(includePlaceholders: false).contains(text),
+  );
+  return tester.renderObject<RenderParagraph>(richText.first);
+}
+
+bool _isTwemojiAsset(Widget widget) {
+  if (widget is! Image) return false;
+  final image = widget.image;
+  final provider = image is ResizeImage ? image.imageProvider : image;
+  return provider is AssetImage &&
+      provider.package == 'ui_kit' &&
+      provider.assetName.contains('twemoji-public/twemoji/72x72/');
+}
 
 /// Flattens every [TextSpan] of a rendered rich text so style assertions can
 /// look at the actual token spans instead of the outer wrapper.
@@ -566,6 +596,200 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
+  testWidgets(
+    'selectable markdown copies across headings paragraphs and lists',
+    (tester) async {
+      const markdown = '''
+# 标题 🐦‍🔥
+
+第一段 mixed English 中文 😀 text。
+
+第二段 keeps 🇺🇸, ordinary text, and &#xE000; together.
+
+- 列表项一 👩🏽‍🚀
+- 列表项二 with more text
+''';
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            home: const Scaffold(
+              body: SingleChildScrollView(
+                child: GfMarkdownView(data: markdown, selectable: true),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byWidgetPredicate(_isTwemojiAsset), findsNWidgets(4));
+      expect(find.byType(GfSelectionArea), findsOneWidget);
+      expect(find.byType(SelectableRegion), findsOneWidget);
+      final heading = _paragraphContaining(tester, '标题');
+      final lastListItem = _paragraphContaining(tester, '列表项二');
+      final gesture = await tester.startGesture(
+        _textOffsetToPosition(heading, 0),
+        kind: PointerDeviceKind.mouse,
+      );
+      addTearDown(gesture.removePointer);
+      await tester.pump();
+      await gesture.moveTo(
+        _textOffsetToPosition(
+          lastListItem,
+          lastListItem.text.toPlainText(includePlaceholders: false).length,
+        ),
+      );
+      await gesture.up();
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyC);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyC);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+
+      expect(copied, contains('标题'));
+      expect(copied, contains('第一段'));
+      expect(copied, contains('第二段'));
+      expect(copied, contains('列表项一'));
+      expect(copied, contains('列表项二'));
+      expect(copied, contains('🐦‍🔥'));
+      expect(copied, contains('😀'));
+      expect(copied, contains('🇺🇸'));
+      expect(copied, contains('👩🏽‍🚀'));
+      expect(copied, contains('\uE000'));
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.linux),
+  );
+
+  testWidgets(
+    'async link preview PUA text does not disable cross-node Emoji copy',
+    (tester) async {
+      const url = 'https://example.com/async-preview';
+      const markdown = '# 前文 🐦‍🔥\n\n$url\n\n后文 😀';
+      final response = Completer<List<LinkPreviewPayload>>();
+      final repository = _FakeLinkPreviewRepository(
+        const <LinkPreviewPayload>[],
+        response: response,
+      );
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: <Override>[
+            linkPreviewRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            home: const Scaffold(
+              body: SingleChildScrollView(
+                child: GfMarkdownView(data: markdown, selectable: true),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(repository.requestedUrls, <String>[url]);
+      expect(find.byType(GfLinkPreviewCard), findsNothing);
+
+      Future<void> selectAllAndCopy() async {
+        final region = tester.state<SelectableRegionState>(
+          find.byType(SelectableRegion),
+        );
+        region.selectAll(SelectionChangedCause.keyboard);
+        await tester.pump();
+        final selectionArea = tester.widget<SelectionArea>(
+          find.byType(SelectionArea),
+        );
+        final toolbar =
+            selectionArea.contextMenuBuilder!(
+                  tester.element(find.byType(SelectionArea)),
+                  region,
+                )
+                as AdaptiveTextSelectionToolbar;
+        toolbar.buttonItems!
+            .singleWhere((item) => item.type == ContextMenuButtonType.copy)
+            .onPressed!();
+        await tester.pump();
+      }
+
+      await selectAllAndCopy();
+      expect(copied, contains('前文 🐦‍🔥'));
+      expect(copied, contains(url));
+      expect(copied, contains('后文 😀'));
+
+      response.complete(const <LinkPreviewPayload>[
+        LinkPreviewPayload(
+          requestedUrl: url,
+          kind: 'external',
+          status: 'ready',
+          url: url,
+          displayHost: 'example.com',
+          siteName: '站点 \uE000 🐦‍🔥',
+          title: '标题 \uE000 🐦‍🔥',
+          description: '说明 \uE000 😀',
+        ),
+      ]);
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(GfLinkPreviewCard), findsOneWidget);
+      expect(find.byType(GfSelectionArea), findsOneWidget);
+      expect(find.byType(SelectableRegion), findsOneWidget);
+      copied = null;
+      await selectAllAndCopy();
+
+      expect(copied, isNotNull);
+      expect(copied, contains('前文 🐦‍🔥'));
+      expect(copied, contains('站点 \uE000 🐦‍🔥'));
+      expect(copied, contains('标题 \uE000 🐦‍🔥'));
+      expect(copied, contains('说明 \uE000 😀'));
+      expect(copied, contains('后文 😀'));
+      expect(copied, isNot(contains('\uD800')));
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.linux),
+  );
+
   testWidgets('embedded markdown does not repeat device safe-area spacing', (
     tester,
   ) async {
@@ -826,10 +1050,9 @@ void main() {
             widget.text.toPlainText().contains('final int answer'),
       ),
     );
-    final tokenColors = _textSpans(rendered.text)
-        .map((span) => span.style?.color)
-        .whereType<Color>()
-        .toSet();
+    final tokenColors = _textSpans(
+      rendered.text,
+    ).map((span) => span.style?.color).whereType<Color>().toSet();
     expect(tokenColors.length, greaterThan(1));
     expect(find.text('DART'), findsOneWidget);
 

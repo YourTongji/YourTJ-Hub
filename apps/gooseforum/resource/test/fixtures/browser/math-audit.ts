@@ -1,4 +1,5 @@
-import { createApp, h, ref } from 'vue'
+import { h, ref } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import VditorOfficial from '../../../src/site/components/VditorOfficial.vue'
 import { i18n, setLocale } from '../../../src/runtime/i18n'
 import { enhanceMathText } from '../../../src/runtime/math-render-directive'

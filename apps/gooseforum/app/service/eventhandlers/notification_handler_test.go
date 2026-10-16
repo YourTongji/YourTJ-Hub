@@ -322,3 +322,11 @@ func TestResolveMentionUserIDs(t *testing.T) {
 		}
 	})
 }
+
+func TestPriorityRecipientsKeepDirectMentionReasonForReply(t *testing.T) {
+	event := &CommentCreatedEvent{UserId: 1, TopicAuthorId: 2, ReplyToPostId: 4, ReplyToPostAuthorId: 2}
+	got := priorityRecipients(event, []uint64{2})
+	if len(got) != 1 || got[0].eventType != "post_reply" || !got[0].hasDirectMention {
+		t.Fatalf("recipient=%+v", got)
+	}
+}

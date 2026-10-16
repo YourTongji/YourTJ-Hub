@@ -21,13 +21,13 @@ class _AccountClosureDialogState extends State<AccountClosureDialog> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return AlertDialog(
-      title: Text(l10n.settingsCloseAccount),
+      title: GfText(l10n.settingsCloseAccount),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.settingsCloseAccountWarning),
+            GfText(l10n.settingsCloseAccountWarning),
             const SizedBox(height: 16),
             GfDropdownButtonFormField<String>(
               initialValue: _mode,
@@ -38,11 +38,11 @@ class _AccountClosureDialogState extends State<AccountClosureDialog> {
               items: [
                 DropdownMenuItem(
                   value: 'anonymize',
-                  child: Text(l10n.settingsCloseKeepContent),
+                  child: GfText(l10n.settingsCloseKeepContent),
                 ),
                 DropdownMenuItem(
                   value: 'delete',
-                  child: Text(l10n.settingsCloseDeleteContent),
+                  child: GfText(l10n.settingsCloseDeleteContent),
                 ),
               ],
               onChanged: (value) {
@@ -66,7 +66,7 @@ class _AccountClosureDialogState extends State<AccountClosureDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(l10n.commonCancel),
+          child: GfText(l10n.commonCancel),
         ),
         FilledButton(
           style: FilledButton.styleFrom(
@@ -78,7 +78,7 @@ class _AccountClosureDialogState extends State<AccountClosureDialog> {
                   mode: _mode,
                   password: _password.text,
                 )),
-          child: Text(l10n.settingsCloseAccount),
+          child: GfText(l10n.settingsCloseAccount),
         ),
       ],
     );

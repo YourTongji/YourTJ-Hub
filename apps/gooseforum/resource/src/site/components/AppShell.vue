@@ -904,7 +904,7 @@ async function loadUserCard() {
                 :aria-expanded="userMenuOpen"
                 aria-haspopup="menu"
               >
-                <UserAvatar :src="layout.viewer.avatarUrl" :alt="layout.viewer.username" class="h-9 w-9 rounded-full object-cover ring-1 ring-line/80" />
+                <UserAvatar :frame="layout.viewer.decoration?.avatarFrame" :src="layout.viewer.avatarUrl" :alt="layout.viewer.username" class="h-9 w-9 rounded-full object-cover ring-1 ring-line/80" />
               </button>
               <Transition name="gf-menu">
                 <div
@@ -969,6 +969,9 @@ async function loadUserCard() {
                     <div class="border-t border-line/70 py-1">
                       <a href="/settings" class="gf-menu-item">
                         <Settings class="h-4 w-4 text-icon-muted" /> {{ t('shell.settings') }}
+                      </a>
+                      <a v-if="layout.viewer.canManageAgents" href="/admin/agents" class="gf-menu-item">
+                        <Shield class="h-4 w-4 text-icon-muted" /> {{ t('agentContent.management') }}
                       </a>
                       <a v-if="layout.viewer.canAccessAdmin" href="/theme-preview" class="gf-menu-item">
                         <Palette class="h-4 w-4 text-icon-muted" /> {{ t('shell.themePreview') }}

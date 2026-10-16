@@ -146,7 +146,7 @@ importers:
         specifier: ^8.0.16
         version: 8.1.0(@types/node@25.9.2)(jiti@2.7.0)
       vue:
-        specifier: ^3.5.25
+        specifier: 3.5.34
         version: 3.5.34(typescript@6.0.3)
       vue-i18n:
         specifier: ^11.4.4
@@ -182,6 +182,9 @@ importers:
       '@types/turndown':
         specifier: ^5.0.6
         version: 5.0.6
+      '@vue/compiler-dom':
+        specifier: 3.5.34
+        version: 3.5.34
       '@vue/test-utils':
         specifier: ^2.4.11
         version: 2.4.11(@vue/compiler-dom@3.5.34)(@vue/server-renderer@3.5.34(vue@3.5.34(typescript@6.0.3)))(vue@3.5.34(typescript@6.0.3))

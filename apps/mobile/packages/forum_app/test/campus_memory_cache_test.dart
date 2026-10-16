@@ -347,11 +347,38 @@ void main() {
       addTearDown(controller.dispose);
       final refreshing = controller.refresh();
       await Future<void>.delayed(Duration.zero);
-      cache.didChangeAppLifecycleState(AppLifecycleState.inactive);
+      cache.didChangeAppLifecycleState(AppLifecycleState.paused);
       repo.pending['profile']!.complete(campusFixture('profile'));
       await refreshing;
       cache.didChangeAppLifecycleState(AppLifecycleState.resumed);
       expect(controller.state.data, isNot(contains('profile')));
+      expect(cache.restore(testBinding.revision), isEmpty);
+    },
+  );
+
+  test(
+    'transient cover keeps cached data and only a real cover fences it',
+    () async {
+      final cache = CampusMemoryCache();
+      addTearDown(cache.dispose);
+      final repo = ControlledCampusRepository();
+      final controller = CampusController(repo, cache: cache);
+      addTearDown(controller.dispose);
+      await controller.refresh();
+      final requests = repo.requested.length;
+      expect(cache.restore(testBinding.revision), isNotEmpty);
+
+      // 通知栏/弹窗等瞬时遮挡（inactive）：内容仍在屏上，不清缓存、不要求刷新。
+      cache.didChangeAppLifecycleState(AppLifecycleState.inactive);
+      expect(cache.refreshRequired, isFalse);
+      expect(cache.restore(testBinding.revision), isNotEmpty);
+      expect(repo.requested.length, requests);
+
+      // 真正被覆盖：hidden 起清缓存并要求重新核验；resumed 也不会复活旧数据。
+      cache.didChangeAppLifecycleState(AppLifecycleState.hidden);
+      expect(cache.refreshRequired, isTrue);
+      expect(cache.restore(testBinding.revision), isEmpty);
+      cache.didChangeAppLifecycleState(AppLifecycleState.resumed);
       expect(cache.restore(testBinding.revision), isEmpty);
     },
   );
@@ -470,7 +497,7 @@ void main() {
       switch (boundary) {
         case 'background':
           tester.binding.handleAppLifecycleStateChanged(
-            AppLifecycleState.inactive,
+            AppLifecycleState.paused,
           );
           await tester.pumpAndSettle();
           tester.binding.handleAppLifecycleStateChanged(

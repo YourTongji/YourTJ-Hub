@@ -1269,7 +1269,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsTabAccount.
   ///
   /// In en, this message translates to:
-  /// **'Account'**
+  /// **'Account, security & privacy'**
   String get settingsTabAccount;
 
   /// No description provided for @settingsTabPrivacy.
@@ -3531,7 +3531,7 @@ abstract class AppLocalizations {
   /// No description provided for @notificationTopicPost.
   ///
   /// In en, this message translates to:
-  /// **'{actor} posted in a topic you watch'**
+  /// **'{actor} posted a reply in a topic you follow'**
   String notificationTopicPost(String actor);
 
   /// No description provided for @notificationFollow.
@@ -3549,8 +3549,8 @@ abstract class AppLocalizations {
   /// No description provided for @notificationWikiUpdated.
   ///
   /// In en, this message translates to:
-  /// **'{actor} updated a wiki page you watch'**
-  String notificationWikiUpdated(String actor);
+  /// **'A Wiki page you follow was updated'**
+  String get notificationWikiUpdated;
 
   /// No description provided for @notificationBadge.
   ///
@@ -3561,7 +3561,7 @@ abstract class AppLocalizations {
   /// No description provided for @notificationNew.
   ///
   /// In en, this message translates to:
-  /// **'New notification'**
+  /// **'You have a new system notification'**
   String get notificationNew;
 
   /// No description provided for @notificationSomeone.
@@ -6773,6 +6773,462 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'View anonymous profile'**
   String get anonymousViewProfile;
+
+  /// No description provided for @profilePrivacyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile visibility'**
+  String get profilePrivacyTitle;
+
+  /// No description provided for @profilePrivacyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose who can see each part of your profile.'**
+  String get profilePrivacyDescription;
+
+  /// No description provided for @profilePrivacyScope.
+  ///
+  /// In en, this message translates to:
+  /// **'This only changes what your profile shows. Your topics and replies still appear in categories, search and their original discussions, and counts such as followers stay visible.'**
+  String get profilePrivacyScope;
+
+  /// No description provided for @profilePrivacyViewProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'View my profile'**
+  String get profilePrivacyViewProfile;
+
+  /// No description provided for @profilePrivacyTopics.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts'**
+  String get profilePrivacyTopics;
+
+  /// No description provided for @profilePrivacyTopicsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts you published'**
+  String get profilePrivacyTopicsDescription;
+
+  /// No description provided for @profilePrivacyActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'Activity'**
+  String get profilePrivacyActivity;
+
+  /// No description provided for @profilePrivacyActivityDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Replies and other activity. Posts, likes and follows in it also follow their own settings'**
+  String get profilePrivacyActivityDescription;
+
+  /// No description provided for @profilePrivacyLikes.
+  ///
+  /// In en, this message translates to:
+  /// **'Liked posts'**
+  String get profilePrivacyLikes;
+
+  /// No description provided for @profilePrivacyLikesDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts you liked'**
+  String get profilePrivacyLikesDescription;
+
+  /// No description provided for @profilePrivacyFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'Following list'**
+  String get profilePrivacyFollowing;
+
+  /// No description provided for @profilePrivacyFollowingDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'People you follow'**
+  String get profilePrivacyFollowingDescription;
+
+  /// No description provided for @profilePrivacyFollowers.
+  ///
+  /// In en, this message translates to:
+  /// **'Followers list'**
+  String get profilePrivacyFollowers;
+
+  /// No description provided for @profilePrivacyFollowersDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'People who follow you'**
+  String get profilePrivacyFollowersDescription;
+
+  /// No description provided for @profilePrivacyBookmarksDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts you bookmarked. Always visible only to you'**
+  String get profilePrivacyBookmarksDescription;
+
+  /// No description provided for @profilePrivacyEveryone.
+  ///
+  /// In en, this message translates to:
+  /// **'Everyone'**
+  String get profilePrivacyEveryone;
+
+  /// No description provided for @profilePrivacyMembers.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed-in members'**
+  String get profilePrivacyMembers;
+
+  /// No description provided for @profilePrivacyFollowersOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Your followers'**
+  String get profilePrivacyFollowersOnly;
+
+  /// No description provided for @profilePrivacyMutual.
+  ///
+  /// In en, this message translates to:
+  /// **'Mutual follows'**
+  String get profilePrivacyMutual;
+
+  /// No description provided for @profilePrivacySelf.
+  ///
+  /// In en, this message translates to:
+  /// **'Only you'**
+  String get profilePrivacySelf;
+
+  /// Title of the audience picker for one profile section.
+  ///
+  /// In en, this message translates to:
+  /// **'Who can see {section}'**
+  String profilePrivacyAudienceTitle(String section);
+
+  /// No description provided for @profilePrivacyLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to load profile visibility.'**
+  String get profilePrivacyLoadFailed;
+
+  /// No description provided for @profilePrivacySaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Visibility saved to your account'**
+  String get profilePrivacySaved;
+
+  /// No description provided for @profilePrivacySaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to save. Your setting hasn’t changed. Check your connection and try again.'**
+  String get profilePrivacySaveFailed;
+
+  /// No description provided for @profilePrivacyWidenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show to more people?'**
+  String get profilePrivacyWidenTitle;
+
+  /// Confirmation before a profile section becomes visible to more people.
+  ///
+  /// In en, this message translates to:
+  /// **'“{section}” will be visible to “{audience}”, including anything recorded while it was hidden.'**
+  String profilePrivacyWidenDescription(String section, String audience);
+
+  /// No description provided for @profilePrivacyWidenConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Show to more people'**
+  String get profilePrivacyWidenConfirm;
+
+  /// No description provided for @profileHiddenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This section isn’t public'**
+  String get profileHiddenTitle;
+
+  /// Shown to other viewers; name is the profile owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} chose not to show this on their profile.'**
+  String profileHiddenPrivate(String name);
+
+  /// Shown to guests; name is the profile owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} shows this only to signed-in members.'**
+  String profileHiddenSignin(String name);
+
+  /// Shown to signed-in non-followers; name is the profile owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} shows this only to followers. Follow to see it.'**
+  String profileHiddenFollowers(String name);
+
+  /// Shown to guests; name is the profile owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} shows this only to followers. Sign in and follow to see it.'**
+  String profileHiddenFollowersGuest(String name);
+
+  /// Shown to viewers who are not mutual follows; name is the profile owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} shows this only to mutual follows.'**
+  String profileHiddenMutual(String name);
+
+  /// No description provided for @profileHiddenSignIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in'**
+  String get profileHiddenSignIn;
+
+  /// No description provided for @profileOwnerMembers.
+  ///
+  /// In en, this message translates to:
+  /// **'Only signed-in members can see this.'**
+  String get profileOwnerMembers;
+
+  /// No description provided for @profileOwnerFollowers.
+  ///
+  /// In en, this message translates to:
+  /// **'Only your followers can see this.'**
+  String get profileOwnerFollowers;
+
+  /// No description provided for @profileOwnerMutual.
+  ///
+  /// In en, this message translates to:
+  /// **'Only mutual follows can see this.'**
+  String get profileOwnerMutual;
+
+  /// No description provided for @profileOwnerSelf.
+  ///
+  /// In en, this message translates to:
+  /// **'Only you can see this.'**
+  String get profileOwnerSelf;
+
+  /// No description provided for @notificationsMentions.
+  ///
+  /// In en, this message translates to:
+  /// **'Mentions'**
+  String get notificationsMentions;
+
+  /// No description provided for @notificationsReplies.
+  ///
+  /// In en, this message translates to:
+  /// **'Replies'**
+  String get notificationsReplies;
+
+  /// No description provided for @notificationsLikes.
+  ///
+  /// In en, this message translates to:
+  /// **'Likes'**
+  String get notificationsLikes;
+
+  /// No description provided for @notificationsFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'Following'**
+  String get notificationsFollowing;
+
+  /// No description provided for @notificationsSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System'**
+  String get notificationsSystem;
+
+  /// No description provided for @pushChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct messages'**
+  String get pushChat;
+
+  /// No description provided for @pushMentionsAndReplies.
+  ///
+  /// In en, this message translates to:
+  /// **'Mentions and replies'**
+  String get pushMentionsAndReplies;
+
+  /// No description provided for @pushActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'Likes'**
+  String get pushActivity;
+
+  /// No description provided for @pushFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'Following activity'**
+  String get pushFollowing;
+
+  /// No description provided for @pushSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System and moderation'**
+  String get pushSystem;
+
+  /// No description provided for @notificationMentionTopic.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} mentioned you in “{topic}”'**
+  String notificationMentionTopic(String actor, String topic);
+
+  /// No description provided for @notificationCommentTopic.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} commented on “{topic}”'**
+  String notificationCommentTopic(String actor, String topic);
+
+  /// No description provided for @notificationTopicPostTopic.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} posted a reply in “{topic}”, which you follow'**
+  String notificationTopicPostTopic(String actor, String topic);
+
+  /// No description provided for @notificationWikiTopic.
+  ///
+  /// In en, this message translates to:
+  /// **'“{topic}” was updated'**
+  String notificationWikiTopic(String topic);
+
+  /// No description provided for @authPasskey.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with a passkey'**
+  String get authPasskey;
+
+  /// No description provided for @authPasskeyUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkeys are not available on this device.'**
+  String get authPasskeyUnavailable;
+
+  /// No description provided for @authPasskeyFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkey sign-in failed. Try again or use your password.'**
+  String get authPasskeyFailed;
+
+  /// No description provided for @authPasskeyCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'No passkey was selected or available. Try again or use your password.'**
+  String get authPasskeyCancelled;
+
+  /// No description provided for @settingsPasskeyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkeys'**
+  String get settingsPasskeyTitle;
+
+  /// No description provided for @settingsPasskeyManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage passkeys'**
+  String get settingsPasskeyManage;
+
+  /// No description provided for @settingsPasskeyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a device passkey to sign in without your password. Passkey sign-in still works when two-factor authentication is enabled.'**
+  String get settingsPasskeyDescription;
+
+  /// No description provided for @settingsPasskeyReauthHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Adding, renaming, or removing a passkey requires your password and, when enabled, a current authenticator code.'**
+  String get settingsPasskeyReauthHint;
+
+  /// No description provided for @settingsPasskeyName.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkey name'**
+  String get settingsPasskeyName;
+
+  /// No description provided for @settingsPasskeyPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Login password'**
+  String get settingsPasskeyPassword;
+
+  /// No description provided for @settingsPasskeyAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a passkey'**
+  String get settingsPasskeyAdd;
+
+  /// No description provided for @settingsPasskeyAddedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Added'**
+  String get settingsPasskeyAddedAt;
+
+  /// No description provided for @settingsPasskeyLastUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Last used'**
+  String get settingsPasskeyLastUsed;
+
+  /// No description provided for @settingsPasskeyNeverUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Not used yet'**
+  String get settingsPasskeyNeverUsed;
+
+  /// No description provided for @settingsPasskeySyncCapable.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync-capable'**
+  String get settingsPasskeySyncCapable;
+
+  /// No description provided for @settingsPasskeyDeviceBound.
+  ///
+  /// In en, this message translates to:
+  /// **'Device-bound'**
+  String get settingsPasskeyDeviceBound;
+
+  /// No description provided for @settingsPasskeyBackedUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Synced'**
+  String get settingsPasskeyBackedUp;
+
+  /// No description provided for @settingsPasskeyRevokedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Removing a passkey from YourTJ does not delete it from your password manager.'**
+  String get settingsPasskeyRevokedHint;
+
+  /// No description provided for @settingsPasskeyRename.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get settingsPasskeyRename;
+
+  /// No description provided for @settingsPasskeyRevoke.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get settingsPasskeyRevoke;
+
+  /// No description provided for @settingsPasskeyAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkey added'**
+  String get settingsPasskeyAdded;
+
+  /// No description provided for @settingsPasskeyRevoked.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkey removed'**
+  String get settingsPasskeyRevoked;
+
+  /// No description provided for @settingsPasskeyEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No passkeys are registered.'**
+  String get settingsPasskeyEmpty;
+
+  /// No description provided for @settingsPasskeyUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkeys are not enabled on this server.'**
+  String get settingsPasskeyUnavailable;
 }
 
 class _AppLocalizationsDelegate

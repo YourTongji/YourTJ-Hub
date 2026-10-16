@@ -34,7 +34,7 @@ class LogoMotionLoader extends StatelessWidget {
               ),
               if (showMessage) ...[
                 const SizedBox(height: 8),
-                Text(
+                GfText(
                   message,
                   style: GfTheme.typographyOf(
                     context,

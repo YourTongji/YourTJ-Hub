@@ -337,7 +337,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
     return Row(
       children: <Widget>[
         Expanded(
-          child: Text(
+          child: GfText(
             editing ? copy.editReviewTitle : copy.writeReviewTitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -354,7 +354,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
             key: const Key('course-review-templates'),
             onPressed: _submitting ? null : _chooseTemplate,
             icon: const GfSymbol('file-text', size: 18),
-            label: Text(
+            label: GfText(
               l10n.courseReviewTemplates,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -527,7 +527,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
         children: <Widget>[
           avatar,
           const SizedBox(width: 8),
-          Text(
+          GfText(
             primary,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -549,7 +549,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
+              GfText(
                 primary,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
@@ -560,7 +560,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
               ),
               if (_anonymous) ...<Widget>[
                 const SizedBox(height: 2),
-                Text(
+                GfText(
                   copy.anonymousHint,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -642,7 +642,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
                 constraints: BoxConstraints(
                   maxWidth: MediaQuery.sizeOf(context).width,
                 ),
-                child: Text(
+                child: GfText(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -686,7 +686,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
                 : MainAxisAlignment.end,
             children: <Widget>[
               if (showCounter)
-                Text(
+                GfText(
                   '$length/2000',
                   maxLines: 1,
                   style: GfTheme.typographyOf(context).meta.copyWith(
@@ -760,7 +760,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
               children: <Widget>[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Text(
+                  child: GfText(
                     copy.selectOffering,
                     style: GfTheme.typographyOf(context).heading,
                   ),
@@ -792,7 +792,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
           children: <Widget>[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
+              child: GfText(
                 l10n.courseReviewTemplates,
                 style: GfTheme.typographyOf(context).heading,
               ),
@@ -800,8 +800,8 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
             for (final template in courseReviewTemplates)
               ListTile(
                 leading: GfSymbol(_templateIcon(template.id), size: 20),
-                title: Text(_templateName(l10n, template.id)),
-                subtitle: Text(_templateDescription(l10n, template.id)),
+                title: GfText(_templateName(l10n, template.id)),
+                subtitle: GfText(_templateDescription(l10n, template.id)),
                 onTap: () => Navigator.pop(sheetContext, template),
               ),
           ],
@@ -813,17 +813,17 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
       final replace = await showGfAlertDialog<bool>(
         context,
         builder: (dialogContext) => GfAlertDialog(
-          title: Text(l10n.courseReviewTemplateReplaceTitle),
-          content: Text(l10n.courseReviewTemplateReplaceBody),
+          title: GfText(l10n.courseReviewTemplateReplaceTitle),
+          content: GfText(l10n.courseReviewTemplateReplaceBody),
           actions: <Widget>[
             GfDialogAction(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text(l10n.courseReviewTemplateKeepEditing),
+              child: GfText(l10n.courseReviewTemplateKeepEditing),
             ),
             GfDialogAction(
               destructive: true,
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: Text(l10n.courseReviewTemplateApply),
+              child: GfText(l10n.courseReviewTemplateApply),
             ),
           ],
         ),
@@ -946,15 +946,15 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
       items: [
         GfPopupMenuItem(
           value: Attribute.h1,
-          child: Text(l10n.publishHeadingLevel1),
+          child: GfText(l10n.publishHeadingLevel1),
         ),
         GfPopupMenuItem(
           value: Attribute.h2,
-          child: Text(l10n.publishHeadingLevel2),
+          child: GfText(l10n.publishHeadingLevel2),
         ),
         GfPopupMenuItem(
           value: Attribute.h3,
-          child: Text(l10n.publishHeadingLevel3),
+          child: GfText(l10n.publishHeadingLevel3),
         ),
       ],
     );
@@ -969,7 +969,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
     final url = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.publishToolLink),
+        title: GfText(l10n.publishToolLink),
         content: TextField(
           controller: input,
           autofocus: true,
@@ -979,11 +979,11 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: Text(l10n.commonCancel),
+            child: GfText(l10n.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, input.text.trim()),
-            child: Text(l10n.commonSave),
+            child: GfText(l10n.commonSave),
           ),
         ],
       ),
@@ -1056,7 +1056,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(
+                  GfText(
                     <String>[
                       (offering.termName?.trim().isNotEmpty ?? false)
                           ? offering.termName!.trim()
@@ -1073,7 +1073,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
                   ),
                   if (detailLine.isNotEmpty) ...<Widget>[
                     const SizedBox(height: 1),
-                    Text(
+                    GfText(
                       detailLine,
                       style: type.meta.copyWith(
                         color: colors.baseContent.withValues(alpha: 0.55),

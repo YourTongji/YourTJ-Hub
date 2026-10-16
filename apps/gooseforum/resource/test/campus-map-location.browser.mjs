@@ -67,9 +67,10 @@ before(async () => {
         return `import { createApp, h } from 'vue';
           import CampusMapPage from '@/site/pages/CampusMapPage.vue';
           import { i18n, setLocale } from '@/runtime/i18n';
+          import { twemojiVuePlugin } from '@/runtime/twemoji';
           import '@/styles/resource.css';
           await setLocale('zh');
-          createApp({ render: () => h(CampusMapPage, { layout: { viewer: { isAuthenticated: false } } }) }).use(i18n).mount('#app');
+          createApp({ render: () => h(CampusMapPage, { layout: { viewer: { isAuthenticated: false } } }) }).use(i18n).use(twemojiVuePlugin).mount('#app');
           document.documentElement.dataset.ready = 'true';`
       },
       configureServer(vite) {

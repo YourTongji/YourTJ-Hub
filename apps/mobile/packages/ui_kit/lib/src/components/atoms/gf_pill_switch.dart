@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../gf_motion.dart';
 import '../gf_symbol.dart';
 
@@ -100,7 +101,9 @@ class _GfPillItem<T> extends StatelessWidget {
             children: [
               GfSymbol(option.symbol, size: 16, color: foreground),
               const SizedBox(width: 6),
-              Flexible(child: Text(option.label, textAlign: TextAlign.center)),
+              Flexible(
+                child: GfText(option.label, textAlign: TextAlign.center),
+              ),
             ],
           ),
         ),

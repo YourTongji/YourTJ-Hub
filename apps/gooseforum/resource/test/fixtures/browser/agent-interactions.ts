@@ -1,4 +1,5 @@
-import {createApp,h} from 'vue'
+import { h } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import AgentDialog from '../../../src/admin/pages/management/AgentWebhookManagementDialog.vue'
 import MentionCandidates from '../../../src/site/components/MentionCandidates.vue'
 import {i18n,setLocale} from '../../../src/runtime/i18n'

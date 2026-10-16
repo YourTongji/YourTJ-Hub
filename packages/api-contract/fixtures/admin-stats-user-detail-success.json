@@ -1,0 +1,26 @@
+{
+  "result": {
+    "user": {
+      "userId": 1024,
+      "username": "alice",
+      "nickname": "小艾",
+      "actorType": 0
+    },
+    "summary": {
+      "topicCount": 2,
+      "replyCount": 1,
+      "likeCount": 5
+    },
+    "days": [
+      { "date": "2020-01-01", "topicCount": 1, "replyCount": 0, "estimated": false },
+      { "date": "2020-01-02", "topicCount": 0, "replyCount": 1, "estimated": false },
+      { "date": "2020-01-03", "topicCount": 1, "replyCount": 0, "estimated": false }
+    ],
+    "coverage": {
+      "timezone": "CST (UTC+08:00)",
+      "maxRangeDays": 366,
+      "estimated": false
+    }
+  },
+  "code": 0
+}

@@ -76,7 +76,7 @@ class _WikiSearchPageState extends ConsumerState<WikiSearchPage> {
     final l10n = AppLocalizations.of(context);
     final type = GfTheme.typographyOf(context);
     return Scaffold(
-      appBar: GfAppBar(title: Text(l10n.wikiTitle)),
+      appBar: GfAppBar(title: GfText(l10n.wikiTitle)),
       body: Column(
         children: [
           Padding(
@@ -116,16 +116,16 @@ class _WikiSearchPageState extends ConsumerState<WikiSearchPage> {
                                 horizontal: 16,
                                 vertical: 12,
                               ),
-                              title: Text(item.title, style: type.heading),
+                              title: GfText(item.title, style: type.heading),
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  GfText(
                                     '${item.namespace} · ${item.heading}',
                                     style: type.caption,
                                   ),
                                   const SizedBox(height: 8),
-                                  Text(
+                                  GfText(
                                     item.snippet.replaceAll(
                                       RegExp('<[^>]*>'),
                                       '',

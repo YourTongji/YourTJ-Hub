@@ -1,5 +1,20 @@
 # Mobile symbols
 
+## Twemoji
+
+The `twemoji-public/twemoji/72x72/` assets and generated map are pinned to
+[jdecked/twemoji 17.0.3](https://github.com/jdecked/twemoji/releases/tag/v17.0.3).
+The 4,008 included PNGs are the upstream 72×72 Emoji artwork; the legacy
+private-use glyph is excluded. Upstream JavaScript code is MIT licensed and
+artwork is CC BY 4.0. See `twemoji-licenses/LICENSE-MIT.txt` and
+`twemoji-licenses/LICENSE-CC-BY-4.0.txt` for the full license texts and
+`twemoji-licenses/ATTRIBUTION.md` for the required artwork attribution.
+
+Regenerate the shared Web manifest and Flutter map after changing the pinned
+asset set with `node tool/generate_twemoji_manifest.mjs` from
+`packages/ui_kit`. The Web build copies the same directory into its static
+asset tree; Flutter bundles it through `pubspec.yaml`.
+
 `assets/icons/` primarily uses [ReIcon](https://github.com/dqev/reicon) Outline SVGs on a 24×24 grid.
 Files were sourced from ReIcon's `data/icon-data.json` at commit
 `18819b023cc91280e6b89dd5dc05ff8ecbb3f987`; its license is

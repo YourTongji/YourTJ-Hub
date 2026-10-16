@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../gf_motion.dart';
 
 /// Quiet native progress with optional supporting text.
@@ -28,7 +29,7 @@ class GfLoadingIndicator extends StatelessWidget {
           ),
           if (message != null) ...[
             const SizedBox(height: 10),
-            Text(
+            GfText(
               message!,
               textAlign: TextAlign.center,
               style: TextStyle(

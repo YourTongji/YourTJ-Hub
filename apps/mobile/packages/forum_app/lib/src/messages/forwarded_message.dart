@@ -45,7 +45,7 @@ class ForwardedMessageCard extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
+              GfText(
                 l10n.messageForwardHistory,
                 style: const TextStyle(
                   fontWeight: FontWeight.w700,
@@ -56,7 +56,7 @@ class ForwardedMessageCard extends ConsumerWidget {
               for (final item in bundle.messages.take(3))
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
+                  child: GfText(
                     '${item.senderName}: ${item.forwarded != null
                         ? l10n.messageForwardHistory
                         : item.msgType == 2
@@ -71,7 +71,7 @@ class ForwardedMessageCard extends ConsumerWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text(
+                    child: GfText(
                       l10n.messageForwardCount(bundle.messages.length),
                       style: const TextStyle(fontSize: 12),
                     ),
@@ -137,7 +137,7 @@ class _ForwardedMessagesPageState extends ConsumerState<ForwardedMessagesPage> {
       items: [
         GfPopupMenuItem(
           value: 'collect',
-          child: Text(StickerStrings(context).collect),
+          child: GfText(StickerStrings(context).collect),
         ),
       ],
     );
@@ -164,7 +164,7 @@ class _ForwardedMessagesPageState extends ConsumerState<ForwardedMessagesPage> {
       ? const SizedBox.shrink()
       : Scaffold(
           appBar: GfAppBar(
-            title: Text(AppLocalizations.of(context).messageForwardHistory),
+            title: GfText(AppLocalizations.of(context).messageForwardHistory),
           ),
           body: SafeArea(
             top: false,

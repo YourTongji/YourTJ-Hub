@@ -1,3 +1,4 @@
+import 'user_decoration.dart';
 import 'feed_visibility.dart';
 import '../private_notes.dart';
 import 'package:flutter/material.dart';
@@ -222,7 +223,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
               color: colors.error.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(4),
             ),
-            child: Text(
+            child: GfText(
               l10n.topicPinned,
               style: TextStyle(
                 fontSize: 10,
@@ -255,7 +256,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
               Expanded(
                 child: expanded
                     ? ExcludeSemantics(
-                        child: Text(
+                        child: GfText(
                           l10n.announcementCollapseAction,
                           textAlign: TextAlign.end,
                           maxLines: 1,
@@ -263,7 +264,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
                           style: TextStyle(fontSize: 11, color: muted),
                         ),
                       )
-                    : Text(
+                    : GfText(
                         topicDisplayTitle(topics.first),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -278,7 +279,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
                 if (!expanded) ...<Widget>[
                   const SizedBox(width: 6),
                   ExcludeSemantics(
-                    child: Text(
+                    child: GfText(
                       '${topics.length}',
                       style: TextStyle(
                         fontSize: 11,
@@ -315,13 +316,26 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
             children: <Widget>[
               ExcludeSemantics(
                 child: GfAvatar(
+                  frameColors: topic.author.publicUid != null
+                      ? const <Color>[]
+                      : decorationColors(
+                          context,
+                          topic.author.decoration?.avatarFrame,
+                        ),
+                  frameAssetUrl: topic.author.publicUid != null
+                      ? ''
+                      : decorationFrameAssetUrl(
+                          topic.author.decoration?.avatarFrame,
+                        ),
+                  frameScale:
+                      topic.author.decoration?.avatarFrame?.assetScale ?? 1.25,
                   src: resolveApiAssetUrl(topic.author.avatarUrl),
                   size: 20,
                 ),
               ),
               const SizedBox(width: 9),
               Expanded(
-                child: Text(
+                child: GfText(
                   topicDisplayTitle(topic),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -345,7 +359,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
               ],
               if (showTime) ...<Widget>[
                 const SizedBox(width: 10),
-                Text(
+                GfText(
                   timeAgo(
                     topic.activityText.isNotEmpty
                         ? topic.activityText
@@ -445,6 +459,18 @@ Widget _topicRow(
       description: topic.title.isEmpty ? '' : topic.description,
       categories: categories,
       participantAvatarUrls: participantAvatarUrls,
+      participantFrameScales: [
+        for (final participant in topic.participants)
+          participant.decoration?.avatarFrame?.assetScale ?? 1.25,
+      ],
+      participantFrameAssetUrls: [
+        for (final participant in topic.participants)
+          decorationFrameAssetUrl(participant.decoration?.avatarFrame),
+      ],
+      participantFrameColors: [
+        for (final participant in topic.participants)
+          decorationColors(context, participant.decoration?.avatarFrame),
+      ],
       activityText: timeAgo(
         topic.activityText.isNotEmpty
             ? topic.activityText
@@ -504,6 +530,19 @@ Widget buildTopicFeedCard(
     topic: topic,
     reason: _feedReason(l10n, topic.feedReason),
     child: GfTopicCard(
+      avatarFrameColors: decorationColors(
+        context,
+        topic.author.decoration?.avatarFrame,
+      ),
+      avatarFrameAssetUrl: decorationFrameAssetUrl(
+        topic.author.decoration?.avatarFrame,
+      ),
+      avatarFrameScale:
+          topic.author.decoration?.avatarFrame?.assetScale ?? 1.25,
+      nicknameColors: decorationColors(
+        context,
+        topic.author.decoration?.nicknameStyle,
+      ),
       key: ValueKey<int>(topic.id),
       title: topic.processStatus == 2
           ? "${l10n.contentReviewPending} · ${topic.title}"

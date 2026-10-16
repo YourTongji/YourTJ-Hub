@@ -9,7 +9,8 @@
     "secure": true,
     "accessKeyConfigured": true,
     "secretKeyConfigured": true,
-    "publicUrlPrefix": ""
+    "publicUrlPrefix": "",
+    "forceProxyUpload": false
   },
   "code": 0
 }

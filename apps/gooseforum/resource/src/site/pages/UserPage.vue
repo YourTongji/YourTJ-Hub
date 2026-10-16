@@ -1,8 +1,12 @@
 <script setup lang="ts">
+import AgentProfileEditor from '@/site/components/AgentProfileEditor.vue'
+import { useRouter } from 'vue-router'
+import UserNickname from '@/site/components/UserNickname.vue'
 import ProfileHeader from '@/site/components/ProfileHeader.vue'
 import ProfileManageButton from '@/site/components/ProfileManageButton.vue'
 import ProfileTabs from '@/site/components/ProfileTabs.vue'
 import ProfileStats from '@/site/components/ProfileStats.vue'
+import ProfileSectionPrivacy from '@/site/components/ProfileSectionPrivacy.vue'
 import PrivateNoteEditor from '@/site/components/PrivateNoteEditor.vue'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
@@ -14,6 +18,7 @@ import {
   FileText,
   Heart,
   List,
+  Lock,
   MessageCircle,
   MessageSquare,
   Feather,
@@ -35,7 +40,7 @@ import TopicListFooter from '@/site/components/TopicListFooter.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import { badgeClass, badgeIconURL } from '@/site/utils/badge-style'
 import { socialIcons, socialLabels } from '@/site/utils/social-icons'
-import type { LayoutPayload, PagePayload, TopicPayload, UserActivityPayload, UserBookmarkPayload, UserConnectionPayload, UserLikePayload, UserProfileProps } from '@gooseforum/client'
+import type { LayoutPayload, PagePayload, ProfileSectionVisibility, TopicPayload, UserActivityPayload, UserBookmarkPayload, UserConnectionPayload, UserLikePayload, UserProfileProps } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 
 const page = defineProps<{
@@ -44,6 +49,7 @@ const page = defineProps<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
 const isFollowing = ref(page.props.user.isFollowing)
 const followLoading = ref(false)
 const connectionLoading = ref<number | null>(null)
@@ -62,6 +68,9 @@ let observer: IntersectionObserver | undefined
 let contentGeneration = 0
 let loadedContentPages = 1
 const refreshingContent = ref(false)
+// Server props re-read after a follow change (issue #1124); null until then.
+const refreshedProps = ref<UserProfileProps | null>(null)
+const view = computed(() => refreshedProps.value ?? page.props)
 
 const displayName = computed(() => userDisplayName(page.props.user.userId, page.props.user.username, page.props.user.nickname))
 // 简介行只承载 bio：签名永远以独立签名块呈现，不做 fallback 展示
@@ -70,22 +79,68 @@ const hasBio = computed(() => Boolean(page.props.user.bio?.trim()))
 const hasSignature = computed(() => Boolean(page.props.user.signature?.trim()))
 const showStandaloneSignature = computed(() => hasSignature.value)
 const bioIsEmpty = computed(() => !hasBio.value)
-const visibleTopics = computed(() => page.props.topics)
+const visibleTopics = computed(() => view.value.topics)
 const visibleBadges = computed(() => page.props.user.displayBadges ?? page.props.badges.slice(0, 5))
 const isStandaloneConnections = computed(() => page.props.section === 'following' || page.props.section === 'followers')
-const activeConnections = computed(() => isStandaloneConnections.value ? connections.value : page.props.activityTab === 'following' ? page.props.following : page.props.followers)
+const activeConnections = computed(() => isStandaloneConnections.value ? connections.value : page.props.activityTab === 'following' ? view.value.following : view.value.followers)
 const isWaterfallTab = computed(() => isStandaloneConnections.value || page.props.section === 'bookmarks' || (page.props.section === 'activity' && (page.props.activityTab === 'timeline' || page.props.activityTab === 'topics' || page.props.activityTab === 'likes' || page.props.activityTab === 'bookmarks')))
 const connectionTabItems = computed(() => [
   { key: 'following', label: t('user.tabs.following'), url: `/u/${page.props.user.userId}/following` },
   { key: 'followers', label: t('user.tabs.followers'), url: `/u/${page.props.user.userId}/followers` },
 ])
+// Server-resolved visibility (issue #1124); a hidden section never renders a
+// list, empty state or pagination, even if stale client state holds rows.
+const visibility = computed(() => view.value.visibility)
+const isVisible = (state?: ProfileSectionVisibility) => state?.visible !== false
+const connectionVisibility = computed(() => {
+  const key = isStandaloneConnections.value ? page.props.section : page.props.activityTab
+  return key === 'followers' ? visibility.value?.followersList : visibility.value?.followingList
+})
+const activityVisibility = computed(() => {
+  switch (page.props.activityTab) {
+    case 'topics': return visibility.value?.profileTopics
+    case 'likes': return visibility.value?.profileLikes
+    case 'following':
+    case 'followers': return connectionVisibility.value
+    case 'timeline': return visibility.value?.profileActivity
+    default: return undefined
+  }
+})
+const tabSections: Record<string, keyof NonNullable<UserProfileProps['visibility']>> = {
+  timeline: 'profileActivity',
+  topics: 'profileTopics',
+  likes: 'profileLikes',
+  following: 'followingList',
+  followers: 'followersList',
+}
+// Mark locked tabs before they are opened: visitors see which sections are
+// not public to them, the owner sees which ones have a narrower audience.
+function tabLock(key: string): '' | 'hidden' | 'restricted' {
+  // Bookmarks are never shown to anyone else, whatever the settings say.
+  if (key === 'bookmarks') return page.props.isOwnProfile ? 'restricted' : ''
+  const section = tabSections[key]
+  const state = section ? visibility.value?.[section] : undefined
+  if (!state) return ''
+  if (!state.visible) return 'hidden'
+  return page.props.isOwnProfile && state.audience && state.audience !== 'everyone' ? 'restricted' : ''
+}
+const privacyProps = computed(() => ({
+  isOwnProfile: page.props.isOwnProfile,
+  authenticated: Boolean(page.layout.viewer?.isAuthenticated),
+  name: displayName.value,
+  settingsUrl: page.props.settingsUrl,
+}))
 const hasActivityTopics = computed(() => activityTopics.value.length > 0)
 const hasActivities = computed(() => activities.value.length > 0)
 const hasLikes = computed(() => likes.value.length > 0)
 const hasBookmarks = computed(() => bookmarks.value.length > 0)
 const socialKeys = ['github', 'twitter', 'linkedIn', 'weibo', 'bilibili', 'zhihu'] as const
 const tabItems = computed(() => [
-  ...page.props.tabs.map(tab => ({ ...tab, label: userTabLabel(tab.key) })),
+  ...page.props.tabs.map(tab => ({
+    ...tab,
+    label: userTabLabel(tab.key),
+    lock: tabLock(tab.key) ? t(tabLock(tab.key) === 'hidden' ? 'user.privacy.tabHidden' : 'user.privacy.tabRestricted') : '',
+  })),
 ])
 const activityTabItems = computed(() => [
   ...page.props.activityTabs.map(tab => ({ ...tab, label: userActivityTabLabel(tab.key) })),
@@ -118,6 +173,7 @@ watch(
   () => {
     contentGeneration++
     loadedContentPages = 1
+    refreshedProps.value = null
     refreshingContent.value = false
     loadingMore.value = false
     isFollowing.value = page.props.user.isFollowing
@@ -146,10 +202,40 @@ async function toggleFollow() {
     await followUser(page.props.user.userId, isFollowing.value)
     isFollowing.value = !isFollowing.value
     broadcastFollowChange(page.props.user.userId, isFollowing.value)
+    if (isFollowing.value && followCanReveal()) void refreshAfterFollowChange()
   } catch (error) {
     followError.value = error instanceof Error ? error.message : t('api.followFailed')
   } finally {
     followLoading.value = false
+  }
+}
+
+// Whether following could open a section this viewer cannot see yet.
+function followCanReveal() {
+  return Object.values(visibility.value ?? {}).some(state => !state.visible && (state.reason === 'followers' || state.reason === 'mutual'))
+}
+
+// Following can reveal followers-only sections, so re-read the page instead
+// of asking the viewer to reload (issue #1124). Unfollowing keeps what was
+// already seen until the next read, which the server checks again.
+async function refreshAfterFollowChange() {
+  if (page.props.isOwnProfile) return
+  const generation = ++contentGeneration
+  loadingMore.value = false
+  try {
+    const payload = await fetchPage(new URL(`${window.location.pathname}${window.location.search}`, window.location.origin)) as PagePayload<UserProfileProps>
+    if (generation !== contentGeneration || payload.props?.user?.userId !== page.props.user.userId) return
+    const next = payload.props
+    refreshedProps.value = next
+    activityTopics.value = [...next.topics]
+    activities.value = [...next.activities]
+    likes.value = [...next.likes]
+    if (isStandaloneConnections.value) connections.value = [...(page.props.section === 'following' ? next.following : next.followers)]
+    pagination.value = next.pagination
+    loadedContentPages = 1
+    void nextTick(observeSentinel)
+  } catch {
+    // Keep the current view; the next navigation reads the server state.
   }
 }
 
@@ -311,7 +397,9 @@ onMounted(() => {
   observeSentinel()
   // 用户卡片上的关注/取关广播回来时，同步本页按钮状态
   offFollowChange = onFollowChange(({ userId, isFollowing: following }) => {
-    if (userId === page.props.user.userId) isFollowing.value = following
+    if (userId !== page.props.user.userId || isFollowing.value === following) return
+    isFollowing.value = following
+    if (following && followCanReveal()) void refreshAfterFollowChange()
   })
 })
 onActivated(() => {
@@ -353,7 +441,7 @@ function safeProfileUrl(value?: string) {
             class="flex min-w-0 items-center gap-3 rounded-md border border-line bg-base-100 px-3 py-3 text-base font-semibold text-base-content hover:border-primary/30 hover:bg-info/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           >
             <ArrowLeft class="h-4 w-4 shrink-0 text-base-content/55" aria-hidden="true" />
-            <span class="min-w-0 break-words">{{ displayName }}</span>
+            <span class="min-w-0 break-words"><UserNickname :style-definition="page.props.user.decoration?.nicknameStyle">{{ displayName }}</UserNickname></span>
           </a>
         </div>
         <nav class="grid grid-cols-2 border-b border-line" :aria-label="t('user.connectionsLabel')">
@@ -366,10 +454,19 @@ function safeProfileUrl(value?: string) {
           >
             <UserPlus class="h-4 w-4 shrink-0" />
             <span class="break-words text-center">{{ tab.label }}</span>
+            <template v-if="tabLock(tab.key)">
+              <Lock class="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" data-test="profile-tab-lock" />
+              <span class="sr-only">{{ t(tabLock(tab.key) === 'hidden' ? 'user.privacy.tabHidden' : 'user.privacy.tabRestricted') }}</span>
+            </template>
           </a>
         </nav>
         <p v-if="followError" class="px-4 pt-3 text-sm text-error sm:px-5">{{ followError }}</p>
+        <div v-if="!isVisible(connectionVisibility)" class="p-4">
+          <ProfileSectionPrivacy :state="connectionVisibility" v-bind="privacyProps" />
+        </div>
+        <template v-else>
         <div class="p-4">
+          <ProfileSectionPrivacy class="mb-3" :state="connectionVisibility" v-bind="privacyProps" />
           <div class="divide-y divide-line">
             <div
               v-for="connection in activeConnections"
@@ -377,9 +474,9 @@ function safeProfileUrl(value?: string) {
               class="flex min-w-0 flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between"
             >
               <a :href="connection.url" class="flex min-w-0 flex-1 gap-3">
-                <UserAvatar :src="connection.avatarUrl" :alt="connection.username" class="h-12 w-12 shrink-0 rounded-full object-cover" />
+                <UserAvatar :frame="connection.decoration?.avatarFrame" :src="connection.avatarUrl" :alt="connection.username" class="h-12 w-12 shrink-0 rounded-full object-cover" />
                 <span class="min-w-0 break-words">
-                  <span class="block break-words text-sm font-semibold text-base-content">{{ userDisplayName(connection.id, connection.username, connection.nickname) }}</span>
+                  <span class="block break-words text-sm font-semibold text-base-content"><UserNickname :style-definition="connection.decoration?.nicknameStyle">{{ userDisplayName(connection.id, connection.username, connection.nickname) }}</UserNickname></span>
                   <span class="mt-0.5 block break-words text-xs text-base-content/55">@{{ connection.username }}</span>
                   <span class="mt-1 block whitespace-pre-wrap break-words text-sm leading-5 text-base-content/65">{{ connection.bio || t('user.noBio') }}</span>
                 </span>
@@ -408,6 +505,7 @@ function safeProfileUrl(value?: string) {
             @load-more="loadMore"
           />
         </div>
+        </template>
       </section>
 
       <section v-else class="gf-card overflow-hidden">
@@ -415,11 +513,12 @@ function safeProfileUrl(value?: string) {
           :avatar-url="page.props.user.avatarUrl"
           :avatar-alt="page.props.user.username"
           :badge="page.props.user.wornBadge"
+          :frame="page.props.user.decoration?.avatarFrame"
           :cover-url="coverUrl"
         >
           <template #identity>
             <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-y-2">
-              <h1 class="truncate text-xl font-bold leading-tight tracking-tight text-base-content sm:text-2xl">{{ displayName }}</h1>
+              <h1 class="truncate text-xl font-bold leading-tight tracking-tight text-base-content sm:text-2xl"><UserNickname :style-definition="page.props.user.decoration?.nicknameStyle">{{ displayName }}</UserNickname></h1>
               <PrivateNoteEditor v-if="!page.props.user.isAccountClosed" :user-id="page.props.user.userId" :username="page.props.user.username" />
               <span v-if="page.props.user.isAdmin" class="gf-badge gf-badge-warning rounded text-[11px]">Admin</span>
               <span v-if="page.props.user.isOnline" class="gf-badge gf-badge-success rounded text-[11px]">
@@ -450,6 +549,7 @@ function safeProfileUrl(value?: string) {
             </aside>
           </template>
           <template #actions>
+            <AgentProfileEditor v-if="page.props.canManageAgent" :key="page.props.user.userId" :user="page.props.user" @saved="router.go(0)" />
             <ProfileManageButton v-if="page.props.isOwnProfile" :href="page.props.settingsUrl" />
             <a
               v-else-if="page.props.canMessage"
@@ -541,7 +641,8 @@ function safeProfileUrl(value?: string) {
           <div class="grid gap-5 pt-4 lg:grid-cols-[minmax(0,1fr)_300px]">
             <section class="min-w-0">
               <h2 class="mb-2 text-sm font-semibold text-base-content/75">{{ t('user.summarySections.recentTopics') }}</h2>
-              <div class="divide-y divide-line">
+              <ProfileSectionPrivacy compact :state="visibility?.profileTopics" v-bind="privacyProps" />
+              <div v-if="isVisible(visibility?.profileTopics)" class="divide-y divide-line">
                 <a
                   v-for="topic in visibleTopics"
                   :key="topic.id"
@@ -566,7 +667,7 @@ function safeProfileUrl(value?: string) {
                   <span class="hidden text-right text-xs font-medium text-base-content/55 sm:block">{{ timeAgo(topic.lastUpdateTime) }}</span>
                 </a>
               </div>
-              <EmptyState v-if="!visibleTopics.length" :icon="FileText" :title="t('user.emptyTopics')" />
+              <EmptyState v-if="isVisible(visibility?.profileTopics) && !visibleTopics.length" :icon="FileText" :title="t('user.emptyTopics')" />
             </section>
 
             <aside class="min-w-0 space-y-5">
@@ -591,11 +692,11 @@ function safeProfileUrl(value?: string) {
                 </div>
               </section>
 
-              <section v-if="page.props.activities.length">
+              <section v-if="view.activities.length">
                 <h2 class="mb-2 text-sm font-semibold text-base-content/75">{{ t('user.summarySections.recentActivity') }}</h2>
                 <div class="divide-y divide-line">
                   <a
-                    v-for="activity in page.props.activities"
+                    v-for="activity in view.activities"
                     :key="activity.id"
                     :href="activity.url || '#'"
                     class="flex gap-3 py-3"
@@ -633,9 +734,20 @@ function safeProfileUrl(value?: string) {
               <UserPlus v-else-if="tab.key === 'following'" class="h-4 w-4 shrink-0" />
               <UserRound v-else class="h-4 w-4 shrink-0" />
               {{ tab.label }}
+              <template v-if="tabLock(tab.key)">
+                <Lock class="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" data-test="profile-tab-lock" />
+                <span class="sr-only">{{ t(tabLock(tab.key) === 'hidden' ? 'user.privacy.tabHidden' : 'user.privacy.tabRestricted') }}</span>
+              </template>
             </a>
           </div>
 
+          <div v-if="!isVisible(activityVisibility)" class="p-4">
+            <ProfileSectionPrivacy :state="activityVisibility" v-bind="privacyProps" />
+          </div>
+          <template v-else>
+          <div v-if="page.props.isOwnProfile && activityVisibility?.audience && activityVisibility.audience !== 'everyone'" class="px-4 pt-4">
+            <ProfileSectionPrivacy :state="activityVisibility" v-bind="privacyProps" />
+          </div>
           <div v-if="page.props.activityTab === 'timeline'">
             <div class="space-y-3 p-4">
               <a
@@ -762,15 +874,16 @@ function safeProfileUrl(value?: string) {
               :href="item.url"
               class="flex min-w-0 gap-3 rounded-md border border-line p-3 hover:border-primary/20 hover:bg-info/10"
             >
-              <UserAvatar :src="item.avatarUrl" :alt="item.username" class="h-10 w-10 shrink-0 rounded-full object-cover" />
+              <UserAvatar :frame="item.decoration?.avatarFrame" :src="item.avatarUrl" :alt="item.username" class="h-10 w-10 shrink-0 rounded-full object-cover" />
               <span class="min-w-0 break-words">
-                <span class="block break-words text-sm font-semibold text-base-content">{{ userDisplayName(item.id, item.username, item.nickname) }}</span>
+                <span class="block break-words text-sm font-semibold text-base-content"><UserNickname :style-definition="item.decoration?.nicknameStyle">{{ userDisplayName(item.id, item.username, item.nickname) }}</UserNickname></span>
                 <span class="block break-words text-xs text-base-content/55">@{{ item.username }}</span>
                 <span class="mt-1 block whitespace-pre-wrap break-words text-xs text-base-content/55">{{ item.bio || t('user.noBio') }}</span>
               </span>
             </a>
           </div>
           <EmptyState v-if="(page.props.activityTab === 'following' || page.props.activityTab === 'followers') && activeConnections.length === 0" :icon="UserPlus" :title="t('user.emptyData')" />
+          </template>
         </div>
 
         <div v-else-if="page.props.section === 'bookmarks'">

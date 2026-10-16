@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { flushPromises, mount, shallowMount, type VueWrapper } from '@vue/test-utils'
 import * as api from '../src/runtime/api'
 import { i18n } from '../src/runtime/i18n'
+import { twemojiVuePlugin } from '../src/runtime/twemoji'
 import ModerationReviewQueue from '../src/site/components/ModerationReviewQueue.vue'
 import ModerationPage from '../src/site/pages/ModerationPage.vue'
 import type { LayoutPayload } from '@gooseforum/client'
@@ -30,7 +31,7 @@ describe('moderation workbench review queue (issue #975)', () => {
     i18n.global.locale.value = 'zh'
     vi.spyOn(api, 'fetchModerationReviewQueue').mockResolvedValue({ items: [item(1), item(2)], total: 2, page: 1, pageSize: 20 })
     const action = vi.spyOn(api, 'moderationReviewAction').mockResolvedValue('success')
-    const wrapper = mount(ModerationReviewQueue, { global: { plugins: [i18n] } })
+    const wrapper = mount(ModerationReviewQueue, { global: { plugins: [i18n, twemojiVuePlugin] } })
     await flushPromises()
     expect(wrapper.text()).toContain('待审话题 1')
     expect(wrapper.text()).toContain('暴力血腥得分 0.60，在人工审核线 0.50 与拦截线 0.90 之间，进入人工审核。')
@@ -47,7 +48,7 @@ describe('moderation workbench review queue (issue #975)', () => {
     i18n.global.locale.value = 'zh'
     vi.spyOn(api, 'fetchModerationReviewQueue').mockResolvedValue({ items: [item(3)], total: 1, page: 1, pageSize: 20 })
     const action = vi.spyOn(api, 'moderationReviewAction').mockResolvedValue('success')
-    const wrapper = mount(ModerationReviewQueue, { global: { plugins: [i18n] } })
+    const wrapper = mount(ModerationReviewQueue, { global: { plugins: [i18n, twemojiVuePlugin] } })
     await flushPromises()
     await wrapper.findAll('button').find(b => b.text() === '拒绝')!.trigger('click')
     expect(action).not.toHaveBeenCalled()
@@ -60,7 +61,7 @@ describe('moderation workbench review queue (issue #975)', () => {
   test('items still being checked show the checking badge instead of old AI reasons', async () => {
     i18n.global.locale.value = 'zh'
     vi.spyOn(api, 'fetchModerationReviewQueue').mockResolvedValue({ items: [{ ...item(4), aiReview: undefined, aiChecking: true }], total: 1, page: 1, pageSize: 20 })
-    const wrapper = mount(ModerationReviewQueue, { global: { plugins: [i18n] } })
+    const wrapper = mount(ModerationReviewQueue, { global: { plugins: [i18n, twemojiVuePlugin] } })
     await flushPromises()
     expect(wrapper.text()).toContain('AI 检查中')
     expect(wrapper.text()).toContain('通常几秒内会自动公开或拒绝，你也可以现在处理。')
@@ -76,7 +77,7 @@ describe('moderation image previews (issue #1091)', () => {
     const fetch = vi.spyOn(api, 'fetchModerationReviewQueue').mockResolvedValue({ items: [entry, item(6)], total: 30, page: 2, pageSize: 20 })
     let resolveAction!: (result: string) => void
     const action = vi.spyOn(api, 'moderationReviewAction').mockImplementation(() => new Promise(resolve => { resolveAction = resolve }))
-    const wrapper = mount(ModerationReviewQueue, { global: { plugins: [i18n] }, attachTo: document.body })
+    const wrapper = mount(ModerationReviewQueue, { global: { plugins: [i18n, twemojiVuePlugin] }, attachTo: document.body })
     previews.push(wrapper)
     await flushPromises()
     await wrapper.findAll('button').find(button => button.text() === '拒绝')!.trigger('click')
@@ -129,7 +130,7 @@ test('leave workspace is a separate homepage link that stays available on every 
       layout: {} as LayoutPayload,
       props: { topics: [], categoryTabs: [], pagination: { page: 1, nextPage: 2, hasNext: false, nextUrl: '' } },
     },
-    global: { plugins: [i18n], stubs: { PageHeader: false } },
+    global: { plugins: [i18n, twemojiVuePlugin], stubs: { PageHeader: false, TwemojiText: false } },
   })
   previews.push(wrapper)
   for (const tab of wrapper.findAll('main > div > button')) {

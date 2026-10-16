@@ -1,3 +1,4 @@
+import '../widgets/user_decoration.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -92,17 +93,17 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
     final discard = await showGfAlertDialog<bool>(
       context,
       builder: (context) => GfAlertDialog(
-        title: Text(l10n.messageForwardCancelRemaining),
-        content: Text(l10n.messageForwardAbandonNotice),
+        title: GfText(l10n.messageForwardCancelRemaining),
+        content: GfText(l10n.messageForwardAbandonNotice),
         actions: [
           GfDialogAction(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.commonCancel),
+            child: GfText(l10n.commonCancel),
           ),
           GfDialogAction(
             destructive: true,
             onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.commonConfirm),
+            child: GfText(l10n.commonConfirm),
           ),
         ],
       ),
@@ -131,7 +132,7 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
     return PopScope(
       canPop: !controller.busy,
       child: Scaffold(
-        appBar: GfAppBar(title: Text(l10n.messageForwardTitle)),
+        appBar: GfAppBar(title: GfText(l10n.messageForwardTitle)),
         body: SafeArea(
           top: false,
           child: Column(
@@ -146,7 +147,7 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text(
+                          GfText(
                             l10n.messageForwardCount(
                               batch?.messageIds.length ??
                                   widget.messageIds.length,
@@ -154,9 +155,9 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: 8),
-                          Text(l10n.messageForwardExplanation),
+                          GfText(l10n.messageForwardExplanation),
                           if (widget.messageIds.length > 10 && batch == null)
-                            Text(l10n.messageForwardIndividualLimit),
+                            GfText(l10n.messageForwardIndividualLimit),
                           if (batch == null) ...[
                             const SizedBox(height: 12),
                             SegmentedButton<bool>(
@@ -164,11 +165,11 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
                                 ButtonSegment(
                                   value: false,
                                   enabled: widget.messageIds.length <= 10,
-                                  label: Text(l10n.messageForwardIndividual),
+                                  label: GfText(l10n.messageForwardIndividual),
                                 ),
                                 ButtonSegment(
                                   value: true,
-                                  label: Text(l10n.messageForwardMerged),
+                                  label: GfText(l10n.messageForwardMerged),
                                 ),
                               ],
                               selected: {_merged},
@@ -185,7 +186,7 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
                               ),
                             ),
                           ] else
-                            Text(
+                            GfText(
                               batch.merged
                                   ? l10n.messageForwardMerged
                                   : l10n.messageForwardIndividual,
@@ -199,17 +200,32 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
                               for (final recipient in batch.recipients)
                                 ListTile(
                                   leading: GfAvatar(
+                                    frameColors: decorationColors(
+                                      context,
+                                      recipient.user.decoration?.avatarFrame,
+                                    ),
+                                    frameAssetUrl: decorationFrameAssetUrl(
+                                      recipient.user.decoration?.avatarFrame,
+                                    ),
+                                    frameScale:
+                                        (recipient.user.decoration?.avatarFrame)
+                                            ?.assetScale ??
+                                        1.25,
                                     src: resolveApiAssetUrl(
                                       recipient.user.avatarUrl,
                                     ),
                                     size: 40,
                                   ),
-                                  title: Text(
+                                  title: GfDecoratedName(
                                     recipient.user.nickname.isEmpty
                                         ? recipient.user.username
                                         : recipient.user.nickname,
+                                    colors: decorationColors(
+                                      context,
+                                      recipient.user.decoration?.nicknameStyle,
+                                    ),
                                   ),
-                                  subtitle: Text(switch (recipient.state) {
+                                  subtitle: GfText(switch (recipient.state) {
                                     ForwardDeliveryState.pending =>
                                       l10n.messageForwardPending,
                                     ForwardDeliveryState.sending =>
@@ -244,10 +260,10 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(resolveErrorMessage(l10n, _error!)),
+                                GfText(resolveErrorMessage(l10n, _error!)),
                                 TextButton(
                                   onPressed: _load,
-                                  child: Text(l10n.commonRetry),
+                                  child: GfText(l10n.commonRetry),
                                 ),
                               ],
                             ),
@@ -256,22 +272,37 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
                         ? const Center(child: CircularProgressIndicator())
                         : users.isEmpty
                         ? Center(
-                            child: Text(l10n.messageForwardEmptyRecipients),
+                            child: GfText(l10n.messageForwardEmptyRecipients),
                           )
                         : Column(
                             children: users.map((user) {
                               return CheckboxListTile(
                                 checkboxShape: const CircleBorder(),
                                 secondary: GfAvatar(
+                                  frameColors: decorationColors(
+                                    context,
+                                    user.decoration?.avatarFrame,
+                                  ),
+                                  frameAssetUrl: decorationFrameAssetUrl(
+                                    user.decoration?.avatarFrame,
+                                  ),
+                                  frameScale:
+                                      (user.decoration?.avatarFrame)
+                                          ?.assetScale ??
+                                      1.25,
                                   src: resolveApiAssetUrl(user.avatarUrl),
                                   size: 40,
                                 ),
-                                title: Text(
+                                title: GfDecoratedName(
                                   user.nickname.isEmpty
                                       ? user.username
                                       : user.nickname,
+                                  colors: decorationColors(
+                                    context,
+                                    user.decoration?.nicknameStyle,
+                                  ),
                                 ),
-                                subtitle: Text('@${user.username}'),
+                                subtitle: GfText('@${user.username}'),
                                 value: _selected.contains(user.id),
                                 onChanged: (selected) {
                                   if (selected == true &&
@@ -307,7 +338,7 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
                               (batch == null && _selected.isEmpty)
                           ? null
                           : () => _send(controller),
-                      child: Text(
+                      child: GfText(
                         controller.busy
                             ? l10n.messageForwardSending
                             : batch != null
@@ -318,7 +349,7 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
                     if (batch != null && !controller.busy)
                       TextButton(
                         onPressed: () => _discard(controller),
-                        child: Text(l10n.messageForwardCancelRemaining),
+                        child: GfText(l10n.messageForwardCancelRemaining),
                       ),
                   ],
                 ),

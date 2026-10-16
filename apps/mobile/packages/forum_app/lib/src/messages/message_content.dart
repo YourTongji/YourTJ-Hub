@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../widgets/sticker_message_span.dart';
 
@@ -109,6 +110,6 @@ class _MessageContentState extends State<MessageContent> {
           deferLongPress: widget.deferStickerLongPress,
         ) ??
         TextSpan(text: widget.text);
-    return Text.rich(_linkSpan(span));
+    return GfText.rich(_linkSpan(span));
   }
 }

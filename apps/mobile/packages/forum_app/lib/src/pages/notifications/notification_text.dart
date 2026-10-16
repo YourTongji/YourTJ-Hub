@@ -20,20 +20,34 @@ import '../../../l10n/app_localizations.dart';
   final key = item.payload.templateKey ?? '';
   final event = notificationEvent(item);
   final badge = literal(item.payload.metadata?.badgeName);
+  final topic = literal(item.topic?.title ?? item.payload.topicTitle);
   final legacyTitle = [
     item.title,
     item.payload.title,
   ].map(heading).firstWhere((s) => s.isNotEmpty, orElse: () => '');
-  final title = key.isEmpty && legacyTitle.isNotEmpty
+  final title =
+      key.isEmpty && legacyTitle.isNotEmpty && !item.payload.hasDirectMention
       ? legacyTitle
       : switch (event) {
-          'comment' => l10n.notificationComment(actor),
-          'mention' => l10n.notificationMention(actor),
+          'comment' =>
+            topic.isEmpty
+                ? l10n.notificationComment(actor)
+                : l10n.notificationCommentTopic(actor, topic),
+          'mention' =>
+            topic.isEmpty
+                ? l10n.notificationMention(actor)
+                : l10n.notificationMentionTopic(actor, topic),
           'post_reply' => l10n.notificationPostReply(actor),
-          'topic_post' => l10n.notificationTopicPost(actor),
+          'topic_post' =>
+            topic.isEmpty
+                ? l10n.notificationTopicPost(actor)
+                : l10n.notificationTopicPostTopic(actor, topic),
           'follow' => l10n.notificationFollow(actor),
           'like' => l10n.notificationLike(actor),
-          'wiki_updated' => l10n.notificationWikiUpdated(actor),
+          'wiki_updated' =>
+            topic.isEmpty
+                ? l10n.notificationWikiUpdated
+                : l10n.notificationWikiTopic(topic),
           // 人工审核结果(issue #975):无触发者,标题即结论,副标题为内容标题。
           'review_pending' => l10n.notificationReviewPending,
           'review_approved' => l10n.notificationReviewApproved,
@@ -89,20 +103,22 @@ import '../../../l10n/app_localizations.dart';
 }
 
 String notificationEvent(NotificationPayload item) =>
-    switch (item.payload.templateKey ?? '') {
-      'notifications.templates.comment' => 'comment',
-      'notifications.templates.mention' => 'mention',
-      'notifications.templates.postReply' => 'post_reply',
-      'notifications.templates.topicPost' => 'topic_post',
-      'notifications.templates.follow' => 'follow',
-      'notifications.templates.badge' => 'badge',
-      'notifications.templates.like' => 'like',
-      'notifications.templates.wikiUpdated' => 'wiki_updated',
-      'notifications.templates.reviewPending' => 'review_pending',
-      'notifications.templates.reviewApproved' => 'review_approved',
-      'notifications.templates.reviewRejected' => 'review_rejected',
-      _ => item.eventType,
-    };
+    item.payload.hasDirectMention
+    ? 'mention'
+    : switch (item.payload.templateKey ?? '') {
+        'notifications.templates.comment' => 'comment',
+        'notifications.templates.mention' => 'mention',
+        'notifications.templates.postReply' => 'post_reply',
+        'notifications.templates.topicPost' => 'topic_post',
+        'notifications.templates.follow' => 'follow',
+        'notifications.templates.badge' => 'badge',
+        'notifications.templates.like' => 'like',
+        'notifications.templates.wikiUpdated' => 'wiki_updated',
+        'notifications.templates.reviewPending' => 'review_pending',
+        'notifications.templates.reviewApproved' => 'review_approved',
+        'notifications.templates.reviewRejected' => 'review_rejected',
+        _ => item.eventType,
+      };
 
 String notificationActorName(
   NotificationPayload item,

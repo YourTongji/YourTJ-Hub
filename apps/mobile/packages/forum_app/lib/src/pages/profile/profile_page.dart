@@ -1,7 +1,9 @@
+import '../../widgets/user_decoration.dart';
 import '../settings/anonymous_identity_page.dart';
 import 'profile_header_sliver.dart';
 import 'profile_tabs.dart';
 import 'profile_edit_button.dart';
+import 'profile_section_privacy.dart';
 import '../../user_blocks.dart';
 import '../../private_notes.dart';
 import '../../navigation/auth_navigation.dart';
@@ -387,11 +389,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   Future<void> _toggleFollow(UserCardPayload user) async {
     if (user.isSelf) return;
+    final wasFollowing =
+        ref.read(userFollowStateProvider(user.userId)).following ??
+        user.isFollowing;
     try {
       await ref
           .read(userFollowStateProvider(user.userId).notifier)
           .toggle(userId: user.userId, fallback: user.isFollowing);
       invalidateUserProfilePreview(user.userId);
+      if (mounted && !wasFollowing && _followCanReveal()) {
+        _refreshAfterFollowChange();
+      }
     } catch (error) {
       if (mounted) {
         showGfToast(
@@ -401,6 +409,35 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         );
       }
     }
+  }
+
+  /// Whether following could open a section this viewer cannot see yet.
+  bool _followCanReveal() {
+    final visibility = _active.props?.visibility;
+    if (visibility == null) return false;
+    return [
+      visibility.profileTopics,
+      visibility.profileActivity,
+      visibility.profileLikes,
+      visibility.followingList,
+      visibility.followersList,
+    ].any(
+      (section) =>
+          !section.visible &&
+          (section.reason == 'followers' || section.reason == 'mutual'),
+    );
+  }
+
+  /// Following can reveal followers-only sections (issue #1124): drop the
+  /// other cached tabs and re-read this one in place, so nobody has to pull
+  /// to refresh after tapping Follow. Unfollowing keeps what was already
+  /// seen until the next read, which the server checks again.
+  void _refreshAfterFollowChange() {
+    for (final key in _streams.keys.toList()) {
+      if (key == _stream) continue;
+      _cancelStreamRead(_streams.remove(key)!);
+    }
+    _load(streamKey: _stream);
   }
 
   Future<void> _toggleConnection(UserConnectionPayload user) async {
@@ -618,7 +655,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   Widget _profileTitle(BuildContext context, AppLocalizations l10n) =>
       _page.valueOrNull == null
-      ? Text(l10n.profileTitle)
+      ? GfText(l10n.profileTitle)
       : Builder(
           builder: (context) {
             final user = (_headerProps ?? _page.valueOrNull!).user;
@@ -626,18 +663,22 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                GfDecoratedName(
                   privateDisplayName(
                     context,
                     user.userId,
                     user.username,
                     user.nickname,
                   ),
+                  colors: decorationColors(
+                    context,
+                    user.decoration?.nicknameStyle,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (MediaQuery.textScalerOf(context).scale(13) <= 18)
-                  Text(
+                  GfText(
                     widget.connectionsOnly
                         ? '@${user.username}'
                         : '${formatNumber(user.topicCount)} ${l10n.profileTopics}',
@@ -722,7 +763,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ? [
               GfPopupMenuItem(
                 value: _profileBlockAction,
-                child: Text(
+                child: GfText(
                   blocks?.hasError == true
                       ? l10n.commonRetry
                       : isBlocked
@@ -734,49 +775,52 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           : [
               GfPopupMenuItem(
                 value: persona?.profileUrl ?? '/settings/anonymous-identity',
-                child: Text(l10n.anonymousIdentity),
+                child: GfText(l10n.anonymousIdentity),
               ),
-              GfPopupMenuItem(value: '/drafts', child: Text(l10n.draftsTitle)),
+              GfPopupMenuItem(
+                value: '/drafts',
+                child: GfText(l10n.draftsTitle),
+              ),
               GfPopupMenuItem(
                 value: '/my-course-reviews',
-                child: Text(l10n.myCourseReviewsTitle),
+                child: GfText(l10n.myCourseReviewsTitle),
               ),
               GfPopupMenuItem(
                 value: '/my-content',
-                child: Text(l10n.profileContent),
+                child: GfText(l10n.profileContent),
               ),
               GfPopupMenuItem(
                 value: '/recycle-bin',
-                child: Text(l10n.profileTrash),
+                child: GfText(l10n.profileTrash),
               ),
               if (_canModerate)
                 GfPopupMenuItem(
                   value: '/moderation',
-                  child: Text(l10n.profileModeration),
+                  child: GfText(l10n.profileModeration),
                 ),
               if (_canAccessAdmin)
                 GfPopupMenuItem(
                   value: '/admin',
-                  child: Text(l10n.profileAdmin),
+                  child: GfText(l10n.profileAdmin),
                 ),
               if (_canManageCourses) ...[
                 GfPopupMenuItem(
                   value: '/moderation/courses',
-                  child: Text(l10n.coursesManagement),
+                  child: GfText(l10n.coursesManagement),
                 ),
                 GfPopupMenuItem(
                   value: '/moderation/course-reviews',
-                  child: Text(l10n.coursesReviewModeration),
+                  child: GfText(l10n.coursesReviewModeration),
                 ),
               ],
               const PopupMenuDivider(),
               GfPopupMenuItem(
                 value: '/settings/account',
-                child: Text(l10n.profileSecurity),
+                child: GfText(l10n.profileSecurity),
               ),
               GfPopupMenuItem(
                 value: '/settings',
-                child: Text(l10n.settingsTitle),
+                child: GfText(l10n.settingsTitle),
               ),
             ],
     );
@@ -1034,21 +1078,28 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ? null
       : UserWornBadge(user.wornBadge!, avatarSize: 88);
 
-  Widget _immersiveHeader(BuildContext context, UserProfileProps props) =>
-      ProfileHeaderSliver(
-        avatarUrl: props.user.avatarUrl,
-        coverUrl: props.user.profileCoverUrl,
-        avatarBadge: _wornBadge(props.user),
-        title: _profileTitle(context, AppLocalizations.of(context)),
-        actions: _profileButtons(props),
-        actionHeightFor: (context, width) =>
-            _actionBandHeight(context, props, width),
-        navigationActions: (context, glass) => _profileActions(
-          context,
-          AppLocalizations.of(context),
-          glass: glass,
-        ),
-      );
+  Widget _immersiveHeader(
+    BuildContext context,
+    UserProfileProps props,
+  ) => ProfileHeaderSliver(
+    avatarUrl: props.user.avatarUrl,
+    avatarFrameColors: decorationColors(
+      context,
+      props.user.decoration?.avatarFrame,
+    ),
+    avatarFrameAssetUrl: decorationFrameAssetUrl(
+      props.user.decoration?.avatarFrame,
+    ),
+    avatarFrameScale: props.user.decoration?.avatarFrame?.assetScale ?? 1.25,
+    coverUrl: props.user.profileCoverUrl,
+    avatarBadge: _wornBadge(props.user),
+    title: _profileTitle(context, AppLocalizations.of(context)),
+    actions: _profileButtons(props),
+    actionHeightFor: (context, width) =>
+        _actionBandHeight(context, props, width),
+    navigationActions: (context, glass) =>
+        _profileActions(context, AppLocalizations.of(context), glass: glass),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -1058,7 +1109,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       setState(_resetStreams);
       _load();
     });
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar:
           !widget.connectionsOnly &&
               (_page.isLoading || _page.valueOrNull != null)
@@ -1099,7 +1150,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 ),
                 child: GfScrollToTop(
                   semanticLabel: l10n.commonBackToTop,
-                  controller: _isShellProfile ? _active.scrollToTop : null,
+                  controller: _active.scrollToTop,
                   threshold: 360,
                   builder: (context, controller) => NestedScrollView(
                     key: ValueKey('profile-$_profileGeneration'),
@@ -1127,6 +1178,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             child: ProfileTabs(
                               tabs: tabs,
                               index: selectedIndex,
+                              locks: profileTabLocks(
+                                l10n,
+                                _active.props ?? props,
+                              ),
                               onChanged: (selected) =>
                                   _selectStream(tabs[selected].key),
                             ),
@@ -1254,6 +1309,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         ),
       ),
     );
+    return GfStatusBarScrollToTop(
+      controller: _active.scrollToTop,
+      child: scaffold,
+    );
   }
 
   Widget _profileLoading(BuildContext context, AppLocalizations l10n) {
@@ -1317,7 +1376,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             children: [
               GfSymbol(icon, size: 14, color: iconColor),
               const SizedBox(width: 4),
-              Text(full, maxLines: 1, softWrap: false, style: textStyle),
+              GfText(full, maxLines: 1, softWrap: false, style: textStyle),
             ],
           ),
         ),
@@ -1416,6 +1475,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       showHeader: false,
       coverUrl: resolveApiAssetUrl(user.profileCoverUrl),
       avatarUrl: resolveApiAssetUrl(user.avatarUrl),
+      avatarFrameColors: decorationColors(
+        context,
+        user.decoration?.avatarFrame,
+      ),
+      avatarFrameAssetUrl: decorationFrameAssetUrl(
+        user.decoration?.avatarFrame,
+      ),
+      avatarFrameScale: user.decoration?.avatarFrame?.assetScale ?? 1.25,
+      nicknameColors: decorationColors(context, user.decoration?.nicknameStyle),
       avatarBadge: _wornBadge(user),
       name: privateDisplayName(
         context,
@@ -1536,6 +1604,22 @@ class _ProfileBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
+    // Hidden sections arrive empty; say why instead of showing an empty list.
+    final privacy = profileStreamVisibility(props, selectedKey);
+    if (privacy != null && !privacy.visible) {
+      final user = props.user;
+      return SliverToBoxAdapter(
+        child: ProfileSectionHidden(
+          state: privacy,
+          name: user.nickname.isNotEmpty ? user.nickname : user.username,
+          returnTo: '/u/${user.userId}',
+        ),
+      );
+    }
+    return _streamRows(context, l10n);
+  }
+
+  Widget _streamRows(BuildContext context, AppLocalizations l10n) {
     return switch (selectedKey) {
       'badges' =>
         props.badges.isEmpty
@@ -1638,6 +1722,19 @@ class _ProfileBody extends StatelessWidget {
             props.user.nickname,
           ),
           avatarUrl: resolveApiAssetUrl(props.user.avatarUrl),
+          avatarFrameColors: decorationColors(
+            context,
+            props.user.decoration?.avatarFrame,
+          ),
+          avatarFrameAssetUrl: decorationFrameAssetUrl(
+            props.user.decoration?.avatarFrame,
+          ),
+          avatarFrameScale:
+              props.user.decoration?.avatarFrame?.assetScale ?? 1.25,
+          nicknameColors: decorationColors(
+            context,
+            props.user.decoration?.nicknameStyle,
+          ),
           contextSymbol: switch (action) {
             'signup' => 'user-round',
             'post' => 'square-pen',
@@ -1690,7 +1787,7 @@ class _ProfileBody extends StatelessWidget {
                               ? GfTheme.colorsOf(context).error
                               : GfTheme.colorsOf(context).iconMuted,
                         ),
-                        label: Text(
+                        label: GfText(
                           formatNumber(activity.likeCount ?? 0),
                           semanticsLabel: '${activity.likeCount ?? 0}',
                         ),
@@ -1830,6 +1927,18 @@ class _ProfileBody extends StatelessWidget {
           final isFollowing = follow.following ?? (user.isFollowing ?? false);
           return GfConnectionRow(
             avatarUrl: resolveApiAssetUrl(user.avatarUrl),
+            avatarFrameColors: decorationColors(
+              context,
+              user.decoration?.avatarFrame,
+            ),
+            avatarFrameAssetUrl: decorationFrameAssetUrl(
+              user.decoration?.avatarFrame,
+            ),
+            avatarFrameScale: user.decoration?.avatarFrame?.assetScale ?? 1.25,
+            nicknameColors: decorationColors(
+              context,
+              user.decoration?.nicknameStyle,
+            ),
             name: privateDisplayName(
               context,
               user.id,
@@ -1873,6 +1982,18 @@ class _ProfileBody extends StatelessWidget {
             author.nickname,
           ),
     avatarUrl: resolveApiAssetUrl(author?.avatarUrl ?? ''),
+    avatarFrameColors: decorationColors(
+      context,
+      author?.decoration?.avatarFrame,
+    ),
+    avatarFrameAssetUrl: decorationFrameAssetUrl(
+      author?.decoration?.avatarFrame,
+    ),
+    avatarFrameScale: author?.decoration?.avatarFrame?.assetScale ?? 1.25,
+    nicknameColors: decorationColors(
+      context,
+      author?.decoration?.nicknameStyle,
+    ),
     title: title,
     text: excerpt,
     thumbnailUrl: resolveApiAssetUrl(thumbnail),

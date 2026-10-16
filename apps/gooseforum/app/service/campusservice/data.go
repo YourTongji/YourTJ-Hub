@@ -85,6 +85,29 @@ func first(m map[string]any, keys ...string) string {
 	}
 	return ""
 }
+
+// coalesce 返回第一个非空值，用于教师/校区等纯文本字段的逐级回退。
+func coalesce(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// roomLabelFor 按 OneTJ 客户端（onetj）的课表显示语义解析教室显示名：
+// 先 timeTableList 项内的 roomIdI18n，再课程项的 classRoomI18n，最后两级的
+// roomLabel（兼容上游笔误 roomLable）。裸 roomId/classRoom 是内部 ID
+// （无固定教室的课程占位为 "0"），不作为显示名。
+func roomLabelFor(t, r map[string]any) string {
+	return coalesce(
+		first(t, "roomIdI18n"),
+		first(r, "classRoomI18n"),
+		first(t, "roomLabel", "roomLable"),
+		first(r, "roomLabel", "roomLable"),
+	)
+}
 func date(v any) string {
 	n := int64(number(v))
 	if n == 0 {
@@ -123,7 +146,7 @@ func normalize(key string, value any) Dataset {
 				for _, w := range a {
 					weeks = append(weeks, int(number(w)))
 				}
-				d.Events = append(d.Events, Event{Name: str(r["courseName"]), Teacher: first(t, "teacherName"), Room: first(t, "roomIdI18n", "roomId"), Campus: first(t, "campusI18n", "campus"), Day: int(number(t["dayOfWeek"])), Start: int(number(t["timeStart"])), End: int(number(t["timeEnd"])), Weeks: weeks, Credits: str(r["credits"])})
+				d.Events = append(d.Events, Event{Name: str(r["courseName"]), Teacher: coalesce(first(t, "teacherName"), first(r, "teacherName")), Room: roomLabelFor(t, r), Campus: coalesce(first(t, "campusI18n"), first(r, "campusI18n"), first(t, "campus"), first(r, "campus")), Day: int(number(t["dayOfWeek"])), Start: int(number(t["timeStart"])), End: int(number(t["timeEnd"])), Weeks: weeks, Credits: str(r["credits"])})
 			}
 		}
 		metric("本学期课程", len(d.Rows), "门")

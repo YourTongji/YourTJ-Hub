@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:forum_app/src/pages/campus/campus_calendar_export.dart';
+import 'package:forum_app/src/pages/campus/campus_calendar_rules.dart';
 import 'package:forum_app/src/pages/campus/campus_state.dart';
 import 'campus_native_test.dart' show campusTestApp;
 import 'fixtures/campus_fixtures.dart';
@@ -213,6 +214,52 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.cancellations.every((c) => c.isCancelled), isTrue);
       expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'rules ExpansionTile remount does not collide with list scroll offset',
+    (tester) async {
+      // 复刻 campus 页结构：PageStorageKey 列表内的 ExpansionTile 若无独立
+      // key，会与列表滚动偏移（double）共用同一 PageStorage 标识符；滚动后
+      // 重挂载（tab 切换/刷新）时 initState 读展开状态 cast 崩溃。
+      final repo = FakeCampusRepository();
+      final bucket = PageStorageBucket();
+      Widget buildApp({required bool showRules}) => campusTestApp(
+        repo,
+        child: PageStorage(
+          bucket: bucket,
+          child: Scaffold(
+            body: ListView(
+              key: const PageStorageKey<String>('campus-list-timetable'),
+              children: <Widget>[
+                if (showRules) const CampusCalendarRulesView(),
+                const SizedBox(height: 3000),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(buildApp(showRules: true));
+      await tester.pumpAndSettle();
+      expect(find.text('查看已发布的调休规则'), findsOneWidget);
+
+      // 滚动 → didEndScroll 将 pixels（double）写入共享标识符。
+      await tester.drag(find.byType(ListView), const Offset(0, -300));
+      await tester.pumpAndSettle();
+
+      // 重挂载 rules tile：修复前 initState 读到 double，cast bool? 崩溃。
+      await tester.pumpWidget(buildApp(showRules: false));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(buildApp(showRules: true));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      // 滚动偏移恢复后 tile 在视口上方，先滚回顶部再断言。
+      await tester.drag(find.byType(ListView), const Offset(0, 300));
+      await tester.pumpAndSettle();
+      expect(find.text('查看已发布的调休规则'), findsOneWidget);
     },
   );
 }

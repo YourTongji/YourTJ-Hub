@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import '../twemoji/twemoji_text.dart';
 import 'gf_image_viewer.dart';
 import 'gf_media_image.dart';
 import 'gf_motion.dart';
@@ -182,7 +183,7 @@ class _GfMediaCarouselState extends State<GfMediaCarousel> {
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 8,
                                     ),
-                                    child: Text(
+                                    child: GfText(
                                       '${_index + 1} / ${widget.images.length}',
                                       style: const TextStyle(
                                         color: Colors.white,

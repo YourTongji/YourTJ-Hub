@@ -97,7 +97,7 @@ class _BadgeDisplayDialogState extends State<BadgeDisplayDialog> {
       },
       child: Scaffold(
         appBar: GfAppBar(
-          title: Text(l.badgeDisplayTitle),
+          title: GfText(l.badgeDisplayTitle),
           leading: IconButton(
             tooltip: l.commonBack,
             onPressed: _saving ? null : _close,
@@ -129,19 +129,19 @@ class _BadgeDisplayDialogState extends State<BadgeDisplayDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      GfText(
                         l.badgeDisplaySelectedCount(_codes.length),
                         style: GfTheme.typographyOf(context).title3,
                       ),
                       const SizedBox(height: 6),
-                      Text(
+                      GfText(
                         l.badgeDisplayHint,
                         style: GfTheme.typographyOf(
                           context,
                         ).caption.copyWith(color: colors.iconMuted),
                       ),
                       const SizedBox(height: 6),
-                      Text(
+                      GfText(
                         l.badgeDisplayReorder,
                         style: GfTheme.typographyOf(
                           context,
@@ -152,7 +152,7 @@ class _BadgeDisplayDialogState extends State<BadgeDisplayDialog> {
                           padding: const EdgeInsets.only(top: 12),
                           child: Semantics(
                             liveRegion: true,
-                            child: Text(
+                            child: GfText(
                               _error!,
                               style: TextStyle(color: colors.error),
                             ),
@@ -212,7 +212,7 @@ class _BadgeDisplayDialogState extends State<BadgeDisplayDialog> {
                                       ),
                                       const SizedBox(width: 10),
                                       Expanded(
-                                        child: Text(
+                                        child: GfText(
                                           badge.name,
                                           style: GfTheme.typographyOf(
                                             context,
@@ -224,7 +224,7 @@ class _BadgeDisplayDialogState extends State<BadgeDisplayDialog> {
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 8,
                                           ),
-                                          child: Text(
+                                          child: GfText(
                                             '${index + 1}',
                                             key: ValueKey(
                                               'badge-position-${badge.code}',

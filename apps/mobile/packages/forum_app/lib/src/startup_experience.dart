@@ -423,7 +423,7 @@ class _StartupExperienceState extends State<StartupExperience>
     );
 
     if (_reducedMotion || !_captionVisible) {
-      return Text('未济非终，皆有可能', style: textStyle, textAlign: TextAlign.center);
+      return GfText('未济非终，皆有可能', style: textStyle, textAlign: TextAlign.center);
     }
 
     return AnimatedText(

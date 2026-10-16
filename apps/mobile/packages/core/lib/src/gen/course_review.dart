@@ -1,3 +1,4 @@
+import 'decoration.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'topic.dart';
@@ -8,6 +9,7 @@ part 'course_review.g.dart';
 @freezed
 abstract class ReviewAuthorPayload with _$ReviewAuthorPayload {
   const factory ReviewAuthorPayload({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     required String kind,
     required String label,
     String? avatarUrl,

@@ -14,6 +14,7 @@ import { codeHighlightDirective } from '@/runtime/code-highlight-directive'
 import { mathRenderDirective } from '@/runtime/math-render-directive'
 import { codeCopyDirective } from '@/runtime/code-copy-directive'
 import { contentEnhancementsDirective } from '@/runtime/content-enhancements'
+import { twemojiVuePlugin } from '@/runtime/twemoji'
 
 const initialPayload = readInitialPayload()
 const initialPage = await preparePayload(initialPayload)
@@ -82,6 +83,7 @@ const app = createApp({
 
 app.use(i18n)
 app.use(router)
+app.use(twemojiVuePlugin)
 app.directive('code-highlight', codeHighlightDirective)
 app.directive('math-render', mathRenderDirective)
 app.directive('code-copy', codeCopyDirective)

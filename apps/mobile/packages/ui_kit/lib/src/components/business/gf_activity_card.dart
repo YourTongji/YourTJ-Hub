@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../gf_icon_tile.dart';
 
 /// A compact activity entry: action mark, readable preview, then timestamp.
@@ -42,7 +43,7 @@ class GfActivityCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      GfText(
                         title,
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
@@ -51,7 +52,7 @@ class GfActivityCard extends StatelessWidget {
                         ).body.copyWith(fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 5),
-                      Text(
+                      GfText(
                         time,
                         style: GfTheme.typographyOf(
                           context,

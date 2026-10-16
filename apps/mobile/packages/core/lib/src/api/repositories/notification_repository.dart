@@ -13,6 +13,7 @@ class NotificationRepository {
   /// 通知列表(filter: all | unread;cursor 游标;limit 页大小)。
   Future<NotificationListResponse> fetchNotifications({
     String filter = 'all',
+    String category = 'all',
     int cursor = 0,
     int limit = 20,
     CancelToken? cancelToken,
@@ -20,7 +21,12 @@ class NotificationRepository {
     return _client.get<NotificationListResponse>(
       '/api/forum/notifications',
       cancelToken: cancelToken,
-      queryParameters: {'filter': filter, 'cursor': cursor, 'limit': limit},
+      queryParameters: {
+        'filter': filter,
+        'category': category,
+        'cursor': cursor,
+        'limit': limit,
+      },
       parser: (json) =>
           NotificationListResponse.fromJson(json as Map<String, dynamic>),
     );

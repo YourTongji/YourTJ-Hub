@@ -8,13 +8,14 @@ import { adminRouter } from '@/admin/runtime/router'
 import { i18n } from '@/runtime/i18n'
 import { configureAdminAccess } from '@/admin/runtime/access'
 import { applyStoredTheme, initSystemThemeListener } from '@/runtime/site-theme'
+import { twemojiVuePlugin } from '@/runtime/twemoji'
 
 // Apply the shared appearance preference before mounting; `auto` follows the system live.
 applyStoredTheme()
 initSystemThemeListener()
 
 const payload = readAdminPayload()
-configureAdminAccess(payload.layout.viewer.adminPermissions)
+configureAdminAccess(payload.layout.viewer.adminPermissions, payload.layout.viewer.canManageAgents)
 
 document.documentElement.lang = document.documentElement.lang || 'zh-CN'
 
@@ -34,5 +35,6 @@ const app = createApp({
 
 app.use(adminRouter)
 app.use(i18n)
+app.use(twemojiVuePlugin)
 await adminRouter.isReady()
 app.mount('#goose-admin-app')

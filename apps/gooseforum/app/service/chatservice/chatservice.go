@@ -1,7 +1,9 @@
 package chatservice
 
 import (
+	"context"
 	"errors"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/decorationservice"
 	"regexp"
 	"slices"
 	"strings"
@@ -13,12 +15,16 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pushpolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/webpushservice"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"log/slog"
 )
 
 const (
@@ -76,6 +82,7 @@ func sendMessageWithEffectsAndReply(conn *gorm.DB, senderId, peerId uint64, cont
 	// entire transaction before a bounded retry finds the winner's config.
 	for attempt := 0; attempt < 3; attempt++ {
 		var convId uint64
+		var newMessageID uint64
 		replayed := false
 		err := conn.Transaction(func(tx *gorm.DB) error {
 			if err := users.LockInteractionUsers(tx, senderId, peerId); err != nil {
@@ -165,12 +172,24 @@ func sendMessageWithEffectsAndReply(conn *gorm.DB, senderId, peerId uint64, cont
 				return errors.New("conversation membership changed")
 			}
 			now := time.Now()
-			if err := tx.Create(&messages.Entity{
+			message := &messages.Entity{
 				ClientMessageID: key, ReplyToMessageID: replyTarget, ConvId: convId, SenderId: senderId, Content: content,
 				MsgType: msgType, IsRead: 0, CreatedAt: now,
-			}).Error; err != nil {
+			}
+			if err := tx.Create(message).Error; err != nil {
 				return err
 			}
+			newMessageID = message.Id
+			// Each channel gets its own savepoint so an enqueue failure in one
+			// channel rolls back only that channel's outbox row; the other channel
+			// still gets its best-effort send and the message still commits.
+			if err := enqueueChatPushBestEffort(tx, "chat_push_web", "web", peerId, message.Id, webpushservice.EnqueueChatTx); err != nil {
+				return err
+			}
+			if err := enqueueChatPushBestEffort(tx, "chat_push_native", "native", peerId, message.Id, nativepushservice.EnqueueChatTx); err != nil {
+				return err
+			}
+
 			if err := tx.Model(&imConversations.Entity{}).Where("id = ?", convId).
 				Updates(map[string]any{"last_msg_content": imConversations.MessagePreview(messages.DisplayContent(content, msgType)), "last_msg_time": now}).Error; err != nil {
 				return err
@@ -186,6 +205,7 @@ func sendMessageWithEffectsAndReply(conn *gorm.DB, senderId, peerId uint64, cont
 			if replayed || !publish {
 				return convId, nil
 			}
+			pushpolicy.Trace("chat", "committed", pushpolicy.Task{UserId: peerId, SourceKind: pushpolicy.ChatMessage, SourceId: newMessageID})
 			imUserChatConfigs.InvalidateConversationAccess(senderId, convId)
 			imUserChatConfigs.InvalidateConversationAccess(peerId, convId)
 			unreadservice.Invalidate(peerId)
@@ -216,6 +236,7 @@ func GetChatList(userId uint64) ([]*vo.ChatItemVo, error) {
 	})
 
 	peers := users.GetMapByIds(peerIds)
+	peerDecorations := decorationservice.EffectiveBatch(context.Background(), peerIds)
 	convs := imConversations.GetMapByIds(convIds)
 
 	list := lo.Map(configs, func(cfg imUserChatConfigs.Entity, _ int) *vo.ChatItemVo {
@@ -234,6 +255,7 @@ func GetChatList(userId uint64) ([]*vo.ChatItemVo, error) {
 			chatItem.PeerUsername = peer.Username
 			chatItem.PeerNickname = peer.Nickname
 			chatItem.PeerAvatar = peer.GetWebAvatarUrl()
+			chatItem.PeerDecoration = peerDecorations[cfg.PeerId]
 		} else {
 			chatItem.PeerUsername = "Unknown User"
 		}
@@ -515,6 +537,27 @@ func lockedMember(tx *gorm.DB, userId, convId uint64) (*imUserChatConfigs.Entity
 		return nil, err
 	}
 	return &config, nil
+}
+
+// enqueueChatPushBestEffort stages one push channel's outbox row inside its own
+// savepoint. A channel enqueue failure rolls back only its row and is logged
+// (best-effort semantics: push loss must never abort the committed message). A
+// savepoint that cannot be established also warns and skips the channel rather
+// than failing the send; the transaction is only aborted when RollbackTo fails
+// after an enqueue, because the transaction state is unsafe to continue then.
+func enqueueChatPushBestEffort(tx *gorm.DB, savepointName, channel string, peerID, messageID uint64, enqueue func(*gorm.DB, uint64, uint64) error) error {
+	if err := tx.SavePoint(savepointName).Error; err != nil {
+		slog.Warn("chat push savepoint failed", "channel", channel, "messageId", messageID, "err", err)
+		return nil
+	}
+	if err := enqueue(tx, peerID, messageID); err != nil {
+		if rollbackErr := tx.RollbackTo(savepointName).Error; rollbackErr != nil {
+			slog.Warn("chat push rollback failed", "channel", channel, "messageId", messageID, "err", rollbackErr)
+			return rollbackErr
+		}
+		slog.Warn("chat push enqueue failed", "channel", channel, "messageId", messageID, "err", err)
+	}
+	return nil
 }
 
 func retryableChatWrite(err error) bool {

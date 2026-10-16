@@ -8,25 +8,51 @@ import '../gf_symbol.dart';
 ///
 /// It lets a navigation shell implement the familiar "tap the active tab to
 /// return to the beginning" behaviour without owning the page's scroll view.
-class GfScrollToTopController {
+class GfScrollToTopController extends ChangeNotifier {
   Future<void> Function()? _scrollToTop;
   Object? _attachment;
+  ScrollController? _scrollController;
+  bool _disposed = false;
 
   bool get isAttached => _scrollToTop != null;
+  ScrollController? get scrollController => _scrollController;
 
   Future<void> scrollToTop() async {
     await _scrollToTop?.call();
   }
 
-  void _attach(Object attachment, Future<void> Function() callback) {
+  void _attach(
+    Object attachment,
+    ScrollController scrollController,
+    Future<void> Function() callback,
+  ) {
     _attachment = attachment;
+    _scrollController = scrollController;
     _scrollToTop = callback;
+    _scheduleNotification();
   }
 
   void _detach(Object attachment) {
     if (!identical(_attachment, attachment)) return;
     _attachment = null;
+    _scrollController = null;
     _scrollToTop = null;
+    _scheduleNotification();
+  }
+
+  void _scheduleNotification() {
+    if (_disposed || !hasListeners) return;
+    // Attach/detach runs while a descendant is mounting or unmounting. Defer
+    // AnimatedBuilder updates until the current tree mutation has completed.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_disposed) notifyListeners();
+    });
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }
 
@@ -71,7 +97,7 @@ class _GfScrollToTopState extends State<GfScrollToTop> {
   void initState() {
     super.initState();
     _scrollController = ScrollController()..addListener(_handleScroll);
-    widget.controller?._attach(_attachment, _scrollToTop);
+    widget.controller?._attach(_attachment, _scrollController, _scrollToTop);
   }
 
   @override
@@ -79,7 +105,7 @@ class _GfScrollToTopState extends State<GfScrollToTop> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller?._detach(_attachment);
-      widget.controller?._attach(_attachment, _scrollToTop);
+      widget.controller?._attach(_attachment, _scrollController, _scrollToTop);
     }
     if (!widget.showButton && _visible) {
       _visible = false;

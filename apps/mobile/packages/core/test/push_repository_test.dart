@@ -14,6 +14,36 @@ class Tokens implements TokenStorage {
 }
 
 void main() {
+  test('account preference update sends only the changed group', () async {
+    final dio = Dio();
+    addTearDown(dio.close);
+    final tokens = Tokens();
+    dio.httpClientAdapter = MockAdapter((request) async {
+      expect(request.headers['Authorization'], 'Bearer session');
+      expect(request.path, '/api/forum/push/preferences');
+      if (request.method == 'PUT') expect(request.data, {'chat': false});
+      return ResponseData(200, {
+        'code': 0,
+        'result': {
+          'chat': request.method != 'PUT',
+          'mentionsAndReplies': true,
+          'activity': false,
+          'following': false,
+          'system': true,
+          'systemDefaultOnly': true,
+        },
+      });
+    });
+    final repo = await PushRepository(
+      GfApiClient(dio: dio, tokenStorage: tokens),
+    ).forSession();
+    tokens.value = 'new-account';
+    expect((await repo.preferences()).chat, true);
+    final saved = await repo.updatePreferences({'chat': false});
+    expect(saved.chat, false);
+    expect(saved.systemDefaultOnly, true);
+    expect(saved.toJson().keys, isNot(contains('systemDefaultOnly')));
+  });
   test('push uses authenticated forum routes and explicit transport', () async {
     final paths = <String>[];
     final dio = Dio();

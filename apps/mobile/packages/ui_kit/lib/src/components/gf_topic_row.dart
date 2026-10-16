@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import '../twemoji/twemoji_text.dart';
 import 'atoms/gf_avatar_stack.dart';
 import 'gf_chip.dart';
 import 'gf_symbol.dart';
@@ -33,6 +34,9 @@ class GfTopicRow extends StatelessWidget {
     required this.description,
     required this.categories,
     required this.participantAvatarUrls,
+    this.participantFrameColors = const [],
+    this.participantFrameAssetUrls = const [],
+    this.participantFrameScales = const [],
     required this.activityText,
     required this.replyCount,
     this.onTap,
@@ -51,6 +55,9 @@ class GfTopicRow extends StatelessWidget {
   final String description;
   final List<GfTopicCategory> categories;
   final List<String> participantAvatarUrls;
+  final List<List<Color>> participantFrameColors;
+  final List<String> participantFrameAssetUrls;
+  final List<double> participantFrameScales;
   final String activityText;
   final int replyCount;
   final VoidCallback? onTap;
@@ -103,7 +110,7 @@ class GfTopicRow extends StatelessWidget {
                           const SizedBox(width: 6),
                         ],
                         Expanded(
-                          child: Text(
+                          child: GfText(
                             title,
                             maxLines: enlargedText ? 2 : 1,
                             overflow: TextOverflow.ellipsis,
@@ -135,7 +142,7 @@ class GfTopicRow extends StatelessWidget {
                           const SizedBox(width: 6),
                           GfSymbol('flame', size: 12, color: colors.warning),
                           const SizedBox(width: 2),
-                          Text(
+                          GfText(
                             'hot',
                             style: TextStyle(
                               color: colors.warning,
@@ -148,7 +155,7 @@ class GfTopicRow extends StatelessWidget {
                   if (description.isNotEmpty)
                     Padding(
                       padding: EdgeInsets.only(top: title.isEmpty ? 0 : 2),
-                      child: Text(
+                      child: GfText(
                         description,
                         maxLines: enlargedText ? 2 : 1,
                         overflow: TextOverflow.ellipsis,
@@ -212,7 +219,7 @@ class GfTopicRow extends StatelessWidget {
         children: [
           GfSymbol(symbol, size: 12, color: color),
           const SizedBox(width: 3),
-          Text(
+          GfText(
             contentTypeLabel!,
             style: TextStyle(
               color: color,
@@ -239,14 +246,20 @@ class GfTopicRow extends StatelessWidget {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         if (avatars.isNotEmpty)
-          GfAvatarStack(avatarUrls: avatars, size: GfAvatarStackSize.sm),
-        Text(activityText, style: style),
+          GfAvatarStack(
+            avatarUrls: avatars,
+            frameColors: participantFrameColors,
+            frameAssetUrls: participantFrameAssetUrls,
+            frameScales: participantFrameScales,
+            size: GfAvatarStackSize.sm,
+          ),
+        GfText(activityText, style: style),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             GfSymbol('message-circle', size: 14, color: style.color),
             const SizedBox(width: 4),
-            Text('$replyCount', style: style),
+            GfText('$replyCount', style: style),
           ],
         ),
       ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import '../twemoji/twemoji_text.dart';
 import 'gf_symbol.dart';
 
 /// Floating primary action: a circular compose glyph or a labelled capsule.
@@ -65,7 +66,7 @@ class GfFloatingAction extends StatelessWidget {
             glyph,
             if (pill) ...[
               const SizedBox(width: 8),
-              Flexible(child: Text(label!, textAlign: TextAlign.center)),
+              Flexible(child: GfText(label!, textAlign: TextAlign.center)),
             ],
           ],
         ),

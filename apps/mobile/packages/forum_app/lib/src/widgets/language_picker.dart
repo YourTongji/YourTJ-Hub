@@ -12,14 +12,14 @@ Future<void> showAppLanguagePicker(BuildContext context) async {
         container.read(appLocaleProvider)?.languageCode ?? 'system';
     final choice = await showGfActionSheet<String>(
       context,
-      title: Text(l10n.settingsAppLanguage),
+      title: GfText(l10n.settingsAppLanguage),
       initialValue: selected,
       items: [
         for (final entry in {
           'system': l10n.settingsLanguageSystem,
           ...appLanguageNames,
         }.entries)
-          GfPopupMenuItem(value: entry.key, child: Text(entry.value)),
+          GfPopupMenuItem(value: entry.key, child: GfText(entry.value)),
       ],
     );
     if (context.mounted && choice != null) {
@@ -42,7 +42,7 @@ Future<void> showAppLanguagePicker(BuildContext context) async {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                GfText(
                   l10n.settingsAppLanguage,
                   style: GfTheme.typographyOf(context).title2,
                 ),
@@ -52,7 +52,7 @@ Future<void> showAppLanguagePicker(BuildContext context) async {
                   ...appLanguageNames,
                 }.entries)
                   ListTile(
-                    title: Text(entry.value),
+                    title: GfText(entry.value),
                     selected: selected == entry.key,
                     trailing: selected == entry.key
                         ? const GfSymbol('check')

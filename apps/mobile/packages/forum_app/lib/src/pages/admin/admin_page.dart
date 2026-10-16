@@ -378,7 +378,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
       if (mounted && !cancellation.isCancelled) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(AppLocalizations.of(context).adminDownloadFailed),
+            content: GfText(AppLocalizations.of(context).adminDownloadFailed),
           ),
         );
       }
@@ -407,18 +407,18 @@ class _AdminPageState extends ConsumerState<AdminPage> {
     return await showGfAlertDialog<bool>(
           context,
           builder: (context) => GfAlertDialog(
-            title: Text(_title(l10n)),
-            content: SingleChildScrollView(child: Text(message)),
+            title: GfText(_title(l10n)),
+            content: SingleChildScrollView(child: GfText(message)),
             actions: [
               if (!alert)
                 GfDialogAction(
                   onPressed: () => Navigator.pop(context, false),
-                  child: Text(l10n.commonCancel),
+                  child: GfText(l10n.commonCancel),
                 ),
               GfDialogAction(
                 filled: true,
                 onPressed: () => Navigator.pop(context, true),
-                child: Text(l10n.commonConfirm),
+                child: GfText(l10n.commonConfirm),
               ),
             ],
           ),
@@ -507,7 +507,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
       },
       child: Scaffold(
         appBar: GfAppBar(
-          title: Text(_title(l10n)),
+          title: GfText(_title(l10n)),
           leading: IconButton(
             icon: const GfSymbol('arrow-left'),
             tooltip: l10n.commonBack,
@@ -544,7 +544,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
                             children: [
                               const GfSymbol('shield-check', size: 48),
                               const SizedBox(height: 16),
-                              Text(
+                              GfText(
                                 widget.campusAuthorizationUrl == null
                                     ? l10n.adminUnavailable
                                     : l10n.commonLoadFailed,
@@ -553,7 +553,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
                               const SizedBox(height: 16),
                               FilledButton(
                                 onPressed: _start,
-                                child: Text(l10n.commonRetry),
+                                child: GfText(l10n.commonRetry),
                               ),
                             ],
                           ),

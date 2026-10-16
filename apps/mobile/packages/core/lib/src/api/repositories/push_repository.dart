@@ -29,6 +29,23 @@ class PushRepository {
         PushConfigPayload.fromJson(Map<String, dynamic>.from(json as Map)),
   );
 
+  Future<PushPreferences> preferences() => _client.get<PushPreferences>(
+    '/api/forum/push/preferences',
+    headers: _headers,
+    parser: (json) =>
+        PushPreferences.fromJson(Map<String, dynamic>.from(json as Map)),
+  );
+
+  /// Send only the changed group so unrelated default policies stay absent.
+  Future<PushPreferences> updatePreferences(Map<String, bool> changes) =>
+      _client.put<PushPreferences>(
+        '/api/forum/push/preferences',
+        headers: _headers,
+        body: changes,
+        parser: (json) =>
+            PushPreferences.fromJson(Map<String, dynamic>.from(json as Map)),
+      );
+
   /// 注册/更新当前设备（按 user_id + token upsert；token 轮换时重调）。
   Future<bool> registerDevice({
     required String platform,

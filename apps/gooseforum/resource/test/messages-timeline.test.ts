@@ -50,6 +50,7 @@ afterEach(() => {
   locale.value = originalLocale
   window.history.replaceState({}, '', '/')
   vi.resetAllMocks()
+  vi.unstubAllGlobals()
 })
 
 /** 设备本地墙钟 → 带时区的 RFC3339，断言在任何本地时区下都成立。 */
@@ -127,4 +128,15 @@ it('keeps the first-in-group time when the gap exceeds five minutes', async () =
   const list = page.get('[data-test="chat-message-list"]')
   expect(list.findAll('h2').map((node) => node.text())).toEqual(['Today'])
   expect(list.findAll('time').map((node) => node.text())).toEqual(['08:00', '08:10'])
+})
+
+it('reports the loaded conversation to the worker and clears it on unmount', async () => {
+  const postMessage = vi.fn()
+  vi.stubGlobal('navigator', { serviceWorker: { getRegistration: vi.fn(async () => ({active:{postMessage}})) } })
+  const page = await mountConversation([])
+  expect(postMessage.mock.calls[0][0]).toEqual({type:'goose:active-chat',peerId:0})
+  expect(postMessage).toHaveBeenLastCalledWith({type:'goose:active-chat',peerId:2})
+  page.unmount(); wrapper = undefined
+  await flushPromises()
+  expect(postMessage).toHaveBeenLastCalledWith({type:'goose:active-chat',peerId:0})
 })

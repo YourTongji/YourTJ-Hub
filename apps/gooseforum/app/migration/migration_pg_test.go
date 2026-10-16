@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/decoration"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
@@ -50,6 +51,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	for _, table := range []string{
 		"feed_seen_state",
 		"user_blocks",
+		"user_privacy_settings",
 		"user_sessions",
 		"user_totp",
 		"user_totp_recovery_codes",
@@ -217,6 +219,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	for _, table := range []string{
 		"feed_seen_state",
 		"user_blocks",
+		"user_privacy_settings",
 		"user_sessions",
 		"user_totp",
 		"user_totp_recovery_codes",
@@ -457,5 +460,41 @@ func assertSearchMaintenanceSchema(t *testing.T, db *gorm.DB) {
 	}
 	if err := db.Create(&taskQueue.Entity{Type: taskQueue.SearchMaintenanceType, Status: taskQueue.StatusRetrying}).Error; err != nil {
 		t.Fatalf("terminal job did not release slot: %v", err)
+	}
+}
+
+func TestDecorationFrameScaleUpgradeOnPostgreSQL(t *testing.T) {
+	dsn := os.Getenv("YOURTJ_TEST_PG_URL")
+	if dsn == "" {
+		t.Skip("YOURTJ_TEST_PG_URL not set; skipping PostgreSQL migration test")
+	}
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{TranslateError: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Migrator().DropTable(&decoration.Definition{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&decoration.Definition{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Migrator().DropColumn(&decoration.Definition{}, "asset_scale"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec(`INSERT INTO decoration_definitions (code, name, kind, light_colors, dark_colors, is_enabled, sort_order, asset_url)
+		VALUES ('legacy-frame', 'Legacy frame', 'avatarFrame', '["#166534"]', '["#86EFAC"]', true, 1, '/static/decorations/tea-garden-v1.png')`).Error; err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := db.AutoMigrate(&decoration.Definition{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var frame decoration.Definition
+	if err := db.First(&frame, "code = ?", "legacy-frame").Error; err != nil {
+		t.Fatal(err)
+	}
+	if frame.AssetScale != 1.25 || frame.Name != "Legacy frame" || !frame.IsEnabled {
+		t.Fatalf("upgrade changed existing appearance: %+v", frame)
 	}
 }

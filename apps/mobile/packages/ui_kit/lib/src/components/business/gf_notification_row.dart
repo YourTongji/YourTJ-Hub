@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../../theme/gf_theme.dart';
 import '../atoms/gf_avatar.dart';
 import '../gf_symbol.dart';
@@ -17,6 +18,10 @@ class GfNotificationRow extends StatelessWidget {
     required this.time,
     required this.unread,
     this.actorName = '',
+    this.avatarFrameColors = const [],
+    this.avatarFrameAssetUrl = '',
+    this.avatarFrameScale = 1.25,
+    this.nicknameColors = const [],
     this.avatarUrl,
     this.onActorTap,
     this.onTap,
@@ -24,9 +29,13 @@ class GfNotificationRow extends StatelessWidget {
     this.markReadLabel = 'Mark as read',
     this.subtitleMaxLines = 3,
   });
+  final List<Color> avatarFrameColors, nicknameColors;
   final String symbol;
   final GfNotificationTone tone;
-  final String title, subtitle, time, actorName;
+  final String title, subtitle, time;
+
+  /// The real actor's name; empty suppresses actor-name emphasis for system notices.
+  final String actorName;
   final String? avatarUrl;
   final bool unread;
   final VoidCallback? onTap, onMarkRead, onActorTap;
@@ -35,6 +44,8 @@ class GfNotificationRow extends StatelessWidget {
   /// Null shows complete guidance rather than truncating a content preview.
   final int? subtitleMaxLines;
 
+  final String avatarFrameAssetUrl;
+  final double avatarFrameScale;
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
@@ -82,12 +93,18 @@ class GfNotificationRow extends StatelessWidget {
                               vertical: 4,
                               horizontal: 4,
                             ),
-                            child: GfAvatar(src: avatarUrl!, size: 36),
+                            child: GfAvatar(
+                              frameColors: avatarFrameColors,
+                              frameAssetUrl: avatarFrameAssetUrl,
+                              frameScale: avatarFrameScale,
+                              src: avatarUrl!,
+                              size: 36,
+                            ),
                           ),
                         ),
                       ),
                     if (avatarUrl != null) const SizedBox(height: 4),
-                    Text.rich(
+                    GfText.rich(
                       TextSpan(
                         children: [
                           if (actorStart < 0)
@@ -96,7 +113,21 @@ class GfNotificationRow extends StatelessWidget {
                             TextSpan(text: title.substring(0, actorStart)),
                             TextSpan(
                               text: actorName,
-                              style: const TextStyle(
+                              style: TextStyle(
+                                foreground: nicknameColors.length < 2
+                                    ? null
+                                    : (Paint()
+                                        ..shader =
+                                            LinearGradient(
+                                              colors: nicknameColors,
+                                            ).createShader(
+                                              Rect.fromLTWH(
+                                                0,
+                                                0,
+                                                actorName.length * 8.0,
+                                                20,
+                                              ),
+                                            )),
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -126,7 +157,7 @@ class GfNotificationRow extends StatelessWidget {
                     if (subtitle.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 5),
-                        child: Text(
+                        child: GfText(
                           subtitle,
                           maxLines: subtitleMaxLines,
                           overflow: subtitleMaxLines == null

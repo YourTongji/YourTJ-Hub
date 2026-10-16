@@ -33,3 +33,37 @@ for (const theme of ['gf-light', 'gf-dark']) for (const width of [390, 1280]) {
     } finally { await page.close() }
   })
 }
+
+for (const locale of ['zh', 'de']) for (const width of [375, 1280]) {
+  test(`category and unread controls combine without overflow ${locale} ${width}`, async () => {
+    const page = await browser.newPage({ viewport: { width, height: 844 } })
+    const requests = []
+    try {
+      await page.route('**/api/forum/notifications?**', route => {
+        requests.push(new URL(route.request().url()).searchParams)
+        return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({code:0,result:{items:[],nextCursor:0,hasNext:false,unreadCount:4}})})
+      })
+      await page.route('**/api/forum/unread-status', route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({code:0,result:{notifications:true,messages:false}})}))
+      await page.goto(`${origin}/assets/test/fixtures/browser/review-notifications.html?taxonomy=1&locale=${locale}&theme=${width===375?'gf-dark':'gf-light'}`)
+      const mention = page.getByRole('button', {name:locale==='zh'?'@我':'Erwähnungen', exact:true})
+      await mention.waitFor()
+      // 通知行由 #1157 的 actor 装饰昵称与内容链接分列渲染（不再是单个整句链接），
+      // 断言含 Alice 与 Campus 的通知行整体可见。
+      const mentionRow = page.locator('article').filter({ hasText: 'Alice' }).filter({ hasText: 'Campus' }).first()
+      assert.ok(await mentionRow.isVisible())
+      assert.equal(await page.getByRole('button', {pressed:true}).count(), 1)
+      if (process.env.YOURTJ_REVIEW_SCREENSHOTS) {
+        await mkdir(process.env.YOURTJ_REVIEW_SCREENSHOTS, {recursive:true})
+        await page.screenshot({path:`${process.env.YOURTJ_REVIEW_SCREENSHOTS}/taxonomy-${locale}-${width}.png`,fullPage:true})
+      }
+      await mention.click()
+      await page.waitForFunction(() => !document.querySelector('article'))
+      assert.equal(requests.at(-1).get('category'), 'mentions')
+      assert.equal(requests.at(-1).get('filter'), 'all')
+      await Promise.all([page.waitForResponse(response => response.url().includes('filter=unread')), page.getByRole('checkbox').check()])
+      assert.equal(requests.at(-1).get('category'), 'mentions')
+      assert.equal(requests.at(-1).get('filter'), 'unread')
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+    } finally { await page.close() }
+  })
+}

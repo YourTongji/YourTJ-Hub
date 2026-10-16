@@ -40,13 +40,31 @@ func GetLatestByTopicAndType(topicId uint64, eventType string) (entity Entity) {
 }
 
 // QueryByUserId 获取用户的通知列表
-func QueryByUserId(userId uint64, limit int, startId uint64, unreadOnly bool) (notifications []*Entity, err error) {
-	db := builder().Where(queryopt.Eq("user_id", userId))
+func QueryByUserId(userId uint64, limit int, startId uint64, unreadOnly bool, category ...string) ([]*Entity, error) {
+	return queryByUserId(builder(), userId, limit, startId, unreadOnly, category...)
+}
+
+func queryByUserId(conn *gorm.DB, userId uint64, limit int, startId uint64, unreadOnly bool, category ...string) (notifications []*Entity, err error) {
+	db := conn.Table(tableName).Where(queryopt.Eq("user_id", userId))
 	if startId != 0 {
 		db = db.Where(queryopt.Lt("id", startId))
 	}
 	if unreadOnly {
 		db = db.Where(queryopt.Eq("is_read", false))
+	}
+	if len(category) > 0 {
+		switch category[0] {
+		case "mentions":
+			db = db.Where("event_type = ? OR has_direct_mention = ?", EventTypeMention, true)
+		case "replies":
+			db = db.Where("event_type IN ? AND has_direct_mention = ?", []string{EventTypeComment, EventTypePostReply}, false)
+		case "likes":
+			db = db.Where("event_type = ?", EventTypeLike)
+		case "following":
+			db = db.Where("event_type IN ?", []string{EventTypeFollow, EventTypeTopicPost, EventTypeWikiUpdated})
+		case "system":
+			db = db.Where("event_type NOT IN ?", []string{EventTypeMention, EventTypeComment, EventTypePostReply, EventTypeLike, EventTypeFollow, EventTypeTopicPost, EventTypeWikiUpdated})
+		}
 	}
 	err = db.Order(queryopt.Desc(`id`)).
 		Limit(limit).
@@ -186,4 +204,12 @@ func MentionRecipientsForPost(topicID, postID uint64, userIDs []uint64) (map[uin
 		return nil
 	}).Error
 	return seen, err
+}
+
+func ValidCategory(category string) bool {
+	switch category {
+	case "", "all", "mentions", "replies", "likes", "following", "system":
+		return true
+	}
+	return false
 }

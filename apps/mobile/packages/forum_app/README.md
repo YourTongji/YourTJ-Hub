@@ -126,6 +126,7 @@ YOURTJ_TEST_ARTIFACTS=/absolute/path/to/screenshots flutter drive \
 
 - 后端访问只经 `core` 的 API 客户端/repository;业务状态归本包(Riverpod,`lib/src/providers.dart`)。
 - 组件统一走 `ui_kit` 的 Gf* API；原生 `TextFormField` 继承共享填充输入主题，页面不引入第三方组件库默认皮肤。
+- 展示文本使用 `GfText` / `GfSelectableText` 共享 Twemoji 渲染；输入控件保留原生 `TextField` / `TextFormField`，以维持 IME 与光标行为。
 - 契约镜像位于 `core/lib/src/gen/*.dart`(见 docs/architecture/contracts-and-data.md)。
 
 ## 原生校园验证

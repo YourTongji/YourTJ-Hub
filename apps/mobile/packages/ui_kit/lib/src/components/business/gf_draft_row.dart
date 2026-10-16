@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../gf_symbol.dart';
 
 import '../../theme/gf_theme.dart';
@@ -62,7 +63,7 @@ class GfDraftRow extends StatelessWidget {
               runSpacing: 4,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: <Widget>[
-                Text(
+                GfText(
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -82,7 +83,7 @@ class GfDraftRow extends StatelessWidget {
             ),
             if (description.isNotEmpty) ...<Widget>[
               const SizedBox(height: 4),
-              Text(
+              GfText(
                 description,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -100,7 +101,7 @@ class GfDraftRow extends StatelessWidget {
               children: <Widget>[
                 for (final GfTopicCategory category in categories)
                   GfChip(label: category.name, color: category.color),
-                Text(
+                GfText(
                   meta,
                   style: TextStyle(
                     fontSize: 12,
@@ -114,7 +115,7 @@ class GfDraftRow extends StatelessWidget {
               spacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: <Widget>[
-                Text(
+                GfText(
                   updatedTime,
                   style: TextStyle(
                     fontSize: 12,
@@ -132,13 +133,13 @@ class GfDraftRow extends StatelessWidget {
                       ),
                       minimumSize: const Size(44, 44),
                     ),
-                    child: Text(editLabel),
+                    child: GfText(editLabel),
                   ),
                 if (showDelete)
                   TextButton.icon(
                     onPressed: onDelete,
                     icon: const GfSymbol('trash-2', size: 18),
-                    label: Text(deleteLabel),
+                    label: GfText(deleteLabel),
                   ),
               ],
             ),

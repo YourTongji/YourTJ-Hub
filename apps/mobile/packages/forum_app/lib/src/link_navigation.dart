@@ -79,16 +79,16 @@ abstract final class LinkNavigation {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              Text(
+              GfText(
                 l10n.linkPreviewExternalTitle,
                 style: Theme.of(
                   context,
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
-              Text(l10n.linkPreviewExternalBody(uri.host)),
+              GfText(l10n.linkPreviewExternalBody(uri.host)),
               const SizedBox(height: 12),
-              SelectableText(
+              GfSelectableText(
                 uri.toString(),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: GfTheme.colorsOf(
@@ -102,7 +102,7 @@ abstract final class LinkNavigation {
                   value: remember,
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
-                  title: Text(l10n.linkPreviewRememberDomain),
+                  title: GfText(l10n.linkPreviewRememberDomain),
                   onChanged: (bool? value) =>
                       setState(() => remember = value ?? false),
                 ),

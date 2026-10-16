@@ -376,6 +376,216 @@ TotpDisableResponse:
     - $ref: '#/TotpDisableSuccess'
     - $ref: '#/ApiFailure'
 
+PasskeyStatusResult:
+  type: object
+  required: [enabled]
+  properties:
+    enabled:
+      type: boolean
+  additionalProperties: false
+
+PasskeyStatusResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              $ref: '#/PasskeyStatusResult'
+    - $ref: '#/ApiFailure'
+
+PasskeyWebAuthnOptions:
+  type: object
+  description: WebAuthn options serialized by the relying-party implementation.
+  additionalProperties: true
+
+PasskeyLoginBeginResult:
+  type: object
+  required: [ceremonyId, publicKey]
+  properties:
+    ceremonyId:
+      type: string
+      minLength: 32
+    publicKey:
+      $ref: '#/PasskeyWebAuthnOptions'
+  additionalProperties: false
+
+PasskeyLoginBeginResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              $ref: '#/PasskeyLoginBeginResult'
+    - $ref: '#/ApiFailure'
+
+PasskeyCredentialResponseObject:
+  type: object
+  description: WebAuthn public-key credential response; base64url encoded binary members.
+  additionalProperties: true
+
+PasskeyLoginFinishRequest:
+  type: object
+  required: [ceremonyId, credential]
+  properties:
+    ceremonyId:
+      type: string
+      minLength: 32
+    credential:
+      $ref: '#/PasskeyCredentialResponseObject'
+  additionalProperties: false
+
+PasskeyReauthRequest:
+  type: object
+  required: [encryptedPassword]
+  properties:
+    encryptedPassword:
+      type: string
+      minLength: 1
+      description: RSA-OAEP-256 encrypted password payload, matching POST /api/login.
+    totpCode:
+      type: string
+      description: Required only when TOTP is enabled.
+  additionalProperties: false
+
+PasskeyReauthResult:
+  type: object
+  required: [proof, expiresInSeconds]
+  properties:
+    proof:
+      type: string
+      minLength: 32
+    expiresInSeconds:
+      type: integer
+      const: 120
+  additionalProperties: false
+
+PasskeyReauthResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              $ref: '#/PasskeyReauthResult'
+    - $ref: '#/ApiFailure'
+
+PasskeyRegistrationBeginRequest:
+  type: object
+  required: [proof]
+  properties:
+    proof:
+      type: string
+      minLength: 32
+      description: One-use proof from POST /api/user/passkeys/reauth.
+  additionalProperties: false
+
+PasskeyRegistrationBeginResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              $ref: '#/PasskeyLoginBeginResult'
+    - $ref: '#/ApiFailure'
+
+PasskeyRegistrationFinishRequest:
+  type: object
+  required: [ceremonyId, credential]
+  properties:
+    ceremonyId:
+      type: string
+      minLength: 32
+    name:
+      type: string
+      maxLength: 80
+      description: Optional user-facing label; defaults to Passkey.
+    credential:
+      $ref: '#/PasskeyCredentialResponseObject'
+  additionalProperties: false
+
+PasskeyCredentialSummary:
+  type: object
+  required: [id, name, createdAt, backupEligible, backupState, transports]
+  properties:
+    id:
+      type: string
+      description: Base64url credential identifier, never a private key.
+    name:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+    lastUsedAt:
+      type: string
+      format: date-time
+    backupEligible:
+      type: boolean
+    backupState:
+      type: boolean
+    transports:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+PasskeyCredentialResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              $ref: '#/PasskeyCredentialSummary'
+    - $ref: '#/ApiFailure'
+
+PasskeyCredentialListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              type: array
+              items:
+                $ref: '#/PasskeyCredentialSummary'
+    - $ref: '#/ApiFailure'
+
+PasskeyCredentialRenameRequest:
+  type: object
+  required: [proof, credentialId, name]
+  properties:
+    proof:
+      type: string
+    credentialId:
+      type: string
+    name:
+      type: string
+      maxLength: 80
+  additionalProperties: false
+
+PasskeyCredentialRevokeRequest:
+  type: object
+  required: [proof, credentialId]
+  properties:
+    proof:
+      type: string
+    credentialId:
+      type: string
+  additionalProperties: false
+
+PasskeyEmptyResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              type: object
+    - $ref: '#/ApiFailure'
+
 AppleCredentialRequest:
   type: object
   required: [authorizationCode, identityToken, nonce]
@@ -1089,6 +1299,8 @@ UserSearchPayload:
   type: object
   required: [id, username, nickname, avatarUrl, bio]
   properties:
+    decoration:
+      $ref: "#/DecorationDisplay"
     id:
       type: integer
       format: uint64
@@ -1634,6 +1846,8 @@ ReviewAuthorPayload:
   type: object
   required: [kind, label]
   properties:
+    decoration:
+      $ref: "#/DecorationDisplay"
     kind:
       type: string
       enum: [anonymous, member, legacy]
@@ -2528,6 +2742,8 @@ TopicAuthorPayload:
   type: object
   required: [id, username, avatarUrl]
   properties:
+    decoration:
+      $ref: "#/DecorationDisplay"
     kind:
       type: string
       enum: [member, persona]
@@ -4507,6 +4723,8 @@ UserCard:
   type: object
   required: [userId, username, nickname, avatarUrl, profileCoverUrl, bio, signature, websiteName, website, prestige, isAdmin, topicCount, replyCount, likeReceivedCount, likeGivenCount, followerCount, followingCount, collectionCount, isOnline, isFollowing, externalInformation, isSelf, badges, lastActiveTime, createdAt, isAccountClosed]
   properties:
+    decoration:
+      $ref: "#/DecorationDisplay"
     userId:
       type: integer
       format: uint64
@@ -4781,6 +4999,11 @@ UploadAvatarRequest:
   type: object
   required: [avatar]
   properties:
+    agentId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Optional managed Bot target; human creator or station admin remains uploader and pays quotas.
     avatar:
       type: string
       format: binary
@@ -5015,6 +5238,8 @@ NotificationActorPayload:
   type: object
   required: [id, username, avatarUrl]
   properties:
+    decoration:
+      $ref: "#/DecorationDisplay"
     kind:
       type: string
       enum: [member, persona]
@@ -5068,6 +5293,10 @@ NotificationPayload:
     payload:
       type: object
       additionalProperties: true
+      properties:
+        hasDirectMention:
+          type: boolean
+          description: Structured direct mention reason; absent for historical rows without known reasons.
       description: Raw event payload (title/content/templateKey/templateParams/actorId/topicId/postId/metadata and friends); shape varies by eventType.
   additionalProperties: false
 
@@ -6265,8 +6494,18 @@ AdminOperationResponse:
 
 AdminAgentItem:
   type: object
-  required: [agentId, username, nickname, avatarUrl, email, tokenPrefix, webhookEndpoint, enabled, createdBy, lastUsedAt, createdAt, updatedAt, configVersion, eventsEnabled, eventTypes, subscriptionGeneration, webhookEnabled, endpointGeneration, secretConfigured, secretVersion, latestAcceptedAt, pendingCount, pauseReason, summaryUnavailable]
+  required: [agentId, username, nickname, avatarUrl, profileCoverUrl, bio, signature, website, websiteName, email, tokenPrefix, webhookEndpoint, enabled, createdBy, lastUsedAt, createdAt, updatedAt, configVersion, eventsEnabled, eventTypes, subscriptionGeneration, webhookEnabled, endpointGeneration, secretConfigured, secretVersion, latestAcceptedAt, pendingCount, pauseReason, summaryUnavailable]
   properties:
+    profileCoverUrl:
+      type: string
+    bio:
+      type: string
+    signature:
+      type: string
+    website:
+      type: string
+    websiteName:
+      type: string
     configVersion:
       type: integer
       minimum: 0
@@ -6407,6 +6646,29 @@ AdminAgentUpdateRequest:
   type: object
   required: [agentId]
   properties:
+    avatarUrl:
+      type: string
+      description: Applied only when present; must be a built-in preset or ready image file owned by the human actor or target Bot.
+    profileCoverUrl:
+      type: string
+      maxLength: 512
+      description: Applied only when present; empty text clears the field.
+    bio:
+      type: string
+      maxLength: 500
+      description: Applied only when present; empty text clears the field.
+    signature:
+      type: string
+      maxLength: 255
+      description: Applied only when present; empty text clears the field.
+    website:
+      type: string
+      maxLength: 255
+      description: Applied only when present; empty text clears the field.
+    websiteName:
+      type: string
+      maxLength: 64
+      description: Applied only when present; empty text clears the field.
     agentId:
       type: integer
       format: uint64
@@ -8745,11 +9007,14 @@ AdminStorageSettingsConfig:
     publicUrlPrefix:
       type: string
       description: Optional public (CDN) prefix; empty means files are served through the `/file/img` proxy.
+    forceProxyUpload:
+      type: boolean
+      description: "Operator switch (default false). When true, `/file/img-upload/init` answers `mode: proxy` even with the `s3` provider, so clients upload through `POST /file/img-upload` and the server writes to the bucket. Omitting the field on save keeps the stored value; it is always saved as false when provider is not `s3`."
   additionalProperties: false
 
 AdminStorageSettingsView:
   type: object
-  required: [provider, endpoint, bucket, region, bucketLookup, secure, accessKeyConfigured, secretKeyConfigured, publicUrlPrefix]
+  required: [provider, endpoint, bucket, region, bucketLookup, secure, accessKeyConfigured, secretKeyConfigured, publicUrlPrefix, forceProxyUpload]
   properties:
     provider:
       type: string
@@ -8774,6 +9039,8 @@ AdminStorageSettingsView:
       description: Whether a secret key is stored (encrypted with AES-256-GCM). The key itself is never returned (issue #324 S3).
     publicUrlPrefix:
       type: string
+    forceProxyUpload:
+      type: boolean
   additionalProperties: false
 
 AdminStorageSettingsResponse:
@@ -10129,7 +10396,8 @@ DirectImageUploadInitResult:
       type: string
       enum: [proxy, direct]
       description: |
-        `proxy` — continue with the multipart `POST /file/img-upload` (local provider).
+        `proxy` — continue with the multipart `POST /file/img-upload` (local provider, or the
+        `s3` provider with the operator switch `forceProxyUpload` enabled).
         `direct` — upload to `upload.url` with `upload.fields` + the file, then call
         `/file/img-upload/complete` with `name`.
     name:
@@ -10999,6 +11267,56 @@ UserBlockRequest:
       type: boolean
   additionalProperties: false
 
+# ================= Profile privacy (issue #1124) =================
+
+ProfileAudience:
+  type: string
+  description: Who can see a profile aggregate, from the widest to the narrowest audience.
+  enum: [everyone, members, followers, mutual, self]
+ProfileLikesAudience:
+  type: string
+  enum: [everyone, followers, self]
+ProfileConnectionsAudience:
+  type: string
+  enum: [everyone, followers, mutual, self]
+UserPrivacySettings:
+  type: object
+  required: [profileTopics, profileActivity, profileLikes, followingList, followersList]
+  properties:
+    profileTopics:
+      $ref: '#/ProfileAudience'
+    profileActivity:
+      $ref: '#/ProfileAudience'
+    profileLikes:
+      $ref: '#/ProfileLikesAudience'
+    followingList:
+      $ref: '#/ProfileConnectionsAudience'
+    followersList:
+      $ref: '#/ProfileConnectionsAudience'
+  additionalProperties: false
+UserPrivacySettingsSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      properties:
+        result:
+          $ref: '#/UserPrivacySettings'
+UserPrivacySettingsUpdateRequest:
+  type: object
+  minProperties: 1
+  properties:
+    profileTopics:
+      $ref: '#/ProfileAudience'
+    profileActivity:
+      $ref: '#/ProfileAudience'
+    profileLikes:
+      $ref: '#/ProfileLikesAudience'
+    followingList:
+      $ref: '#/ProfileConnectionsAudience'
+    followersList:
+      $ref: '#/ProfileConnectionsAudience'
+  additionalProperties: false
+
 
 # ================= AI image/text moderation（issue #975）=================
 
@@ -11565,3 +11883,644 @@ FeedSessionResponse:
     result: { $ref: '#/FeedSessionResult' }
     message: { type: string }
     messageCode: { type: string }
+
+DecorationStyle:
+  type: object
+  required:
+  - code
+  - name
+  - kind
+  - lightColors
+  - darkColors
+  - isEnabled
+  - sortOrder
+  properties:
+    assetScale:
+      type: number
+      minimum: 0.5
+      maximum: 2
+      default: 1.25
+      description: Frame artwork diameter relative to the avatar, centered without changing layout; omitted values use 1.25.
+    assetUrl:
+      type: string
+      pattern: ^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp)$
+      description: Optional same-origin PNG or WebP frame artwork installed under resource/static/decorations. External URLs are rejected.
+    code:
+      type: string
+      pattern: ^[a-z][a-z0-9_-]{0,63}$
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+    kind:
+      type: string
+      enum:
+      - avatarFrame
+      - nicknameStyle
+    lightColors:
+      type: array
+      minItems: 1
+      maxItems: 2
+      items:
+        type: string
+        pattern: ^#[0-9A-Fa-f]{6}$
+    darkColors:
+      type: array
+      minItems: 1
+      maxItems: 2
+      items:
+        type: string
+        pattern: ^#[0-9A-Fa-f]{6}$
+    isEnabled:
+      type: boolean
+    sortOrder:
+      type: integer
+      minimum: 0
+      maximum: 100000
+  additionalProperties: false
+DecorationDisplay:
+  type: object
+  properties:
+    avatarFrame:
+      $ref: '#/DecorationStyle'
+    nicknameStyle:
+      $ref: '#/DecorationStyle'
+  additionalProperties: false
+DecorationEquipped:
+  type: object
+  required:
+  - avatarFrame
+  - nicknameStyle
+  properties:
+    avatarFrame:
+      type: string
+      maxLength: 64
+    nicknameStyle:
+      type: string
+      maxLength: 64
+  additionalProperties: false
+DecorationState:
+  type: object
+  required:
+  - catalog
+  - ownedCodes
+  - equipped
+  properties:
+    catalog: &id001
+      type: array
+      items:
+        $ref: '#/DecorationStyle'
+    ownedCodes: &id002
+      type: array
+      uniqueItems: true
+      items:
+        type: string
+    equipped: &id003
+      $ref: '#/DecorationEquipped'
+  additionalProperties: false
+DecorationAdjustmentRequest:
+  type: object
+  required:
+  - userId
+  - code
+  - reason
+  - requestKey
+  properties:
+    userId:
+      type: integer
+      minimum: 1
+    code:
+      type: string
+      pattern: ^[a-z][a-z0-9_-]{0,63}$
+    reason:
+      type: string
+      minLength: 1
+      maxLength: 512
+    requestKey:
+      type: string
+      minLength: 8
+      maxLength: 128
+  additionalProperties: false
+DecorationAudit:
+  type: object
+  required:
+  - id
+  - requestKey
+  - userId
+  - code
+  - action
+  - source
+  - actorId
+  - reason
+  - createdAt
+  properties:
+    id:
+      type: integer
+    requestKey:
+      type: string
+    userId:
+      type: integer
+    code:
+      type: string
+    action:
+      type: string
+      enum:
+      - grant
+      - revoke
+      - equip
+      - definition
+    source:
+      type: string
+      enum:
+      - manual
+      - xp
+      - trust
+      - credit
+      - migration
+      - self
+    actorId:
+      type: integer
+    reason:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+AdminDecorationState:
+  type: object
+  required:
+  - catalog
+  - ownedCodes
+  - equipped
+  - audits
+  properties:
+    catalog: *id001
+    ownedCodes: *id002
+    equipped: *id003
+    audits:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/DecorationAudit'
+  additionalProperties: false
+DecorationStateResponse:
+  oneOf:
+  - type: object
+    required:
+    - code
+    - result
+    properties:
+      code:
+        type: integer
+        const: 0
+      result:
+        $ref: '#/DecorationState'
+    additionalProperties: false
+  - $ref: '#/ApiFailure'
+AdminDecorationStateResponse:
+  oneOf:
+  - type: object
+    required:
+    - code
+    - result
+    properties:
+      code:
+        type: integer
+        const: 0
+      result:
+        $ref: '#/AdminDecorationState'
+    additionalProperties: false
+  - $ref: '#/ApiFailure'
+DecorationListResponse:
+  oneOf:
+  - type: object
+    required:
+    - code
+    - result
+    properties:
+      code:
+        type: integer
+        const: 0
+      result:
+        type: array
+        items:
+          $ref: '#/DecorationStyle'
+    additionalProperties: false
+  - $ref: '#/ApiFailure'
+DecorationStyleResponse:
+  oneOf:
+  - type: object
+    required:
+    - code
+    - result
+    properties:
+      code:
+        type: integer
+        const: 0
+      result:
+        $ref: '#/DecorationStyle'
+    additionalProperties: false
+  - $ref: '#/ApiFailure'
+
+# ================= Admin content contribution stats（issue #1145）=================
+# Scope, attribution and 0-vs-estimated rules: see paths/admin-stats.yaml.
+
+AdminStatsCategorySummaryRequest:
+  type: object
+  properties:
+    startDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago.
+    endDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today.
+  additionalProperties: false
+
+AdminStatsCategoryTrendRequest:
+  type: object
+  required: [categoryId]
+  properties:
+    startDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago.
+    endDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today.
+    categoryId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Required category id; an unknown id fails with `common.request.invalidParams`.
+  additionalProperties: false
+
+AdminStatsUserRankingRequest:
+  type: object
+  properties:
+    startDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago.
+    endDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today.
+    categoryId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Category filter; 0 or omitted means whole-site.
+    sortBy:
+      type: string
+      enum: [topics, replies, likes]
+      description: Ordering metric, descending; empty or omitted defaults to `topics`, and ties break on `userId` ascending.
+    page:
+      type: integer
+      minimum: 1
+      maximum: 10000
+      description: >-
+        1-based page number, echoed unchanged; omitted defaults to page 1. Values above the 10000
+        cap are rejected as `common.request.invalidParams` with `params.field = page` rather than
+        clamped or silently truncated, because deeper windows are meaningless and would overflow
+        the offset arithmetic.
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 100
+      description: Page size; omitted defaults to 20, and values outside 1-100 are rejected rather than clamped.
+    actorType:
+      type: integer
+      enum: [0, 1]
+      description: Contributor population to rank; 0 = human accounts (default when omitted), 1 = agent (bot) accounts.
+  additionalProperties: false
+
+AdminStatsUserDetailRequest:
+  type: object
+  properties:
+    startDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago.
+    endDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today.
+    categoryId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Category filter; 0 or omitted means whole-site.
+    userId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Account id; exactly one of `userId` / `username` must be given.
+    username:
+      type: string
+      minLength: 1
+      description: Account username; exactly one of `userId` / `username` must be given.
+  additionalProperties: false
+  description: >-
+    Exactly one of `userId` and `username` identifies the account; passing both or neither fails with
+    `common.request.invalidParams`. `userId` is the authoritative form (the numeric forum user id),
+    `username` the by-name convenience form.
+
+AdminStatsCoverage:
+  type: object
+  required: [timezone, maxRangeDays, estimated]
+  properties:
+    timezone:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: >-
+        Runtime-derived server-local timezone whose calendar days the range was sliced by (there is no
+        site-level timezone setting). Formatted as `"<abbreviation> (UTC±HH:MM)"`, e.g. `CST (UTC+08:00)`
+        or `UTC (UTC+00:00)`; the abbreviation is the `time.Local` zone name, or `Local` when that name is
+        empty or literally `Local`.
+    maxRangeDays:
+      type: integer
+      minimum: 1
+      description: Inclusive date-range span cap in days currently enforced (366), echoed so the UI can show the limit without hard-coding it.
+    estimated:
+      type: boolean
+      description: True when any counted row's first-public time was backfilled from `created_at` (`first_public_estimated`), i.e. not an exact audit-time record.
+  additionalProperties: false
+
+AdminStatsCategoryItem:
+  type: object
+  required: [categoryId, name, topicCount, replyCount, contributorCount, agentContributorCount]
+  properties:
+    categoryId:
+      type: integer
+      format: uint64
+      minimum: 1
+    name:
+      type: string
+      description: Current category name.
+    topicCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range topics currently attributed to this category (a topic in several categories counts once per category).
+    replyCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range replies of those topics (`post_no > 1`; the first floor is not a reply).
+    contributorCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Distinct human accounts (`actor_type = 0`) that authored one of them; anonymous rows and soft-deleted users excluded.
+    agentContributorCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Distinct agent accounts (`actor_type = 1`) that authored one of them, kept separate from `contributorCount`.
+  additionalProperties: false
+
+AdminStatsTotals:
+  type: object
+  required: [topicCount, replyCount, contributorCount, agentContributorCount]
+  properties:
+    topicCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Whole-site in-range topics, deduplicated by topic id (unaffected by multi-category attribution).
+    replyCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Whole-site in-range replies, deduplicated by post id.
+    contributorCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Distinct human accounts contributing site-wide; per-day counts are never summed.
+    agentContributorCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Distinct agent accounts contributing site-wide.
+  additionalProperties: false
+
+AdminStatsCategorySummaryResult:
+  type: object
+  required: [categories, totals, coverage]
+  properties:
+    categories:
+      type: array
+      items:
+        $ref: '#/AdminStatsCategoryItem'
+      description: Every category, zero-filled when it has no in-range contribution, ordered by `topicCount` descending then `categoryId` ascending.
+    totals:
+      $ref: '#/AdminStatsTotals'
+    coverage:
+      $ref: '#/AdminStatsCoverage'
+  additionalProperties: false
+
+AdminStatsCategorySummaryResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminStatsCategorySummaryResult'
+    - $ref: '#/ApiFailure'
+
+AdminStatsDayCount:
+  type: object
+  required: [date, topicCount, replyCount, estimated]
+  properties:
+    date:
+      type: string
+      description: YYYY-MM-DD, server-local day.
+    topicCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Topics attributed to this day; 0 when the day has no contribution.
+    replyCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Replies attributed to this day; 0 when the day has no contribution.
+    estimated:
+      type: boolean
+      description: True when this day's counts include a row whose first-public time was backfilled from `created_at`.
+  additionalProperties: false
+
+AdminStatsCategoryTrendResult:
+  type: object
+  required: [categoryId, days, coverage]
+  properties:
+    categoryId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Echo of the requested category id.
+    days:
+      type: array
+      items:
+        $ref: '#/AdminStatsDayCount'
+      description: One entry per in-range day, ascending; days without contribution are present with zero counts.
+    coverage:
+      $ref: '#/AdminStatsCoverage'
+  additionalProperties: false
+
+AdminStatsCategoryTrendResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminStatsCategoryTrendResult'
+    - $ref: '#/ApiFailure'
+
+AdminStatsUserRankingItem:
+  type: object
+  required: [userId, username, nickname, actorType, topicCount, replyCount, likeCount]
+  properties:
+    userId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Numeric forum user id (also the OIDC `sub`).
+    username:
+      type: string
+    nickname:
+      type: string
+    actorType:
+      type: integer
+      enum: [0, 1]
+      description: 0 = human account, 1 = agent (bot) account; matches the request `actorType` filter.
+    topicCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range topics authored under the requested scope.
+    replyCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range replies authored under the requested scope.
+    likeCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Likes still effective on those topics and replies; cancelled likes are not counted.
+  additionalProperties: false
+
+AdminStatsUserRankingResult:
+  type: object
+  required: [items, page, pageSize, total, coverage]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/AdminStatsUserRankingItem'
+      description: Ranked page; an empty array when nothing matches. Anonymous content and soft-deleted users never appear.
+    page:
+      type: integer
+      minimum: 1
+      description: 1-based page number, echoed unchanged.
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 100
+      description: Effective page size.
+    total:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Number of accounts matching the filters (the paging denominator), independent of `page`.
+    coverage:
+      $ref: '#/AdminStatsCoverage'
+  additionalProperties: false
+
+AdminStatsUserRankingResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminStatsUserRankingResult'
+    - $ref: '#/ApiFailure'
+
+AdminStatsUserDetailUser:
+  type: object
+  required: [userId, username, nickname, actorType]
+  properties:
+    userId:
+      type: integer
+      format: uint64
+      minimum: 1
+    username:
+      type: string
+    nickname:
+      type: string
+    actorType:
+      type: integer
+      enum: [0, 1]
+      description: 0 = human account, 1 = agent (bot) account.
+  additionalProperties: false
+
+AdminStatsUserDetailSummary:
+  type: object
+  required: [topicCount, replyCount, likeCount]
+  properties:
+    topicCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range topics authored under the requested scope; 0 when the account had no contribution.
+    replyCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range replies authored under the requested scope; 0 when the account had no contribution.
+    likeCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Likes still effective on those topics and replies; cancelled likes are not counted.
+  additionalProperties: false
+
+AdminStatsUserDetailResult:
+  type: object
+  required: [user, summary, days, coverage]
+  properties:
+    user:
+      $ref: '#/AdminStatsUserDetailUser'
+    summary:
+      $ref: '#/AdminStatsUserDetailSummary'
+    days:
+      type: array
+      items:
+        $ref: '#/AdminStatsDayCount'
+      description: One entry per in-range day, ascending, zero-filled for days without contribution.
+    coverage:
+      $ref: '#/AdminStatsCoverage'
+  additionalProperties: false
+
+AdminStatsUserDetailResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminStatsUserDetailResult'
+    - $ref: '#/ApiFailure'

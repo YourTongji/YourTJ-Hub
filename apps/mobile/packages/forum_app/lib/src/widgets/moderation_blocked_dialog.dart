@@ -32,14 +32,14 @@ Future<bool> showModerationBlockedDialog(
     context,
     barrierDismissible: true,
     builder: (dialogContext) => GfAlertDialog(
-      title: Text(l10n.moderationBlockedTitle),
+      title: GfText(l10n.moderationBlockedTitle),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(resolveErrorMessage(l10n, error)),
+          GfText(resolveErrorMessage(l10n, error)),
           const SizedBox(height: 8),
-          Text(
+          GfText(
             externalImage
                 ? l10n.moderationBlockedExternalHint
                 : l10n.moderationBlockedPolicyHint,
@@ -53,7 +53,7 @@ Future<bool> showModerationBlockedDialog(
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Text(
+              child: GfText(
                 l10n.moderationBlockedDraftKept,
                 style: TextStyle(fontSize: 13, color: colors.iconMuted),
               ),

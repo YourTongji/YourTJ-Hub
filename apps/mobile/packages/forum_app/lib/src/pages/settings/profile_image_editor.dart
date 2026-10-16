@@ -85,7 +85,9 @@ class _ProfileImageEditorState extends State<ProfileImageEditor> {
       child: Scaffold(
         backgroundColor: GfTheme.colorsOf(context).base100,
         appBar: GfAppBar(
-          title: Text(widget.cover ? l10n.settingsCover : l10n.settingsAvatar),
+          title: GfText(
+            widget.cover ? l10n.settingsCover : l10n.settingsAvatar,
+          ),
           leading: IconButton(
             icon: const GfSymbol('x'),
             tooltip: l10n.commonCancel,
@@ -94,7 +96,7 @@ class _ProfileImageEditorState extends State<ProfileImageEditor> {
           actions: [
             TextButton(
               onPressed: _saving ? null : _save,
-              child: Text(
+              child: GfText(
                 _saving
                     ? (widget.savingLabel ?? l10n.settingsAvatarUploading)
                     : (widget.confirmLabel ?? l10n.commonSave),
@@ -114,7 +116,7 @@ class _ProfileImageEditorState extends State<ProfileImageEditor> {
                     child: Column(
                       children: [
                         const SizedBox(height: 24),
-                        Text(
+                        GfText(
                           l10n.settingsCropHint,
                           textAlign: TextAlign.center,
                         ),
@@ -212,7 +214,7 @@ class _ProfileImageEditorState extends State<ProfileImageEditor> {
                         if (widget.cover)
                           Padding(
                             padding: const EdgeInsets.only(top: 12),
-                            child: Text(
+                            child: GfText(
                               l10n.settingsCoverSafeArea,
                               textAlign: TextAlign.center,
                             ),
@@ -250,13 +252,13 @@ class _ProfileImageEditorState extends State<ProfileImageEditor> {
                                   _offset = Offset.zero;
                                 }),
                           icon: const GfSymbol('undo-2'),
-                          label: Text(l10n.settingsCropReset),
+                          label: GfText(l10n.settingsCropReset),
                         ),
                         if (_saving) const LinearProgressIndicator(),
                         if (_error != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 16),
-                            child: Text(
+                            child: GfText(
                               resolveErrorMessage(l10n, _error!),
                               style: TextStyle(
                                 color: Theme.of(context).colorScheme.error,

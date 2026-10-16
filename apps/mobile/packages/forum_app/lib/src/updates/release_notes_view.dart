@@ -61,7 +61,7 @@ class ReleaseNotesView extends StatelessWidget {
         ],
         if (!historyComplete) ...[
           if (groups.isNotEmpty) const SizedBox(height: 16),
-          Text(
+          GfText(
             l10n.releaseNotesIncomplete,
             style: type.caption.copyWith(
               color: colors.baseContent.withValues(alpha: 0.6),
@@ -98,7 +98,7 @@ class _NoteGroup extends StatelessWidget {
               GfSymbol(symbol, size: 16, color: muted),
               const SizedBox(width: 6),
               Flexible(
-                child: Text(
+                child: GfText(
                   label,
                   style: type.caption.copyWith(
                     color: muted,
@@ -143,10 +143,10 @@ class _NoteItem extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (hasTitle) Text(note.title, style: type.bodyStrong),
+          if (hasTitle) GfText(note.title, style: type.bodyStrong),
           if (hasTitle && !restated) const SizedBox(height: 2),
           if (!restated)
-            Text(
+            GfText(
               note.summary,
               style: type.small.copyWith(
                 height: 1.45,

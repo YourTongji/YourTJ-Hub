@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../atoms/gf_loading_indicator.dart';
 import '../gf_button.dart';
 import '../gf_media_image.dart';
@@ -164,7 +165,7 @@ class _GfPostComposerState extends State<GfPostComposer> {
                               ),
                               const SizedBox(width: 6),
                               Expanded(
-                                child: Text(
+                                child: GfText(
                                   widget.targetLabel ?? widget.targetName!,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,

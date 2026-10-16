@@ -1,4 +1,5 @@
-import { createApp, h } from 'vue'
+import { h } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import type { PostPayload } from '@gooseforum/client'
 import { layout, memberProfile, anonymousProfile, persona, identityState } from '../profile'

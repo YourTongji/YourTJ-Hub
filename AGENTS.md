@@ -41,10 +41,11 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   interactions (post create/update/delete/window/revisions, topic status/delete/like/bookmark/watch,
   post like/bookmark, follow-user, report), user account and identity (captcha, user-card,
   profile/email/username/avatar/badge settings, upload-avatar, change-password, OAuth
-  bindings/unbind), notifications/unread/chat, forum moderation workbench, the admin console
+  bindings/unbind, profile privacy settings), notifications/unread/chat, forum moderation workbench, the admin console
   (`/api/admin/*`: user/role/category/moderator management, topic/post moderation, agent
-  administration, operation records, traffic overview, page settings, site settings, data
-  import/export), account
+  administration, operation records, traffic overview, content contribution statistics
+  (per-category summary/trend and contributor ranking/account detail), page settings, site settings,
+  data import/export), account
   registration/password recovery (`/api/register`, `/api/forgot-password`, `/api/reset-password`),
   the six-operation Agent forum API, course catalog reads + review write/moderation, the Wiki domain
   (public tree/namespaces/home + admin read-only tree + sync/status|sync|sync/runs +
@@ -118,8 +119,11 @@ docs/        Docs center (product/architecture/development/operations)
   Route coverage is gated: every route from `RegisterByGin` (snapshot
   `packages/api-contract/fixtures/routes-snapshot.json`, regenerate with
   `YOURTJ_UPDATE_ROUTES_SNAPSHOT=1 go test ./app/http/routes/ -run TestRoutesSnapshot`) must be an
-  OpenAPI operation or listed in `packages/api-contract/route-coverage.json`, and the generated
-  `packages/api-contract/coverage-matrix.md` must be committed — `pnpm run check` and CI fail otherwise.
+  OpenAPI operation or listed in `packages/api-contract/route-coverage.json`. `pnpm run check` and CI
+  validate coverage and generate the ignored `packages/api-contract/.tmp/coverage-matrix.md` report;
+  CI publishes it as a job summary and artifact. Commit the route snapshot and contract inputs,
+  not the generated coverage report. The stable [report entry](packages/api-contract/coverage-matrix.md)
+  explains how to reproduce and find it.
 - Design-token changes ship in the same PR: changing `resource/src/styles/tokens.css` requires
   updating `apps/mobile/packages/ui_kit/lib/src/theme/tokens.json` in the same commit.
 - Web `serverMessages` changes ship in the same PR: changing `server`/`serverMessages` keys in
@@ -140,8 +144,13 @@ docs/        Docs center (product/architecture/development/operations)
 
 ## 4. Verification
 - Run only the checks relevant to the change locally; CI owns the full repository-wide gate matrix.
-  Before push, lefthook pre-push runs `go vet ./...` + `golangci-lint run` (incremental against
-  `origin/dev`, full fallback) + `pnpm typecheck` + the web i18n gate `pnpm check` (see `make hooks`).
+  Before push, lefthook pre-push runs `go vet ./...` + `golangci-lint` incrementally against the freshly
+  fetched PR base + `pnpm typecheck` + the web i18n gate `pnpm check` (see `make hooks`). It resolves an
+  existing PR base with GitHub CLI, uses `YourTongji/YourTJ-Hub:dev` when GitHub CLI confirms no PR exists,
+  and accepts `YOURTJ_LINT_BASE=owner/repo:branch` for a different planned target or when GitHub CLI is
+  unavailable (a readable PR base takes precedence). If the configured remote transport fails, it retries
+  the same base over HTTPS.
+  If the selected base cannot be fetched and verified, the hook fails instead of skipping lint.
 - Bug fixes start red: write the smallest failing test first, run it to confirm the failure, then
   implement and turn it green. Mechanical changes (rename, formatting, dependency bump, docs-only)
   are exempt; the regression test stays.

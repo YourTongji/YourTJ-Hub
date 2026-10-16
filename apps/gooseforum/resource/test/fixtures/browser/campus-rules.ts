@@ -1,4 +1,5 @@
-import { createApp, h } from 'vue'
+import { h } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import { i18n, setLocale } from '../../../src/runtime/i18n'
 await setLocale((new URLSearchParams(location.search).get('lang') || 'zh') as 'zh' | 'en' | 'ja' | 'de')
 import CampusCalendarRulesPage from '../../../src/admin/pages/CampusCalendarRulesPage.vue'

@@ -34,6 +34,7 @@ class RootSurface extends ConsumerWidget {
     this.onSwipeTabChanged,
     this.swipePageBuilder,
     this.swipePageKey,
+    this.statusBarScrollToTopController,
   });
   final String title;
   final Widget? titleWidget;
@@ -52,6 +53,7 @@ class RootSurface extends ConsumerWidget {
   final Widget Function(int index, double topInset, double bottomInset)?
   swipePageBuilder;
   final Object Function(int index)? swipePageKey;
+  final GfScrollToTopController? statusBarScrollToTopController;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -90,7 +92,7 @@ class RootSurface extends ConsumerWidget {
     final contentBottom = hasRail
         ? 24.0 + bottom
         : navMetrics.contentBottomInset;
-    final surface = Scaffold(
+    final scaffold = Scaffold(
       body: SafeArea(
         bottom: false,
         child: ClipRect(
@@ -166,7 +168,7 @@ class RootSurface extends ConsumerWidget {
                                         titleWidget ??
                                         (showLogo || title.isEmpty
                                             ? const GfLogo(size: 32)
-                                            : Text(
+                                            : GfText(
                                                 title,
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
@@ -235,6 +237,10 @@ class RootSurface extends ConsumerWidget {
           ),
         ),
       ),
+    );
+    final surface = GfStatusBarScrollToTop(
+      controller: statusBarScrollToTopController,
+      child: scaffold,
     );
     return swipeTabIndex != null &&
             swipeTabCount > 1 &&

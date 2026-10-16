@@ -81,7 +81,7 @@ class ChatImage extends ConsumerWidget {
       baseUrl: baseUrl,
       assetOrigins: AppConfig.chatImageOrigins.split(','),
     )) {
-      return Text(l10n.commonLoadFailed);
+      return GfText(l10n.commonLoadFailed);
     }
     final resolved = Uri.parse(baseUrl).resolve(url).toString();
     final pixelRatio = MediaQuery.devicePixelRatioOf(context);
@@ -142,7 +142,7 @@ class ChatImage extends ConsumerWidget {
             errorBuilder: (context, _, _) => SizedBox(
               width: 240,
               height: 100,
-              child: Center(child: Text(l10n.commonLoadFailed)),
+              child: Center(child: GfText(l10n.commonLoadFailed)),
             ),
           ),
         ),
@@ -202,25 +202,25 @@ class _ChatImagePreviewState extends ConsumerState<ChatImagePreview> {
     return PopScope(
       canPop: !_uploading,
       child: AlertDialog(
-        title: Text(l10n.messagesImage),
+        title: GfText(l10n.messagesImage),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Image.memory(widget.bytes, height: 240, fit: BoxFit.contain),
               if (_uploading) const LinearProgressIndicator(),
-              if (_error != null) Text(resolveErrorMessage(l10n, _error!)),
+              if (_error != null) GfText(resolveErrorMessage(l10n, _error!)),
             ],
           ),
         ),
         actions: [
           TextButton(
             onPressed: _uploading ? null : () => Navigator.pop(context),
-            child: Text(l10n.commonCancel),
+            child: GfText(l10n.commonCancel),
           ),
           FilledButton(
             onPressed: _uploading ? null : _send,
-            child: Text(_error == null ? l10n.commonSend : l10n.commonRetry),
+            child: GfText(_error == null ? l10n.commonSend : l10n.commonRetry),
           ),
         ],
       ),

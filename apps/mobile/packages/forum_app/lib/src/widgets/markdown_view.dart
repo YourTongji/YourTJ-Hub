@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:html/parser.dart' show parseFragment;
 import 'package:markdown_widget/markdown_widget.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -81,6 +82,8 @@ class GfMarkdownView extends ConsumerStatefulWidget {
 class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
   late Widget _markdownBody;
   Future<List<LinkPreviewPayload>>? _linkPreviews;
+  String _linkPreviewSelectionSource = '';
+  int _linkPreviewGeneration = 0;
 
   Map<String, String> _stickerUrls = const {};
 
@@ -106,7 +109,11 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         oldWidget.compact != widget.compact ||
         !listEquals(oldWidget.images, widget.images) ||
         !listEquals(oldWidget.mentions, widget.mentions)) {
-      if (oldWidget.data != widget.data) _linkPreviews = null;
+      if (oldWidget.data != widget.data) {
+        _linkPreviews = null;
+        _linkPreviewSelectionSource = '';
+        _linkPreviewGeneration++;
+      }
       _contentScale = ref.read(contentFontScaleProvider);
       _markdownBody = _buildMarkdownBody(_contentScale);
     }
@@ -117,6 +124,50 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
     // relative and absolute destinations so the viewer mirrors the renderer.
     final RegExp re = RegExp(r'!\[([^\]]*)\]\(([^)\s]+)\)');
     return re.allMatches(data).map((m) => m.group(2)!).toList(growable: false);
+  }
+
+  Future<List<LinkPreviewPayload>> _loadLinkPreviews(
+    List<String> urls,
+    int generation,
+  ) async {
+    final previews = await ref
+        .read(linkPreviewRepositoryProvider)
+        .resolve(urls);
+    if (!mounted || generation != _linkPreviewGeneration) return previews;
+
+    // These are the text values GfLinkPreviewCard can expose through GfText.
+    // Reserve them in the shared selection registry before the FutureBuilder
+    // mounts the card, so late PUA characters cannot collide with an Emoji
+    // placeholder allocated by an earlier Markdown block.
+    final AppLocalizations? l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    final String source = previews
+        .expand(
+          (preview) => <String>[
+            preview.siteName ?? '',
+            preview.displayHost ?? '',
+            preview.title ?? '',
+            preview.description ?? '',
+            if (preview.campus) l10n?.linkPreviewCampusFallbackTitle ?? '',
+            if (preview.campus)
+              l10n?.linkPreviewCampusFallbackDescription ?? '',
+          ],
+        )
+        .join('\n');
+    if (source == _linkPreviewSelectionSource) return previews;
+
+    setState(() {
+      _linkPreviewSelectionSource = source;
+      _markdownBody = _buildMarkdownBody(_contentScale);
+    });
+    // GfSelectionArea must receive the expanded reservation before
+    // FutureBuilder exposes the returned preview widgets to the selection
+    // scope. Otherwise a descendant's late source registration can make its
+    // Emoji placeholder ambiguous and disable copying.
+    await WidgetsBinding.instance.endOfFrame;
+    return previews;
   }
 
   void _openViewer(BuildContext context, List<String> urls, int index) {
@@ -228,7 +279,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         H3Config(style: profile.h3),
         H4Config(style: profile.h4),
         H5Config(style: profile.h5),
-        H6Config(style: profile.h6),        // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
+        H6Config(style: profile.h6), // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
         ImgConfig(
           builder: (String url, Map<String, String> attributes) {
             final sticker = stickerImages[url];
@@ -340,16 +391,34 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
 
     Widget buildMarkdown(String source) => MarkdownWidget(
       data: source,
-      selectable: widget.selectable && !widget.screenshot,
+      // The shared selection area below owns selection across every Markdown
+      // block; GfText joins its registrar and Twemoji restoration scope.
+      selectable: false,
       shrinkWrap: true,
       markdownGenerator: MarkdownGenerator(
         linesMargin: EdgeInsets.symmetric(vertical: profile.paragraphSpacing),
+        richTextBuilder: (span) => GfText.rich(span),
       ),
       // Embedded in the page scroll view: never repeat its safe-area insets.
       padding: EdgeInsets.zero,
       physics: const NeverScrollableScrollPhysics(),
       config: config,
     );
+
+    Widget withMarkdownSelection(Widget child) {
+      if (!widget.selectable || widget.screenshot) return child;
+
+      // Include decoded numeric entities so every code unit a rendered leaf
+      // can expose is reserved before Twemoji placeholder allocation. Avoid
+      // parsing Markdown without entity syntax on the common path.
+      final String entityText = data.contains('&#')
+          ? parseFragment(data).text ?? ''
+          : '';
+      return GfSelectionArea(
+        selectionSource: '$data$entityText$_linkPreviewSelectionSource',
+        child: child,
+      );
+    }
 
     final List<LinkPreviewMarkdownBlock> blocks = splitLinkPreviewMarkdown(
       data,
@@ -358,26 +427,30 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         .where((LinkPreviewMarkdownBlock block) => block.isPreview)
         .map((LinkPreviewMarkdownBlock block) => block.url!)
         .toList(growable: false);
-    if (previewUrls.isEmpty || widget.screenshot) return buildMarkdown(data);
+    if (previewUrls.isEmpty || widget.screenshot) {
+      return withMarkdownSelection(buildMarkdown(data));
+    }
 
-    Future<List<LinkPreviewPayload>> loadPreviews() => _linkPreviews ??= ref
-        .read(linkPreviewRepositoryProvider)
-        .resolve(previewUrls);
+    Future<List<LinkPreviewPayload>> loadPreviews() => _linkPreviews ??=
+        _loadLinkPreviews(previewUrls, _linkPreviewGeneration);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        for (final LinkPreviewMarkdownBlock block in blocks)
-          if (block.isPreview)
-            _DeferredLinkPreview(
-              url: block.url!,
-              fallback: buildMarkdown(block.markdown),
-              load: loadPreviews,
-            )
-          else
-            buildMarkdown(block.markdown),
-      ],
+    return withMarkdownSelection(
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          for (final LinkPreviewMarkdownBlock block in blocks)
+            if (block.isPreview)
+              _DeferredLinkPreview(
+                url: block.url!,
+                sourceRevision: _linkPreviewGeneration,
+                fallback: buildMarkdown(block.markdown),
+                load: loadPreviews,
+              )
+            else
+              buildMarkdown(block.markdown),
+        ],
+      ),
     );
   }
 
@@ -400,11 +473,13 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
 class _DeferredLinkPreview extends StatefulWidget {
   const _DeferredLinkPreview({
     required this.url,
+    required this.sourceRevision,
     required this.fallback,
     required this.load,
   });
 
   final String url;
+  final int sourceRevision;
   final Widget fallback;
   final Future<List<LinkPreviewPayload>> Function() load;
 
@@ -437,7 +512,10 @@ class _DeferredLinkPreviewState extends State<_DeferredLinkPreview> {
   @override
   void didUpdateWidget(covariant _DeferredLinkPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.url == widget.url) return;
+    if (oldWidget.url == widget.url &&
+        oldWidget.sourceRevision == widget.sourceRevision) {
+      return;
+    }
     _retry?.cancel();
     _future = null;
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadWhenVisible());
@@ -591,7 +669,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
                   const SizedBox(width: 8),
                 ],
                 Expanded(
-                  child: Text(
+                  child: GfText(
                     sourceLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -603,7 +681,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
               ],
             ),
             const SizedBox(height: 4),
-            Text(
+            GfText(
               title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -615,7 +693,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
             ),
             if (description.isNotEmpty && descriptionLines > 0) ...<Widget>[
               const SizedBox(height: 12),
-              Text(
+              GfText(
                 description,
                 maxLines: descriptionLines,
                 overflow: TextOverflow.ellipsis,
@@ -628,7 +706,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
             ],
             if (hostLabel.isNotEmpty) ...<Widget>[
               const SizedBox(height: 12),
-              Text(
+              GfText(
                 hostLabel,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

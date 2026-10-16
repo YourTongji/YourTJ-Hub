@@ -11,6 +11,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../current_user.dart';
 import '../providers.dart';
 import '../router.dart';
+import '../navigation/route_visibility.dart';
+import 'push_route.dart';
+export 'push_route.dart';
 
 enum PushChannelStatus {
   unknown,
@@ -42,6 +45,22 @@ class PushDriver {
   Future<void> stop() => channel.invokeMethod<void>('stop');
   Future<String?> initialRoute() =>
       channel.invokeMethod<String>('initialRoute');
+  Future<void> presentation({
+    required int userId,
+    required int peerId,
+    required bool foreground,
+  }) async {
+    try {
+      await channel.invokeMethod<void>('presentation', {
+        'userId': userId,
+        'peerId': peerId,
+        'foreground': foreground,
+      });
+    } on MissingPluginException {
+      // Unsupported platforms have no native notification presenter.
+    }
+  }
+
   void listen(
     void Function(String) tokenChanged,
     void Function(String) opened,
@@ -59,22 +78,6 @@ class PushDriver {
 }
 
 final pushDriverProvider = Provider<PushDriver>((ref) => PushDriver());
-
-/// Notifications may navigate only to notification-owned in-app routes.
-String? pushRoute(String? value) {
-  if (value == null) return null;
-  final uri = Uri.tryParse(value);
-  if (uri == null || uri.hasScheme || uri.hasAuthority || uri.hasFragment) {
-    return null;
-  }
-  if (RegExp(r'^/p/[0-9]+$').hasMatch(uri.path) ||
-      RegExp(r'^/u/[0-9]+$').hasMatch(uri.path) ||
-      uri.path == '/notifications' ||
-      uri.path == '/my-content') {
-    return value;
-  }
-  return null;
-}
 
 class PushController extends Notifier<PushChannelStatus>
     with WidgetsBindingObserver {
@@ -95,6 +98,7 @@ class PushController extends Notifier<PushChannelStatus>
   String? _lastToken;
   PushRepository? _sessionRepository;
   int? _sessionUserId;
+  int? _sessionEpoch;
   Future<void>? _pendingRegistration;
   Future<void>? _stopping;
 
@@ -108,6 +112,7 @@ class PushController extends Notifier<PushChannelStatus>
     }, _open);
     WidgetsBinding.instance.addObserver(this);
     appRouter.routeInformationProvider.addListener(_onRouteChanged);
+    visibleChatPeer.addListener(_onRouteChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_disposed) return;
       _firstFrameComplete = true;
@@ -126,6 +131,7 @@ class PushController extends Notifier<PushChannelStatus>
       _generation++;
       WidgetsBinding.instance.removeObserver(this);
       appRouter.routeInformationProvider.removeListener(_onRouteChanged);
+      visibleChatPeer.removeListener(_onRouteChanged);
       _driver.dispose();
     });
     Future.microtask(refresh);
@@ -139,10 +145,29 @@ class PushController extends Notifier<PushChannelStatus>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    unawaited(
+      _syncPresentation(foreground: state == AppLifecycleState.resumed),
+    );
     if (state == AppLifecycleState.resumed) unawaited(refresh());
   }
 
+  Future<void> _syncPresentation({bool? foreground}) async {
+    final peer = visibleChatPeer.value;
+    try {
+      await _driver.presentation(
+        userId: _sessionUserId ?? 0,
+        peerId: peer,
+        foreground:
+            foreground ??
+            WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
+      );
+    } catch (_) {
+      /* A bridge failure must not block session cleanup. */
+    }
+  }
+
   void _onRouteChanged() {
+    unawaited(_syncPresentation());
     if (_driver.platform == 'android' &&
         _firstFrameComplete &&
         !_permissionRequestAttempted &&
@@ -197,6 +222,12 @@ class PushController extends Notifier<PushChannelStatus>
       if (!_current(generation, epoch)) return;
       _sessionRepository = session;
       _sessionUserId = user?.id;
+      _sessionEpoch = epoch;
+      // A tray tap belongs to the restored account, independent of delivery health.
+      _open(await _driver.initialRoute());
+      if (!_current(generation, epoch)) return;
+      await _syncPresentation();
+      if (!_current(generation, epoch)) return;
       // 登录后首次自动申请一次系统权限。Android 等首帧稳定并离开登录页后
       // 再申请，避免打断 OAuth 回跳；缺少标记的升级安装也会申请一次。
       // 已有显式 enable 排队时交给该 enable 申请，避免重复弹窗。
@@ -264,7 +295,6 @@ class PushController extends Notifier<PushChannelStatus>
       }
       if (!_current(generation, epoch)) return;
       state = PushChannelStatus.enabled;
-      _open(await _driver.initialRoute());
     } catch (_) {
       // Do not log tokens, provider payloads or session credentials.
       if (_current(generation, epoch)) {
@@ -369,6 +399,8 @@ class PushController extends Notifier<PushChannelStatus>
     required bool preserveUnsetPreference,
   }) async {
     final prefs = await SharedPreferences.getInstance();
+    _sessionUserId = null;
+    await _syncPresentation(foreground: false);
     // Guest → first login also advances the cache epoch. Stopping delivery
     // must not turn an absent preference into an explicit user opt-out.
     // Existing consent is still cleared at every account boundary.
@@ -414,10 +446,27 @@ class PushController extends Notifier<PushChannelStatus>
   }
 
   void _open(String? value) {
-    if (_disposed || state != PushChannelStatus.enabled) return;
+    if (_disposed || _sessionEpoch != ref.read(offlineCacheEpochProvider)) {
+      return;
+    }
     final route = pushRoute(value);
     if (route != null) {
-      appRouter.push(route);
+      final uri = Uri.parse(route);
+      final recipient = int.tryParse(uri.queryParameters['recipientId'] ?? '');
+      final current = ref.read(currentUserProvider).valueOrNull?.id;
+      if (current == null || current != _sessionUserId) return;
+      final wrongOwner = recipient != null && recipient != current;
+      final unownedChat = uri.path == '/chat' && recipient == null;
+      appRouter.push(
+        wrongOwner || unownedChat
+            ? '/notifications'
+            : uri
+                  .replace(
+                    queryParameters: Map.of(uri.queryParameters)
+                      ..remove('recipientId'),
+                  )
+                  .toString(),
+      );
       unawaited(_driver.initialRoute().catchError((_) => null));
     }
   }

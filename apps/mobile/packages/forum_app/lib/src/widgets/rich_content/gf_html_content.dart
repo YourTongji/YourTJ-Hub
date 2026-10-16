@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:html/parser.dart' show parseFragment;
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -65,22 +66,27 @@ class GfHtmlContent extends StatelessWidget {
       profile: profile,
     );
 
-    return HtmlWidget(
-      html,
-      key: htmlKey,
-      baseUrl: baseUrl,
-      // The default factory keeps the shared policy for the elements the HTML
-      // renderer builds itself (the table scroll wrapper).
-      factoryBuilder: factoryBuilder ?? GfHtmlWidgetFactory.new,
-      buildAsync: buildAsync,
-      textStyle: profile.body,
-      onTapUrl: onTapUrl,
-      customStylesBuilder: (element) => <String, String>{
-        ...?shared(element),
-        ...?customStylesBuilder?.call(element),
-      },
-      customWidgetBuilder: (element) =>
-          sharedWidgets(element) ?? customWidgetBuilder?.call(element),
+    return GfSelectionArea(
+      // Reserve every decoded source character before any HTML text node can
+      // allocate an Emoji placeholder. This protects collisions across nodes.
+      selectionSource: parseFragment(html).text ?? '',
+      child: HtmlWidget(
+        html,
+        key: htmlKey,
+        baseUrl: baseUrl,
+        // The default factory keeps the shared policy for the elements the HTML
+        // renderer builds itself (the table scroll wrapper).
+        factoryBuilder: factoryBuilder ?? GfHtmlWidgetFactory.new,
+        buildAsync: buildAsync,
+        textStyle: profile.body,
+        onTapUrl: onTapUrl,
+        customStylesBuilder: (element) => <String, String>{
+          ...?shared(element),
+          ...?customStylesBuilder?.call(element),
+        },
+        customWidgetBuilder: (element) =>
+            sharedWidgets(element) ?? customWidgetBuilder?.call(element),
+      ),
     );
   }
 }
@@ -92,6 +98,26 @@ class GfHtmlContent extends StatelessWidget {
 /// built-in scroll view is the table wrapper, which gets the same viewport and
 /// visible scroll cue the Markdown path shows.
 class GfHtmlWidgetFactory extends WidgetFactory {
+  @override
+  Widget? buildText(
+    BuildTree tree,
+    InheritedProperties resolved,
+    InlineSpan text,
+  ) => Builder(
+    builder: (context) {
+      final style = resolved.prepareTextStyle();
+      final rendered = buildTwemojiTextSpan(
+        context,
+        text,
+        inheritedStyle: style,
+        // HtmlWidget has already resolved system scaling into [style].
+        textScaler: TextScaler.linear(1),
+      );
+      return super.buildText(tree, resolved, rendered) ??
+          const SizedBox.shrink();
+    },
+  );
+
   @override
   Widget? buildHorizontalScrollView(BuildTree tree, Widget child) =>
       GfHorizontalScrollView(child: child);
@@ -106,9 +132,7 @@ CustomStylesBuilder gfHtmlContentStyles({
   final String line = gfCssColor(colors.line);
   switch (element.localName) {
     case 'p':
-      return <String, String>{
-        'margin': '0 0 ${profile.paragraphSpacing}px',
-      };
+      return <String, String>{'margin': '0 0 ${profile.paragraphSpacing}px'};
     case 'h1':
     case 'h2':
     case 'h3':
@@ -128,7 +152,8 @@ CustomStylesBuilder gfHtmlContentStyles({
         'font-weight': '${heading.fontWeight?.value ?? 400}',
         'line-height': '${heading.height}',
         'color': gfCssColor(heading.color ?? colors.baseContent),
-        'margin': '${profile.blockSpacing * 2}px 0 '
+        'margin':
+            '${profile.blockSpacing * 2}px 0 '
             '${profile.blockSpacing}px',
       };
     case 'strong':
@@ -151,7 +176,8 @@ CustomStylesBuilder gfHtmlContentStyles({
         'border-left': '${profile.quoteSide}px solid $line',
         'background-color': gfCssColor(colors.base200.withValues(alpha: .7)),
         'color': gfCssColor(profile.quote.color ?? colors.baseContent),
-        'padding': '${profile.quotePadding.top}px '
+        'padding':
+            '${profile.quotePadding.top}px '
             '${profile.quotePadding.right}px '
             '${profile.quotePadding.bottom}px '
             '${profile.quotePadding.left}px',

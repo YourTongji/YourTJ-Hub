@@ -61,13 +61,14 @@
     "universal-cookie": "^8.1.2",
     "vditor": "3.11.2",
     "vite": "^8.0.16",
-    "vue": "^3.5.25",
+    "vue": "3.5.34",
     "vue-i18n": "^11.4.4",
     "vue-router": "^4.6.4",
     "vue-sonner": "^2.0.9",
     "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
+    "@vue/compiler-dom": "3.5.34",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.2.2",
     "@types/geojson": "^7946.0.16",

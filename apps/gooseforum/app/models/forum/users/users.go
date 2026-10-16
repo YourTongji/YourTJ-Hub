@@ -89,6 +89,7 @@ type ExternalInformation struct {
 }
 
 type EntityComplete struct {
+	PushPreferences *string `gorm:"column:push_preferences;type:text" json:"-"`
 	// base
 	Id             uint64     `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`                                                                         //
 	Username       string     `gorm:"column:username;uniqueIndex:uniq_users_username;type:varchar(64);not null;default:'';" json:"username"`                          //

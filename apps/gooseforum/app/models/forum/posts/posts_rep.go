@@ -711,3 +711,10 @@ func TailAuthorIDsTx(tx *gorm.DB, topicID, throughPostNo uint64, limit int) ([]u
 func SetAgentEventDepthTx(tx *gorm.DB, postID uint64, depth int) error {
 	return tx.Model(&Entity{}).Where("id = ?", postID).Update("agent_event_depth", depth).Error
 }
+
+// PushSourceVisible rechecks deletion/moderation before external delivery.
+func PushSourceVisible(id, topicID uint64) (bool, error) {
+	var count int64
+	err := builder().Where("id = ? AND topic_id = ? AND process_status = ? AND visibility_status = ? AND retention_status <> ? AND deleted_at IS NULL", id, topicID, ProcessStatusNormal, VisibilityActive, RetentionPurged).Count(&count).Error
+	return count == 1, err
+}

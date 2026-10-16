@@ -16,6 +16,7 @@ import type { LayoutPayload } from '@gooseforum/client'
 vi.mock('../src/runtime/api', () => ({
   forgotPassword: vi.fn(),
   getCaptcha: vi.fn(async () => ({ captchaId: 'test', captchaImg: '' })),
+  getPasskeyStatus: vi.fn(async () => ({ enabled: false })),
   login: vi.fn(),
   register: vi.fn(),
   resetPassword: vi.fn(async () => 'ok'),

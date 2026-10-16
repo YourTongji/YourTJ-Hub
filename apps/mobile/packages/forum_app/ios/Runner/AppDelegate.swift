@@ -10,6 +10,10 @@ import Darwin
   private var tokenResult: FlutterResult?
   private var pendingRoute: String?
   private var deliveryEnabled = false
+  private var pushUserID: Int64 = 0
+  private var pushPeerID: Int64 = 0
+  private var pushForeground = false
+  private var shownPushSources: [String] = []
   private var registrationGeneration = 0
   private var startupLaunchKind = "cold"
   private var hasBecomeActiveOnce = false
@@ -138,8 +142,17 @@ import Darwin
           self.tokenResult = nil
           callback(FlutterError(code: "registration_timeout", message: "APNs registration timed out", details: nil))
         }
+      case "presentation":
+        let args = call.arguments as? [String: Any]
+        self.pushUserID = (args?["userId"] as? NSNumber)?.int64Value ?? 0
+        self.pushPeerID = (args?["peerId"] as? NSNumber)?.int64Value ?? 0
+        self.pushForeground = args?["foreground"] as? Bool ?? false
+        result(nil)
       case "stop":
         self.deliveryEnabled = false
+        self.pushUserID = 0
+        self.pushPeerID = 0
+        self.shownPushSources.removeAll()
         self.registrationGeneration += 1
         UIApplication.shared.unregisterForRemoteNotifications()
         center.removeAllDeliveredNotifications()
@@ -210,13 +223,46 @@ import Darwin
     tokenResult = nil
   }
 
+  static func shouldPresentPush(_ info: [AnyHashable: Any], userID: Int64,
+    peerID: Int64, foreground: Bool) -> Bool {
+    guard let route = info["route"] as? String,
+          let uri = URLComponents(string: route) else { return false }
+    let query = uri.queryItems ?? []
+    let recipient = (info["recipientId"] as? NSNumber)?.int64Value
+      ?? Int64(info["recipientId"] as? String ?? "")
+      ?? query.first(where: { $0.name == "recipientId" }).flatMap { Int64($0.value ?? "") }
+    if let recipient, recipient != userID { return false }
+    if uri.path == "/chat" {
+      guard recipient != nil else { return false }
+      let sender = query.first(where: { $0.name == "userId" }).flatMap { Int64($0.value ?? "") }
+      if foreground && peerID > 0 && sender == peerID { return false }
+    }
+    return true
+  }
+
+  static func pushSourceKey(_ info: [AnyHashable: Any], userID: Int64) -> String? {
+    guard let kind = info["sourceKind"] as? String, !kind.isEmpty,
+          let id = info["sourceId"], !String(describing: id).isEmpty else { return nil }
+    return "\(userID):\(kind):\(id)"
+  }
+
   override func userNotificationCenter(_ center: UNUserNotificationCenter,
     willPresent notification: UNNotification,
     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+    let info = notification.request.content.userInfo
+    let allowed = deliveryEnabled && Self.shouldPresentPush(info, userID: pushUserID,
+      peerID: pushPeerID, foreground: pushForeground && UIApplication.shared.applicationState == .active)
+    let source = Self.pushSourceKey(info, userID: pushUserID)
+    let duplicate = source.map { shownPushSources.contains($0) } ?? false
+    if allowed && !duplicate, let source {
+      shownPushSources.append(source)
+      if shownPushSources.count > 256 { shownPushSources.removeFirst() }
+    }
+    let present = allowed && !duplicate
     if #available(iOS 14.0, *) {
-      completionHandler(deliveryEnabled ? [.banner, .list, .sound, .badge] : [])
+      completionHandler(present ? [.banner, .list, .sound, .badge] : [])
     } else {
-      completionHandler(deliveryEnabled ? [.alert, .sound, .badge] : [])
+      completionHandler(present ? [.alert, .sound, .badge] : [])
     }
   }
 

@@ -1,3 +1,4 @@
+import '../../gen/decoration.dart';
 import '../../gen/auth.dart';
 import '../../gen/user.dart';
 import '../gf_api_client.dart';
@@ -7,6 +8,19 @@ class UserRepository {
   UserRepository(this._client);
 
   final GfApiClient _client;
+
+  Future<DecorationState> getDecorations() => _client.get<DecorationState>(
+    '/api/user/decorations',
+    parser: (json) => DecorationState.fromJson(json as Map<String, dynamic>),
+  );
+  Future<DecorationState> equipDecorations({
+    required String avatarFrame,
+    required String nicknameStyle,
+  }) => _client.post<DecorationState>(
+    '/api/user/decorations/equip',
+    body: {'avatarFrame': avatarFrame, 'nicknameStyle': nicknameStyle},
+    parser: (json) => DecorationState.fromJson(json as Map<String, dynamic>),
+  );
 
   Future<UserBlocksPayload> getUserBlocks() => _client.get<UserBlocksPayload>(
     '/api/user-blocks',
@@ -18,6 +32,26 @@ class UserRepository {
       body: {'targetUserId': targetUserId, 'blocked': blocked},
     );
   }
+
+  /// Profile privacy (issue #1124). The owner-only settings decide what the
+  /// profile page returns to everyone else.
+  Future<UserPrivacySettingsPayload> getPrivacySettings() =>
+      _client.get<UserPrivacySettingsPayload>(
+        '/api/user/privacy-settings',
+        parser: (json) =>
+            UserPrivacySettingsPayload.fromJson(json as Map<String, dynamic>),
+      );
+
+  /// Saves one section's audience and returns the confirmed settings.
+  Future<UserPrivacySettingsPayload> updatePrivacySetting(
+    String section,
+    String audience,
+  ) => _client.patch<UserPrivacySettingsPayload>(
+    '/api/user/privacy-settings',
+    body: {section: audience},
+    parser: (json) =>
+        UserPrivacySettingsPayload.fromJson(json as Map<String, dynamic>),
+  );
 
   Future<PrivateNotesPayload> getPrivateNotes() =>
       _client.get<PrivateNotesPayload>(

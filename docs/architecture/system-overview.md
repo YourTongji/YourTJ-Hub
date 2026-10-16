@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-03
+> Last verified: 2026-10-13
 
 ## System shape
 
@@ -62,7 +62,8 @@ flowchart TB
 
 ### Auth
 
-- Web: password login (optional forum-side TOTP 2FA), GitHub OAuth (goth, config [github]), optional
+- Web: password login (optional forum-side TOTP 2FA), discoverable WebAuthn passkeys (optional,
+  disabled by default; shared credential store and normal forum session), GitHub OAuth (goth, config [github]), optional
   Google OAuth (goth, config [google]), Tongji SSO (campus credentials and callback), and the
   built-in OIDC Provider (authorization code + PKCE S256, numeric `sub` = users.id) for first-party
   clients. Sessions are `jti` + `user_sessions` backed and revocable (see identity-and-access.md).

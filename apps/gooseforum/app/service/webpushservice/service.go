@@ -20,14 +20,16 @@ import (
 	"time"
 
 	webpush "github.com/SherClockHolmes/webpush-go"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushSubscription"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pushpolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
-	"github.com/spf13/cast"
+	"gorm.io/gorm"
 )
 
 // TaskTypePush 是 webpush outbox 任务类型前缀。任务 Type 为
@@ -174,33 +176,22 @@ func LogConfigStatus() {
 }
 
 // PushTask 是 outbox 任务负载：定位一条通知行。
-type PushTask struct {
-	UserId         uint64 `json:"userId"`
-	NotificationId uint64 `json:"notificationId"`
-}
+type PushTask = pushpolicy.Task
 
-// EnqueueNotification 在通知行创建成功后入队推送任务。非事务写入：通知行已
-// 独立提交，入队失败只丢推送（站内红点兜底），绝不影响调用方。实例未启用
-// 推送时直接跳过（dev 不产生任务行）。
 func EnqueueNotification(userId uint64, notificationId uint64) {
-	if userId == 0 || notificationId == 0 {
-		return
-	}
 	if !LoadVapidConfig().Enabled() {
+		pushpolicy.Trace("webpushservice", "server_channel_disabled", PushTask{UserId: userId, NotificationId: notificationId})
 		return
 	}
-	taskJSON, err := json.Marshal(PushTask{UserId: userId, NotificationId: notificationId})
-	if err != nil {
-		slog.Warn("webpush: marshal push task failed", "userId", userId, "notificationId", notificationId, "err", err)
-		return
+	if err := pushpolicy.Enqueue(db.Connect(), TaskTypePush, userId, notificationId, pushpolicy.Notification); err != nil {
+		slog.Warn("push enqueue failed", "channel", "webpushservice", "recipientId", userId, "sourceId", notificationId)
 	}
-	if err := taskQueue.Create(&taskQueue.Entity{
-		Type:     TaskTypePush + cast.ToString(notificationId),
-		Status:   taskQueue.StatusPending,
-		TaskJson: string(taskJSON),
-	}); err != nil {
-		slog.Warn("webpush: enqueue push task failed", "userId", userId, "notificationId", notificationId, "err", err)
+}
+func EnqueueChatTx(tx *gorm.DB, userId, messageID uint64) error {
+	if !LoadVapidConfig().Enabled() {
+		return nil
 	}
+	return pushpolicy.Enqueue(tx, TaskTypePush, userId, messageID, pushpolicy.ChatMessage)
 }
 
 // RecoverStaleTasks 启动时回收上次进程遗留的 Running 推送任务（崩溃恢复，
@@ -227,7 +218,8 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 		slog.Warn("webpush: malformed push task", "taskId", task.Id, "err", err)
 		return nil
 	}
-	if payload.UserId == 0 || payload.NotificationId == 0 {
+	_, sourceID := payload.Source()
+	if payload.UserId == 0 || sourceID == 0 {
 		return nil
 	}
 
@@ -239,39 +231,41 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 		return nil
 	}
 
-	notification := eventNotification.GetByID(payload.NotificationId)
-	if notification.Id == 0 {
-		// 通知行不存在（已删/迁移丢失）：无事件源，Success 跳过。
-		slog.Debug("webpush: notification gone, skip", "taskId", task.Id, "notificationId", payload.NotificationId)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	subs := pushSubscription.ListByUser(payload.UserId)
+	if len(subs) == 0 {
+		pushpolicy.Trace("webpushservice", "no_device", payload)
 		return nil
 	}
-	// 已读通知不再推送：用户已看到，避免冗余打扰（已读与 worker 消费间的
-	// 竞态窗口产生的冗余为可接受噪声）。
-	if notification.IsRead {
-		return nil
+	notification, chat, resolveErr := pushpolicy.Resolve(payload)
+	if resolveErr != nil {
+		return resolveErr
 	}
-	// Recheck blocks at delivery: this job may predate the block.
-	if blocked, err := users.InteractionBlocked(payload.UserId, func() uint64 {
-		if notification.PrivateActorID != 0 {
-			return notification.PrivateActorID
-		}
-		return notification.Payload.ActorId
-	}()); err != nil || blocked {
-		return err
-	}
-	// 注销账号（软删）不再推送。
-	if users.IsAccountClosed(payload.UserId) {
+	if notification.Id == 0 && chat == nil {
+		pushpolicy.Trace("webpushservice", "user_disabled_or_source_unavailable", payload)
 		return nil
 	}
 
-	subs := pushSubscription.ListByUser(payload.UserId)
-	if len(subs) == 0 {
+	throttled, err := pushpolicy.Throttle(task, payload, notification, "webpushservice")
+	if err != nil {
+		return err
+	}
+	if throttled {
 		return nil
 	}
 
 	var sent, deleted int
 	for _, sub := range subs {
-		if sub == nil || sub.Endpoint == "" || sub.P256dh == "" || sub.Auth == "" {
+		if sub == nil || sub.UserId != payload.UserId || sub.Endpoint == "" || sub.P256dh == "" || sub.Auth == "" {
+			continue
+		}
+		owned, err := pushSubscription.IsOwned(sub.Endpoint, payload.UserId)
+		if err != nil {
+			return err
+		}
+		if !owned {
 			continue
 		}
 		// 发送前复验 endpoint（review P1 SSRF）：存量或绕过存储校验的非法端点
@@ -285,6 +279,17 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 		}
 		// 语言是订阅级属性（同一用户的不同浏览器可能用不同界面语言）。
 		content := buildPushContent(notification, normalizeLang(sub.Lang))
+		if chat != nil {
+			copy := BuildChatCopy(chat.SenderId, normalizeLang(sub.Lang))
+			content = &pushContent{Title: copy.Title, Body: copy.Body, URL: copy.URL, Icon: pushIconPath}
+		}
+		if content != nil {
+			kind, id := payload.Source()
+			content.SourceKind = kind
+			content.SourceId = id
+			content.RecipientId = payload.UserId
+			content.Id = id
+		}
 		if content == nil {
 			continue
 		}
@@ -300,12 +305,13 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 		if err != nil {
 			continue
 		}
+		pushpolicy.Trace("web", "attempted", payload)
 		resp, err := webpush.SendNotificationWithContext(ctx, msg, &webpush.Subscription{
 			Endpoint: sub.Endpoint,
 			Keys:     webpush.Keys{Auth: sub.Auth, P256dh: sub.P256dh},
 		}, opts)
 		if err != nil {
-			slog.Warn("webpush: send failed", "userId", payload.UserId, "endpoint", redactEndpoint(sub.Endpoint), "err", err)
+			slog.Warn("webpush: send failed", "userId", payload.UserId, "endpoint", redactEndpoint(sub.Endpoint), "reason", "transport_failed")
 			if ctx.Err() != nil {
 				// worker 关闭/租约取消：剩余订阅未发送，把任务留给重试
 				// （返回错误使 taskQueue 置 Retrying，下个进程续投，review P2）。
@@ -319,6 +325,7 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 		switch {
 		case resp.StatusCode >= 200 && resp.StatusCode < 300:
 			sent++
+			pushpolicy.Trace("web", "provider_accepted", payload)
 			if err := pushSubscription.TouchActive(sub.Endpoint, time.Now()); err != nil {
 				slog.Warn("webpush: touch subscription failed", "endpoint", redactEndpoint(sub.Endpoint), "err", err)
 			}
@@ -326,6 +333,7 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 			// 404/410：订阅在推送服务已失效（含 Chrome 270 天陈旧策略），
 			// 从本地删除，停止向死 endpoint 发送。
 			deleted++
+			pushpolicy.Trace("web", "token_expired", payload)
 			if err := pushSubscription.DeleteByEndpoint(sub.Endpoint, payload.UserId); err != nil {
 				slog.Warn("webpush: delete stale subscription failed", "endpoint", redactEndpoint(sub.Endpoint), "err", err)
 			}
@@ -333,6 +341,7 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 		default:
 			// 401/403（VAPID 配置错误）、429/5xx（限流/服务端）等：记录并跳过。
 			// 按设计不做自动重试（避免重复投递），站内红点兜底。
+			pushpolicy.Trace("web", "provider_rejected", payload)
 			slog.Warn("webpush: unexpected push response", "userId", payload.UserId, "endpoint", redactEndpoint(sub.Endpoint), "status", resp.StatusCode)
 		}
 	}
@@ -382,7 +391,10 @@ type pushContent struct {
 	Icon  string `json:"icon"`
 	// Id 通知行 id：SW 用它生成唯一 notification tag，使多条未读通知在系统
 	// 托盘各自呈现而不互相覆盖（review P2）。
-	Id uint64 `json:"id,omitempty"`
+	Id          uint64 `json:"id,omitempty"`
+	SourceKind  string `json:"sourceKind"`
+	SourceId    uint64 `json:"sourceId"`
+	RecipientId uint64 `json:"recipientId"`
 }
 
 const pushIconPath = "/static/pic/icon_300.webp"
@@ -392,6 +404,9 @@ const pushIconPath = "/static/pic/icon_300.webp"
 // 返回 nil 表示该类型无可推送文案（未知类型）。
 func buildPushContent(notification eventNotification.Entity, lang string) *pushContent {
 	eventType := notification.EventType
+	if notification.HasDirectMention || notification.Payload.HasDirectMention {
+		eventType = eventNotification.EventTypeMention
+	}
 	body := bodyText(lang, eventType)
 	if body == "" {
 		return nil
@@ -416,13 +431,19 @@ func buildPushContent(notification eventNotification.Entity, lang string) *pushC
 		}
 	case eventNotification.EventTypeComment, eventNotification.EventTypePostReply,
 		eventNotification.EventTypeTopicPost, eventNotification.EventTypeMention,
-		eventNotification.EventTypeLike, eventNotification.EventTypeReviewApproved, eventNotification.EventTypeReviewPending:
+		eventNotification.EventTypeLike, eventNotification.EventTypeReviewApproved:
 		url = topicURL(payload)
 		title = truncateTitle(topicTitle(payload))
+	case eventNotification.EventTypeReviewPending:
+		url = "/settings?tab=content"
+		title = body
 	case eventNotification.EventTypeReviewRejected:
 		// Rejected candidates are editable in the owner content manager.
 		url = "/settings?tab=content"
-		title = truncateTitle(eventNotification.RedactReviewRejectedPayload(payload).TopicTitle)
+		title = bodyText(lang, eventNotification.EventTypeReviewRejected)
+	case eventNotification.EventTypeSystem:
+		title = truncateTitle(payload.Title)
+		url = urlconfig.Notifications()
 	default:
 		url = urlconfig.Notifications()
 	}
@@ -434,6 +455,18 @@ func buildPushContent(notification eventNotification.Entity, lang string) *pushC
 		title = genericTitle(lang)
 	}
 
+	// Public actors are resolved through persona-aware payload fields.
+	switch eventType {
+	case eventNotification.EventTypeComment, eventNotification.EventTypePostReply, eventNotification.EventTypeMention, eventNotification.EventTypeLike, eventNotification.EventTypeFollow, eventNotification.EventTypeTopicPost:
+		name := actorName(payload)
+		if name == "" {
+			name = map[string]string{"zh": "一位用户", "en": "A user", "ja": "ユーザー", "de": "Ein Nutzer"}[lang]
+		}
+		body = truncateTitle(name) + " " + body
+		if title == genericTitle(lang) {
+			title = body
+		}
+	}
 	// 徽章 body 含 {badge} 占位符，用徽章名替换。
 	if eventType == eventNotification.EventTypeBadge {
 		name := payload.Extra.BadgeName
@@ -441,12 +474,14 @@ func buildPushContent(notification eventNotification.Entity, lang string) *pushC
 			name = payload.Extra.BadgeCode
 		}
 		if name == "" {
-			name = genericTitle(lang)
+			body = map[string]string{"zh": "你获得了一枚新徽章", "en": "You earned a new badge", "ja": "新しいバッジを獲得しました", "de": "Du hast ein neues Abzeichen erhalten"}[lang]
+		} else {
+			body = strings.ReplaceAll(body, "{badge}", name)
 		}
-		body = strings.ReplaceAll(body, "{badge}", name)
+		title = body
 	}
 
-	return &pushContent{Title: title, Body: body, URL: url, Icon: pushIconPath, Id: notification.Id}
+	return &pushContent{Title: truncateTitle(title), Body: body, URL: url, Icon: pushIconPath, Id: notification.Id}
 }
 
 // topicURL 构造帖子详情深链（与通知列表 BuildNotificationPayload 同规则）：
@@ -479,7 +514,10 @@ func topicTitle(payload eventNotification.NotificationPayload) string {
 		return ""
 	}
 	if topic, ok := topicMap[payload.TopicId]; ok {
-		return topic.Title
+		if topic.ProcessStatus == topics.ProcessStatusNormal && !topic.DeletedAt.Valid && topic.VisibilityStatus == topics.VisibilityActive {
+			return topic.Title
+		}
+		return ""
 	}
 	return ""
 }

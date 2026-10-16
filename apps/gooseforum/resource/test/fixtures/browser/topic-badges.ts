@@ -1,7 +1,8 @@
 // issue #1063：信息流内容类型徽章（提问/瞬间/文章）在长标题、窄内容列下被挤压折行。
 // 这里铺「宽屏内容列（约 634px）/ 窄屏满宽」两组、每组各含无压力基准行与长标题行，另加一张卡片，
 // 供 topic-badges.browser.mjs 量测徽章几何。
-import { createApp, h } from 'vue'
+import { h } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import TopicList from '../../../src/site/components/TopicList.vue'
 import TopicRow from '../../../src/site/components/TopicRow.vue'
 import { i18n, setLocale } from '../../../src/runtime/i18n'

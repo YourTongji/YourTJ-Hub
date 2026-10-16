@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../gf_motion.dart';
 import '../gf_symbol.dart';
 
@@ -197,7 +198,7 @@ class _FeedbackBannerState extends State<_FeedbackBanner>
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: Text(
+                              child: GfText(
                                 widget.message.text,
                                 style: GfTheme.typographyOf(
                                   context,

@@ -394,6 +394,8 @@ export interface StorageSettings {
   accessKey: string
   secretKey: string
   publicUrlPrefix: string
+  /** 运维开关：S3 模式下也强制帖子图片走服务端代理上传。 */
+  forceProxyUpload: boolean
   /** GET 回显（issue #324 S3）：凭据是否已配置（服务端加密存储，不回显凭据）。 */
   accessKeyConfigured?: boolean
   secretKeyConfigured?: boolean
@@ -663,6 +665,11 @@ export interface GithubRelease {
 }
 
 export interface AdminAgent {
+  profileCoverUrl: string
+  bio: string
+  signature: string
+  website: string
+  websiteName: string
   agentId: number
   username: string
   nickname: string
@@ -783,3 +790,14 @@ export interface WikiNamespaceTree {
 
 /** Completed local course materialization (the API returns only after commit). */
 export type PkMaterializeResult = import('@gooseforum/client/openapi').components['schemas']['PkMaterializeResult']
+
+export interface BotContentSource {
+  topicId: number
+  postId: number
+  title: string
+  content: string
+  categoryId: number[]
+  revisionNo: number
+  botUserId: number
+  botName: string
+}

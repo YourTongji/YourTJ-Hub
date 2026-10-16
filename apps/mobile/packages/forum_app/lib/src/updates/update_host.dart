@@ -90,7 +90,9 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
       if (release == null) {
         if (force) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(AppLocalizations.of(context).updateLatest)),
+            SnackBar(
+              content: GfText(AppLocalizations.of(context).updateLatest),
+            ),
           );
         }
         return;
@@ -115,7 +117,7 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
       final context = widget.navigatorKey.currentContext;
       if (force && mounted && context != null && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).updateFailed)),
+          SnackBar(content: GfText(AppLocalizations.of(context).updateFailed)),
         );
       }
       // Offline and API rate limits never interrupt app startup or reading.
@@ -151,7 +153,9 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
         if (context != null && context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(AppLocalizations.of(context).updateChannelUnknown),
+              content: GfText(
+                AppLocalizations.of(context).updateChannelUnknown,
+              ),
             ),
           );
         }
@@ -167,7 +171,7 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
     if (listing == null) {
       if (force) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).updateFailed)),
+          SnackBar(content: GfText(AppLocalizations.of(context).updateFailed)),
         );
       }
       return;
@@ -175,7 +179,7 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
     if (!listing.isNewerThan(installedVersion)) {
       if (force) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).updateLatest)),
+          SnackBar(content: GfText(AppLocalizations.of(context).updateLatest)),
         );
       }
       return;

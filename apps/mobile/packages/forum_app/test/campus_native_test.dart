@@ -428,13 +428,22 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byType(SelectableText), findsOneWidget);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      final preBackground = repo.cancellations.length;
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      // paused 起 scheduler 禁用帧（framesEnabled=false），需强制一帧让
+      // 隐私卸载的重建真正发生。
+      tester.binding.scheduleForcedFrame();
       await tester.pumpAndSettle();
       expect(find.byType(SelectableText), findsNothing);
-      expect(repo.cancellations.every((c) => c.isCancelled), isTrue);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
       expect(find.byType(SelectableText), findsOneWidget);
+      // autoDispose 的销毁经 Riverpod vsync 调度，paused 期间帧被禁用，
+      // 旧实例的请求 token 在恢复后的帧里才冲刷取消。
+      expect(
+        repo.cancellations.take(preBackground).every((c) => c.isCancelled),
+        isTrue,
+      );
       await tester.pumpWidget(const SizedBox());
       await tester.pumpAndSettle();
     },

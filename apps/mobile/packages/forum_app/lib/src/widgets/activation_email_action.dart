@@ -89,7 +89,7 @@ class _ActivationEmailActionState extends ConsumerState<ActivationEmailAction> {
             padding: const EdgeInsets.only(top: 8),
             child: Semantics(
               liveRegion: true,
-              child: Text(
+              child: GfText(
                 resolveErrorMessage(l10n, _feedback!),
                 style: _failed
                     ? TextStyle(color: GfTheme.colorsOf(context).error)

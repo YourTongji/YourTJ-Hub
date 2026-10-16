@@ -76,7 +76,7 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
       canPop: !_busy,
       child: AlertDialog(
         scrollable: true,
-        title: Text(
+        title: GfText(
           widget.targetType == 'chat_message'
               ? l10n.messageReport
               : l10n.contentReport,
@@ -85,13 +85,16 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (widget.targetType == 'chat_message')
-              Text(l10n.messageReportPrivacy),
+              GfText(l10n.messageReportPrivacy),
             GfDropdownButtonFormField<String>(
               initialValue: _reason,
               isExpanded: true,
               items: [
                 for (final entry in reasons.entries)
-                  DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+                  DropdownMenuItem(
+                    value: entry.key,
+                    child: GfText(entry.value),
+                  ),
               ],
               onChanged: _busy || stale
                   ? null
@@ -113,11 +116,11 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
         actions: [
           TextButton(
             onPressed: _busy ? null : () => Navigator.pop(context),
-            child: Text(l10n.commonCancel),
+            child: GfText(l10n.commonCancel),
           ),
           FilledButton(
             onPressed: _busy || stale ? null : _send,
-            child: Text(l10n.topicReportSubmit),
+            child: GfText(l10n.topicReportSubmit),
           ),
         ],
       ),

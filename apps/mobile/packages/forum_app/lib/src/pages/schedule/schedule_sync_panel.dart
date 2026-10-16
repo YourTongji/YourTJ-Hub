@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../schedule/schedule_sync.dart';
 
@@ -26,17 +27,17 @@ class ScheduleSyncPanel extends ConsumerWidget {
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   children: [
-                    Text(l.planSyncAdoptHint),
+                    GfText(l.planSyncAdoptHint),
                     TextButton(
                       onPressed: sync.adoptLocal,
-                      child: Text(l.planSyncAdopt),
+                      child: GfText(l.planSyncAdopt),
                     ),
                   ],
                 ),
               ),
             ),
           if (sync.blocked.value)
-            Text(
+            GfText(
               sync.blockedReason.value == 'rejected'
                   ? l.planSyncRejected
                   : l.planSyncCapacity,
@@ -55,19 +56,19 @@ class ScheduleSyncPanel extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    GfText(
                       l.planSyncDrafts,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    Text(l.planSyncDraftHint),
+                    GfText(l.planSyncDraftHint),
                     for (final entry in sync.drafts.value.entries)
                       Wrap(
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          Text(entry.value.name),
+                          GfText(entry.value.name),
                           TextButton(
                             onPressed: () => sync.restoreDraft(entry.key),
-                            child: Text(l.planSyncRestore),
+                            child: GfText(l.planSyncRestore),
                           ),
                         ],
                       ),
@@ -139,14 +140,14 @@ class _ConflictCardState extends State<_ConflictCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
+            GfText(
               '${l.planSyncTitle} · ${c.local?.name ?? c.remote?.plan.name ?? c.base?.name ?? ''}',
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            Text(l.planSyncBody),
+            GfText(l.planSyncBody),
             for (final field in c.fields) ...[
               const SizedBox(height: 12),
-              Text(
+              GfText(
                 _label(field.path, l),
                 style: Theme.of(context).textTheme.titleSmall,
               ),
@@ -160,10 +161,10 @@ class _ConflictCardState extends State<_ConflictCard> {
                       : (_) => setState(
                           () => _choices[jsonEncode(field.path)] = side,
                         ),
-                  title: Text(
+                  title: GfText(
                     side == 'local' ? l.planSyncLocal : l.planSyncRemote,
                   ),
-                  subtitle: Text(
+                  subtitle: GfText(
                     _describe(side == 'local' ? field.local : field.remote, l),
                   ),
                 ),
@@ -180,7 +181,7 @@ class _ConflictCardState extends State<_ConflictCard> {
                       await widget.sync.resolveConflict(c.id, _choices);
                       if (mounted) setState(() => _busy = false);
                     },
-              child: Text(l.planSyncApply),
+              child: GfText(l.planSyncApply),
             ),
           ],
         ),

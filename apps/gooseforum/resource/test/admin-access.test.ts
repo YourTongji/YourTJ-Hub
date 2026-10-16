@@ -27,6 +27,15 @@ function whitelistPaths(): string[] {
   return [...block.matchAll(/'(\/admin[^']*)':/g)].map((m) => m[1])
 }
 
+test('bot creators can access only Agent management without receiving admin permission', () => {
+  configureAdminAccess([], true)
+  expect(canVisitAdminPath('/admin/agents')).toBe(true)
+  expect(canVisitAdminPath('/admin')).toBe(false)
+  expect(canVisitAdminPath('/admin/users')).toBe(false)
+  configureAdminAccess([])
+  expect(canVisitAdminPath('/admin/agents')).toBe(false)
+})
+
 describe('admin 权限白名单与菜单/路由一致性(回归: AI 课程总结/滥用防护跳转 bug)', () => {
   test('anonymous administration requires user management and an explicit private grant', () => {
     for (const permissions of [[], [0], [1], [7]]) {

@@ -55,7 +55,7 @@ class CampusShortcuts extends StatelessWidget {
                                     GfIconTile(symbol, color: tone, size: 40),
                                     const SizedBox(width: 16),
                                     Expanded(
-                                      child: Text(
+                                      child: GfText(
                                         label,
                                         style: TextStyle(
                                           fontSize: 16,
@@ -70,7 +70,7 @@ class CampusShortcuts extends StatelessWidget {
                                   children: [
                                     GfIconTile(symbol, color: tone, size: 48),
                                     const SizedBox(height: 16),
-                                    Text(
+                                    GfText(
                                       label,
                                       textAlign: TextAlign.center,
                                       style: TextStyle(

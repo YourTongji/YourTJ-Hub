@@ -60,8 +60,8 @@ class _StorageSettingsPanelState extends ConsumerState<StorageSettingsPanel> {
       await showGfAlertDialog<bool>(
         context,
         builder: (ctx) => GfAlertDialog(
-          title: Text(title),
-          content: SingleChildScrollView(child: Text(content)),
+          title: GfText(title),
+          content: SingleChildScrollView(child: GfText(content)),
           actions: [
             GfButton(
               label: StorageStrings(context).cancel,
@@ -156,43 +156,43 @@ class _StorageSettingsPanelState extends ConsumerState<StorageSettingsPanel> {
       controller: widget.controller,
       padding: const EdgeInsets.all(16),
       children: [
-        Text(s.total, style: heading),
+        GfText(s.total, style: heading),
         const SizedBox(height: 8),
         if (_loading)
-          Text(s.calculating)
+          GfText(s.calculating)
         else if (u != null)
-          Text(
+          GfText(
             storageSize(u.physicalCacheBytes),
             style: Theme.of(context).textTheme.headlineMedium,
           ),
         const SizedBox(height: 8),
-        Text(s.accounting),
+        GfText(s.accounting),
         if (_failed) ...[
           const SizedBox(height: 12),
-          Text(s.unavailable),
+          GfText(s.unavailable),
           GfButton(label: s.retry, onPressed: _busy ? null : _load),
         ],
         if (u != null && u.pending.isNotEmpty) ...[
           const SizedBox(height: 12),
-          Text(s.failed),
+          GfText(s.failed),
           GfButton(
             label: s.retry,
             onPressed: _busy ? null : () => _clear(retry: true),
           ),
         ],
         const SizedBox(height: 24),
-        Text(s.cache, style: heading),
+        GfText(s.cache, style: heading),
         const SizedBox(height: 8),
         for (final category in CacheCategory.values)
           CheckboxListTile(
             contentPadding: EdgeInsets.zero,
             controlAffinity: ListTileControlAffinity.leading,
             value: _selected.contains(category),
-            title: Text(s.category(category)),
+            title: GfText(s.category(category)),
             subtitle: category == CacheCategory.campus
-                ? Text(s.campusHint)
+                ? GfText(s.campusHint)
                 : null,
-            secondary: Text(
+            secondary: GfText(
               u == null ? '—' : storageSize(u.cacheBytes[category] ?? 0),
             ),
             onChanged: _busy
@@ -204,17 +204,17 @@ class _StorageSettingsPanelState extends ConsumerState<StorageSettingsPanel> {
                   }),
           ),
         const SizedBox(height: 8),
-        Text(s.preserve),
+        GfText(s.preserve),
         const SizedBox(height: 16),
         GfButton(
           label: _busy ? s.calculating : s.clear,
           onPressed: _busy || _selected.isEmpty || _loading ? null : _clear,
         ),
         const SizedBox(height: 28),
-        Text(s.localWork, style: heading),
+        GfText(s.localWork, style: heading),
         const SizedBox(height: 8),
         if (u != null) ...[
-          Text(
+          GfText(
             s.workSummary(
               u.drafts,
               u.chatDrafts,
@@ -223,10 +223,10 @@ class _StorageSettingsPanelState extends ConsumerState<StorageSettingsPanel> {
               u.recoveryPlans,
             ),
           ),
-          Text(storageSize(u.workBytes)),
-          if (u.legacyPlans > 0) Text(s.recovery(u.legacyPlans)),
+          GfText(storageSize(u.workBytes)),
+          if (u.legacyPlans > 0) GfText(s.recovery(u.legacyPlans)),
         ],
-        Text(s.excluded),
+        GfText(s.excluded),
         if (widget.signedIn)
           GfSettingRow(
             symbol: 'file-text',
@@ -239,9 +239,9 @@ class _StorageSettingsPanelState extends ConsumerState<StorageSettingsPanel> {
           onTap: _busy ? null : () => context.push('/schedule'),
         ),
         const SizedBox(height: 28),
-        Text(s.reset, style: heading),
+        GfText(s.reset, style: heading),
         const SizedBox(height: 8),
-        Text(s.resetHint),
+        GfText(s.resetHint),
         const SizedBox(height: 16),
         GfButton(
           label: s.reset,

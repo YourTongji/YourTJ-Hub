@@ -1000,4 +1000,6 @@ export default {
   "k00xo": "Callback \"{name}\" is missing a target session SID",
   "k00xp": "Callback \"{name}\" is missing an API token",
   "k00xq": "Every event is sent as plain text, and review and report messages include links for handling them. The plugin queues messages before sending, so a successful test only means the plugin received it. If nothing shows up in the chat, check the AstrBot logs.",
+  "k00xr": "Force server-proxied uploads",
+  "k00xs": "When on, post images are uploaded through the forum server (which writes to the bucket) even with S3 storage, instead of browser direct uploads. A temporary fallback when direct uploads fail; it increases server bandwidth and memory use, and the reverse proxy body limit must be at least the image upload limit.",
 } as const

@@ -59,11 +59,14 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 - [Courses, reviews & scheduling](product/courses-and-scheduling.md)
 - [Mobile experience](product/mobile-experience.md)
 - [Mobile interaction and layout standard](product/mobile-design-system.md)
+- [Emoji rendering](product/emoji-rendering.md)
 - [Wiki authoring](product/wiki-authoring.md)
 - [My campus & official identity](product/campus.md)
 - [Campus map](product/campus-map.md)
 - [Server status](product/server-status.md)
 - [Identity, login & account lifecycle](product/identity-and-access.md)
+- [Avatar frames & nickname styles](product/profile-decorations.md)
+- [Avatar frame artwork generation](product/avatar-frame-generation.md)
 - [Points & cross-platform settlement](product/credit-and-escrow.md)
 
 ### Architecture

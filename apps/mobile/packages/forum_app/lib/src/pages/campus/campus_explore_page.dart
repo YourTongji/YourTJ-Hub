@@ -22,13 +22,13 @@ class CampusExplorePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     return Scaffold(
-      appBar: GfAppBar(title: Text(l.campusExplore)),
+      appBar: GfAppBar(title: GfText(l.campusExplore)),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
           const CampusShortcuts(),
           const SizedBox(height: 24),
-          Text(
+          GfText(
             l.campusCoursesTitle,
             style: GfTheme.typographyOf(context).title2,
           ),
@@ -47,9 +47,9 @@ class CampusExplorePage extends ConsumerWidget {
                         children: [
                           for (final course in result.list)
                             ListTile(
-                              title: Text(course.name),
-                              subtitle: Text(course.department),
-                              trailing: Text(
+                              title: GfText(course.name),
+                              subtitle: GfText(course.department),
+                              trailing: GfText(
                                 course.ratingAvg?.toStringAsFixed(1) ?? '—',
                               ),
                               onTap: () =>
@@ -60,10 +60,10 @@ class CampusExplorePage extends ConsumerWidget {
               ),
           TextButton(
             onPressed: () => context.push('/courses'),
-            child: Text(l.coursesTitle),
+            child: GfText(l.coursesTitle),
           ),
           const SizedBox(height: 24),
-          Text(l.campusPlanDescription),
+          GfText(l.campusPlanDescription),
           const SizedBox(height: 12),
           GfButton(
             label: l.scheduleTitle,

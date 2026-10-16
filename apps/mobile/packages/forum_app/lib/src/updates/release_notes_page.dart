@@ -79,7 +79,7 @@ class _ReleaseNotesPageState extends State<ReleaseNotesPage> {
           ),
     ].where((entry) => entry.$2.isNotEmpty).toList();
     return Scaffold(
-      appBar: GfAppBar(title: Text(l10n.releaseNotesHistory)),
+      appBar: GfAppBar(title: GfText(l10n.releaseNotesHistory)),
       body: RefreshIndicator(
         onRefresh: () => _load(),
         child: ListView(
@@ -92,7 +92,7 @@ class _ReleaseNotesPageState extends State<ReleaseNotesPage> {
                 child: TextButton.icon(
                   onPressed: _openAppStore,
                   icon: const Icon(Icons.open_in_new),
-                  label: Text(l10n.updateOpenAppStore),
+                  label: GfText(l10n.updateOpenAppStore),
                 ),
               ),
             if (_loading && _catalog == null)
@@ -105,7 +105,7 @@ class _ReleaseNotesPageState extends State<ReleaseNotesPage> {
             else if (entries.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32),
-                child: Text(l10n.releaseNotesEmpty),
+                child: GfText(l10n.releaseNotesEmpty),
               )
             else
               for (final (index, entry) in entries.indexed)
@@ -118,7 +118,7 @@ class _ReleaseNotesPageState extends State<ReleaseNotesPage> {
             if (_catalog != null && _hasIncompleteHistory)
               Padding(
                 padding: const EdgeInsets.only(top: 16),
-                child: Text(l10n.releaseHistoryIncomplete),
+                child: GfText(l10n.releaseHistoryIncomplete),
               ),
             if (_loading && _catalog != null)
               const Padding(
@@ -131,11 +131,11 @@ class _ReleaseNotesPageState extends State<ReleaseNotesPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(l10n.releaseNotesHistoryError),
+                    GfText(l10n.releaseNotesHistoryError),
                     TextButton.icon(
                       onPressed: _load,
                       icon: const Icon(Icons.refresh),
-                      label: Text(l10n.commonRetry),
+                      label: GfText(l10n.commonRetry),
                     ),
                   ],
                 ),
@@ -215,7 +215,7 @@ class _ReleaseTimelineEntry extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text.rich(
+                  GfText.rich(
                     TextSpan(
                       text: release.version,
                       style: type.heading,

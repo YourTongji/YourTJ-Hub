@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 
 /// Inline status message, mirroring web `.gf-status-message` (components.css):
 /// radius 6, px-3 py-2, 14px w500. Tint fills use the 10% alpha semantic color.
@@ -44,7 +45,7 @@ class GfStatusMessage extends StatelessWidget {
         color: background,
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(
+      child: GfText(
         message,
         style: TextStyle(
           color: foreground,

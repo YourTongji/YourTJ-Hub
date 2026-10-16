@@ -22,6 +22,20 @@ trusted_proxies = ["127.0.0.1", "::1"]
 [jwtopt]
 validTime = 604800
 
+# WebAuthn passkeys (forum relying party; disabled until each deployment has
+# verified domain ownership and installed app signing identities).
+[passkeys]
+enabled = false
+rp_id = ""
+display_name = "YourTJ"
+web_origins = []
+apple_team_id = ""
+ios_bundle_id = "tj.yourtj.forumApp"
+android_package_name = "tj.yourtj.forum_app"
+# SHA-256 signing-certificate fingerprints, colon-separated or compact hex.
+# Include every supported signing certificate, such as debug and Play signing.
+android_sha256_cert_fingerprints = []
+
 [db]
 migration = "on"
 backupSqlite = true

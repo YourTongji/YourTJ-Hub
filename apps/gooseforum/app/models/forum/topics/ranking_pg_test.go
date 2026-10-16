@@ -49,8 +49,8 @@ func TestFirstPostVisibilityUsesPointLookupOnPostgreSQL(t *testing.T) {
 		t.Fatal(err)
 	}
 	var plan string
-	sql := `EXPLAIN(ANALYZE,BUFFERS,FORMAT JSON) SELECT topics.id FROM topics WHERE status=1 AND process_status=0 AND deleted_at IS NULL AND visibility_status='ACTIVE' AND topic_type=0 AND ` + firstPostVisibleSQL + ` AND rank_params_hash='test' AND rank_ready=true ORDER BY rank_score DESC,id DESC LIMIT 21`
-	if err = scoped.Raw(sql, 0).Scan(&plan).Error; err != nil {
+	sql := `EXPLAIN(ANALYZE,BUFFERS,FORMAT JSON) SELECT topics.id FROM topics WHERE status=1 AND process_status=0 AND deleted_at IS NULL AND visibility_status='ACTIVE' AND topic_type=0 AND ` + FirstPostVisiblePredicate("topics") + ` AND rank_params_hash='test' AND rank_ready=true ORDER BY rank_score DESC,id DESC LIMIT 21`
+	if err = scoped.Raw(sql).Scan(&plan).Error; err != nil {
 		t.Fatal(err)
 	}
 	var nodes []map[string]any

@@ -9,6 +9,7 @@ part of 'user.dart';
 _$UserCardPayloadImpl _$$UserCardPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$UserCardPayloadImpl(
+  decoration: UserDecoration.parse(json['decoration']),
   userId: (json['userId'] as num).toInt(),
   username: json['username'] as String,
   nickname: json['nickname'] as String,
@@ -56,6 +57,7 @@ _$UserCardPayloadImpl _$$UserCardPayloadImplFromJson(
 Map<String, dynamic> _$$UserCardPayloadImplToJson(
   _$UserCardPayloadImpl instance,
 ) => <String, dynamic>{
+  'decoration': instance.decoration,
   'userId': instance.userId,
   'username': instance.username,
   'nickname': instance.nickname,
@@ -191,6 +193,7 @@ Map<String, dynamic> _$$UserBookmarkPayloadImplToJson(
 _$UserConnectionPayloadImpl _$$UserConnectionPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$UserConnectionPayloadImpl(
+  decoration: UserDecoration.parse(json['decoration']),
   id: (json['id'] as num).toInt(),
   username: json['username'] as String,
   nickname: json['nickname'] as String,
@@ -204,6 +207,7 @@ _$UserConnectionPayloadImpl _$$UserConnectionPayloadImplFromJson(
 Map<String, dynamic> _$$UserConnectionPayloadImplToJson(
   _$UserConnectionPayloadImpl instance,
 ) => <String, dynamic>{
+  'decoration': instance.decoration,
   'id': instance.id,
   'username': instance.username,
   'nickname': instance.nickname,
@@ -255,10 +259,16 @@ _$UserProfilePropsImpl _$$UserProfilePropsImplFromJson(
       .map((e) => UserConnectionPayload.fromJson(e as Map<String, dynamic>))
       .toList(),
   isOwnProfile: json['isOwnProfile'] as bool,
+  canManageAgent: json['canManageAgent'] as bool? ?? false,
   canMessage: json['canMessage'] as bool,
   canFollow: json['canFollow'] as bool,
   messageUrl: json['messageUrl'] as String,
   settingsUrl: json['settingsUrl'] as String,
+  visibility: json['visibility'] == null
+      ? const UserProfileVisibilityPayload()
+      : UserProfileVisibilityPayload.fromJson(
+          json['visibility'] as Map<String, dynamic>,
+        ),
 );
 
 Map<String, dynamic> _$$UserProfilePropsImplToJson(
@@ -278,15 +288,18 @@ Map<String, dynamic> _$$UserProfilePropsImplToJson(
   'following': instance.following,
   'followers': instance.followers,
   'isOwnProfile': instance.isOwnProfile,
+  'canManageAgent': instance.canManageAgent,
   'canMessage': instance.canMessage,
   'canFollow': instance.canFollow,
   'messageUrl': instance.messageUrl,
   'settingsUrl': instance.settingsUrl,
+  'visibility': instance.visibility,
 };
 
 _$SettingsUserPayloadImpl _$$SettingsUserPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$SettingsUserPayloadImpl(
+  decoration: UserDecoration.parse(json['decoration']),
   id: (json['id'] as num).toInt(),
   username: json['username'] as String,
   email: json['email'] as String,
@@ -326,6 +339,7 @@ _$SettingsUserPayloadImpl _$$SettingsUserPayloadImplFromJson(
 Map<String, dynamic> _$$SettingsUserPayloadImplToJson(
   _$SettingsUserPayloadImpl instance,
 ) => <String, dynamic>{
+  'decoration': instance.decoration,
   'id': instance.id,
   'username': instance.username,
   'email': instance.email,

@@ -33,7 +33,7 @@ class ChatMessageRow extends StatelessWidget {
                   children: [
                     Padding(
                       padding: const EdgeInsets.only(bottom: 5),
-                      child: Text(
+                      child: GfText(
                         senderName!,
                         style: TextStyle(
                           fontSize: 12,

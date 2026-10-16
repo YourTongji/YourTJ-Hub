@@ -1,4 +1,5 @@
-import { createApp, defineComponent, h, KeepAlive, shallowRef } from 'vue'
+import { defineComponent, h, KeepAlive, shallowRef } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import HomePage from '../../../src/site/pages/HomePage.vue'
 import { installNavigation, type PreparedPage } from '../../../src/runtime/router'
 import { i18n, setLocale } from '../../../src/runtime/i18n'

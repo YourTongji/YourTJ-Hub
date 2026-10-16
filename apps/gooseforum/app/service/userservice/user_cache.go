@@ -1,7 +1,9 @@
 package userservice
 
 import (
+	"context"
 	"errors"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/decorationservice"
 	"strconv"
 	"time"
 
@@ -303,6 +305,7 @@ func buildUserCard(profile UserPublicProfile) vo.UserCard {
 	stats := profile.Stats
 	lastActiveTime := effectiveLastActiveTime(user.Id, stats.LastActiveTime)
 	return vo.UserCard{
+		Decoration:        decorationservice.Effective(context.Background(), user.Id),
 		UserId:            user.Id,
 		Username:          user.Username,
 		Nickname:          user.Nickname,

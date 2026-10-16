@@ -37,7 +37,7 @@ class StickerDraftPreview extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
+            GfText(
               StickerStrings(context).preview,
               style: Theme.of(
                 context,
@@ -53,7 +53,7 @@ class StickerDraftPreview extends StatelessWidget {
                       )
                     : ResolvedStickerContent(
                         content: content,
-                        builder: (urls) => Text.rich(
+                        builder: (urls) => GfText.rich(
                           buildStickerMessageSpan(
                                 content,
                                 urls,

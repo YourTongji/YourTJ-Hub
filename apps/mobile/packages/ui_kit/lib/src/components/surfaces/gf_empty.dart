@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../atoms/gf_loading_indicator.dart';
 import '../gf_symbol.dart';
 
@@ -57,7 +58,7 @@ class GfEmpty extends StatelessWidget {
                   ),
                 ),
               const SizedBox(height: 24),
-              Text(
+              GfText(
                 message,
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -69,7 +70,7 @@ class GfEmpty extends StatelessWidget {
               ),
               if (description != null) ...[
                 const SizedBox(height: 8),
-                Text(
+                GfText(
                   description!,
                   textAlign: TextAlign.center,
                   style: TextStyle(

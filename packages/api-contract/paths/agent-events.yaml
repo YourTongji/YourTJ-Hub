@@ -160,7 +160,9 @@ adminAgentWebhookConfigure:
     - Admin
     summary: Configure independent event and Webhook switches
     operationId: adminAgentWebhookConfigure
-    description: CAS configVersion is mandatory for concurrency correctness (initial
+    description: |
+      Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+      CAS configVersion is mandatory for concurrency correctness (initial
       version 0). Endpoint accepts public HTTPS port 443 only. Subscriptions and endpoint
       generations are separate; historical events never move to a new endpoint. A
       secret must exist before enabling Webhook.
@@ -184,7 +186,7 @@ adminAgentWebhookConfigure:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
       '403':
-        description: Admin role required.
+        description: Non-writable account or rejected CSRF request.
         content:
           application/json:
             schema:
@@ -201,9 +203,11 @@ adminAgentWebhookRotateSecret:
     - Admin
     summary: Rotate the one-time Webhook HMAC secret
     operationId: adminAgentWebhookRotateSecret
-    description: 'Returns Cache-Control: no-store. Ordinary rotation dual signs for
+    description: |
+      Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+      Returns Cache-Control: no-store. Ordinary rotation dual signs for
       24 hours; emergency rotation immediately invalidates the previous secret. Independent
-      from bearer token rotation.'
+      from bearer token rotation.
     security:
     - bearerAuth: []
     - accessTokenCookie: []
@@ -224,7 +228,7 @@ adminAgentWebhookRotateSecret:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
       '403':
-        description: Admin role required.
+        description: Non-writable account or rejected CSRF request.
         content:
           application/json:
             schema:
@@ -241,7 +245,9 @@ adminAgentWebhookTest:
     - Admin
     summary: Queue a signed connection test
     operationId: adminAgentWebhookTest
-    description: Sends agent.webhook_test through the same safety policy; receivers
+    description: |
+      Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+      Sends agent.webhook_test through the same safety policy; receivers
       must not create content for tests.
     security:
     - bearerAuth: []
@@ -260,7 +266,7 @@ adminAgentWebhookTest:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
       '403':
-        description: Admin role required.
+        description: Non-writable account or rejected CSRF request.
         content:
           application/json:
             schema:
@@ -277,7 +283,9 @@ adminAgentWebhookDeliveries:
     - Admin
     summary: Inspect bounded delivery and attempt diagnostics
     operationId: adminAgentWebhookDeliveries
-    description: Returns no body, secret or raw receiver response. Accepted means
+    description: |
+      Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+      Returns no body, secret or raw receiver response. Accepted means
       durable receiver ingress, not Agent processing.
     security:
     - bearerAuth: []
@@ -299,7 +307,7 @@ adminAgentWebhookDeliveries:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
       '403':
-        description: Admin role required.
+        description: Non-writable account or rejected CSRF request.
         content:
           application/json:
             schema:
@@ -316,7 +324,9 @@ adminAgentWebhookRedeliver:
     - Admin
     summary: Explicitly restart one failed delivery round
     operationId: adminAgentWebhookRedeliver
-    description: Preserves eventId and endpoint generation. Only unexpired failed
+    description: |
+      Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+      Preserves eventId and endpoint generation. Only unexpired failed
       deliveries with current generation and source visibility are allowed; maximum
       3 rounds and 27 total attempts.
     security:
@@ -336,7 +346,7 @@ adminAgentWebhookRedeliver:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
       '403':
-        description: Admin role required.
+        description: Non-writable account or rejected CSRF request.
         content:
           application/json:
             schema:
@@ -353,7 +363,9 @@ adminAgentInteractionIntents:
     - Admin
     summary: Inspect pending and failed source intents
     operationId: adminAgentInteractionIntents
-    description: Recipient-filtered recovery list; preserves failed unmaterialized
+    description: |
+      Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+      Recipient-filtered recovery list; preserves failed unmaterialized
       intent diagnostics independently from deliveries.
     security:
     - bearerAuth: []
@@ -375,7 +387,7 @@ adminAgentInteractionIntents:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
       '403':
-        description: Admin role required.
+        description: Non-writable account or rejected CSRF request.
         content:
           application/json:
             schema:
@@ -392,7 +404,9 @@ adminAgentInteractionReplay:
     - Admin
     summary: Replay one retained source intent
     operationId: adminAgentInteractionReplay
-    description: Uses original frozen recipient identities and generations; re-materialization
+    description: |
+      Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+      Uses original frozen recipient identities and generations; re-materialization
       preserves eventId. Expired or unrelated source intents are refused.
     security:
     - bearerAuth: []
@@ -411,7 +425,7 @@ adminAgentInteractionReplay:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
       '403':
-        description: Admin role required.
+        description: Non-writable account or rejected CSRF request.
         content:
           application/json:
             schema:

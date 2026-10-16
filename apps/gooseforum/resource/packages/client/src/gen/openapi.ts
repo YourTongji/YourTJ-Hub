@@ -4,6 +4,146 @@
  */
 
 export interface paths {
+    "/api/user/decorations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the account decoration catalog, entitlements and effective equipment
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        get: operations["myDecorations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/decorations/equip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Equip or remove each owned decoration slot
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        post: operations["equipDecorations"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decorations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List decoration definitions (SiteManager)
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        get: operations["listDecorations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decoration-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save a validated decoration definition (SiteManager)
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        post: operations["saveDecoration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/user-decorations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read account equipment and recent audit receipts (UserManager)
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        get: operations["getUserDecorations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decoration-grant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant a decoration entitlement with a durable request key (UserManager)
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        post: operations["grantDecoration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decoration-revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke all entitlement sources for a decoration (UserManager)
+         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         */
+        post: operations["revokeDecoration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/events": {
         parameters: {
             query?: never;
@@ -95,7 +235,11 @@ export interface paths {
         put?: never;
         /**
          * Configure independent event and Webhook switches
-         * @description CAS configVersion is mandatory for concurrency correctness (initial version 0). Endpoint accepts public HTTPS port 443 only. Subscriptions and endpoint generations are separate; historical events never move to a new endpoint. A secret must exist before enabling Webhook.
+         * @description Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+         *     CAS configVersion is mandatory for concurrency correctness (initial
+         *     version 0). Endpoint accepts public HTTPS port 443 only. Subscriptions and endpoint
+         *     generations are separate; historical events never move to a new endpoint. A
+         *     secret must exist before enabling Webhook.
          */
         post: operations["adminAgentWebhookConfigure"];
         delete?: never;
@@ -115,7 +259,10 @@ export interface paths {
         put?: never;
         /**
          * Rotate the one-time Webhook HMAC secret
-         * @description Returns Cache-Control: no-store. Ordinary rotation dual signs for 24 hours; emergency rotation immediately invalidates the previous secret. Independent from bearer token rotation.
+         * @description Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+         *     Returns Cache-Control: no-store. Ordinary rotation dual signs for
+         *     24 hours; emergency rotation immediately invalidates the previous secret. Independent
+         *     from bearer token rotation.
          */
         post: operations["adminAgentWebhookRotateSecret"];
         delete?: never;
@@ -135,7 +282,9 @@ export interface paths {
         put?: never;
         /**
          * Queue a signed connection test
-         * @description Sends agent.webhook_test through the same safety policy; receivers must not create content for tests.
+         * @description Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+         *     Sends agent.webhook_test through the same safety policy; receivers
+         *     must not create content for tests.
          */
         post: operations["adminAgentWebhookTest"];
         delete?: never;
@@ -155,7 +304,9 @@ export interface paths {
         put?: never;
         /**
          * Inspect bounded delivery and attempt diagnostics
-         * @description Returns no body, secret or raw receiver response. Accepted means durable receiver ingress, not Agent processing.
+         * @description Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+         *     Returns no body, secret or raw receiver response. Accepted means
+         *     durable receiver ingress, not Agent processing.
          */
         post: operations["adminAgentWebhookDeliveries"];
         delete?: never;
@@ -175,7 +326,10 @@ export interface paths {
         put?: never;
         /**
          * Explicitly restart one failed delivery round
-         * @description Preserves eventId and endpoint generation. Only unexpired failed deliveries with current generation and source visibility are allowed; maximum 3 rounds and 27 total attempts.
+         * @description Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+         *     Preserves eventId and endpoint generation. Only unexpired failed
+         *     deliveries with current generation and source visibility are allowed; maximum
+         *     3 rounds and 27 total attempts.
          */
         post: operations["adminAgentWebhookRedeliver"];
         delete?: never;
@@ -195,7 +349,9 @@ export interface paths {
         put?: never;
         /**
          * Inspect pending and failed source intents
-         * @description Recipient-filtered recovery list; preserves failed unmaterialized intent diagnostics independently from deliveries.
+         * @description Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+         *     Recipient-filtered recovery list; preserves failed unmaterialized
+         *     intent diagnostics independently from deliveries.
          */
         post: operations["adminAgentInteractionIntents"];
         delete?: never;
@@ -215,7 +371,9 @@ export interface paths {
         put?: never;
         /**
          * Replay one retained source intent
-         * @description Uses original frozen recipient identities and generations; re-materialization preserves eventId. Expired or unrelated source intents are refused.
+         * @description Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+         *     Uses original frozen recipient identities and generations; re-materialization
+         *     preserves eventId. Expired or unrelated source intents are refused.
          */
         post: operations["adminAgentInteractionReplay"];
         delete?: never;
@@ -702,6 +860,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/passkey/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Return whether passkey sign-in is enabled on this deployment */
+        get: operations["getPasskeyStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/apple-app-site-association": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Return the configured Apple webcredentials app association */
+        get: operations["getAppleWebCredentialsAssociation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/assetlinks.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Return the configured Android Digital Asset Links association */
+        get: operations["getAndroidDigitalAssetLinks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/passkey/login/begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Begin discoverable passkey sign-in */
+        post: operations["beginPasskeyLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/passkey/login/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify a passkey assertion and issue a standard forum session */
+        post: operations["finishPasskeyLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/logout": {
         parameters: {
             query?: never;
@@ -1010,6 +1253,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/user/passkeys/reauth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reauthenticate with password and enabled TOTP before passkey management */
+        post: operations["reauthenticatePasskeyManagement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/passkeys/registration/begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Begin a discoverable passkey registration for the current account */
+        post: operations["beginPasskeyRegistration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/passkeys/registration/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify and store a passkey credential */
+        post: operations["finishPasskeyRegistration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/passkeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List active passkeys for the current account */
+        get: operations["listPasskeyCredentials"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/passkeys/rename": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rename a passkey using a fresh strong-authentication proof */
+        post: operations["renamePasskeyCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/passkeys/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke a passkey using a fresh strong-authentication proof */
+        post: operations["revokePasskeyCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/apple/exchange": {
         parameters: {
             query?: never;
@@ -1091,10 +1436,11 @@ export interface paths {
          * @description First-party mobile WebView handoff. Requires an explicit valid human Bearer session and
          *     at least one admin permission (admin), moderation-workbench access (moderation), or the
          *     independent CourseManager/Admin permission (courseManagement and courseReviews).
-         *     The campus target requires only a live human session and redirects to /campus.
+         *     The agents target admits activated, unfrozen human Agent creators or station administrators
+         *     (role_id=1 or Admin permission) and redirects to /admin/agents. The campus target requires only a live human session and redirects to /campus.
          *     Cookie-only authentication is rejected. Installs the same
          *     session as an HttpOnly, SameSite=Lax cookie (Secure on HTTPS deployments), then redirects
-         *     exclusively to /admin, /moderation, /moderation/courses, /moderation/course-reviews or /campus.
+         *     exclusively to /admin, /admin/agents, /moderation, /moderation/courses, /moderation/course-reviews or /campus.
          *     Arbitrary redirect targets are never accepted; no token appears in the URL,
          *     response body, or New-Token header. Responses are no-store. Normal admin role, revocation,
          *     writable-account, and CSRF checks continue to apply to all subsequent operations.
@@ -1968,6 +2314,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/user/privacy-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the caller's profile privacy settings
+         * @description Owner comes only from the session; another account's raw settings are never readable.
+         *     Each setting chooses who can see one profile aggregate (topic list, activity timeline,
+         *     liked topics, following list, follower list). Accounts without a stored row return the
+         *     public defaults that predate the setting. The settings hide profile aggregates only: topics,
+         *     replies and relationships keep their ordinary forum visibility. Responses use private, no-store.
+         */
+        get: operations["getPrivacySettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update the caller's profile privacy settings
+         * @description Partial update of the caller's own settings; omitted fields keep their value. At least one
+         *     field is required. Unknown fields, null, non-string values, trailing JSON documents and
+         *     bodies over 4096 bytes fail with common.request.parseFailed. An audience a setting does not
+         *     offer fails with common.request.invalidParams. Rejected requests change nothing. The new
+         *     audience applies to the next profile request on every channel. Restricted (frozen) accounts
+         *     may still reduce what they disclose. Responses use private, no-store.
+         */
+        patch: operations["updatePrivacySettings"];
+        trace?: never;
+    };
     "/api/user-blocks": {
         parameters: {
             query?: never;
@@ -2719,6 +3098,24 @@ export interface paths {
          *     `notification.markAllRead.failed`.
          */
         post: operations["markAllNotificationsRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/push/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read current account system push groups */
+        get: operations["getPushPreferences"];
+        /** Update only explicitly named account push groups */
+        put: operations["updatePushPreferences"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4256,6 +4653,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/agents/content-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Load editable Agent content source
+         * @description Requires an activated, unfrozen human creator of the author Agent or station administrator
+         *     (role_id=1 or Admin permission). Bot login remains isolated. Only active, published, nonanonymous forum content
+         *     is eligible. Authors remain the bot; revisions and atomic audit records name the human operator.
+         *     The source returns the latest submitted Markdown and revisionNo, including an edit under review.
+         *     Edits require expectedRevisionNo from that source. A stale revision fails with HTTP 409
+         *     admin.agent.contentConflict; the client preserves the draft and reloads explicitly.
+         *     Existing moderation and validation apply; an approved version stays public during edit review.
+         */
+        post: operations["adminAgentContentSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agents/edit-topic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Correct a managed Agent topic
+         * @description Requires an activated, unfrozen human creator of the author Agent or station administrator
+         *     (role_id=1 or Admin permission). Bot login remains isolated. Only active, published, nonanonymous forum content
+         *     is eligible. Authors remain the bot; revisions and atomic audit records name the human operator.
+         *     The source returns the latest submitted Markdown and revisionNo, including an edit under review.
+         *     Edits require expectedRevisionNo from that source. A stale revision fails with HTTP 409
+         *     admin.agent.contentConflict; the client preserves the draft and reloads explicitly.
+         *     Existing moderation and validation apply; an approved version stays public during edit review.
+         */
+        post: operations["adminAgentEditTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agents/edit-post": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Correct a managed Agent post
+         * @description Requires an activated, unfrozen human creator of the author Agent or station administrator
+         *     (role_id=1 or Admin permission). Bot login remains isolated. Only active, published, nonanonymous forum content
+         *     is eligible. Authors remain the bot; revisions and atomic audit records name the human operator.
+         *     The source returns the latest submitted Markdown and revisionNo, including an edit under review.
+         *     Edits require expectedRevisionNo from that source. A stale revision fails with HTTP 409
+         *     admin.agent.contentConflict; the client preserves the draft and reloads explicitly.
+         *     Existing moderation and validation apply; an approved version stays public during edit review.
+         */
+        post: operations["adminAgentEditPost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/agent-list": {
         parameters: {
             query?: never;
@@ -4267,10 +4742,10 @@ export interface paths {
         put?: never;
         /**
          * List all managed Agents (bot personas)
-         * @description Admin console operation gated by the `Admin` role permission; only roles
-         *     holding the Admin permission pass, others fail with HTTP 403 and
-         *     `permission.denied` (params permission=<localized permission name>).
-         *     Returns every Agent with its bot user, newest first. The token hash never
+         * @description Requires an activated, unfrozen human Agent creator or station administrator (role_id=1 or Admin permission).
+         *     Creators see only their own Agents; administrators see all. Other authenticated humans
+         *     receive an empty list without exposing another Agent.
+         *     Returns only manageable Agents with its bot user, newest first. The token hash never
          *     leaves the server; only the non-secret token prefix is exposed. JSON
          *     binding is lenient: the request body is ignored.
          */
@@ -4325,14 +4800,21 @@ export interface paths {
         put?: never;
         /**
          * Update an Agent's nickname, webhook, or enabled state
-         * @description Admin console operation gated by the `Admin` role permission; callers
-         *     without it fail with HTTP 403 and `permission.denied`. Only present
+         * @description Requires an activated, unfrozen human Agent creator or station administrator (role_id=1 or Admin permission).
+         *     Creators manage only their own Agents; administrators manage all. Ownership denial or
+         *     an unknown Agent uses HTTP 200 permission.denied without exposing another Agent.
+         *     Only present
          *     (non-null) fields are applied. Setting `enabled` to 0 disables the Agent
          *     and revokes its stored credential (the token hash is cleared, so a leaked
          *     token can never validate again); re-enabling such an Agent fails with
          *     `admin.agent.needsRotate` (HTTP 200) until adminAgentRotateToken issues a
-         *     new token. Unknown agents fail with `admin.agent.notFound` (HTTP 200); an
-         *     over-long nickname or an `enabled` value outside 0-1 fails with
+         *     new token. An
+         *     Profile fields (avatarUrl, profileCoverUrl, bio, signature, website and websiteName)
+         *     are optional and preserve stored values when absent. Avatar values must be built-in
+         *     presets or ready image files owned by the human actor or target Bot; cover and website
+         *     URLs use the safe http(s)/site-path policy. Profile text uses the normal user-profile
+         *     moderation rules, and mutation rechecks live human authority inside its transaction.
+         *     An over-long nickname/profile field or an `enabled` value outside 0-1 fails with
          *     `common.request.invalidParams` (HTTP 200); an invalid webhook endpoint
          *     fails with `admin.agent.webhookInvalid` (HTTP 200). JSON binding is
          *     lenient: a malformed body binds to zero values and fails validation as
@@ -4356,15 +4838,16 @@ export interface paths {
         put?: never;
         /**
          * Rotate an Agent's bearer token
-         * @description Admin console operation gated by the `Admin` role permission; callers
-         *     without it fail with HTTP 403 and `permission.denied`. Replaces the
+         * @description Requires an activated, unfrozen human Agent creator or station administrator (role_id=1 or Admin permission).
+         *     Creators manage only their own Agents; administrators manage all. Ownership denial or
+         *     an unknown Agent uses HTTP 200 permission.denied without exposing another Agent.
+         *     Replaces the
          *     stored token prefix and hash atomically (compare-and-swap), so the old
          *     token stops resolving immediately and the new plaintext token (`agt_`
          *     prefix) is returned exactly once. Rotation is also the recovery path
          *     after a disable revoked the credential: it succeeds and the Agent can
          *     then be re-enabled. A concurrent rotation loses the compare-and-swap and
-         *     fails with `admin.agent.rotateConflict` (HTTP 200); unknown agents fail
-         *     with `admin.agent.notFound` (HTTP 200). JSON binding is lenient: a
+         *     fails with `admin.agent.rotateConflict` (HTTP 200). JSON binding is lenient: a
          *     malformed body binds to zero values and fails validation as
          *     `common.request.invalidParams` (HTTP 200) because agentId is required.
          */
@@ -4386,14 +4869,15 @@ export interface paths {
         put?: never;
         /**
          * Disable an Agent and revoke its credential
-         * @description Admin console operation gated by the `Admin` role permission; callers
-         *     without it fail with HTTP 403 and `permission.denied`. Turns the Agent
+         * @description Requires an activated, unfrozen human Agent creator or station administrator (role_id=1 or Admin permission).
+         *     Creators manage only their own Agents; administrators manage all. Ownership denial or
+         *     an unknown Agent uses HTTP 200 permission.denied without exposing another Agent.
+         *     Turns the Agent
          *     off and clears the stored token hash, so bearer resolution with the old
          *     token fails with HTTP 401 immediately and can never validate again, even
          *     if the Agent is later re-enabled. Re-enabling requires an explicit
          *     adminAgentRotateToken first (adminAgentUpdate fails with
-         *     `admin.agent.needsRotate` otherwise). Unknown agents fail with
-         *     `admin.agent.notFound` (HTTP 200). A successful disable returns result
+         *     `admin.agent.needsRotate` otherwise). A successful disable returns result
          *     `success` with messageCode `common.operation.success`. JSON binding is
          *     lenient: a malformed body binds to zero values and fails validation as
          *     `common.request.invalidParams` (HTTP 200) because agentId is required.
@@ -4450,6 +4934,201 @@ export interface paths {
          *     malformed body binds to zero values and returns the default 7-day window.
          */
         post: operations["adminTrafficOverview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/stats/category-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Per-category topic/reply/contributor counts over a date range (content contribution stats)
+         * @description Admin console operation gated by the `Admin` role permission; callers without it
+         *     fail with HTTP 403 and `permission.denied`. Both dates are inclusive and sliced by
+         *     server-local calendar day; `coverage.timezone` echoes the zone actually used. An
+         *     empty `startDate` defaults to 7 days before today and an empty `endDate` to today,
+         *     each resolved independently of the other; both ends are inclusive, so the default
+         *     window covers 8 calendar days — the same convention as `adminTrafficOverview`,
+         *     while the console's "last 7 days" preset is a separate UI-level range.
+         *     Content scope is the currently public, undeleted forum content, using the
+         *     repository's canonical public-topic predicate: a topic counts when
+         *     `deleted_at IS NULL AND visibility_status = 'ACTIVE' AND process_status = 0 AND topic_type = 0 AND status = 1`
+         *     (published topics only; `topic_type = 0` excludes wiki pages) and its first floor is
+         *     still visible — the post referenced by `first_post_id` is not soft-deleted, is
+         *     `visibility_status = 'ACTIVE'` and is `process_status = 0`, so a topic whose body
+         *     was removed stops counting instead of surfacing as a body-less orphan. Replies are
+         *     the posts of those same topics with `post_no > 1` (the first floor is the topic body
+         *     itself and is never a reply), so they inherit the topic-level conditions.
+         *     A row is attributed to its effective first-public time
+         *     `COALESCE(first_public_at, created_at)`, not to its last edit. Liked content is
+         *     measured by the likes that are still effective now (topic `like_count`, live
+         *     `post_user_action` rows with `liked_at IS NOT NULL`); an unliked action is not
+         *     counted and no synthetic contribution score is derived.
+         *     Category attribution uses the current membership relation
+         *     (`topic_category_index.effective = 1`), so a topic belonging to several categories
+         *     is counted in each of them and the cross-category sum can exceed `totals`;
+         *     `totals` deduplicates by topic/post id and describes the whole site. `categories`
+         *     always lists every category, zero-filled, ordered by `topicCount` descending then
+         *     `categoryId` ascending.
+         *     `contributorCount` counts the distinct human accounts (`users.actor_type = 0`) that
+         *     authored an in-range topic or reply; anonymous rows (`persona_uid`/`is_anonymous`)
+         *     and soft-deleted users are excluded, and per-day contributor counts are never
+         *     summed. `agentContributorCount` counts bot accounts (`actor_type = 1`) separately
+         *     so agents never inflate human figures. `coverage.estimated` is true when any
+         *     counted row was backfilled from `created_at` (`first_public_estimated`), i.e. its
+         *     exact first-public time is unknown.
+         *     Validation failures (malformed date, `startDate > endDate`, a span over 366 days)
+         *     return HTTP 200 `common.request.invalidParams` with `params.field` naming the
+         *     rejected field — an inverted range blames `endDate`, and an over-long range adds
+         *     `params.maxRangeDays` with the enforced cap; the range is never silently truncated.
+         *     A storage failure returns HTTP 200 `admin.stats.fetchFailed` rather than a
+         *     zero-filled success. JSON binding is lenient: a malformed body binds to zero values
+         *     and therefore falls back to the default window instead of returning a bind error.
+         */
+        post: operations["adminStatsCategorySummary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/stats/category-trend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Daily topic/reply counts of one category over a date range
+         * @description Admin console operation gated by the `Admin` role permission; callers without it
+         *     fail with HTTP 403 and `permission.denied`. `categoryId` is required and must be an
+         *     existing category. Both dates are inclusive and sliced by server-local calendar
+         *     day; omitted dates fall back to the `adminStatsCategorySummary` window (empty
+         *     `startDate` = 7 days before today, empty `endDate` = today, both inclusive, so 8
+         *     calendar days).
+         *     `days` holds one entry per in-range day in ascending order, so days without any
+         *     contribution are present with zero counts and `estimated: false`; a day whose
+         *     counts include a row backfilled from `created_at` is flagged `estimated: true`.
+         *     The counts obey the same scope as `adminStatsCategorySummary`: currently public,
+         *     undeleted, published forum topics of the category with a still-visible first floor
+         *     (`deleted_at IS NULL AND visibility_status = 'ACTIVE' AND process_status = 0 AND topic_type = 0 AND status = 1`,
+         *     `topic_type = 0` excluding wiki pages), and replies as the posts of those topics
+         *     with `post_no > 1`, attributed by `COALESCE(first_public_at, created_at)`, with
+         *     anonymous and soft-deleted authors irrelevant here because per-day counts are
+         *     content counts, not people counts.
+         *     Validation failures (malformed date, `startDate > endDate`, a span over 366 days,
+         *     a missing or unknown `categoryId`) return HTTP 200 `common.request.invalidParams`
+         *     with `params.field` naming the rejected field — an inverted range blames `endDate`,
+         *     and an over-long range adds `params.maxRangeDays` with the enforced cap. A storage
+         *     failure returns HTTP 200 `admin.stats.fetchFailed` rather than a zero-filled
+         *     success. JSON binding is lenient: a malformed body binds to zero values, so a
+         *     missing `categoryId` is rejected as `common.request.invalidParams` instead of
+         *     returning a bind error.
+         */
+        post: operations["adminStatsCategoryTrend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/stats/user-ranking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Paginated contributor ranking over a date range
+         * @description Admin console operation gated by the `Admin` role permission; callers without it
+         *     fail with HTTP 403 and `permission.denied`. Ranks accounts by their in-range
+         *     contribution, optionally restricted to one category. Both dates are inclusive and
+         *     sliced by server-local calendar day; omitted dates fall back to the
+         *     `adminStatsCategorySummary` window (empty `startDate` = 7 days before today, empty
+         *     `endDate` = today, both inclusive, so 8 calendar days); `categoryId` 0 or omitted
+         *     means whole-site.
+         *     Counted content obeys the same public scope as `adminStatsCategorySummary`
+         *     (published, undeleted forum topics with a still-visible first floor, replies as
+         *     their `post_no > 1` posts).
+         *     Attribution is by author account, so anonymous rows (`persona_uid`/`is_anonymous`)
+         *     never surface an identity and soft-deleted users (`users.deleted_at IS NOT NULL`)
+         *     are absent from the ranking even though their public content still counts towards
+         *     content volume. `actorType` selects the population: 0 (default) ranks human
+         *     accounts, 1 ranks agent (bot) accounts; the two are never mixed.
+         *     `sortBy` picks the ordering metric (`topics` default, `replies`, `likes`) and ties
+         *     are broken by `userId` ascending, so paging is stable. `page` is 1-based and echoed
+         *     unchanged; `pageSize` is bounded to 1-100 (default 20) and `total` is the number of
+         *     matching accounts, i.e. the paging denominator. `likes` counts the likes still
+         *     effective now (topic `like_count`, plus live `post_user_action` rows), not the
+         *     likes added during the range. `coverage.estimated` is scoped to the rows this
+         *     ranking actually counts: it is true when any of them was backfilled from
+         *     `created_at`, so anonymous or otherwise excluded content never raises the flag.
+         *     Validation failures (malformed date, `startDate > endDate`, a span over 366 days,
+         *     an unknown `categoryId`, `pageSize` outside 1-100, an unknown `sortBy`, an unknown
+         *     `actorType`) return HTTP 200 `common.request.invalidParams` with `params.field`
+         *     naming the rejected field — an inverted range blames `endDate`, and an over-long
+         *     range adds `params.maxRangeDays` with the enforced cap; defaults are never
+         *     substituted silently for an invalid value. A storage failure returns HTTP 200
+         *     `admin.stats.fetchFailed` rather than an empty page. JSON binding is lenient: a
+         *     malformed body binds to zero values and therefore falls back to the default window
+         *     and filters.
+         */
+        post: operations["adminStatsUserRanking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/stats/user-detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Contribution detail of one account over a date range
+         * @description Admin console operation gated by the `Admin` role permission; callers without it
+         *     fail with HTTP 403 and `permission.denied`. Exactly one of `userId` and `username`
+         *     identifies the account; passing both or neither fails with
+         *     `common.request.invalidParams`. `userId` is the authoritative lookup because the
+         *     forum user id is the identity key, `username` is the by-name convenience form.
+         *     An unknown or soft-deleted (closed) account returns HTTP 200 `user.notFound`; a
+         *     closed account is never resurrected by this read.
+         *     Both dates are inclusive and sliced by server-local calendar day; omitted dates
+         *     fall back to the `adminStatsCategorySummary` window (empty `startDate` = 7 days
+         *     before today, empty `endDate` = today, both inclusive, so 8 calendar days);
+         *     `categoryId` 0 or omitted means whole-site. `summary` holds the account's in-range totals under
+         *     the same scope as the ranking endpoint (`likes` counts likes still effective now),
+         *     and `days` holds one entry per in-range day ascending, zero-filled for days without
+         *     contribution, with `estimated: true` on days whose counts include a row backfilled
+         *     from `created_at`. An account with no contribution in range is not an error: its
+         *     `summary` and `days` are all zero. Anonymous content is never attributed to the
+         *     queried account, and querying an agent account returns its real identity because
+         *     the caller is an administrator.
+         *     A storage failure returns HTTP 200 `admin.stats.fetchFailed` rather than a
+         *     zero-filled success. JSON binding is lenient: a malformed body binds to zero values,
+         *     so a missing account identifier is rejected as `common.request.invalidParams`
+         *     instead of returning a bind error.
+         */
+        post: operations["adminStatsUserDetail"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7984,8 +8663,10 @@ export interface paths {
          * @description Starts a post-image upload. The caller declares the original filename, browser MIME type and
          *     byte size; the server validates them against the posting-settings allowlist and size cap
          *     before returning a mode. With the local storage provider the response is `mode: "proxy"` and
-         *     the caller must continue with the existing multipart `POST /file/img-upload`. With an
-         *     S3-compatible provider the response is `mode: "direct"` and carries a short-lived presigned
+         *     the caller must continue with the existing multipart `POST /file/img-upload`; the same applies
+         *     to an S3-compatible provider while the storage setting `forceProxyUpload` is enabled (the
+         *     server then writes the proxied upload to the bucket). Otherwise, with an S3-compatible
+         *     provider the response is `mode: "direct"` and carries a short-lived presigned
          *     POST policy (`upload.url` + `upload.fields`) plus the pending object `name`: the browser
          *     uploads the file straight to the bucket, then calls `/file/img-upload/complete` to publish.
          *     Business failures (HTTP 200): `upload.attachment.disabled`, `upload.cooldown` (new-account
@@ -8061,6 +8742,82 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        DecorationStyle: {
+            /**
+             * @description Frame artwork diameter relative to the avatar, centered without changing layout; omitted values use 1.25.
+             * @default 1.25
+             */
+            assetScale: number;
+            /** @description Optional same-origin PNG or WebP frame artwork installed under resource/static/decorations. External URLs are rejected. */
+            assetUrl?: string;
+            code: string;
+            name: string;
+            /** @enum {string} */
+            kind: "avatarFrame" | "nicknameStyle";
+            lightColors: string[];
+            darkColors: string[];
+            isEnabled: boolean;
+            sortOrder: number;
+        };
+        DecorationDisplay: {
+            avatarFrame?: components["schemas"]["DecorationStyle"];
+            nicknameStyle?: components["schemas"]["DecorationStyle"];
+        };
+        DecorationEquipped: {
+            avatarFrame: string;
+            nicknameStyle: string;
+        };
+        DecorationState: {
+            catalog: components["schemas"]["DecorationStyle"][];
+            ownedCodes: string[];
+            equipped: components["schemas"]["DecorationEquipped"];
+        };
+        DecorationAdjustmentRequest: {
+            userId: number;
+            code: string;
+            reason: string;
+            requestKey: string;
+        };
+        DecorationAudit: {
+            id: number;
+            requestKey: string;
+            userId: number;
+            code: string;
+            /** @enum {string} */
+            action: "grant" | "revoke" | "equip" | "definition";
+            /** @enum {string} */
+            source: "manual" | "xp" | "trust" | "credit" | "migration" | "self";
+            actorId: number;
+            reason: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AdminDecorationState: {
+            catalog: components["schemas"]["DecorationStyle"][];
+            ownedCodes: string[];
+            equipped: components["schemas"]["DecorationEquipped"];
+            audits: components["schemas"]["DecorationAudit"][];
+        };
+        DecorationStateResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["DecorationState"];
+        } | components["schemas"]["ApiFailure"];
+        AdminDecorationStateResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["AdminDecorationState"];
+        } | components["schemas"]["ApiFailure"];
+        DecorationListResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["DecorationStyle"][];
+        } | components["schemas"]["ApiFailure"];
+        DecorationStyleResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["DecorationStyle"];
+        } | components["schemas"]["ApiFailure"];
         CampusBinding: {
             maskedId: string;
             /**
@@ -8879,6 +9636,7 @@ export interface components {
             grantedAt: string;
         };
         UserCard: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /** Format: uint64 */
             userId: number;
             username: string;
@@ -8998,6 +9756,11 @@ export interface components {
             badgeCode?: string;
         };
         UploadAvatarRequest: {
+            /**
+             * Format: uint64
+             * @description Optional managed Bot target; human creator or station admin remains uploader and pays quotas.
+             */
+            agentId?: number;
             /**
              * Format: binary
              * @description Primary avatar image file.
@@ -9128,6 +9891,9 @@ export interface components {
             topic?: components["schemas"]["NotificationTopicRef"];
             /** @description Raw event payload (title/content/templateKey/templateParams/actorId/topicId/postId/metadata and friends); shape varies by eventType. */
             payload: {
+                /** @description Structured direct mention reason; absent for historical rows without known reasons. */
+                hasDirectMention?: boolean;
+            } & {
                 [key: string]: unknown;
             };
         };
@@ -9672,6 +10438,7 @@ export interface components {
         };
         /** @description Review author display info. Identity fields (userId/username/avatar) are deliberately absent from the review DTO. */
         ReviewAuthorPayload: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /**
              * @description Anonymous and legacy reviews never carry identity fields.
              * @enum {string}
@@ -11372,6 +12139,8 @@ export interface components {
             secretKey: string;
             /** @description Optional public (CDN) prefix; empty means files are served through the `/file/img` proxy. */
             publicUrlPrefix: string;
+            /** @description Operator switch (default false). When true, `/file/img-upload/init` answers `mode: proxy` even with the `s3` provider, so clients upload through `POST /file/img-upload` and the server writes to the bucket. Omitting the field on save keeps the stored value; it is always saved as false when provider is not `s3`. */
+            forceProxyUpload?: boolean;
         };
         AdminStorageSettingsResponse: components["schemas"]["ApiSuccess"] & {
             /** @description Stored storage settings without the credentials (configured state only), or the built-in default when nothing has been saved. */
@@ -11681,6 +12450,7 @@ export interface components {
             result: components["schemas"]["AdminImportTaskAcceptedResult"];
         }) | components["schemas"]["ApiFailure"];
         TopicAuthorPayload: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /** @enum {string} */
             kind?: "member" | "persona";
             publicUid?: string;
@@ -12589,6 +13359,11 @@ export interface components {
             agentId: number;
         };
         AdminAgentItem: {
+            profileCoverUrl: string;
+            bio: string;
+            signature: string;
+            website: string;
+            websiteName: string;
             configVersion: number;
             eventsEnabled: boolean;
             eventTypes: ("agent.mentioned" | "agent.post_replied" | "agent.topic_commented" | "forum.topic_created" | "forum.post_created")[];
@@ -12656,6 +13431,18 @@ export interface components {
             };
         };
         AdminAgentUpdateRequest: {
+            /** @description Applied only when present; must be a built-in preset or ready image file owned by the human actor or target Bot. */
+            avatarUrl?: string;
+            /** @description Applied only when present; empty text clears the field. */
+            profileCoverUrl?: string;
+            /** @description Applied only when present; empty text clears the field. */
+            bio?: string;
+            /** @description Applied only when present; empty text clears the field. */
+            signature?: string;
+            /** @description Applied only when present; empty text clears the field. */
+            website?: string;
+            /** @description Applied only when present; empty text clears the field. */
+            websiteName?: string;
             /**
              * Format: uint64
              * @description Unknown ids fail with `admin.agent.notFound` (HTTP 200); missing/zero fails request validation with `common.request.invalidParams` (HTTP 200).
@@ -12745,6 +13532,245 @@ export interface components {
                 /** @description Omitted from the wire payload when false. */
                 hasNext?: boolean;
             };
+        };
+        AdminStatsCategorySummaryRequest: {
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            startDate?: string;
+            /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
+            endDate?: string;
+        };
+        AdminStatsCategorySummaryResult: {
+            /** @description Every category, zero-filled when it has no in-range contribution, ordered by `topicCount` descending then `categoryId` ascending. */
+            categories: components["schemas"]["AdminStatsCategoryItem"][];
+            totals: components["schemas"]["AdminStatsTotals"];
+            coverage: components["schemas"]["AdminStatsCoverage"];
+        };
+        AdminStatsCategorySummaryResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminStatsCategorySummaryResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminStatsCategoryTrendRequest: {
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            startDate?: string;
+            /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
+            endDate?: string;
+            /**
+             * Format: uint64
+             * @description Required category id; an unknown id fails with `common.request.invalidParams`.
+             */
+            categoryId: number;
+        };
+        AdminStatsCategoryTrendResult: {
+            /**
+             * Format: uint64
+             * @description Echo of the requested category id.
+             */
+            categoryId: number;
+            /** @description One entry per in-range day, ascending; days without contribution are present with zero counts. */
+            days: components["schemas"]["AdminStatsDayCount"][];
+            coverage: components["schemas"]["AdminStatsCoverage"];
+        };
+        AdminStatsCategoryTrendResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminStatsCategoryTrendResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminStatsUserRankingRequest: {
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            startDate?: string;
+            /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
+            endDate?: string;
+            /**
+             * Format: uint64
+             * @description Category filter; 0 or omitted means whole-site.
+             */
+            categoryId?: number;
+            /**
+             * @description Ordering metric, descending; empty or omitted defaults to `topics`, and ties break on `userId` ascending.
+             * @enum {string}
+             */
+            sortBy?: "topics" | "replies" | "likes";
+            /** @description 1-based page number, echoed unchanged; omitted defaults to page 1. Values above the 10000 cap are rejected as `common.request.invalidParams` with `params.field = page` rather than clamped or silently truncated, because deeper windows are meaningless and would overflow the offset arithmetic. */
+            page?: number;
+            /** @description Page size; omitted defaults to 20, and values outside 1-100 are rejected rather than clamped. */
+            pageSize?: number;
+            /**
+             * @description Contributor population to rank; 0 = human accounts (default when omitted), 1 = agent (bot) accounts.
+             * @enum {integer}
+             */
+            actorType?: 0 | 1;
+        };
+        AdminStatsUserRankingResult: {
+            /** @description Ranked page; an empty array when nothing matches. Anonymous content and soft-deleted users never appear. */
+            items: components["schemas"]["AdminStatsUserRankingItem"][];
+            /** @description 1-based page number, echoed unchanged. */
+            page: number;
+            /** @description Effective page size. */
+            pageSize: number;
+            /**
+             * Format: int64
+             * @description Number of accounts matching the filters (the paging denominator), independent of `page`.
+             */
+            total: number;
+            coverage: components["schemas"]["AdminStatsCoverage"];
+        };
+        AdminStatsUserRankingResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminStatsUserRankingResult"];
+        }) | components["schemas"]["ApiFailure"];
+        /** @description Exactly one of `userId` and `username` identifies the account; passing both or neither fails with `common.request.invalidParams`. `userId` is the authoritative form (the numeric forum user id), `username` the by-name convenience form. */
+        AdminStatsUserDetailRequest: {
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            startDate?: string;
+            /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
+            endDate?: string;
+            /**
+             * Format: uint64
+             * @description Category filter; 0 or omitted means whole-site.
+             */
+            categoryId?: number;
+            /**
+             * Format: uint64
+             * @description Account id; exactly one of `userId` / `username` must be given.
+             */
+            userId?: number;
+            /** @description Account username; exactly one of `userId` / `username` must be given. */
+            username?: string;
+        };
+        AdminStatsUserDetailResult: {
+            user: components["schemas"]["AdminStatsUserDetailUser"];
+            summary: components["schemas"]["AdminStatsUserDetailSummary"];
+            /** @description One entry per in-range day, ascending, zero-filled for days without contribution. */
+            days: components["schemas"]["AdminStatsDayCount"][];
+            coverage: components["schemas"]["AdminStatsCoverage"];
+        };
+        AdminStatsUserDetailResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminStatsUserDetailResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminStatsCoverage: {
+            /** @description Runtime-derived server-local timezone whose calendar days the range was sliced by (there is no site-level timezone setting). Formatted as `"<abbreviation> (UTC±HH:MM)"`, e.g. `CST (UTC+08:00)` or `UTC (UTC+00:00)`; the abbreviation is the `time.Local` zone name, or `Local` when that name is empty or literally `Local`. */
+            timezone: string;
+            /** @description Inclusive date-range span cap in days currently enforced (366), echoed so the UI can show the limit without hard-coding it. */
+            maxRangeDays: number;
+            /** @description True when any counted row's first-public time was backfilled from `created_at` (`first_public_estimated`), i.e. not an exact audit-time record. */
+            estimated: boolean;
+        };
+        AdminStatsCategoryItem: {
+            /** Format: uint64 */
+            categoryId: number;
+            /** @description Current category name. */
+            name: string;
+            /**
+             * Format: int64
+             * @description In-range topics currently attributed to this category (a topic in several categories counts once per category).
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description In-range replies of those topics (`post_no > 1`; the first floor is not a reply).
+             */
+            replyCount: number;
+            /**
+             * Format: int64
+             * @description Distinct human accounts (`actor_type = 0`) that authored one of them; anonymous rows and soft-deleted users excluded.
+             */
+            contributorCount: number;
+            /**
+             * Format: int64
+             * @description Distinct agent accounts (`actor_type = 1`) that authored one of them, kept separate from `contributorCount`.
+             */
+            agentContributorCount: number;
+        };
+        AdminStatsTotals: {
+            /**
+             * Format: int64
+             * @description Whole-site in-range topics, deduplicated by topic id (unaffected by multi-category attribution).
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description Whole-site in-range replies, deduplicated by post id.
+             */
+            replyCount: number;
+            /**
+             * Format: int64
+             * @description Distinct human accounts contributing site-wide; per-day counts are never summed.
+             */
+            contributorCount: number;
+            /**
+             * Format: int64
+             * @description Distinct agent accounts contributing site-wide.
+             */
+            agentContributorCount: number;
+        };
+        AdminStatsDayCount: {
+            /** @description YYYY-MM-DD, server-local day. */
+            date: string;
+            /**
+             * Format: int64
+             * @description Topics attributed to this day; 0 when the day has no contribution.
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description Replies attributed to this day; 0 when the day has no contribution.
+             */
+            replyCount: number;
+            /** @description True when this day's counts include a row whose first-public time was backfilled from `created_at`. */
+            estimated: boolean;
+        };
+        AdminStatsUserRankingItem: {
+            /**
+             * Format: uint64
+             * @description Numeric forum user id (also the OIDC `sub`).
+             */
+            userId: number;
+            username: string;
+            nickname: string;
+            /**
+             * @description 0 = human account, 1 = agent (bot) account; matches the request `actorType` filter.
+             * @enum {integer}
+             */
+            actorType: 0 | 1;
+            /**
+             * Format: int64
+             * @description In-range topics authored under the requested scope.
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description In-range replies authored under the requested scope.
+             */
+            replyCount: number;
+            /**
+             * Format: int64
+             * @description Likes still effective on those topics and replies; cancelled likes are not counted.
+             */
+            likeCount: number;
+        };
+        AdminStatsUserDetailUser: {
+            /** Format: uint64 */
+            userId: number;
+            username: string;
+            nickname: string;
+            /**
+             * @description 0 = human account, 1 = agent (bot) account.
+             * @enum {integer}
+             */
+            actorType: 0 | 1;
+        };
+        AdminStatsUserDetailSummary: {
+            /**
+             * Format: int64
+             * @description In-range topics authored under the requested scope; 0 when the account had no contribution.
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description In-range replies authored under the requested scope; 0 when the account had no contribution.
+             */
+            replyCount: number;
+            /**
+             * Format: int64
+             * @description Likes still effective on those topics and replies; cancelled likes are not counted.
+             */
+            likeCount: number;
         };
         AdminTrafficOverviewRequest: {
             /** @description Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago. */
@@ -12983,6 +14009,7 @@ export interface components {
             height: number;
         };
         UserSearchPayload: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /** Format: uint64 */
             id: number;
             username: string;
@@ -13027,7 +14054,8 @@ export interface components {
         };
         DirectImageUploadInitResult: {
             /**
-             * @description `proxy` — continue with the multipart `POST /file/img-upload` (local provider).
+             * @description `proxy` — continue with the multipart `POST /file/img-upload` (local provider, or the
+             *     `s3` provider with the operator switch `forceProxyUpload` enabled).
              *     `direct` — upload to `upload.url` with `upload.fields` + the file, then call
              *     `/file/img-upload/complete` with `name`.
              * @enum {string}
@@ -13350,6 +14378,7 @@ export interface components {
         };
         AgentAckResponse: components["schemas"]["AgentAckSuccess"] | components["schemas"]["ApiFailure"];
         MentionTarget: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /** Format: uint64 */
             userId: number;
             username: string;
@@ -13580,6 +14609,48 @@ export interface components {
         revealAnonymousIdentityResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["AnonymousRevealedOwner"];
         }) | components["schemas"]["ApiFailure"];
+        PasskeyStatusResult: {
+            enabled: boolean;
+        };
+        PasskeyStatusResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyStatusResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AppleAssociationResponse: {
+            webcredentials: {
+                apps: string[];
+            };
+        };
+        AndroidAssociationResponse: {
+            relation: string[];
+            target: {
+                /** @constant */
+                namespace: "android_app";
+                package_name: string;
+                sha256_cert_fingerprints: string[];
+            };
+        }[];
+        /** @description WebAuthn options serialized by the relying-party implementation. */
+        PasskeyWebAuthnOptions: {
+            [key: string]: unknown;
+        };
+        PasskeyLoginBeginResult: {
+            ceremonyId: string;
+            publicKey: components["schemas"]["PasskeyWebAuthnOptions"];
+        };
+        PasskeyLoginBeginResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyLoginBeginResult"];
+        }) | components["schemas"]["ApiFailure"];
+        /** @description WebAuthn public-key credential response; base64url encoded binary members. */
+        PasskeyCredentialResponseObject: {
+            [key: string]: unknown;
+        };
+        PasskeyLoginFinishRequest: {
+            ceremonyId: string;
+            credential: components["schemas"]["PasskeyCredentialResponseObject"];
+        };
+        PasskeyEmptyResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: Record<string, never>;
+        }) | components["schemas"]["ApiFailure"];
         TongjiRegistrationStatus: {
             csrfToken: string;
             email: string;
@@ -13604,6 +14675,60 @@ export interface components {
         };
         TongjiRegistrationResultResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["TongjiRegistrationResult"];
+        };
+        PasskeyReauthRequest: {
+            /** @description RSA-OAEP-256 encrypted password payload, matching POST /api/login. */
+            encryptedPassword: string;
+            /** @description Required only when TOTP is enabled. */
+            totpCode?: string;
+        };
+        PasskeyReauthResult: {
+            proof: string;
+            /** @constant */
+            expiresInSeconds: 120;
+        };
+        PasskeyReauthResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyReauthResult"];
+        }) | components["schemas"]["ApiFailure"];
+        PasskeyRegistrationBeginRequest: {
+            /** @description One-use proof from POST /api/user/passkeys/reauth. */
+            proof: string;
+        };
+        PasskeyRegistrationBeginResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyLoginBeginResult"];
+        }) | components["schemas"]["ApiFailure"];
+        PasskeyRegistrationFinishRequest: {
+            ceremonyId: string;
+            /** @description Optional user-facing label; defaults to Passkey. */
+            name?: string;
+            credential: components["schemas"]["PasskeyCredentialResponseObject"];
+        };
+        PasskeyCredentialSummary: {
+            /** @description Base64url credential identifier, never a private key. */
+            id: string;
+            name: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            lastUsedAt?: string;
+            backupEligible: boolean;
+            backupState: boolean;
+            transports: string[];
+        };
+        PasskeyCredentialResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyCredentialSummary"];
+        }) | components["schemas"]["ApiFailure"];
+        PasskeyCredentialListResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyCredentialSummary"][];
+        }) | components["schemas"]["ApiFailure"];
+        PasskeyCredentialRenameRequest: {
+            proof: string;
+            credentialId: string;
+            name: string;
+        };
+        PasskeyCredentialRevokeRequest: {
+            proof: string;
+            credentialId: string;
         };
         UpdateTopicAgentRepliesRequest: {
             /** Format: uint64 */
@@ -13731,6 +14856,32 @@ export interface components {
         };
         ModerationApprovalActionResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["ModerationApprovalActionView"];
+        };
+        /**
+         * @description Who can see a profile aggregate, from the widest to the narrowest audience.
+         * @enum {string}
+         */
+        ProfileAudience: "everyone" | "members" | "followers" | "mutual" | "self";
+        /** @enum {string} */
+        ProfileLikesAudience: "everyone" | "followers" | "self";
+        /** @enum {string} */
+        ProfileConnectionsAudience: "everyone" | "followers" | "mutual" | "self";
+        UserPrivacySettings: {
+            profileTopics: components["schemas"]["ProfileAudience"];
+            profileActivity: components["schemas"]["ProfileAudience"];
+            profileLikes: components["schemas"]["ProfileLikesAudience"];
+            followingList: components["schemas"]["ProfileConnectionsAudience"];
+            followersList: components["schemas"]["ProfileConnectionsAudience"];
+        };
+        UserPrivacySettingsSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["UserPrivacySettings"];
+        };
+        UserPrivacySettingsUpdateRequest: {
+            profileTopics?: components["schemas"]["ProfileAudience"];
+            profileActivity?: components["schemas"]["ProfileAudience"];
+            profileLikes?: components["schemas"]["ProfileLikesAudience"];
+            followingList?: components["schemas"]["ProfileConnectionsAudience"];
+            followersList?: components["schemas"]["ProfileConnectionsAudience"];
         };
         UserBlock: {
             /** Format: uint64 */
@@ -13931,6 +15082,7 @@ export interface components {
             messageCode?: string;
         };
         NotificationActorPayload: {
+            decoration?: components["schemas"]["DecorationDisplay"];
             /** @enum {string} */
             kind?: "member" | "persona";
             publicUid?: string;
@@ -13946,6 +15098,33 @@ export interface components {
             avatarUrl: string;
             /** @description Present only when the user wears a badge. */
             wornBadge?: Record<string, never> | null;
+        };
+        values: {
+            /** @default true */
+            chat: boolean;
+            /** @default true */
+            mentionsAndReplies: boolean;
+            /** @default false */
+            activity: boolean;
+            /** @default false */
+            following: boolean;
+            /** @description True until system has an explicit override; ordinary system, badge and pending review remain silent. */
+            readonly systemDefaultOnly: boolean;
+            /**
+             * @description Defaults allow review approval/rejection only. Explicit true also enables ordinary system, badges and review pending.
+             * @default true
+             */
+            system: boolean;
+        };
+        response: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["values"];
+        }) | components["schemas"]["ApiFailure"];
+        changes: {
+            chat?: boolean;
+            mentionsAndReplies?: boolean;
+            activity?: boolean;
+            following?: boolean;
+            system?: boolean;
         };
         ForwardChatMessagesRequest: {
             /** Format: uint64 */
@@ -14089,6 +15268,45 @@ export interface components {
         ModerationPostRevealResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["PostAuthorRevealPayload"];
         }) | components["schemas"]["ApiFailure"];
+        AgentContentSourceRequest: {
+            /** Format: uint64 */
+            topicId?: number;
+            /** Format: uint64 */
+            postId?: number;
+        } & (unknown | unknown);
+        AgentContentSource: {
+            /** Format: uint64 */
+            topicId: number;
+            /** Format: uint64 */
+            postId: number;
+            title: string;
+            content: string;
+            categoryId: number[];
+            /** Format: uint64 */
+            revisionNo: number;
+            /** Format: uint64 */
+            botUserId: number;
+            botName: string;
+        };
+        AgentContentSourceResponse: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["AgentContentSource"];
+        };
+        AgentEditTopicRequest: {
+            /** Format: uint64 */
+            topicId: number;
+            title: string;
+            content: string;
+            categoryId: number[];
+            /** Format: uint64 */
+            expectedRevisionNo: number;
+        };
+        AgentEditPostRequest: {
+            /** Format: uint64 */
+            postId: number;
+            content: string;
+            /** Format: uint64 */
+            expectedRevisionNo: number;
+        };
         /**
          * @description Notification channel adapter (issue #1049). `generic` posts the structured JSON envelope
          *     with `X-Goose-*` headers and the optional HMAC signature; `feishu` posts a schema 2.0
@@ -14338,6 +15556,7 @@ export interface components {
             /** @description Whether a secret key is stored (encrypted with AES-256-GCM). The key itself is never returned (issue */
             secretKeyConfigured: boolean;
             publicUrlPrefix: string;
+            forceProxyUpload: boolean;
         };
         AdminImportTaskAcceptedResult: {
             /**
@@ -14512,6 +15731,335 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    myDecorations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationStateResponse"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    equipDecorations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecorationEquipped"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationStateResponse"];
+                };
+            };
+            /** @description Malformed JSON/query or body exceeds 4096 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listDecorations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationListResponse"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    saveDecoration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecorationStyle"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationStyleResponse"];
+                };
+            };
+            /** @description Malformed JSON/query or body exceeds 4096 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getUserDecorations: {
+        parameters: {
+            query: {
+                userId: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDecorationStateResponse"];
+                };
+            };
+            /** @description Malformed JSON/query or body exceeds 4096 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    grantDecoration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecorationAdjustmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationStateResponse"];
+                };
+            };
+            /** @description Malformed JSON/query or body exceeds 4096 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    revokeDecoration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecorationAdjustmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationStateResponse"];
+                };
+            };
+            /** @description Malformed JSON/query or body exceeds 4096 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     agentListEvents: {
         parameters: {
             query?: {
@@ -14671,7 +16219,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Admin role required. */
+            /** @description Non-writable account or rejected CSRF request. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14713,7 +16261,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Admin role required. */
+            /** @description Non-writable account or rejected CSRF request. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14755,7 +16303,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Admin role required. */
+            /** @description Non-writable account or rejected CSRF request. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14797,7 +16345,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Admin role required. */
+            /** @description Non-writable account or rejected CSRF request. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14839,7 +16387,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Admin role required. */
+            /** @description Non-writable account or rejected CSRF request. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14881,7 +16429,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Admin role required. */
+            /** @description Non-writable account or rejected CSRF request. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14923,7 +16471,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Admin role required. */
+            /** @description Non-writable account or rejected CSRF request. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15981,6 +17529,134 @@ export interface operations {
             };
         };
     };
+    getPasskeyStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Public passkey availability flag. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyStatusResponse"];
+                };
+            };
+        };
+    };
+    getAppleWebCredentialsAssociation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description AASA association for the configured Apple Team ID and bundle ID. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppleAssociationResponse"];
+                };
+            };
+            /** @description No Apple Team ID is configured; the response contains an empty app list. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppleAssociationResponse"];
+                };
+            };
+        };
+    };
+    getAndroidDigitalAssetLinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Credential-sharing association for the configured Android package and signing fingerprints, or an empty list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AndroidAssociationResponse"];
+                };
+            };
+        };
+    };
+    beginPasskeyLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Discoverable WebAuthn request options and opaque ceremony ID. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyLoginBeginResponse"];
+                };
+            };
+        };
+    };
+    finishPasskeyLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyLoginFinishRequest"];
+            };
+        };
+        responses: {
+            /** @description Success sets the standard New-Token and session cookie; invalid credentials return the normal business failure envelope. */
+            200: {
+                headers: {
+                    "New-Token"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyEmptyResponse"];
+                };
+            };
+            /** @description Login rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
     logout: {
         parameters: {
             query?: never;
@@ -16474,6 +18150,191 @@ export interface operations {
             };
         };
     };
+    reauthenticatePasskeyManagement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyReauthRequest"];
+            };
+        };
+        responses: {
+            /** @description Short-lived, one-use proof bound to the current user and session. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyReauthResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description CSRF or writable-account check rejected the request. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    beginPasskeyRegistration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyRegistrationBeginRequest"];
+            };
+        };
+        responses: {
+            /** @description WebAuthn credential creation options. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyRegistrationBeginResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    finishPasskeyRegistration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyRegistrationFinishRequest"];
+            };
+        };
+        responses: {
+            /** @description Created credential summary. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyCredentialResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listPasskeyCredentials: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Credential metadata; raw credential data and public keys are never returned. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyCredentialListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    renamePasskeyCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyCredentialRenameRequest"];
+            };
+        };
+        responses: {
+            /** @description Renamed credential. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyEmptyResponse"];
+                };
+            };
+        };
+    };
+    revokePasskeyCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyCredentialRevokeRequest"];
+            };
+        };
+        responses: {
+            /** @description Revoked credential. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyEmptyResponse"];
+                };
+            };
+        };
+    };
     exchangeNativeAppleCode: {
         parameters: {
             query?: never;
@@ -16717,7 +18578,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Fixed workspace destination; each target checks its existing permissions. */
-                target?: "admin" | "moderation" | "courseManagement" | "courseReviews" | "campus";
+                target?: "admin" | "agents" | "moderation" | "courseManagement" | "courseReviews" | "campus";
             };
             header?: never;
             path?: never;
@@ -16728,7 +18589,7 @@ export interface operations {
             /** @description Browser session installed; follow the fixed same-origin admin redirect. */
             303: {
                 headers: {
-                    Location?: "/admin" | "/moderation" | "/moderation/courses" | "/moderation/course-reviews";
+                    Location?: "/admin" | "/admin/agents" | "/moderation" | "/moderation/courses" | "/moderation/course-reviews" | "/campus";
                     /** @description HttpOnly access_token session cookie. */
                     "Set-Cookie"?: string;
                     "Cache-Control"?: "no-store";
@@ -18129,6 +19990,114 @@ export interface operations {
             };
         };
     };
+    getPrivacySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPrivacySettingsSuccess"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Storage unavailable; no successful response is returned. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    updatePrivacySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserPrivacySettingsUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The complete settings after the update. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPrivacySettingsSuccess"];
+                };
+            };
+            /** @description Malformed body, unknown field or unsupported audience. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cookie request rejected with auth.csrf.rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+            /** @description Storage unavailable; nothing was saved. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     listUserBlocks: {
         parameters: {
             query?: never;
@@ -19398,6 +21367,7 @@ export interface operations {
     getNotifications: {
         parameters: {
             query?: {
+                category?: "all" | "mentions" | "replies" | "likes" | "following" | "system";
                 filter?: "" | "all" | "unread";
                 cursor?: number;
                 limit?: number;
@@ -19513,6 +21483,96 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getPushPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Effective preferences; selective system defaults apply until explicitly changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["response"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    updatePushPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["changes"];
+            };
+        };
+        responses: {
+            /** @description Effective preferences after the partial update; station notifications and chat remain intact. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["response"];
+                };
+            };
+            /** @description Malformed JSON, a wrong field value type, an unknown (additional) field, a non-object/null body, or a request body over the 4KiB limit. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved; when email verification is enabled a pending-activation account is also rejected. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected` (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Push-preference update rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -22591,6 +24651,150 @@ export interface operations {
             };
         };
     };
+    adminAgentContentSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentContentSourceRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or the existing validation/moderation business failure envelope; inspect code and messageCode. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentContentSourceResponse"];
+                };
+            };
+            /** @description Missing or invalid human session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Unmanageable, inactive, anonymous, non-forum or unavailable content (admin.agent.contentUnavailable); account and CSRF gates also use HTTP 403. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentEditTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentEditTopicRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or the existing validation/moderation business failure envelope; inspect code and messageCode. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteTopicResponse"];
+                };
+            };
+            /** @description Missing or invalid human session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Unmanageable, inactive, anonymous, non-forum or unavailable content (admin.agent.contentUnavailable); account and CSRF gates also use HTTP 403. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Latest submission changed; preserve the draft and reload the source. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentEditPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentEditPostRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or the existing validation/moderation business failure envelope; inspect code and messageCode. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdatePostResponse"];
+                };
+            };
+            /** @description Missing or invalid human session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Unmanageable, inactive, anonymous, non-forum or unavailable content (admin.agent.contentUnavailable); account and CSRF gates also use HTTP 403. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Latest submission changed; preserve the draft and reload the source. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     adminAgentList: {
         parameters: {
             query?: never;
@@ -22600,13 +24804,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description All Agents (empty array when none exist). */
+            /** @description Manageable Agents (empty when the caller manages none). */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminAgentListResponse"];
+                    "application/json": components["schemas"]["AdminAgentListResponse"] | components["schemas"]["ApiFailure"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */
@@ -22618,7 +24822,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /** @description Frozen or non-writable account. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -22702,7 +24906,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /** @description Frozen or non-writable account. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -22744,7 +24948,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /** @description Frozen or non-writable account. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -22786,7 +24990,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /** @description Frozen or non-writable account. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -22859,6 +25063,174 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminTrafficOverviewResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStatsCategorySummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStatsCategorySummaryRequest"];
+            };
+        };
+        responses: {
+            /** @description Category summary plus site-wide totals, or a legacy business failure envelope (`common.request.invalidParams` / `admin.stats.fetchFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStatsCategorySummaryResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStatsCategoryTrend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStatsCategoryTrendRequest"];
+            };
+        };
+        responses: {
+            /** @description Daily series for the category, or a legacy business failure envelope (`common.request.invalidParams` / `admin.stats.fetchFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStatsCategoryTrendResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStatsUserRanking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStatsUserRankingRequest"];
+            };
+        };
+        responses: {
+            /** @description One page of ranked contributors, or a legacy business failure envelope (`common.request.invalidParams` / `admin.stats.fetchFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStatsUserRankingResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStatsUserDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStatsUserDetailRequest"];
+            };
+        };
+        responses: {
+            /** @description Account identity, in-range summary and daily series, or a legacy business failure envelope (`common.request.invalidParams` / `user.notFound` / `admin.stats.fetchFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStatsUserDetailResponse"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */

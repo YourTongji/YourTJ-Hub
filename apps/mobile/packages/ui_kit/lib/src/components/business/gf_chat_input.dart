@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../gf_motion.dart';
 import '../gf_symbol.dart';
 import 'gf_composer_panel.dart';
@@ -437,7 +438,7 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
                                         minimumSize: const Size(48, 48),
                                         padding: EdgeInsets.zero,
                                       ),
-                                      child: Text(
+                                      child: GfText(
                                         emoji,
                                         style: const TextStyle(fontSize: 24),
                                       ),

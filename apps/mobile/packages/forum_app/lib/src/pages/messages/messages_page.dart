@@ -1,4 +1,5 @@
 import '../../navigation/reading_window.dart';
+import '../../widgets/user_decoration.dart';
 import '../../offline/drift_cache.dart';
 import '../../widgets/cache_snapshot_hint.dart';
 import '../../messages/chat_message_bubble.dart';
@@ -72,6 +73,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
   AsyncValue<List<ChatItemPayload>> _conversations = const AsyncValue.loading();
   List<UserConnectionPayload> _suggestedUsers = const [];
   String _viewerAvatar = '';
+  UserDecoration? _viewerDecoration;
   String _viewerUsername = '';
   final TextEditingController _conversationSearch = TextEditingController();
   Timer? _pollTimer;
@@ -298,6 +300,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
         _serverConversationsResolved = true;
         _suggestedUsers = parsed.suggestedUsers;
         _viewerAvatar = resolveApiAssetUrl(payload.layout.viewer.avatarUrl);
+        _viewerDecoration = payload.layout.viewer.decoration;
         _viewerUsername = payload.layout.viewer.username;
         _targetConversation = _targetConversationFor(items);
       });
@@ -431,6 +434,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
         id: 0,
         peerId: selected.id,
         peerUsername: selected.username,
+        peerDecoration: selected.decoration,
         peerNickname: selected.nickname.isEmpty ? null : selected.nickname,
         peerAvatar: resolveApiAssetUrl(selected.avatarUrl),
         lastMsg: '',
@@ -508,9 +512,9 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
           Row(
             children: [
               Expanded(
-                child: Text(resolveErrorMessage(l10n, _conversations.error!)),
+                child: GfText(resolveErrorMessage(l10n, _conversations.error!)),
               ),
-              TextButton(onPressed: _load, child: Text(l10n.commonRetry)),
+              TextButton(onPressed: _load, child: GfText(l10n.commonRetry)),
             ],
           ),
         Expanded(child: body),
@@ -552,6 +556,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
         _selectedConversation = null;
         _suggestedUsers = [];
         _viewerAvatar = '';
+        _viewerDecoration = null;
         _viewerUsername = '';
       });
     });
@@ -593,6 +598,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
           onChanged: (_) => setState(() {}),
         ),
       ),
+      statusBarScrollToTopController: _scrollToTopController,
       body: (top, bottom) => _conversationBody(drafts, top, bottom),
     );
     return LayoutBuilder(
@@ -656,6 +662,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
                           key: ValueKey<int>(targetConversation.peerId),
                           conv: targetConversation,
                           viewerAvatar: _viewerAvatar,
+                          viewerDecoration: _viewerDecoration,
                           viewerUsername: _viewerUsername,
                           onBack:
                               !_wideLayout &&
@@ -684,12 +691,14 @@ class _ConversationPage extends ConsumerStatefulWidget {
     super.key,
     required this.conv,
     required this.viewerAvatar,
+    this.viewerDecoration,
     required this.viewerUsername,
     this.onBack,
   });
 
   final ChatItemPayload conv;
   final String viewerAvatar;
+  final UserDecoration? viewerDecoration;
   final String viewerUsername;
   final VoidCallback? onBack;
 
@@ -744,6 +753,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   bool _readSyncUnsupported = false;
   int _scrollAdjustmentGeneration = 0;
   bool _adjustingScroll = false;
+  bool _suppressEdgePaginationAfterStatusBarTap = false;
   double? _messageViewportHeight;
   ChatReplyTarget? _replyTarget;
   int _replySelection = 0;
@@ -797,7 +807,18 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
         );
   }
 
+  void _publishPushVisibility() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final peer = _canObserve ? widget.conv.peerId : 0;
+      if (peer > 0 || visibleChatPeer.value == widget.conv.peerId) {
+        visibleChatPeer.value = peer;
+      }
+    });
+  }
+
   void _visibilityChanged() {
+    _publishPushVisibility();
     if (!_sessionCurrent) return;
     if (!_foreground ||
         shellDrawerOpen.value ||
@@ -829,6 +850,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) unawaited(_drafts.flush());
     _foreground = state == AppLifecycleState.resumed;
+    if (!_foreground && visibleChatPeer.value == widget.conv.peerId) {
+      visibleChatPeer.value = 0;
+    }
+    _publishPushVisibility();
     _visibleReads.suspend();
     _syncPolling(
       _foreground &&
@@ -980,6 +1005,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
 
   @override
   void dispose() {
+    if (visibleChatPeer.value == widget.conv.peerId) visibleChatPeer.value = 0;
     WidgetsBinding.instance.removeObserver(this);
     _input.removeListener(_draftChanged);
     _drafts.removeListener(_restoreDraft);
@@ -1004,14 +1030,20 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
         _scrollController.position.extentAfter < 24) {
       setState(() => _unseenNewMessages = false);
     }
-    if (_scrollController.hasClients &&
+    if (!_suppressEdgePaginationAfterStatusBarTap &&
+        _scrollController.hasClients &&
         _scrollController.position.pixels < 80) {
       _loadOlder();
     }
-    if (_scrollController.hasClients &&
+    if (!_suppressEdgePaginationAfterStatusBarTap &&
+        _scrollController.hasClients &&
         _scrollController.position.extentAfter < 80) {
       _loadNewer();
     }
+  }
+
+  void _handleStatusBarTap() {
+    _suppressEdgePaginationAfterStatusBarTap = true;
   }
 
   void _dismissReplyReturnAtBottom() {
@@ -1037,6 +1069,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
 
   bool _onUserScroll(ScrollStartNotification notification) {
     if (notification.dragDetails != null) {
+      _suppressEdgePaginationAfterStatusBarTap = false;
       _scrollAdjustmentGeneration++;
       _adjustingScroll = false;
       _visibleReads.changed(restartDwell: true);
@@ -1648,7 +1681,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
             children: [
               GfSymbol('image', size: 22),
               const SizedBox(width: 12),
-              Expanded(child: Text(l10n.publishToolImage)),
+              Expanded(child: GfText(l10n.publishToolImage)),
             ],
           ),
         ),
@@ -1658,7 +1691,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
             children: [
               GfSymbol('smile', size: 22),
               const SizedBox(width: 12),
-              Expanded(child: Text(StickerStrings(context).add)),
+              Expanded(child: GfText(StickerStrings(context).add)),
             ],
           ),
         ),
@@ -1827,20 +1860,20 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
       ),
       items: [
         if (_historyReady)
-          GfPopupMenuItem(value: 'reply', child: Text(l10n.messageReply)),
+          GfPopupMenuItem(value: 'reply', child: GfText(l10n.messageReply)),
         if (!isForwardedHistory)
-          GfPopupMenuItem(value: 'copy', child: Text(l10n.messagesCopyAll)),
+          GfPopupMenuItem(value: 'copy', child: GfText(l10n.messagesCopyAll)),
         if (_historyReady)
-          GfPopupMenuItem(value: 'forward', child: Text(l10n.messageForward)),
+          GfPopupMenuItem(value: 'forward', child: GfText(l10n.messageForward)),
         if (_historyReady)
-          GfPopupMenuItem(value: 'select', child: Text(l10n.messageSelect)),
+          GfPopupMenuItem(value: 'select', child: GfText(l10n.messageSelect)),
         if (_historyReady && !isForwardedHistory && canCollect)
           GfPopupMenuItem(
             value: 'collect',
-            child: Text(StickerStrings(context).collect),
+            child: GfText(StickerStrings(context).collect),
           ),
         if (_historyReady && !message.isSelf)
-          GfPopupMenuItem(value: 'report', child: Text(l10n.messageReport)),
+          GfPopupMenuItem(value: 'report', child: GfText(l10n.messageReport)),
       ],
     );
     if (!mounted || !_sessionCurrent || action == null) return;
@@ -2091,9 +2124,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     });
     if (!_drafts.current) return const SizedBox.shrink();
     _visibleReads.changed();
+    _publishPushVisibility();
     final List<ChatTimelineItem> timeline = buildChatTimeline(_messages);
 
-    return PopScope(
+    final page = PopScope(
       canPop: !_selecting && widget.onBack == null,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
@@ -2118,12 +2152,23 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
               ? []
               : [UserBlockButton(userId: widget.conv.peerId, moreMenu: true)],
           title: _selecting
-              ? Text(l10n.messagesSelected(_selectedMessages.length))
+              ? GfText(l10n.messagesSelected(_selectedMessages.length))
               : Row(
                   children: <Widget>[
                     _PeerAvatarButton(
                       key: const Key('chat-peer-avatar-appbar'),
                       peerId: widget.conv.peerId,
+                      frameColors: decorationColors(
+                        context,
+                        widget.conv.peerDecoration?.avatarFrame,
+                      ),
+                      frameAssetUrl: decorationFrameAssetUrl(
+                        widget.conv.peerDecoration?.avatarFrame,
+                      ),
+                      frameScale:
+                          (widget.conv.peerDecoration?.avatarFrame)
+                              ?.assetScale ??
+                          1.25,
                       label: l10n.messagesViewProfile(peerName),
                       src: resolveApiAssetUrl(widget.conv.peerAvatar),
                       size: 36,
@@ -2137,8 +2182,12 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Text(
+                          GfDecoratedName(
                             peerName,
+                            colors: decorationColors(
+                              context,
+                              widget.conv.peerDecoration?.nicknameStyle,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -2146,7 +2195,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                               fontWeight: FontWeight.w700,
                             ),
                           ),
-                          Text(
+                          GfText(
                             l10n.messagesConversation,
                             style: TextStyle(
                               color: colors.baseContent.withValues(alpha: 0.5),
@@ -2178,6 +2227,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                   if (notification is ScrollEndNotification &&
                       notification.depth == 0) {
                     _dismissReplyReturnAtBottom();
+                    _suppressEdgePaginationAfterStatusBarTap = false;
                   }
                   if (notification is ScrollMetricsNotification &&
                       notification.depth == 0 &&
@@ -2273,7 +2323,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                               padding: const EdgeInsets.only(
                                                 top: 4,
                                               ),
-                                              child: Text(
+                                              child: GfText(
                                                 failureLabel,
                                                 style: TextStyle(
                                                   color: colors.error,
@@ -2290,14 +2340,14 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                                 'circle-alert',
                                                 size: 18,
                                               ),
-                                              label: Text(l10n.messagesRetry),
+                                              label: GfText(l10n.messagesRetry),
                                             ),
                                           ] else
                                             Padding(
                                               padding: const EdgeInsets.only(
                                                 top: 4,
                                               ),
-                                              child: Text(
+                                              child: GfText(
                                                 pending.state ==
                                                         DeliveryState.sending
                                                     ? l10n.messagesSending
@@ -2404,6 +2454,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                                             .peerAvatar,
                                                         viewerAvatar:
                                                             widget.viewerAvatar,
+                                                        viewerDecoration: widget
+                                                            .viewerDecoration,
+                                                        peerDecoration: widget
+                                                            .conv
+                                                            .peerDecoration,
                                                         showTime:
                                                             item.showTimestamp,
                                                         onSwipeReply: _selecting
@@ -2481,7 +2536,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                               ),
                             ),
                             icon: const GfSymbol('arrow-down', size: 18),
-                            label: Text(l10n.messagesReturnToReplySource),
+                            label: GfText(l10n.messagesReturnToReplySource),
                           ),
                         ),
                       ),
@@ -2513,7 +2568,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                           ? null
                           : () => _forward(_selectedMessages.toList()),
                       icon: const Icon(Icons.forward),
-                      label: Text(l10n.messageForward),
+                      label: GfText(l10n.messageForward),
                     ),
                   ),
                 ),
@@ -2530,7 +2585,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                         child: Row(
                           children: [
                             Expanded(
-                              child: Text(
+                              child: GfText(
                                 _readSyncUnsupported
                                     ? l10n.messagesReadUnavailable
                                     : l10n.messagesReadSyncFailed,
@@ -2541,7 +2596,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                 onPressed: _canObserve
                                     ? _visibleReads.retry
                                     : null,
-                                child: Text(l10n.commonRetry),
+                                child: GfText(l10n.commonRetry),
                               ),
                           ],
                         ),
@@ -2554,11 +2609,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: Row(
                           children: [
-                            Expanded(child: Text(l10n.commonLoadFailed)),
+                            Expanded(child: GfText(l10n.commonLoadFailed)),
                             TextButton.icon(
                               onPressed: _load,
                               icon: const GfSymbol('refresh-cw', size: 18),
-                              label: Text(l10n.commonRetry),
+                              label: GfText(l10n.commonRetry),
                             ),
                           ],
                         ),
@@ -2566,11 +2621,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                     if (forwarding.unfinished)
                       ListTile(
                         dense: true,
-                        title: Text(l10n.messageForwardPending),
+                        title: GfText(l10n.messageForwardPending),
                         trailing: TextButton(
                           onPressed: () =>
                               _forward(forwarding.batch!.messageIds),
-                          child: Text(l10n.messageForwardResume),
+                          child: GfText(l10n.messageForwardResume),
                         ),
                       ),
                     _ChatDraftStatus(
@@ -2579,10 +2634,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                     ),
                     if (outbox.imageRecoveryError != null)
                       ListTile(
-                        title: Text(l10n.commonLoadFailed),
+                        title: GfText(l10n.commonLoadFailed),
                         trailing: TextButton(
                           onPressed: outbox.restoreImages,
-                          child: Text(l10n.commonRetry),
+                          child: GfText(l10n.commonRetry),
                         ),
                       ),
                     if (_replyTarget != null)
@@ -2620,6 +2675,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
           ],
         ),
       ),
+    );
+    return GfStatusBarScrollToTop(
+      scrollController: _scrollController,
+      onStatusBarTap: _handleStatusBarTap,
+      child: page,
     );
   }
 }
@@ -2691,6 +2751,19 @@ class _ConversationList extends StatelessWidget {
           child: GfConversationRow(
             active: conversation.peerId == selectedPeerId,
             avatarUrl: resolveApiAssetUrl(conversation.peerAvatar),
+            avatarFrameColors: decorationColors(
+              context,
+              conversation.peerDecoration?.avatarFrame,
+            ),
+            avatarFrameAssetUrl: decorationFrameAssetUrl(
+              conversation.peerDecoration?.avatarFrame,
+            ),
+            avatarFrameScale:
+                conversation.peerDecoration?.avatarFrame?.assetScale ?? 1.25,
+            nicknameColors: decorationColors(
+              context,
+              conversation.peerDecoration?.nicknameStyle,
+            ),
             name: privateDisplayName(
               context,
               conversation.peerId,
@@ -2733,8 +2806,11 @@ class _ChatDraftStatus extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
           children: [
-            Expanded(child: Text(l10n.messagesDraftStorageFailed)),
-            TextButton(onPressed: drafts.flush, child: Text(l10n.commonRetry)),
+            Expanded(child: GfText(l10n.messagesDraftStorageFailed)),
+            TextButton(
+              onPressed: drafts.flush,
+              child: GfText(l10n.commonRetry),
+            ),
           ],
         ),
       );
@@ -2744,7 +2820,7 @@ class _ChatDraftStatus extends StatelessWidget {
     }
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-      child: Text(
+      child: GfText(
         drafts.isDirty(peerId!) ? l10n.draftLocalSaving : l10n.draftLocalSaved,
       ),
     );
@@ -2792,7 +2868,7 @@ class _ReplyPreview extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   if (target.sender.isNotEmpty)
-                    Text(
+                    GfText(
                       target.sender,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -2802,7 +2878,7 @@ class _ReplyPreview extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                  Text(
+                  GfText(
                     localizedChatReplyExcerpt(
                       target.excerpt,
                       imageLabel: AppLocalizations.of(context).messagesImage,
@@ -2878,7 +2954,7 @@ class _NewChatSheetState extends State<_NewChatSheet> {
               child: Row(
                 children: <Widget>[
                   Expanded(
-                    child: Text(
+                    child: GfText(
                       widget.title,
                       style: TextStyle(
                         color: colors.baseContent,
@@ -2980,7 +3056,7 @@ class _NewChatEmptyState extends StatelessWidget {
               color: colors.baseContent.withValues(alpha: 0.30),
             ),
             const SizedBox(height: 10),
-            Text(
+            GfText(
               message,
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -3022,6 +3098,14 @@ class _NewChatUserRow extends StatelessWidget {
           child: Row(
             children: <Widget>[
               GfAvatar(
+                frameColors: decorationColors(
+                  context,
+                  user.decoration?.avatarFrame,
+                ),
+                frameAssetUrl: decorationFrameAssetUrl(
+                  user.decoration?.avatarFrame,
+                ),
+                frameScale: user.decoration?.avatarFrame?.assetScale ?? 1.25,
                 src: resolveApiAssetUrl(user.avatarUrl),
                 size: 40,
                 ring: true,
@@ -3031,8 +3115,12 @@ class _NewChatUserRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(
+                    GfDecoratedName(
                       name,
+                      colors: decorationColors(
+                        context,
+                        user.decoration?.nicknameStyle,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -3042,7 +3130,7 @@ class _NewChatUserRow extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
+                    GfText(
                       '@${user.username}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -3083,7 +3171,7 @@ class _ChatEmptyState extends StatelessWidget {
               color: colors.baseContent.withValues(alpha: 0.32),
             ),
             const SizedBox(height: 12),
-            Text(
+            GfText(
               title,
               style: TextStyle(
                 color: colors.baseContent,
@@ -3092,7 +3180,7 @@ class _ChatEmptyState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
+            GfText(
               description,
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -3127,7 +3215,7 @@ class _DatePill extends StatelessWidget {
             color: colors.base300,
             borderRadius: BorderRadius.circular(999),
           ),
-          child: Text(
+          child: GfText(
             label,
             style: TextStyle(
               color: colors.baseContent.withValues(alpha: 0.55),
@@ -3151,6 +3239,9 @@ class _PeerAvatarButton extends StatelessWidget {
     required this.src,
     required this.size,
     this.ring = false,
+    this.frameColors = const [],
+    this.frameAssetUrl = '',
+    this.frameScale = 1.25,
     this.alignment = Alignment.center,
   });
 
@@ -3159,6 +3250,9 @@ class _PeerAvatarButton extends StatelessWidget {
   final String src;
   final double size;
   final bool ring;
+  final List<Color> frameColors;
+  final String frameAssetUrl;
+  final double frameScale;
   final Alignment alignment;
 
   @override
@@ -3176,7 +3270,14 @@ class _PeerAvatarButton extends StatelessWidget {
           height: 44,
           child: Align(
             alignment: alignment,
-            child: GfAvatar(src: src, size: size, ring: ring),
+            child: GfAvatar(
+              frameColors: frameColors,
+              frameAssetUrl: frameAssetUrl,
+              frameScale: frameScale,
+              src: src,
+              size: size,
+              ring: ring,
+            ),
           ),
         ),
       ),
@@ -3240,7 +3341,9 @@ class _MessageRow extends ConsumerWidget {
     required this.peerId,
     required this.peerProfileLabel,
     required this.peerAvatar,
+    this.peerDecoration,
     required this.viewerAvatar,
+    this.viewerDecoration,
     this.onLongPress,
     this.onSwipeReply,
     this.replyToMessageId,
@@ -3253,7 +3356,9 @@ class _MessageRow extends ConsumerWidget {
   final int peerId;
   final String peerProfileLabel;
   final String peerAvatar;
+  final UserDecoration? peerDecoration;
   final String viewerAvatar;
+  final UserDecoration? viewerDecoration;
   final VoidCallback? onLongPress;
   final VoidCallback? onSwipeReply;
   final int? replyToMessageId;
@@ -3267,11 +3372,30 @@ class _MessageRow extends ConsumerWidget {
     return ChatMessageRow(
       mine: message.isSelf,
       avatar: message.isSelf
-          ? GfAvatar(src: resolveApiAssetUrl(viewerAvatar), size: 32)
+          ? GfAvatar(
+              frameColors: decorationColors(
+                context,
+                viewerDecoration?.avatarFrame,
+              ),
+              frameAssetUrl: decorationFrameAssetUrl(
+                viewerDecoration?.avatarFrame,
+              ),
+              frameScale: viewerDecoration?.avatarFrame?.assetScale ?? 1.25,
+              src: resolveApiAssetUrl(viewerAvatar),
+              size: 32,
+            )
           : _PeerAvatarButton(
               key: Key('chat-peer-avatar-${message.id}'),
               peerId: peerId,
               label: peerProfileLabel,
+              frameColors: decorationColors(
+                context,
+                peerDecoration?.avatarFrame,
+              ),
+              frameAssetUrl: decorationFrameAssetUrl(
+                peerDecoration?.avatarFrame,
+              ),
+              frameScale: peerDecoration?.avatarFrame?.assetScale ?? 1.25,
               src: resolveApiAssetUrl(peerAvatar),
               size: 32,
               alignment: Alignment.topLeft,

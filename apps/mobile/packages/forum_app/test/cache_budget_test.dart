@@ -8,6 +8,8 @@ import 'package:forum_app/src/storage/private_database.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+import 'temp_directory_helpers.dart';
+
 class _Paths extends PathProviderPlatform {
   _Paths(this.path);
   final String path;
@@ -41,7 +43,7 @@ void main() {
   });
   tearDown(() async {
     PathProviderPlatform.instance = previousPaths;
-    await directory.delete(recursive: true);
+    await deleteTempDirectory(directory);
   });
 
   test('upgrade reclaims old allocation and enables incremental vacuum', () async {

@@ -422,11 +422,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 message: l.commonCancel,
                 child: TextButton(
                   onPressed: _busy ? null : _close,
-                  child: Text(l.commonCancel),
+                  child: GfText(l.commonCancel),
                 ),
               ),
               Expanded(
-                child: Text(
+                child: GfText(
                   l.settingsEditProfile,
                   textAlign: TextAlign.center,
                   maxLines: 1,
@@ -485,7 +485,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                                         padding: const EdgeInsets.only(
                                           bottom: 8,
                                         ),
-                                        child: Text(
+                                        child: GfText(
                                           l.settingsProfilePartialSave(
                                             _savedParts.join(' · '),
                                           ),
@@ -497,7 +497,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                                           ),
                                         ),
                                       ),
-                                    Text(
+                                    GfText(
                                       _error!,
                                       key: const Key('profile-save-error'),
                                       style: TextStyle(color: colors.error),
@@ -514,7 +514,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                           ),
                           Padding(
                             padding: const EdgeInsets.only(bottom: 24),
-                            child: Text(
+                            child: GfText(
                               '@${widget.user.username}',
                               style: TextStyle(
                                 fontSize: 15,
@@ -529,7 +529,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                           ExpansionTile(
                             maintainState: true,
                             tilePadding: EdgeInsets.zero,
-                            title: Text(l.settingsSocialLinks),
+                            title: GfText(l.settingsSocialLinks),
                             trailing: AnimatedRotation(
                               turns: _socialLinksExpanded ? .5 : 0,
                               duration: MediaQuery.disableAnimationsOf(context)
@@ -563,7 +563,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                               for (final e in appLanguageNames.entries)
                                 DropdownMenuItem(
                                   value: e.key,
-                                  child: Text(e.value),
+                                  child: GfText(e.value),
                                 ),
                             ],
                             onChanged: _busy

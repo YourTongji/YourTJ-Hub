@@ -25,6 +25,8 @@ class CategoryPage extends ConsumerStatefulWidget {
 class _CategoryPageState extends ConsumerState<CategoryPage> {
   AsyncValue<CategoryPageProps> _page = const AsyncValue.loading();
   final List<TopicPayload> _topics = <TopicPayload>[];
+  final GfScrollToTopController _scrollToTopController =
+      GfScrollToTopController();
   bool _loadingMore = false;
 
   @override
@@ -91,9 +93,9 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: GfAppBar(
-        title: Text(
+        title: GfText(
           _page.valueOrNull?.category.name ??
               AppLocalizations.of(context).categoryTitle,
         ),
@@ -111,7 +113,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
               if (props.category.description.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                  child: Text(
+                  child: GfText(
                     props.category.description,
                     style: GfTheme.typographyOf(context).small.copyWith(
                       color: GfTheme.colorsOf(context).iconMuted,
@@ -120,6 +122,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
                 ),
               Expanded(
                 child: GfScrollToTop(
+                  controller: _scrollToTopController,
                   semanticLabel: AppLocalizations.of(context).commonBackToTop,
                   builder: (_, ScrollController controller) =>
                       AppRefreshIndicator(
@@ -140,6 +143,10 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
           );
         },
       ),
+    );
+    return GfStatusBarScrollToTop(
+      controller: _scrollToTopController,
+      child: scaffold,
     );
   }
 }

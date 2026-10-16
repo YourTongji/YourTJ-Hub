@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../atoms/gf_badge_medallion.dart';
 
 /// An earned badge with centered artwork and a readable, naturally sized title.
@@ -57,7 +58,7 @@ class GfAchievementCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text(
+                  GfText(
                     title,
                     textAlign: TextAlign.center,
                     style: type.body.copyWith(
@@ -69,7 +70,7 @@ class GfAchievementCard extends StatelessWidget {
                   ),
                   if (description.trim().isNotEmpty) ...[
                     const SizedBox(height: 6),
-                    Text(
+                    GfText(
                       description,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,

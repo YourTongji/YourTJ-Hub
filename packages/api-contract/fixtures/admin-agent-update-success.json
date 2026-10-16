@@ -23,7 +23,12 @@
     "latestAcceptedAt": null,
     "pendingCount": 0,
     "pauseReason": "",
-    "summaryUnavailable": false
+    "summaryUnavailable": false,
+    "profileCoverUrl": "",
+    "bio": "",
+    "signature": "",
+    "website": "",
+    "websiteName": ""
   },
   "code": 0
 }

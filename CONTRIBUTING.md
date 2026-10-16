@@ -26,6 +26,11 @@ make hooks
 `go vet` + `golangci-lint` + `pnpm typecheck` + web i18n 门禁 `pnpm check`）。每个新建的
 worktree 都需要重新执行一次。
 
+pre-push 会通过 GitHub CLI（`gh`）读取已存在 PR 的目标仓库与分支；确认尚无 PR 时使用
+`YourTongji/YourTJ-Hub:dev`。未安装 `gh`，或 PR 计划指向其他分支时，push 前设置
+`YOURTJ_LINT_BASE=owner/repo:branch`。已能读取的 PR 实际 base 优先于此设置；基线无法获取时 hook
+会失败并要求修正访问或配置，不会跳过 lint。
+
 ## 首次构建与验证
 
 ```bash

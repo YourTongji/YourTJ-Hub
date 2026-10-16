@@ -1,4 +1,5 @@
-import { createApp, h } from 'vue'
+import { h } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import UserAvatar from '../../../src/site/components/UserAvatar.vue'
 import '../../../src/styles/resource.css'
 import type { UserBadgePayload } from '@gooseforum/client'

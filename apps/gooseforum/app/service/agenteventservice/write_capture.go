@@ -25,10 +25,10 @@ type WriteCapturePlan struct {
 // as public capture, lifecycle changes and source-event authorization. All
 // candidate users and Agent rows are locked in ascending order exactly once;
 // subsequent authorization and capture only reacquire members of that set.
-func PrepareWriteCaptureTx(tx *gorm.DB, actorID, topicID uint64, sourceEventID string) (*WriteCapturePlan, error) {
+func PrepareWriteCaptureTx(tx *gorm.DB, actorID, topicID uint64, sourceEventID string, additionalUsers ...uint64) (*WriteCapturePlan, error) {
 	cfg := agentinstance.Current()
 	plan := &WriteCapturePlan{}
-	ids := []uint64{actorID}
+	ids := append([]uint64{actorID}, additionalUsers...)
 	if sourceEventID != "" {
 		e, err := agentEvents.EventTx(tx, cfg.ID, actorID, sourceEventID)
 		if err != nil || e.TopicID != topicID {

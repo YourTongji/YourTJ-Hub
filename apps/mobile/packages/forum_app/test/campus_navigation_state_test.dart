@@ -204,12 +204,18 @@ void main() {
     await tester.enterText(_search, '图书馆');
     await tester.pumpAndSettle();
 
-    for (final state in [
-      AppLifecycleState.inactive,
-      AppLifecycleState.hidden,
-      AppLifecycleState.paused,
-    ]) {
+    // 瞬时遮挡（inactive：通知栏/弹窗）不再触发隐私重建，内容原样保留。
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pumpAndSettle();
+    expect(find.byType(GfTabBar), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.byType(GfSkeleton), findsNothing);
+
+    // 真正被覆盖（hidden/paused）才丢弃隐私内容、回退骨架屏。hidden/paused
+    // 起 scheduler 禁用帧（framesEnabled=false），需强制一帧让卸载渲染生效。
+    for (final state in [AppLifecycleState.hidden, AppLifecycleState.paused]) {
       tester.binding.handleAppLifecycleStateChanged(state);
+      tester.binding.scheduleForcedFrame();
       await tester.pumpAndSettle();
       expect(find.byType(GfTabBar), findsOneWidget);
       expect(find.byType(GfSkeleton), findsWidgets);
@@ -288,7 +294,7 @@ void main() {
       _list(tester).jumpTo(120);
       await tester.pump();
 
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await tester.pumpAndSettle();
       repo.statusResponse = Completer<CampusStatus>();
       repo.messagesResponse = Completer<CampusDataset>();
@@ -344,7 +350,7 @@ void main() {
     await tester.pumpAndSettle();
     await _select(tester, 'timetable');
     final l = AppLocalizations.of(tester.element(find.byType(CampusPage)));
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     await tester.pumpAndSettle();
     repo.statusResponse = Completer<CampusStatus>();
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);

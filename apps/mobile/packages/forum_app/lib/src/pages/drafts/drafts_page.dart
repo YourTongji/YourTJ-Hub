@@ -29,6 +29,8 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
   static const double _sidebarWidth = 280;
   AsyncValue<DraftsPageProps> _page = const AsyncValue.loading();
   final _search = TextEditingController();
+  final GfScrollToTopController _scrollToTopController =
+      GfScrollToTopController();
   _DraftFilter _filter = _DraftFilter.all;
   List<LocalDraft> _localDrafts = [];
   bool _localLoaded = false;
@@ -170,28 +172,28 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
     final confirmed = await showGfAlertDialog<bool>(
       context,
       builder: (context) => GfAlertDialog(
-        title: Text(l10n.draftDeleteLocal),
+        title: GfText(l10n.draftDeleteLocal),
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            GfText(
               _title(draft, l10n),
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 12),
-            Text(l10n.draftDeleteLocalConfirm),
+            GfText(l10n.draftDeleteLocalConfirm),
           ],
         ),
         actions: [
           GfDialogAction(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.commonCancel),
+            child: GfText(l10n.commonCancel),
           ),
           GfDialogAction(
             destructive: true,
             onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.draftDeleteLocal),
+            child: GfText(l10n.draftDeleteLocal),
           ),
         ],
       ),
@@ -237,24 +239,24 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
     final confirmed = await showGfAlertDialog<bool>(
       context,
       builder: (context) => GfAlertDialog(
-        title: Text(l10n.draftDeleteCloud),
+        title: GfText(l10n.draftDeleteCloud),
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, maxLines: 3, overflow: TextOverflow.ellipsis),
+            GfText(title, maxLines: 3, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 12),
-            Text(l10n.draftDeleteCloudConfirm),
+            GfText(l10n.draftDeleteCloudConfirm),
           ],
         ),
         actions: [
           GfDialogAction(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.commonCancel),
+            child: GfText(l10n.commonCancel),
           ),
           GfDialogAction(
             destructive: true,
             onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.draftDeleteCloud),
+            child: GfText(l10n.draftDeleteCloud),
           ),
         ],
       ),
@@ -390,7 +392,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
 
   Widget _section(String title) => Padding(
     padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-    child: Text(title, style: GfTheme.typographyOf(context).title2),
+    child: GfText(title, style: GfTheme.typographyOf(context).title2),
   );
 
   Widget _retry(Object error, VoidCallback onRetry) => Padding(
@@ -398,11 +400,13 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
     child: Row(
       children: [
         Expanded(
-          child: Text(resolveErrorMessage(AppLocalizations.of(context), error)),
+          child: GfText(
+            resolveErrorMessage(AppLocalizations.of(context), error),
+          ),
         ),
         TextButton(
           onPressed: onRetry,
-          child: Text(AppLocalizations.of(context).commonRetry),
+          child: GfText(AppLocalizations.of(context).commonRetry),
         ),
       ],
     ),
@@ -418,7 +422,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
       leading: draft.kind == DraftKind.reply
           ? const GfSymbol('corner-down-left')
           : PublishTypeIcon(PublishType.fromValue(draft.contentType), size: 32),
-      title: Text(
+      title: GfText(
         _title(draft, l10n),
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
@@ -427,9 +431,9 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (draft.title.isNotEmpty && draft.content.isNotEmpty)
-            Text(draft.content, maxLines: 2, overflow: TextOverflow.ellipsis),
+            GfText(draft.content, maxLines: 2, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 4),
-          Text(
+          GfText(
             [
               _kindLabel(draft, l10n),
               if (draft.kind != DraftKind.reply)
@@ -443,14 +447,14 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
             children: [
               TextButton(
                 onPressed: _managing ? null : () => _openLocal(draft),
-                child: Text(l10n.publishContinue),
+                child: GfText(l10n.publishContinue),
               ),
               Tooltip(
                 message: l10n.draftDeleteLocal,
                 child: TextButton.icon(
                   onPressed: _managing ? null : () => _delete(draft),
                   icon: const GfSymbol('trash-2', size: 18),
-                  label: Text(l10n.draftDeleteLocal),
+                  label: GfText(l10n.draftDeleteLocal),
                 ),
               ),
             ],
@@ -504,7 +508,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 8),
-          Text(
+          GfText(
             l10n.draftSearchScope,
             style: GfTheme.typographyOf(context).caption,
           ),
@@ -519,7 +523,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: ChoiceChip(
-                      label: Text(_filterLabel(filter, l10n)),
+                      label: GfText(_filterLabel(filter, l10n)),
                       selected: _filter == filter,
                       onSelected: (_) => setState(() => _filter = filter),
                     ),
@@ -527,13 +531,13 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
               ],
             ),
           ),
-          if (ready) Text(l10n.draftMatchCount(count)),
+          if (ready) GfText(l10n.draftMatchCount(count)),
           if (_filtered && count == 0 && ready) ...[
             const SizedBox(height: 12),
-            Text(l10n.draftNoMatches),
+            GfText(l10n.draftNoMatches),
             TextButton(
               onPressed: _clearFilters,
-              child: Text(l10n.draftClearFilters),
+              child: GfText(l10n.draftClearFilters),
             ),
           ],
         ],
@@ -586,9 +590,9 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
               .where((draft) => matches(draft.title, draft.description))
               .toList()
         : <DraftPayload>[];
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: GfAppBar(
-        title: Text(l10n.draftsTitle),
+        title: GfText(l10n.draftsTitle),
         actions: [
           GfIconButton(
             symbol: 'plus',
@@ -611,9 +615,9 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
                   children: [
                     Semantics(
                       liveRegion: true,
-                      child: Text(l10n.draftDeleteCloudDone),
+                      child: GfText(l10n.draftDeleteCloudDone),
                     ),
-                    Text(
+                    GfText(
                       _cloudDeletedTitle!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -624,7 +628,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
                         onPressed: _managing
                             ? null
                             : () => _open('/recycle-bin'),
-                        child: Text(l10n.draftOpenRecycleBin),
+                        child: GfText(l10n.draftOpenRecycleBin),
                       ),
                     ),
                   ],
@@ -642,9 +646,9 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
                   children: [
                     Semantics(
                       liveRegion: true,
-                      child: Text(l10n.draftDeleteDone),
+                      child: GfText(l10n.draftDeleteDone),
                     ),
-                    Text(
+                    GfText(
                       _title(_deleted!.draft, l10n),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -654,7 +658,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
                       child: TextButton.icon(
                         onPressed: _managing ? null : _undoDelete,
                         icon: const GfSymbol('undo-2'),
-                        label: Text(l10n.publishUndo),
+                        label: GfText(l10n.publishUndo),
                       ),
                     ),
                   ],
@@ -662,6 +666,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
               ),
             ),
       body: GfScrollToTop(
+        controller: _scrollToTopController,
         semanticLabel: l10n.commonBackToTop,
         threshold: 360,
         builder: (context, controller) => LayoutBuilder(
@@ -706,7 +711,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.all(16),
-                          child: Text(l10n.draftLocalEmpty),
+                          child: GfText(l10n.draftLocalEmpty),
                         ),
                       ),
                     SliverList.builder(
@@ -721,7 +726,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(l10n.draftCloudLimit),
+                          child: GfText(l10n.draftCloudLimit),
                         ),
                       ),
                     if (_refreshError != null)
@@ -749,7 +754,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
                               child: !_filtered && props.drafts.isEmpty
                                   ? Padding(
                                       padding: const EdgeInsets.all(16),
-                                      child: Text(l10n.draftsEmpty),
+                                      child: GfText(l10n.draftsEmpty),
                                     )
                                   : const SizedBox.shrink(),
                             )
@@ -830,6 +835,10 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
           },
         ),
       ),
+    );
+    return GfStatusBarScrollToTop(
+      controller: _scrollToTopController,
+      child: scaffold,
     );
   }
 }

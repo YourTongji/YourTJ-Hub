@@ -124,8 +124,8 @@ void main() {
 
     final nameRow = find.byKey(const ValueKey('profile-name-row'));
     expect(tester.widget<Row>(nameRow), isA<Row>());
-    final name = tester.widget<Text>(
-      find.descendant(of: nameRow, matching: find.byType(Text)).first,
+    final name = tester.widget<GfText>(
+      find.descendant(of: nameRow, matching: find.byType(GfText)).first,
     );
     expect(name.maxLines, 1);
     expect(name.overflow, TextOverflow.ellipsis);

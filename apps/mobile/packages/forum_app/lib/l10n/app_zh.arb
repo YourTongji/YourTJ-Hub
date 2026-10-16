@@ -306,7 +306,7 @@
   "categoryTitle": "分类",
   "settingsTitle": "设置",
   "settingsTabProfile": "资料",
-  "settingsTabAccount": "账户",
+  "settingsTabAccount": "账户、安全与隐私",
   "settingsTabPrivacy": "隐私",
   "settingsTabBinding": "绑定",
   "settingsTabSecurity": "安全",
@@ -780,7 +780,7 @@
   "profileMore": "更多功能",
   "profileContent": "内容管理",
   "profileTrash": "回收站",
-  "profileSecurity": "账号、安全与隐私",
+  "profileSecurity": "账户、安全与隐私",
   "profileAdmin": "管理工作台",
   "fabDiscussion": "前往讨论区",
   "fabRefresh": "刷新并回到顶部",
@@ -927,7 +927,7 @@
       }
     }
   },
-  "notificationTopicPost": "{actor} 在你关注的主题中发表了回复",
+  "notificationTopicPost": "{actor} 在你关注的主题中发表了新回复",
   "@notificationTopicPost": {
     "placeholders": {
       "actor": {
@@ -951,15 +951,11 @@
       }
     }
   },
-  "notificationWikiUpdated": "{actor} 更新了你关注的 Wiki 页面",
+  "notificationWikiUpdated": "你订阅的 Wiki 页面有更新",
   "@notificationWikiUpdated": {
-    "placeholders": {
-      "actor": {
-        "type": "String"
-      }
-    }
+    "placeholders": {}
   },
-  "notificationBadge": "你获得了“{badge}”徽章",
+  "notificationBadge": "你获得了「{badge}」徽章",
   "@notificationBadge": {
     "placeholders": {
       "badge": {
@@ -967,7 +963,7 @@
       }
     }
   },
-  "notificationNew": "新通知",
+  "notificationNew": "你有一条新的系统通知",
   "notificationSomeone": "有人",
   "profileRoleAdmin": "管理员",
   "profileOnline": "在线",
@@ -1644,5 +1640,81 @@
   "anonymousStatusRestricted": "已被管理员限制，暂时不能用它发言",
   "anonymousStatusDisabled": "已停用，暂时不能用它发言",
   "anonymousLinkabilityHint": "用这个身份发的内容会集中在它的主页上，别人可能把它们联系起来；内容本身也可能透露你是谁。",
-  "anonymousViewProfile": "查看匿名主页"
+  "anonymousViewProfile": "查看匿名主页",
+  "profilePrivacyTitle": "个人主页可见范围",
+  "profilePrivacyDescription": "选择谁能在你的个人主页上看到这些内容。",
+  "profilePrivacyScope": "这里只控制个人主页的展示。你发布的内容和回复仍会出现在版块、搜索和原讨论中，关注数、粉丝数等统计也会继续显示。",
+  "profilePrivacyViewProfile": "查看我的主页",
+  "profilePrivacyTopics": "内容",
+  "profilePrivacyTopicsDescription": "你发布的内容列表",
+  "profilePrivacyActivity": "动态",
+  "profilePrivacyActivityDescription": "回复等动态记录；其中的发布、点赞和关注记录还会分别遵循对应设置",
+  "profilePrivacyLikes": "赞过的内容",
+  "profilePrivacyLikesDescription": "你点赞过的内容列表",
+  "profilePrivacyFollowing": "关注列表",
+  "profilePrivacyFollowingDescription": "你关注的人",
+  "profilePrivacyFollowers": "粉丝列表",
+  "profilePrivacyFollowersDescription": "关注你的人",
+  "profilePrivacyBookmarksDescription": "你收藏的内容，始终只有你能看到",
+  "profilePrivacyEveryone": "所有人",
+  "profilePrivacyMembers": "登录用户",
+  "profilePrivacyFollowersOnly": "关注我的人",
+  "profilePrivacyMutual": "互相关注的人",
+  "profilePrivacySelf": "仅自己",
+  "profilePrivacyAudienceTitle": "谁能看到{section}",
+  "profilePrivacyLoadFailed": "无法加载个人主页可见范围。",
+  "profilePrivacySaved": "可见范围已保存到你的账号",
+  "profilePrivacySaveFailed": "未能保存，设置保持不变。请检查网络后重试。",
+  "profilePrivacyWidenTitle": "扩大可见范围？",
+  "profilePrivacyWidenDescription": "「{section}」将改为「{audience}」可见，之前隐藏期间的记录也会一并显示。",
+  "profilePrivacyWidenConfirm": "扩大可见范围",
+  "profileHiddenTitle": "这部分内容未公开",
+  "profileHiddenPrivate": "{name} 选择不在个人主页展示这部分内容。",
+  "profileHiddenSignin": "{name} 只向登录用户展示这部分内容。",
+  "profileHiddenFollowers": "{name} 只向关注者展示这部分内容，关注后即可查看。",
+  "profileHiddenFollowersGuest": "{name} 只向关注者展示这部分内容，登录并关注后即可查看。",
+  "profileHiddenMutual": "{name} 只向互相关注的人展示这部分内容。",
+  "profileHiddenSignIn": "登录",
+  "profileOwnerMembers": "只有登录用户能看到这部分内容。",
+  "profileOwnerFollowers": "只有关注你的人能看到这部分内容。",
+  "profileOwnerMutual": "只有和你互相关注的人能看到这部分内容。",
+  "profileOwnerSelf": "只有你能看到这部分内容。",
+  "notificationsMentions": "@我",
+  "notificationsReplies": "回复",
+  "notificationsLikes": "赞",
+  "notificationsFollowing": "关注",
+  "notificationsSystem": "系统",
+  "pushChat": "私信",
+  "pushMentionsAndReplies": "提及和回复",
+  "pushActivity": "赞",
+  "pushFollowing": "关注动态",
+  "pushSystem": "系统与审核",
+  "notificationMentionTopic": "{actor} 在《{topic}》中提到了你",
+  "notificationCommentTopic": "{actor} 评论了《{topic}》",
+  "notificationTopicPostTopic": "{actor} 在你关注的《{topic}》中发表了新回复",
+  "notificationWikiTopic": "《{topic}》有更新",
+  "authPasskey": "使用通行密钥登录",
+  "authPasskeyUnavailable": "此设备暂不支持通行密钥。",
+  "authPasskeyFailed": "通行密钥登录失败，请重试或使用密码登录。",
+  "authPasskeyCancelled": "未选择或没有可用的通行密钥，请重试或使用密码登录。",
+  "settingsPasskeyTitle": "通行密钥",
+  "settingsPasskeyManage": "管理通行密钥",
+  "settingsPasskeyDescription": "使用设备通行密钥免密码登录。即使开启两步验证，仍可直接使用通行密钥登录。",
+  "settingsPasskeyReauthHint": "添加、重命名或移除通行密钥都需要登录密码；若已启用两步验证，还需输入当前验证码。",
+  "settingsPasskeyName": "通行密钥名称",
+  "settingsPasskeyPassword": "登录密码",
+  "settingsPasskeyAdd": "添加通行密钥",
+  "settingsPasskeyAddedAt": "添加时间",
+  "settingsPasskeyLastUsed": "最近使用",
+  "settingsPasskeyNeverUsed": "尚未使用",
+  "settingsPasskeySyncCapable": "可同步",
+  "settingsPasskeyDeviceBound": "仅此设备",
+  "settingsPasskeyBackedUp": "已同步",
+  "settingsPasskeyRevokedHint": "从 YourTJ 移除通行密钥不会删除密码管理器中保存的凭据。",
+  "settingsPasskeyRename": "重命名",
+  "settingsPasskeyRevoke": "移除",
+  "settingsPasskeyAdded": "已添加通行密钥",
+  "settingsPasskeyRevoked": "已移除通行密钥",
+  "settingsPasskeyEmpty": "尚未添加通行密钥。",
+  "settingsPasskeyUnavailable": "此服务器尚未启用通行密钥。"
 }

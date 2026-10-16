@@ -218,7 +218,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                 color: colors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(
+              child: GfText(
                 l10n.announcementLabel,
                 style: TextStyle(
                   fontSize: 10,
@@ -230,7 +230,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(
+              child: GfText(
                 snippet,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -302,7 +302,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                         color: colors.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: Text(
+                      child: GfText(
                         l10n.announcementLabel,
                         style: TextStyle(
                           fontSize: 10,
@@ -315,7 +315,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                     if (item.title.trim().isNotEmpty) ...[
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
+                        child: GfText(
                           item.title.trim(),
                           style: type.bodyStrong.copyWith(
                             fontSize: 13,
@@ -343,7 +343,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
+                              GfText(
                                 l10n.announcementCollapseAction,
                                 style: TextStyle(
                                   fontSize: 11,

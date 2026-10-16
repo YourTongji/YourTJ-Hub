@@ -44,6 +44,11 @@ func Submit(ctx context.Context, topic *topics.Entity, post *posts.Entity) error
 // task. The before hook runs before any insertion; either hook can roll back all
 // submission effects. Model evaluation remains exclusively in the worker.
 func SubmitWithHooks(ctx context.Context, topic *topics.Entity, post *posts.Entity, before, after func(*gorm.DB) error) error {
+	return SubmitWithEditorHooks(ctx, topic, post, post.UserId, before, after)
+}
+
+// SubmitWithEditorHooks preserves authorship while attributing an authorized maintenance revision.
+func SubmitWithEditorHooks(ctx context.Context, topic *topics.Entity, post *posts.Entity, editorID uint64, before, after func(*gorm.DB) error) error {
 	return db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if before != nil {
 			if err := before(tx); err != nil {
@@ -134,13 +139,14 @@ func SubmitWithHooks(ctx context.Context, topic *topics.Entity, post *posts.Enti
 		preserveLive := live.ProcessStatus == posts.ProcessStatusNormal && liveTopic.Status == 1 && liveTopic.ProcessStatus == topics.ProcessStatusNormal
 
 		revision := snapshot(topic, post)
+		revision.EditorId = editorID
 		revision.Version = postRevisions.NextVersionTx(tx, post.Id)
 		revision.ProcessStatus = posts.ProcessStatusPending
 		if err := postRevisions.CreateTx(tx, &revision); err != nil {
 			return err
 		}
 		now := time.Now()
-		changes := map[string]any{"latest_revision_id": revision.Id, "published_revision_id": live.PublishedRevisionId, "last_editor_id": post.UserId, "last_edited_at": now}
+		changes := map[string]any{"latest_revision_id": revision.Id, "published_revision_id": live.PublishedRevisionId, "last_editor_id": editorID, "last_edited_at": now}
 		if !preserveLive {
 			if err := fileusageservice.PrivatizeUnpublishedImagesTx(tx, topic.Id, post.Id, post.PostNo == 1); err != nil {
 				return err
@@ -170,7 +176,7 @@ func SubmitWithHooks(ctx context.Context, topic *topics.Entity, post *posts.Enti
 			return err
 		}
 		post.LatestRevisionId, post.PublishedRevisionId, post.ProcessStatus = revision.Id, live.PublishedRevisionId, posts.ProcessStatusPending
-		post.LastEditorId, post.LastEditedAt = post.UserId, &now
+		post.LastEditorId, post.LastEditedAt = editorID, &now
 		if live.PublishedRevisionId == 0 {
 			if err := feed.EventTx(tx, post.UserId, topic.Id, post.Id, "intent", true); err != nil {
 				return err

@@ -958,12 +958,14 @@ void main() {
 
       final result = await repo.fetchNotifications(
         filter: 'unread',
+        category: 'mentions',
         cursor: 20,
         limit: 10,
       );
       expect(result.unreadCount, 0);
       expect(capturedUri.path, '/api/forum/notifications');
       expect(capturedUri.queryParameters['filter'], 'unread');
+      expect(capturedUri.queryParameters['category'], 'mentions');
       expect(capturedUri.queryParameters['cursor'], '20');
       expect(capturedUri.queryParameters['limit'], '10');
     });

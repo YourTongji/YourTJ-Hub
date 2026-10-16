@@ -21,11 +21,15 @@ import cn.jpush.android.data.JPushCollectControl
 import cn.jpush.android.service.JPushMessageReceiver
 import io.flutter.plugin.common.MethodChannel
 import org.json.JSONObject
+import org.json.JSONArray
+import android.net.Uri
 
 /** Android-only JPush bridge. Initializers run only after explicit user consent. */
 object PushBridge {
     const val PERMISSION_REQUEST = 8041
     private const val CHANNEL_ID = "yourtj_activity"
+    @Volatile private var foreground = false
+    @Volatile private var currentPeer = 0L
     private var channel: MethodChannel? = null
     private var registration: MethodChannel.Result? = null
     private var permission: MethodChannel.Result? = null
@@ -83,6 +87,13 @@ object PushBridge {
                         }, 20000)
                     }
                     "stop" -> { stop(activity); result.success(null) }
+                    "presentation" -> {
+                        val args = call.arguments as? Map<*, *>
+                        prefs(activity).edit().putLong("userId", (args?.get("userId") as? Number)?.toLong() ?: 0L).apply()
+                        currentPeer = (args?.get("peerId") as? Number)?.toLong() ?: 0L
+                        foreground = args?.get("foreground") == true
+                        result.success(null)
+                    }
                     "initialRoute" -> { result.success(pendingRoute); pendingRoute = null }
                     else -> result.notImplemented()
                 }
@@ -115,13 +126,45 @@ object PushBridge {
         if (raw == null) null else JSONObject(raw).optString("route").takeIf { it.isNotBlank() }
     } catch (_: Exception) { null }
 
+    fun setForeground(value: Boolean) { foreground = value }
+
+    @Synchronized fun shouldPresent(context: Context, raw: String?): Boolean {
+        if (!consented(context)) return false
+        val extras = try { JSONObject(raw ?: "{}") } catch (_: Exception) { return false }
+        val route = Uri.parse(extras.optString("route"))
+        val recipient = extras.optLong("recipientId", 0L).takeIf { it > 0 }
+            ?: route.getQueryParameter("recipientId")?.toLongOrNull()
+        val owner = prefs(context).getLong("userId", 0L)
+        if (recipient != null && recipient != owner) return false
+        if (route.path == "/chat" && (recipient == null ||
+                foreground && currentPeer > 0 && route.getQueryParameter("userId")?.toLongOrNull() == currentPeer)) return false
+        val kind = extras.optString("sourceKind")
+        val source = extras.optString("sourceId")
+        if (kind.isBlank() || source.isBlank()) return true // Legacy activity pushes.
+        val key = "$owner:$kind:$source"
+        val stored = prefs(context).getString("shownSources", "[]")
+        val recent = try { JSONArray(stored) } catch (_: Exception) { JSONArray() }
+        val keys = (0 until recent.length()).map { recent.optString(it) }.toMutableList()
+        if (key in keys) return false
+        keys.add(key)
+        prefs(context).edit().putString("shownSources", JSONArray(keys.takeLast(256)).toString()).apply()
+        return true
+    }
+
     private fun createChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= 26) {
-            context.getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "YourTJ", NotificationManager.IMPORTANCE_HIGH).apply {
-                    description = "YourTJ activity notifications"
-                    enableVibration(true)
-                })
+            val manager = context.getSystemService(NotificationManager::class.java)
+            // Keep the legacy channel: deleting it would discard the user's OS choices.
+            val channels = listOf(
+                Triple(CHANNEL_ID, "YourTJ", NotificationManager.IMPORTANCE_HIGH),
+                Triple("yourtj_chat_v2", context.getString(R.string.push_chat), NotificationManager.IMPORTANCE_DEFAULT),
+                Triple("yourtj_mentions_and_replies_v2", context.getString(R.string.push_mentions), NotificationManager.IMPORTANCE_DEFAULT),
+                Triple("yourtj_activity_v2", context.getString(R.string.push_activity), NotificationManager.IMPORTANCE_LOW),
+                Triple("yourtj_system_v2", context.getString(R.string.push_system), NotificationManager.IMPORTANCE_DEFAULT)
+            )
+            for ((id, name, importance) in channels) {
+                manager.createNotificationChannel(NotificationChannel(id, name, importance))
+            }
         }
     }
     private fun stop(context: Context) {
@@ -130,6 +173,8 @@ object PushBridge {
         generation++
         registration?.error("cancelled", "Registration cancelled", null); registration = null
         pendingRoute = null
+        currentPeer = 0L
+        prefs(context).edit().remove("userId").remove("shownSources").apply()
         NotificationManagerCompat.from(context).cancelAll()
         if (wasEnabled) {
             JPushInterface.stopPush(context.applicationContext)
@@ -145,6 +190,8 @@ object PushBridge {
 class PushService : JCommonService()
 
 class PushReceiver : JPushMessageReceiver() {
+    override fun isNeedShowNotification(context: Context, message: NotificationMessage, developerArg0: String?): Boolean =
+        PushBridge.shouldPresent(context, message.notificationExtras)
     override fun onRegister(context: Context, registrationId: String) {
         PushBridge.registered(context, registrationId)
     }

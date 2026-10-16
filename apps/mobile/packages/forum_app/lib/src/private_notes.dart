@@ -127,7 +127,7 @@ class PrivateNoteButton extends ConsumerWidget {
       }
       return TextButton(
         onPressed: () => ref.invalidate(privateNotesProvider),
-        child: Text(AppLocalizations.of(context).commonRetry),
+        child: GfText(AppLocalizations.of(context).commonRetry),
       );
     }
     if (compact) {
@@ -157,7 +157,7 @@ class PrivateNoteButton extends ConsumerWidget {
                 initial: scope.notes[userId]?.note ?? '',
               ),
             ),
-      child: Text(AppLocalizations.of(context).privateNoteEdit),
+      child: GfText(AppLocalizations.of(context).privateNoteEdit),
     );
   }
 }
@@ -215,11 +215,11 @@ class _PrivateNoteDialogState extends ConsumerState<_PrivateNoteDialog> {
       canPop: !_busy,
       child: AlertDialog(
         scrollable: true,
-        title: Text(l10n.privateNoteLabel),
+        title: GfText(l10n.privateNoteLabel),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(l10n.privateNoteHint),
+            GfText(l10n.privateNoteHint),
             const SizedBox(height: 16),
             GfInput(
               controller: _text,
@@ -240,13 +240,13 @@ class _PrivateNoteDialogState extends ConsumerState<_PrivateNoteDialog> {
         actions: [
           TextButton(
             onPressed: _busy ? null : () => Navigator.pop(context),
-            child: Text(l10n.commonCancel),
+            child: GfText(l10n.commonCancel),
           ),
           FilledButton(
             onPressed: _busy || _text.text.trim().runes.length > 64
                 ? null
                 : _save,
-            child: Text(l10n.commonSave),
+            child: GfText(l10n.commonSave),
           ),
         ],
       ),

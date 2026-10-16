@@ -1,4 +1,5 @@
-import { createApp, h } from 'vue'
+import { h } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import QuickPublishModal from '../../../src/site/components/QuickPublishModal.vue'
 import { useQuickPublish } from '../../../src/site/composables/useQuickPublish'

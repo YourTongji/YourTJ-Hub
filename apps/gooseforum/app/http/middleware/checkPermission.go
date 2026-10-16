@@ -7,6 +7,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
@@ -125,4 +126,18 @@ func resolveRoleId(c *gin.Context) (uint64, bool) {
 		return 0, false
 	}
 	return roleId, true
+}
+
+// CheckManagementEntryOrNotFound also admits creators to the Agent management shell.
+func CheckManagementEntryOrNotFound(c *gin.Context) {
+	roleId, ok := resolveRoleId(c)
+	if !ok {
+		return
+	}
+	if !permission.CheckAnyRole(roleId) && !agentservice.CanAccessManagement(component.LoginUserId(c)) {
+		forum.RenderNotFoundPage(c, component.MessagePageNotFound)
+		c.Abort()
+		return
+	}
+	c.Next()
 }

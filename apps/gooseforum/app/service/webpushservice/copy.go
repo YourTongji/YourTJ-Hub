@@ -13,7 +13,7 @@ var bodyByLangType = map[string]map[string]string{
 		"post_reply":      "回复了你",
 		"topic_post":      "在你关注的内容下发表了新回复",
 		"follow":          "关注了你",
-		"badge":           "获得了「{badge}」徽章",
+		"badge":           "你获得了「{badge}」徽章",
 		"like":            "赞了你的回复",
 		"wiki_updated":    "更新了你订阅的 wiki 页面",
 		"mention":         "提到了你",
@@ -27,7 +27,7 @@ var bodyByLangType = map[string]map[string]string{
 		"post_reply":      "replied to you",
 		"topic_post":      "posted in a topic you watch",
 		"follow":          "followed you",
-		"badge":           "earned the \"{badge}\" badge",
+		"badge":           "You earned the \"{badge}\" badge",
 		"like":            "liked your reply",
 		"wiki_updated":    "updated a wiki page you are watching",
 		"mention":         "mentioned you",
@@ -55,7 +55,7 @@ var bodyByLangType = map[string]map[string]string{
 		"post_reply":      "hat dir geantwortet",
 		"topic_post":      "hat in einem Thema gepostet, dem du folgst",
 		"follow":          "folgt dir jetzt",
-		"badge":           "hat das Abzeichen \"{badge}\" erhalten",
+		"badge":           "Du hast das Abzeichen \"{badge}\" erhalten",
 		"like":            "hat deine Antwort mit \"Gefällt mir\" markiert",
 		"wiki_updated":    "hat eine Wiki-Seite aktualisiert, der du folgst",
 		"mention":         "hat dich erwähnt",
@@ -69,10 +69,10 @@ var bodyByLangType = map[string]map[string]string{
 // genericTitleByLang 无话题标题/无 actor 时的推送标题兜底
 // （对齐 locales notifications.newNotification）。
 var genericTitleByLang = map[string]string{
-	"zh": "有新的通知",
-	"en": "New notification",
-	"ja": "新しい通知があります",
-	"de": "Neue Benachrichtigung",
+	"zh": "你收到一条系统通知",
+	"en": "You received a system notification",
+	"ja": "システム通知が届きました",
+	"de": "Du hast eine Systembenachrichtigung erhalten",
 }
 
 // bodyText 返回指定语言与事件类型的正文；未知类型返回空串。

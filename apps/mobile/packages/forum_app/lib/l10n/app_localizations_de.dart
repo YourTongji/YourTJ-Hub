@@ -653,7 +653,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsTabProfile => 'Profil';
 
   @override
-  String get settingsTabAccount => 'Konto';
+  String get settingsTabAccount => 'Konto, Sicherheit und Datenschutz';
 
   @override
   String get settingsTabPrivacy => 'Datenschutz';
@@ -1914,12 +1914,12 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String notificationTopicPost(String actor) {
-    return '$actor hat in einem von dir verfolgten Thema geschrieben';
+    return '$actor hat in einem abonnierten Thema geantwortet';
   }
 
   @override
   String notificationFollow(String actor) {
-    return '$actor folgt dir jetzt';
+    return '$actor folgt dir';
   }
 
   @override
@@ -1928,9 +1928,8 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String notificationWikiUpdated(String actor) {
-    return '$actor hat eine von dir verfolgte Wiki-Seite aktualisiert';
-  }
+  String get notificationWikiUpdated =>
+      'Eine abonnierte Wiki-Seite wurde aktualisiert';
 
   @override
   String notificationBadge(String badge) {
@@ -1938,7 +1937,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get notificationNew => 'Neue Benachrichtigung';
+  String get notificationNew => 'Du hast eine neue Systembenachrichtigung';
 
   @override
   String get notificationSomeone => 'Jemand';
@@ -3791,4 +3790,269 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get anonymousViewProfile => 'Anonymes Profil ansehen';
+
+  @override
+  String get profilePrivacyTitle => 'Profilsichtbarkeit';
+
+  @override
+  String get profilePrivacyDescription =>
+      'Lege fest, wer welche Teile deines Profils sehen kann.';
+
+  @override
+  String get profilePrivacyScope =>
+      'Das ändert nur, was dein Profil anzeigt. Deine Themen und Antworten erscheinen weiterhin in Kategorien, in der Suche und in den ursprünglichen Diskussionen, und Zahlen wie Follower bleiben sichtbar.';
+
+  @override
+  String get profilePrivacyViewProfile => 'Mein Profil ansehen';
+
+  @override
+  String get profilePrivacyTopics => 'Beiträge';
+
+  @override
+  String get profilePrivacyTopicsDescription =>
+      'Deine veröffentlichten Beiträge';
+
+  @override
+  String get profilePrivacyActivity => 'Aktivität';
+
+  @override
+  String get profilePrivacyActivityDescription =>
+      'Antworten und andere Aktivitäten. Beiträge, Likes und Follows darin folgen zusätzlich ihren eigenen Einstellungen';
+
+  @override
+  String get profilePrivacyLikes => 'Gelikte Beiträge';
+
+  @override
+  String get profilePrivacyLikesDescription => 'Beiträge, die dir gefallen';
+
+  @override
+  String get profilePrivacyFollowing => 'Liste „Folgt“';
+
+  @override
+  String get profilePrivacyFollowingDescription => 'Personen, denen du folgst';
+
+  @override
+  String get profilePrivacyFollowers => 'Follower-Liste';
+
+  @override
+  String get profilePrivacyFollowersDescription => 'Personen, die dir folgen';
+
+  @override
+  String get profilePrivacyBookmarksDescription =>
+      'Deine gespeicherten Beiträge. Immer nur für dich sichtbar';
+
+  @override
+  String get profilePrivacyEveryone => 'Alle';
+
+  @override
+  String get profilePrivacyMembers => 'Angemeldete Mitglieder';
+
+  @override
+  String get profilePrivacyFollowersOnly => 'Deine Follower';
+
+  @override
+  String get profilePrivacyMutual => 'Gegenseitige Follows';
+
+  @override
+  String get profilePrivacySelf => 'Nur du';
+
+  @override
+  String profilePrivacyAudienceTitle(String section) {
+    return 'Wer $section sehen kann';
+  }
+
+  @override
+  String get profilePrivacyLoadFailed =>
+      'Profilsichtbarkeit konnte nicht geladen werden.';
+
+  @override
+  String get profilePrivacySaved => 'Sichtbarkeit in deinem Konto gespeichert';
+
+  @override
+  String get profilePrivacySaveFailed =>
+      'Speichern fehlgeschlagen. Deine Einstellung bleibt unverändert. Prüfe deine Verbindung und versuche es erneut.';
+
+  @override
+  String get profilePrivacyWidenTitle => 'Für mehr Personen sichtbar machen?';
+
+  @override
+  String profilePrivacyWidenDescription(String section, String audience) {
+    return '„$section“ wird für „$audience“ sichtbar, einschließlich allem, was während der Ausblendung entstanden ist.';
+  }
+
+  @override
+  String get profilePrivacyWidenConfirm => 'Sichtbarkeit erweitern';
+
+  @override
+  String get profileHiddenTitle => 'Dieser Bereich ist nicht öffentlich';
+
+  @override
+  String profileHiddenPrivate(String name) {
+    return '$name zeigt diesen Bereich nicht im Profil.';
+  }
+
+  @override
+  String profileHiddenSignin(String name) {
+    return '$name zeigt diesen Bereich nur angemeldeten Mitgliedern.';
+  }
+
+  @override
+  String profileHiddenFollowers(String name) {
+    return '$name zeigt diesen Bereich nur Followern. Folge, um ihn zu sehen.';
+  }
+
+  @override
+  String profileHiddenFollowersGuest(String name) {
+    return '$name zeigt diesen Bereich nur Followern. Melde dich an und folge, um ihn zu sehen.';
+  }
+
+  @override
+  String profileHiddenMutual(String name) {
+    return '$name zeigt diesen Bereich nur gegenseitigen Follows.';
+  }
+
+  @override
+  String get profileHiddenSignIn => 'Anmelden';
+
+  @override
+  String get profileOwnerMembers =>
+      'Nur angemeldete Mitglieder können das sehen.';
+
+  @override
+  String get profileOwnerFollowers => 'Nur deine Follower können das sehen.';
+
+  @override
+  String get profileOwnerMutual => 'Nur gegenseitige Follows können das sehen.';
+
+  @override
+  String get profileOwnerSelf => 'Nur du kannst das sehen.';
+
+  @override
+  String get notificationsMentions => 'Erwähnungen';
+
+  @override
+  String get notificationsReplies => 'Antworten';
+
+  @override
+  String get notificationsLikes => 'Likes';
+
+  @override
+  String get notificationsFollowing => 'Abonniert';
+
+  @override
+  String get notificationsSystem => 'System';
+
+  @override
+  String get pushChat => 'Direktnachrichten';
+
+  @override
+  String get pushMentionsAndReplies => 'Erwähnungen und Antworten';
+
+  @override
+  String get pushActivity => 'Likes';
+
+  @override
+  String get pushFollowing => 'Abonnierte Aktivitäten';
+
+  @override
+  String get pushSystem => 'System und Moderation';
+
+  @override
+  String notificationMentionTopic(String actor, String topic) {
+    return '$actor hat dich in „$topic“ erwähnt';
+  }
+
+  @override
+  String notificationCommentTopic(String actor, String topic) {
+    return '$actor hat „$topic“ kommentiert';
+  }
+
+  @override
+  String notificationTopicPostTopic(String actor, String topic) {
+    return '$actor hat im abonnierten Thema „$topic“ geantwortet';
+  }
+
+  @override
+  String notificationWikiTopic(String topic) {
+    return '„$topic“ wurde aktualisiert';
+  }
+
+  @override
+  String get authPasskey => 'Mit Passkey anmelden';
+
+  @override
+  String get authPasskeyUnavailable =>
+      'Passkeys sind auf diesem Gerät nicht verfügbar.';
+
+  @override
+  String get authPasskeyFailed =>
+      'Passkey-Anmeldung fehlgeschlagen. Versuche es erneut oder melde dich mit deinem Passwort an.';
+
+  @override
+  String get authPasskeyCancelled =>
+      'Kein Passkey ausgewählt oder verfügbar. Versuche es erneut oder melde dich mit deinem Passwort an.';
+
+  @override
+  String get settingsPasskeyTitle => 'Passkeys';
+
+  @override
+  String get settingsPasskeyManage => 'Passkeys verwalten';
+
+  @override
+  String get settingsPasskeyDescription =>
+      'Melde dich ohne Passwort mit einem Passkey auf deinem Gerät an. Die Passkey-Anmeldung funktioniert auch bei aktivierter Zwei-Faktor-Authentifizierung.';
+
+  @override
+  String get settingsPasskeyReauthHint =>
+      'Zum Hinzufügen, Umbenennen oder Entfernen eines Passkeys brauchst du dein Passwort und bei aktivierter Zwei-Faktor-Authentifizierung einen aktuellen Code.';
+
+  @override
+  String get settingsPasskeyName => 'Passkey-Name';
+
+  @override
+  String get settingsPasskeyPassword => 'Anmeldepasswort';
+
+  @override
+  String get settingsPasskeyAdd => 'Passkey hinzufügen';
+
+  @override
+  String get settingsPasskeyAddedAt => 'Hinzugefügt';
+
+  @override
+  String get settingsPasskeyLastUsed => 'Zuletzt verwendet';
+
+  @override
+  String get settingsPasskeyNeverUsed => 'Noch nicht verwendet';
+
+  @override
+  String get settingsPasskeySyncCapable => 'Synchronisierbar';
+
+  @override
+  String get settingsPasskeyDeviceBound => 'Gerätegebunden';
+
+  @override
+  String get settingsPasskeyBackedUp => 'Synchronisiert';
+
+  @override
+  String get settingsPasskeyRevokedHint =>
+      'Das Entfernen bei YourTJ löscht den Passkey nicht aus deinem Passwortmanager.';
+
+  @override
+  String get settingsPasskeyRename => 'Umbenennen';
+
+  @override
+  String get settingsPasskeyRevoke => 'Entfernen';
+
+  @override
+  String get settingsPasskeyAdded => 'Passkey hinzugefügt';
+
+  @override
+  String get settingsPasskeyRevoked => 'Passkey entfernt';
+
+  @override
+  String get settingsPasskeyEmpty => 'Es sind keine Passkeys registriert.';
+
+  @override
+  String get settingsPasskeyUnavailable =>
+      'Passkeys sind auf diesem Server nicht aktiviert.';
 }

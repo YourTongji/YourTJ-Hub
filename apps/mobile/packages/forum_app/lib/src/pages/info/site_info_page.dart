@@ -154,7 +154,7 @@ class _SiteInfoWorkspaceState extends State<_SiteInfoWorkspace> {
             : _kind?.label(l10n) ?? l10n.siteInfoAnalytics;
         return Scaffold(
           appBar: GfAppBar(
-            title: Text(title),
+            title: GfText(title),
             leading: !wide && _hasSelection && widget.initialKind == null
                 ? GfIconButton(
                     symbol: 'arrow-left',
@@ -211,7 +211,7 @@ class _VisitorAnalyticsDisclosurePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: GfAppBar(title: Text(l10n.siteInfoAnalytics)),
+      appBar: GfAppBar(title: GfText(l10n.siteInfoAnalytics)),
       body: const _VisitorAnalyticsDisclosureContent(),
     );
   }
@@ -224,7 +224,7 @@ class _VisitorAnalyticsDisclosureContent extends StatelessWidget {
   Widget build(BuildContext context) => SafeArea(
     child: SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
-      child: Text(
+      child: GfText(
         AppLocalizations.of(context).siteInfoAnalyticsDescription,
         style: GfTheme.typographyOf(context).body,
       ),
@@ -317,8 +317,8 @@ class _SiteInfoContentState extends ConsumerState<_SiteInfoContent> {
   }) => ListTile(
     contentPadding: const EdgeInsets.symmetric(vertical: 8),
     leading: image.isEmpty ? null : GfAvatar(src: resolveApiAssetUrl(image)),
-    title: Text(title),
-    subtitle: description.isEmpty ? null : Text(description),
+    title: GfText(title),
+    subtitle: description.isEmpty ? null : GfText(description),
     trailing: url.isEmpty ? null : const GfSymbol('external-link', size: 18),
     onTap: url.isEmpty ? null : () => _open(url),
   );
@@ -338,9 +338,9 @@ class _SiteInfoContentState extends ConsumerState<_SiteInfoContent> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
           children: switch (content) {
             LinksPageProps props => [
-              if (props.totalCount == 0) Text(l10n.siteInfoEmpty),
+              if (props.totalCount == 0) GfText(l10n.siteInfoEmpty),
               for (final group in props.groups) ...[
-                Text(
+                GfText(
                   '${group.emoji} ${group.name}'.trim(),
                   style: type.heading,
                 ),
@@ -355,12 +355,12 @@ class _SiteInfoContentState extends ConsumerState<_SiteInfoContent> {
               ],
             ],
             SponsorsPageProps props => [
-              Text(props.content.title, style: type.heading),
+              GfText(props.content.title, style: type.heading),
               const SizedBox(height: 12),
-              Text(props.content.description),
+              GfText(props.content.description),
               const SizedBox(height: 24),
               for (final section in props.sections) ...[
-                Text(section.label, style: type.heading),
+                GfText(section.label, style: type.heading),
                 for (final sponsor in section.sponsors)
                   _link(
                     title: sponsor.name,
@@ -373,7 +373,7 @@ class _SiteInfoContentState extends ConsumerState<_SiteInfoContent> {
               for (final rule in props.rules)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(rule.content),
+                  child: GfText(rule.content),
                 ),
               _link(
                 title: props.contact.title,
@@ -383,12 +383,12 @@ class _SiteInfoContentState extends ConsumerState<_SiteInfoContent> {
               if (props.contact.buttonLink.isNotEmpty)
                 FilledButton(
                   onPressed: () => _open(props.contact.buttonLink),
-                  child: Text(props.contact.buttonText),
+                  child: GfText(props.contact.buttonText),
                 ),
             ],
             TermsPageProps props => [
               if (!props.enabled || props.contentHtml.isEmpty)
-                Text(l10n.siteInfoEmpty)
+                GfText(l10n.siteInfoEmpty)
               else
                 HtmlWidget(
                   props.contentHtml,
@@ -397,7 +397,7 @@ class _SiteInfoContentState extends ConsumerState<_SiteInfoContent> {
                   textStyle: type.body,
                 ),
             ],
-            _ => [Text(l10n.commonLoadFailed)],
+            _ => [GfText(l10n.commonLoadFailed)],
           },
         ),
       ),

@@ -20,8 +20,10 @@ import {
 } from '@/admin/components/ui/dialog'
 import { Input } from '@/admin/components/ui/input'
 import { Switch } from '@/admin/components/ui/switch'
+import AgentContentCorrectionDialog from '@/admin/pages/management/AgentContentCorrectionDialog.vue'
 import AgentWebhookManagementDialog from '@/admin/pages/management/AgentWebhookManagementDialog.vue'
 import { createAgent, disableAgent, getAgentList, rotateAgentToken, updateAgent } from '@/admin/runtime/api'
+import { AdminPermission, hasAdminPermission } from '@/admin/runtime/access'
 import { adminToast } from '@/admin/runtime/toast'
 import type { AdminAgent, AdminPayload, ManageHomeProps } from '@/admin/types'
 
@@ -39,6 +41,7 @@ const creating = ref(false)
 const rotating = ref<AdminAgent | null>(null)
 const rotatingToken = ref('')
 const disabling = ref<AdminAgent | null>(null)
+const contentAgent = ref<AdminAgent | null>(null)
 const webhookAgent = ref<AdminAgent | null>(null)
 const copied = ref(false)
 const form = reactive({ username: '', nickname: '', webhookEndpoint: '', enabled: true })
@@ -176,7 +179,7 @@ onMounted(() => {
           <RefreshCw class="size-4" />
           {{ adminText('k004q') }}
         </Button>
-        <Button type="button" @click="openCreate">
+        <Button v-if="hasAdminPermission(AdminPermission.Admin)" type="button" @click="openCreate">
           <Plus class="size-4" />
           {{ adminText('k00k8') }}
         </Button>
@@ -222,7 +225,7 @@ onMounted(() => {
                   <Badge variant="secondary">{{ adminText('k00l6') }}</Badge>
                 </div>
               </td>
-              <td class="px-4 py-3 font-medium">{{ userDisplayName(agent.agentId, agent.username, agent.nickname) }}</td>
+              <td class="px-4 py-3 font-medium"><a :href="`/u/${agent.agentId}`" class="underline-offset-4 hover:underline">{{ userDisplayName(agent.agentId, agent.username, agent.nickname) }}</a></td>
               <td class="px-4 py-3 text-muted-foreground">{{ agent.nickname || '—' }}</td>
               <td class="px-4 py-3 font-mono text-xs text-muted-foreground">{{ agent.tokenPrefix }}…</td>
               <td class="px-4 py-3">
@@ -234,6 +237,9 @@ onMounted(() => {
               <td class="px-4 py-3 text-xs text-muted-foreground">{{ formatTime(agent.createdAt) }}</td>
               <td class="px-4 py-3">
                 <div class="flex items-center justify-end gap-1">
+                  <AdminActionButton v-if="agent.enabled === 1" compact :title="t('agentContent.open')" @click="contentAgent = agent">
+                    <Pencil class="size-3.5" />
+                  </AdminActionButton>
                   <AdminActionButton compact :title="adminText('k00kj')" @click="openEdit(agent)">
                     <Pencil class="size-3.5" />
                   </AdminActionButton>
@@ -353,6 +359,8 @@ onMounted(() => {
       @update:open="(open) => !open && (disabling = null)"
       @confirm="confirmDisable"
     />
+
+    <AgentContentCorrectionDialog v-if="contentAgent" :agent="contentAgent" :categories="payload.layout.sidebar.categories" @close="contentAgent = null" />
 
     <AgentWebhookManagementDialog
       :agent="webhookAgent"

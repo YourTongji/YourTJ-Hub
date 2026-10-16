@@ -5,6 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import '../twemoji/twemoji_text.dart';
 import 'atoms/gf_loading_indicator.dart';
 import 'gf_glass_icon_button.dart';
 import 'gf_motion.dart';
@@ -39,7 +40,7 @@ Future<bool> showGfImageSaveSheet(
                 borderRadius: BorderRadius.circular(16),
               ),
               leading: GfSymbol('download', color: colors.primary),
-              title: Text(saveImageLabel),
+              title: GfText(saveImageLabel),
               onTap: () => Navigator.of(sheetContext).pop(true),
             ),
           ),
@@ -878,7 +879,7 @@ class _GfImageViewerState extends State<GfImageViewer>
                       duration: reduceMotion ? Duration.zero : GfMotion.content,
                       child: Row(
                         children: <Widget>[
-                          Text(
+                          GfText(
                             '${_currentIndex + 1} / ${widget.images.length}',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.82),

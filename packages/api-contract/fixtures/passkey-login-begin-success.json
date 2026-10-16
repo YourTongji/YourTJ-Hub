@@ -1,0 +1,13 @@
+{
+  "result": {
+    "ceremonyId": "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGH",
+    "publicKey": {
+      "challenge": "dGhpcy1pcy1hLXRlc3QtY2hhbGxlbmdl",
+      "timeout": 300000,
+      "rpId": "f.yourtj.de",
+      "userVerification": "required"
+    }
+  },
+  "code": 0,
+  "messageCode": "common.operation.success"
+}

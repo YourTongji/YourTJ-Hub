@@ -27,6 +27,16 @@ for (const theme of ['gf-light', 'gf-dark']) {
         await page.locator('[data-case="compact-unseen-with-image"] img[alt=""]').waitFor()
         await page.locator('[data-case="compact-unseen-with-image"] img[alt=""]').evaluate(img => img.decode())
         await page.evaluate(themeName => { document.documentElement.dataset.theme = themeName }, theme)
+        const expectedColor = theme === 'gf-dark' ? 'rgb(134, 239, 172)' : 'rgb(22, 101, 52)'
+        const frameBackground = await page.locator('.gf-avatar-frame').first().evaluate(el => getComputedStyle(el).backgroundImage)
+        assert.ok(frameBackground.includes(expectedColor), `frame must use ${theme} palette: ${frameBackground}`)
+        await page.waitForFunction(() => document.querySelector('.gf-decorated-nickname'))
+        const nicknameBackground = await page.locator('.gf-decorated-nickname').first().evaluate(el => getComputedStyle(el).backgroundImage)
+        assert.ok(nicknameBackground.includes(expectedColor), `nickname must use ${theme} palette: ${nicknameBackground}`)
+        const rootStyle = await page.locator('html').evaluate(el => ({ pointer: getComputedStyle(el).pointerEvents, width: el.getBoundingClientRect().width }))
+        assert.equal(rootStyle.pointer, 'auto', 'decoration CSS must not intercept page input')
+        assert.equal(rootStyle.width, width, 'decoration CSS must not scale the page root')
+
 
         for (const surface of ['compact', 'preview']) {
           const imageLayout = await page.locator(`[data-case="${surface}-unseen-with-image"] img[alt=""]`).evaluate(image => {
@@ -88,7 +98,7 @@ for (const theme of ['gf-light', 'gf-dark']) {
           assert.ok(fallbackLayout.rightOfName, `metadata fallback dot should follow the name: ${JSON.stringify(fallbackLayout)}`)
 
           const seen = page.locator(`[data-case="${surface}-seen-without-image"]`)
-          assert.equal(await seen.locator('h3, span[aria-hidden="true"]').count(), 0)
+          assert.equal(await seen.locator('h3, p span[aria-hidden="true"], .unread-meta-dot').count(), 0)
           assert.ok((await seen.locator('p').getAttribute('class')).includes('line-clamp-2'))
 
           const titled = page.locator(`[data-case="${surface}-titled-unseen"]`)

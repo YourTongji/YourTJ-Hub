@@ -84,3 +84,33 @@ class PushConfigPayload {
               ),
       );
 }
+
+/// Account-level policy shared by Web and native delivery.
+class PushPreferences {
+  const PushPreferences({
+    this.chat = true,
+    this.mentionsAndReplies = true,
+    this.activity = false,
+    this.following = false,
+    this.system = true,
+    this.systemDefaultOnly = true,
+  });
+  final bool chat, mentionsAndReplies, activity, following, system;
+  final bool systemDefaultOnly;
+  factory PushPreferences.fromJson(Map<String, dynamic> json) =>
+      PushPreferences(
+        chat: json['chat'] as bool? ?? true,
+        mentionsAndReplies: json['mentionsAndReplies'] as bool? ?? true,
+        activity: json['activity'] as bool? ?? false,
+        following: json['following'] as bool? ?? false,
+        system: json['system'] as bool? ?? true,
+        systemDefaultOnly: json['systemDefaultOnly'] as bool? ?? true,
+      );
+  Map<String, bool> toJson() => {
+    'chat': chat,
+    'mentionsAndReplies': mentionsAndReplies,
+    'activity': activity,
+    'following': following,
+    'system': system,
+  };
+}

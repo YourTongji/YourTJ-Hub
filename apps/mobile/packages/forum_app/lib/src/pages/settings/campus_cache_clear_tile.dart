@@ -46,8 +46,8 @@ class _CampusCacheClearTileState extends ConsumerState<CampusCacheClearTile> {
     final confirmed = await showGfAlertDialog<bool>(
       context,
       builder: (context) => GfAlertDialog(
-        title: Text(l.campusCacheClear),
-        content: Text(l.campusCacheClearDescription),
+        title: GfText(l.campusCacheClear),
+        content: GfText(l.campusCacheClearDescription),
         actions: [
           GfButton(
             label: l.commonCancel,

@@ -17,6 +17,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPasskeys"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -28,7 +29,7 @@ func TestAppleBindingsRequireExplicitAccountAndProtectRefreshToken(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := conn.AutoMigrate(&users.EntityComplete{}, &userOAuth.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &userOAuth.Entity{}, &userPasskeys.CredentialEntity{}, &userPasskeys.ChallengeEntity{}); err != nil {
 		t.Fatal(err)
 	}
 	for _, id := range []uint64{81001, 81002} {
@@ -95,7 +96,7 @@ func TestAppleRevocationAndAccountClosureAreRetryable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.PrivateNoteEntity{}, &users.BlockEntity{}, &userOAuth.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.PrivateNoteEntity{}, &users.BlockEntity{}, &users.PrivacySettingsEntity{}, &userOAuth.Entity{}, &userPasskeys.CredentialEntity{}, &userPasskeys.ChallengeEntity{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := conn.Create(&users.EntityComplete{Id: 82001, Username: "apple-revoke-owner"}).Error; err != nil {

@@ -15,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
 	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/decoration"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/reports"
@@ -28,7 +29,7 @@ import (
 
 func TestPersonaPublicProjectionAndLifecycle(t *testing.T) {
 	conn := setupRevisionTestDB(t)
-	if err := conn.AutoMigrate(&identity.Persona{}, &userFollow.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&identity.Persona{}, &userFollow.Entity{}, &decoration.Definition{}, &decoration.Entitlement{}, &decoration.Equipment{}, &decoration.Audit{}); err != nil {
 		t.Fatal(err)
 	}
 	owner := users.EntityComplete{Id: 991731, Username: "owner-sensitive-name", AvatarUrl: "/owner-sensitive-avatar.png"}
@@ -37,7 +38,10 @@ func TestPersonaPublicProjectionAndLifecycle(t *testing.T) {
 	first := posts.Entity{Id: 991741, TopicId: topic.Id, PostNo: 1, UserId: owner.Id, PersonaUID: persona.UID, IsAnonymous: true, Content: "Public body", LastEditorId: owner.Id}
 	reply := posts.Entity{Id: 991742, TopicId: topic.Id, PostNo: 2, UserId: owner.Id, PersonaUID: persona.UID, IsAnonymous: true, Content: "Public reply", ReplyToPostId: first.Id, LastEditorId: owner.Id}
 	revision := postRevisions.Entity{PostId: first.Id, Version: 1, EditorId: owner.Id, Content: first.Content, RenderedHTML: "<p>Public body</p>"}
-	for _, row := range []any{&owner, &persona, &topic, &first, &reply, &revision} {
+	style := decoration.Definition{Code: "frame-private", Name: "Frame private", Kind: "avatarFrame", LightColors: []string{"#166534"}, DarkColors: []string{"#86EFAC"}, IsEnabled: true}
+	entitlement := decoration.Entitlement{UserID: owner.Id, Code: style.Code, Source: "manual", SourceKey: "privacy-test"}
+	equipment := decoration.Equipment{UserID: owner.Id, AvatarFrame: style.Code}
+	for _, row := range []any{&owner, &persona, &topic, &first, &reply, &revision, &style, &entitlement, &equipment} {
 		if err := conn.Create(row).Error; err != nil {
 			t.Fatal(err)
 		}
@@ -49,7 +53,7 @@ func TestPersonaPublicProjectionAndLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, forbidden := range []string{owner.Username, owner.AvatarUrl, fmt.Sprintf(`"id":%d`, owner.Id), `"ownerId"`, `"avatarSeed"`} {
+		for _, forbidden := range []string{owner.Username, owner.AvatarUrl, fmt.Sprintf(`"id":%d`, owner.Id), `"ownerId"`, `"avatarSeed"`, `"decoration"`} {
 			if strings.Contains(string(raw), forbidden) {
 				t.Fatalf("private field %s escaped: %s", forbidden, raw)
 			}

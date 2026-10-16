@@ -171,7 +171,7 @@ class _OAuthBindingsSheetState extends ConsumerState<OAuthBindingsSheet>
             Row(
               children: [
                 Expanded(
-                  child: Text(
+                  child: GfText(
                     l10n.settingsOAuthBindings,
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
@@ -214,7 +214,7 @@ class _OAuthBindingsSheetState extends ConsumerState<OAuthBindingsSheet>
                       trailing: bindings[key]?.bound == true
                           ? TextButton(
                               onPressed: _busy ? null : () => _unbind(key),
-                              child: Text(l10n.settingsUnbind),
+                              child: GfText(l10n.settingsUnbind),
                             )
                           : null,
                     ),
@@ -225,7 +225,7 @@ class _OAuthBindingsSheetState extends ConsumerState<OAuthBindingsSheet>
                     AppleSignInButton(onPressed: _busy ? null : _connectApple),
                   ],
                   const SizedBox(height: 16),
-                  Text(
+                  GfText(
                     l10n.settingsOAuthBrowserHint(widget.username),
                     textAlign: TextAlign.center,
                   ),
@@ -235,7 +235,7 @@ class _OAuthBindingsSheetState extends ConsumerState<OAuthBindingsSheet>
                     child: FilledButton.icon(
                       onPressed: _busy ? null : _connect,
                       icon: const GfSymbol('external-link'),
-                      label: Text(l10n.settingsOAuthOpenBrowser),
+                      label: GfText(l10n.settingsOAuthOpenBrowser),
                     ),
                   ),
                 ],

@@ -24,7 +24,12 @@
       "latestAcceptedAt": null,
       "pendingCount": 0,
       "pauseReason": "",
-      "summaryUnavailable": false
+      "summaryUnavailable": false,
+      "profileCoverUrl": "",
+      "bio": "",
+      "signature": "",
+      "website": "",
+      "websiteName": ""
     },
     "token": "agt_kQ9mZ2xLp4Rt8Yw3Nb6Vc7Hs1Df5Gj0A"
   },

@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-04
+> Last verified: 2026-10-13
 
 ## Deployment shape
 
@@ -32,6 +32,24 @@
   - `main` — production, `/opt/yourtj/main`
   - `dev` — test line, `/opt/yourtj/dev`
   - DB sync is one-way: dev gets a consistent snapshot of main on each deploy (below).
+
+### 服务器时区：必须无夏令时
+
+进程按容器/宿主机的系统时区（Go 的 `time.Local`）换算「自然日」。逐日口径不止一处依赖它：
+`dailyStats` 用 `time.Now().Format("2006-01-02")` 写日键，内容贡献统计（`/api/admin/stats/*`）
+把请求区间换算成本地日边界，并在 SQL 里用**查询时刻的时区偏移**统一作用于整段区间
+（`app/models/forum/contributionstats` 的 `localDayExpr`）。只有**无夏令时**的时区才与逐日换算
+完全一致：跨 DST 边界会静默错桶，`MaxRangeDays`（366 自然日）的跨度判定也会差 1。
+
+- 部署要求：运行容器的时区必须是固定偏移。UTC 与 `Asia/Shanghai` 都满足；`Europe/*`、
+  `America/*` 等有 DST 的时区不满足。
+- 当前 compose/Dockerfile 都不设置 `TZ`，容器按镜像默认运行（未挂载 `/etc/localtime`）。
+  需要固定到某个偏移时显式设置 `TZ`（如 `TZ: Asia/Shanghai`）；镜像已装 `tzdata`。
+- 该前提有测试兜底：`TestDeploymentTimezoneHasNoDST`
+  （`apps/gooseforum/app/models/forum/contributionstats/contributionstats_rep_test.go`）在
+  Jan/Jul 偏移不一致的时区直接失败，而不是让统计默默给出错误分桶。
+- 接口返回的 `coverage.timezone` 就是进程实际使用的时区，管理端界面直接显示；改动部署时区会
+  改变管理员看到的分日口径，切换前需说明历史对比口径。
 
 ### Foreground event stream
 
@@ -990,6 +1008,49 @@ A 404 means routes were not registered; check the deployed configuration and OID
 (including issuer validation and signing-key storage permissions). To disable the provider, set
 `oidc.enabled = false` in the deployment template and apply/restart through the same workflow.
 Password and Web social login remain separate from that switch.
+
+## Passkey configuration
+
+`Partial`: passkeys are disabled in both deployment templates until each instance has verified
+domain association and production app signing identities. The forum itself is the WebAuthn relying
+party; it serves Apple's `/.well-known/apple-app-site-association` and Android's
+`/.well-known/assetlinks.json` from the configured values. Keep the RP ID and each HTTPS web origin
+within the instance hostname boundary. Main and dev use separate RP IDs/origins so their credentials
+remain isolated.
+
+Before enabling an instance, configure its `[passkeys]` section in the reviewed deployment template:
+
+```toml
+[passkeys]
+enabled = true
+rp_id = "f.yourtj.de" # use dev.yourtj.de for the dev instance
+display_name = "YourTJ"
+web_origins = ["https://f.yourtj.de"]
+apple_team_id = "<Apple Developer Team ID>"
+ios_bundle_id = "tj.yourtj.forumApp"
+android_package_name = "tj.yourtj.forum_app"
+android_sha256_cert_fingerprints = ["<SHA-256 app-signing certificate fingerprint>"]
+```
+
+Use the real Apple Team ID and the fingerprints for every Android signing identity that should be
+accepted (including the Play app-signing certificate for Play distribution). Do not use an upload
+key fingerprint in place of Play's app-signing certificate, and verify values against publisher
+records before adding them. iOS Associated Domains include the exact main and dev hosts; the matching
+AASA `appID` must be `<TeamID>.tj.yourtj.forumApp`. Each configured hostname must serve its matching
+AASA or Digital Asset Links document directly over HTTPS without redirects. Android association
+binds the package name to the configured certificate fingerprints. Passkey credential encryption and user handles derive from `app.signingKey`; rotating that key makes existing credentials unusable. Keep it stable and include credential re-enrollment in any planned key rotation.
+
+After a reviewed config rollout, verify both files and the public enabled flag:
+
+```bash
+curl --fail --silent --show-error https://f.yourtj.de/.well-known/apple-app-site-association
+curl --fail --silent --show-error https://f.yourtj.de/.well-known/assetlinks.json
+curl --fail --silent --show-error https://f.yourtj.de/api/auth/passkey/status
+```
+
+Check the corresponding `dev.yourtj.de` paths for dev. Keep `enabled = false` if any signing identity
+or domain association is unknown; invalid enabled configuration fails closed and hides the client
+entry.
 
 ## Runbooks to write
 

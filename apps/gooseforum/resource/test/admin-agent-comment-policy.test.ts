@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { DOMWrapper, flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import AgentCommentPolicyPage from '../src/admin/pages/management/AgentCommentPolicyPage.vue'
 import { i18n, setLocale } from '../src/runtime/i18n'
+import { twemojiVuePlugin } from '../src/runtime/twemoji'
 import { getAgentCommentPolicy, getTopicsList, saveAgentCommentPolicy, setAgentCommentTopicPolicy } from '../src/admin/runtime/api'
 import type { AdminPayload, AdminTopic } from '../src/admin/types'
 
@@ -60,7 +61,7 @@ async function mountPage() {
   vi.mocked(getTopicsList).mockResolvedValue({ list: [topic()], page: 1, size: 10, total: 0, hasNext: false })
   vi.mocked(saveAgentCommentPolicy).mockResolvedValue(undefined)
   vi.mocked(setAgentCommentTopicPolicy).mockResolvedValue({ topicId: 1201, agentCommentDisabled: true })
-  wrapper = mount(AgentCommentPolicyPage, { props: { payload }, global: { plugins: [i18n] }, attachTo: document.body })
+  wrapper = mount(AgentCommentPolicyPage, { props: { payload }, global: { plugins: [i18n, twemojiVuePlugin] }, attachTo: document.body })
   return { page: wrapper, body: new DOMWrapper(document.body) }
 }
 

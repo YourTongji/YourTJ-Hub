@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../../widgets/user_decoration.dart';
 import '../../private_notes.dart';
 
 import 'package:flutter/material.dart';
@@ -349,7 +350,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final bool canPop = Navigator.canPop(context);
 
-    return Scaffold(
+    final scaffold = Scaffold(
       body: SafeArea(
         bottom: false,
         child: Align(
@@ -426,6 +427,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           ),
         ),
       ),
+    );
+    return GfStatusBarScrollToTop(
+      controller: _scrollToTopController,
+      child: scaffold,
     );
   }
 
@@ -708,7 +713,7 @@ class _ElsewhereTile extends StatelessWidget {
                   GfSymbol(symbol, size: 20, color: tileTone),
                   const SizedBox(width: 8),
                   Flexible(
-                    child: Text(
+                    child: GfText(
                       label,
                       textAlign: TextAlign.center,
                       style: GfTheme.typographyOf(context).caption.copyWith(
@@ -771,7 +776,7 @@ class _Discovery extends StatelessWidget {
         if (recent.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
+            child: GfText(
               l10n.searchIdleHint,
               style: type.small.copyWith(color: colors.iconMuted),
             ),
@@ -784,7 +789,7 @@ class _Discovery extends StatelessWidget {
                 Expanded(
                   child: Semantics(
                     header: true,
-                    child: Text(l10n.searchRecent, style: type.heading),
+                    child: GfText(l10n.searchRecent, style: type.heading),
                   ),
                 ),
                 TextButton(
@@ -796,7 +801,7 @@ class _Discovery extends StatelessWidget {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  child: Text(l10n.searchClearRecent),
+                  child: GfText(l10n.searchClearRecent),
                 ),
               ],
             ),
@@ -870,7 +875,7 @@ class _Suggestions extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
             child: Semantics(
               header: true,
-              child: Text(
+              child: GfText(
                 l10n.searchRecent,
                 style: GfTheme.typographyOf(context).caption.copyWith(
                   fontWeight: FontWeight.w600,
@@ -931,7 +936,7 @@ class _SuggestionRow extends StatelessWidget {
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: Text(
+                child: GfText(
                   label,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -1139,10 +1144,10 @@ class _SectionHeader extends StatelessWidget {
       spacing: 8,
       crossAxisAlignment: WrapCrossAlignment.end,
       children: <Widget>[
-        Semantics(header: true, child: Text(title, style: type.title3)),
+        Semantics(header: true, child: GfText(title, style: type.title3)),
         Padding(
           padding: const EdgeInsets.only(bottom: 1),
-          child: Text(
+          child: GfText(
             count,
             style: type.caption.copyWith(color: colors.iconMuted),
           ),
@@ -1178,7 +1183,7 @@ class _SectionHeader extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  child: Text(
+                  child: GfText(
                     AppLocalizations.of(context).searchSeeAll,
                     maxLines: 2,
                     softWrap: true,
@@ -1214,7 +1219,7 @@ class _PartialFailure extends StatelessWidget {
               GfSymbol('circle-alert', size: 18, color: colors.warning),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
+                child: GfText(
                   '${l10n.searchUnavailable}: ${scopes.map((scope) => _scopeLabel(scope, l10n)).join(', ')}',
                   style: GfTheme.typographyOf(context).caption.copyWith(
                     fontSize: 14,
@@ -1245,24 +1250,39 @@ class _UserRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            GfAvatar(src: resolveApiAssetUrl(user.avatarUrl), size: 44),
+            GfAvatar(
+              frameColors: decorationColors(
+                context,
+                user.decoration?.avatarFrame,
+              ),
+              frameAssetUrl: decorationFrameAssetUrl(
+                user.decoration?.avatarFrame,
+              ),
+              frameScale: user.decoration?.avatarFrame?.assetScale ?? 1.25,
+              src: resolveApiAssetUrl(user.avatarUrl),
+              size: 44,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  GfDecoratedName(
                     privateDisplayName(
                       context,
                       user.id,
                       user.username,
                       user.nickname,
                     ),
+                    colors: decorationColors(
+                      context,
+                      user.decoration?.nicknameStyle,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: type.bodyStrong.copyWith(height: 1.35),
                   ),
-                  Text(
+                  GfText(
                     '@${user.username}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1270,7 +1290,7 @@ class _UserRow extends StatelessWidget {
                   ),
                   if (user.bio.isNotEmpty) ...[
                     const SizedBox(height: 4),
-                    Text(
+                    GfText(
                       user.bio,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -1356,7 +1376,7 @@ class _CategoryRow extends StatelessWidget {
                 color: tone.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Text(
+              child: GfText(
                 category.icon.isEmpty ? '#' : category.icon,
                 style: TextStyle(
                   fontSize: 18,
@@ -1370,14 +1390,14 @@ class _CategoryRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  GfText(
                     category.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: type.bodyStrong.copyWith(height: 1.35),
                   ),
                   if (category.desc.isNotEmpty)
-                    Text(
+                    GfText(
                       category.desc,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,

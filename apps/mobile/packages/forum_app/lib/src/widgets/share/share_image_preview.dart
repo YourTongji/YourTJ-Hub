@@ -105,7 +105,7 @@ class ShareImageCard extends StatelessWidget {
                         fit: BoxFit.contain,
                       ),
                       const SizedBox(width: 8),
-                      Text(
+                      GfText(
                         'YourTJ',
                         style: TextStyle(
                           color: theme.colors.iconMuted,
@@ -272,7 +272,7 @@ class _ShareImagePreviewState extends State<_ShareImagePreview> {
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
+                  child: GfText(
                     l10n.shareImageTitle,
                     style: GfTheme.typographyOf(context).title2,
                   ),
@@ -313,7 +313,7 @@ class _ShareImagePreviewState extends State<_ShareImagePreview> {
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
             child: Align(
               alignment: AlignmentDirectional.centerStart,
-              child: Text(
+              child: GfText(
                 l10n.shareImageTheme,
                 style: GfTheme.typographyOf(context).caption,
               ),
@@ -362,7 +362,7 @@ class _ShareImagePreviewState extends State<_ShareImagePreview> {
                         child: OutlinedButton.icon(
                           onPressed: _working ? null : () => _act(true),
                           icon: const GfSymbol('download'),
-                          label: Text(l10n.imageSave),
+                          label: GfText(l10n.imageSave),
                         ),
                       ),
                       SizedBox(
@@ -377,7 +377,7 @@ class _ShareImagePreviewState extends State<_ShareImagePreview> {
                                   ),
                                 )
                               : const GfSymbol('share-2'),
-                          label: Text(
+                          label: GfText(
                             _working
                                 ? l10n.shareImageGenerating
                                 : l10n.topicShare,
@@ -392,7 +392,7 @@ class _ShareImagePreviewState extends State<_ShareImagePreview> {
                         child: OutlinedButton.icon(
                           onPressed: _working ? null : () => _act(true),
                           icon: const GfSymbol('download'),
-                          label: Text(l10n.imageSave),
+                          label: GfText(l10n.imageSave),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -407,7 +407,7 @@ class _ShareImagePreviewState extends State<_ShareImagePreview> {
                                   ),
                                 )
                               : const GfSymbol('share-2'),
-                          label: Text(
+                          label: GfText(
                             _working
                                 ? l10n.shareImageGenerating
                                 : l10n.topicShare,
@@ -644,7 +644,7 @@ class _ThemeSwatch extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
+                GfText(
                   theme.label,
                   maxLines: 1,
                   style: type.meta.copyWith(

@@ -169,7 +169,7 @@ class _ScheduleTimeGridState extends State<ScheduleTimeGrid> {
             if (scrolls)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text(
+                child: GfText(
                   l.scheduleGridScrollHint,
                   style: GfTheme.typographyOf(context).caption,
                 ),
@@ -177,7 +177,7 @@ class _ScheduleTimeGridState extends State<ScheduleTimeGrid> {
             if (widget.emptyLabel != null)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Text(widget.emptyLabel!, textAlign: TextAlign.center),
+                child: GfText(widget.emptyLabel!, textAlign: TextAlign.center),
               ),
           ],
         );
@@ -213,7 +213,7 @@ class _HeaderCell extends StatelessWidget {
           right: BorderSide(color: colors.line),
         ),
       ),
-      child: Text(
+      child: GfText(
         label,
         style: TextStyle(
           fontSize: 12,
@@ -256,7 +256,7 @@ class _TimeCell extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
           if (partLabel != null)
-            Text(
+            GfText(
               partLabel,
               style: TextStyle(
                 fontSize: 9.5,
@@ -265,7 +265,7 @@ class _TimeCell extends StatelessWidget {
                 color: colors.primary.withValues(alpha: 0.8),
               ),
             ),
-          Text(
+          GfText(
             '${row + 1}',
             style: TextStyle(
               fontSize: 12,
@@ -275,7 +275,7 @@ class _TimeCell extends StatelessWidget {
             ),
           ),
           if (time != null)
-            Text(
+            GfText(
               '${time.start}\n${time.end}',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -537,7 +537,7 @@ class _CourseCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                  Text(
+                  GfText(
                     name,
                     maxLines: compact ? 1 : 2,
                     overflow: TextOverflow.ellipsis,
@@ -549,7 +549,7 @@ class _CourseCard extends StatelessWidget {
                     ),
                   ),
                   if (room.isNotEmpty)
-                    Text(
+                    GfText(
                       room,
                       maxLines: compact ? 1 : 2,
                       overflow: TextOverflow.ellipsis,
@@ -561,7 +561,7 @@ class _CourseCard extends StatelessWidget {
                       ),
                     ),
                   if (!custom && teacher.isNotEmpty && !compact)
-                    Text(
+                    GfText(
                       teacher,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -575,7 +575,7 @@ class _CourseCard extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
+                          child: GfText(
                             compact ? compactWeeks : weeksText,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,

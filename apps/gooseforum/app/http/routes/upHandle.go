@@ -1,7 +1,10 @@
 package routes
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/validate"
@@ -46,6 +49,59 @@ func UpLimitedJsonReq[T any](maxBytes int64, action func(ctx component.BetterReq
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
 		handler(c)
 	}
+}
+
+// UpLimitedStrictJsonReq applies a hard body limit and a strict JSON decode that
+// rejects unknown fields, wrong-type values, multiple values, trailing data, null,
+// and size-overrun bodies — all with the stable HTTP 400 common.request.parseFailed
+// envelope, then validates and executes. It is intended for small request schemas
+// whose contract declares additionalProperties: false.
+func UpLimitedStrictJsonReq[T any](maxBytes int64, action func(ctx component.BetterRequest[T]) component.Response) func(c *gin.Context) {
+	return func(c *gin.Context) {
+		userId := c.GetUint64("userId")
+		// Content-Length generally decides the rejection path; a lied / chunked
+		// body is still caught by MaxBytesReader.
+		if c.Request.ContentLength > maxBytes {
+			c.JSON(http.StatusBadRequest, component.FailDataCode(
+				component.MessageRequestParseFailed, nil))
+			return
+		}
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		var params T
+		if err := decodeStrictJSON(c.Request.Body, &params); err != nil {
+			c.JSON(http.StatusBadRequest, component.FailDataCode(
+				component.MessageRequestParseFailed, nil))
+			return
+		}
+		executeValidated(c, params, userId, action)
+	}
+}
+
+// decodeStrictJSON decodes exactly one top-level JSON value into dest, allowing
+// no unknown fields. The raw top-level value is read first, and the body must
+// contain exactly one value (io.EOF on the second read). A literal null is
+// rejected: object request contracts must bind an object, not a null that would
+// leave the destination struct at its zero value.
+func decodeStrictJSON(reader io.Reader, dest any) error {
+	outer := json.NewDecoder(reader)
+	var raw json.RawMessage
+	if err := outer.Decode(&raw); err != nil {
+		return err
+	}
+	// Only io.EOF means the single value consumed the whole body.
+	var trailing any
+	if err := outer.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return errors.New("unexpected trailing data after JSON value")
+	}
+	if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return errors.New("null body is not a valid object request")
+	}
+	inner := json.NewDecoder(bytes.NewReader(raw))
+	inner.DisallowUnknownFields()
+	if err := inner.Decode(dest); err != nil {
+		return err
+	}
+	return nil
 }
 
 // UpLimitedButterReq applies a hard body limit while preserving the lenient JSON

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../atoms/gf_divider.dart';
 import '../atoms/gf_loading_indicator.dart';
 import '../gf_action_feedback.dart';
@@ -148,7 +149,7 @@ class GfFloatingControls extends StatelessWidget {
                       height: 36,
                       padding: _floorPadding,
                       alignment: Alignment.center,
-                      child: Text(
+                      child: GfText(
                         floorLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -231,7 +232,7 @@ class _ReplyControl extends StatelessWidget {
                         ),
                         if (showLabel) ...[
                           const SizedBox(width: _labelGap),
-                          Text(label, style: style),
+                          GfText(label, style: style),
                         ],
                       ],
                     ),

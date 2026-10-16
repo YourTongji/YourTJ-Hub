@@ -34,6 +34,20 @@ func Create(userID uint64, jti string, userAgent string, ip string) error {
 	return userSessions.Create(entity)
 }
 
+// CreateWithDB persists a session through the caller's transaction. Ceremony
+// completion uses this so consuming its one-time challenge and issuing the
+// ordinary forum session commit atomically.
+func CreateWithDB(tx *gorm.DB, userID uint64, jti string, userAgent string, ip string) error {
+	entity := &userSessions.Entity{
+		UserId:    userID,
+		Jti:       jti,
+		UserAgent: truncateUA(userAgent),
+		Ip:        ip,
+		ExpiresAt: time.Now().Add(sessionLifetime()),
+	}
+	return tx.Create(entity).Error
+}
+
 // GetValidByJti returns a non-expired session for jti, or nil.
 // Used by the auth middleware to reject revoked or challenge-only tokens.
 func GetValidByJti(jti string) *userSessions.Entity {

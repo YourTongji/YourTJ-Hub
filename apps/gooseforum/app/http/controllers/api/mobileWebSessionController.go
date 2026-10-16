@@ -6,6 +6,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/authsessionservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
@@ -38,6 +39,9 @@ func MobileWebSession(c *gin.Context) {
 	case "campus":
 		destination = "/campus"
 		allowed = true
+	case "agents":
+		destination = "/admin/agents"
+		allowed = agentservice.CanAccessManagement(userID)
 	case "admin":
 	case "moderation":
 		destination = "/moderation"

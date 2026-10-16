@@ -335,7 +335,7 @@
   "categoryTitle": "Category",
   "settingsTitle": "Settings",
   "settingsTabProfile": "Profile",
-  "settingsTabAccount": "Account",
+  "settingsTabAccount": "Account, security & privacy",
   "settingsTabPrivacy": "Privacy",
   "settingsTabBinding": "Bindings",
   "settingsTabSecurity": "Security",
@@ -814,10 +814,31 @@
   "publishImageOrderTitle": "Image order",
   "publishImageOrderHint": "Long-press and drag to change where each image appears",
   "publishImageOrderPosition": "Image {index}",
-  "@publishImageOrderPosition": {"placeholders": {"index": {"type": "int"}}},
-  "@publishCategoryLimit": {"placeholders": {"count": {"type": "int"}}},
+  "@publishImageOrderPosition": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "@publishCategoryLimit": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "publishStepOf": "Step {current} of {total}",
-  "@publishStepOf": {"placeholders": {"current": {"type": "int"}, "total": {"type": "int"}}},
+  "@publishStepOf": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "publishFormatting": "Formatting",
   "publishClassification": "Choose categories",
   "publishLeaveTitle": "Keep your work?",
@@ -976,7 +997,7 @@
       }
     }
   },
-  "notificationTopicPost": "{actor} posted in a topic you watch",
+  "notificationTopicPost": "{actor} posted a reply in a topic you follow",
   "@notificationTopicPost": {
     "placeholders": {
       "actor": {
@@ -1000,13 +1021,9 @@
       }
     }
   },
-  "notificationWikiUpdated": "{actor} updated a wiki page you watch",
+  "notificationWikiUpdated": "A Wiki page you follow was updated",
   "@notificationWikiUpdated": {
-    "placeholders": {
-      "actor": {
-        "type": "String"
-      }
-    }
+    "placeholders": {}
   },
   "notificationBadge": "You earned the “{badge}” badge",
   "@notificationBadge": {
@@ -1016,7 +1033,7 @@
       }
     }
   },
-  "notificationNew": "New notification",
+  "notificationNew": "You have a new system notification",
   "notificationSomeone": "Someone",
   "profileRoleAdmin": "Admin",
   "profileOnline": "Online",
@@ -1808,5 +1825,177 @@
   "anonymousStatusRestricted": "Restricted by an admin — you can't post with it right now",
   "anonymousStatusDisabled": "Turned off — you can't post with it right now",
   "anonymousLinkabilityHint": "Everything you post with it is gathered on one profile, so people may connect it. The content itself can still reveal who you are.",
-  "anonymousViewProfile": "View anonymous profile"
+  "anonymousViewProfile": "View anonymous profile",
+  "profilePrivacyTitle": "Profile visibility",
+  "profilePrivacyDescription": "Choose who can see each part of your profile.",
+  "profilePrivacyScope": "This only changes what your profile shows. Your topics and replies still appear in categories, search and their original discussions, and counts such as followers stay visible.",
+  "profilePrivacyViewProfile": "View my profile",
+  "profilePrivacyTopics": "Posts",
+  "profilePrivacyTopicsDescription": "Posts you published",
+  "profilePrivacyActivity": "Activity",
+  "profilePrivacyActivityDescription": "Replies and other activity. Posts, likes and follows in it also follow their own settings",
+  "profilePrivacyLikes": "Liked posts",
+  "profilePrivacyLikesDescription": "Posts you liked",
+  "profilePrivacyFollowing": "Following list",
+  "profilePrivacyFollowingDescription": "People you follow",
+  "profilePrivacyFollowers": "Followers list",
+  "profilePrivacyFollowersDescription": "People who follow you",
+  "profilePrivacyBookmarksDescription": "Posts you bookmarked. Always visible only to you",
+  "profilePrivacyEveryone": "Everyone",
+  "profilePrivacyMembers": "Signed-in members",
+  "profilePrivacyFollowersOnly": "Your followers",
+  "profilePrivacyMutual": "Mutual follows",
+  "profilePrivacySelf": "Only you",
+  "profilePrivacyAudienceTitle": "Who can see {section}",
+  "@profilePrivacyAudienceTitle": {
+    "description": "Title of the audience picker for one profile section.",
+    "placeholders": {
+      "section": {
+        "type": "String"
+      }
+    }
+  },
+  "profilePrivacyLoadFailed": "Unable to load profile visibility.",
+  "profilePrivacySaved": "Visibility saved to your account",
+  "profilePrivacySaveFailed": "Unable to save. Your setting hasn’t changed. Check your connection and try again.",
+  "profilePrivacyWidenTitle": "Show to more people?",
+  "profilePrivacyWidenDescription": "“{section}” will be visible to “{audience}”, including anything recorded while it was hidden.",
+  "@profilePrivacyWidenDescription": {
+    "description": "Confirmation before a profile section becomes visible to more people.",
+    "placeholders": {
+      "section": {
+        "type": "String"
+      },
+      "audience": {
+        "type": "String"
+      }
+    }
+  },
+  "profilePrivacyWidenConfirm": "Show to more people",
+  "profileHiddenTitle": "This section isn’t public",
+  "profileHiddenPrivate": "{name} chose not to show this on their profile.",
+  "@profileHiddenPrivate": {
+    "description": "Shown to other viewers; name is the profile owner.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "profileHiddenSignin": "{name} shows this only to signed-in members.",
+  "@profileHiddenSignin": {
+    "description": "Shown to guests; name is the profile owner.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "profileHiddenFollowers": "{name} shows this only to followers. Follow to see it.",
+  "@profileHiddenFollowers": {
+    "description": "Shown to signed-in non-followers; name is the profile owner.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "profileHiddenFollowersGuest": "{name} shows this only to followers. Sign in and follow to see it.",
+  "@profileHiddenFollowersGuest": {
+    "description": "Shown to guests; name is the profile owner.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "profileHiddenMutual": "{name} shows this only to mutual follows.",
+  "@profileHiddenMutual": {
+    "description": "Shown to viewers who are not mutual follows; name is the profile owner.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "profileHiddenSignIn": "Sign in",
+  "profileOwnerMembers": "Only signed-in members can see this.",
+  "profileOwnerFollowers": "Only your followers can see this.",
+  "profileOwnerMutual": "Only mutual follows can see this.",
+  "profileOwnerSelf": "Only you can see this.",
+  "notificationsMentions": "Mentions",
+  "notificationsReplies": "Replies",
+  "notificationsLikes": "Likes",
+  "notificationsFollowing": "Following",
+  "notificationsSystem": "System",
+  "pushChat": "Direct messages",
+  "pushMentionsAndReplies": "Mentions and replies",
+  "pushActivity": "Likes",
+  "pushFollowing": "Following activity",
+  "pushSystem": "System and moderation",
+  "notificationMentionTopic": "{actor} mentioned you in “{topic}”",
+  "notificationCommentTopic": "{actor} commented on “{topic}”",
+  "notificationTopicPostTopic": "{actor} posted a reply in “{topic}”, which you follow",
+  "notificationWikiTopic": "“{topic}” was updated",
+  "@notificationMentionTopic": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      },
+      "topic": {
+        "type": "String"
+      }
+    }
+  },
+  "@notificationCommentTopic": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      },
+      "topic": {
+        "type": "String"
+      }
+    }
+  },
+  "@notificationTopicPostTopic": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      },
+      "topic": {
+        "type": "String"
+      }
+    }
+  },
+  "@notificationWikiTopic": {
+    "placeholders": {
+      "topic": {
+        "type": "String"
+      }
+    }
+  },
+  "authPasskey": "Sign in with a passkey",
+  "authPasskeyUnavailable": "Passkeys are not available on this device.",
+  "authPasskeyFailed": "Passkey sign-in failed. Try again or use your password.",
+  "authPasskeyCancelled": "No passkey was selected or available. Try again or use your password.",
+  "settingsPasskeyTitle": "Passkeys",
+  "settingsPasskeyManage": "Manage passkeys",
+  "settingsPasskeyDescription": "Use a device passkey to sign in without your password. Passkey sign-in still works when two-factor authentication is enabled.",
+  "settingsPasskeyReauthHint": "Adding, renaming, or removing a passkey requires your password and, when enabled, a current authenticator code.",
+  "settingsPasskeyName": "Passkey name",
+  "settingsPasskeyPassword": "Login password",
+  "settingsPasskeyAdd": "Add a passkey",
+  "settingsPasskeyAddedAt": "Added",
+  "settingsPasskeyLastUsed": "Last used",
+  "settingsPasskeyNeverUsed": "Not used yet",
+  "settingsPasskeySyncCapable": "Sync-capable",
+  "settingsPasskeyDeviceBound": "Device-bound",
+  "settingsPasskeyBackedUp": "Synced",
+  "settingsPasskeyRevokedHint": "Removing a passkey from YourTJ does not delete it from your password manager.",
+  "settingsPasskeyRename": "Rename",
+  "settingsPasskeyRevoke": "Remove",
+  "settingsPasskeyAdded": "Passkey added",
+  "settingsPasskeyRevoked": "Passkey removed",
+  "settingsPasskeyEmpty": "No passkeys are registered.",
+  "settingsPasskeyUnavailable": "Passkeys are not enabled on this server."
 }

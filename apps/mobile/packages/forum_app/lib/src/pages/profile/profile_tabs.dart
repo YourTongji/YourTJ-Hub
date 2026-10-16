@@ -36,11 +36,17 @@ class ProfileTabs extends StatefulWidget {
     required this.tabs,
     required this.index,
     required this.onChanged,
+    this.locks = const {},
   });
 
   final List<TabItemPayload> tabs;
   final int index;
   final ValueChanged<int> onChanged;
+
+  /// Tab key → why that section is not public to everyone (issue #1124).
+  /// Listed tabs carry a lock badge; long press and screen readers get the
+  /// reason.
+  final Map<String, String> locks;
 
   @override
   State<ProfileTabs> createState() => _ProfileTabsState();
@@ -50,6 +56,9 @@ class _ProfileTabsState extends State<ProfileTabs>
     with SingleTickerProviderStateMixin {
   static const _animationDuration = GfMotion.layout;
   static const _animationCurve = GfLogarithmicEaseOutCurve();
+
+  /// Extra room before the label so a lock badge never touches the text.
+  static const _lockGap = 4.0;
 
   late final AnimationController _controller = AnimationController(
     vsync: this,
@@ -189,6 +198,41 @@ class _ProfileTabsState extends State<ProfileTabs>
     _ => 'circle-user-round',
   };
 
+  /// The tab icon, with a lock badge on its corner for restricted sections.
+  /// The badge overlays the glyph, so tab widths and label motion stay as is.
+  Widget _glyph(BuildContext context, String key, Color? color) {
+    final icon = GfSymbol(_iconFor(key), size: 20, color: color);
+    if (!widget.locks.containsKey(key)) return icon;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        icon,
+        PositionedDirectional(
+          end: -5,
+          bottom: -3,
+          child: DecoratedBox(
+            key: ValueKey('profile-tab-lock-$key'),
+            // A ring in the bar color cuts the badge out of the glyph.
+            decoration: BoxDecoration(
+              color: GfTheme.colorsOf(context).base100,
+              shape: BoxShape.circle,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(1.5),
+              child: GfSymbol('lock-filled', size: 10, color: color),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _describe(TabItemPayload tab) {
+    final label = tab.label ?? tab.key;
+    final lock = widget.locks[tab.key];
+    return lock == null ? label : '$label\n$lock';
+  }
+
   double _labelWidth(BuildContext context, String label) {
     final style = DefaultTextStyle.of(
       context,
@@ -224,8 +268,13 @@ class _ProfileTabsState extends State<ProfileTabs>
             for (final tab in widget.tabs)
               _labelWidth(context, tab.label ?? tab.key),
           ];
+          final labelInsets = [
+            for (final tab in widget.tabs)
+              widget.locks.containsKey(tab.key) ? 6 + _lockGap : 6.0,
+          ];
           final expandedWidths = [
-            for (final width in labelWidths) math.max(48.0, width + 42),
+            for (int i = 0; i < widget.tabs.length; i++)
+              math.max(48.0, labelWidths[i] + labelInsets[i] + 36),
           ];
           final drag = _dragProgress;
           final dragTarget =
@@ -413,12 +462,12 @@ class _ProfileTabsState extends State<ProfileTabs>
                           width: widths[i],
                           height: height,
                           child: Tooltip(
-                            message: widget.tabs[i].label ?? widget.tabs[i].key,
+                            message: _describe(widget.tabs[i]),
                             excludeFromSemantics: true,
                             child: Semantics(
                               selected: i == selectedIndex,
                               button: true,
-                              label: widget.tabs[i].label ?? widget.tabs[i].key,
+                              label: _describe(widget.tabs[i]),
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(8),
                                 onTap: () => _selectTab(i),
@@ -436,10 +485,10 @@ class _ProfileTabsState extends State<ProfileTabs>
                                             ? Duration.zero
                                             : animationDuration,
                                         curve: animationCurve,
-                                        child: GfSymbol(
-                                          _iconFor(widget.tabs[i].key),
-                                          size: 20,
-                                          color: Color.lerp(
+                                        child: _glyph(
+                                          context,
+                                          widget.tabs[i].key,
+                                          Color.lerp(
                                             colors.iconMuted,
                                             colors.baseContent,
                                             activeFraction(i),
@@ -455,7 +504,8 @@ class _ProfileTabsState extends State<ProfileTabs>
                                               : animationDuration,
                                           curve: animationCurve,
                                           width:
-                                              (labelWidths[i] + 6) *
+                                              (labelWidths[i] +
+                                                  labelInsets[i]) *
                                               activeFraction(i),
                                           child: ClipRect(
                                             child: AnimatedOpacity(
@@ -466,8 +516,8 @@ class _ProfileTabsState extends State<ProfileTabs>
                                               curve: animationCurve,
                                               opacity: activeFraction(i),
                                               child: Padding(
-                                                padding: const EdgeInsets.only(
-                                                  left: 6,
+                                                padding: EdgeInsets.only(
+                                                  left: labelInsets[i],
                                                 ),
                                                 child: Transform.translate(
                                                   offset: Offset(
@@ -475,7 +525,7 @@ class _ProfileTabsState extends State<ProfileTabs>
                                                     0,
                                                   ),
                                                   child: ExcludeSemantics(
-                                                    child: Text(
+                                                    child: GfText(
                                                       widget.tabs[i].label ??
                                                           widget.tabs[i].key,
                                                       maxLines: 1,

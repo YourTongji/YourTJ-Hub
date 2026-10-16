@@ -122,7 +122,7 @@ class _CourseReviewReportSheetState
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
+              GfText(
                 l10n.contentReport,
                 style: GfTheme.typographyOf(context).heading,
               ),
@@ -137,7 +137,7 @@ class _CourseReviewReportSheetState
                   for (final entry in reasons.entries)
                     DropdownMenuItem(
                       value: entry.key,
-                      child: Text(entry.value),
+                      child: GfText(entry.value),
                     ),
                 ],
                 onChanged: _busy || stale
@@ -159,7 +159,7 @@ class _CourseReviewReportSheetState
               ),
               if (_error != null) ...[
                 const SizedBox(height: 4),
-                Text(
+                GfText(
                   _error!,
                   style: TextStyle(color: GfTheme.colorsOf(context).error),
                 ),
@@ -170,7 +170,7 @@ class _CourseReviewReportSheetState
                   Expanded(
                     child: OutlinedButton(
                       onPressed: _busy ? null : () => Navigator.pop(context),
-                      child: Text(l10n.commonCancel),
+                      child: GfText(l10n.commonCancel),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -179,7 +179,7 @@ class _CourseReviewReportSheetState
                       onPressed: _busy || stale || _reason == null
                           ? null
                           : _submit,
-                      child: Text(l10n.topicReportSubmit),
+                      child: GfText(l10n.topicReportSubmit),
                     ),
                   ),
                 ],

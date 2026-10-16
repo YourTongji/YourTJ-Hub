@@ -75,7 +75,7 @@ class _ScheduleWidgetTransparencyState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          GfText(
             l.scheduleWidgetTransparencyTitle,
             style: GfTheme.typographyOf(context).bodyStrong,
           ),
@@ -97,7 +97,7 @@ class _ScheduleWidgetTransparencyState
                   }),
             onChangeEnd: !_loaded ? null : (value) => _save(value.round()),
           ),
-          Text(
+          GfText(
             '$_value% · ${l.scheduleWidgetTransparencyDescription}',
             style: GfTheme.typographyOf(
               context,

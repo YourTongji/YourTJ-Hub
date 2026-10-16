@@ -1,3 +1,4 @@
+import 'decoration.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'layout.freezed.dart';
@@ -51,12 +52,14 @@ abstract class SitePayload with _$SitePayload {
 @freezed
 abstract class ViewerPayload with _$ViewerPayload {
   const factory ViewerPayload({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     required int id,
     required String username,
     required String email,
     required String avatarUrl,
     required bool isAuthenticated,
     required bool canAccessAdmin,
+    @Default(false) bool canManageAgents,
     required bool isModerator,
     required bool requiresEmailVerification,
     List<int>? adminPermissions,

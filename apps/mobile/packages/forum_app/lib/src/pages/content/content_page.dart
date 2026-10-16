@@ -91,17 +91,17 @@ class _ContentPageState extends ConsumerState<ContentPage> {
       await showGfAlertDialog<bool>(
         context,
         builder: (context) => GfAlertDialog(
-          title: Text(title),
-          content: Text(message),
+          title: GfText(title),
+          content: GfText(message),
           actions: [
             GfDialogAction(
               onPressed: () => Navigator.pop(context, false),
-              child: Text(AppLocalizations.of(context).commonCancel),
+              child: GfText(AppLocalizations.of(context).commonCancel),
             ),
             GfDialogAction(
               destructive: true,
               onPressed: () => Navigator.pop(context, true),
-              child: Text(title),
+              child: GfText(title),
             ),
           ],
         ),
@@ -174,7 +174,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(item.title),
+        title: GfText(item.title),
         content: SizedBox(
           width: 600,
           child: SingleChildScrollView(
@@ -184,7 +184,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(AppLocalizations.of(context).commonCancel),
+            child: GfText(AppLocalizations.of(context).commonCancel),
           ),
         ],
       ),
@@ -276,7 +276,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
     });
     return Scaffold(
       appBar: GfAppBar(
-        title: Text(widget.deleted ? l10n.profileTrash : l10n.profileContent),
+        title: GfText(widget.deleted ? l10n.profileTrash : l10n.profileContent),
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -302,7 +302,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                             (l10n.profileReplies, 'post'),
                           ])
                             ListTile(
-                              title: Text(entry.$1),
+                              title: GfText(entry.$1),
                               selected: _type == entry.$2,
                               onTap: _busy ? null : () => _selectType(entry.$2),
                             ),
@@ -325,7 +325,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                     if (widget.deleted)
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
+                        child: GfText(
                           l10n.contentTrashHint,
                           style: GfTheme.typographyOf(context).caption,
                         ),
@@ -347,7 +347,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                   }),
                           ),
                           Expanded(
-                            child: Text(
+                            child: GfText(
                               '${l10n.contentSelected} ${_selected.length} / 50',
                             ),
                           ),
@@ -355,7 +355,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                             onPressed: _busy || _selected.isEmpty
                                 ? null
                                 : _deleteSelected,
-                            child: Text(l10n.contentDelete),
+                            child: GfText(l10n.contentDelete),
                           ),
                         ],
                       ),
@@ -415,7 +415,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                                     }
                                                   }),
                                           ),
-                                    title: Text(
+                                    title: GfText(
                                       primaryText,
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
@@ -423,7 +423,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                     subtitle:
                                         !widget.deleted &&
                                             item.processStatus != 0
-                                        ? Text(
+                                        ? GfText(
                                             [
                                               item.processStatus == 2
                                                   ? l10n.contentReviewPending
@@ -436,7 +436,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                           )
                                         : secondaryText.isEmpty
                                         ? null
-                                        : Text(
+                                        : GfText(
                                             secondaryText,
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
@@ -474,13 +474,13 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                               if (!widget.deleted) ...[
                                                 GfPopupMenuItem(
                                                   value: 'view',
-                                                  child: Text(
+                                                  child: GfText(
                                                     l10n.contentReviewView,
                                                   ),
                                                 ),
                                                 GfPopupMenuItem(
                                                   value: 'edit',
-                                                  child: Text(
+                                                  child: GfText(
                                                     l10n.contentReviewRetry,
                                                   ),
                                                 ),
@@ -488,7 +488,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                               if (item.canRestore)
                                                 GfPopupMenuItem(
                                                   value: 'restore',
-                                                  child: Text(
+                                                  child: GfText(
                                                     l10n.contentRestore,
                                                   ),
                                                 ),
@@ -496,7 +496,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                                 GfPopupMenuItem(
                                                   destructive: true,
                                                   value: 'purge',
-                                                  child: Text(
+                                                  child: GfText(
                                                     l10n.contentPurge,
                                                   ),
                                                 ),

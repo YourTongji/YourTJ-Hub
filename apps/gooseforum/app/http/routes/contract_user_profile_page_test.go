@@ -10,6 +10,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -19,7 +20,8 @@ import (
 func setupProfilePageContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	t.Helper()
 	conn, router := setupHTTPContractTest(t)
-	if err := conn.AutoMigrate(&userFollow.Entity{}); err != nil {
+	// Profile privacy fails closed without its table (issue #1124).
+	if err := conn.AutoMigrate(&userFollow.Entity{}, &users.PrivacySettingsEntity{}, &users.BlockEntity{}); err != nil {
 		t.Fatalf("migrate userFollow contract table: %v", err)
 	}
 	view := router.Group("")

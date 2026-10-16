@@ -73,7 +73,7 @@ Widget mediaImageFailure(
       children: <Widget>[
         GfSymbol('image-off', color: colors.iconMuted, size: 28),
         const SizedBox(height: 8),
-        Text(
+        GfText(
           message,
           textAlign: TextAlign.center,
           style: TextStyle(
@@ -87,30 +87,24 @@ Widget mediaImageFailure(
           alignment: WrapAlignment.center,
           spacing: 4,
           children: <Widget>[
-            TextButton(
-              onPressed: retry,
-              child: Text(l10n.imageRetry),
-            ),
+            TextButton(onPressed: retry, child: GfText(l10n.imageRetry)),
             TextButton(
               onPressed: () => LinkNavigation.open(
                 context,
                 url,
                 baseUrl: AppConfig.apiBaseUrl,
               ),
-              child: Text(l10n.imageOpenInBrowser),
+              child: GfText(l10n.imageOpenInBrowser),
             ),
           ],
         ),
         if (kDebugMode)
-          Text(
+          GfText(
             '$error',
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: colors.iconMuted,
-              fontSize: 11,
-            ),
+            style: TextStyle(color: colors.iconMuted, fontSize: 11),
           ),
       ],
     ),

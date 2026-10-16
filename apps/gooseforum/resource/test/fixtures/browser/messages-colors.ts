@@ -1,4 +1,5 @@
-import { createApp, h } from 'vue'
+import { h } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import type { LayoutPayload, MessagesPageProps } from '@gooseforum/client'
 import MessagesPage from '../../../src/site/pages/MessagesPage.vue'
 import { i18n, setLocale } from '../../../src/runtime/i18n'

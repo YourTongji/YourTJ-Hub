@@ -68,8 +68,13 @@ class _CampusCalendarRulesViewState
         DateFormat.yMMMEd(l.localeName).format(DateTime.parse(value));
     final rules = _rules;
     return ExpansionTile(
+      // 必须携带独立 PageStorageKey：campus 各 tab 列表以
+      // PageStorageKey('campus-list-$tab') 持久化滚动偏移（double），
+      // 无键时本 tile 的展开状态（bool）与之共用同一 PageStorage 标识符，
+      // 滚动后重挂载时 initState 的 as bool? 读到 double 直接崩溃。
+      key: const PageStorageKey<String>('campus-calendar-rules'),
       tilePadding: EdgeInsets.zero,
-      title: Text(l.campusCalendarRules),
+      title: GfText(l.campusCalendarRules),
       trailing: AnimatedRotation(
         turns: _expanded ? .5 : 0,
         duration: MediaQuery.disableAnimationsOf(context)
@@ -80,27 +85,27 @@ class _CampusCalendarRulesViewState
       onExpansionChanged: _load,
       children: [
         if (_loading) const LinearProgressIndicator(),
-        if (_error != null) Text(campusError(l, _error!)),
+        if (_error != null) GfText(campusError(l, _error!)),
         if (rules != null) ...[
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(l.campusCalendarRulesHint),
+            child: GfText(l.campusCalendarRulesHint),
           ),
           if (rules.holidays.isEmpty && rules.moves.isEmpty)
-            Text(l.campusNoCalendarRules),
+            GfText(l.campusNoCalendarRules),
           for (final h in rules.holidays)
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const GfSymbol('calendar-x'),
-              title: Text(h.name),
-              subtitle: Text('${date(h.startDate)} – ${date(h.endDate)}'),
+              title: GfText(h.name),
+              subtitle: GfText('${date(h.startDate)} – ${date(h.endDate)}'),
             ),
           for (final m in rules.moves)
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const GfSymbol('calendar-days'),
-              title: Text(m.name),
-              subtitle: Text(
+              title: GfText(m.name),
+              subtitle: GfText(
                 l.campusMakeupDate(date(m.fromDate), date(m.toDate)),
               ),
             ),

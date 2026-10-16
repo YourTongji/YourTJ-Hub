@@ -191,7 +191,7 @@ class _SegmentLabel extends StatelessWidget {
         child: AnimatedDefaultTextStyle(
           duration: duration,
           style: style,
-          child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          child: GfText(label, maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
       ),
     ],

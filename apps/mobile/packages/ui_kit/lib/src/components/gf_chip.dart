@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import '../twemoji/twemoji_text.dart';
 
 /// Compact category fill with a separate 44px target when interactive.
 class GfChip extends StatelessWidget {
@@ -61,7 +62,7 @@ class GfChip extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Flexible(
-            child: Text(
+            child: GfText(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

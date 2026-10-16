@@ -1,4 +1,5 @@
-import { createApp, h } from 'vue'
+import { h } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import SearchIndexesPage from '../../../src/admin/pages/management/SearchIndexesPage.vue'
 import { i18n, setLocale } from '../../../src/runtime/i18n'
 import '../../../src/admin/styles/admin.css'

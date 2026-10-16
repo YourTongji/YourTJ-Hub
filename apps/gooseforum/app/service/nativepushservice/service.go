@@ -20,15 +20,17 @@ import (
 	"strings"
 	"time"
 
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushDevice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pushpolicy"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/webpushservice"
 	"github.com/sideshow/apns2"
 	apnstoken "github.com/sideshow/apns2/token"
-	"github.com/spf13/cast"
 	"golang.org/x/oauth2/google"
+	"gorm.io/gorm"
 )
 
 // TaskTypeNativePush 是 nativepush outbox 任务类型前缀。任务 Type 为
@@ -127,33 +129,22 @@ func LogConfigStatus() {
 }
 
 // PushTask 是 outbox 任务负载：定位一条通知行。
-type PushTask struct {
-	UserId         uint64 `json:"userId"`
-	NotificationId uint64 `json:"notificationId"`
-}
+type PushTask = pushpolicy.Task
 
-// EnqueueNotification 在通知行创建成功后入队原生推送任务。非事务写入：通知行已
-// 独立提交，入队失败只丢推送（站内红点兜底），绝不影响调用方。实例未启用
-// 任何原生通道时直接跳过（dev 不产生任务行）。
 func EnqueueNotification(userId uint64, notificationId uint64) {
-	if userId == 0 || notificationId == 0 {
-		return
-	}
 	if !LoadChannels().Enabled() {
+		pushpolicy.Trace("nativepushservice", "server_channel_disabled", PushTask{UserId: userId, NotificationId: notificationId})
 		return
 	}
-	taskJSON, err := json.Marshal(PushTask{UserId: userId, NotificationId: notificationId})
-	if err != nil {
-		slog.Warn("nativepush: marshal push task failed", "userId", userId, "notificationId", notificationId, "err", err)
-		return
+	if err := pushpolicy.Enqueue(db.Connect(), TaskTypeNativePush, userId, notificationId, pushpolicy.Notification); err != nil {
+		slog.Warn("push enqueue failed", "channel", "nativepushservice", "recipientId", userId, "sourceId", notificationId)
 	}
-	if err := taskQueue.Create(&taskQueue.Entity{
-		Type:     TaskTypeNativePush + cast.ToString(notificationId),
-		Status:   taskQueue.StatusPending,
-		TaskJson: string(taskJSON),
-	}); err != nil {
-		slog.Warn("nativepush: enqueue push task failed", "userId", userId, "notificationId", notificationId, "err", err)
+}
+func EnqueueChatTx(tx *gorm.DB, userId, messageID uint64) error {
+	if !LoadChannels().Enabled() {
+		return nil
 	}
+	return pushpolicy.Enqueue(tx, TaskTypeNativePush, userId, messageID, pushpolicy.ChatMessage)
 }
 
 // RecoverStaleTasks 启动时回收上次进程遗留的 Running 推送任务（崩溃恢复，
@@ -182,7 +173,8 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 		slog.Warn("nativepush: malformed push task", "taskId", task.Id, "err", err)
 		return nil
 	}
-	if payload.UserId == 0 || payload.NotificationId == 0 {
+	_, sourceID := payload.Source()
+	if payload.UserId == 0 || sourceID == 0 {
 		return nil
 	}
 
@@ -194,32 +186,28 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 		return nil
 	}
 
-	notification := eventNotification.GetByID(payload.NotificationId)
-	if notification.Id == 0 {
-		// 通知行不存在（已删/迁移丢失）：无事件源，Success 跳过。
-		slog.Debug("nativepush: notification gone, skip", "taskId", task.Id, "notificationId", payload.NotificationId)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	devices := pushDevice.ListByUser(payload.UserId)
+	if len(devices) == 0 {
+		pushpolicy.Trace("nativepushservice", "no_device", payload)
 		return nil
 	}
-	// 已读通知不再推送：用户已看到，避免冗余打扰（与 webpush 同口径）。
-	if notification.IsRead {
-		return nil
+	notification, chat, resolveErr := pushpolicy.Resolve(payload)
+	if resolveErr != nil {
+		return resolveErr
 	}
-	// Recheck blocks at delivery: this job may predate the block.
-	if blocked, err := users.InteractionBlocked(payload.UserId, func() uint64 {
-		if notification.PrivateActorID != 0 {
-			return notification.PrivateActorID
-		}
-		return notification.Payload.ActorId
-	}()); err != nil || blocked {
-		return err
-	}
-	// 注销账号（软删）不再推送。
-	if users.IsAccountClosed(payload.UserId) {
+	if notification.Id == 0 && chat == nil {
+		pushpolicy.Trace("nativepushservice", "user_disabled_or_source_unavailable", payload)
 		return nil
 	}
 
-	devices := pushDevice.ListByUser(payload.UserId)
-	if len(devices) == 0 {
+	throttled, err := pushpolicy.Throttle(task, payload, notification, "nativepushservice")
+	if err != nil {
+		return err
+	}
+	if throttled {
 		return nil
 	}
 
@@ -230,6 +218,29 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 		locale = user.Locale
 	}
 	msg := buildNativePayload(notification, locale)
+	if chat != nil {
+		copy := webpushservice.BuildChatCopy(chat.SenderId, webpushservice.NormalizeLang(locale))
+		msg = &nativePayload{Title: copy.Title, Body: copy.Body, Route: webRouteToMobile(copy.URL)}
+	}
+	if msg != nil {
+		kind, id := payload.Source()
+		msg.SourceKind = kind
+		msg.SourceId = id
+		msg.RecipientId = payload.UserId
+		group := pushpolicy.Group(notification.EventType)
+		thread := notification.Payload.TopicId
+		if chat != nil {
+			group = "chat"
+			thread = chat.ConvId
+		}
+		msg.Channel = channelFor(group)
+		msg.Thread = fmt.Sprintf("%s:%d", group, thread)
+		separator := "?"
+		if strings.Contains(msg.Route, "?") {
+			separator = "&"
+		}
+		msg.Route += separator + fmt.Sprintf("recipientId=%d", payload.UserId)
+	}
 	if msg == nil {
 		return nil
 	}
@@ -241,7 +252,7 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 	if ch.APNs.Enabled() {
 		client, err := newAPNsClient(ch.APNs)
 		if err != nil {
-			slog.Warn("nativepush: apns client init failed", "userId", payload.UserId, "err", err)
+			slog.Warn("nativepush: apns client init failed", "userId", payload.UserId, "reason", "provider_init_failed")
 		} else {
 			apnsClient = client
 		}
@@ -252,7 +263,7 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 	if ch.FCM.Enabled() {
 		token, err := fcmTokenSource(ctx, ch.FCM)
 		if err != nil {
-			slog.Warn("nativepush: fcm token init failed", "userId", payload.UserId, "err", err)
+			slog.Warn("nativepush: fcm token init failed", "userId", payload.UserId, "reason", "provider_init_failed")
 		} else {
 			fcmAccessToken = token
 		}
@@ -260,7 +271,14 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 
 	var sent, deleted int
 	for _, dev := range devices {
-		if dev == nil || dev.Token == "" {
+		if dev == nil || dev.UserId != payload.UserId || dev.Token == "" {
+			continue
+		}
+		owned, err := pushDevice.IsOwned(dev.Token, payload.UserId)
+		if err != nil {
+			return err
+		}
+		if !owned {
 			continue
 		}
 		var sendErr error
@@ -284,10 +302,13 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 		default:
 			continue
 		}
+		pushpolicy.Trace("native", "attempted", payload)
 		if sendErr != nil {
+			pushpolicy.Trace("native", "provider_rejected", payload)
 			if errors.Is(sendErr, errTokenStale) {
 				// 410/404 等：设备在推送服务已失效，从本地删除，停止向死 token 发送。
 				deleted++
+				pushpolicy.Trace("native", "token_expired", payload)
 				if delErr := pushDevice.DeleteByToken(dev.Token, payload.UserId); delErr != nil {
 					slog.Warn("nativepush: delete stale device failed", "userId", payload.UserId, "err", delErr)
 				}
@@ -299,10 +320,11 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 				// （返回错误使 taskQueue 置 Retrying，下个进程续投）。
 				return ctx.Err()
 			}
-			slog.Warn("nativepush: send failed", "userId", payload.UserId, "platform", dev.Platform, "err", sendErr)
+			slog.Warn("nativepush: send failed", "userId", payload.UserId, "platform", dev.Platform, "provider", dev.DeliveryProvider(), "reason", "provider_rejected")
 			continue
 		}
 		sent++
+		pushpolicy.Trace("native", "provider_accepted", payload)
 	}
 	slog.Debug("nativepush: task done", "taskId", task.Id, "userId", payload.UserId, "sent", sent, "deleted", deleted)
 	return nil
@@ -336,10 +358,12 @@ func sendAPNs(ctx context.Context, client *apns2.Client, cfg APNsConfig, deviceT
 		PushType:    apns2.PushTypeAlert,
 		Payload: map[string]any{
 			"aps": map[string]any{
-				"alert": map[string]string{"title": msg.Title, "body": msg.Body},
-				"sound": "default",
+				"alert":     map[string]string{"title": msg.Title, "body": msg.Body},
+				"sound":     "default",
+				"thread-id": msg.Thread,
 			},
-			"route": msg.Route,
+			"route":      msg.Route,
+			"sourceKind": msg.SourceKind, "sourceId": msg.SourceId, "recipientId": msg.RecipientId,
 		},
 	}
 	resp, err := client.PushWithContext(ctx, notification)
@@ -393,7 +417,8 @@ func sendFCM(ctx context.Context, accessToken string, cfg FCMConfig, deviceToken
 				"title": msg.Title,
 				"body":  msg.Body,
 			},
-			"data": map[string]string{"route": msg.Route},
+			"data":    msg.Data(),
+			"android": map[string]any{"notification": map[string]string{"channel_id": msg.Channel, "tag": fmt.Sprintf("%s:%d", msg.SourceKind, msg.SourceId)}},
 		},
 	}
 	payload, err := json.Marshal(body)
@@ -426,6 +451,6 @@ func sendFCM(ctx context.Context, accessToken string, cfg FCMConfig, deviceToken
 	default:
 		// 400（message/凭据错误）、429、5xx：记录并跳过。
 		slog.Warn("nativepush: unexpected fcm response", "status", resp.StatusCode)
-		return nil
+		return fmt.Errorf("fcm rejected notification: status=%d", resp.StatusCode)
 	}
 }

@@ -23,6 +23,7 @@ export interface PostStreamTopicActions {
 </script>
 
 <script setup lang="ts">
+import UserNickname from '@/site/components/UserNickname.vue'
 import PersonaTag from './PersonaTag.vue'
 import { authorURL, authorKey } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
@@ -2089,7 +2090,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                 class="shrink-0 pt-0.5"
                 @click="showUserCard(post.author, $event)"
               >
-                <UserAvatar
+                <UserAvatar :frame="post.author.decoration?.avatarFrame"
                   :src="post.author.avatarUrl"
                   :alt="post.author.username"
                   :badge="post.author.wornBadge"
@@ -2107,7 +2108,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                     :href="authorURL(post.author)"
                     class="min-w-0 truncate font-semibold text-sm text-base-content hover:text-primary"
                   >
-                    {{ authorDisplayName(post.author) }}
+                    <UserNickname :style-definition="post.author.decoration?.nicknameStyle">{{ authorDisplayName(post.author) }}</UserNickname>
                   </a>
                   <span v-else class="min-w-0 truncate font-semibold text-sm text-base-content/55">{{ t('topic.authorAnonymous') }}</span>
                   <PersonaTag v-if="post.author.publicUid" :own="post.isOwnPost" />
@@ -2151,7 +2152,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
             :class="isFirstPost(post) && hasShortFormImages ? 'hidden sm:block' : 'block'"
             @click="showUserCard(post.author, $event)"
           >
-            <UserAvatar :src="post.author.avatarUrl" :alt="post.author.username" :badge="post.author.wornBadge" class="h-9 w-9 rounded-full ring-1 ring-line sm:h-10 sm:w-10" img-class="rounded-full" />
+            <UserAvatar :frame="post.author.decoration?.avatarFrame" :src="post.author.avatarUrl" :alt="post.author.username" :badge="post.author.wornBadge" class="h-9 w-9 rounded-full ring-1 ring-line sm:h-10 sm:w-10" img-class="rounded-full" />
           </a>
           <span
             v-else
@@ -2167,7 +2168,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
             >
               <div class="min-w-0">
                 <div class="flex min-w-0 items-center gap-2">
-                  <a v-if="!isAnonymousPost(post)" :href="authorURL(post.author)" class="min-w-0 truncate font-semibold text-base-content hover:text-primary">{{ authorDisplayName(post.author) }}</a>
+                  <a v-if="!isAnonymousPost(post)" :href="authorURL(post.author)" class="min-w-0 truncate font-semibold text-base-content hover:text-primary"><UserNickname :style-definition="post.author.decoration?.nicknameStyle">{{ authorDisplayName(post.author) }}</UserNickname></a>
                   <span v-else class="min-w-0 truncate font-semibold text-base-content/55">{{ t('topic.authorAnonymous') }}</span>
                   <PersonaTag v-if="post.author.publicUid" :own="post.isOwnPost" />
                   <span v-if="post.postNo" class="hidden shrink-0 text-xs font-semibold tabular-nums text-base-content/55 sm:inline">#{{ formatNumber(post.postNo) }}</span>
@@ -2507,7 +2508,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                   class="rounded-full"
                   @click="showUserCard(participant, $event)"
                 >
-                  <UserAvatar :src="participant.avatarUrl" :alt="participant.username" class="h-8 w-8 rounded-full object-cover ring-1 ring-line transition hover:ring-primary/40" />
+                  <UserAvatar :frame="participant.decoration?.avatarFrame" :src="participant.avatarUrl" :alt="participant.username" class="h-8 w-8 rounded-full object-cover ring-1 ring-line transition hover:ring-primary/40" />
                 </a>
               </div>
             </div>
@@ -2630,7 +2631,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
 
             <div class="mt-4 rounded-[var(--gf-radius-field)] border border-line bg-base-200/55 p-3">
               <div class="flex min-w-0 items-center gap-2">
-                <UserAvatar
+                <UserAvatar :frame="pendingDeletePost.author.decoration?.avatarFrame"
                   v-if="!isAnonymousPost(pendingDeletePost)"
                   :src="pendingDeletePost.author.avatarUrl"
                   :alt="pendingDeletePost.author.username"
@@ -2644,7 +2645,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                 />
                 <div class="min-w-0 truncate text-xs font-semibold text-base-content/55">
                   <template v-if="isAnonymousPost(pendingDeletePost)">{{ t('topic.authorAnonymous') }}</template>
-                  <template v-else>{{ authorDisplayName(pendingDeletePost.author) }}</template>
+                  <template v-else><UserNickname :style-definition="pendingDeletePost.author.decoration?.nicknameStyle">{{ authorDisplayName(pendingDeletePost.author) }}</UserNickname></template>
                   <span class="ml-1.5 font-medium tabular-nums text-base-content/40">#{{ formatNumber(pendingDeletePost.postNo) }}</span>
                 </div>
               </div>
@@ -2850,13 +2851,13 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
 
             <div class="mt-4 rounded-[var(--gf-radius-field)] border border-line bg-base-200/55 p-3">
               <div class="flex min-w-0 items-center gap-2">
-                <UserAvatar
+                <UserAvatar :frame="topicActions?.author.decoration?.avatarFrame"
                   :src="topicActions?.author.avatarUrl || ''"
                   :alt="topicActions?.author.username || ''"
                   class="h-6 w-6 shrink-0 rounded-full object-cover ring-1 ring-line"
                 />
                 <div class="min-w-0 truncate text-xs font-semibold text-base-content/55">
-                  {{ authorDisplayName(topicActions?.author || { username: '', nickname: '' }) }}
+                  <UserNickname :style-definition="topicActions?.author.decoration?.nicknameStyle">{{ authorDisplayName(topicActions?.author || { username: '', nickname: '' }) }}</UserNickname>
                   <span v-if="topicActions?.author.username" class="ml-1.5 font-medium text-base-content/40">@{{ topicActions.author.username }}</span>
                 </div>
               </div>
@@ -2960,8 +2961,8 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                   <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/55">
                     <span class="font-semibold tabular-nums text-base-content/75">{{ t('topic.version', { version: formatNumber(version.version) }) }}</span>
                     <span class="inline-flex min-w-0 items-center gap-1.5">
-                      <UserAvatar :src="version.editor.avatarUrl" :alt="version.editor.username" class="h-4 w-4 shrink-0 rounded-full ring-1 ring-line" img-class="rounded-full" />
-                      <span class="truncate">{{ authorDisplayName(version.editor) }}</span>
+                      <UserAvatar :frame="version.editor.decoration?.avatarFrame" :src="version.editor.avatarUrl" :alt="version.editor.username" class="h-4 w-4 shrink-0 rounded-full ring-1 ring-line" img-class="rounded-full" />
+                      <span class="truncate"><UserNickname :style-definition="version.editor.decoration?.nicknameStyle">{{ authorDisplayName(version.editor) }}</UserNickname></span>
                     </span>
                     <time class="truncate">{{ formatDateTime(version.createdAt) }}</time>
                     <span v-if="version.processStatus !== 0 && !version.content" class="rounded bg-warning/10 px-1.5 py-0.5 font-semibold text-warning">

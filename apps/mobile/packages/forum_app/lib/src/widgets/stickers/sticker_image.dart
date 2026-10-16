@@ -67,7 +67,7 @@ class _StickerImageState extends State<StickerImage> {
               children: [
                 GfSymbol('bookmark', size: 22),
                 const SizedBox(width: 12),
-                Expanded(child: Text(strings.collect)),
+                Expanded(child: GfText(strings.collect)),
               ],
             ),
           ),
@@ -78,7 +78,7 @@ class _StickerImageState extends State<StickerImage> {
               children: [
                 GfSymbol('refresh-cw', size: 22),
                 const SizedBox(width: 12),
-                Expanded(child: Text(strings.retry)),
+                Expanded(child: GfText(strings.retry)),
               ],
             ),
           ),
@@ -104,13 +104,13 @@ class _StickerImageState extends State<StickerImage> {
         if (mounted && collection.active) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text(strings.saved)));
+          ).showSnackBar(SnackBar(content: GfText(strings.saved)));
         }
       } catch (error) {
         if (mounted && collection.active) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text(strings.failure(error))));
+          ).showSnackBar(SnackBar(content: GfText(strings.failure(error))));
         }
       }
     }

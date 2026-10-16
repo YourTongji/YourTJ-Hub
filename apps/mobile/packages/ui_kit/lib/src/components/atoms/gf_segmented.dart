@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../gf_motion.dart';
 
 /// Quiet segmented choice with native focus, selected semantics and a minimum
@@ -92,7 +93,7 @@ class _SegmentedItem<T> extends StatelessWidget {
               child: Align(
                 alignment: Alignment.center,
                 widthFactor: 1,
-                child: Text(
+                child: GfText(
                   label,
                   textAlign: TextAlign.center,
                   style: TextStyle(

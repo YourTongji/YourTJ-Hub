@@ -1,3 +1,4 @@
+import 'user_decoration.dart';
 import 'package:core/core.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -343,7 +344,13 @@ class AccountAvatar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final layout = ref.watch(accountLayoutProvider);
     final viewer = layout.isLoading ? null : layout.asData?.value.viewer;
-    return GfAvatar(src: resolveApiAssetUrl(viewer?.avatarUrl ?? ''), size: 30);
+    return GfAvatar(
+      frameColors: decorationColors(context, viewer?.decoration?.avatarFrame),
+      frameAssetUrl: decorationFrameAssetUrl(viewer?.decoration?.avatarFrame),
+      frameScale: viewer?.decoration?.avatarFrame?.assetScale ?? 1.25,
+      src: resolveApiAssetUrl(viewer?.avatarUrl ?? ''),
+      size: 30,
+    );
   }
 }
 
@@ -372,7 +379,7 @@ class AccountDrawer extends ConsumerWidget {
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
       onPressed: () => open('/profile?stream=$stream'),
-      child: Text.rich(
+      child: GfText.rich(
         TextSpan(
           children: [
             TextSpan(
@@ -400,7 +407,7 @@ class AccountDrawer extends ConsumerWidget {
       minLeadingWidth: 24,
       horizontalTitleGap: 16,
       leading: GfSymbol(icon, size: 24, color: colors.baseContent),
-      title: Text(
+      title: GfText(
         title,
         style: type.bodyStrong.copyWith(fontSize: 18, height: 1.3),
       ),
@@ -424,6 +431,20 @@ class AccountDrawer extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(30),
                     onTap: () => open(signedIn ? '/profile' : '/login'),
                     child: GfAvatar(
+                      frameColors: decorationColors(
+                        context,
+                        user?.decoration?.avatarFrame ??
+                            viewer?.decoration?.avatarFrame,
+                      ),
+                      frameAssetUrl: decorationFrameAssetUrl(
+                        user?.decoration?.avatarFrame ??
+                            viewer?.decoration?.avatarFrame,
+                      ),
+                      frameScale:
+                          (user?.decoration?.avatarFrame ??
+                                  viewer?.decoration?.avatarFrame)
+                              ?.assetScale ??
+                          1.25,
                       src: resolveApiAssetUrl(
                         user?.avatarUrl ?? viewer?.avatarUrl ?? '',
                       ),
@@ -431,16 +452,21 @@ class AccountDrawer extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text(
+                  GfDecoratedName(
                     signedIn
                         ? (user?.nickname.isNotEmpty == true
                               ? user!.nickname
                               : viewer!.username)
                         : 'YourTJ',
+                    colors: decorationColors(
+                      context,
+                      user?.decoration?.nicknameStyle ??
+                          viewer?.decoration?.nicknameStyle,
+                    ),
                     style: type.title2.copyWith(fontSize: 20),
                   ),
                   if (signedIn)
-                    Text(
+                    GfText(
                       '@${viewer!.username}',
                       style: type.small.copyWith(color: colors.iconMuted),
                     ),
@@ -550,7 +576,7 @@ Future<void> _showThemeModeSheet(BuildContext context) =>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.settingsAppearance, style: type.title2),
+                  GfText(l10n.settingsAppearance, style: type.title2),
                   const SizedBox(height: 12),
                   RadioGroup<ThemeMode>(
                     groupValue: mode,
@@ -567,7 +593,7 @@ Future<void> _showThemeModeSheet(BuildContext context) =>
                             value: choice,
                             controlAffinity: ListTileControlAffinity.trailing,
                             contentPadding: EdgeInsets.zero,
-                            title: Text(switch (choice) {
+                            title: GfText(switch (choice) {
                               ThemeMode.system => l10n.settingsLanguageSystem,
                               ThemeMode.light => l10n.settingsThemeLight,
                               ThemeMode.dark => l10n.settingsThemeDark,

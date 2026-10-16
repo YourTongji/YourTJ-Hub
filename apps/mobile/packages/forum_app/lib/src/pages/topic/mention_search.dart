@@ -23,6 +23,7 @@ final mentionUserSearchProvider = Provider<MentionUserSearch>((ref) {
       for (final target in targets)
         MentionUser(
           id: target.userId,
+          decoration: target.decoration,
           username: target.username,
           nickname: target.nickname,
           avatarUrl: resolveApiAssetUrl(target.avatarUrl),

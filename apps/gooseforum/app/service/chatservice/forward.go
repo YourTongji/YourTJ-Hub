@@ -14,6 +14,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pushpolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
 	"gorm.io/gorm"
@@ -150,6 +151,9 @@ func ForwardMessages(actor uint64, request ForwardRequest) (*ForwardResult, erro
 		})
 		if err == nil {
 			if changed {
+				for _, id := range result.MessageIDs {
+					pushpolicy.Trace("chat", "committed", pushpolicy.Task{UserId: request.PeerID, SourceKind: pushpolicy.ChatMessage, SourceId: id})
+				}
 				imUserChatConfigs.InvalidateConversationAccess(actor, result.ConvID)
 				imUserChatConfigs.InvalidateConversationAccess(request.PeerID, result.ConvID)
 				unreadservice.Invalidate(request.PeerID)

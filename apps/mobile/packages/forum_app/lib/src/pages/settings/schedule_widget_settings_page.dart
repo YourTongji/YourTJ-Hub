@@ -40,8 +40,8 @@ class _ScheduleWidgetSettingsPageState
     final accepted = await showGfAlertDialog<bool>(
       context,
       builder: (context) => GfAlertDialog(
-        title: Text(l.scheduleWidgetSettingsTitle),
-        content: Text(l.scheduleWidgetPrivacyDescription),
+        title: GfText(l.scheduleWidgetSettingsTitle),
+        content: GfText(l.scheduleWidgetPrivacyDescription),
         actions: [
           GfButton(
             label: l.commonCancel,
@@ -136,7 +136,7 @@ class _ScheduleWidgetSettingsPageState
     return Scaffold(
       appBar: widget.embedded
           ? null
-          : GfAppBar(title: Text(l.scheduleWidgetSettingsTitle)),
+          : GfAppBar(title: GfText(l.scheduleWidgetSettingsTitle)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -144,7 +144,7 @@ class _ScheduleWidgetSettingsPageState
           GfCard(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(l.scheduleWidgetPrivacyDescription),
+              child: GfText(l.scheduleWidgetPrivacyDescription),
             ),
           ),
           const SizedBox(height: 12),
@@ -159,12 +159,12 @@ class _ScheduleWidgetSettingsPageState
             onTap: _busy ? null : _clear,
           ),
           const SizedBox(height: 24),
-          Text(
+          GfText(
             l.scheduleWidgetDiagnostics,
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
-          Text(l.scheduleWidgetDiagnosticsDescription),
+          GfText(l.scheduleWidgetDiagnosticsDescription),
         ],
       ),
     );

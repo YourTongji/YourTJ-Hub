@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../server_messages.dart';
@@ -58,7 +59,7 @@ class _UsernameEditDialogState extends State<UsernameEditDialog> {
     return PopScope(
       canPop: !_saving,
       child: AlertDialog(
-        title: Text(l10n.authUsername),
+        title: GfText(l10n.authUsername),
         scrollable: true,
         content: TextField(
           key: const Key('settings-username-input'),
@@ -79,11 +80,11 @@ class _UsernameEditDialogState extends State<UsernameEditDialog> {
         actions: [
           TextButton(
             onPressed: _saving ? null : () => Navigator.pop(context),
-            child: Text(l10n.commonCancel),
+            child: GfText(l10n.commonCancel),
           ),
           FilledButton(
             onPressed: _saving ? null : _save,
-            child: Text(_saving ? l10n.commonLoading : l10n.commonSave),
+            child: GfText(_saving ? l10n.commonLoading : l10n.commonSave),
           ),
         ],
       ),

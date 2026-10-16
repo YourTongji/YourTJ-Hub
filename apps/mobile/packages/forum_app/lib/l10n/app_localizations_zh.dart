@@ -631,7 +631,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsTabProfile => '资料';
 
   @override
-  String get settingsTabAccount => '账户';
+  String get settingsTabAccount => '账户、安全与隐私';
 
   @override
   String get settingsTabPrivacy => '隐私';
@@ -1498,7 +1498,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileTrash => '回收站';
 
   @override
-  String get profileSecurity => '账号、安全与隐私';
+  String get profileSecurity => '账户、安全与隐私';
 
   @override
   String get profileAdmin => '管理工作台';
@@ -1847,7 +1847,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String notificationTopicPost(String actor) {
-    return '$actor 在你关注的主题中发表了回复';
+    return '$actor 在你关注的主题中发表了新回复';
   }
 
   @override
@@ -1861,17 +1861,15 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String notificationWikiUpdated(String actor) {
-    return '$actor 更新了你关注的 Wiki 页面';
-  }
+  String get notificationWikiUpdated => '你订阅的 Wiki 页面有更新';
 
   @override
   String notificationBadge(String badge) {
-    return '你获得了“$badge”徽章';
+    return '你获得了「$badge」徽章';
   }
 
   @override
-  String get notificationNew => '新通知';
+  String get notificationNew => '你有一条新的系统通知';
 
   @override
   String get notificationSomeone => '有人';
@@ -3573,4 +3571,258 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get anonymousViewProfile => '查看匿名主页';
+
+  @override
+  String get profilePrivacyTitle => '个人主页可见范围';
+
+  @override
+  String get profilePrivacyDescription => '选择谁能在你的个人主页上看到这些内容。';
+
+  @override
+  String get profilePrivacyScope =>
+      '这里只控制个人主页的展示。你发布的内容和回复仍会出现在版块、搜索和原讨论中，关注数、粉丝数等统计也会继续显示。';
+
+  @override
+  String get profilePrivacyViewProfile => '查看我的主页';
+
+  @override
+  String get profilePrivacyTopics => '内容';
+
+  @override
+  String get profilePrivacyTopicsDescription => '你发布的内容列表';
+
+  @override
+  String get profilePrivacyActivity => '动态';
+
+  @override
+  String get profilePrivacyActivityDescription =>
+      '回复等动态记录；其中的发布、点赞和关注记录还会分别遵循对应设置';
+
+  @override
+  String get profilePrivacyLikes => '赞过的内容';
+
+  @override
+  String get profilePrivacyLikesDescription => '你点赞过的内容列表';
+
+  @override
+  String get profilePrivacyFollowing => '关注列表';
+
+  @override
+  String get profilePrivacyFollowingDescription => '你关注的人';
+
+  @override
+  String get profilePrivacyFollowers => '粉丝列表';
+
+  @override
+  String get profilePrivacyFollowersDescription => '关注你的人';
+
+  @override
+  String get profilePrivacyBookmarksDescription => '你收藏的内容，始终只有你能看到';
+
+  @override
+  String get profilePrivacyEveryone => '所有人';
+
+  @override
+  String get profilePrivacyMembers => '登录用户';
+
+  @override
+  String get profilePrivacyFollowersOnly => '关注我的人';
+
+  @override
+  String get profilePrivacyMutual => '互相关注的人';
+
+  @override
+  String get profilePrivacySelf => '仅自己';
+
+  @override
+  String profilePrivacyAudienceTitle(String section) {
+    return '谁能看到$section';
+  }
+
+  @override
+  String get profilePrivacyLoadFailed => '无法加载个人主页可见范围。';
+
+  @override
+  String get profilePrivacySaved => '可见范围已保存到你的账号';
+
+  @override
+  String get profilePrivacySaveFailed => '未能保存，设置保持不变。请检查网络后重试。';
+
+  @override
+  String get profilePrivacyWidenTitle => '扩大可见范围？';
+
+  @override
+  String profilePrivacyWidenDescription(String section, String audience) {
+    return '「$section」将改为「$audience」可见，之前隐藏期间的记录也会一并显示。';
+  }
+
+  @override
+  String get profilePrivacyWidenConfirm => '扩大可见范围';
+
+  @override
+  String get profileHiddenTitle => '这部分内容未公开';
+
+  @override
+  String profileHiddenPrivate(String name) {
+    return '$name 选择不在个人主页展示这部分内容。';
+  }
+
+  @override
+  String profileHiddenSignin(String name) {
+    return '$name 只向登录用户展示这部分内容。';
+  }
+
+  @override
+  String profileHiddenFollowers(String name) {
+    return '$name 只向关注者展示这部分内容，关注后即可查看。';
+  }
+
+  @override
+  String profileHiddenFollowersGuest(String name) {
+    return '$name 只向关注者展示这部分内容，登录并关注后即可查看。';
+  }
+
+  @override
+  String profileHiddenMutual(String name) {
+    return '$name 只向互相关注的人展示这部分内容。';
+  }
+
+  @override
+  String get profileHiddenSignIn => '登录';
+
+  @override
+  String get profileOwnerMembers => '只有登录用户能看到这部分内容。';
+
+  @override
+  String get profileOwnerFollowers => '只有关注你的人能看到这部分内容。';
+
+  @override
+  String get profileOwnerMutual => '只有和你互相关注的人能看到这部分内容。';
+
+  @override
+  String get profileOwnerSelf => '只有你能看到这部分内容。';
+
+  @override
+  String get notificationsMentions => '@我';
+
+  @override
+  String get notificationsReplies => '回复';
+
+  @override
+  String get notificationsLikes => '赞';
+
+  @override
+  String get notificationsFollowing => '关注';
+
+  @override
+  String get notificationsSystem => '系统';
+
+  @override
+  String get pushChat => '私信';
+
+  @override
+  String get pushMentionsAndReplies => '提及和回复';
+
+  @override
+  String get pushActivity => '赞';
+
+  @override
+  String get pushFollowing => '关注动态';
+
+  @override
+  String get pushSystem => '系统与审核';
+
+  @override
+  String notificationMentionTopic(String actor, String topic) {
+    return '$actor 在《$topic》中提到了你';
+  }
+
+  @override
+  String notificationCommentTopic(String actor, String topic) {
+    return '$actor 评论了《$topic》';
+  }
+
+  @override
+  String notificationTopicPostTopic(String actor, String topic) {
+    return '$actor 在你关注的《$topic》中发表了新回复';
+  }
+
+  @override
+  String notificationWikiTopic(String topic) {
+    return '《$topic》有更新';
+  }
+
+  @override
+  String get authPasskey => '使用通行密钥登录';
+
+  @override
+  String get authPasskeyUnavailable => '此设备暂不支持通行密钥。';
+
+  @override
+  String get authPasskeyFailed => '通行密钥登录失败，请重试或使用密码登录。';
+
+  @override
+  String get authPasskeyCancelled => '未选择或没有可用的通行密钥，请重试或使用密码登录。';
+
+  @override
+  String get settingsPasskeyTitle => '通行密钥';
+
+  @override
+  String get settingsPasskeyManage => '管理通行密钥';
+
+  @override
+  String get settingsPasskeyDescription =>
+      '使用设备通行密钥免密码登录。即使开启两步验证，仍可直接使用通行密钥登录。';
+
+  @override
+  String get settingsPasskeyReauthHint =>
+      '添加、重命名或移除通行密钥都需要登录密码；若已启用两步验证，还需输入当前验证码。';
+
+  @override
+  String get settingsPasskeyName => '通行密钥名称';
+
+  @override
+  String get settingsPasskeyPassword => '登录密码';
+
+  @override
+  String get settingsPasskeyAdd => '添加通行密钥';
+
+  @override
+  String get settingsPasskeyAddedAt => '添加时间';
+
+  @override
+  String get settingsPasskeyLastUsed => '最近使用';
+
+  @override
+  String get settingsPasskeyNeverUsed => '尚未使用';
+
+  @override
+  String get settingsPasskeySyncCapable => '可同步';
+
+  @override
+  String get settingsPasskeyDeviceBound => '仅此设备';
+
+  @override
+  String get settingsPasskeyBackedUp => '已同步';
+
+  @override
+  String get settingsPasskeyRevokedHint => '从 YourTJ 移除通行密钥不会删除密码管理器中保存的凭据。';
+
+  @override
+  String get settingsPasskeyRename => '重命名';
+
+  @override
+  String get settingsPasskeyRevoke => '移除';
+
+  @override
+  String get settingsPasskeyAdded => '已添加通行密钥';
+
+  @override
+  String get settingsPasskeyRevoked => '已移除通行密钥';
+
+  @override
+  String get settingsPasskeyEmpty => '尚未添加通行密钥。';
+
+  @override
+  String get settingsPasskeyUnavailable => '此服务器尚未启用通行密钥。';
 }

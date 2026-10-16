@@ -58,7 +58,7 @@ class _WikiHomePageState extends ConsumerState<WikiHomePage> {
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: GfAppBar(title: Text(l10n.wikiTitle)),
+      appBar: GfAppBar(title: GfText(l10n.wikiTitle)),
       body: _data.when(
         loading: () => const _WikiHomeSkeleton(),
         error: (Object e, StackTrace _) =>
@@ -93,7 +93,7 @@ class _WikiHomePageState extends ConsumerState<WikiHomePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      GfText(
                         l10n.wikiExploreTitle,
                         style: GfTheme.typographyOf(context).display,
                       ),
@@ -110,7 +110,7 @@ class _WikiHomePageState extends ConsumerState<WikiHomePage> {
                             children: [
                               const GfSymbol('search', size: 20),
                               const SizedBox(width: 12),
-                              Expanded(child: Text(l10n.wikiSearchHint)),
+                              Expanded(child: GfText(l10n.wikiSearchHint)),
                             ],
                           ),
                         ),
@@ -181,7 +181,7 @@ class _SectionLabel extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-      child: Text(
+      child: GfText(
         text,
         style: GfTheme.typographyOf(context).small.copyWith(
           color: colors.baseContent.withValues(alpha: 0.55),
@@ -219,7 +219,7 @@ class _NamespaceCard extends StatelessWidget {
           Row(
             children: <Widget>[
               Expanded(
-                child: Text(
+                child: GfText(
                   namespace.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -240,7 +240,7 @@ class _NamespaceCard extends StatelessWidget {
                   children: <Widget>[
                     GfSymbol('file-text', size: 12, color: muted),
                     const SizedBox(width: 3),
-                    Text(
+                    GfText(
                       '${namespace.pageCount}',
                       style: typography.caption.copyWith(
                         color: muted,
@@ -254,7 +254,7 @@ class _NamespaceCard extends StatelessWidget {
           ),
           if (namespace.description.isNotEmpty) ...<Widget>[
             const SizedBox(height: 6),
-            Text(
+            GfText(
               namespace.description,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -267,7 +267,7 @@ class _NamespaceCard extends StatelessWidget {
               children: <Widget>[
                 GfSymbol('clock', size: 12, color: faint),
                 const SizedBox(width: 4),
-                Text(
+                GfText(
                   formatDateTime(namespace.updatedAt),
                   style: typography.caption.copyWith(color: faint),
                 ),
@@ -303,7 +303,7 @@ class _RecentRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(
+          GfText(
             page.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -311,7 +311,7 @@ class _RecentRow extends StatelessWidget {
           ),
           if (page.updatedAt.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text(
+            GfText(
               timeAgo(page.updatedAt, l10n: AppLocalizations.of(context)),
               style: typography.caption.copyWith(color: faint),
             ),

@@ -1,4 +1,5 @@
-import { createApp, h } from 'vue'
+import { h } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import PostStream from '../../../src/site/components/PostStream.vue'
 import PostReplyRow from '../../../src/site/components/PostReplyRow.vue'
 import { i18n, setLocale } from '../../../src/runtime/i18n'

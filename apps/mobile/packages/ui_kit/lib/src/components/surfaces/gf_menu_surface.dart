@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../gf_symbol.dart';
 
 /// Bounded native menu surface with soft corners and a subtle outline.
@@ -104,7 +105,7 @@ class GfMenuItem extends StatelessWidget {
                 const SizedBox(width: 10),
               ],
               Expanded(
-                child: Text(
+                child: GfText(
                   label,
                   style: TextStyle(
                     color: color,

@@ -45,6 +45,8 @@ vi.mock('../src/runtime/api', () => ({
   wearBadge: vi.fn(async () => true),
 }))
 vi.mock('../src/runtime/web-push', () => ({
+  getPushPreferences: vi.fn(async () => ({ chat: true, mentionsAndReplies: true, activity: false, following: false, system: true, systemDefaultOnly: true })),
+  updatePushPreferences: vi.fn(async (changes: Record<string, boolean>) => ({ chat: true, mentionsAndReplies: true, activity: false, following: false, system: true, systemDefaultOnly: true, ...changes })),
   PushError: class PushError extends Error {},
   currentPushSubscription: vi.fn(async () => null),
   disableWebPush: vi.fn(async () => true),
@@ -138,6 +140,7 @@ function buildProps(canSetPassword: boolean): SettingsPageProps {
       { key: 'profile', url: '/settings', active: true },
       { key: 'account', url: '/settings?tab=account', active: false },
       { key: 'privacy', url: '/settings?tab=privacy', active: false },
+      { key: 'notifications', url: '/settings?tab=notifications', active: false },
       { key: 'binding', url: '/settings?tab=binding', active: false },
       { key: 'security', url: '/settings?tab=security', active: false },
       { key: 'content', url: '/settings?tab=content', active: false },

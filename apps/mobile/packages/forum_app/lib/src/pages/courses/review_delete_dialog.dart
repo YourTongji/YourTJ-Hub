@@ -18,7 +18,7 @@ Future<bool> confirmCourseReviewDeletion(
   return await showGfAlertDialog<bool>(
         context,
         builder: (dialogContext) => GfAlertDialog(
-          title: Text(
+          title: GfText(
             copy.deleteReviewTitle,
             style: GfTheme.typographyOf(context).heading,
           ),
@@ -26,7 +26,7 @@ Future<bool> confirmCourseReviewDeletion(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
+              GfText(
                 copy.confirmDeleteReview,
                 style: GfTheme.typographyOf(context).body,
               ),
@@ -40,7 +40,7 @@ Future<bool> confirmCourseReviewDeletion(
                 // 与服务端阅读态同源:预览是 contentHtml 摊平后的纯文本。
                 child: Consumer(
                   builder: (BuildContext context, WidgetRef ref, Widget? _) =>
-                      Text(
+                      GfText(
                         gfPlainTextFromHtml(review.contentHtml),
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,

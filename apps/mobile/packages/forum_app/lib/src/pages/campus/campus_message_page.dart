@@ -78,7 +78,7 @@ class _MessageBodyState extends ConsumerState<_MessageBody> {
       }
     }
     return Scaffold(
-      appBar: GfAppBar(title: Text(l.campusMessages)),
+      appBar: GfAppBar(title: GfText(l.campusMessages)),
       body: SafeArea(
         top: false,
         child: ListView(
@@ -96,9 +96,9 @@ class _MessageBodyState extends ConsumerState<_MessageBody> {
             else if (revision == null)
               const CampusConnection()
             else if (_detail case final detail?) ...[
-              Text(detail.title, style: GfTheme.typographyOf(context).title2),
+              GfText(detail.title, style: GfTheme.typographyOf(context).title2),
               const SizedBox(height: 12),
-              Text(
+              GfText(
                 [
                   detail.publisher,
                   detail.publishedAt,
@@ -106,7 +106,7 @@ class _MessageBodyState extends ConsumerState<_MessageBody> {
                 style: GfTheme.typographyOf(context).caption,
               ),
               const SizedBox(height: 24),
-              SelectableText(
+              GfSelectableText(
                 detail.content.isEmpty ? l.campusNoData : detail.content,
                 style: GfTheme.typographyOf(context).body.copyWith(height: 1.6),
               ),

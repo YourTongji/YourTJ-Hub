@@ -9,6 +9,7 @@ import type { LayoutPayload, LoginPageProps } from '@gooseforum/client'
 
 vi.mock('../src/runtime/api', () => ({
   getCaptcha: vi.fn(async () => ({ captchaId: 'captcha-id', captchaImg: 'data:image/png;base64,x' })),
+  getPasskeyStatus: vi.fn(async () => ({ enabled: false })),
   login: vi.fn(async () => ({})),
   register: vi.fn(async () => ''),
   forgotPassword: vi.fn(async () => ''),

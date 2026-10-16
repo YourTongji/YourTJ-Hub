@@ -1,4 +1,5 @@
-import { createApp, h, ref } from 'vue'
+import { h, ref } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import AppShell from '../../../src/site/components/AppShell.vue'
 import SettingsPage from '../../../src/site/pages/SettingsPage.vue'

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../gf_symbol.dart';
 
 /// Page header, mirroring web `PageHeader.vue` / `.gf-page-header`
@@ -46,7 +47,7 @@ class GfPageHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
               Flexible(
-                child: Text(
+                child: GfText(
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -62,7 +63,7 @@ class GfPageHeader extends StatelessWidget {
           ),
           if (description != null) ...<Widget>[
             const SizedBox(height: 4),
-            Text(
+            GfText(
               description!,
               style: TextStyle(
                 fontSize: 14,
@@ -120,7 +121,7 @@ class GfSectionHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
+                GfText(
                   title,
                   style: TextStyle(
                     fontSize: 14,
@@ -130,7 +131,7 @@ class GfSectionHeader extends StatelessWidget {
                 ),
                 if (description != null) ...<Widget>[
                   const SizedBox(height: 2),
-                  Text(
+                  GfText(
                     description!,
                     style: TextStyle(
                       fontSize: 12,

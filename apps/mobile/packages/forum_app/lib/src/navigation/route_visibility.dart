@@ -7,6 +7,9 @@ final routeVisibilityChanges = _RouteVisibilityChanges();
 /// The shell drawer covers content without pushing a Navigator route.
 final shellDrawerOpen = ValueNotifier<bool>(false);
 
+/// Only a loaded, uncovered conversation can suppress its system alert.
+final visibleChatPeer = ValueNotifier<int>(0);
+
 class _RouteVisibilityChanges extends ChangeNotifier {
   void changed() => notifyListeners();
 }

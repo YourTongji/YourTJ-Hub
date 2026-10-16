@@ -21,6 +21,8 @@ const adminPathPermissions: Record<string, AdminPermission> = {
   '/admin/links': AdminPermission.PageManager,
   '/admin/wiki': AdminPermission.PageManager,
   '/admin/sponsors': AdminPermission.PageManager,
+  '/admin/decorations': AdminPermission.SiteManager,
+  '/admin/user-decorations': AdminPermission.UserManager,
   '/admin/badges': AdminPermission.SiteManager,
   '/admin/stickers': AdminPermission.SiteManager,
   '/admin/files/resources': AdminPermission.SiteManager,
@@ -61,6 +63,8 @@ const adminEntryPaths = [
   '/admin/links',
   '/admin/wiki',
   '/admin/sponsors',
+  '/admin/decorations',
+  '/admin/user-decorations',
   '/admin/badges',
   '/admin/stickers',
   '/admin/files/resources',
@@ -89,9 +93,11 @@ const adminEntryPaths = [
 ]
 
 let permissions = new Set<number>()
+let canManageAgents = false
 
-export function configureAdminAccess(values: number[] = []) {
+export function configureAdminAccess(values: number[] = [], agentManagement = false) {
   permissions = new Set(values)
+  canManageAgents = agentManagement
 }
 
 export function hasAdminPermission(permission: AdminPermission) {
@@ -99,6 +105,7 @@ export function hasAdminPermission(permission: AdminPermission) {
 }
 
 export function canVisitAdminPath(path: string) {
+  if (path === '/admin/agents' && canManageAgents) return true
   if (path === '/admin/anonymous-identities') {
     return hasAdminPermission(AdminPermission.UserManager) && hasAdminPermission(AdminPermission.RevealAnonymousIdentity)
   }

@@ -23,6 +23,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentcommentservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/botcontentservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
@@ -176,6 +177,20 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 			return errors.New("invalid review action")
 		}
 		var capturePlan *agenteventservice.WriteCapturePlan
+		if action == moderationDecision.ActionAllow && revision.EditorId != 0 && revision.EditorId != post.UserId {
+			author, err := users.GetInteractionUserTx(tx, post.UserId)
+			if err != nil {
+				return err
+			}
+			if author.IsBot() {
+				capturePlan, err = botcontentservice.CheckPublicationTx(tx, revision.EditorId, post, topic)
+				if errors.Is(err, botcontentservice.ErrUnavailable) || errors.Is(err, agenteventservice.ErrInaccessible) {
+					action, reason = moderationDecision.ActionBlock, "Agent 维护权限已失效，请恢复权限后重新提交。"
+				} else if err != nil {
+					return err
+				}
+			}
+		}
 		// Submission may precede an operator ban. Recheck only first publication
 		// of bot replies; an existing public reply remains editable.
 		if action == moderationDecision.ActionAllow && post.PostNo > 1 && post.PublishedRevisionId == 0 && post.ProcessStatus != posts.ProcessStatusNormal {

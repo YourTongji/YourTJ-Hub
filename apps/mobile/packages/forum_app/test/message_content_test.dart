@@ -65,7 +65,7 @@ void main() {
         ),
       ),
     );
-    final text = tester.widget<Text>(find.byType(Text));
+    final text = tester.widget<GfText>(find.byType(GfText));
     expect(text.textSpan!.toPlainText(), content);
     final links = textSpans(
       text.textSpan!,
@@ -143,7 +143,7 @@ void main() {
         ),
       ),
     );
-    final text = tester.widget<Text>(find.byType(Text));
+    final text = tester.widget<GfText>(find.byType(GfText));
     expect(text.textSpan!.toPlainText(), content);
     expect(
       textSpans(
@@ -177,10 +177,10 @@ void main() {
         ),
       );
       expect(find.byType(SelectionArea), findsOneWidget);
-      final text = tester.widget<Text>(
+      final text = tester.widget<GfText>(
         find.descendant(
           of: find.byType(MessageContent),
-          matching: find.byType(Text),
+          matching: find.byType(GfText),
         ),
       );
       expect(text.textSpan!.toPlainText(), content);
@@ -215,7 +215,7 @@ void main() {
         ),
       ),
     );
-    final text = tester.widget<Text>(find.byType(Text));
+    final text = tester.widget<GfText>(find.byType(GfText));
     expect(text.textSpan!.toPlainText(), content);
     expect(
       textSpans(text.textSpan!).where((span) => span.recognizer != null),

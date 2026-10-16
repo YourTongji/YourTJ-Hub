@@ -106,3 +106,36 @@ func TestPublicRankRejectsFrozenAndClosedAuthorsImmediately(t *testing.T) {
 		t.Fatal("closed author retained ranking")
 	}
 }
+
+// TestGetPublishedSkipsWikiTopics 回归评审 S3：GetPublished 复用规范公开谓词后带上
+// topic_type=0，wiki 页面主题（topic_type=1）不再被单篇详情/导出返回；改回论坛类型后
+// 同一行立即可读，证明拒绝原因就是 topic_type 而不是其他谓词。
+func TestGetPublishedSkipsWikiTopics(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}, &posts.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	topic := Entity{Title: "wiki page topic", Status: 1, UserId: 981233, TopicType: TopicTypeWiki}
+	if err := conn.Create(&topic).Error; err != nil {
+		t.Fatal(err)
+	}
+	post := posts.Entity{TopicId: topic.Id, PostNo: 1, UserId: topic.UserId, VisibilityStatus: posts.VisibilityActive}
+	if err := conn.Create(&post).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Model(&topic).Update("first_post_id", post.Id).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Unscoped().Delete(&post); conn.Unscoped().Delete(&topic) })
+
+	// 未命中即返回零值实体（err = record not found），断言只看实体本身。
+	if entity, _ := GetPublished(topic.Id); entity.Id != 0 {
+		t.Fatalf("GetPublished returned wiki topic %+v, want not found", entity)
+	}
+	if err := conn.Model(&Entity{}).Where("id = ?", topic.Id).Update("topic_type", TopicTypeForum).Error; err != nil {
+		t.Fatal(err)
+	}
+	if entity, err := GetPublished(topic.Id); err != nil || entity.Id != topic.Id {
+		t.Fatalf("GetPublished after switching to forum type = %+v (err=%v), want the topic", entity, err)
+	}
+}

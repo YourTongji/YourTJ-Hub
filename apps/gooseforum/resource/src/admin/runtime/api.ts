@@ -3,6 +3,7 @@ import { i18n } from '@/runtime/i18n'
 import { resolveApiMessage } from '@/runtime/api-message'
 import type {
   ApiEnvelope,
+  BotContentSource,
   AdminAgent,
   AdminAgentCommentPolicy,
   AdminAgentCommentTopicPolicy,
@@ -617,7 +618,7 @@ export function createAgent(data: { username: string, nickname?: string, webhook
   return postJson<AdminAgentCreateResult>('/api/admin/agent-create', data, adminText('k00k3'))
 }
 
-export function updateAgent(data: { agentId: number, nickname?: string, webhookEndpoint?: string, enabled?: number }) {
+export function updateAgent(data: { agentId: number, nickname?: string, avatarUrl?: string, profileCoverUrl?: string, bio?: string, signature?: string, website?: string, websiteName?: string, webhookEndpoint?: string, enabled?: number }) {
   return postJson<AdminAgent>('/api/admin/agent-update', data, adminText('k00k4'))
 }
 
@@ -792,4 +793,69 @@ export function listAnonymousIdentities(request: AdminAnonymousListRequest): Pro
 }
 export function governAnonymousIdentity(request: import('@gooseforum/client').components['schemas']['AdminAnonymousGovernRequest']): Promise<boolean> {
   return postJson('/api/admin/anonymous-identities/govern', request, t('anonymousAdmin.saveFailed'))
+}
+
+export function getDecorations() { return getJson<import('@gooseforum/client').DecorationStyle[]>('/api/admin/decorations', i18n.global.t('decoration.loadFailed')) }
+export function saveDecoration(style: import('@gooseforum/client').DecorationStyle) { return postJson<import('@gooseforum/client').DecorationStyle>('/api/admin/decoration-save', style) }
+export function getUserDecorations(userId: number) { return getJson<import('@gooseforum/client').DecorationState>(`/api/admin/user-decorations?userId=${encodeURIComponent(userId)}`, i18n.global.t('decoration.loadFailed')) }
+export function changeUserDecoration(action: 'grant' | 'revoke', body: { userId: number; code: string; reason: string; requestKey: string }) { return postJson<import('@gooseforum/client').DecorationState>(`/api/admin/decoration-${action}`, body) }
+
+// ---- 内容贡献统计（issue #1145）----
+// 口径（冻结）：时间按首次公开时间归属、板块按当前所属且多板块主题各计一次、
+// 获赞为当前仍有效获赞、贡献人数按账号去重且匿名/已注销不计入。
+
+/** 统计筛选：区间含起止两天（服务器本地日），categoryId 为 0 表示全站。 */
+export interface AdminStatsFilter {
+  startDate: string
+  endDate: string
+  categoryId: number
+}
+
+export type AdminStatsUserSort = NonNullable<
+  import('@gooseforum/client').components['schemas']['AdminStatsUserRankingRequest']['sortBy']
+>
+/** 0 = 真人，1 = Agent（R7：两类账号分开统计，不混入）。 */
+export type AdminStatsActorType = NonNullable<
+  import('@gooseforum/client').components['schemas']['AdminStatsUserRankingRequest']['actorType']
+>
+
+export type AdminStatsCategorySummaryRequest = import('@gooseforum/client').components['schemas']['AdminStatsCategorySummaryRequest']
+export type AdminStatsCategoryTrendRequest = import('@gooseforum/client').components['schemas']['AdminStatsCategoryTrendRequest']
+export type AdminStatsUserRankingRequest = import('@gooseforum/client').components['schemas']['AdminStatsUserRankingRequest']
+/** userId 与 username 恰给一个。 */
+export type AdminStatsUserDetailRequest = import('@gooseforum/client').components['schemas']['AdminStatsUserDetailRequest']
+
+export type AdminStatsCategorySummaryResult = import('@gooseforum/client').components['schemas']['AdminStatsCategorySummaryResult']
+export type AdminStatsCategoryTrendResult = import('@gooseforum/client').components['schemas']['AdminStatsCategoryTrendResult']
+export type AdminStatsUserRankingResult = import('@gooseforum/client').components['schemas']['AdminStatsUserRankingResult']
+export type AdminStatsUserDetailResult = import('@gooseforum/client').components['schemas']['AdminStatsUserDetailResult']
+
+export function getAdminStatsCategorySummary(request: AdminStatsCategorySummaryRequest): Promise<AdminStatsCategorySummaryResult> {
+  return postJson('/api/admin/stats/category-summary', request, t('statsAdmin.loadFailed'))
+}
+
+export function getAdminStatsCategoryTrend(request: AdminStatsCategoryTrendRequest): Promise<AdminStatsCategoryTrendResult> {
+  return postJson('/api/admin/stats/category-trend', request, t('statsAdmin.loadFailed'))
+}
+
+export function getAdminStatsUserRanking(request: AdminStatsUserRankingRequest): Promise<AdminStatsUserRankingResult> {
+  return postJson('/api/admin/stats/user-ranking', request, t('statsAdmin.loadFailed'))
+}
+
+export function getAdminStatsUserDetail(request: AdminStatsUserDetailRequest): Promise<AdminStatsUserDetailResult> {
+  return postJson('/api/admin/stats/user-detail', request, t('statsAdmin.loadFailed'))
+}
+
+export function getBotContentSource(data: { topicId?: number, postId?: number }) {
+  return postJson<BotContentSource>('/api/admin/agents/content-source', data)
+}
+
+export async function editBotContent(kind: 'topic' | 'post', data: { topicId?: number, postId?: number, title?: string, content: string, categoryId?: number[], expectedRevisionNo: number }) {
+  const response = await fetch(`/api/admin/agents/edit-${kind}`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  await readApiResponse<unknown>(response.clone(), adminText('k000l'))
+  return await response.json() as ApiEnvelope<unknown>
 }

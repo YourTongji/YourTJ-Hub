@@ -1,4 +1,5 @@
-import { createApp, h, ref } from 'vue'
+import { h, ref } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import QuickPublishModal from '../../../src/site/components/QuickPublishModal.vue'
 import type { LayoutPayload } from '@gooseforum/client'

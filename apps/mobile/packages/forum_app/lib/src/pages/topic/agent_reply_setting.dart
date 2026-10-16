@@ -63,7 +63,7 @@ class _AgentReplySettingState extends ConsumerState<AgentReplySetting> {
       return Padding(
         key: const Key('agent-replies-notice'),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-        child: Text(
+        child: GfText(
           l.agentRepliesDisabled,
           style: type.caption.copyWith(color: colors.iconMuted),
         ),
@@ -94,7 +94,7 @@ class _AgentReplySettingState extends ConsumerState<AgentReplySetting> {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Semantics(
                   liveRegion: true,
-                  child: Text(
+                  child: GfText(
                     resolveErrorMessage(l, _error!),
                     style: type.caption.copyWith(color: colors.error),
                   ),

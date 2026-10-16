@@ -82,7 +82,7 @@ class _PasswordEditPageState extends State<PasswordEditPage> {
       },
       child: Scaffold(
         appBar: GfAppBar(
-          title: Text(l.settingsChangePassword),
+          title: GfText(l.settingsChangePassword),
           leading: IconButton(
             tooltip: l.commonBack,
             onPressed: _saving ? null : _close,
@@ -140,7 +140,7 @@ class _PasswordEditPageState extends State<PasswordEditPage> {
                           padding: const EdgeInsets.only(top: 16),
                           child: Semantics(
                             liveRegion: true,
-                            child: Text(
+                            child: GfText(
                               _error!,
                               key: const Key('password-save-error'),
                               style: TextStyle(

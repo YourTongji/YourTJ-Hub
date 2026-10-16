@@ -420,13 +420,24 @@ describe('static sw.js (pure push worker)', () => {
       matchAll: vi.fn(async () => []),
       openWindow,
     }
+    const sources = new Map<string, unknown>()
+    const sourceCache = {match: async (key:string) => sources.get(key), put: async (key:string, value:unknown)=>{sources.set(key,value)}, keys: async ()=>[...sources.keys()], delete: async (key:string)=>sources.delete(key)}
     const sandbox: Record<string, unknown> = {
       console,
+      location: {origin:'https://yourtj.example'},
+      Response,
+      AbortSignal,
+      fetch: vi.fn(async () => ({ok:true,json:async()=>({layout:{viewer:{id:7,isAuthenticated:true}}})})),
       addEventListener(type: string, handler: (event: any) => void) {
         handlers[type] = handler
       },
       clients,
       registration: { showNotification },
+      caches: {
+        open: async () => {
+          return sourceCache
+        },
+      },
       URL, // vm 沙箱不提供全局 URL，注入 Node 实现供 sw.js 使用
     }
     if (options.withBroadcastChannel) {
@@ -459,7 +470,7 @@ describe('static sw.js (pure push worker)', () => {
 
   test('registers only push and notificationclick (no fetch interception)', () => {
     const { handlers } = loadWorker()
-    expect(Object.keys(handlers).sort()).toEqual(['notificationclick', 'push'])
+    expect(Object.keys(handlers).sort()).toEqual(['message', 'notificationclick', 'push'])
   })
 
   test('shows a notification without a tag when payload has no id', async () => {
@@ -474,7 +485,7 @@ describe('static sw.js (pure push worker)', () => {
     expect(harness.showNotification).toHaveBeenCalledWith('新回复', {
       body: '有人回复了你的主题',
       icon: '/static/pic/icon_300.webp',
-      data: { url: '/p/post/42#post-7' },
+      data: { url: '/p/post/42#post-7', recipientId:undefined, sourceKind:undefined },
     })
   })
 
@@ -491,8 +502,8 @@ describe('static sw.js (pure push worker)', () => {
     expect(harness.showNotification).toHaveBeenCalledWith('新回复', {
       body: '有人回复了你的主题',
       icon: '/static/pic/icon_300.webp',
-      data: { url: '/p/post/42' },
-      tag: 'goose-push-1024',
+      data: { url: '/p/post/42', recipientId:undefined, sourceKind:undefined },
+      tag: 'goose-push-notification:1024',
     })
   })
 
@@ -527,7 +538,7 @@ describe('static sw.js (pure push worker)', () => {
     const navigate = vi.fn(async () => undefined)
     const harness = loadWorker()
     // query/hash 与目标不同不算「不在目标页」：只比较 origin + pathname
-    harness.clients.matchAll.mockResolvedValueOnce([{ url: 'https://yourtj.example/p/post/9?from=push#top', focus, navigate }])
+    harness.clients.matchAll.mockResolvedValueOnce([{ url: 'https://yourtj.example/p/post/9', focus, navigate }])
     await notificationClick(harness, { url: '/p/post/9' })
     expect(focus).toHaveBeenCalledOnce()
     expect(navigate).not.toHaveBeenCalled()
@@ -603,4 +614,52 @@ describe('static sw.js (pure push worker)', () => {
     await pushEvent(harness, { title: '新回复', body: '…', url: '/p/post/42', icon: '/icon.png' })
     expect(harness.showNotification).toHaveBeenCalledOnce()
   })
+  test('durable source IDs deduplicate repeats without suppressing distinct notifications', async () => {
+    const harness = loadWorker()
+    await pushEvent(harness,{id:1,title:'One',url:'/notifications'})
+    await pushEvent(harness,{id:1,title:'One again',url:'/notifications'})
+    await pushEvent(harness,{id:2,title:'Two',url:'/notifications'})
+    expect(harness.showNotification).toHaveBeenCalledTimes(2)
+  })
+  test('chat push is suppressed only in the focused matching conversation', async () => {
+    const harness = loadWorker()
+    harness.handlers.message({source:{id:'tab'},data:{type:'goose:active-chat',peerId:9}})
+    harness.clients.matchAll.mockResolvedValue([{id:'tab',focused:true,url:'https://yourtj.example/messages'}])
+    await pushEvent(harness,{id:1,sourceKind:'chat_message',recipientId:7,title:'Message',url:'/messages?userId=9'})
+    expect(harness.showNotification).not.toHaveBeenCalled()
+    await pushEvent(harness,{id:2,sourceKind:'chat_message',recipientId:7,title:'Other message',url:'/messages?userId=10'})
+    expect(harness.showNotification).toHaveBeenCalledOnce()
+  })
+  test('stale recipient chat clicks return to messages without the old peer', async () => {
+    const harness = loadWorker()
+    await notificationClick(harness,{sourceKind:'chat_message',recipientId:8,url:'/messages?userId=9'})
+    expect(harness.clients.openWindow).toHaveBeenCalledWith('/messages')
+  })
+  test('chat clicks change conversation even when pathname matches', async () => {
+    const harness = loadWorker()
+    const focus=vi.fn(); const navigate=vi.fn()
+    harness.clients.matchAll.mockResolvedValue([{url:'https://yourtj.example/messages?userId=10',focus,navigate}])
+    await notificationClick(harness,{sourceKind:'chat_message',recipientId:7,url:'/messages?userId=9'})
+    expect(navigate).toHaveBeenCalledWith('/messages?userId=9')
+  })
+  test('external click URLs cannot navigate away from this origin', async () => {
+    const harness = loadWorker()
+    await notificationClick(harness,{url:'https://evil.example/path'})
+    expect(harness.clients.openWindow).toHaveBeenCalledWith('/notifications')
+  })
+
+  test('chat URL alone cannot suppress a push before the conversation has loaded', async () => {
+    const harness = loadWorker()
+    harness.clients.matchAll.mockResolvedValue([{id:'unloaded',focused:true,url:'https://yourtj.example/messages?userId=9'}])
+    await pushEvent(harness,{id:17,sourceKind:'chat_message',recipientId:7,title:'Message',url:'/messages?userId=9'})
+    expect(harness.showNotification).toHaveBeenCalledOnce()
+  })
+  test('a queued activity for a previous account is not shown or opened', async () => {
+    const harness = loadWorker()
+    await pushEvent(harness,{id:18,sourceKind:'notification',recipientId:8,title:'Old account activity',url:'/p/post/42'})
+    expect(harness.showNotification).not.toHaveBeenCalled()
+    await notificationClick(harness,{sourceKind:'notification',recipientId:8,url:'/p/post/42'})
+    expect(harness.clients.openWindow).toHaveBeenCalledWith('/notifications')
+  })
+
 })

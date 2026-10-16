@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import '../twemoji/twemoji_text.dart';
 import 'atoms/gf_loading_indicator.dart';
 import 'gf_motion.dart';
 
@@ -169,7 +170,7 @@ class GfButton extends StatelessWidget {
             ),
             const SizedBox(width: 8),
           ],
-          Flexible(child: Text(label, textAlign: TextAlign.center)),
+          Flexible(child: GfText(label, textAlign: TextAlign.center)),
         ],
       ),
     );

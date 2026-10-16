@@ -17,10 +17,16 @@ class GfAvatar extends StatelessWidget {
     this.size = 40,
     this.ring = false,
     this.badge,
+    this.frameColors = const [],
+    this.frameAssetUrl = '',
+    this.frameScale = 1.25,
   });
 
   /// Image URL (may be empty; falls back to a placeholder).
   final String src;
+  final List<Color> frameColors;
+  final String frameAssetUrl;
+  final double frameScale;
 
   /// Edge length in logical pixels; decode size snaps up to the step that
   /// covers it, so every value is valid.
@@ -128,13 +134,100 @@ class GfAvatar extends StatelessWidget {
           : image,
     );
 
-    if (badge == null) return avatar;
+    final framed = GfAvatarFrame(
+      size: size,
+      colors: frameColors,
+      assetUrl: frameAssetUrl,
+      assetScale: frameScale,
+      child: avatar,
+    );
+    if (badge == null) return framed;
     return Stack(
       clipBehavior: Clip.none,
       children: <Widget>[
-        avatar,
+        framed,
         Positioned(right: -size * .06, bottom: -size * .06, child: badge!),
       ],
+    );
+  }
+}
+
+/// Static frame artwork paints beyond the avatar without changing its layout.
+class GfAvatarFrame extends StatelessWidget {
+  const GfAvatarFrame({
+    super.key,
+    required this.size,
+    required this.child,
+    this.colors = const [],
+    this.assetUrl = '',
+    this.assetScale = 1.25,
+  });
+  final double size;
+  final Widget child;
+  final List<Color> colors;
+  final String assetUrl;
+  final double assetScale;
+  @override
+  Widget build(BuildContext context) {
+    final fallback = colors.length < 2
+        ? child
+        : Container(
+            width: size,
+            height: size,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(colors: colors),
+            ),
+            child: ClipOval(child: child),
+          );
+    final uri = Uri.tryParse(assetUrl);
+    if (uri == null ||
+        !RegExp(
+          r'^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp)$',
+        ).hasMatch(uri.path) ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        uri.userInfo.isNotEmpty ||
+        (uri.hasScheme && uri.scheme != 'https' && uri.scheme != 'http')) {
+      return fallback;
+    }
+    final scale = assetScale.isFinite && assetScale >= 0.5 && assetScale <= 2
+        ? assetScale
+        : 1.25;
+    final edge = size * scale;
+    final pixels = (edge * MediaQuery.devicePixelRatioOf(context)).ceil();
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          fallback,
+          Positioned(
+            left: -(edge - size) / 2,
+            top: -(edge - size) / 2,
+            width: edge,
+            height: edge,
+            child: IgnorePointer(
+              child: Image(
+                image: GfMediaScope.imageProvider(
+                  context,
+                  assetUrl,
+                  width: pixels,
+                  height: pixels,
+                  policy: ResizeImagePolicy.fit,
+                ),
+                fit: BoxFit.contain,
+                excludeFromSemantics: true,
+                frameBuilder: (_, child, frame, loaded) =>
+                    loaded || frame != null ? child : const SizedBox.shrink(),
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

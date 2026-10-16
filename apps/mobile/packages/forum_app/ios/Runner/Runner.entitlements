@@ -5,4 +5,9 @@
   <key>aps-environment</key><string>development</string>
   <key>com.apple.security.application-groups</key>
   <array><string>group.tj.yourtj.forumApp.widgets</string></array>
+  <key>com.apple.developer.associated-domains</key>
+  <array>
+    <string>webcredentials:f.yourtj.de</string>
+    <string>webcredentials:dev.yourtj.de</string>
+  </array>
 </dict></plist>
