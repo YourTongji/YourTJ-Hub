@@ -58,11 +58,13 @@ class MessagesPage extends ConsumerStatefulWidget {
     this.targetUserId,
     this.targetUsername = '',
     this.targetAvatarUrl = '',
+    this.initialConversation,
   });
 
   final int? targetUserId;
   final String targetUsername;
   final String targetAvatarUrl;
+  final ChatItemPayload? initialConversation;
 
   @override
   ConsumerState<MessagesPage> createState() => _MessagesPageState();
@@ -98,6 +100,11 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
   bool _directoryVisible = true;
   bool _serverConversationsResolved = false;
 
+  // A not-yet-created chat still needs directory updates to discover incoming mail.
+  bool get _directoryNeedsUpdates =>
+      _directoryVisible ||
+      (_selectedConversation ?? _targetConversation)?.convId == 0;
+
   @override
   void initState() {
     super.initState();
@@ -124,7 +131,8 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final active = TickerMode.valuesOf(context).enabled && _directoryVisible;
+    final active =
+        TickerMode.valuesOf(context).enabled && _directoryNeedsUpdates;
     _syncPolling(active && _foreground && !ref.read(realtimeHealthyProvider));
     final revision = ref.read(realtimeInvalidationsProvider).chatRevision;
     if (active && revision != _seenRealtimeRevision) {
@@ -136,7 +144,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
   void _syncPolling(bool shouldPoll) {
     shouldPoll =
         shouldPoll &&
-        _directoryVisible &&
+        _directoryNeedsUpdates &&
         _ownerEpoch == ref.read(offlineCacheEpochProvider) &&
         !shellDrawerOpen.value &&
         routeIsUncovered(context);
@@ -160,7 +168,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
   void _visibilityChanged() {
     if (!mounted) return;
     final active =
-        _directoryVisible &&
+        _directoryNeedsUpdates &&
         _foreground &&
         TickerMode.valuesOf(context).enabled &&
         !shellDrawerOpen.value &&
@@ -200,7 +208,8 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
     }
     if (oldWidget.targetUserId == widget.targetUserId &&
         oldWidget.targetUsername == widget.targetUsername &&
-        oldWidget.targetAvatarUrl == widget.targetAvatarUrl) {
+        oldWidget.targetAvatarUrl == widget.targetAvatarUrl &&
+        oldWidget.initialConversation == widget.initialConversation) {
       return;
     }
     final List<ChatItemPayload>? items = _conversations.valueOrNull;
@@ -303,6 +312,14 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
         _viewerDecoration = payload.layout.viewer.decoration;
         _viewerUsername = payload.layout.viewer.username;
         _targetConversation = _targetConversationFor(items);
+        if (_selectedConversation != null) {
+          for (final item in items) {
+            if (item.peerId == _selectedConversation!.peerId) {
+              _selectedConversation = item;
+              break;
+            }
+          }
+        }
       });
       try {
         if (current()) await cache.putConversations(items);
@@ -344,10 +361,12 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
         _loadDirty = false;
         unawaited(_load(silent: true));
       }
+      if (mounted) _visibilityChanged();
     }
   }
 
   ChatItemPayload? _targetConversationFor(List<ChatItemPayload> items) {
+    if (_ownerEpoch != ref.read(offlineCacheEpochProvider)) return null;
     final int? targetUserId = widget.targetUserId;
     if (targetUserId == null || targetUserId <= 0) return null;
 
@@ -355,6 +374,9 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
       if (item.peerId == targetUserId) return item;
     }
 
+    if (widget.initialConversation?.peerId == targetUserId) {
+      return widget.initialConversation;
+    }
     final String targetUsername = widget.targetUsername.trim();
     if (targetUsername.isEmpty) return null;
     return ChatItemPayload(
@@ -386,6 +408,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
             targetUserId: conv.peerId,
             targetUsername: conv.peerUsername,
             targetAvatarUrl: conv.peerAvatar,
+            initialConversation: conv,
           ),
         ),
       ),
@@ -570,7 +593,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
     });
     ref.listen(realtimeInvalidationsProvider, (previous, next) {
       if (previous?.chatRevision == next.chatRevision ||
-          !_directoryVisible ||
+          !_directoryNeedsUpdates ||
           !_foreground ||
           !TickerMode.valuesOf(context).enabled ||
           shellDrawerOpen.value ||

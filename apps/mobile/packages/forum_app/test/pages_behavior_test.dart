@@ -4254,6 +4254,9 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
     testWidgets('新私信弹层可渲染并搜索用户', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
       final pageRepo = CountingPageRepository(
         GfApiClient(
           dio: Dio(),
@@ -4318,6 +4321,11 @@ void main() {
       expect(chatRepo.sent, isEmpty, reason: '选联系人时不应向后端发送空消息');
       expect(find.text('开始聊天'), findsOneWidget);
       expect(find.text('给 Dave 发出第一条消息。'), findsOneWidget);
+      expect(
+        find.descendant(of: find.byType(GfAppBar), matching: find.text('Dave')),
+        findsOneWidget,
+        reason: 'Pushing the selected contact must preserve their nickname',
+      );
 
       await tester.enterText(find.byType(TextField), '你好');
       await tester.pump();
@@ -4745,7 +4753,10 @@ void main() {
 
       expect(router.state.uri.path, '/messages');
       expect(router.state.uri.queryParameters['userId'], '2');
-      expect(find.text('bob'), findsOneWidget);
+      expect(
+        find.descendant(of: find.byType(GfAppBar), matching: find.text('bob')),
+        findsOneWidget,
+      );
       expect(find.text('开始聊天'), findsOneWidget);
       expect(router.canPop(), isTrue);
 
@@ -4780,6 +4791,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('开始聊天'), findsOneWidget);
     expect(chatRepo.fetchedConvIds, isEmpty);
+    expect(find.byType(GfConversationRow), findsNothing);
 
     await tester.pump(const Duration(seconds: 15));
     await tester.pumpAndSettle();
@@ -4787,6 +4799,15 @@ void main() {
     expect(pageRepo.messagesFetches, greaterThanOrEqualTo(2));
     expect(chatRepo.fetchedConvIds, contains(9));
     expect(find.text('刚刚发来的消息'), findsOneWidget);
+    final resolvedFetches = pageRepo.messagesFetches;
+    await tester.pump(const Duration(seconds: 15));
+    await tester.pumpAndSettle();
+    expect(
+      pageRepo.messagesFetches,
+      resolvedFetches,
+      reason:
+          'The hidden directory stops polling once the conversation resolves',
+    );
 
     await tester.pumpWidget(const SizedBox.shrink());
   });

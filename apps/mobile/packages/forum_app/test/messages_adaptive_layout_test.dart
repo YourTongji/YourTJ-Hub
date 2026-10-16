@@ -1,3 +1,4 @@
+import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -133,6 +134,52 @@ void main() {
       );
     },
   );
+
+  testWidgets('seeded contact data cannot return after an account switch', (
+    tester,
+  ) async {
+    final app = await pumpChat(tester, targetUserId: null, messages: []);
+    final contact = ValueNotifier(
+      const ChatItemPayload(
+        id: 9,
+        peerId: 4,
+        peerUsername: 'dave',
+        peerNickname: 'Private contact A',
+        peerAvatar: '',
+        lastMsg: 'Private summary A',
+        lastMsgTime: '',
+        unreadCount: 0,
+        convId: 9,
+        peerUrl: '/u/4',
+      ),
+    );
+    addTearDown(contact.dispose);
+    app.navigator.currentState!.push(
+      MaterialPageRoute<void>(
+        builder: (_) => ValueListenableBuilder<ChatItemPayload>(
+          valueListenable: contact,
+          builder: (_, value, _) => MessagesPage(
+            targetUserId: value.peerId,
+            targetUsername: value.peerUsername,
+            initialConversation: value,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Private contact A'), findsOneWidget);
+    app.container.read(offlineCacheEpochProvider.notifier).invalidate();
+    await tester.pumpAndSettle();
+    final historyCalls = app.repo.afterCalls;
+    contact.value = contact.value.copyWith(peerNickname: 'Stale contact A');
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 16));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('contact A'), findsNothing);
+    expect(find.byType(GfChatInput), findsNothing);
+    expect(app.repo.afterCalls, historyCalls);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('covered and inactive split views stop chat polling', (
     tester,

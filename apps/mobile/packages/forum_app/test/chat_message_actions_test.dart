@@ -591,8 +591,14 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(returnButton, findsOneWidget);
-    await tester.drag(list, const Offset(0, -3000));
+    // Lazy row heights can extend the list after a fixed-distance drag.
+    await tester.scrollUntilVisible(
+      find.text('source'),
+      400,
+      scrollable: find.descendant(of: list, matching: find.byType(Scrollable)),
+    );
     await tester.pumpAndSettle();
+    expect(tester.widget<ListView>(list).controller!.position.extentAfter, 0);
     expect(find.text('source').hitTestable(), findsOneWidget);
     expect(returnButton, findsNothing);
     await dispose(tester);

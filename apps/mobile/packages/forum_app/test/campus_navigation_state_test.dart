@@ -131,10 +131,15 @@ void main() {
     }
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     await tester.pumpAndSettle();
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-    await tester.pumpAndSettle();
+    for (final state in [AppLifecycleState.hidden, AppLifecycleState.paused]) {
+      tester.binding.handleAppLifecycleStateChanged(state);
+      tester.binding.scheduleForcedFrame();
+      await tester.pumpAndSettle();
+    }
     expect(find.text('图书馆开放时间调整（演示）'), findsNothing);
     expect(find.byType(GfSkeleton), findsWidgets);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
     expect(tester.widget<TextField>(_search).controller!.text, '图书馆');
