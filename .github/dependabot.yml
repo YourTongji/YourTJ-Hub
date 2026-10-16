@@ -14,3 +14,16 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+  # 本地 composite action (.github/actions/*/action.yml) 里钉的 action (issue #1212)。
+  # 上面的 "/" 条目不覆盖它们: github-actions 生态下 "/" 只含 .github/workflows/** 与仓库根目录的
+  # action.yml, 所以这些 pin 不会拿到升级 PR 与安全告警, 只能靠人工 sync 提交补。directories 支持
+  # 通配 (directory 不支持), 每个匹配目录各自成为一个更新任务。
+  - package-ecosystem: "github-actions"
+    directories:
+      - "/.github/actions/*"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      composite-actions:
+        patterns: ["*"]
