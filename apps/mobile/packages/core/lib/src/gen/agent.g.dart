@@ -39,6 +39,9 @@ _$AgentTopicItemImpl _$$AgentTopicItemImplFromJson(Map<String, dynamic> json) =>
       id: (json['id'] as num).toInt(),
       title: json['title'] as String,
       excerpt: json['excerpt'] as String,
+      images: (json['images'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
       categoryIds: (json['categoryIds'] as List<dynamic>)
           .map((e) => (e as num).toInt())
           .toList(),
@@ -61,6 +64,7 @@ Map<String, dynamic> _$$AgentTopicItemImplToJson(
   'id': instance.id,
   'title': instance.title,
   'excerpt': instance.excerpt,
+  'images': instance.images,
   'categoryIds': instance.categoryIds,
   'userId': instance.userId,
   'status': instance.status,

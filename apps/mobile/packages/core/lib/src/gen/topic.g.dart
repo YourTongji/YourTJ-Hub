@@ -259,42 +259,42 @@ Map<String, dynamic> _$$TopicDetailPayloadImplToJson(
   'updatedAt': instance.updatedAt,
 };
 
-_$PostPayloadImpl _$$PostPayloadImplFromJson(Map<String, dynamic> json) =>
-    _$PostPayloadImpl(
-      mentions:
-          (json['mentions'] as List<dynamic>?)
-              ?.map((e) => PostMention.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const <PostMention>[],
-      id: (json['id'] as num).toInt(),
-      topicId: (json['topicId'] as num).toInt(),
-      postNo: (json['postNo'] as num).toInt(),
-      content: json['content'] as String,
-      renderedContent: json['renderedContent'] as String,
-      processStatus: (json['processStatus'] as num).toInt(),
-      isHidden: json['isHidden'] as bool,
-      isAuthorDeleted: json['isAuthorDeleted'] as bool? ?? false,
-      isModeratorRemoved: json['isModeratorRemoved'] as bool? ?? false,
-      canModerate: json['canModerate'] as bool,
-      author: UserBriefPayload.fromJson(json['author'] as Map<String, dynamic>),
-      isAnonymous: json['isAnonymous'] as bool? ?? false,
-      createdAt: json['createdAt'] as String,
-      replyToPostId: (json['replyToPostId'] as num?)?.toInt(),
-      replyToUserId: (json['replyToUserId'] as num?)?.toInt(),
-      replyToUsername: json['replyToUsername'] as String?,
-      isOwnPost: json['isOwnPost'] as bool,
-      updatedAt: json['updatedAt'] as String?,
-      lastEditor: json['lastEditor'] == null
-          ? null
-          : UserBriefPayload.fromJson(
-              json['lastEditor'] as Map<String, dynamic>,
-            ),
-      lastEditedAt: json['lastEditedAt'] as String?,
-      revisionCount: (json['revisionCount'] as num?)?.toInt(),
-      likeCount: (json['likeCount'] as num).toInt(),
-      isLiked: json['isLiked'] as bool,
-      isBookmarked: json['isBookmarked'] as bool,
-    );
+_$PostPayloadImpl _$$PostPayloadImplFromJson(
+  Map<String, dynamic> json,
+) => _$PostPayloadImpl(
+  mentions:
+      (json['mentions'] as List<dynamic>?)
+          ?.map((e) => PostMention.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <PostMention>[],
+  id: (json['id'] as num).toInt(),
+  topicId: (json['topicId'] as num).toInt(),
+  postNo: (json['postNo'] as num).toInt(),
+  content: json['content'] as String,
+  renderedContent: json['renderedContent'] as String,
+  processStatus: (json['processStatus'] as num).toInt(),
+  isHidden: json['isHidden'] as bool,
+  isAuthorDeleted: json['isAuthorDeleted'] as bool? ?? false,
+  isModeratorRemoved: json['isModeratorRemoved'] as bool? ?? false,
+  canModerate: json['canModerate'] as bool,
+  author: UserBriefPayload.fromJson(json['author'] as Map<String, dynamic>),
+  isAnonymous: json['isAnonymous'] as bool? ?? false,
+  createdAt: json['createdAt'] as String,
+  replyToPostId: (json['replyToPostId'] as num?)?.toInt(),
+  replyToUserId: (json['replyToUserId'] as num?)?.toInt(),
+  replyToUsername: json['replyToUsername'] as String?,
+  isOwnPost: json['isOwnPost'] as bool,
+  updatedAt: json['updatedAt'] as String?,
+  lastEditor: json['lastEditor'] == null
+      ? null
+      : UserBriefPayload.fromJson(json['lastEditor'] as Map<String, dynamic>),
+  lastEditedAt: json['lastEditedAt'] as String?,
+  revisionCount: (json['revisionCount'] as num?)?.toInt(),
+  likeCount: (json['likeCount'] as num).toInt(),
+  isLiked: json['isLiked'] as bool,
+  isBookmarked: json['isBookmarked'] as bool,
+  images: (json['images'] as List<dynamic>?)?.map((e) => e as String).toList(),
+);
 
 Map<String, dynamic> _$$PostPayloadImplToJson(_$PostPayloadImpl instance) =>
     <String, dynamic>{
@@ -323,6 +323,7 @@ Map<String, dynamic> _$$PostPayloadImplToJson(_$PostPayloadImpl instance) =>
       'likeCount': instance.likeCount,
       'isLiked': instance.isLiked,
       'isBookmarked': instance.isBookmarked,
+      'images': instance.images,
     };
 
 _$ReplyTargetPayloadImpl _$$ReplyTargetPayloadImplFromJson(

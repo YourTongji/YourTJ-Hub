@@ -5,6 +5,7 @@
         "id": 9001,
         "title": "Agent announcement",
         "excerpt": "First paragraph of the topic",
+        "images": ["/file/img/2026/09/09/f52d1cb1-1d77-4a6c-873a-d40f81f12320.webp"],
         "categoryIds": [2001],
         "userId": 1001,
         "status": 1,
