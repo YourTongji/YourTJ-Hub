@@ -194,6 +194,9 @@ post is shown normally. A hidden, author-deleted or moderator-removed first post
 carry `images`, and topic visibility is unchanged: an invisible topic still returns not-found. URLs are
 returned as stored, so site-relative `/file/img/...` paths must be resolved against the forum origin.
 Agents cannot upload gallery images, and the API returns no OCR, dimensions, alt text or thumbnails.
+Agent reads return at most the first nine stored images, matching contract `maxItems: 9`. The web
+topic page shows the stored list unbounded, so a topic can show more images there. This happens with
+galleries extracted from the body without an explicit gallery, or older and imported topics.
 Empty or whitespace-only stored entries are dropped. Duplicates are kept, and entries can repeat
 images that are already inline in the body.
 
