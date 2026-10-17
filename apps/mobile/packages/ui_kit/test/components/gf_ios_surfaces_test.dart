@@ -170,6 +170,251 @@ void main() {
     );
   }
 
+  testWidgets('iOS loading dialog action keeps its label for screen readers', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    late BuildContext page;
+    await tester.pumpWidget(
+      _app(
+        Builder(
+          builder: (context) {
+            page = context;
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    showGfAlertDialog<void>(
+      page,
+      builder: (_) => GfAlertDialog(
+        title: const Text('Saving'),
+        actions: [GfButton(label: 'Saving', loading: true, onPressed: () {})],
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
+    expect(
+      tester.getSemantics(find.byType(CupertinoDialogAction)).label,
+      'Saving',
+    );
+    semantics.dispose();
+  });
+
+  testWidgets('iOS dialog marks one default action only', (tester) async {
+    late BuildContext page;
+    await tester.pumpWidget(
+      _app(
+        Builder(
+          builder: (context) {
+            page = context;
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    showGfAlertDialog<void>(
+      page,
+      builder: (_) => GfAlertDialog(
+        title: const Text('Publish?'),
+        actions: [
+          GfButton(label: 'Save', onPressed: () {}),
+          GfButton(label: 'Publish', onPressed: () {}),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+    for (final label in ['Save', 'Publish']) {
+      expect(
+        tester
+            .widget<CupertinoDialogAction>(
+              find.widgetWithText(CupertinoDialogAction, label),
+            )
+            .isDefaultAction,
+        isFalse,
+        reason: 'two primary actions have no single default',
+      );
+    }
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('adaptive: false keeps the bounded Gf surface on iOS', (
+    tester,
+  ) async {
+    late BuildContext page;
+    await tester.pumpWidget(
+      _app(
+        Builder(
+          builder: (context) {
+            page = context;
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    showGfAlertDialog<void>(
+      page,
+      adaptive: false,
+      builder: (_) => const GfAlertDialog(
+        adaptive: false,
+        title: Text('Change password'),
+        content: Text('Form fields'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(CupertinoAlertDialog), findsNothing);
+    expect(find.text('Form fields'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('GfDialogAction maps destructive and default roles per platform', (
+    tester,
+  ) async {
+    for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+      late BuildContext page;
+      await tester.pumpWidget(
+        _app(
+          Builder(
+            builder: (context) {
+              page = context;
+              return const SizedBox();
+            },
+          ),
+          platform: platform,
+        ),
+      );
+      showGfAlertDialog<void>(
+        page,
+        builder: (_) => GfAlertDialog(
+          title: const Text('Delete draft?'),
+          actions: [
+            GfDialogAction(
+              destructive: true,
+              onPressed: () {},
+              child: const Text('Delete'),
+            ),
+            GfDialogAction(
+              isDefault: true,
+              filled: true,
+              onPressed: () {},
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      if (platform == TargetPlatform.iOS) {
+        expect(
+          tester
+              .widget<CupertinoDialogAction>(
+                find.widgetWithText(CupertinoDialogAction, 'Delete'),
+              )
+              .isDestructiveAction,
+          isTrue,
+        );
+        expect(
+          tester
+              .widget<CupertinoDialogAction>(
+                find.widgetWithText(CupertinoDialogAction, 'Save'),
+              )
+              .isDefaultAction,
+          isTrue,
+        );
+      } else {
+        expect(
+          tester
+              .widget<TextButton>(find.widgetWithText(TextButton, 'Delete'))
+              .style!
+              .foregroundColor!
+              .resolve(const <WidgetState>{}),
+          gfThemeData(Brightness.light).colorScheme.error,
+        );
+        expect(find.widgetWithText(FilledButton, 'Save'), findsOneWidget);
+      }
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+      // A new MaterialApp reuses the navigator; unmount before the next platform.
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
+  });
+
+  testWidgets('iOS compact action sheet clears the home indicator', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.padding = const FakeViewPadding(bottom: 34);
+    tester.view.viewPadding = const FakeViewPadding(bottom: 34);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      _app(
+        Center(
+          child: GfPopupMenuButton<String>(
+            onSelected: (_) {},
+            itemBuilder: (_) => const [
+              GfPopupMenuItem(value: 'one', child: Text('One')),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(GfPopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    expect(
+      tester.getRect(find.byType(CupertinoActionSheet)).bottom,
+      844,
+      reason: 'the sheet surface stays flush with the screen edge',
+    );
+    expect(
+      tester
+          .getRect(find.widgetWithText(CupertinoActionSheetAction, 'Cancel'))
+          .bottom,
+      lessThanOrEqualTo(844 - 34),
+      reason: "CupertinoActionSheet's SafeArea keeps actions off the indicator",
+    );
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('iOS disabled menu trigger keeps its label without an action', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    String? value;
+    await tester.pumpWidget(
+      _app(
+        Center(
+          child: GfPopupMenuButton<String>(
+            enabled: false,
+            onSelected: (selected) => value = selected,
+            itemBuilder: (_) => const [
+              GfPopupMenuItem(value: 'one', child: Text('One')),
+            ],
+            child: const Text('More'),
+          ),
+        ),
+      ),
+    );
+    expect(
+      tester.getSemantics(find.text('More')),
+      matchesSemantics(
+        label: 'More',
+        isButton: true,
+        hasEnabledState: true,
+        isEnabled: false,
+      ),
+    );
+    await tester.tap(find.text('More'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(find.byType(CupertinoActionSheet), findsNothing);
+    expect(value, isNull);
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
+  });
+
   testWidgets('Android retains popup presentation and selected values', (
     tester,
   ) async {

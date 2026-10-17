@@ -64,12 +64,20 @@ class GfAlertDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
     if (adaptive && Theme.of(context).platform == TargetPlatform.iOS) {
+      final primaries = actions.whereType<GfButton>().where(
+        (action) => action.variant == GfButtonVariant.primary,
+      );
+      // Cupertino highlights one default action; several primaries stay plain.
+      final bool soleDefault = primaries.length == 1;
       return CupertinoAlertDialog(
         title: title == null
             ? null
             : Semantics(namesRoute: true, child: title!),
         content: content,
-        actions: [for (final action in actions) _cupertinoAction(action)],
+        actions: [
+          for (final action in actions)
+            _cupertinoAction(action, soleDefault: soleDefault),
+        ],
       );
     }
     return Material(
@@ -132,14 +140,18 @@ class GfAlertDialog extends StatelessWidget {
   }
 }
 
-Widget _cupertinoAction(Widget action) {
+Widget _cupertinoAction(Widget action, {required bool soleDefault}) {
   if (action is GfButton) {
     return CupertinoDialogAction(
       isDestructiveAction: action.variant == GfButtonVariant.danger,
-      isDefaultAction: action.variant == GfButtonVariant.primary,
+      isDefaultAction: soleDefault && action.variant == GfButtonVariant.primary,
       onPressed: action.loading ? null : action.onPressed,
       child: action.loading
-          ? const CupertinoActivityIndicator()
+          // The spinner replaces the label; keep the name for screen readers.
+          ? Semantics(
+              label: action.label,
+              child: const CupertinoActivityIndicator(),
+            )
           : Text(action.label),
     );
   }

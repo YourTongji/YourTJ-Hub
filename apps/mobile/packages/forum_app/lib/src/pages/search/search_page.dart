@@ -437,6 +437,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   Widget _buildSidebar(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final colors = GfTheme.colorsOf(context);
+    // Scope navigation only: the body keeps the empty-state discovery panel.
     return Material(
       key: const ValueKey('search-sidebar'),
       color: colors.base200,
@@ -446,7 +447,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             padding: const EdgeInsets.all(20),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(
+              child: GfText(
                 l10n.searchHint,
                 style: GfTheme.typographyOf(context).title2,
               ),
@@ -455,20 +456,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           for (final scope in _scopes)
             ListTile(
               leading: GfSymbol(_scopeSymbol(scope)),
-              title: Text(_scopeLabel(scope, l10n)),
+              title: GfText(_scopeLabel(scope, l10n)),
               selected: scope == _scope,
               onTap: () => _setScope(scope),
             ),
-          const GfDivider(),
-          _Discovery(
-            shrinkWrap: true,
-            recent: _recent,
-            onCourses: () => _searchElsewhere('/courses'),
-            onWiki: () => _searchElsewhere('/wiki/search'),
-            onRecent: _searchRecent,
-            onForget: _forget,
-            onClearRecent: _clearHistory,
-          ),
         ],
       ),
     );
@@ -743,7 +734,6 @@ class _Discovery extends StatelessWidget {
     required this.onRecent,
     required this.onForget,
     required this.onClearRecent,
-    this.shrinkWrap = false,
   });
 
   final List<String> recent;
@@ -752,7 +742,6 @@ class _Discovery extends StatelessWidget {
   final ValueChanged<String> onRecent;
   final ValueChanged<String> onForget;
   final VoidCallback onClearRecent;
-  final bool shrinkWrap;
 
   @override
   Widget build(BuildContext context) {
@@ -760,8 +749,6 @@ class _Discovery extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography type = GfTheme.typographyOf(context);
     return ListView(
-      shrinkWrap: shrinkWrap,
-      physics: shrinkWrap ? const NeverScrollableScrollPhysics() : null,
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: EdgeInsets.only(
         top: 4,

@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 Class: architecture
 
 ## Context and Problem Statement
@@ -32,7 +32,8 @@ Gf owns platform presentation. iOS short action menus and single choices use Cup
 an independent cancellation action, a visible current choice and explicit destructive actions. Wide
 windows place bounded menus near their trigger; compact windows present action sheets. Android keeps
 Material controls and the same action values. Simple confirmations use Cupertino dialog routes and
-content on iOS. Complex credential and editing forms explicitly retain the bounded Gf dialog surface,
+content on iOS, and answer only through their own actions: a barrier tap never cancels on either
+platform, so a confirmation cannot dismiss itself by accident. Complex credential and editing forms explicitly retain the bounded Gf dialog surface,
 keyboard avoidance and their existing save/error semantics.
 
 Pushed reading and form routes use a centered reading window without an additional navigator. The

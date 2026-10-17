@@ -148,6 +148,8 @@ Future<T?> showGfMenu<T>({
                 ? Align(
                     alignment: Alignment.bottomCenter,
                     child: Padding(
+                      // Only the keyboard: CupertinoActionSheet consumes the
+                      // bottom view padding through its own SafeArea.
                       padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
                       child: sheet(context),
                     ),
@@ -273,10 +275,17 @@ class GfPopupMenuButton<T> extends StatelessWidget {
         }
 
         if (child != null) {
+          if (!enabled) {
+            return Semantics(
+              button: true,
+              enabled: false,
+              child: ExcludeFocus(child: AbsorbPointer(child: child)),
+            );
+          }
           return Tooltip(
             message:
                 tooltip ?? MaterialLocalizations.of(context).showMenuTooltip,
-            child: InkWell(onTap: enabled ? open : null, child: child),
+            child: InkWell(onTap: open, child: child),
           );
         }
         return IconButton(

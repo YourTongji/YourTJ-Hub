@@ -371,6 +371,8 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
         ),
     ];
 
+    final GfShellDestination currentDestination =
+        GfShellDestination.values[widget.navigationShell.currentIndex];
     return Scaffold(
       body: AccountDrawerLayer(
         key: accountDrawerLayerKey,
@@ -423,11 +425,14 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
               destinations,
             ),
             maxContentWidth:
-                widget.navigationShell.currentIndex == 0 ||
-                    widget.navigationShell.currentIndex == 1 ||
-                    widget.navigationShell.currentIndex == 3
-                ? 1120
-                : 720,
+                // Feed, campus and chat carry wide workspaces; notifications
+                // stay a reading column. Keyed by destination, not branch order.
+                switch (currentDestination) {
+                  GfShellDestination.home ||
+                  GfShellDestination.campus ||
+                  GfShellDestination.messages => 1120,
+                  GfShellDestination.notifications => 720,
+                },
             rail: ReadingNavigationRail(
               currentIndex: widget.navigationShell.currentIndex,
               onSelected: _selectDestination,

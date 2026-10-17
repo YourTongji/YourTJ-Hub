@@ -9,6 +9,7 @@ import 'package:forum_app/src/pages/messages/messages_page.dart';
 
 import 'chat_avatar_profile_test.dart' show pumpConversation;
 import 'chat_visible_read_test.dart' show pumpChat;
+import 'fixtures/page_fixtures.dart' show messagesPayloadJson, parsePayload;
 import 'pages_behavior_test.dart' show CountingPageRepository, makeChatMessage;
 
 void main() {
@@ -273,6 +274,71 @@ void main() {
   );
 
   testWidgets(
+    'a conversation the server never creates stops discovery polling',
+    (tester) async {
+      final app = await pumpChat(
+        tester,
+        targetUserId: 9,
+        targetUsername: 'zed',
+        messages: [],
+      );
+      final pages =
+          app.container.read(pageRepositoryProvider) as CountingPageRepository;
+      final initial = pages.fetchCalls;
+      await tester.pump(const Duration(seconds: 16));
+      await tester.pumpAndSettle();
+      expect(
+        pages.fetchCalls,
+        initial + 1,
+        reason: 'a silent peer is discovered through the directory',
+      );
+      await tester.pump(const Duration(minutes: 30));
+      await tester.pumpAndSettle();
+      final capped = pages.fetchCalls;
+      expect(capped - initial, lessThanOrEqualTo(12));
+      await tester.pump(const Duration(minutes: 10));
+      await tester.pumpAndSettle();
+      expect(
+        pages.fetchCalls,
+        capped,
+        reason: 'backoff ends the probe instead of polling forever',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('a discovered conversation ends directory polling', (
+    tester,
+  ) async {
+    final app = await pumpChat(
+      tester,
+      targetUserId: 9,
+      targetUsername: 'zed',
+      messages: [],
+      pages: (client) => _RevealingPageRepository(client, revealFrom: 2),
+    );
+    final pages =
+        app.container.read(pageRepositoryProvider) as CountingPageRepository;
+    final initial = pages.fetchCalls;
+    await tester.pump(const Duration(seconds: 16));
+    await tester.pumpAndSettle();
+    expect(
+      pages.fetchCalls,
+      initial + 1,
+      reason: 'the probe loads the directory that now holds the chat',
+    );
+    final resolved = pages.fetchCalls;
+    await tester.pump(const Duration(minutes: 5));
+    await tester.pumpAndSettle();
+    expect(
+      pages.fetchCalls,
+      resolved,
+      reason: 'the created conversation needs no further discovery',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
     'visible reads use window coordinates inside an offset reading column',
     (tester) async {
       final app = await pumpChat(
@@ -309,4 +375,41 @@ void main() {
       ]);
     },
   );
+}
+
+/// `/messages` grows the deep-linked peer once the server has created it.
+class _RevealingPageRepository extends CountingPageRepository {
+  _RevealingPageRepository(super.client, {required this.revealFrom});
+
+  final int revealFrom;
+
+  @override
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
+    if (path != '/messages') {
+      return super.fetch(path, cancelToken: cancelToken);
+    }
+    fetchCalls++;
+    final Map<String, dynamic> json = messagesPayloadJson();
+    final Map<String, dynamic> props = Map<String, dynamic>.from(
+      json['props']! as Map<dynamic, dynamic>,
+    );
+    json['props'] = props;
+    if (fetchCalls >= revealFrom) {
+      props['conversations'] = <dynamic>[
+        ...props['conversations']! as List<dynamic>,
+        <String, dynamic>{
+          'id': 3,
+          'peerId': 9,
+          'peerUsername': 'zed',
+          'peerAvatar': '',
+          'lastMsg': '',
+          'lastMsgTime': '',
+          'unreadCount': 0,
+          'convId': 3,
+          'peerUrl': '/u/9',
+        },
+      ];
+    }
+    return parsePayload(json);
+  }
 }

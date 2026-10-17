@@ -114,7 +114,8 @@ lives in [mobile experience](mobile-experience.md#publishing).
 menus and single choices use Cupertino action sheets with separate cancellation, checked selection,
 disabled actions and explicit destructive actions. Compact windows present them at the bottom;
 wide windows place a scrollable surface up to 380 pixels wide near the trigger, inside safe areas
-and above the keyboard. Simple confirmations use Cupertino alerts; complex credential and editing
+and above the keyboard. Simple confirmations use Cupertino alerts and answer only through their own
+actions: tapping the barrier does not cancel. Complex credential and editing
 forms retain the bounded Gf surface. Android keeps Material menus, choices and confirmations;
 its short action sheets retain the shared safe-area and width limits. See
 [0094](../decisions/0094-adaptive-ios-interaction-surfaces.md).

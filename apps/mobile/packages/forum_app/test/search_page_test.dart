@@ -191,6 +191,44 @@ void main() {
     },
   );
 
+  testWidgets('tablet search shows the empty discovery panel once', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1120, 900);
+    addTearDown(tester.view.reset);
+    final repository = _SearchRepository();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          topicRepositoryProvider.overrideWithValue(repository),
+          writingScopeProvider.overrideWith((ref) async => 'test:guest'),
+        ],
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const SearchPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('search-sidebar')).hitTestable(),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Search courses'),
+      findsOneWidget,
+      reason: 'the sidebar holds scope navigation only, not a second panel',
+    );
+    expect(find.text('Search Wiki'), findsOneWidget);
+    expect(find.text('Recent searches'), findsNothing);
+    expect(repository.calls, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'scope controls remain available while loading and after failure',
     (tester) async {

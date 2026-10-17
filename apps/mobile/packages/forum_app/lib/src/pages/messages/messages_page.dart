@@ -78,6 +78,9 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
   UserDecoration? _viewerDecoration;
   String _viewerUsername = '';
   final TextEditingController _conversationSearch = TextEditingController();
+  static const Duration _pollInterval = Duration(seconds: 15);
+  static const int _pollBackoffSteps = 3;
+  static const int _maxDiscoveryAttempts = 12;
   Timer? _pollTimer;
   final GfScrollToTopController _scrollToTopController =
       GfScrollToTopController();
@@ -99,11 +102,20 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
   bool _wideLayout = false;
   bool _directoryVisible = true;
   bool _serverConversationsResolved = false;
+  int _discoveryStreak = 0;
 
   // A not-yet-created chat still needs directory updates to discover incoming mail.
-  bool get _directoryNeedsUpdates =>
-      _directoryVisible ||
+  bool get _directoryNeedsUpdates => _directoryVisible || _pendingDiscovery;
+
+  bool get _pendingDiscovery =>
       (_selectedConversation ?? _targetConversation)?.convId == 0;
+
+  /// The directory is off screen, so discovery is the only reason to poll.
+  bool get _discoveryOnly => !_directoryVisible && _pendingDiscovery;
+
+  /// A peer that never answers must not keep the page fetching forever.
+  bool get _discoveryExhausted =>
+      _discoveryOnly && _discoveryStreak >= _maxDiscoveryAttempts;
 
   @override
   void initState() {
@@ -142,12 +154,14 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
   }
 
   void _syncPolling(bool shouldPoll) {
+    if (!_discoveryOnly) _discoveryStreak = 0;
     shouldPoll =
         shouldPoll &&
         _directoryNeedsUpdates &&
         _ownerEpoch == ref.read(offlineCacheEpochProvider) &&
         !shellDrawerOpen.value &&
-        routeIsUncovered(context);
+        routeIsUncovered(context) &&
+        !_discoveryExhausted;
     final bool wasConfigured = _pollingConfigured;
     _pollingConfigured = true;
     if (shouldPoll == (_pollTimer != null)) return;
@@ -159,11 +173,25 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
       return;
     }
     if (wasConfigured) _load(silent: true);
-    _pollTimer = Timer.periodic(
-      const Duration(seconds: 15),
-      (_) => _load(silent: true),
-    );
+    _armPoll();
   }
+
+  /// Re-arms before loading: the load's own `_visibilityChanged` must see a live
+  /// timer, otherwise it would restart the cycle it just finished.
+  void _armPoll() {
+    _pollTimer = Timer(_pollDelay(), () {
+      if (!mounted) return;
+      if (_discoveryOnly) _discoveryStreak++;
+      _armPoll();
+      unawaited(_load(silent: true));
+    });
+  }
+
+  /// The directory keeps the steady cadence; each unanswered discovery probe
+  /// doubles the wait until [_maxDiscoveryAttempts] ends it.
+  Duration _pollDelay() => _discoveryOnly
+      ? _pollInterval * (1 << math.min(_discoveryStreak, _pollBackoffSteps))
+      : _pollInterval;
 
   void _visibilityChanged() {
     if (!mounted) return;

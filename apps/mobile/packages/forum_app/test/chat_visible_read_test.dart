@@ -107,7 +107,9 @@ pumpChat(
   Brightness brightness = Brightness.light,
   Locale locale = const Locale('en'),
   int? targetUserId = 2,
+  String targetUsername = '',
   VisibleChatRepository Function(GfApiClient client)? repository,
+  CountingPageRepository Function(GfApiClient client)? pages,
 }) async {
   await tester.binding.setSurfaceSize(const Size(390, 700));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -133,7 +135,9 @@ pumpChat(
       currentUserProvider.overrideWith(
         (ref) async => const CurrentUser(id: 1, username: 'alice'),
       ),
-      pageRepositoryProvider.overrideWithValue(CountingPageRepository(client)),
+      pageRepositoryProvider.overrideWithValue(
+        pages?.call(client) ?? CountingPageRepository(client),
+      ),
       chatRepositoryProvider.overrideWithValue(repo),
       offlineTopicCacheProvider.overrideWithValue(NoopCache()),
       offlineChatCacheProvider.overrideWithValue(NoopCache()),
@@ -151,7 +155,10 @@ pumpChat(
     valueListenable: active,
     builder: (_, value, _) => TickerMode(
       enabled: value,
-      child: MessagesPage(targetUserId: targetUserId),
+      child: MessagesPage(
+        targetUserId: targetUserId,
+        targetUsername: targetUsername,
+      ),
     ),
   );
   await tester.pumpWidget(

@@ -57,8 +57,6 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
 
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _reviewsSectionKey = GlobalKey();
-  final GlobalKey _summaryKey = GlobalKey();
-  final GlobalKey _offeringsKey = GlobalKey();
   final GlobalKey _targetReviewKey = GlobalKey();
   bool _reviewRevealed = false;
 
@@ -670,7 +668,6 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
               final sidebarWidth = 340 * scale;
               final wide = constraints.maxWidth >= sidebarWidth + 560 * scale;
               final summary = Column(
-                key: _summaryKey,
                 children: [
                   _CourseHeader(detail: detail),
                   const GfDivider(),
@@ -681,7 +678,6 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
                 ],
               );
               final offerings = Column(
-                key: _offeringsKey,
                 children: [
                   _OfferingsSection(
                     offerings:
