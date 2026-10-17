@@ -460,7 +460,8 @@ full-text exports never listed wiki pages, and the per-topic document
 (`GET /p/posts/{id}.md`) follows the same boundary. The index follows
 the llms.txt Markdown structure (site heading, optional description, and a `Topics` link list); full-text
 and per-topic documents preserve the stored Markdown source. After the first post's content fence, full-text and
-per-topic documents list the topic gallery (`topics.image_urls`) in an `Images` section at the same heading
+per-topic documents list the topic gallery (`topics.image_urls`, or the legacy `first_image_url` when empty;
+at most nine) in an `Images` section at the same heading
 level as reply headings. Each entry is a `- ![image N](<absolute URL>)` line. Site-relative paths are joined to
 the configured site URL, absolute http(s) URLs are kept, and unsafe or unresolvable entries are skipped.
 The section is counted in the output byte budget. When the first post is excluded, so is the gallery.

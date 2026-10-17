@@ -325,7 +325,7 @@ type AgentTopicItem struct {
 	Id                   uint64                    `json:"id"`
 	Title                string                    `json:"title"`
 	Excerpt              string                    `json:"excerpt"`
-	// Images is the topic gallery (topics.image_urls), as returned to the web (issue #1228).
+	// Images is topics.Entity.PublicGallery (image_urls, else first_image_url; issue #1228).
 	Images        []string `json:"images"`
 	CategoryIds   []uint64 `json:"categoryIds"`
 	UserId        uint64   `json:"userId"`
@@ -386,7 +386,7 @@ func toAgentTopicItem(entity topics.Entity) AgentTopicItem {
 		Id:                   entity.Id,
 		Title:                entity.Title,
 		Excerpt:              entity.Excerpt,
-		Images:               append([]string{}, entity.ImageUrls...),
+		Images:               entity.PublicGallery(),
 		CategoryIds:          entity.CategoryIds,
 		UserId:               entity.UserId,
 		Status:               entity.Status,

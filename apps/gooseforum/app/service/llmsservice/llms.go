@@ -255,8 +255,8 @@ func appendTopicDocument(builder *strings.Builder, baseURL string, topic *topics
 			builder.WriteString(strings.TrimSpace(post.Content))
 			builder.WriteString("\n" + fence + "\n\n")
 			if post.PostNo == 1 {
-				// 主楼图集（topics.image_urls）写在正文围栏之外，按绝对地址列出（issue #1228）。
-				if section := gallerySection(replyHeading, baseURL, topic.ImageUrls); section != "" {
+				// 主楼图集（topics.image_urls，空时回退 first_image_url，最多 9 张）写在正文围栏之外，按绝对地址列出（issue #1228）。
+				if section := gallerySection(replyHeading, baseURL, topic.PublicGallery()); section != "" {
 					if maxBytes > 0 && int64(builder.Len())+int64(len(section)) > maxBytes {
 						return errOutputLimit
 					}

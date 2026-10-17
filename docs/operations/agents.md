@@ -186,7 +186,9 @@ then restart from the returned floor. Compact per-recipient watermarks preserve 
 old diagnostics are purged.
 
 Topic reads expose the stored topic gallery (`topics.image_urls`) as URL strings, at most nine, in
-stored order. `GET /api/v1/agent/topics` items carry `images`. `GET /api/v1/agent/topics/{topicId}/posts`
+stored order. When `image_urls` is empty, it falls back to the legacy `first_image_url`, as the web topic
+list does. `GET /api/v1/agent/topics` items carry `images`. The list only includes topics whose first post
+is visible, so the list and the post window apply the same first-post rule. `GET /api/v1/agent/topics/{topicId}/posts`
 and the MCP post-window tool return `images` only on the first post (`postNo` 1), and only when that
 post is shown normally. A hidden, author-deleted or moderator-removed first post omits it. Replies never
 carry `images`, and topic visibility is unchanged: an invisible topic still returns not-found. URLs are

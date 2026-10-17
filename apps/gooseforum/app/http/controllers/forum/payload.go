@@ -419,7 +419,7 @@ type PostPayload struct {
 	IsLiked            bool                      `json:"isLiked"`
 	IsBookmarked       bool                      `json:"isBookmarked"`
 	IsAnswer           bool                      `json:"isAnswer"`
-	// Images is the topic gallery (topics.image_urls), only on the visible first
+	// Images is the topic gallery (topics.Entity.PublicGallery), only on the visible first
 	// post (postNo 1) of a post window; omitted for replies and for a hidden,
 	// author-deleted or moderator-removed first post (issue #1228).
 	Images []string `json:"images,omitempty"`

@@ -93,7 +93,7 @@ func TestAgentPostWindowOmitsGalleryForUnavailableFirstPost(t *testing.T) {
 		name  string
 		first posts.Entity
 	}{
-		{"hidden", posts.Entity{ProcessStatus: 1}},
+		{"hidden", posts.Entity{ProcessStatus: posts.ProcessStatusBlocked}},
 		{"author deleted", posts.Entity{ProcessStatus: posts.ProcessStatusNormal, VisibilityStatus: posts.VisibilityUserDeleted}},
 		{"moderator removed", posts.Entity{ProcessStatus: posts.ProcessStatusNormal, VisibilityStatus: posts.VisibilityModeratorRemoved}},
 	} {
@@ -182,4 +182,79 @@ func TestAgentTopicListCarriesGallery(t *testing.T) {
 	if !seen[6104] || !seen[6105] {
 		t.Fatalf("list = %#v", list.List)
 	}
+}
+
+// The list only contains topics whose first post is visible (FirstPostVisiblePredicate),
+// so its images follow the same first-post rule as the post window without extra queries.
+func TestAgentTopicListExcludesUnavailableFirstPostGallery(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		first posts.Entity
+	}{
+		{"hidden", posts.Entity{ProcessStatus: posts.ProcessStatusBlocked}},
+		{"author deleted", posts.Entity{ProcessStatus: posts.ProcessStatusNormal, VisibilityStatus: posts.VisibilityUserDeleted}},
+		{"moderator removed", posts.Entity{ProcessStatus: posts.ProcessStatusNormal, VisibilityStatus: posts.VisibilityModeratorRemoved}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn := setupAgentForumTestDB(t)
+			agentID, token := createAgentForumAgent(t, conn, "gallery-list-hidden-"+strings.ReplaceAll(tc.name, " ", "-"))
+			createAgentForumCategory(t, conn, 5101, "gallery")
+			createGalleryTopic(t, conn, 6106, 11014, agentID+1000, tc.first)
+			for _, item := range agentGalleryTopicList(t, token) {
+				if item.Id == 6106 {
+					t.Fatalf("topic with unavailable first post listed with images %#v", item.Images)
+				}
+			}
+		})
+	}
+}
+
+// Like the web topic list, an empty image_urls falls back to first_image_url.
+func TestAgentGalleryFallsBackToFirstImageURL(t *testing.T) {
+	conn := setupAgentForumTestDB(t)
+	agentID, token := createAgentForumAgent(t, conn, "gallery-fallback-agent")
+	createAgentForumCategory(t, conn, 5101, "gallery")
+	createGalleryTopic(t, conn, 6107, 11016, agentID+1000, posts.Entity{ProcessStatus: posts.ProcessStatusNormal})
+	legacy := "/file/img/2025/01/01/legacy.webp"
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", 6107).Updates(map[string]any{"image_urls": "[]", "first_image_url": legacy}).Error; err != nil {
+		t.Fatal(err)
+	}
+	want := []string{legacy}
+	for _, item := range agentGalleryWindow(t, token, "6107") {
+		if item.PostNo == 1 && !reflect.DeepEqual(item.Images, want) {
+			t.Fatalf("first post images = %#v, want %#v", item.Images, want)
+		}
+	}
+	found := false
+	for _, item := range agentGalleryTopicList(t, token) {
+		if item.Id == 6107 {
+			found = true
+			if item.Images == nil || !reflect.DeepEqual(*item.Images, want) {
+				t.Fatalf("list images = %#v, want %#v", item.Images, want)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("fallback topic missing from list")
+	}
+}
+
+type galleryTopicItem struct {
+	Id     uint64    `json:"id"`
+	Images *[]string `json:"images"`
+}
+
+func agentGalleryTopicList(t *testing.T, token string) []galleryTopicItem {
+	t.Helper()
+	rec, envelope := agentRequest(t, agentForumRouter(), http.MethodGet, "/api/v1/agent/topics", "", token)
+	if rec.Code != http.StatusOK || envelope.Code != 0 {
+		t.Fatalf("topics failed: %s", rec.Body.String())
+	}
+	var list struct {
+		List []galleryTopicItem `json:"list"`
+	}
+	if err := json.Unmarshal(envelope.Result, &list); err != nil {
+		t.Fatal(err)
+	}
+	return list.List
 }

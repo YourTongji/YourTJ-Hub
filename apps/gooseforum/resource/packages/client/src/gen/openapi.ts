@@ -10243,7 +10243,7 @@ export interface components {
             id: number;
             title: string;
             excerpt: string;
-            /** @description Topic gallery image URLs (topics.image_urls; usually site-relative `/file/img/...`). Empty when the topic has no gallery. Older servers omit this field. */
+            /** @description Topic gallery image URLs (topics.image_urls, falling back to the legacy firstImageUrl when empty, like the web topic list; usually site-relative `/file/img/...`), at most nine. The list only contains topics whose first post is visible, so this never exposes the gallery of a hidden, author-deleted or moderator-removed first post. Empty when the topic has no image. Older servers omit this field. */
             images?: string[];
             categoryIds: number[];
             /** Format: uint64 */
@@ -12596,7 +12596,7 @@ export interface components {
             isBookmarked: boolean;
             /** @description True only when the topic is a Question (contentType=1), the post is not the first post, and it replies to the question itself. */
             isAnswer: boolean;
-            /** @description Topic gallery image URLs (same values as the topic detail `images`; usually site-relative `/file/img/...`, absolute when the storage public URL prefix is set). Present only on the first post (postNo 1) when it is visible; omitted for replies and when the first post is hidden, author-deleted or moderator-removed. Older servers omit this field. */
+            /** @description Topic gallery image URLs (topics.image_urls, falling back to the legacy firstImageUrl when empty, like the web topic list; at most nine; usually site-relative `/file/img/...`, absolute when the storage public URL prefix is set). Present only on the first post (postNo 1) when it is visible; omitted for replies and when the first post is hidden, author-deleted or moderator-removed. Older servers omit this field. */
             images?: string[];
         };
         ReplyTargetPayload: {

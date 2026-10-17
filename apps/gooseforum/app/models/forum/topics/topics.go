@@ -109,3 +109,26 @@ func (itself *Entity) GetPosters() []Poster {
 	}
 	return itself.Posters
 }
+
+// MaxPublicGalleryImages bounds the gallery returned by read projections
+// (Agent topic list/post window and llms export, issue #1228). It mirrors
+// fileusageservice.MaxGalleryImagesPerTopicWrite; stored lists that predate
+// that write cap or come from imports may be longer.
+const MaxPublicGalleryImages = 9
+
+// PublicGallery returns the topic gallery for read projections: image_urls
+// when present, otherwise the legacy first_image_url (the same fallback as the
+// web topic list), capped at MaxPublicGalleryImages. The result is a copy.
+func (e Entity) PublicGallery() []string {
+	src := e.ImageUrls
+	if len(src) == 0 {
+		if e.FirstImageURL == "" {
+			return []string{}
+		}
+		src = []string{e.FirstImageURL}
+	}
+	if len(src) > MaxPublicGalleryImages {
+		src = src[:MaxPublicGalleryImages]
+	}
+	return append([]string{}, src...)
+}

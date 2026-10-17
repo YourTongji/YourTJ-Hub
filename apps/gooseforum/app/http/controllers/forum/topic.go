@@ -247,7 +247,7 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 		req.Params.AnchorPostID,
 		firstPost,
 	)
-	attachFirstPostGallery(window.Posts, topicEntity.ImageUrls)
+	attachFirstPostGallery(window.Posts, topicEntity.PublicGallery())
 	return component.SuccessResponse(window)
 }
 
