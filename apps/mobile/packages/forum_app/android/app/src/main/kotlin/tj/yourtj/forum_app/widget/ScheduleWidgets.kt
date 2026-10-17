@@ -1,14 +1,11 @@
 package tj.yourtj.forum_app.widget
 
-import android.appwidget.AppWidgetManager
-import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.collection.intSetOf
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -18,21 +15,16 @@ import androidx.glance.ImageProvider
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalSize
-import androidx.glance.action.ActionParameters
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetManager
-import androidx.glance.appwidget.GlanceAppWidgetManager.Companion.SET_WIDGET_PREVIEWS_RESULT_SUCCESS
-import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
-import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
-import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.background
 import androidx.glance.color.ColorProvider as DayNightColorProvider
 import androidx.glance.currentState
@@ -57,22 +49,14 @@ import androidx.glance.unit.ColorProvider
 import androidx.core.content.ContextCompat
 import es.antonborri.home_widget.HomeWidgetGlanceState
 import es.antonborri.home_widget.HomeWidgetGlanceStateDefinition
-import es.antonborri.home_widget.HomeWidgetGlanceWidgetReceiver
-import es.antonborri.home_widget.HomeWidgetPlugin
-import es.antonborri.home_widget.HomeWidgetScheduler
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import tj.yourtj.forum_app.ThemeRouterActivity
 import tj.yourtj.forum_app.R
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
-import kotlin.reflect.KClass
 
 private val foreground = ColorProvider(R.color.widget_foreground)
 private val muted = ColorProvider(R.color.widget_muted)
@@ -160,33 +144,6 @@ abstract class ScheduleGlanceWidget : GlanceAppWidget() {
                     .background(ImageProvider(R.drawable.schedule_widget_surface_overlay))
                     .padding(horizontal = horizontalPadding ?: verticalPadding, vertical = verticalPadding),
             ) { content() }
-        }
-    }
-}
-
-internal fun publishScheduleWidgetPreviews(context: Context) {
-    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.VANILLA_ICE_CREAM) return
-    CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-        try {
-            val installedAt = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
-            val preferences = context.getSharedPreferences("schedule_widget_previews", Context.MODE_PRIVATE)
-            val manager = GlanceAppWidgetManager(context)
-            suspend fun publish(receiver: KClass<out GlanceAppWidgetReceiver>) {
-                val key = receiver.java.name
-                if (preferences.getLong(key, Long.MIN_VALUE) == installedAt) return
-                val result = manager.setWidgetPreviews(
-                    receiver,
-                    intSetOf(AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN),
-                )
-                if (result == SET_WIDGET_PREVIEWS_RESULT_SUCCESS) {
-                    preferences.edit().putLong(key, installedAt).apply()
-                }
-            }
-            publish(NextClassWidgetReceiver::class)
-            publish(TodayScheduleWidgetReceiver::class)
-            publish(CourseTimelineWidgetReceiver::class)
-        } catch (_: Exception) {
-            // The static picker preview remains available if generation is unavailable.
         }
     }
 }
@@ -491,7 +448,7 @@ class TodayScheduleWidget : ScheduleGlanceWidget() {
     }
 }
 
-private fun timelineDayKey(appWidgetId: Int) = "course_timeline_show_tomorrow:$appWidgetId"
+internal fun timelineDayKey(appWidgetId: Int) = "course_timeline_show_tomorrow:$appWidgetId"
 
 class CourseTimelineWidget : ScheduleGlanceWidget() {
     override val previewSizeMode = SizeMode.Responsive(
@@ -726,22 +683,6 @@ private fun TimelineCourseCard(context: Context, course: ScheduleCourse) {
                 }
             }
         }
-    }
-}
-
-class ToggleCourseTimelineDayAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(glanceId)
-        val preferences = HomeWidgetPlugin.getData(context)
-        val key = timelineDayKey(appWidgetId)
-        preferences.edit().putBoolean(key, !preferences.getBoolean(key, false)).apply()
-        val widget = CourseTimelineWidget()
-        updateAppWidgetState<HomeWidgetGlanceState>(
-            context,
-            widget.stateDefinition as HomeWidgetGlanceStateDefinition,
-            glanceId,
-        ) { it }
-        widget.update(context, glanceId)
     }
 }
 
@@ -1186,63 +1127,3 @@ private fun previewScheduleDay(now: Date, offset: Int): ScheduleDay {
 }
 
 private fun emptyStatus(value: String?): String = if (value == "needsData") "needsRefresh" else value ?: "needsRefresh"
-
-class NextClassWidgetReceiver : HomeWidgetGlanceWidgetReceiver<NextClassWidget>() {
-    override val glanceAppWidget = NextClassWidget()
-
-    override fun onEnabled(context: Context) {
-        super.onEnabled(context)
-        scheduleNextUpdate(context)
-    }
-
-    override fun onUpdate(
-        context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetIds: IntArray,
-    ) {
-        super.onUpdate(context, appWidgetManager, appWidgetIds)
-        scheduleNextUpdate(context)
-    }
-
-    private fun scheduleNextUpdate(context: Context) {
-        val projection = ScheduleProjection.parse(
-            HomeWidgetPlugin.getData(context).getString(PROJECTION_KEY, null),
-        ) ?: return
-        val nextUpdate = projection.nextUpdateAt(Date()) ?: return
-        HomeWidgetScheduler.schedule(context, javaClass.name, listOf(nextUpdate.time))
-    }
-}
-
-class TodayScheduleWidgetReceiver : HomeWidgetGlanceWidgetReceiver<TodayScheduleWidget>() {
-    override val glanceAppWidget = TodayScheduleWidget()
-}
-
-class CourseTimelineWidgetReceiver : HomeWidgetGlanceWidgetReceiver<CourseTimelineWidget>() {
-    override val glanceAppWidget = CourseTimelineWidget()
-
-    override fun onEnabled(context: Context) {
-        super.onEnabled(context)
-        scheduleNextDay(context)
-    }
-
-    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        super.onUpdate(context, appWidgetManager, appWidgetIds)
-        scheduleNextDay(context)
-    }
-
-    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
-        HomeWidgetPlugin.getData(context).edit().apply {
-            appWidgetIds.forEach { remove(timelineDayKey(it)) }
-        }.apply()
-        super.onDeleted(context, appWidgetIds)
-    }
-
-    override fun onDisabled(context: Context) {
-        super.onDisabled(context)
-        HomeWidgetScheduler.cancel(context, javaClass.name)
-    }
-
-    private fun scheduleNextDay(context: Context) {
-        HomeWidgetScheduler.schedule(context, javaClass.name, listOf(nextShanghaiMidnight(Date()).time))
-    }
-}
