@@ -3,9 +3,20 @@ import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 
-String read(String path) => File(path).readAsStringSync();
+String normalizeLineEndings(String value) =>
+    value.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+
+String read(String path) => normalizeLineEndings(File(path).readAsStringSync());
 
 void main() {
+  test('Kotlin source matching accepts Windows line endings', () {
+    const windowsSource = '@Composable\r\nprivate fun TimelineHeader()\r\n';
+    expect(
+      normalizeLineEndings(windowsSource),
+      '@Composable\nprivate fun TimelineHeader()\n',
+    );
+  });
+
   test('Android Glance widgets are local, resizable and reboot-safe', () {
     final source = read(
       'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgets.kt',

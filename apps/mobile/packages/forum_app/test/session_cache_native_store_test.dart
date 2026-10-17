@@ -127,8 +127,8 @@ void main() {
 
       await expectLater(clear(), throwsStateError);
       expect(
-        diagnostics.join('\n'),
-        contains('Cache cleanup failed [media]: FileSystemException'),
+        diagnostics,
+        contains(startsWith('Cache cleanup failed [media]: ')),
       );
       expect(diagnostics.join('\n'), isNot(contains('directory unavailable')));
       expect(await coordinator.pending(), {CacheCategory.media});

@@ -15,7 +15,21 @@ bool hasYourTjInk(img.Image image) => image.any(
       pixel.a == 255,
 );
 
+String normalizeLineEndings(String value) =>
+    value.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+
+String launcherSourceDigest(String value) =>
+    sha256.convert(utf8.encode(normalizeLineEndings(value))).toString();
+
 void main() {
+  test('launcher source digest is stable across line endings', () {
+    const source = '<svg>\n  <path d="M0 0"/>\n</svg>\n';
+    expect(
+      launcherSourceDigest(source.replaceAll('\n', '\r\n')),
+      launcherSourceDigest(source),
+    );
+  });
+
   test(
     'icon generation preserves Xcode boolean settings and follows Web artwork',
     () {
@@ -34,9 +48,9 @@ void main() {
           jsonDecode(File('assets/launcher/source.json').readAsStringSync())
               as Map;
       expect(
-        sha256
-            .convert(File(source['source'] as String).readAsBytesSync())
-            .toString(),
+        launcherSourceDigest(
+          utf8.decode(File(source['source'] as String).readAsBytesSync()),
+        ),
         source['sha256'],
         reason: 'Regenerate launcher icons after changing the Web mark',
       );
