@@ -235,7 +235,7 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 		firstPost = &post
 	}
 
-	return component.SuccessResponse(buildPostWindowPayloadFromEntities(
+	window := buildPostWindowPayloadFromEntities(
 		postEntities,
 		userMap,
 		req.UserId,
@@ -246,7 +246,9 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 		maxPostNo,
 		req.Params.AnchorPostID,
 		firstPost,
-	))
+	)
+	attachFirstPostGallery(window.Posts, topicEntity.ImageUrls)
+	return component.SuccessResponse(window)
 }
 
 // canViewTopic 话题详情读路径的可见性：在共享谓词之上允许作者阅读自己待审中的

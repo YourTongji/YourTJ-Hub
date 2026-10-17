@@ -31,6 +31,8 @@ abstract class AgentTopicItem with _$AgentTopicItem {
     required int id,
     required String title,
     required String excerpt,
+    /// Topic gallery image URLs (issue #1228); older servers omit it.
+    List<String>? images,
     required List<int> categoryIds,
     required int userId,
     required int status,

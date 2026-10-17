@@ -254,6 +254,15 @@ func appendTopicDocument(builder *strings.Builder, baseURL string, topic *topics
 			builder.WriteString(fence + "markdown\n")
 			builder.WriteString(strings.TrimSpace(post.Content))
 			builder.WriteString("\n" + fence + "\n\n")
+			if post.PostNo == 1 {
+				// 主楼图集（topics.image_urls）写在正文围栏之外，按绝对地址列出（issue #1228）。
+				if section := gallerySection(replyHeading, baseURL, topic.ImageUrls); section != "" {
+					if maxBytes > 0 && int64(builder.Len())+int64(len(section)) > maxBytes {
+						return errOutputLimit
+					}
+					builder.WriteString(section)
+				}
+			}
 			afterPostNo = post.PostNo
 		}
 		if len(postsBatch) < postBatchSize {
@@ -341,6 +350,45 @@ func categoryNames(ids []uint64) []string {
 		}
 	}
 	return names
+}
+
+// gallerySection renders the topic gallery as Markdown image links. Relative
+// paths are joined to baseURL without doubling slashes; absolute http(s) URLs
+// are kept as-is; anything else (or a value that could break the link) is skipped.
+func gallerySection(heading, baseURL string, gallery []string) string {
+	var section strings.Builder
+	n := 0
+	for _, raw := range gallery {
+		link := absoluteImageURL(baseURL, raw)
+		if link == "" {
+			continue
+		}
+		if n == 0 {
+			section.WriteString(heading + " Images\n\n")
+		}
+		n++
+		section.WriteString(fmt.Sprintf("- ![image %d](<%s>)\n", n, link))
+	}
+	if n == 0 {
+		return ""
+	}
+	section.WriteString("\n")
+	return section.String()
+}
+
+func absoluteImageURL(baseURL, raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" || strings.ContainsAny(value, "<>\r\n\t ") {
+		return ""
+	}
+	lower := strings.ToLower(value)
+	if strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "http://") {
+		return value
+	}
+	if strings.HasPrefix(value, "//") || strings.Contains(value, ":") || baseURL == "" {
+		return ""
+	}
+	return strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(value, "/")
 }
 
 func normalizeBaseURL(raw string) string {

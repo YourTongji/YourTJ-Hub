@@ -419,6 +419,25 @@ type PostPayload struct {
 	IsLiked            bool                      `json:"isLiked"`
 	IsBookmarked       bool                      `json:"isBookmarked"`
 	IsAnswer           bool                      `json:"isAnswer"`
+	// Images is the topic gallery (topics.image_urls), only on the visible first
+	// post (postNo 1) of a post window; omitted for replies and for a hidden,
+	// author-deleted or moderator-removed first post (issue #1228).
+	Images []string `json:"images,omitempty"`
+}
+
+// attachFirstPostGallery copies the topic gallery onto the first post of a
+// window, following the same visibility as the first post's content.
+func attachFirstPostGallery(items []PostPayload, gallery []string) {
+	if len(gallery) == 0 {
+		return
+	}
+	for i := range items {
+		item := &items[i]
+		if item.PostNo != 1 || item.IsHidden || item.IsAuthorDeleted || item.IsModeratorRemoved {
+			continue
+		}
+		item.Images = append([]string{}, gallery...)
+	}
 }
 
 type ReplyTargetPayload struct {

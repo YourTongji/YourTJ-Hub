@@ -32,6 +32,8 @@ export interface AgentTopicItem {
   id: number
   title: string
   excerpt: string
+  /** Topic gallery image URLs (issue #1228). Older servers omit it. */
+  images?: string[]
   categoryIds: number[]
   userId: number
   status: 0 | 1

@@ -474,6 +474,8 @@ export interface PostPayload {
   isLiked: boolean
   isBookmarked: boolean
   isAnswer: boolean
+  /** Topic gallery, only on the visible first post (issue #1228). */
+  images?: string[]
 }
 
 export interface ReplyTargetPayload {

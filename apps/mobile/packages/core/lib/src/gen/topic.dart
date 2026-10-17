@@ -267,6 +267,8 @@ abstract class PostPayload with _$PostPayload {
     required int likeCount,
     required bool isLiked,
     required bool isBookmarked,
+    /// Topic gallery, only on the visible first post (issue #1228).
+    List<String>? images,
   }) = _PostPayload;
 
   factory PostPayload.fromJson(Map<String, dynamic> json) =>
