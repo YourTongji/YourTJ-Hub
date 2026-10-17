@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowReactive, useId, useSlots, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowReactive, useId, useSlots, watch } from 'vue'
 import { ChevronDown } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import type { TopicPayload } from '@gooseforum/client'
 import { createTopicCardInteraction, type TopicCardInteraction } from '@/site/utils/topic-card-interactions'
+import { closeAllTopicPreviews } from '@/runtime/topic-hover-preview'
 import TopicCardActions from '@/site/components/TopicCardActions.vue'
 import TopicFeedPreview from '@/site/components/TopicFeedPreview.vue'
 import TopicRow from '@/site/components/TopicRow.vue'
@@ -16,6 +17,8 @@ const props = withDefaults(defineProps<{
   showHot?: boolean
   showPinned?: boolean
   feedMode?: 'table' | 'card'
+  // 所在页面是否提供列表/卡片切换（首页）。其他列表页只有表格视图，不预建卡片树。
+  switchable?: boolean
 }>(), {
   viewerId: 0,
   home: false,
@@ -23,6 +26,7 @@ const props = withDefaults(defineProps<{
   showHot: true,
   showPinned: false,
   feedMode: 'table',
+  switchable: false,
 })
 
 const { t } = useI18n()
@@ -34,6 +38,34 @@ const visiblePinnedTopics = computed(() => pinnedTopicsExpanded.value ? pinnedTo
 const regularTopics = computed(() => pinnedTopics.value.length
   ? props.topics.filter(topic => topic.pinWeight <= 0)
   : props.topics)
+
+// 两种视图各自是一棵常驻的键控树，切换只改 display（issue #1164）：
+// v-if/v-else 互斥分支会让 Vue 无法复用 vnode，切换即整表卸载重建（实测 20 条约 55ms 脚本）。
+// 隐藏树不携带 data-feed-id/data-feed-trace：信息流传导与推荐流锚点按文档顺序查询这些属性，
+// 双份会让它们命中 display:none 的节点（rect 全 0，锚点恢复会滚到错误位置）。
+const tableMounted = ref(props.feedMode === 'table')
+const cardMounted = ref(props.feedMode === 'card')
+watch(() => props.feedMode, (mode) => {
+  if (mode === 'table') tableMounted.value = true
+  else cardMounted.value = true
+  // 表格行被整体隐藏时不会触发卸载，显式关闭悬停预览弹层与未触发的计时器。
+  closeAllTopicPreviews()
+})
+// 空闲时预建另一棵树：首屏只付当前视图的成本，切换发生在预建之后时零挂载。
+let cancelPrebuild: (() => void) | undefined
+onMounted(() => {
+  if (!props.switchable) return
+  const build = () => { tableMounted.value = true; cardMounted.value = true }
+  const idle = window.requestIdleCallback?.bind(window)
+  if (idle) {
+    const handle = idle(build, { timeout: 2000 })
+    cancelPrebuild = () => window.cancelIdleCallback?.(handle)
+  } else {
+    const handle = window.setTimeout(build, 300)
+    cancelPrebuild = () => window.clearTimeout(handle)
+  }
+})
+onBeforeUnmount(() => cancelPrebuild?.())
 
 const interactions = shallowReactive(new Map<number, TopicCardInteraction>())
 function clearInteractions() {
@@ -112,7 +144,7 @@ onBeforeUnmount(clearInteractions)
       </TransitionGroup>
     </ul>
   </section>
-  <template v-if="feedMode === 'table'">
+  <div v-if="tableMounted" v-show="feedMode === 'table'" data-feed-view="table">
     <div class="gf-topic-list-header">
       <div>{{ t('topicList.columns.topic') }}</div>
       <div class="text-center">{{ t('topicList.columns.users') }}</div>
@@ -129,7 +161,7 @@ onBeforeUnmount(clearInteractions)
       <TopicRow
         v-for="topic in regularTopics"
         :key="topic.id"
-        :data-feed-id="topic.id" :data-feed-trace="topic.feedTrace"
+        :data-feed-id="feedMode === 'table' ? topic.id : undefined" :data-feed-trace="feedMode === 'table' ? topic.feedTrace : undefined"
         :topic="topic"
         :home="home"
         :show-categories="showCategories"
@@ -144,31 +176,29 @@ onBeforeUnmount(clearInteractions)
         </template>
       </TopicRow>
     </div>
-  </template>
+  </div>
 
-  <template v-else>
-    <div class="relative space-y-4 p-4">
-      <div
-        v-for="topic in regularTopics"
-        :key="topic.id"
-        :data-feed-id="topic.id" :data-feed-trace="topic.feedTrace"
-        class="gf-card group relative overflow-hidden [&_a.gf-topic-chip]:pointer-events-auto [&_a.gf-topic-chip]:relative [&_a.gf-topic-chip]:z-10"
-      >
-        <TopicFeedPreview :topic="topic" :show-categories="showCategories" :show-hot="showHot" :show-pinned="showPinned" compact :show-stats="false" class="pointer-events-none" />
-        <!-- stretched-link：整卡可点，互动按钮浮于遮罩之上，避免嵌套交互元素 -->
-        <a
-          :href="topic.url"
-          class="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-          :aria-label="topicDisplayLabel(topic.id, topic.title, topic.description)"
-        />
-        <TopicCardActions
-          :topic="topic"
-          class="relative px-3.5 pb-3"
-          :interaction="interactions.get(topic.id)"
-        />
-      </div>
+  <div v-if="cardMounted" v-show="feedMode === 'card'" data-feed-view="card" class="relative space-y-4 p-4">
+    <div
+      v-for="topic in regularTopics"
+      :key="topic.id"
+      :data-feed-id="feedMode === 'card' ? topic.id : undefined" :data-feed-trace="feedMode === 'card' ? topic.feedTrace : undefined"
+      class="gf-card group relative overflow-hidden [&_a.gf-topic-chip]:pointer-events-auto [&_a.gf-topic-chip]:relative [&_a.gf-topic-chip]:z-10"
+    >
+      <TopicFeedPreview :topic="topic" :show-categories="showCategories" :show-hot="showHot" :show-pinned="showPinned" compact :show-stats="false" class="pointer-events-none" />
+      <!-- stretched-link：整卡可点，互动按钮浮于遮罩之上，避免嵌套交互元素 -->
+      <a
+        :href="topic.url"
+        class="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+        :aria-label="topicDisplayLabel(topic.id, topic.title, topic.description)"
+      />
+      <TopicCardActions
+        :topic="topic"
+        class="relative px-3.5 pb-3"
+        :interaction="interactions.get(topic.id)"
+      />
     </div>
-  </template>
+  </div>
   <slot name="empty" />
 </template>
 

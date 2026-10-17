@@ -891,7 +891,7 @@ onBeforeUnmount(() => {
           <p v-if="isForYouFeed && seenConfirmationLost" class="mx-3 my-2 flex items-start gap-2 rounded-box bg-base-200/70 px-3 py-2 text-xs leading-5 text-base-content/65" role="status">
             <Info class="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />{{ t('topicList.forYouSeenConfirmationLost') }}
           </p>
-          <TopicList :topics="topics" :viewer-id="page.layout.viewer.id" home :show-pinned="showPinnedLabels" :feed-mode="feedMode">
+          <TopicList :topics="topics" :viewer-id="page.layout.viewer.id" home :show-pinned="showPinnedLabels" :feed-mode="feedMode" switchable>
             <template #empty>
               <EmptyState v-if="!hasTopics && !forYouSessionLost" :icon="isForYouFeed ? CheckCircle2 : UsersRound" :title="t(isForYouFeed ? 'topicList.forYouEmptyTitle' : 'topicList.emptyTitle')" :description="t(isForYouFeed ? 'topicList.forYouEmptyDescription' : 'topicList.emptyDescription')">
                 <a v-if="isForYouFeed && latestTabUrl" :href="latestTabUrl" class="gf-button gf-button-md gf-button-secondary">{{ t('topicList.forYouEmptyAction') }}</a>

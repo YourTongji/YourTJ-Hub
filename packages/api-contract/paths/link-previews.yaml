@@ -29,6 +29,8 @@ resolveLinkPreviews:
             examples:
               classifiedWithoutFetch:
                 externalValue: ../fixtures/link-previews-resolve-success.json
+              platformCards:
+                externalValue: ../fixtures/link-previews-resolve-platform-cards.json
               invalidParams:
                 externalValue: ../fixtures/invalid-params.json
       '400':

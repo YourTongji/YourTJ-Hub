@@ -24,7 +24,7 @@ const eventOptions = [
 ] as const
 
 const currentAgent = ref<AdminAgent | null>(null)
-const form = reactive({ eventsEnabled: false, eventTypes: [] as string[], webhookEnabled: false, webhookEndpoint: '' })
+const form = reactive({ eventsEnabled: false, eventTypes: [] as string[], webhookEnabled: false, webhookEndpoint: '', webhookAuthorization: '', clearAuthorization: false })
 const configSaving = ref(false)
 const testSending = ref(false)
 const secretRotating = ref(false)
@@ -78,6 +78,8 @@ function syncForm(agent: AdminAgent) {
   form.eventTypes = [...agent.eventTypes]
   form.webhookEnabled = agent.webhookEnabled
   form.webhookEndpoint = agent.webhookEndpoint || ''
+  form.webhookAuthorization = ''
+  form.clearAuthorization = false
   conflict.value = false
 }
 
@@ -118,6 +120,14 @@ async function loadLatestConfig() {
   }
 }
 
+// Only send the Authorization field when the operator types a new value or
+// explicitly clears it; omitting it keeps the stored (never displayed) value.
+function authorizationPatch(): { webhookAuthorization?: string } {
+  if (form.clearAuthorization) return { webhookAuthorization: '' }
+  const value = form.webhookAuthorization.trim()
+  return value ? { webhookAuthorization: value } : {}
+}
+
 async function saveConfig() {
   const agent = currentAgent.value
   if (!agent || configSaving.value) return
@@ -133,6 +143,7 @@ async function saveConfig() {
       eventTypes: [...form.eventTypes],
       webhookEnabled: form.webhookEnabled,
       webhookEndpoint: form.webhookEndpoint.trim(),
+      ...authorizationPatch(),
     })
     if (session !== dialogSession) return
     syncForm(updated)
@@ -346,6 +357,30 @@ function canReplay(status: string) {
             {{ t('agentWebhook.endpoint') }}
             <Input v-model="form.webhookEndpoint" type="url" placeholder="https://example.com/webhook" autocomplete="url" />
           </label>
+
+          <div class="grid gap-2 text-sm">
+            <label class="grid gap-2 font-medium">
+              <span>
+                {{ t('agentWebhook.authorization') }}
+                <span class="ml-1 font-normal text-muted-foreground">
+                  {{ currentAgent.webhookAuthorizationConfigured ? t('agentWebhook.authorizationConfigured') : t('agentWebhook.authorizationMissing') }}
+                </span>
+              </span>
+              <Input
+                v-model="form.webhookAuthorization"
+                type="password"
+                autocomplete="off"
+                maxlength="1024"
+                :disabled="form.clearAuthorization"
+                :placeholder="currentAgent.webhookAuthorizationConfigured ? t('agentWebhook.authorizationKeepPlaceholder') : 'Bearer …'"
+              />
+            </label>
+            <label v-if="currentAgent.webhookAuthorizationConfigured" class="flex items-center gap-2 text-muted-foreground">
+              <Checkbox :model-value="form.clearAuthorization" @update:model-value="form.clearAuthorization = $event === true" />
+              {{ t('agentWebhook.authorizationClear') }}
+            </label>
+            <p class="text-xs text-muted-foreground">{{ t('agentWebhook.authorizationHelp') }}</p>
+          </div>
 
           <fieldset class="grid min-w-0 gap-2">
             <legend class="text-sm font-medium">{{ t('agentWebhook.eventTypes') }}</legend>

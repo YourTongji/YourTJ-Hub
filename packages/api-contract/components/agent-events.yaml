@@ -204,6 +204,14 @@ AgentWebhookConfigRequest:
     webhookEndpoint:
       type: string
       maxLength: 512
+    webhookAuthorization:
+      type: string
+      maxLength: 1024
+      writeOnly: true
+      description: Optional static `Authorization` header value sent with every delivery (for receivers
+        that only accept a static token, e.g. `Bearer …`). Omit to keep the stored value; send an
+        empty string to clear it. Stored encrypted and never returned; Standard Webhooks signing
+        headers are unchanged and cannot be overridden. Visible ASCII only (no CR/LF).
   required:
   - agentId
   additionalProperties: false

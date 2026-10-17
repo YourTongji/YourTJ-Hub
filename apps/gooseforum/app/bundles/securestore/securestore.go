@@ -68,6 +68,10 @@ const MailSmtpPasswordPurpose = "yourtj-mail-smtp-password"
 // AgentWebhookSecretPurpose separates Agent Webhook HMAC keys from other stored secrets.
 const AgentWebhookSecretPurpose = "yourtj-agent-webhook-secret"
 
+// AgentWebhookAuthorizationPurpose separates the optional static Authorization
+// header sent with Agent Webhook deliveries from the HMAC signing keys.
+const AgentWebhookAuthorizationPurpose = "yourtj-agent-webhook-authorization"
+
 // HttpNotifySecretPurpose HTTP 通知 webhook 验签密钥的加密用途标签（issue #324 S1）。
 const HttpNotifySecretPurpose = "yourtj-http-notify-secret"
 

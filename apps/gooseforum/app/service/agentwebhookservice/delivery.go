@@ -220,12 +220,14 @@ func Sign(secret, eventID string, timestamp int64, body []byte) (string, error) 
 }
 
 type permit struct {
-	delivery  agentWebhook.Delivery
-	endpoint  string
-	secret    string
-	previous  string
-	attemptID string
-	until     time.Time
+	delivery agentWebhook.Delivery
+	endpoint string
+	secret   string
+	previous string
+	// authorization is the decrypted optional static Authorization header value.
+	authorization string
+	attemptID     string
+	until         time.Time
 }
 
 func authorizeTx(tx *gorm.DB, task *taskQueue.Entity, id uint64) (permit, error) {
@@ -351,7 +353,14 @@ func authorizeTx(tx *gorm.DB, task *taskQueue.Entity, id uint64) (permit, error)
 			return p, finishBlockedTx(tx, task, row, "secret_invalid")
 		}
 	}
-	p = permit{delivery: *row, endpoint: agent.WebhookEndpoint, secret: secret, previous: previous, attemptID: uuid.NewString(), until: now.Add(permitTTL)}
+	authorization := ""
+	if agent.WebhookAuthorizationCiphertext != "" {
+		authorization, err = securestore.DecryptPurpose(agent.WebhookAuthorizationCiphertext, securestore.AgentWebhookAuthorizationPurpose)
+		if err != nil || !validWebhookAuthorization(authorization) {
+			return p, finishBlockedTx(tx, task, row, "authorization_invalid")
+		}
+	}
+	p = permit{delivery: *row, endpoint: agent.WebhookEndpoint, secret: secret, previous: previous, authorization: authorization, attemptID: uuid.NewString(), until: now.Add(permitTTL)}
 	attempt := agentWebhook.Attempt{ID: p.attemptID, InstanceID: state.ID, DeliveryID: row.ID, Round: row.Round, Number: row.AttemptCount + 1, AuthorizedAt: now}
 	if err := agentWebhook.AddAttemptTx(tx, &attempt); err != nil {
 		return p, err
@@ -527,16 +536,27 @@ func handleTask(ctx context.Context, task *taskQueue.Entity) error {
 		}
 		signature += " " + old
 	}
+	headers := deliveryHeaders(p, stamp, signature)
+	requestCtx, cancel := context.WithDeadline(ctx, p.until)
+	defer cancel()
+	result, sendErr := sender.PostJSON(requestCtx, p.endpoint, []byte(p.delivery.Body), headers)
+	return complete(task, p, result, sendErr)
+}
+
+// deliveryHeaders builds the outbound headers. Standard Webhooks headers are
+// always set by the server; the optional static Authorization header is added
+// only when configured and can never replace a Webhook-* header.
+func deliveryHeaders(p permit, stamp int64, signature string) http.Header {
 	headers := http.Header{}
+	if p.authorization != "" {
+		headers.Set("Authorization", p.authorization)
+	}
 	headers.Set("Webhook-Id", p.delivery.EventID)
 	headers.Set("Webhook-Timestamp", strconv.FormatInt(stamp, 10))
 	headers.Set("Webhook-Signature", signature)
 	headers.Set("Webhook-Attempt-Id", p.attemptID)
 	headers.Set("Webhook-Delivery-Id", strconv.FormatUint(p.delivery.ID, 10))
-	requestCtx, cancel := context.WithDeadline(ctx, p.until)
-	defer cancel()
-	result, sendErr := sender.PostJSON(requestCtx, p.endpoint, []byte(p.delivery.Body), headers)
-	return complete(task, p, result, sendErr)
+	return headers
 }
 func retryDelay(attempt uint32, retryAfter string, now, deadline time.Time) time.Time {
 	seconds := time.Duration(1<<min(attempt, 8)) * time.Minute

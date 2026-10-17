@@ -43,7 +43,7 @@ function measure() {
   }
   const lineHeight = (element) => (element ? Number.parseFloat(getComputedStyle(element).lineHeight) : 0)
   const cases = {}
-  for (const id of ['long', 'dedup', 'internal', 'tall', 'campus', 'campus-named']) {
+  for (const id of ['long', 'dedup', 'internal', 'tall', 'campus', 'campus-named', 'platform']) {
     const card = document.querySelector(`#case-${id} .gf-link-preview-card`)
     if (!card) { cases[id] = null; continue }
     const title = card.querySelector('.gf-link-preview-card__title')
@@ -63,6 +63,9 @@ function measure() {
       descWrap: descWrap ? { ...rect(descWrap), display: getComputedStyle(descWrap).display } : null,
       desc: desc ? { ...rect(desc), lineHeight: lineHeight(desc), text: desc.textContent.trim() } : null,
       host: host ? { ...rect(host), text: host.textContent.trim() } : null,
+      author: card.querySelector('.gf-link-preview-card__author')
+        ? { ...rect(card.querySelector('.gf-link-preview-card__author')), text: card.querySelector('.gf-link-preview-card__author').textContent.trim() }
+        : null,
       cover: cover
         ? {
             ...rect(cover),
@@ -210,6 +213,21 @@ for (const theme of ['dark', 'light']) {
         // 校园网卡片没有封面/图标，右侧内边距必须回到无封面档。
         assert.equal(campus.cover, null, 'campus card must not reserve cover space')
         assert.equal(campus.body.width, campus.card.width - 2, 'body must use the full card width without a cover')
+
+        // 9. 平台卡片：来源行、类型徽标与作者行都由客户端 i18n 渲染（服务端只给
+        //    平台标识与作者原文）。徽标必须与来源行同高，不能把来源行顶到 20px
+        //    以上；作者行缺失时整行省略的规则另由单测覆盖。
+        const platform = state.cases.platform
+        assert.ok(platform, 'platform case must render a card')
+        assert.deepEqual(
+          platform.labels,
+          ['哔哩哔哩', '视频', 'www.bilibili.com'],
+          'platform card must localize the source and type labels and keep the real host',
+        )
+        assert.ok(platform.source.height <= 20, `type badge bloated the source row: ${platform.source.height}px`)
+        assert.equal(platform.author.text, 'UP主：Ning的笔记', 'platform card must localize the author label')
+        assert.equal(platform.host.text, 'www.bilibili.com', 'platform card must keep the real host')
+        assert.equal(state.cases.dedup.author, null, 'generic cards must not render an author row')
 
         if (process.env.LINK_PREVIEW_CARD_SCREENSHOT) {
           await page.screenshot({ path: `${process.env.LINK_PREVIEW_CARD_SCREENSHOT}-${theme}-${width}.png`, fullPage: true })

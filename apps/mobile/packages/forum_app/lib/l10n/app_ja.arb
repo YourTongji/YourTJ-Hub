@@ -921,8 +921,15 @@
   },
   "linkPreviewRememberDomain": "このセッション中は、このドメインについて確認しない",
   "linkPreviewContinue": "続ける",
+  "linkPreviewAuthorArtist": "アーティスト：{author}",
+  "linkPreviewAuthorUploader": "UP主：{author}",
   "linkPreviewCampusFallbackTitle": "学内ネットワーク",
   "linkPreviewCampusFallbackDescription": "学内ネットワークからのみアクセスできます",
+  "linkPreviewPlatformAppleMusic": "Apple Music",
+  "linkPreviewPlatformBilibili": "ビリビリ",
+  "linkPreviewResourceTypeAlbum": "アルバム",
+  "linkPreviewResourceTypeSong": "楽曲",
+  "linkPreviewResourceTypeVideo": "動画",
   "campusTodayMakeup": "{name}：今日は {date} の時間割で授業を行います。",
   "@campusTodayMakeup": {
     "placeholders": {

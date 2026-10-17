@@ -23,20 +23,68 @@ import (
 type fakeFetcher struct {
 	result safefetch.Result
 	err    error
-	calls  atomic.Int32
-	wait   <-chan struct{}
+	// jsonResult / jsonErr serve the fixed platform metadata endpoints. Tests
+	// assert jsonURLs to pin the endpoint, id and country actually requested.
+	jsonResult safefetch.Result
+	jsonErr    error
+	calls      atomic.Int32
+	jsonCalls  atomic.Int32
+	wait       <-chan struct{}
+	mu         sync.Mutex
+	urls       []string
+	jsonURLs   []string
 }
 
-func (f *fakeFetcher) Fetch(ctx context.Context, _ string) (safefetch.Result, error) {
+func (f *fakeFetcher) Fetch(ctx context.Context, rawURL string) (safefetch.Result, error) {
 	f.calls.Add(1)
-	if f.wait != nil {
-		select {
-		case <-f.wait:
-		case <-ctx.Done():
-			return safefetch.Result{}, ctx.Err()
-		}
+	f.mu.Lock()
+	f.urls = append(f.urls, rawURL)
+	f.mu.Unlock()
+	if err := f.waitFor(ctx); err != nil {
+		return safefetch.Result{}, err
 	}
 	return f.result, f.err
+}
+
+func (f *fakeFetcher) FetchJSON(ctx context.Context, rawURL string) (safefetch.Result, error) {
+	f.jsonCalls.Add(1)
+	f.mu.Lock()
+	f.jsonURLs = append(f.jsonURLs, rawURL)
+	f.mu.Unlock()
+	if err := f.waitFor(ctx); err != nil {
+		return safefetch.Result{}, err
+	}
+	return f.jsonResult, f.jsonErr
+}
+
+func (f *fakeFetcher) waitFor(ctx context.Context) error {
+	if f.wait == nil {
+		return nil
+	}
+	select {
+	case <-f.wait:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (f *fakeFetcher) lastJSONURL() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.jsonURLs) == 0 {
+		return ""
+	}
+	return f.jsonURLs[len(f.jsonURLs)-1]
+}
+
+func (f *fakeFetcher) lastURL() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.urls) == 0 {
+		return ""
+	}
+	return f.urls[len(f.urls)-1]
 }
 
 func TestResolveExternalMetadata(t *testing.T) {

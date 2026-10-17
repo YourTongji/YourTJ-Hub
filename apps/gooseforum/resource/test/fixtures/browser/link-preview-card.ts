@@ -92,6 +92,26 @@ const cases: Array<{ id: string; preview: LinkPreview }> = [
     },
   },
   {
+    // 平台卡片：服务端只给平台标识（platform / resourceType）与作者原文，
+    // 平台名、类型徽标与称呼都由客户端 i18n 渲染（issue #1201）。
+    id: 'platform',
+    preview: {
+      requestedUrl: 'https://www.bilibili.com/video/BV1w5Yy67Eie/',
+      kind: 'external',
+      status: 'ready',
+      url: 'https://www.bilibili.com/video/BV1w5Yy67Eie/',
+      displayHost: 'www.bilibili.com',
+      registrableDomain: 'bilibili.com',
+      siteName: '哔哩哔哩',
+      title: '不是AI做不到，是你不知道技术的名称——Chroma.js',
+      description: '点个关注再走啦~',
+      imageUrl: 'https://cdn.test/cover-wide.png',
+      platform: 'bilibili',
+      resourceType: 'video',
+      author: 'Ning的笔记',
+    },
+  },
+  {
     // 配置给了名字时以服务端值为准，客户端不得用兜底文案覆盖。
     id: 'campus-named',
     preview: {

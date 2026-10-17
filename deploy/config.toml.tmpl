@@ -26,6 +26,21 @@ trusted_proxies = {{TRUSTED_PROXIES}}
 [jwtopt]
 validTime = 604800
 
+# WebAuthn passkeys（论坛即 relying party）。身份值全部是公开值：论坛会把它们
+# 从 /.well-known/apple-app-site-association 与 /.well-known/assetlinks.json
+# 直接对外渲染，因此放在 deploy/instances/<env>.json（实例差异，随 PR 评审），
+# 绝不放 secret。enabled = true 时 rp_id/display_name/web_origins 与 Apple、
+# Android 签名身份缺一不可；缺失或非法即 fail-closed，公开状态位保持 false。
+[passkeys]
+enabled = {{PASSKEY_ENABLED}}
+rp_id = {{PASSKEY_RP_ID}}
+display_name = {{PASSKEY_DISPLAY_NAME}}
+web_origins = {{PASSKEY_WEB_ORIGINS}}
+apple_team_id = {{PASSKEY_APPLE_TEAM_ID}}
+ios_bundle_id = {{PASSKEY_IOS_BUNDLE_ID}}
+android_package_name = {{PASSKEY_ANDROID_PACKAGE_NAME}}
+android_sha256_cert_fingerprints = {{PASSKEY_ANDROID_SHA256_CERT_FINGERPRINTS}}
+
 [db]
 migration = "on"
 backupSqlite = true

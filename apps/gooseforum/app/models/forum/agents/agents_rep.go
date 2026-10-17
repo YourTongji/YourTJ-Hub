@@ -156,7 +156,7 @@ func ListEnabledTx(tx *gorm.DB) ([]Entity, error) {
 
 // IsolateSnapshot disables copied credentials before an instance can serve.
 func IsolateSnapshot(tx *gorm.DB) error {
-	return tx.Model(&Entity{}).Where("1 = 1").Updates(map[string]any{"enabled": StatusDisabled, "token_hash": "", "secret_ciphertext": "", "previous_secret_ciphertext": "", "previous_secret_expires_at": nil, "webhook_enabled": false, "events_enabled": false, "endpoint_generation": gorm.Expr("endpoint_generation + 1"), "subscription_generation": gorm.Expr("subscription_generation + 1"), "config_version": gorm.Expr("config_version + 1")}).Error
+	return tx.Model(&Entity{}).Where("1 = 1").Updates(map[string]any{"enabled": StatusDisabled, "token_hash": "", "secret_ciphertext": "", "previous_secret_ciphertext": "", "previous_secret_expires_at": nil, "webhook_authorization_ciphertext": "", "webhook_enabled": false, "events_enabled": false, "endpoint_generation": gorm.Expr("endpoint_generation + 1"), "subscription_generation": gorm.Expr("subscription_generation + 1"), "config_version": gorm.Expr("config_version + 1")}).Error
 }
 
 func EnabledIDsTx(tx *gorm.DB) ([]uint64, error) {

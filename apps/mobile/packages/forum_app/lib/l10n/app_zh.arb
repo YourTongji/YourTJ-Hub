@@ -1270,8 +1270,15 @@
   },
   "linkPreviewRememberDomain": "本次浏览期间不再询问此域名",
   "linkPreviewContinue": "继续访问",
+  "linkPreviewAuthorArtist": "艺术家：{author}",
+  "linkPreviewAuthorUploader": "UP主：{author}",
   "linkPreviewCampusFallbackTitle": "校园网",
   "linkPreviewCampusFallbackDescription": "需校园网络访问",
+  "linkPreviewPlatformAppleMusic": "Apple Music",
+  "linkPreviewPlatformBilibili": "哔哩哔哩",
+  "linkPreviewResourceTypeAlbum": "专辑",
+  "linkPreviewResourceTypeSong": "歌曲",
+  "linkPreviewResourceTypeVideo": "视频",
   "campusTodayMakeup": "{name}：今天按 {date} 的课表上课。",
   "@campusTodayMakeup": {
     "placeholders": {

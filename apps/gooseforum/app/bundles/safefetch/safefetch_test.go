@@ -64,6 +64,95 @@ func TestFetchReturnsBoundedHTML(t *testing.T) {
 	}
 }
 
+func TestFetchJSONReturnsBoundedJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if accept := r.Header.Get("Accept"); accept != "application/json" {
+			t.Errorf("Accept header = %q, want application/json", accept)
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_, _ = io.WriteString(w, `{"resultCount":1,"results":[]}`)
+	}))
+	t.Cleanup(server.Close)
+
+	var calls atomic.Int32
+	client := New(Config{
+		Resolver:    fakeResolver{"api.example": {publicAddr()}},
+		DialContext: mappedDialer(server.Listener.Addr().String(), &calls),
+	})
+	result, err := client.FetchJSON(t.Context(), "http://api.example/lookup?id=1")
+	if err != nil {
+		t.Fatalf("FetchJSON() error = %v", err)
+	}
+	if result.StatusCode != http.StatusOK || string(result.Body) != `{"resultCount":1,"results":[]}` {
+		t.Fatalf("FetchJSON() result = %#v", result)
+	}
+	if result.ContentType != "application/json" {
+		t.Fatalf("FetchJSON() content type = %q", result.ContentType)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("dial calls = %d, want 1", calls.Load())
+	}
+}
+
+// Apple 的固定 Lookup 端点用 text/javascript 返回 JSON（实测），这条回归钉住它：
+// 只允许 application/json 时，平台端点会被判为 content_type 失败，卡片静默退回
+// 通用形态，而任何 fixture 都看不出来。
+func TestFetchJSONAcceptsTheLegacyJavaScriptMediaType(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		_, _ = io.WriteString(w, `{"resultCount":1}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client := New(Config{
+		Resolver:    fakeResolver{"itunes.example": {publicAddr()}},
+		DialContext: mappedDialer(server.Listener.Addr().String(), &atomic.Int32{}),
+	})
+	result, err := client.FetchJSON(t.Context(), "http://itunes.example/lookup?id=1")
+	if err != nil {
+		t.Fatalf("FetchJSON() error = %v", err)
+	}
+	if string(result.Body) != `{"resultCount":1}` {
+		t.Fatalf("FetchJSON() body = %q", result.Body)
+	}
+}
+
+// JSON 抓取只放宽媒体类型，不放宽其它策略：HTML 页面不能从这条路径溜进来，DNS 与
+// 拨号校验也必须和页面抓取完全一致。
+func TestFetchJSONKeepsDocumentPolicy(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = io.WriteString(w, "<title>Example</title>")
+	}))
+	t.Cleanup(server.Close)
+
+	client := New(Config{
+		Resolver:    fakeResolver{"api.example": {publicAddr()}},
+		DialContext: mappedDialer(server.Listener.Addr().String(), &atomic.Int32{}),
+	})
+	if _, err := client.FetchJSON(t.Context(), "http://api.example/page"); !IsClass(err, ErrorContentType) {
+		t.Fatalf("FetchJSON() on HTML error = %v, want content_type", err)
+	}
+	if _, err := client.Fetch(t.Context(), "http://api.example/page"); err != nil {
+		t.Fatalf("Fetch() on HTML error = %v, want accepted", err)
+	}
+
+	var dialCalls atomic.Int32
+	private := New(Config{
+		Resolver: fakeResolver{"private.example": {netip.MustParseAddr("127.0.0.1")}},
+		DialContext: func(context.Context, string, string) (net.Conn, error) {
+			dialCalls.Add(1)
+			return nil, errors.New("must not dial")
+		},
+	})
+	if _, err := private.FetchJSON(t.Context(), "http://private.example/lookup"); !IsClass(err, ErrorBlocked) {
+		t.Fatalf("FetchJSON() private DNS error = %v, want blocked", err)
+	}
+	if dialCalls.Load() != 0 {
+		t.Fatalf("dial calls = %d, want 0", dialCalls.Load())
+	}
+}
+
 func TestFetchRejectsPrivateDNSBeforeDial(t *testing.T) {
 	var calls atomic.Int32
 	client := New(Config{

@@ -20,7 +20,7 @@
       "webhookEnabled": false,
       "endpointGeneration": 0,
       "secretConfigured": false,
-      "secretVersion": 0,
+      "secretVersion": 0, "webhookAuthorizationConfigured": false,
       "latestAcceptedAt": null,
       "pendingCount": 0,
       "pauseReason": "",

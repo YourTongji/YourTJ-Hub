@@ -1396,8 +1396,29 @@
   },
   "linkPreviewRememberDomain": "Do not ask again for this domain during this session",
   "linkPreviewContinue": "Continue",
+  "linkPreviewAuthorArtist": "Artist: {author}",
+  "linkPreviewAuthorUploader": "Uploader: {author}",
+  "@linkPreviewAuthorArtist": {
+    "placeholders": {
+      "author": {
+        "type": "String"
+      }
+    }
+  },
+  "@linkPreviewAuthorUploader": {
+    "placeholders": {
+      "author": {
+        "type": "String"
+      }
+    }
+  },
   "linkPreviewCampusFallbackTitle": "Campus network",
   "linkPreviewCampusFallbackDescription": "Requires campus network access",
+  "linkPreviewPlatformAppleMusic": "Apple Music",
+  "linkPreviewPlatformBilibili": "Bilibili",
+  "linkPreviewResourceTypeAlbum": "Album",
+  "linkPreviewResourceTypeSong": "Song",
+  "linkPreviewResourceTypeVideo": "Video",
   "campusTodayMakeup": "{name}: today follows the timetable for {date}.",
   "@campusTodayMakeup": {
     "placeholders": {

@@ -118,6 +118,26 @@ fake_instance = {
 with open(rc.DEFAULT_TMPL, encoding="utf-8") as f:
     real_tmpl = f.read()
 real_tokens = rc.tokens_in(real_tmpl)
+
+
+# --- 3.0 app 本地模板 ⊆ deploy 模板：app 会读的配置节必须能出现在实例渲染产物里 ---
+# 回归 #1188: config.templ.toml 早就有 [passkeys]，deploy/config.toml.tmpl 却没有，
+# 于是每次部署渲染出的 config.toml 都不含该节，dev 的 Passkey 开关永远无法打开。
+# 这条断言先于各节的取值断言，缺节时报明确失败而不是 KeyError。
+def dummy_render_keys(text):
+    return rc.flatten_keys(tomllib.loads(rc.dummy_render(text)))
+
+
+app_templ_path = os.path.join(
+    HERE, "..", "apps", "gooseforum", "app", "bundles", "preferences", "config.templ.toml"
+)
+with open(app_templ_path, encoding="utf-8") as f:
+    app_templ_keys = dummy_render_keys(f.read())
+missing_from_deploy = sorted(app_templ_keys - dummy_render_keys(real_tmpl))
+check(
+    f"deploy 模板覆盖 app 本地模板的全部配置键（缺: {missing_from_deploy}）",
+    not missing_from_deploy,
+)
 required_nonempty = sorted(real_tokens - rc.INSTANCE_TOKENS - rc.optional_tokens("dev"))
 check(
     "模板必需非空 secret 含 SIGNING_KEY/PG_DSN/MEILI/WIKI",
@@ -230,6 +250,79 @@ for instance_name, expected in [("dev", True), ("main", False)]:
             ("dev-for-you-v1", "dev-for-you-v1"),
             (feed_config["feed"]["experiments"]["period"], feed_config["feed"]["experiments"]["salt"]),
         )
+
+# Passkey relying-party identity is public through the well-known association documents,
+# so it is instance metadata (reviewed in JSON), never a secret env value.
+passkey_tokens = {t for t in real_tokens if t.startswith("PASSKEY_")}
+check(
+    "passkey tokens come from instance metadata, not secrets",
+    passkey_tokens <= rc.INSTANCE_TOKENS and not (passkey_tokens & rc.BASE_OPTIONAL_TOKENS),
+)
+
+# Both instances render a passkeys section; neither is enabled until its signing owners confirm
+# identities, and each RP ID stays inside its own hostname boundary.
+for instance_name, expected_rp_id in [("dev", "dev.yourtj.de"), ("main", "f.yourtj.de")]:
+    instance = rc.load_instance(instance_name, rc.DEFAULT_INSTANCES_DIR)
+    passkey_env = {
+        **env_partial,
+        "PG_DSN": f"host=postgres user=yourtj dbname={instance['pg_dbname']} port=5432 sslmode=disable",
+        "GH_CLIENT_ID": "test-github-client",
+        "GH_CLIENT_SECRET": "test-github-secret",
+    }
+    passkey_values, _ = rc.build_values(
+        instance_name, instance, passkey_env, real_tokens, rc.optional_tokens(instance_name)
+    )
+    passkey_cfg = tomllib.loads(rc.render(real_tmpl, passkey_values))["passkeys"]
+    check_eq(f"{instance_name} passkeys ship disabled", False, passkey_cfg["enabled"])
+    check_eq(f"{instance_name} pins its own RP ID", expected_rp_id, passkey_cfg["rp_id"])
+    check_eq(
+        f"{instance_name} web origin stays on the instance hostname",
+        [instance["server_url"]],
+        passkey_cfg["web_origins"],
+    )
+    # Signing identities are deliberately not asserted here: filling them is the documented
+    # next step once the iOS/Android owners confirm them, and only `enabled` gates the feature.
+
+# Disabled passkeys skip identity validation; enabled ones mirror LoadConfig fail-closed so a
+# malformed config is rejected at render time instead of surfacing as a silent "disabled" status.
+valid_passkeys = {
+    "PASSKEY_ENABLED": True,
+    "PASSKEY_RP_ID": "dev.yourtj.de",
+    "PASSKEY_DISPLAY_NAME": "YourTJ",
+    "PASSKEY_WEB_ORIGINS": ["https://dev.yourtj.de"],
+    "PASSKEY_APPLE_TEAM_ID": "ABCDE12345",
+    "PASSKEY_IOS_BUNDLE_ID": "tj.yourtj.forumApp",
+    "PASSKEY_ANDROID_PACKAGE_NAME": "tj.yourtj.forum_app",
+    "PASSKEY_ANDROID_SHA256_CERT_FINGERPRINTS": ["AB:" * 31 + "CD"],
+}
+rc.validate_passkeys({"PASSKEY_ENABLED": False})  # disabled: identity values may stay empty
+rc.validate_passkeys(valid_passkeys)  # colon-separated fingerprint is accepted
+rc.validate_passkeys(
+    {**valid_passkeys, "PASSKEY_ANDROID_SHA256_CERT_FINGERPRINTS": ["ab" * 32]}
+)  # compact lowercase hex is accepted
+rc.validate_passkeys(
+    {**valid_passkeys, "PASSKEY_WEB_ORIGINS": ["https://app.dev.yourtj.de"]}
+)  # a subdomain of the RP ID is allowed, as in the Go validator
+for desc, override in [
+    ("missing RP ID", {"PASSKEY_RP_ID": ""}),
+    ("missing display name", {"PASSKEY_DISPLAY_NAME": ""}),
+    ("missing web origin", {"PASSKEY_WEB_ORIGINS": []}),
+    ("malformed Apple Team ID", {"PASSKEY_APPLE_TEAM_ID": "short"}),
+    ("missing iOS bundle ID", {"PASSKEY_IOS_BUNDLE_ID": ""}),
+    ("missing Android package name", {"PASSKEY_ANDROID_PACKAGE_NAME": ""}),
+    ("no Android fingerprint", {"PASSKEY_ANDROID_SHA256_CERT_FINGERPRINTS": []}),
+    ("non-hex Android fingerprint", {"PASSKEY_ANDROID_SHA256_CERT_FINGERPRINTS": ["not-hex"]}),
+    ("short Android fingerprint", {"PASSKEY_ANDROID_SHA256_CERT_FINGERPRINTS": ["abcd"]}),
+    ("web origin outside the RP ID", {"PASSKEY_WEB_ORIGINS": ["https://evil.example"]}),
+    ("non-HTTPS web origin", {"PASSKEY_WEB_ORIGINS": ["http://dev.yourtj.de"]}),
+    ("web origin with a path", {"PASSKEY_WEB_ORIGINS": ["https://dev.yourtj.de/settings"]}),
+    ("web origin carrying userinfo", {"PASSKEY_WEB_ORIGINS": ["https://u:p@dev.yourtj.de"]}),
+    ("web origin carrying a query", {"PASSKEY_WEB_ORIGINS": ["https://dev.yourtj.de/?x=1"]}),
+]:
+    expect_exit(
+        f"enabled passkeys reject {desc}",
+        lambda override=override: rc.validate_passkeys({**valid_passkeys, **override}),
+    )
 
 # main 场景: GH 凭据未设 → 必须失败（fail-closed 生产）
 fake_main = {

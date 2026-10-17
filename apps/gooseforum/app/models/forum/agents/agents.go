@@ -51,8 +51,11 @@ type Entity struct {
 	PreviousSecretCiphertext string     `gorm:"type:text;not null;default:''" json:"-"`
 	PreviousSecretExpiresAt  *time.Time `json:"-"`
 	SecretVersion            uint64     `gorm:"not null;default:0" json:"secretVersion"`
-	WebhookPausedReason      string     `gorm:"type:varchar(64);not null;default:''" json:"webhookPausedReason"`
-	LastWebhookAcceptedAt    *time.Time `json:"lastWebhookAcceptedAt"`
+	// WebhookAuthorizationCiphertext is the optional static Authorization header
+	// value (securestore AgentWebhookAuthorizationPurpose). Never serialized.
+	WebhookAuthorizationCiphertext string     `gorm:"type:text;not null;default:''" json:"-"`
+	WebhookPausedReason            string     `gorm:"type:varchar(64);not null;default:''" json:"webhookPausedReason"`
+	LastWebhookAcceptedAt          *time.Time `json:"lastWebhookAcceptedAt"`
 
 	UserId          uint64     `gorm:"primaryKey;column:user_id;not null;" json:"userId"`
 	TokenPrefix     string     `gorm:"column:token_prefix;type:varchar(16);not null;default:'';uniqueIndex" json:"tokenPrefix"`

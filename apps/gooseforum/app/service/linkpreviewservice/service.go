@@ -74,10 +74,18 @@ type Preview struct {
 	// Campus 标记「按部署配置本地渲染、从未抓取」的校园网卡片。此时 Title 可能为
 	// 空（配置没给名字），客户端需要用自己的语言补兜底标题与描述。
 	Campus bool `json:"campus,omitempty"`
+	// Platform / ResourceType / Author 只在严格识别出平台资源（B 站公开视频、
+	// Apple Music 歌曲/专辑）时给出。Platform 是平台标识而不是展示名：展示名由
+	// 客户端按自身语言渲染，服务端不留本地化文案。
+	Platform     string `json:"platform,omitempty"`
+	ResourceType string `json:"resourceType,omitempty"`
+	Author       string `json:"author,omitempty"`
 }
 
 type Fetcher interface {
 	Fetch(context.Context, string) (safefetch.Result, error)
+	// FetchJSON 抓固定、代码自有的 JSON 端点（平台元数据），策略与 Fetch 相同。
+	FetchJSON(context.Context, string) (safefetch.Result, error)
 }
 
 type Resolver struct {
@@ -156,19 +164,22 @@ func (r *Resolver) Resolve(ctx context.Context, viewerID uint64, rawURL string) 
 
 	keyURL := *classified.URL
 	keyURL.Fragment = ""
+	// 平台地址先进规范化：同一资源的不同分享链（追踪参数、末尾斜杠、主机大小写）
+	// 命中同一份缓存，P / t / i 这类改变内容的参数原样保留。
+	keyURL = cacheKeyURL(keyURL)
 	key := keyURL.String()
 	if item := r.cache.Get(key); item != nil {
 		preview := item.Value()
 		preview.RequestedURL = rawURL
 		preview.URL = rawURL
-		r.log(preview, key, "hit", "external", 0)
+		r.log(preview, key, "hit", previewProvider(preview), 0)
 		return preview
 	}
 
 	result := r.group.DoChan(key, func() (any, error) {
 		if item := r.cache.Get(key); item != nil {
 			preview := item.Value()
-			r.log(preview, key, "hit", "external", 0)
+			r.log(preview, key, "hit", previewProvider(preview), 0)
 			return preview, nil
 		}
 		started := time.Now()
@@ -177,7 +188,7 @@ func (r *Resolver) Resolve(ctx context.Context, viewerID uint64, rawURL string) 
 		// other waiter or poisoning the negative cache with its cancellation.
 		preview := r.resolveExternal(context.WithoutCancel(ctx), keyURL, base)
 		r.cache.Set(key, preview, ttlFor(preview.Status))
-		r.log(preview, key, "miss", "external", time.Since(started))
+		r.log(preview, key, "miss", previewProvider(preview), time.Since(started))
 		return preview, nil
 	})
 	select {
@@ -212,6 +223,16 @@ func (r *Resolver) campusCard(base Preview, title string) Preview {
 }
 
 func (r *Resolver) resolveExternal(ctx context.Context, target url.URL, base Preview) Preview {
+	// Apple Music 有官方固定端点，直接取结构化字段，不抓原页面。解析不出东西时
+	// 继续往下走通用 HTML 卡片，所以这里不需要单独的降级分支。
+	if recognized, ok := recognizePlatform(&target); ok && recognized.platform == platformAppleMusic {
+		if preview, ok := r.resolveAppleMusic(ctx, recognized, base); ok {
+			return preview
+		}
+		// 降级本身是设计好的，但它是静默的：没有这条记录，「为什么 Apple 链接只出
+		// 通用卡片」在生产里无从查起。只记平台与 URL 哈希，不记分享链本身。
+		r.logPlatformFallback(recognized.platform, target.String())
+	}
 	result, err := r.fetcher.Fetch(ctx, target.String())
 	if err != nil {
 		base.Status = statusForFetchError(err)
@@ -237,7 +258,20 @@ func (r *Resolver) resolveExternal(ctx context.Context, target url.URL, base Pre
 	base.ImageURL = metadata.imageURL
 	base.FaviconURL = metadata.faviconURL
 	base.FetchedAt = r.now().UTC()
+	// 识别放在抓取之后：b23.tv 这类短链只有落地地址才知道指向哪个资源，平台字段
+	// 只补已有通用卡片，不改变抓取与降级路径。
+	if recognized, ok := recognizePlatform(result.FinalURL); ok {
+		base = applyPlatformOverlay(base, recognized, metadata)
+	}
 	return base
+}
+
+// previewProvider 给日志用的来源标识：平台卡片记平台名，其余外链记 external。
+func previewProvider(preview Preview) string {
+	if preview.Platform != "" {
+		return preview.Platform
+	}
+	return "external"
 }
 
 func (r *Resolver) resolveInternal(ctx context.Context, viewerID uint64, target *url.URL, base Preview) Preview {
@@ -353,8 +387,11 @@ type metadata struct {
 	title       string
 	description string
 	siteName    string
-	imageURL    string
-	faviconURL  string
+	// author 来自 <meta name="author">，只有平台卡片会用到（B 站页面在这里给出
+	// UP 主名）；通用卡片不暴露它，既有行为不变。
+	author     string
+	imageURL   string
+	faviconURL string
 }
 
 func parseMetadata(body []byte, contentType string, baseURL *url.URL) (metadata, error) {
@@ -387,6 +424,8 @@ func parseMetadata(body []byte, contentType string, baseURL *url.URL) (metadata,
 					fallbackDescription = cleanText(content, 400)
 				case "og:site_name":
 					result.siteName = cleanText(content, 100)
+				case "author":
+					result.author = cleanText(content, 100)
 				case "og:image", "og:image:url", "twitter:image":
 					if result.imageURL == "" {
 						result.imageURL = safeAssetURL(content, baseURL)
@@ -580,14 +619,24 @@ func ttlFor(status Status) time.Duration {
 }
 
 func (r *Resolver) log(preview Preview, key, cache, provider string, latency time.Duration) {
-	hash := sha256.Sum256([]byte(key))
 	slog.Info("link_preview_resolved",
 		"kind", preview.Kind,
 		"status", preview.Status,
 		"provider", provider,
 		"host", preview.DisplayHost,
-		"urlHash", hex.EncodeToString(hash[:8]),
+		"urlHash", urlHash(key),
 		"cache", cache,
 		"latencyMs", latency.Milliseconds(),
 	)
+}
+
+// logPlatformFallback 记录平台结构化解析的降级。日志与 link_preview_resolved 用同一
+// 个 URL 哈希，便于按同一条链接把两次记录串起来。
+func (r *Resolver) logPlatformFallback(platform platformKind, key string) {
+	slog.Info("link_preview_platform_fallback", "platform", platform, "urlHash", urlHash(key))
+}
+
+func urlHash(key string) string {
+	hash := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(hash[:8])
 }

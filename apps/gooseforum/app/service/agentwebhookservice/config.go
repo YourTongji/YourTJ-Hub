@@ -36,7 +36,30 @@ type ConfigParams struct {
 	EventTypes      []string `json:"eventTypes"`
 	WebhookEnabled  bool     `json:"webhookEnabled"`
 	WebhookEndpoint string   `json:"webhookEndpoint"`
+	// WebhookAuthorization is the optional static Authorization header value:
+	// nil keeps the stored value, "" clears it, anything else replaces it.
+	WebhookAuthorization *string `json:"webhookAuthorization,omitempty"`
 }
+
+// MaxWebhookAuthorizationLength bounds the stored Authorization header value.
+const MaxWebhookAuthorizationLength = 1024
+
+// validWebhookAuthorization accepts visible ASCII plus inner spaces/tabs so the
+// value can never inject header lines (CR/LF) or other control bytes.
+func validWebhookAuthorization(value string) bool {
+	if value == "" || len(value) > MaxWebhookAuthorizationLength {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		c := value[i]
+		if c == '\t' || (c >= 0x20 && c < 0x7f) {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 type SecretResult struct {
 	Secret        string `json:"secret"`
 	SecretVersion uint64 `json:"secretVersion"`
@@ -47,6 +70,20 @@ func Configure(agentID, expectedVersion uint64, p ConfigParams) (*agents.Entity,
 	p.WebhookEndpoint = strings.TrimSpace(p.WebhookEndpoint)
 	if len(p.WebhookEndpoint) > 512 || (p.WebhookEndpoint != "" && safefetch.ValidateWebhookURL(p.WebhookEndpoint) != nil) {
 		return nil, ErrInvalidConfig
+	}
+	authorizationCiphertext := ""
+	if p.WebhookAuthorization != nil {
+		value := strings.TrimSpace(*p.WebhookAuthorization)
+		if value != "" {
+			if !validWebhookAuthorization(value) {
+				return nil, ErrInvalidConfig
+			}
+			encrypted, err := securestore.EncryptPurpose(value, securestore.AgentWebhookAuthorizationPurpose)
+			if err != nil {
+				return nil, err
+			}
+			authorizationCiphertext = encrypted
+		}
 	}
 	checkDNS := p.WebhookEndpoint != ""
 	if checkDNS && !p.WebhookEnabled {
@@ -101,6 +138,9 @@ func Configure(agentID, expectedVersion uint64, p ConfigParams) (*agents.Entity,
 			return ErrInvalidConfig
 		}
 		changes := map[string]any{"events_enabled": p.EventsEnabled, "event_types": string(encoded), "webhook_enabled": p.WebhookEnabled, "webhook_endpoint": p.WebhookEndpoint, "webhook_paused_reason": ""}
+		if p.WebhookAuthorization != nil {
+			changes["webhook_authorization_ciphertext"] = authorizationCiphertext
+		}
 		if row.EventsEnabled != p.EventsEnabled || row.EventTypes != string(encoded) {
 			changes["subscription_generation"] = row.SubscriptionGeneration + 1
 			if p.EventsEnabled {
@@ -204,6 +244,8 @@ type AgentSummary struct {
 	PendingCount     int64      `json:"pendingCount"`
 	PauseReason      string     `json:"pauseReason"`
 	SecretConfigured bool       `json:"secretConfigured"`
+	// AuthorizationConfigured reports only whether a static Authorization header is stored.
+	AuthorizationConfigured bool `json:"authorizationConfigured"`
 }
 
 func Summary(agentID uint64) (AgentSummary, error) {
@@ -212,7 +254,7 @@ func Summary(agentID uint64) (AgentSummary, error) {
 		return AgentSummary{}, gorm.ErrRecordNotFound
 	}
 	n, err := agentWebhook.PendingCountTx(db.Connect(), agentinstance.Current().ID, agentID)
-	return AgentSummary{LatestAcceptedAt: row.LastWebhookAcceptedAt, PendingCount: n, PauseReason: row.WebhookPausedReason, SecretConfigured: row.SecretCiphertext != ""}, err
+	return AgentSummary{LatestAcceptedAt: row.LastWebhookAcceptedAt, PendingCount: n, PauseReason: row.WebhookPausedReason, SecretConfigured: row.SecretCiphertext != "", AuthorizationConfigured: row.WebhookAuthorizationCiphertext != ""}, err
 }
 
 // Cleanup expires payloads without deleting the event-stream replay floor.

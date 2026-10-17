@@ -13,5 +13,17 @@
     "rollout_percent": 20,
     "experiment_period": "dev-for-you-v1",
     "experiment_salt": "dev-for-you-v1"
+  },
+  "passkeys": {
+    "enabled": false,
+    "rp_id": "dev.yourtj.de",
+    "display_name": "YourTJ",
+    "web_origins": [
+      "https://dev.yourtj.de"
+    ],
+    "apple_team_id": "",
+    "ios_bundle_id": "tj.yourtj.forumApp",
+    "android_package_name": "tj.yourtj.forum_app",
+    "android_sha256_cert_fingerprints": []
   }
 }

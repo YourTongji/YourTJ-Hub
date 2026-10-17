@@ -120,6 +120,29 @@ verify that body/header identities, expected instance/Agent and schema version m
 is stable across retries; attempt ID changes. Persist ingress before returning 2xx and dedupe
 Webhook/pull by instance/event ID. `agent.webhook_test` never creates content or requires inbox ACK.
 
+### Optional static Authorization header
+
+Some receivers (for example routine/automation webhooks) authenticate callers only through a static
+`Authorization` header and cannot verify Standard Webhooks signatures. An administrator can set an
+optional per-Agent value in the Webhook panel (`webhookAuthorization` on
+`POST /api/admin/agent-webhook-config`). Semantics:
+
+- Omitted field keeps the stored value; an empty string clears it; any other value replaces it.
+- Visible ASCII only (spaces/tabs allowed, no CR/LF or control bytes), at most 1024 characters,
+  surrounding whitespace trimmed. Invalid values are rejected with `invalidTarget` and nothing is saved.
+- Stored encrypted with securestore purpose `yourtj-agent-webhook-authorization` (separate from the
+  HMAC secret purpose). It is never logged or returned; Agent views only expose
+  `webhookAuthorizationConfigured`.
+- Every delivery (including `agent.webhook_test`) sends it verbatim as `Authorization`. The five
+  `Webhook-*` headers and the HMAC signature are unchanged and are always set by the server.
+- If the stored ciphertext cannot be decrypted (for example after an `app.signingKey` change), the
+  delivery is not sent and the Agent pauses with `authorization_invalid`; re-enter or clear the value
+  and save the configuration to resume.
+- Disabling all Agents wipes the stored value together with the signing secrets.
+
+Prefer signature verification where the receiver supports it; the static header is a bearer
+credential, so rotate it at the receiver and re-enter it here if it leaks.
+
 Only public HTTPS port 443 is accepted. URL credentials, fragments, numeric-IP bypass spellings,
 private/loopback/link-local/metadata addresses, mapped IPv6 and any forbidden mixed DNS answer are
 rejected. Configuration and sending validate the same raw URL representation. Disabling outbound

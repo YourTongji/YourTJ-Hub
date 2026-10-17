@@ -21,6 +21,10 @@ import 'rich_content/gf_table.dart';
 import 'stickers/sticker_image.dart';
 import 'stickers/resolved_sticker_content.dart';
 import 'stickers/sticker_strings.dart';
+import 'link_preview_card.dart';
+
+// 既有引用方（页面与测试）仍从这里拿卡片实现，避免为一次拆分改所有 import。
+export 'link_preview_card.dart' show GfLinkPreviewCard, LinkPreviewPlatformLabels;
 import 'share/share_image_readiness.dart';
 
 /// Body text comes from [GfRichContentTypography] so post bodies, publish
@@ -153,6 +157,8 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
             if (preview.campus) l10n?.linkPreviewCampusFallbackTitle ?? '',
             if (preview.campus)
               l10n?.linkPreviewCampusFallbackDescription ?? '',
+            // 平台卡片的来源行、类型徽标与作者行也都是可见文本，同样要预先登记。
+            ...LinkPreviewPlatformLabels.of(l10n, preview).visible,
           ],
         )
         .join('\n');
@@ -574,234 +580,6 @@ class _DeferredLinkPreviewState extends State<_DeferredLinkPreview> {
                 ? widget.fallback
                 : GfLinkPreviewCard(preview: preview);
           },
-    );
-  }
-}
-
-class GfLinkPreviewCard extends ConsumerStatefulWidget {
-  const GfLinkPreviewCard({super.key, required this.preview});
-
-  final LinkPreviewPayload preview;
-
-  @override
-  ConsumerState<GfLinkPreviewCard> createState() => _GfLinkPreviewCardState();
-}
-
-class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
-  /// Web 端同一套档位：<480 不显示描述（小卡化最缺的正是垂直空间），
-  /// 480–639 一行，≥640 两行。
-  static int descriptionLinesFor(double cardWidth) =>
-      cardWidth < 480 ? 0 : (cardWidth < 640 ? 1 : 2);
-
-  bool _coverFailed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final LinkPreviewPayload preview = widget.preview;
-    final GfColors colors = GfTheme.colorsOf(context);
-    final GfBorders borders = GfTheme.bordersOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
-    final String? coverUrl =
-        !_coverFailed && preview.imageUrl?.isNotEmpty == true
-        ? resolveApiAssetUrl(preview.imageUrl!)
-        : null;
-    final String? faviconUrl = preview.faviconUrl?.isNotEmpty == true
-        ? resolveApiAssetUrl(preview.faviconUrl!)
-        : null;
-    final String sourceLabel = preview.siteName?.trim().isNotEmpty == true
-        ? preview.siteName!.trim()
-        : (preview.displayHost?.trim() ?? '');
-    // #733 要求离开前能看到真实 host；与来源行是同一个字符串时不再重复占一行。
-    final String rawHost = preview.displayHost?.trim() ?? '';
-    final String hostLabel = rawHost.toLowerCase() == sourceLabel.toLowerCase()
-        ? ''
-        : rawHost;
-    final AppLocalizations? l10n = Localizations.of<AppLocalizations>(
-      context,
-      AppLocalizations,
-    );
-    // 校园网卡片由服务端按部署配置本地渲染：配置没给名字时 title / description
-    // 为空，兜底文案必须由客户端按语言出（服务端不留任何中文，issue #729）。
-    final String title = preview.title?.trim().isNotEmpty == true
-        ? preview.title!.trim()
-        : (preview.campus ? (l10n?.linkPreviewCampusFallbackTitle ?? '') : '');
-    final String description = preview.description?.trim().isNotEmpty == true
-        ? preview.description!.trim()
-        : (preview.campus
-              ? (l10n?.linkPreviewCampusFallbackDescription ?? '')
-              : '');
-
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final bool railCover = constraints.maxWidth >= 640;
-        final int descriptionLines = descriptionLinesFor(constraints.maxWidth);
-        // 封面走 Stack + Positioned，刻意不参与卡片高度计算：竖版封面若留在
-        // 文档流里，会按自身比例把整张卡片撑高（Web 端实测 164px → 362px）。
-        // <640px 是右上角 56px 方形缩略图；≥640px 是保留 16px 内边距的
-        // 168px 居中缩略图，宽屏使用 contain 完整显示，避免裁掉封面两端。
-        final double coverInset = railCover ? 16 : 14;
-        final double coverWidth = railCover ? 168 : 56;
-        final double bodyRightPadding = coverUrl == null
-            ? 14
-            : (railCover ? coverWidth + 16 : 14 + coverWidth + 12);
-
-        final Widget body = Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                if (faviconUrl != null) ...<Widget>[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: GfNetworkImage(
-                      faviconUrl,
-                      width: 16,
-                      height: 16,
-                      cacheWidth: (32 * MediaQuery.devicePixelRatioOf(context))
-                          .round(),
-                      cacheHeight: (32 * MediaQuery.devicePixelRatioOf(context))
-                          .round(),
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                Expanded(
-                  child: GfText(
-                    sourceLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.baseContent.withValues(alpha: 0.6),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            GfText(
-              title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: colors.baseContent,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
-              ),
-            ),
-            if (description.isNotEmpty && descriptionLines > 0) ...<Widget>[
-              const SizedBox(height: 12),
-              GfText(
-                description,
-                maxLines: descriptionLines,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontSize: 13,
-                  color: colors.baseContent.withValues(alpha: 0.65),
-                  height: 1.4,
-                ),
-              ),
-            ],
-            if (hostLabel.isNotEmpty) ...<Widget>[
-              const SizedBox(height: 12),
-              GfText(
-                hostLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontSize: 11,
-                  color: colors.baseContent.withValues(alpha: 0.5),
-                ),
-              ),
-            ],
-          ],
-        );
-
-        return Semantics(
-          link: true,
-          label: <String>[
-            title,
-            if (sourceLabel.isNotEmpty) sourceLabel,
-          ].join(', '),
-          hint: preview.kind == 'external'
-              ? l10n?.linkPreviewExternalTitle
-              : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Material(
-              color: colors.base100,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(radii.box),
-                side: BorderSide(color: colors.line, width: borders.width),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: () => LinkNavigation.open(
-                  context,
-                  preview.url!,
-                  baseUrl: ref.read(apiClientProvider).baseUrl,
-                  previewKind: preview.kind,
-                ),
-                child: Stack(
-                  children: <Widget>[
-                    ConstrainedBox(
-                      // 缩略图绝对定位不参与高度计算，短卡片要自己留够 56 + 上下 14。
-                      constraints: BoxConstraints(
-                        minHeight: coverUrl != null && !railCover
-                            ? coverWidth + 28
-                            : 0,
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          14,
-                          14,
-                          bodyRightPadding,
-                          14,
-                        ),
-                        child: body,
-                      ),
-                    ),
-                    if (coverUrl != null)
-                      Positioned(
-                        top: coverInset,
-                        right: coverInset,
-                        bottom: railCover ? coverInset : null,
-                        width: coverWidth,
-                        height: railCover ? null : coverWidth,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: GfNetworkImage(
-                            coverUrl,
-                            fit: railCover ? BoxFit.contain : BoxFit.cover,
-                            cacheWidth:
-                                (coverWidth *
-                                        MediaQuery.devicePixelRatioOf(context))
-                                    .round(),
-                            cacheHeight:
-                                (coverWidth *
-                                        MediaQuery.devicePixelRatioOf(context))
-                                    .round(),
-                            errorBuilder: (_, _, _) {
-                              // 封面挂了就把让位空间一起收回，不留死白。
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (mounted && !_coverFailed) {
-                                  setState(() => _coverFailed = true);
-                                }
-                              });
-                              return const SizedBox.shrink();
-                            },
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }

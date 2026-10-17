@@ -2814,11 +2814,36 @@ class AppLocalizationsDe extends AppLocalizations {
   String get linkPreviewContinue => 'Weiter';
 
   @override
+  String linkPreviewAuthorArtist(String author) {
+    return 'Künstler: $author';
+  }
+
+  @override
+  String linkPreviewAuthorUploader(String author) {
+    return 'Uploader: $author';
+  }
+
+  @override
   String get linkPreviewCampusFallbackTitle => 'Campusnetz';
 
   @override
   String get linkPreviewCampusFallbackDescription =>
       'Zugriff nur aus dem Campusnetz';
+
+  @override
+  String get linkPreviewPlatformAppleMusic => 'Apple Music';
+
+  @override
+  String get linkPreviewPlatformBilibili => 'Bilibili';
+
+  @override
+  String get linkPreviewResourceTypeAlbum => 'Album';
+
+  @override
+  String get linkPreviewResourceTypeSong => 'Song';
+
+  @override
+  String get linkPreviewResourceTypeVideo => 'Video';
 
   @override
   String campusTodayMakeup(String name, String date) {

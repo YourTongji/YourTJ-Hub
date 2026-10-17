@@ -43,3 +43,9 @@ export function activateTopicPreview(owner: TopicPreviewCloser, closeImmediately
 export function deactivateTopicPreview(owner: TopicPreviewCloser) {
   if (activePreview?.owner === owner) activePreview = undefined
 }
+
+// 视图切换（列表↔卡片）会把表格行整体隐藏，行级生命周期不触发卸载：
+// 由列表显式关闭全部弹层，顺带清掉尚未触发的打开/关闭计时器。
+export function closeAllTopicPreviews() {
+  closeAllPreviews()
+}

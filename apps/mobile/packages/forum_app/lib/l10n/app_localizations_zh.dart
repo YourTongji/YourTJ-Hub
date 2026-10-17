@@ -2670,10 +2670,35 @@ class AppLocalizationsZh extends AppLocalizations {
   String get linkPreviewContinue => '继续访问';
 
   @override
+  String linkPreviewAuthorArtist(String author) {
+    return '艺术家：$author';
+  }
+
+  @override
+  String linkPreviewAuthorUploader(String author) {
+    return 'UP主：$author';
+  }
+
+  @override
   String get linkPreviewCampusFallbackTitle => '校园网';
 
   @override
   String get linkPreviewCampusFallbackDescription => '需校园网络访问';
+
+  @override
+  String get linkPreviewPlatformAppleMusic => 'Apple Music';
+
+  @override
+  String get linkPreviewPlatformBilibili => '哔哩哔哩';
+
+  @override
+  String get linkPreviewResourceTypeAlbum => '专辑';
+
+  @override
+  String get linkPreviewResourceTypeSong => '歌曲';
+
+  @override
+  String get linkPreviewResourceTypeVideo => '视频';
 
   @override
   String campusTodayMakeup(String name, String date) {

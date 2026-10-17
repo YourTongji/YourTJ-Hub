@@ -27,35 +27,37 @@ import (
 // AgentItem is the admin-facing view of one agent. The token hash never leaves
 // the server; only the non-secret prefix is exposed.
 type AgentItem struct {
-	AgentId                uint64     `json:"agentId"`
-	Username               string     `json:"username"`
-	Nickname               string     `json:"nickname"`
-	AvatarUrl              string     `json:"avatarUrl"`
-	ProfileCoverUrl        string     `json:"profileCoverUrl"`
-	Bio                    string     `json:"bio"`
-	Signature              string     `json:"signature"`
-	Website                string     `json:"website"`
-	WebsiteName            string     `json:"websiteName"`
-	Email                  string     `json:"email"`
-	TokenPrefix            string     `json:"tokenPrefix"`
-	WebhookEndpoint        string     `json:"webhookEndpoint"`
-	Enabled                int8       `json:"enabled"`
-	CreatedBy              uint64     `json:"createdBy"`
-	LastUsedAt             *int64     `json:"lastUsedAt"`
-	CreatedAt              int64      `json:"createdAt"`
-	UpdatedAt              int64      `json:"updatedAt"`
-	ConfigVersion          uint64     `json:"configVersion"`
-	EventsEnabled          bool       `json:"eventsEnabled"`
-	EventTypes             []string   `json:"eventTypes"`
-	SubscriptionGeneration uint64     `json:"subscriptionGeneration"`
-	WebhookEnabled         bool       `json:"webhookEnabled"`
-	EndpointGeneration     uint64     `json:"endpointGeneration"`
-	SecretConfigured       bool       `json:"secretConfigured"`
-	SecretVersion          uint64     `json:"secretVersion"`
-	LatestAcceptedAt       *time.Time `json:"latestAcceptedAt"`
-	PendingCount           int64      `json:"pendingCount"`
-	PauseReason            string     `json:"pauseReason"`
-	SummaryUnavailable     bool       `json:"summaryUnavailable"`
+	AgentId                uint64   `json:"agentId"`
+	Username               string   `json:"username"`
+	Nickname               string   `json:"nickname"`
+	AvatarUrl              string   `json:"avatarUrl"`
+	ProfileCoverUrl        string   `json:"profileCoverUrl"`
+	Bio                    string   `json:"bio"`
+	Signature              string   `json:"signature"`
+	Website                string   `json:"website"`
+	WebsiteName            string   `json:"websiteName"`
+	Email                  string   `json:"email"`
+	TokenPrefix            string   `json:"tokenPrefix"`
+	WebhookEndpoint        string   `json:"webhookEndpoint"`
+	Enabled                int8     `json:"enabled"`
+	CreatedBy              uint64   `json:"createdBy"`
+	LastUsedAt             *int64   `json:"lastUsedAt"`
+	CreatedAt              int64    `json:"createdAt"`
+	UpdatedAt              int64    `json:"updatedAt"`
+	ConfigVersion          uint64   `json:"configVersion"`
+	EventsEnabled          bool     `json:"eventsEnabled"`
+	EventTypes             []string `json:"eventTypes"`
+	SubscriptionGeneration uint64   `json:"subscriptionGeneration"`
+	WebhookEnabled         bool     `json:"webhookEnabled"`
+	EndpointGeneration     uint64   `json:"endpointGeneration"`
+	SecretConfigured       bool     `json:"secretConfigured"`
+	// WebhookAuthorizationConfigured only reports presence; the value is never returned.
+	WebhookAuthorizationConfigured bool       `json:"webhookAuthorizationConfigured"`
+	SecretVersion                  uint64     `json:"secretVersion"`
+	LatestAcceptedAt               *time.Time `json:"latestAcceptedAt"`
+	PendingCount                   int64      `json:"pendingCount"`
+	PauseReason                    string     `json:"pauseReason"`
+	SummaryUnavailable             bool       `json:"summaryUnavailable"`
 }
 
 func toAgentItem(view agentservice.AgentView) AgentItem {
@@ -90,7 +92,8 @@ func toAgentItem(view agentservice.AgentView) AgentItem {
 		ConfigVersion:   view.Agent.ConfigVersion, EventsEnabled: view.Agent.EventsEnabled, EventTypes: eventTypes,
 		SubscriptionGeneration: view.Agent.SubscriptionGeneration, WebhookEnabled: view.Agent.WebhookEnabled, EndpointGeneration: view.Agent.EndpointGeneration,
 		SecretConfigured: view.Agent.SecretCiphertext != "", SecretVersion: view.Agent.SecretVersion,
-		LatestAcceptedAt: summary.LatestAcceptedAt, PendingCount: summary.PendingCount, PauseReason: summary.PauseReason, SummaryUnavailable: summaryUnavailable,
+		WebhookAuthorizationConfigured: view.Agent.WebhookAuthorizationCiphertext != "",
+		LatestAcceptedAt:               summary.LatestAcceptedAt, PendingCount: summary.PendingCount, PauseReason: summary.PauseReason, SummaryUnavailable: summaryUnavailable,
 	}
 }
 

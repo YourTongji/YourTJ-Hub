@@ -2781,11 +2781,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get linkPreviewContinue => 'Continue';
 
   @override
+  String linkPreviewAuthorArtist(String author) {
+    return 'Artist: $author';
+  }
+
+  @override
+  String linkPreviewAuthorUploader(String author) {
+    return 'Uploader: $author';
+  }
+
+  @override
   String get linkPreviewCampusFallbackTitle => 'Campus network';
 
   @override
   String get linkPreviewCampusFallbackDescription =>
       'Requires campus network access';
+
+  @override
+  String get linkPreviewPlatformAppleMusic => 'Apple Music';
+
+  @override
+  String get linkPreviewPlatformBilibili => 'Bilibili';
+
+  @override
+  String get linkPreviewResourceTypeAlbum => 'Album';
+
+  @override
+  String get linkPreviewResourceTypeSong => 'Song';
+
+  @override
+  String get linkPreviewResourceTypeVideo => 'Video';
 
   @override
   String campusTodayMakeup(String name, String date) {

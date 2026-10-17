@@ -921,8 +921,15 @@
   },
   "linkPreviewRememberDomain": "Für diese Domain in dieser Sitzung nicht erneut fragen",
   "linkPreviewContinue": "Weiter",
+  "linkPreviewAuthorArtist": "Künstler: {author}",
+  "linkPreviewAuthorUploader": "Uploader: {author}",
   "linkPreviewCampusFallbackTitle": "Campusnetz",
   "linkPreviewCampusFallbackDescription": "Zugriff nur aus dem Campusnetz",
+  "linkPreviewPlatformAppleMusic": "Apple Music",
+  "linkPreviewPlatformBilibili": "Bilibili",
+  "linkPreviewResourceTypeAlbum": "Album",
+  "linkPreviewResourceTypeSong": "Song",
+  "linkPreviewResourceTypeVideo": "Video",
   "campusTodayMakeup": "{name}: Heute gilt der Stundenplan vom {date}.",
   "@campusTodayMakeup": {
     "placeholders": {

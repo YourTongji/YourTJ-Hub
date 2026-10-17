@@ -2,7 +2,9 @@
 """render_config.py — 把 deploy/config.toml.tmpl 渲染成实例 config.toml（配置治理）。
 
 模板占位符 {{TOKEN}} 的值来源：
-  - 实例差异（非敏感）: deploy/instances/<env>.json 提供 SERVER_URL / OIDC_ISSUER / TRUSTED_PROXIES；
+  - 实例差异（非敏感）: deploy/instances/<env>.json 提供 SERVER_URL / OIDC_ISSUER / TRUSTED_PROXIES、
+    feed 开关，以及 passkey relying-party 身份（PASSKEY_*，论坛会公开渲染成两份 well-known
+    关联文档，因此不是 secret，随 PR 评审）;
   - 敏感值: 同名环境变量（GitHub Actions 里由 Environments secrets 注入）。
 
 安全契约（fail-closed）:
@@ -13,6 +15,8 @@
       dev:  AI_API_KEY + GH_CLIENT_ID/GH_CLIENT_SECRET + Google OAuth 凭据允许为空
             （dev 因 DB 站点设置无环境隔离保持 GitHub 登录关闭）;
   - PG_DSN 的 dbname 必须等于实例期望 pg_dbname（防跨库连错: dev 配到 yourtj_main 即拒绝）;
+  - passkeys.enabled = true 时 rp_id/display_name/web_origins 与 Apple、Android 签名身份
+    必须齐备且取值合法（镜像 passkeyservice.LoadConfig 的规则）；disabled 时跳过身份校验;
   - 产物必须能被 tomllib 解析;
   - 诊断信息只输出键名/来源/长度，绝不打印 secret 值或前缀；stdout 模式（--out -）下
     stdout 只含 TOML 文档，诊断一律走 stderr。
@@ -38,7 +42,12 @@ import urllib.parse
 TOKEN_RE = re.compile(r"\{\{\s*([A-Z][A-Z0-9_]*)\s*\}\}")
 
 # 由实例 JSON 提供的非敏感 token；其余 token 一律视为 secret（从环境变量读取）。
-INSTANCE_TOKENS = {"SERVER_URL", "OIDC_ISSUER", "TRUSTED_PROXIES", "SEARCH_MAINTENANCE_ENABLED", "FEED_RANKING_ENABLED", "FEED_FOR_YOU_ENABLED", "FEED_METRICS_ENABLED", "FEED_ROLLOUT_PERCENT", "FEED_EXPERIMENT_PERIOD", "FEED_EXPERIMENT_SALT"}
+INSTANCE_TOKENS = {"SERVER_URL", "OIDC_ISSUER", "TRUSTED_PROXIES", "SEARCH_MAINTENANCE_ENABLED", "FEED_RANKING_ENABLED", "FEED_FOR_YOU_ENABLED", "FEED_METRICS_ENABLED", "FEED_ROLLOUT_PERCENT", "FEED_EXPERIMENT_PERIOD", "FEED_EXPERIMENT_SALT",
+                   # Passkey relying-party identity is public (the forum serves it from the
+                   # well-known association documents), so it is reviewed in instances JSON.
+                   "PASSKEY_ENABLED", "PASSKEY_RP_ID", "PASSKEY_DISPLAY_NAME", "PASSKEY_WEB_ORIGINS",
+                   "PASSKEY_APPLE_TEAM_ID", "PASSKEY_IOS_BUNDLE_ID", "PASSKEY_ANDROID_PACKAGE_NAME",
+                   "PASSKEY_ANDROID_SHA256_CERT_FINGERPRINTS"}
 
 # 全部环境都允许为空的 token（可选功能，未配置即关闭）。
 BASE_OPTIONAL_TOKENS = {
@@ -140,6 +149,13 @@ def render(text, values):
     return out
 
 
+def dummy_render(text):
+    """把全部 token 替换为合法标量值，供键集比对使用（tomllib 不做类型语义检查）。"""
+    for tok in sorted(tokens_in(text)):
+        text = text.replace("{{%s}}" % tok, json.dumps("x"))
+    return text
+
+
 def dsn_dbname(dsn):
     """从 libpq key=value 或 postgres:// URL DSN 提取 dbname；解析失败返回 None。
 
@@ -186,6 +202,7 @@ def validate_pg_dsn(values, instance):
 
 def build_values(env, instance, environ, tokens, allow_empty):
     """组装 token → 值。返回 (values, summary)；空必需值即失败。"""
+    passkeys = instance.get("passkeys", {})
     instance_token_map = {
         "SERVER_URL": str(instance["server_url"]),
         "SEARCH_MAINTENANCE_ENABLED": instance.get("search_maintenance_enabled") is True,
@@ -197,6 +214,17 @@ def build_values(env, instance, environ, tokens, allow_empty):
         "FEED_ROLLOUT_PERCENT": instance.get("feed", {}).get("rollout_percent", 20),
         "FEED_EXPERIMENT_PERIOD": instance.get("feed", {}).get("experiment_period", env + "-default-entry-v1"),
         "FEED_EXPERIMENT_SALT": instance.get("feed", {}).get("experiment_salt", env + "-default-entry-v1"),
+        # 默认值与 passkeyservice.LoadConfig 保持一致，避免模板与实现漂移。
+        "PASSKEY_ENABLED": passkeys.get("enabled", False) is True,
+        "PASSKEY_RP_ID": str(passkeys.get("rp_id", "")),
+        "PASSKEY_DISPLAY_NAME": str(passkeys.get("display_name", "YourTJ")),
+        "PASSKEY_WEB_ORIGINS": [str(o) for o in passkeys.get("web_origins", [])],
+        "PASSKEY_APPLE_TEAM_ID": str(passkeys.get("apple_team_id", "")),
+        "PASSKEY_IOS_BUNDLE_ID": str(passkeys.get("ios_bundle_id", "tj.yourtj.forumApp")),
+        "PASSKEY_ANDROID_PACKAGE_NAME": str(passkeys.get("android_package_name", "tj.yourtj.forum_app")),
+        "PASSKEY_ANDROID_SHA256_CERT_FINGERPRINTS": [
+            str(f) for f in passkeys.get("android_sha256_cert_fingerprints", [])
+        ],
     }
     values = {}
     summary = []
@@ -236,6 +264,37 @@ def validate_campus(values):
         raise SystemExit('render: campus callback must use this instance HTTPS origin and fixed path')
 
 
+def validate_passkeys(values):
+    """fail-closed: enabled=true 时镜像 passkeyservice.LoadConfig 的必填与取值校验。
+
+    在渲染期就拒绝带病配置，避免容器启动后才 fail-closed（那时公开状态位仍是
+    disabled，运维很难区分『配置非法』与『未启用』）。disabled 时不校验身份值，
+    允许先铺 rp_id/origins 并部署验证两份 well-known 文档。
+    """
+    if values.get("PASSKEY_ENABLED") is not True:
+        return
+    rp_id = values.get("PASSKEY_RP_ID", "")
+    if not rp_id or not values.get("PASSKEY_DISPLAY_NAME") or not values.get("PASSKEY_WEB_ORIGINS"):
+        raise SystemExit('render: enabled passkeys require rp_id, display_name and at least one web origin')
+    if not re.fullmatch(r"[A-Z0-9]{10}", values.get("PASSKEY_APPLE_TEAM_ID", "")) or not values.get("PASSKEY_IOS_BUNDLE_ID"):
+        raise SystemExit('render: enabled passkeys require an Apple Team ID (10 uppercase alphanumerics) and an iOS bundle ID')
+    fingerprints = values.get("PASSKEY_ANDROID_SHA256_CERT_FINGERPRINTS", [])
+    if not values.get("PASSKEY_ANDROID_PACKAGE_NAME") or not fingerprints:
+        raise SystemExit('render: enabled passkeys require an Android package name and at least one signing-certificate fingerprint')
+    for fingerprint in fingerprints:
+        compact = fingerprint.strip().replace(":", "")
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", compact):
+            raise SystemExit('render: passkey Android fingerprint must be 32 bytes of hexadecimal (colon-separated or compact)')
+    for origin in values.get("PASSKEY_WEB_ORIGINS", []):
+        parsed = urllib.parse.urlsplit(origin)
+        if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
+                or parsed.query or parsed.fragment or parsed.path not in ("", "/")):
+            raise SystemExit(f'render: passkey web origin {origin!r} must be a bare HTTPS origin')
+        host = parsed.hostname.lower()
+        if host != rp_id.lower() and not host.endswith("." + rp_id.lower()):
+            raise SystemExit(f'render: passkey web origin {origin!r} is outside RP ID {rp_id!r}')
+
+
 def summarize(summary):
     """向 stderr 输出键名/来源/长度，绝不打印 secret 值或其前缀。"""
     for tok, val, src in summary:
@@ -260,6 +319,7 @@ def cmd_render(args):
     # 跨库防护: DSN dbname 必须匹配实例
     validate_pg_dsn(values, instance)
     validate_campus(values)
+    validate_passkeys(values)
     rendered = render(text, values)
     try:
         tomllib.loads(rendered)
@@ -289,8 +349,7 @@ def cmd_compare_example(args):
     with open(args.example, encoding="utf-8") as f:
         example_text = f.read()
     # 哑渲染: 所有 token 替换为合法值（tomllib 不做类型语义检查）
-    for tok in sorted(tokens_in(text)):
-        text = text.replace("{{%s}}" % tok, json.dumps("x"))
+    text = dummy_render(text)
     try:
         tmpl_keys = flatten_keys(tomllib.loads(text))
         example_keys = flatten_keys(tomllib.loads(example_text))

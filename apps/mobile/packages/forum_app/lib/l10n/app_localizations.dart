@@ -5088,6 +5088,18 @@ abstract class AppLocalizations {
   /// **'Continue'**
   String get linkPreviewContinue;
 
+  /// No description provided for @linkPreviewAuthorArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Artist: {author}'**
+  String linkPreviewAuthorArtist(String author);
+
+  /// No description provided for @linkPreviewAuthorUploader.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploader: {author}'**
+  String linkPreviewAuthorUploader(String author);
+
   /// No description provided for @linkPreviewCampusFallbackTitle.
   ///
   /// In en, this message translates to:
@@ -5099,6 +5111,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Requires campus network access'**
   String get linkPreviewCampusFallbackDescription;
+
+  /// No description provided for @linkPreviewPlatformAppleMusic.
+  ///
+  /// In en, this message translates to:
+  /// **'Apple Music'**
+  String get linkPreviewPlatformAppleMusic;
+
+  /// No description provided for @linkPreviewPlatformBilibili.
+  ///
+  /// In en, this message translates to:
+  /// **'Bilibili'**
+  String get linkPreviewPlatformBilibili;
+
+  /// No description provided for @linkPreviewResourceTypeAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Album'**
+  String get linkPreviewResourceTypeAlbum;
+
+  /// No description provided for @linkPreviewResourceTypeSong.
+  ///
+  /// In en, this message translates to:
+  /// **'Song'**
+  String get linkPreviewResourceTypeSong;
+
+  /// No description provided for @linkPreviewResourceTypeVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get linkPreviewResourceTypeVideo;
 
   /// No description provided for @campusTodayMakeup.
   ///

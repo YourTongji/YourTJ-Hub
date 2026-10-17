@@ -19,6 +19,7 @@ import {
   Camera,
   Check,
   FileText,
+  IdCard,
   ImagePlus,
   KeyRound,
   Link as LinkIcon,
@@ -110,6 +111,7 @@ import {
   type FontZone,
   type LocalFontInfo,
 } from '@/runtime/appearance-settings'
+import { useAvatarClickBehavior } from '@/runtime/avatar-click-behavior'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import { badgeClass, badgeIconURL, badgeTooltip } from '@/site/utils/badge-style'
 import {
@@ -164,11 +166,18 @@ const deletedContentLoaded = ref(false)
 const deletedContentAction = ref('')
 const deletedTopicCursor = ref(0)
 const { preference, setPreference } = useSiteTheme()
+const { avatarClickBehavior, setAvatarClickBehavior, restoreAvatarClickBehavior } = useAvatarClickBehavior()
 
 const themeOptions = computed(() => [
   { value: 'auto' as const, label: t('settings.general.themeAuto'), icon: Monitor },
   { value: 'light' as const, label: t('settings.general.themeLight'), icon: Sun },
   { value: 'dark' as const, label: t('settings.general.themeDark'), icon: Moon },
+])
+
+// 点击头像行为（issue #1134）：默认弹用户卡片，可选直接进入用户主页。
+const avatarClickOptions = computed(() => [
+  { value: 'card' as const, label: t('settings.general.avatarClickCard'), icon: IdCard },
+  { value: 'profile' as const, label: t('settings.general.avatarClickProfile'), icon: UserRound },
 ])
 
 function setThemePreference(value: 'auto' | 'light' | 'dark') {
@@ -1203,9 +1212,12 @@ function clearCustomCss() {
   saveAppearance()
 }
 
-function confirmResetAppearance() {
+// 恢复默认覆盖「通用设置」卡片内的全部设置（外观 + 点击头像偏好）：
+// 按钮位于该卡片末尾，两处文案（resetDescription / resetConfirm）都写「通用设置」。
+function confirmResetGeneralSettings() {
   if (!window.confirm(t('settings.general.resetConfirm'))) return
   resetAppearanceSettings()
+  restoreAvatarClickBehavior()
   Object.assign(appearance, loadAppearanceSettings())
 }
 
@@ -2648,6 +2660,26 @@ async function toggleBinding(provider: string) {
                 </div>
               </div>
 
+              <!-- 点击头像行为（issue #1134）：默认弹用户卡片，可选直达用户主页 -->
+              <div class="py-4">
+                <span class="block text-sm font-semibold text-base-content">{{ t('settings.general.avatarClick') }}</span>
+                <span class="text-sm text-base-content/55">{{ t('settings.general.avatarClickDescription') }}</span>
+
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <button
+                    v-for="option in avatarClickOptions"
+                    :key="option.value"
+                    type="button"
+                    class="gf-button gf-button-md"
+                    :class="avatarClickBehavior === option.value ? 'gf-button-primary' : 'gf-button-muted'"
+                    @click="setAvatarClickBehavior(option.value)"
+                  >
+                    <component :is="option.icon" class="h-4 w-4" />
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+
               <div v-for="zone in fontZones" :key="zone.key" class="py-4">
                 <div class="flex items-center justify-between gap-4">
                   <span class="min-w-0">
@@ -2769,7 +2801,7 @@ async function toggleBinding(provider: string) {
 
               <div class="flex items-center justify-between gap-4 py-4">
                 <span class="text-sm text-base-content/55">{{ t('settings.general.resetDescription') }}</span>
-                <button type="button" class="gf-button gf-button-md gf-button-muted shrink-0" @click="confirmResetAppearance">
+                <button type="button" class="gf-button gf-button-md gf-button-muted shrink-0" @click="confirmResetGeneralSettings">
                   {{ t('settings.general.reset') }}
                 </button>
               </div>

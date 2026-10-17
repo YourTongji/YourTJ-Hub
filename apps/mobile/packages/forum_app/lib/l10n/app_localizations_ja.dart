@@ -2693,10 +2693,35 @@ class AppLocalizationsJa extends AppLocalizations {
   String get linkPreviewContinue => '続ける';
 
   @override
+  String linkPreviewAuthorArtist(String author) {
+    return 'アーティスト：$author';
+  }
+
+  @override
+  String linkPreviewAuthorUploader(String author) {
+    return 'UP主：$author';
+  }
+
+  @override
   String get linkPreviewCampusFallbackTitle => '学内ネットワーク';
 
   @override
   String get linkPreviewCampusFallbackDescription => '学内ネットワークからのみアクセスできます';
+
+  @override
+  String get linkPreviewPlatformAppleMusic => 'Apple Music';
+
+  @override
+  String get linkPreviewPlatformBilibili => 'ビリビリ';
+
+  @override
+  String get linkPreviewResourceTypeAlbum => 'アルバム';
+
+  @override
+  String get linkPreviewResourceTypeSong => '楽曲';
+
+  @override
+  String get linkPreviewResourceTypeVideo => '動画';
 
   @override
   String campusTodayMakeup(String name, String date) {

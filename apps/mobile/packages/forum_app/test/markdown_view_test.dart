@@ -405,6 +405,138 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
+  testWidgets('platform cards localize source, type badge and uploader', (
+    tester,
+  ) async {
+    // 服务端只给平台标识与作者原文，展示名与称呼都由客户端按语言渲染（issue
+    // #1201）。B 站卡片的来源行必须是本地化的「哔哩哔哩」，而不是由页面 og
+    // 决定的文本；真实 host 仍保留，离开前能看到去哪。窄屏是最紧的一档：来源行
+    // 要同时容纳平台名与类型徽标，溢出会直接让这条用例失败。
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const String url = 'https://www.bilibili.com/video/BV1B7411m7LV';
+    final repository = _FakeLinkPreviewRepository(const <LinkPreviewPayload>[
+      LinkPreviewPayload(
+        requestedUrl: url,
+        kind: 'external',
+        status: 'ready',
+        url: url,
+        displayHost: 'www.bilibili.com',
+        siteName: '哔哩哔哩',
+        title: '四月番毒奶安利！四月看这八部动画就够了！！',
+        description: '点个关注再走啦~',
+        platform: 'bilibili',
+        resourceType: 'video',
+        author: '瓶子君152',
+      ),
+    ]);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          linkPreviewRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(body: GfMarkdownView(data: url)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('哔哩哔哩'), findsOneWidget);
+    expect(find.text('视频'), findsOneWidget);
+    expect(find.text('UP主：瓶子君152'), findsOneWidget);
+    expect(find.text('www.bilibili.com'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('apple music song cards label the artist, not an album', (
+    tester,
+  ) async {
+    // 歌曲卡片列出艺术家，专辑名只作为描述行出现：歌曲不得被标成专辑
+    // （issue #1201 AC-2）。
+    const String url = 'https://music.apple.com/cn/song/better-together/1440857786';
+    final repository = _FakeLinkPreviewRepository(const <LinkPreviewPayload>[
+      LinkPreviewPayload(
+        requestedUrl: url,
+        kind: 'external',
+        status: 'ready',
+        url: url,
+        displayHost: 'music.apple.com',
+        siteName: 'Apple Music - 网页播放器',
+        title: 'Better Together',
+        description: 'In Between Dreams (Bonus Track Version)',
+        imageUrl: 'https://is1-ssl.mzstatic.com/image/thumb/x/600x600bb.jpg',
+        platform: 'apple_music',
+        resourceType: 'song',
+        author: 'Jack Johnson',
+      ),
+    ]);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          linkPreviewRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(body: GfMarkdownView(data: url)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 来源行按平台标识渲染，忽略页面自己的 og:site_name。
+    expect(find.text('Apple Music'), findsOneWidget);
+    expect(find.text('歌曲'), findsOneWidget);
+    expect(find.text('艺术家：Jack Johnson'), findsOneWidget);
+    expect(find.text('Apple Music - 网页播放器'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('generic cards keep the page source and add no platform chrome', (
+    tester,
+  ) async {
+    const String url = 'https://example.com/article';
+    final repository = _FakeLinkPreviewRepository(const <LinkPreviewPayload>[
+      LinkPreviewPayload(
+        requestedUrl: url,
+        kind: 'external',
+        status: 'ready',
+        url: url,
+        displayHost: 'example.com',
+        siteName: 'Example',
+        title: 'Example title',
+      ),
+    ]);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          linkPreviewRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(body: GfMarkdownView(data: url)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Example'), findsOneWidget);
+    expect(find.textContaining('UP主：'), findsNothing);
+    expect(find.textContaining('艺术家：'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
   testWidgets('failed preview keeps the original link readable', (
     tester,
   ) async {

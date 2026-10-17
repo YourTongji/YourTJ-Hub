@@ -1011,34 +1011,54 @@ Password and Web social login remain separate from that switch.
 
 ## Passkey configuration
 
-`Partial`: passkeys are disabled in both deployment templates until each instance has verified
-domain association and production app signing identities. The forum itself is the WebAuthn relying
-party; it serves Apple's `/.well-known/apple-app-site-association` and Android's
-`/.well-known/assetlinks.json` from the configured values. Keep the RP ID and each HTTPS web origin
-within the instance hostname boundary. Main and dev use separate RP IDs/origins so their credentials
-remain isolated.
+`Partial`: passkeys ship disabled on both instances until each one has verified domain association
+and production app signing identities. The forum itself is the WebAuthn relying party; it serves
+Apple's `/.well-known/apple-app-site-association` and Android's `/.well-known/assetlinks.json` from
+the configured values. Keep the RP ID and each HTTPS web origin within the instance hostname
+boundary. Main and dev use separate RP IDs/origins so their credentials remain isolated.
 
-Before enabling an instance, configure its `[passkeys]` section in the reviewed deployment template:
+Configure an instance in its `deploy/instances/<env>.json` entry, under `passkeys`. The renderer
+writes that block into the instance `[passkeys]` section, so the values are reviewed with the PR and
+survive every deploy; editing `config.toml` on the server does not, because CI replaces it
+atomically:
 
-```toml
-[passkeys]
-enabled = true
-rp_id = "f.yourtj.de" # use dev.yourtj.de for the dev instance
-display_name = "YourTJ"
-web_origins = ["https://f.yourtj.de"]
-apple_team_id = "<Apple Developer Team ID>"
-ios_bundle_id = "tj.yourtj.forumApp"
-android_package_name = "tj.yourtj.forum_app"
-android_sha256_cert_fingerprints = ["<SHA-256 app-signing certificate fingerprint>"]
+```json
+"passkeys": {
+  "enabled": true,
+  "rp_id": "f.yourtj.de",
+  "display_name": "YourTJ",
+  "web_origins": ["https://f.yourtj.de"],
+  "apple_team_id": "<Apple Developer Team ID>",
+  "ios_bundle_id": "tj.yourtj.forumApp",
+  "android_package_name": "tj.yourtj.forum_app",
+  "android_sha256_cert_fingerprints": ["<SHA-256 app-signing certificate fingerprint>"]
+}
 ```
 
-Use the real Apple Team ID and the fingerprints for every Android signing identity that should be
-accepted (including the Play app-signing certificate for Play distribution). Do not use an upload
-key fingerprint in place of Play's app-signing certificate, and verify values against publisher
-records before adding them. iOS Associated Domains include the exact main and dev hosts; the matching
-AASA `appID` must be `<TeamID>.tj.yourtj.forumApp`. Each configured hostname must serve its matching
-AASA or Digital Asset Links document directly over HTTPS without redirects. Android association
-binds the package name to the configured certificate fingerprints. Passkey credential encryption and user handles derive from `app.signingKey`; rotating that key makes existing credentials unusable. Keep it stable and include credential re-enrollment in any planned key rotation.
+`rp_id`, `display_name` and `web_origins` are non-secret; each instance pins its own so main and dev
+credentials stay isolated. Keep the RP ID inside the instance hostname boundary, and treat a change to
+it as breaking: existing credentials are bound to the RP ID they were created under.
+
+`enabled = true` requires every identity below, and the renderer rejects a malformed enabled config
+before it reaches the server (same rules as the running service, which fails closed and reports
+`disabled` on the public status endpoint):
+
+- `apple_team_id`: 10 uppercase alphanumerics, with a non-empty `ios_bundle_id`.
+- `android_package_name` plus at least one 32-byte SHA-256 fingerprint (colon-separated or compact
+  hex). Include every Android signing identity that should be accepted, such as debug and Play
+  signing; do not substitute an upload-key fingerprint for Play's app-signing certificate, and verify
+  values against publisher records first.
+- At least one bare HTTPS `web_origins` entry on the RP ID or one of its subdomains.
+
+The signing identities are the property of the iOS and Android signing owners; leave
+`apple_team_id` and `android_sha256_cert_fingerprints` empty until those owners confirm them. While
+`enabled = false` the identity values are not validated, so the non-signing values can be filled and
+the association documents verified first. iOS Associated Domains include the exact main and dev
+hosts, and the matching AASA `appID` must be `<TeamID>.tj.yourtj.forumApp`; each configured hostname
+must serve its AASA or Digital Asset Links document directly over HTTPS without redirects. Android
+association binds the package name to the configured fingerprints. Passkey credential encryption and
+user handles derive from `app.signingKey`; rotating that key makes existing credentials unusable.
+Keep it stable and include credential re-enrollment in any planned key rotation.
 
 After a reviewed config rollout, verify both files and the public enabled flag:
 
@@ -1050,7 +1070,15 @@ curl --fail --silent --show-error https://f.yourtj.de/api/auth/passkey/status
 
 Check the corresponding `dev.yourtj.de` paths for dev. Keep `enabled = false` if any signing identity
 or domain association is unknown; invalid enabled configuration fails closed and hides the client
-entry.
+entry. A `disabled` status alone cannot distinguish "not enabled" from "configured but invalid", so
+read the server log before concluding that passkeys are not deployed.
+
+Enable, disable and roll back through the same reviewed path: change `enabled` in
+`deploy/instances/<env>.json`, merge, then let the next instance deploy apply it, or run the
+`Apply / instance config` workflow for a config-only change. A config apply that fails its health
+check restores the previous config transaction. Disabling stops every passkey ceremony while leaving
+registered credentials in place, so re-enabling needs no re-enrollment unless `app.signingKey` was
+rotated.
 
 ## Runbooks to write
 

@@ -685,6 +685,8 @@ export interface AdminAgent {
   subscriptionGeneration: number
   secretConfigured: boolean
   secretVersion: number
+  /** Whether a static Authorization header is stored; the value is never returned. */
+  webhookAuthorizationConfigured: boolean
   latestAcceptedAt: string | null
   pendingCount: number
   pauseReason: string

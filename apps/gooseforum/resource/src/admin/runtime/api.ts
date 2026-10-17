@@ -637,6 +637,8 @@ export function saveAgentWebhookConfig(data: {
   eventTypes: string[]
   webhookEnabled: boolean
   webhookEndpoint: string
+  /** Omit to keep the stored value; '' clears it. Never returned by the server. */
+  webhookAuthorization?: string
 }) {
   return postJson<AdminAgent>('/api/admin/agent-webhook-config', data, t('agentWebhook.loadFailed'))
 }

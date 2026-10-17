@@ -84,6 +84,26 @@ LinkPreview:
         configuration without any outbound request. `title` and `description`
         may be absent in that case; clients supply their own localized fallback
         copy instead of relying on server-side text.
+    platform:
+      type: string
+      enum: [bilibili, apple_music]
+      description: >-
+        Set when the URL was strictly recognized as a supported external
+        platform resource. A platform identifier, not a display name: clients
+        render the localized platform label themselves, while `siteName`
+        stays the page's own label. Absent for generic cards.
+    resourceType:
+      type: string
+      enum: [video, song, album]
+      description: >-
+        Resource kind inside the recognized platform. Only present together
+        with `platform`.
+    author:
+      type: string
+      description: >-
+        Uploader or artist published by the platform source. Optional; absent
+        when the platform did not publish one, and never synthesized by the
+        server.
   additionalProperties: false
 
 LinkPreviewResolveSuccess:
@@ -6494,7 +6514,7 @@ AdminOperationResponse:
 
 AdminAgentItem:
   type: object
-  required: [agentId, username, nickname, avatarUrl, profileCoverUrl, bio, signature, website, websiteName, email, tokenPrefix, webhookEndpoint, enabled, createdBy, lastUsedAt, createdAt, updatedAt, configVersion, eventsEnabled, eventTypes, subscriptionGeneration, webhookEnabled, endpointGeneration, secretConfigured, secretVersion, latestAcceptedAt, pendingCount, pauseReason, summaryUnavailable]
+  required: [agentId, username, nickname, avatarUrl, profileCoverUrl, bio, signature, website, websiteName, email, tokenPrefix, webhookEndpoint, enabled, createdBy, lastUsedAt, createdAt, updatedAt, configVersion, eventsEnabled, eventTypes, subscriptionGeneration, webhookEnabled, endpointGeneration, secretConfigured, secretVersion, webhookAuthorizationConfigured, latestAcceptedAt, pendingCount, pauseReason, summaryUnavailable]
   properties:
     profileCoverUrl:
       type: string
@@ -6534,6 +6554,9 @@ AdminAgentItem:
     secretVersion:
       type: integer
       minimum: 0
+    webhookAuthorizationConfigured:
+      type: boolean
+      description: Whether a static Authorization header is stored for webhook deliveries. The value is never returned.
     latestAcceptedAt:
       type:
       - string

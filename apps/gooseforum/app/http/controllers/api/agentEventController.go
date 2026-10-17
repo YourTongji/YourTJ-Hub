@@ -118,6 +118,8 @@ type AgentWebhookConfigReq struct {
 	EventTypes      []string `json:"eventTypes" validate:"max=5"`
 	WebhookEnabled  bool     `json:"webhookEnabled"`
 	WebhookEndpoint string   `json:"webhookEndpoint" validate:"max=512"`
+	// WebhookAuthorization: omitted keeps the stored value, "" clears it.
+	WebhookAuthorization *string `json:"webhookAuthorization,omitempty" validate:"omitempty,max=1024"`
 }
 type AgentWebhookRotateReq struct {
 	AgentID       uint64 `json:"agentId" validate:"required"`
@@ -165,7 +167,7 @@ func AgentWebhookConfigure(req component.BetterRequest[AgentWebhookConfigReq]) c
 		return component.FailResponseCode(component.MessagePermissionDenied, nil)
 	}
 	p := req.Params
-	_, err := agentwebhookservice.Configure(p.AgentID, p.ConfigVersion, agentwebhookservice.ConfigParams{EventsEnabled: p.EventsEnabled, EventTypes: p.EventTypes, WebhookEnabled: p.WebhookEnabled, WebhookEndpoint: p.WebhookEndpoint})
+	_, err := agentwebhookservice.Configure(p.AgentID, p.ConfigVersion, agentwebhookservice.ConfigParams{EventsEnabled: p.EventsEnabled, EventTypes: p.EventTypes, WebhookEnabled: p.WebhookEnabled, WebhookEndpoint: p.WebhookEndpoint, WebhookAuthorization: p.WebhookAuthorization})
 	if err != nil {
 		return agentWebhookFailure(err)
 	}

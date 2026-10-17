@@ -1,0 +1,45 @@
+{
+  "result": [
+    {
+      "requestedUrl": "https://www.bilibili.com/video/BV1B7411m7LV/?spm_id_from=333.999.0.0",
+      "kind": "external",
+      "status": "ready",
+      "url": "https://www.bilibili.com/video/BV1B7411m7LV/?spm_id_from=333.999.0.0",
+      "displayHost": "www.bilibili.com",
+      "registrableDomain": "bilibili.com",
+      "siteName": "哔哩哔哩",
+      "title": "四月番毒奶安利！四月看这八部动画就够了！！",
+      "description": "微博：@瓶子君152点个关注再走啦~",
+      "imageUrl": "https://i2.hdslb.com/bfs/archive/0b83569178ab10ccfdbebd7a7a5f1545c4d76bef.jpg@1200w_630h",
+      "faviconUrl": "https://i0.hdslb.com/bfs/static/jinkela/long/images/favicon.ico",
+      "fetchedAt": "2026-10-16T02:38:26Z",
+      "platform": "bilibili",
+      "resourceType": "video",
+      "author": "瓶子君152"
+    },
+    {
+      "requestedUrl": "https://music.apple.com/cn/album/better-together/1440857781?i=1440857786",
+      "kind": "external",
+      "status": "ready",
+      "url": "https://music.apple.com/cn/album/better-together/1440857781?i=1440857786",
+      "displayHost": "music.apple.com",
+      "registrableDomain": "apple.com",
+      "title": "Better Together",
+      "description": "In Between Dreams (Bonus Track Version)",
+      "imageUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/44/06/fd/4406fdc0-aab5-e300-82ba-3e5fe81a68a7/00602537868858.rgb.jpg/600x600bb.jpg",
+      "fetchedAt": "2026-10-16T02:38:27Z",
+      "platform": "apple_music",
+      "resourceType": "song",
+      "author": "Jack Johnson"
+    },
+    {
+      "requestedUrl": "https://music.apple.com/cn/song/nonexistent/999999999999",
+      "kind": "external",
+      "status": "unsupported",
+      "url": "https://music.apple.com/cn/song/nonexistent/999999999999",
+      "displayHost": "music.apple.com",
+      "registrableDomain": "apple.com"
+    }
+  ],
+  "code": 0
+}

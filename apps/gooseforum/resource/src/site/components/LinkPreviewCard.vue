@@ -56,8 +56,46 @@ watch(hasCover, async () => {
   syncCoverAspect()
 })
 
-/** 来源名优先站点名，缺失时回退 host（与后端 SiteName 的 fallback 一致）。 */
-const sourceLabel = computed(() => props.preview.siteName?.trim() || props.preview.displayHost?.trim() || '')
+/**
+ * 平台卡片的来源名由客户端按语言渲染：服务端只给平台标识（platform），
+ * `siteName` 仍是页面自己的 og 标签，所以旧客户端不受影响、新客户端不被
+ * 页面语言带走。
+ */
+const platformLabel = computed(() => {
+  switch (props.preview.platform) {
+    case 'bilibili': return t('linkPreview.platformBilibili')
+    case 'apple_music': return t('linkPreview.platformAppleMusic')
+    default: return ''
+  }
+})
+
+/** 资源类型标签同样由客户端出，服务端只给 video / song / album 标识。 */
+const resourceTypeLabel = computed(() => {
+  switch (props.preview.resourceType) {
+    case 'video': return t('linkPreview.resourceTypeVideo')
+    case 'song': return t('linkPreview.resourceTypeSong')
+    case 'album': return t('linkPreview.resourceTypeAlbum')
+    default: return ''
+  }
+})
+
+/**
+ * 作者/艺术家缺失就整行省略（issue #1201 AC-1/AC-2）：服务端从不合成字段，
+ * 客户端也不留一个空标签。称呼按平台区分，B 站是 UP 主、音乐平台是艺术家。
+ */
+const authorLabel = computed(() => {
+  const author = props.preview.author?.trim()
+  if (!author) return ''
+  return props.preview.platform === 'apple_music'
+    ? t('linkPreview.authorArtist', { author })
+    : t('linkPreview.authorUploader', { author })
+})
+
+/** 来源名优先平台名，其次站点名，缺失时回退 host（与后端 SiteName 的 fallback 一致）。 */
+const sourceLabel = computed(() => platformLabel.value
+  || props.preview.siteName?.trim()
+  || props.preview.displayHost?.trim()
+  || '')
 
 /**
  * #733 要求离开前能看到真实 host。只有当它与来源行是同一个字符串时（后端
@@ -94,11 +132,23 @@ const hostLabel = computed(() => {
           referrerpolicy="no-referrer"
           @error="faviconFailed = true"
         >
-        <span class="truncate">{{ sourceLabel }}</span>
+        <span class="min-w-0 flex-1 truncate">{{ sourceLabel }}</span>
+        <!--
+          资源类型徽标只在严格识别出平台资源时出现（服务端 platform + resourceType），
+          因此它既不会出现在通用卡片上，也不代表任何外部内容已被执行。
+        -->
+        <span
+          v-if="resourceTypeLabel"
+          class="gf-link-preview-card__type shrink-0 rounded-full border border-line/80 px-1.5 py-0.5 text-[11px] leading-none"
+        >{{ resourceTypeLabel }}</span>
       </span>
       <strong class="gf-link-preview-card__title mt-1 line-clamp-2 text-sm font-semibold leading-5 text-base-content">
         {{ titleText }}
       </strong>
+      <span
+        v-if="authorLabel"
+        class="gf-link-preview-card__author mt-1 block truncate text-xs text-base-content/60"
+      >{{ authorLabel }}</span>
       <!--
         描述按可用宽度分三级：<480px 不渲染（一行中文描述的信息量接近零，
         却要占掉小卡化最缺的垂直空间），480–639px 一行，≥640px 两行。
