@@ -75,7 +75,7 @@ func BuildTopic(host string, topicID uint64) (string, error) {
 	baseURL := normalizeBaseURL(host)
 	key := fmt.Sprintf("topic:%d:%s", topicID, baseURL)
 	return cached(key, baseURL != "", func() (string, error) {
-		topic, err := topics.GetPublished(topicID)
+		topic, err := topics.GetPublishedForExport(topicID)
 		if errors.Is(err, gorm.ErrRecordNotFound) || topic.Id == 0 {
 			return "", ErrTopicMissing
 		}

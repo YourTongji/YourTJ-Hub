@@ -453,11 +453,13 @@ Principle: projections must be rebuildable from the fact source; never treat a p
 
 The AI-readable exports are public text representations, not JSON API operations in the controlled
 OpenAPI surface. Their visibility boundary is the existing forum publication and moderation state:
-draft, blocked, pending-review, soft-deleted, or first-post-blocked content is excluded. Wiki pages
-(`topics.topic_type = 1`) are excluded as well — the forum export covers forum topics, while wiki
-content is the read-only GitHub-synced projection served under `/wiki` (MADR-0005); the index and
-full-text exports never listed wiki pages, and the per-topic document
-(`GET /p/posts/{id}.md`) follows the same boundary. The index follows
+draft, blocked, pending-review, soft-deleted, or first-post-blocked content is excluded. The index and
+full-text exports cover forum topics only and never list wiki pages (`topics.topic_type = 1`), whose
+content is the read-only GitHub-synced projection served under `/wiki` (MADR-0005); content statistics
+also keep that boundary and never count wiki pages. The per-topic document (`GET /p/posts/{id}.md`)
+is the exception: it exports wiki pages again (issue #1166, restoring what #1160 turned into a 404),
+so a wiki page with a visible first post is served as Markdown, while the same publication,
+moderation and first-post conditions still apply. The index follows
 the llms.txt Markdown structure (site heading, optional description, and a `Topics` link list); full-text
 and per-topic documents preserve the stored Markdown source.
 

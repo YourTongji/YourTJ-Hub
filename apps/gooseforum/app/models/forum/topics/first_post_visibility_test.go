@@ -139,3 +139,65 @@ func TestGetPublishedSkipsWikiTopics(t *testing.T) {
 		t.Fatalf("GetPublished after switching to forum type = %+v (err=%v), want the topic", entity, err)
 	}
 }
+
+// TestGetPublishedForExportIncludesWikiTopics 回归 issue #1166：单篇 Markdown 导出恢复 wiki 页面
+// （#1160 让导出复用公开谓词后把 wiki 单篇打成 404），同一行仍不被公开口径返回。
+func TestGetPublishedForExportIncludesWikiTopics(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}, &posts.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	topic := Entity{Title: "wiki export topic", Status: 1, UserId: 981234, TopicType: TopicTypeWiki}
+	if err := conn.Create(&topic).Error; err != nil {
+		t.Fatal(err)
+	}
+	post := posts.Entity{TopicId: topic.Id, PostNo: 1, UserId: topic.UserId, VisibilityStatus: posts.VisibilityActive}
+	if err := conn.Create(&post).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Model(&topic).Update("first_post_id", post.Id).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Unscoped().Delete(&post); conn.Unscoped().Delete(&topic) })
+
+	if entity, err := GetPublishedForExport(topic.Id); err != nil || entity.Id != topic.Id {
+		t.Fatalf("GetPublishedForExport(wiki) = %+v (err=%v), want the topic", entity, err)
+	}
+	if entity, _ := GetPublished(topic.Id); entity.Id != 0 {
+		t.Fatalf("GetPublished returned wiki topic %+v, want not found", entity)
+	}
+}
+
+// TestGetPublishedForExportRequiresVisibleFirstPost 导出与公开口径共享首楼约束：首楼待审或被
+// 软删时 wiki 页面同样不导出（只有标题没有正文的孤儿文档不对外）。
+func TestGetPublishedForExportRequiresVisibleFirstPost(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}, &posts.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	topic := Entity{Title: "wiki export hidden first post", Status: 1, UserId: 981235, TopicType: TopicTypeWiki}
+	if err := conn.Create(&topic).Error; err != nil {
+		t.Fatal(err)
+	}
+	post := posts.Entity{TopicId: topic.Id, PostNo: 1, UserId: topic.UserId, VisibilityStatus: posts.VisibilityActive, ProcessStatus: posts.ProcessStatusPending}
+	if err := conn.Create(&post).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Model(&topic).Update("first_post_id", post.Id).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Unscoped().Delete(&post); conn.Unscoped().Delete(&topic) })
+
+	if entity, _ := GetPublishedForExport(topic.Id); entity.Id != 0 {
+		t.Fatalf("GetPublishedForExport exported topic with pending first post: %+v", entity)
+	}
+	if err := conn.Model(&posts.Entity{}).Where("id = ?", post.Id).Update("process_status", posts.ProcessStatusNormal).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Delete(&posts.Entity{}, post.Id).Error; err != nil {
+		t.Fatal(err)
+	}
+	if entity, _ := GetPublishedForExport(topic.Id); entity.Id != 0 {
+		t.Fatalf("GetPublishedForExport exported topic with deleted first post: %+v", entity)
+	}
+}

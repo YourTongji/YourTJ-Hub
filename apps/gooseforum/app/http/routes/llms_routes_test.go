@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
@@ -19,6 +18,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -100,6 +100,55 @@ func TestLLMSRoutesRespectFeatureGatesAndContentTypes(t *testing.T) {
 	missing := performLLMSRouteRequest(router, "/p/posts/999999999.md")
 	if missing.Code != http.StatusNotFound {
 		t.Fatalf("missing markdown route status=%d, want 404", missing.Code)
+	}
+}
+
+// TestLLMSMarkdownRouteExportsWikiTopic 回归 issue #1166：wiki 页面（topic_type=1）的单篇
+// Markdown 导出恢复为 200（#1160 让导出复用公开谓词后误将其打成 404）；索引/全文导出仍排除
+// wiki，覆盖见 llmsservice.TestLLMSProjectionExcludesWikiTopicsFromIndexAndFull。
+func TestLLMSMarkdownRouteExportsWikiTopic(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ratelimit.Default().ResetAll()
+	hotdataserve.ClearRateLimitConfigCache()
+	t.Cleanup(func() {
+		ratelimit.Default().ResetAll()
+		hotdataserve.ClearRateLimitConfigCache()
+	})
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&pageConfig.Entity{}, &topics.Entity{}, &posts.Entity{}); err != nil {
+		t.Fatalf("migrate llms route tables: %v", err)
+	}
+	restoreLLMSRouteSettings(t, conn)
+
+	base := uint64(time.Now().UnixNano()%1_000_000_000) + 8_200_000_000
+	topicID := base + 1
+	postID := base + 2
+	t.Cleanup(func() {
+		conn.Unscoped().Delete(&posts.Entity{}, postID)
+		conn.Unscoped().Delete(&topics.Entity{}, topicID)
+		llmsservice.ClearCache()
+	})
+	now := time.Date(2026, 8, 9, 13, 0, 0, 0, time.UTC)
+	if err := conn.Create(&posts.Entity{Id: postID, TopicId: topicID, PostNo: 1, Content: "wiki route body", CreatedAt: now}).Error; err != nil {
+		t.Fatalf("create wiki route post: %v", err)
+	}
+	if err := conn.Create(&topics.Entity{Id: topicID, Title: "Wiki route topic", FirstPostId: postID, Status: 1, ProcessStatus: topics.ProcessStatusNormal, TopicType: topics.TopicTypeWiki, CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+		t.Fatalf("create wiki route topic: %v", err)
+	}
+
+	router := gin.New()
+	siteInfoRoute(router)
+	persistLLMSRouteSettings(t, conn, pageConfig.LLMSConfig{Enabled: true, Files: true})
+
+	response := performLLMSRouteRequest(router, fmt.Sprintf("/p/posts/%d.md", topicID))
+	if response.Code != http.StatusOK {
+		t.Fatalf("wiki markdown status=%d body=%q, want 200", response.Code, response.Body.String())
+	}
+	if got := response.Header().Get("Content-Type"); got != "text/markdown; charset=utf-8" {
+		t.Fatalf("wiki markdown content-type=%q", got)
+	}
+	if body := response.Body.String(); !strings.Contains(body, "# Wiki route topic") || !strings.Contains(body, "wiki route body") {
+		t.Fatalf("wiki markdown body=%q, want title and body", body)
 	}
 }
 

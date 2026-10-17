@@ -109,6 +109,12 @@ func GetByUsername(username string) (entity EntityComplete, err error) {
 	return
 }
 
+// GetByUsernameWithContext is the cancellable worker/request variant of GetByUsername.
+func GetByUsernameWithContext(ctx context.Context, username string) (entity EntityComplete, err error) {
+	err = dbconnect.ConnectContext(ctx).Table(tableName).Where("username = ?", username).First(&entity).Error
+	return
+}
+
 func MakeUser(name string, password string, email string) *EntityComplete {
 	user := EntityComplete{Username: name, Email: email}
 	user.SetPassword(password)
@@ -296,6 +302,21 @@ func GetMapByIdsContext(ctx context.Context, userIds []uint64) map[uint64]*Entit
 	return lo.KeyBy(entities, func(v *EntityComplete) uint64 {
 		return v.Id
 	})
+}
+
+// GetMapByIdsWithError 是 GetMapByIdsContext 的可报错变体，供需要失败可见性的调用方
+// 使用（与静默吞错的 GetMapByIdsContext 区分——统计排行身份回填在 DB 故障时应当报错
+// 而不是返回空身份，issue #1166）。
+func GetMapByIdsWithError(ctx context.Context, userIds []uint64) (map[uint64]*EntityComplete, error) {
+	var entities []*EntityComplete
+	if len(userIds) > 0 {
+		if err := builder().WithContext(ctx).Where(queryopt.In(pid, userIds)).Find(&entities).Error; err != nil {
+			return nil, err
+		}
+	}
+	return lo.KeyBy(entities, func(v *EntityComplete) uint64 {
+		return v.Id
+	}), nil
 }
 
 // GetMentionTargetIds 批量解析 @mention 目标用户（username → userId）。

@@ -49,6 +49,14 @@ func All() (entities []*Entity) {
 	return
 }
 
+// AllWithContext 是 All 的可取消、可报错变体，供需要区分「没有板块」与「查询失败」的
+// 调用方使用（同 GetWithError / GetWithContext 的划分方式）。
+func AllWithContext(ctx context.Context) (entities []*Entity, err error) {
+	err = dbconnect.ConnectContext(ctx).Table(tableName).
+		Order(queryopt.Asc("sort")).Order(queryopt.Asc("id")).Find(&entities).Error
+	return
+}
+
 func DeleteEntity(entity *Entity) int64 {
 	return builder().Delete(entity).RowsAffected
 }

@@ -445,6 +445,36 @@ func TestAdminTrafficOverviewHTTPContract(t *testing.T) {
 	adminOpsGuardScenarios(t, path, "admin-traffic-overview")
 }
 
+// TestAdminTrafficOverviewDefaultWindow 冻结既有缺省窗口：省略两端日期时返回 8 个自然日
+// （今天 + 前 7 天）。它与内容贡献统计的 7 天缺省**有意不同**——issue #1166 决定不改动
+// 这个既有对外操作的缺省行为。
+func TestAdminTrafficOverviewDefaultWindow(t *testing.T) {
+	conn, router := setupAdminOpsContractTest(t)
+	admin := createContractAdmin(t, conn)
+	recorder := serveJSON(router, "/api/admin/traffic-overview", `{}`, contractSessionToken(t, admin))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+	}
+	envelope := decodeContractEnvelope(t, recorder)
+	if envelope.Code != 0 {
+		t.Fatalf("code = %d, want 0: %s", envelope.Code, envelope.MessageCode)
+	}
+	var days []api.DailyTraffic
+	if err := json.Unmarshal(envelope.Result, &days); err != nil {
+		t.Fatalf("decode traffic result %q: %v", envelope.Result, err)
+	}
+	if len(days) != 8 {
+		t.Fatalf("default window = %d days, want 8: %+v", len(days), days)
+	}
+	now := time.Now()
+	if want := now.Format("2006-01-02"); days[len(days)-1].Date != want {
+		t.Fatalf("last day = %s, want today %s", days[len(days)-1].Date, want)
+	}
+	if want := now.AddDate(0, 0, -7).Format("2006-01-02"); days[0].Date != want {
+		t.Fatalf("first day = %s, want %s", days[0].Date, want)
+	}
+}
+
 func TestAgentOwnerManagementHTTPContract(t *testing.T) {
 	conn, router := setupAdminOpsContractTest(t)
 	owner := createHTTPContractUser(t, conn, contractTestID())

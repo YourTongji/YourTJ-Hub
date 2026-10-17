@@ -2,12 +2,14 @@ package statsservice
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -475,13 +477,13 @@ func TestStatsCategoryTrendDaysAndEstimated(t *testing.T) {
 		t.Fatalf("coverage.estimated = false, want true when the range contains estimated attribution")
 	}
 
-	// 缺省区间（近 7 天到当天）固定为 8 天，且不含 2026-03 的造数。
+	// 缺省区间（今天 + 前 6 天 = DefaultRangeDays 个自然日），且不含 2026-03 的造数。
 	defaulted, err := CategoryTrend(context.Background(), categoryMain, "", "")
 	if err != nil {
 		t.Fatalf("default trend: %v", err)
 	}
-	if len(defaulted.Days) != defaultRangeDays+1 {
-		t.Fatalf("default days = %d, want %d", len(defaulted.Days), defaultRangeDays+1)
+	if len(defaulted.Days) != DefaultRangeDays {
+		t.Fatalf("default days = %d, want %d", len(defaulted.Days), DefaultRangeDays)
 	}
 	for _, day := range defaulted.Days {
 		if day.TopicCount != 0 || day.ReplyCount != 0 {
@@ -675,5 +677,110 @@ func assertCategorySummaryCounts(t *testing.T, topicsCount, repliesCount, contri
 	assertCategoryCounts(t, findCategory(t, result, categoryMain), topicsCount, repliesCount, contributors, 0)
 	if result.Totals.TopicCount != topicsCount || result.Totals.ReplyCount != repliesCount {
 		t.Fatalf("totals = %+v, want %d topics / %d replies", result.Totals, topicsCount, repliesCount)
+	}
+}
+
+// TestParseDateRangeDefaultsToSevenCalendarDays 冻结缺省窗口（issue #1166）：7 个自然日
+// 含首尾，即起点 = 今天 - 6 天、终点 = 今天；换算后的右界是明天 00:00（左闭右开）。
+func TestParseDateRangeDefaultsToSevenCalendarDays(t *testing.T) {
+	now := time.Now()
+	start, end, err := parseDateRange("", "")
+	if err != nil {
+		t.Fatalf("parseDateRange() error = %v", err)
+	}
+	if days := int(end.Sub(start).Hours() / 24); days != 7 {
+		t.Fatalf("default window = %d calendar days, want 7", days)
+	}
+	if want := now.AddDate(0, 0, -6).Format(dateLayout); start.Format(dateLayout) != want {
+		t.Fatalf("default start = %s, want %s", start.Format(dateLayout), want)
+	}
+	if want := now.AddDate(0, 0, 1).Format(dateLayout); end.Format(dateLayout) != want {
+		t.Fatalf("default end (exclusive) = %s, want %s", end.Format(dateLayout), want)
+	}
+}
+
+// TestStatsReadFailuresAreNotSilent 回归 issue #1166 审查：板块列表与排行身份回填的存储
+// 失败必须上抛，而不是被伪装成「没有板块」「身份为空」的 200 结果。
+// 故障注入用 SQLite 的动态类型：把数值列写成文本，让该表的实体扫描失败，而不影响
+// 只读 id/actor_type/deleted_at 的聚合子查询（因此失败点被隔离在这两处读取）。
+func TestStatsReadFailuresAreNotSilent(t *testing.T) {
+	t.Run("category summary lists categories", func(t *testing.T) {
+		conn := setupStatsTestDB(t)
+		seedCategory(t, conn, categoryMain, "综合", 1)
+		corruptNumericColumn(t, conn, "category", "sort", "id = ?", categoryMain)
+		if result, err := CategorySummary(context.Background(), statsDate(0), statsDate(0)); err == nil {
+			t.Fatalf("CategorySummary swallowed the category read failure: %+v", result)
+		}
+	})
+	t.Run("user ranking backfills identities", func(t *testing.T) {
+		conn := setupStatsTestDB(t)
+		seedCategory(t, conn, categoryMain, "综合", 1)
+		seedHuman(t, conn, 77)
+		seedTopic(t, conn, statsTopicSpec{id: 7701, userId: 77, categories: []uint64{categoryMain}, createdAt: statsAt(0, 10, 0, 0)})
+		corruptNumericColumn(t, conn, "users", "role_id", "id = ?", 77)
+		if result, err := UserRanking(context.Background(), RankingQuery{StartDate: statsDate(0), EndDate: statsDate(0)}); err == nil {
+			t.Fatalf("UserRanking swallowed the identity read failure: %+v", result)
+		}
+	})
+}
+
+// corruptNumericColumn 把数值列改写成文本，制造确定性的「该行扫描失败」存储故障；
+// 只影响真正读取该列的实体查询，聚合子查询（只取 id）仍然成功。
+func corruptNumericColumn(t *testing.T, conn *gorm.DB, table, column, where string, arg any) {
+	t.Helper()
+	if err := conn.Exec(fmt.Sprintf("UPDATE %s SET %s = 'corrupt' WHERE %s", table, column, where), arg).Error; err != nil {
+		t.Fatalf("corrupt %s.%s: %v", table, column, err)
+	}
+	t.Cleanup(func() {
+		if err := conn.Exec(fmt.Sprintf("UPDATE %s SET %s = 0 WHERE %s", table, column, where), arg).Error; err != nil {
+			t.Errorf("restore %s.%s: %v", table, column, err)
+		}
+	})
+}
+
+// TestCategoryTrendAndUserDetailSurfaceStorageFailures 冻结下游错误语义（issue #1166）：
+// 板块/账号读取的存储失败（此处用已取消的 ctx 触发）必须原样上抛，由控制器归一为
+// admin.stats.fetchFailed，而不是被伪装成 categoryId/userId 参数错误或 user.notFound。
+func TestCategoryTrendAndUserDetailSurfaceStorageFailures(t *testing.T) {
+	conn := setupStatsTestDB(t)
+	// 板块存在、账号不存在：只要查询本身失败，就不能报「参数错误」或「不存在」——
+	// 否则存储故障会被伪装成客户端错误。
+	seedCategory(t, conn, categoryMain, "综合", 1)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	cases := []struct {
+		name string
+		run  func() error
+	}{
+		{name: "category trend reads the category", run: func() error {
+			_, err := CategoryTrend(ctx, categoryMain, statsDate(0), statsDate(0))
+			return err
+		}},
+		{name: "user ranking reads the category", run: func() error {
+			_, err := UserRanking(ctx, RankingQuery{StartDate: statsDate(0), EndDate: statsDate(0), CategoryId: categoryMain})
+			return err
+		}},
+		{name: "user detail reads the account by id", run: func() error {
+			_, err := UserDetail(ctx, DetailQuery{StartDate: statsDate(0), EndDate: statsDate(0), UserId: 1})
+			return err
+		}},
+		{name: "user detail reads the account by username", run: func() error {
+			_, err := UserDetail(ctx, DetailQuery{StartDate: statsDate(0), EndDate: statsDate(0), Username: "stats-user-1"})
+			return err
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.run()
+			var messageErr component.MessageError
+			if errors.As(err, &messageErr) {
+				t.Fatalf("storage failure mapped to business error %s, want the raw storage error", messageErr.Code)
+			}
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("error = %v, want it to wrap context.Canceled", err)
+			}
+		})
 	}
 }

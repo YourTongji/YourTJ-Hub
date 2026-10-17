@@ -11,7 +11,8 @@ import (
 // 管理后台「内容贡献统计」接口（冻结契约 §2，全部 POST + Admin 权限）。
 // 校验口径、日期序列与聚合读在 statsservice / contributionstats。
 
-// AdminStatsCategorySummaryRequest 板块汇总请求：日期为空时取近 7 天到当天。
+// AdminStatsCategorySummaryRequest 板块汇总请求：日期为空时取缺省区间
+// （statsservice.DefaultRangeDays 个自然日，含当天）。
 type AdminStatsCategorySummaryRequest struct {
 	StartDate string `json:"startDate"` // YYYY-MM-DD
 	EndDate   string `json:"endDate"`   // YYYY-MM-DD
@@ -108,7 +109,8 @@ func AdminStatsUserDetail(req component.BetterRequest[AdminStatsUserDetailReques
 }
 
 // adminStatsFailure 把统计错误映射为稳定错误码：校验失败与用户不存在透传，
-// 其余查询失败统一为 admin.stats.fetchFailed——不把失败伪装成 0。
+// 其余查询失败（含 statsservice 原样上抛的存储错误）统一为 admin.stats.fetchFailed
+// ——不把失败伪装成 0，日志保留底层错误供排查。
 func adminStatsFailure(err error) component.Response {
 	var messageErr component.MessageError
 	if errors.As(err, &messageErr) {

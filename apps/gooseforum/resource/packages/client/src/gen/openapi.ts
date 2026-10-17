@@ -4957,10 +4957,13 @@ export interface paths {
          * @description Admin console operation gated by the `Admin` role permission; callers
          *     without it fail with HTTP 403 and `permission.denied`. Both dates are
          *     inclusive; empty startDate defaults to 7 days ago and empty endDate to
-         *     today. The result has one entry per in-range day, ascending, with zero
-         *     counts for days without stat rows. Stat-storage failures surface as
+         *     today, so the default window covers 8 calendar days — deliberately kept
+         *     unchanged when the content contribution stats moved to a 7-day default
+         *     (issue #1166). The result has one entry per in-range day, ascending, with
+         *     zero counts for days without stat rows. Stat-storage failures surface as
          *     `admin.stats.fetchFailed` (HTTP 200). JSON binding is lenient: a
-         *     malformed body binds to zero values and returns the default 7-day window.
+         *     malformed body binds to zero values and returns the default window (empty
+         *     `startDate` = 7 days ago).
          */
         post: operations["adminTrafficOverview"];
         delete?: never;
@@ -4983,10 +4986,12 @@ export interface paths {
          * @description Admin console operation gated by the `Admin` role permission; callers without it
          *     fail with HTTP 403 and `permission.denied`. Both dates are inclusive and sliced by
          *     server-local calendar day; `coverage.timezone` echoes the zone actually used. An
-         *     empty `startDate` defaults to 7 days before today and an empty `endDate` to today,
+         *     empty `startDate` defaults to 6 days before today and an empty `endDate` to today,
          *     each resolved independently of the other; both ends are inclusive, so the default
-         *     window covers 8 calendar days — the same convention as `adminTrafficOverview`,
-         *     while the console's "last 7 days" preset is a separate UI-level range.
+         *     window covers 7 calendar days (today plus the previous six) — the same range the
+         *     console's "last 7 days" preset requests explicitly. `adminTrafficOverview` keeps
+         *     its older 8-day default (empty `startDate` = 7 days before today) on purpose, so
+         *     the two admin date windows differ (issue #1166).
          *     Content scope is the currently public, undeleted forum content, using the
          *     repository's canonical public-topic predicate: a topic counts when
          *     `deleted_at IS NULL AND visibility_status = 'ACTIVE' AND process_status = 0 AND topic_type = 0 AND status = 1`
@@ -5044,7 +5049,7 @@ export interface paths {
          *     fail with HTTP 403 and `permission.denied`. `categoryId` is required and must be an
          *     existing category. Both dates are inclusive and sliced by server-local calendar
          *     day; omitted dates fall back to the `adminStatsCategorySummary` window (empty
-         *     `startDate` = 7 days before today, empty `endDate` = today, both inclusive, so 8
+         *     `startDate` = 6 days before today, empty `endDate` = today, both inclusive, so 7
          *     calendar days).
          *     `days` holds one entry per in-range day in ascending order, so days without any
          *     contribution are present with zero counts and `estimated: false`; a day whose
@@ -5059,11 +5064,14 @@ export interface paths {
          *     Validation failures (malformed date, `startDate > endDate`, a span over 366 days,
          *     a missing or unknown `categoryId`) return HTTP 200 `common.request.invalidParams`
          *     with `params.field` naming the rejected field — an inverted range blames `endDate`,
-         *     and an over-long range adds `params.maxRangeDays` with the enforced cap. A storage
-         *     failure returns HTTP 200 `admin.stats.fetchFailed` rather than a zero-filled
-         *     success. JSON binding is lenient: a malformed body binds to zero values, so a
-         *     missing `categoryId` is rejected as `common.request.invalidParams` instead of
-         *     returning a bind error.
+         *     and an over-long range adds `params.maxRangeDays` with the enforced cap. These
+         *     parameter errors are decided by validation and by a completed category lookup that
+         *     found nothing: a category lookup that fails at the storage layer is a storage
+         *     failure (HTTP 200 `admin.stats.fetchFailed`), never `common.request.invalidParams`.
+         *     A storage failure in the aggregate reads returns HTTP 200 `admin.stats.fetchFailed`
+         *     rather than a zero-filled success. JSON binding is lenient: a malformed body binds
+         *     to zero values, so a missing `categoryId` is rejected as
+         *     `common.request.invalidParams` instead of returning a bind error.
          */
         post: operations["adminStatsCategoryTrend"];
         delete?: never;
@@ -5087,8 +5095,8 @@ export interface paths {
          *     fail with HTTP 403 and `permission.denied`. Ranks accounts by their in-range
          *     contribution, optionally restricted to one category. Both dates are inclusive and
          *     sliced by server-local calendar day; omitted dates fall back to the
-         *     `adminStatsCategorySummary` window (empty `startDate` = 7 days before today, empty
-         *     `endDate` = today, both inclusive, so 8 calendar days); `categoryId` 0 or omitted
+         *     `adminStatsCategorySummary` window (empty `startDate` = 6 days before today, empty
+         *     `endDate` = today, both inclusive, so 7 calendar days); `categoryId` 0 or omitted
          *     means whole-site.
          *     Counted content obeys the same public scope as `adminStatsCategorySummary`
          *     (published, undeleted forum topics with a still-visible first floor, replies as
@@ -5140,10 +5148,12 @@ export interface paths {
          *     `common.request.invalidParams`. `userId` is the authoritative lookup because the
          *     forum user id is the identity key, `username` is the by-name convenience form.
          *     An unknown or soft-deleted (closed) account returns HTTP 200 `user.notFound`; a
-         *     closed account is never resurrected by this read.
+         *     closed account is never resurrected by this read. Only a completed lookup that
+         *     found no such account is `user.notFound`: a lookup that fails at the storage layer
+         *     is `admin.stats.fetchFailed`, never `user.notFound` or a parameter error.
          *     Both dates are inclusive and sliced by server-local calendar day; omitted dates
-         *     fall back to the `adminStatsCategorySummary` window (empty `startDate` = 7 days
-         *     before today, empty `endDate` = today, both inclusive, so 8 calendar days);
+         *     fall back to the `adminStatsCategorySummary` window (empty `startDate` = 6 days
+         *     before today, empty `endDate` = today, both inclusive, so 7 calendar days);
          *     `categoryId` 0 or omitted means whole-site. `summary` holds the account's in-range totals under
          *     the same scope as the ranking endpoint (`likes` counts likes still effective now),
          *     and `days` holds one entry per in-range day ascending, zero-filled for days without
@@ -13613,7 +13623,7 @@ export interface components {
             };
         };
         AdminStatsCategorySummaryRequest: {
-            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today). */
             startDate?: string;
             /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
             endDate?: string;
@@ -13628,7 +13638,7 @@ export interface components {
             result: components["schemas"]["AdminStatsCategorySummaryResult"];
         }) | components["schemas"]["ApiFailure"];
         AdminStatsCategoryTrendRequest: {
-            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today). */
             startDate?: string;
             /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
             endDate?: string;
@@ -13652,7 +13662,7 @@ export interface components {
             result: components["schemas"]["AdminStatsCategoryTrendResult"];
         }) | components["schemas"]["ApiFailure"];
         AdminStatsUserRankingRequest: {
-            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today). */
             startDate?: string;
             /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
             endDate?: string;
@@ -13695,7 +13705,7 @@ export interface components {
         }) | components["schemas"]["ApiFailure"];
         /** @description Exactly one of `userId` and `username` identifies the account; passing both or neither fails with `common.request.invalidParams`. `userId` is the authoritative form (the numeric forum user id), `username` the by-name convenience form. */
         AdminStatsUserDetailRequest: {
-            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today). */
             startDate?: string;
             /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
             endDate?: string;
@@ -13852,7 +13862,7 @@ export interface components {
             likeCount: number;
         };
         AdminTrafficOverviewRequest: {
-            /** @description Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago. */
+            /** @description Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago (8-day inclusive window ending today). */
             startDate?: string;
             /** @description Inclusive range end (YYYY-MM-DD); empty defaults to today. */
             endDate?: string;
