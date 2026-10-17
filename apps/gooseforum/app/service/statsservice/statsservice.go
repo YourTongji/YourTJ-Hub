@@ -6,6 +6,7 @@ package statsservice
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -15,13 +16,15 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/contributionstats"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"gorm.io/gorm"
 )
 
 const (
 	// MaxRangeDays 单次统计允许的最大自然日跨度（含首尾）。上限需要管理员可见。
 	MaxRangeDays = 366
-	// defaultRangeDays 缺省区间长度：与既有 traffic-overview 的「近 7 天」惯例一致。
-	defaultRangeDays = 7
+	// DefaultRangeDays 缺省区间长度：7 个自然日（含首尾）。起点由 DefaultWindowStart
+	// 给出（今天往前 DefaultRangeDays-1 天），终点为当天。
+	DefaultRangeDays = 7
 	// DefaultPageSize / MaxPageSize / MaxPage 用户排行的分页边界。
 	// MaxPage 兜住 (page-1)*pageSize 的溢出与无意义深翻页：超出直接按参数错误拒绝。
 	DefaultPageSize = 20
@@ -147,7 +150,10 @@ func CategorySummary(ctx context.Context, startDate, endDate string) (CategorySu
 	if err != nil {
 		return CategorySummaryResult{}, err
 	}
-	categories := listCategories()
+	categories, err := listCategories(ctx)
+	if err != nil {
+		return CategorySummaryResult{}, err
+	}
 	topicCounts, err := contributionstats.CategoryCounts(ctx, scope, contributionstats.KindTopic)
 	if err != nil {
 		return CategorySummaryResult{}, err
@@ -279,7 +285,10 @@ func UserRanking(ctx context.Context, query RankingQuery) (UserRankingResult, er
 		ids = append(ids, row.UserId)
 	}
 	if len(ids) > 0 {
-		identities = users.GetMapByIdsContext(ctx, ids)
+		identities, err = users.GetMapByIdsWithError(ctx, ids)
+		if err != nil {
+			return UserRankingResult{}, err
+		}
 	}
 	items := make([]UserRankingItem, 0, len(rows))
 	for _, row := range rows {
@@ -298,7 +307,8 @@ func UserRanking(ctx context.Context, query RankingQuery) (UserRankingResult, er
 		// 身份缺失只可能来自「聚合与身份回填之间账号被注销」的竞态（账号过滤器
 		// users.ActorAuthorIDsQueryTx 已排除查询时点已注销的账号，软删行也读不到）。
 		// 该行已经在同一口径下计入总数，因此保留行本身（昵称留空、actorType 沿用请求侧），
-		// 不为此再加查询或丢掉与 total 对不上的行（评审 nit 的显式豁免）。
+		// 不为此再加查询或丢掉与 total 对不上的行（评审 nit 的显式豁免）；
+		// 回填查询本身的存储故障已在上面上抛，不会伪装成「账号不存在」。
 		items = append(items, item)
 	}
 	return UserRankingResult{
@@ -313,7 +323,7 @@ func UserRanking(ctx context.Context, query RankingQuery) (UserRankingResult, er
 // UserDetail 组装单账号明细（口径 R4/R5/R6/R8）：无贡献时汇总与序列全 0，不报错；
 // 账号不存在或已注销返回 user.notFound；未知原因查库失败由调用方映射为统计失败。
 func UserDetail(ctx context.Context, query DetailQuery) (UserDetailResult, error) {
-	user, err := resolveUser(query.UserId, query.Username)
+	user, err := resolveUser(ctx, query.UserId, query.Username)
 	if err != nil {
 		return UserDetailResult{}, err
 	}
@@ -412,9 +422,10 @@ func countByCategory(rows []contributionstats.CategoryCount) map[uint64]int64 {
 }
 
 // listCategories 返回全部板块（无数据板块也要出现在汇总里）；
-// category.All() 已按 sort、id 升序返回，调用方再按活动量重排。
-func listCategories() []*category.Entity {
-	return category.All()
+// 已按 sort、id 升序返回，调用方再按活动量重排。query 失败必须上抛：把存储故障
+// 当成「没有板块」会让接口返回 200 + 空列表，正是 issue #1166 要消除的失败伪装。
+func listCategories(ctx context.Context) ([]*category.Entity, error) {
+	return category.AllWithContext(ctx)
 }
 
 func requireCategory(ctx context.Context, categoryId uint64) error {
@@ -422,10 +433,20 @@ func requireCategory(ctx context.Context, categoryId uint64) error {
 		return invalidParams("categoryId")
 	}
 	entity, err := category.GetWithContext(ctx, categoryId)
-	if err != nil || entity.Id == 0 {
+	if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && entity.Id == 0) {
 		return invalidParams("categoryId")
 	}
+	if err != nil {
+		// 存储故障原样上抛：控制器归一为 admin.stats.fetchFailed，不能伪装成参数错误。
+		return fmt.Errorf("load category %d: %w", categoryId, err)
+	}
 	return nil
+}
+
+// DefaultWindowStart 返回缺省区间的起点（本地日）：今天往前 DefaultRangeDays-1 天，
+// 与当天一起构成 DefaultRangeDays 个自然日的闭区间。
+func DefaultWindowStart(now time.Time) time.Time {
+	return now.AddDate(0, 0, -(DefaultRangeDays - 1))
 }
 
 // parseScope 校验日期并换算为本地日边界（左闭右开）。
@@ -438,11 +459,11 @@ func parseScope(startDate, endDate string, categoryId uint64) (contributionstats
 }
 
 // parseDateRange 返回 [起始日 00:00, 结束日次日 00:00) 的服务器本地时刻。
-// 日期为空取缺省区间（近 7 天到当天）；格式、顺序与跨度都在这里拒绝（口径 R9）。
+// 日期为空取缺省区间（DefaultRangeDays 个自然日，含当天）；格式、顺序与跨度都在这里拒绝（口径 R9）。
 func parseDateRange(startDate, endDate string) (time.Time, time.Time, error) {
 	now := time.Now()
 	if startDate == "" {
-		startDate = now.AddDate(0, 0, -defaultRangeDays).Format(dateLayout)
+		startDate = DefaultWindowStart(now).Format(dateLayout)
 	}
 	if endDate == "" {
 		endDate = now.Format(dateLayout)
@@ -527,7 +548,8 @@ func parseSortBy(sortBy string) (contributionstats.SortKey, error) {
 }
 
 // resolveUser 解析 userId/username（恰给一个）并拒绝已注销账号（口径 R6）。
-func resolveUser(userId uint64, username string) (users.EntityComplete, error) {
+// 只有查询成功且查无此人（含软删/已注销）才是 user.notFound，存储故障原样上抛。
+func resolveUser(ctx context.Context, userId uint64, username string) (users.EntityComplete, error) {
 	username = strings.TrimSpace(username)
 	if userId == 0 && username == "" {
 		return users.EntityComplete{}, invalidParams("userId")
@@ -536,15 +558,21 @@ func resolveUser(userId uint64, username string) (users.EntityComplete, error) {
 		return users.EntityComplete{}, invalidParams("username")
 	}
 	if userId > 0 {
-		entity, err := users.Get(userId)
-		if err != nil || entity.Id == 0 || entity.DeletedAt.Valid {
+		entity, err := users.GetWithContext(ctx, userId)
+		if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && (entity.Id == 0 || entity.DeletedAt.Valid)) {
 			return users.EntityComplete{}, userNotFound()
+		}
+		if err != nil {
+			return users.EntityComplete{}, fmt.Errorf("load user %d: %w", userId, err)
 		}
 		return entity, nil
 	}
-	entity, err := users.GetByUsername(username)
-	if err != nil || entity.Id == 0 || entity.DeletedAt.Valid {
+	entity, err := users.GetByUsernameWithContext(ctx, username)
+	if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && (entity.Id == 0 || entity.DeletedAt.Valid)) {
 		return users.EntityComplete{}, userNotFound()
+	}
+	if err != nil {
+		return users.EntityComplete{}, fmt.Errorf("load user %q: %w", username, err)
 	}
 	return entity, nil
 }

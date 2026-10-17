@@ -92,6 +92,8 @@ func GetTrafficOverview(req component.BetterRequest[TrafficOverviewReq]) compone
 	endDate := req.Params.EndDate
 
 	if startDate == "" {
+		// 保留既有的 8 个自然日缺省（今天 + 前 7 天）：内容贡献统计用 7 天，两者差异是
+		// 有意的（issue #1166），不改动这个既有对外操作的缺省行为。
 		startDate = time.Now().AddDate(0, 0, -7).Format("2006-01-02")
 	}
 	if endDate == "" {

@@ -10,6 +10,10 @@ func TestPublicScopePredicatesAreCanonical(t *testing.T) {
 		"topics.status = 1 AND topics.process_status = 0 AND topics.visibility_status = 'ACTIVE' AND topics.deleted_at IS NULL AND topics.topic_type = 0"; got != want {
 		t.Fatalf("PublicScopePredicate = %q, want %q", got, want)
 	}
+	if got, want := ExportScopePredicate("topics"),
+		"topics.status = 1 AND topics.process_status = 0 AND topics.visibility_status = 'ACTIVE' AND topics.deleted_at IS NULL AND topics.topic_type IN (0, 1)"; got != want {
+		t.Fatalf("ExportScopePredicate = %q, want %q", got, want)
+	}
 	if got, want := FirstPostVisiblePredicate("topics"),
 		"(SELECT posts.process_status FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.deleted_at IS NULL AND posts.visibility_status = 'ACTIVE') = 0"; got != want {
 		t.Fatalf("FirstPostVisiblePredicate = %q, want %q", got, want)

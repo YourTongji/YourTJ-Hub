@@ -408,10 +408,13 @@ adminTrafficOverview:
       Admin console operation gated by the `Admin` role permission; callers
       without it fail with HTTP 403 and `permission.denied`. Both dates are
       inclusive; empty startDate defaults to 7 days ago and empty endDate to
-      today. The result has one entry per in-range day, ascending, with zero
-      counts for days without stat rows. Stat-storage failures surface as
+      today, so the default window covers 8 calendar days — deliberately kept
+      unchanged when the content contribution stats moved to a 7-day default
+      (issue #1166). The result has one entry per in-range day, ascending, with
+      zero counts for days without stat rows. Stat-storage failures surface as
       `admin.stats.fetchFailed` (HTTP 200). JSON binding is lenient: a
-      malformed body binds to zero values and returns the default 7-day window.
+      malformed body binds to zero values and returns the default window (empty
+      `startDate` = 7 days ago).
     security:
       - bearerAuth: []
       - accessTokenCookie: []

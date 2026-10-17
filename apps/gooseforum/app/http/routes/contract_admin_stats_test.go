@@ -2,6 +2,7 @@ package routes
 
 import (
 	"encoding/json"
+	"net/http"
 	"reflect"
 	"regexp"
 	"testing"
@@ -256,10 +257,33 @@ func TestAdminStatsHTTPContract(t *testing.T) {
 			"admin-stats-user-detail-not-found.json")
 	})
 
-	// fixture admin-stats-fetch-failed.json 的 admin.stats.fetchFailed 分支需要让聚合
-	// 查询真的失败（例如删表），会污染同进程共享的测试库，故只由契约链的 ajv 校验
-	// （packages/api-contract/scripts/validate-fixtures.mjs），不在本文件内触发。既有
-	// adminTrafficOverview 同样只为成功分支写运行时断言。
+	// fixture admin-stats-fetch-failed.json 的 admin.stats.fetchFailed 分支由
+	// TestAdminStatsHTTPContractStorageFailure 在服务层真的失败时断言。
+}
+
+// TestAdminStatsHTTPContractStorageFailure 让统计查询在服务层真的失败（认证/权限走真实
+// 中间件，之后取消请求上下文），断言被归一为 fixture 冻结的 admin.stats.fetchFailed，
+// 而不是被伪装成参数错误或 0 填充的成功（issue #1166）。
+func TestAdminStatsHTTPContractStorageFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		path string
+		body string
+	}{
+		{name: "category summary lists categories", path: statsSummaryPath, body: `{}`},
+		{name: "category trend", path: statsTrendPath, body: `{"categoryId":1}`},
+		{name: "user detail", path: statsDetailPath, body: `{"userId":1}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, router := setupAdminStatsFailureTest(t)
+			admin := createContractAdmin(t, conn)
+			recorder := serveJSON(router, tc.path, tc.body, contractSessionToken(t, admin))
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+			}
+			assertAdminStatsFixture(t, decodeContractEnvelope(t, recorder), "admin-stats-fetch-failed.json")
+		})
+	}
 }
 
 // 未登录 / 冻结账号 / 无 Admin 权限三条守卫场景由

@@ -223,13 +223,24 @@ func GetPublishedBeforeID(beforeID uint64, limit int) (entities []*Entity, err e
 	return
 }
 
-// GetPublished 读取单篇公开主题（详情页与单篇 LLM 导出共用入口）：与公开列表口径一致，
-// 复用规范公开谓词 + 首楼可见，因此 wiki 页面主题（topic_type=1）不再经此入口返回
-// （评审 S3 声明并测试的跨范围对齐；全量导出口径见 GetPublishedBeforeID）。
+// GetPublished 读取单篇公开主题：与公开列表口径一致，复用规范公开谓词 + 首楼可见，
+// 因此 wiki 页面主题（topic_type=1）不经此入口返回（全量导出口径见 GetPublishedBeforeID）。
 func GetPublished(id uint64) (entity Entity, err error) {
 	err = builder().
 		Where(queryopt.Eq("id", id)).
 		Where(PublicScopePredicate(tableName)).
+		Where(FirstPostVisiblePredicate(tableName)).
+		First(&entity).Error
+	return
+}
+
+// GetPublishedForExport 读取单篇可导出主题（llms 单篇 Markdown 导出入口）：
+// issue #1166 决定恢复 wiki 页面单篇导出，因此用不限制 topic_type 的 ExportScopePredicate，
+// 其余条件与公开口径一致（含首楼可见，首楼被删/未过审时同样不导出）。
+func GetPublishedForExport(id uint64) (entity Entity, err error) {
+	err = builder().
+		Where(queryopt.Eq("id", id)).
+		Where(ExportScopePredicate(tableName)).
 		Where(FirstPostVisiblePredicate(tableName)).
 		First(&entity).Error
 	return

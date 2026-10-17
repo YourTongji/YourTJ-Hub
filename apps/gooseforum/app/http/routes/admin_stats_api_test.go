@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -53,6 +54,34 @@ func setupAdminStatsTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	adminAPI.POST("/stats/user-ranking", UpButterReq(api.AdminStatsUserRanking))
 	adminAPI.POST("/stats/user-detail", UpButterReq(api.AdminStatsUserDetail))
 	return conn, router
+}
+
+// setupAdminStatsFailureTest 注册统计路由并在鉴权之后取消请求上下文：认证/权限仍走
+// 真实中间件，只有统计查询读到已取消的 ctx，用于断言存储失败的对外错误码。
+func setupAdminStatsFailureTest(t *testing.T) (*gorm.DB, *gin.Engine) {
+	t.Helper()
+	conn, router := setupHTTPContractTest(t)
+	if err := conn.AutoMigrate(&rolePermissionRs.Entity{}); err != nil {
+		t.Fatalf("migrate admin stats tables: %v", err)
+	}
+	adminAPI := router.Group("/api/admin",
+		middleware.JWTAuthCheck,
+		middleware.CheckWritableAccount,
+		middleware.CheckPermission(permission.Admin),
+		cancelRequestContext,
+	)
+	adminAPI.POST("/stats/category-summary", UpButterReq(api.AdminStatsCategorySummary))
+	adminAPI.POST("/stats/category-trend", UpButterReq(api.AdminStatsCategoryTrend))
+	adminAPI.POST("/stats/user-detail", UpButterReq(api.AdminStatsUserDetail))
+	return conn, router
+}
+
+// cancelRequestContext 模拟统计查询的存储层失败：把请求上下文换成已取消的 ctx。
+func cancelRequestContext(c *gin.Context) {
+	cancelled, cancel := context.WithCancel(c.Request.Context())
+	cancel()
+	c.Request = c.Request.WithContext(cancelled)
+	c.Next()
 }
 
 // serveAdminStats 以 Admin 身份调用统计路由，返回解码后的响应信封。
