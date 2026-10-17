@@ -1,6 +1,7 @@
 package topics
 
 import (
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -118,17 +119,25 @@ const MaxPublicGalleryImages = 9
 
 // PublicGallery returns the topic gallery for read projections: image_urls
 // when present, otherwise the legacy first_image_url (the same fallback as the
-// web topic list), capped at MaxPublicGalleryImages. The result is a copy.
+// web topic list), capped at MaxPublicGalleryImages. Empty or whitespace-only
+// entries are dropped; stored order and duplicates are kept. The result is a copy.
 func (e Entity) PublicGallery() []string {
-	src := e.ImageUrls
-	if len(src) == 0 {
-		if e.FirstImageURL == "" {
-			return []string{}
+	out := nonBlankURLs(e.ImageUrls)
+	if len(out) == 0 {
+		out = nonBlankURLs([]string{e.FirstImageURL})
+	}
+	if len(out) > MaxPublicGalleryImages {
+		out = out[:MaxPublicGalleryImages]
+	}
+	return out
+}
+
+func nonBlankURLs(src []string) []string {
+	out := make([]string, 0, len(src))
+	for _, v := range src {
+		if strings.TrimSpace(v) != "" {
+			out = append(out, v)
 		}
-		src = []string{e.FirstImageURL}
 	}
-	if len(src) > MaxPublicGalleryImages {
-		src = src[:MaxPublicGalleryImages]
-	}
-	return append([]string{}, src...)
+	return out
 }

@@ -20,6 +20,11 @@ func TestPublicGallery(t *testing.T) {
 		{"fallback", Entity{FirstImageURL: "/c"}, []string{"/c"}},
 		{"empty", Entity{}, []string{}},
 		{"capped", Entity{ImageUrls: long}, long[:MaxPublicGalleryImages]},
+		{"duplicates and order kept", Entity{ImageUrls: []string{"/b", "/a", "/b"}}, []string{"/b", "/a", "/b"}},
+		{"blank entries dropped", Entity{ImageUrls: []string{"", "/a", "  ", "\t", "/b"}}, []string{"/a", "/b"}},
+		{"blank gallery falls back", Entity{ImageUrls: []string{" "}, FirstImageURL: "/c"}, []string{"/c"}},
+		{"blank fallback", Entity{FirstImageURL: "   "}, []string{}},
+		{"cap after dropping blanks", Entity{ImageUrls: append([]string{"", " "}, long...)}, long[:MaxPublicGalleryImages]},
 	} {
 		got := tc.in.PublicGallery()
 		if !reflect.DeepEqual(got, tc.want) {

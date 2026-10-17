@@ -258,3 +258,40 @@ func agentGalleryTopicList(t *testing.T, token string) []galleryTopicItem {
 	}
 	return list.List
 }
+
+// Blank stored entries never reach Agents; order and duplicates are preserved.
+func TestAgentGalleryDropsBlankEntries(t *testing.T) {
+	conn := setupAgentForumTestDB(t)
+	agentID, token := createAgentForumAgent(t, conn, "gallery-blank-agent")
+	createAgentForumCategory(t, conn, 5101, "gallery")
+	createGalleryTopic(t, conn, 6108, 11018, agentID+1000, posts.Entity{ProcessStatus: posts.ProcessStatusNormal})
+	raw, _ := json.Marshal([]string{"/file/img/b.webp", "", "  ", "/file/img/a.webp", "/file/img/b.webp"})
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", 6108).Update("image_urls", string(raw)).Error; err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"/file/img/b.webp", "/file/img/a.webp", "/file/img/b.webp"}
+	sawFirst := false
+	for _, item := range agentGalleryWindow(t, token, "6108") {
+		if item.PostNo == 1 {
+			sawFirst = true
+			if !reflect.DeepEqual(item.Images, want) {
+				t.Fatalf("first post images = %#v, want %#v", item.Images, want)
+			}
+		}
+	}
+	if !sawFirst {
+		t.Fatal("first post missing")
+	}
+	found := false
+	for _, item := range agentGalleryTopicList(t, token) {
+		if item.Id == 6108 {
+			found = true
+			if item.Images == nil || !reflect.DeepEqual(*item.Images, want) {
+				t.Fatalf("list images = %#v, want %#v", item.Images, want)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("topic missing from list")
+	}
+}
