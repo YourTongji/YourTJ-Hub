@@ -66,6 +66,19 @@ void main() {
     expect(source, contains(RegExp(r'course\.name,\s+maxLines = 2')));
   });
 
+  test('Android widget entry points live in ScheduleWidgetReceivers.kt', () {
+    final receivers = read(
+      'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgetReceivers.kt',
+    );
+
+    expect(receivers, contains('class NextClassWidgetReceiver'));
+    expect(receivers, contains('class TodayScheduleWidgetReceiver'));
+    expect(receivers, contains('class CourseTimelineWidgetReceiver'));
+    expect(receivers, contains('class ToggleCourseTimelineDayAction'));
+    expect(receivers, contains('fun publishScheduleWidgetPreviews'));
+    expect(receivers, contains('HomeWidgetScheduler.schedule('));
+  });
+
   test('Android large schedule has two independent equal-width collections', () {
     final source = read(
       'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgets.kt',
@@ -265,6 +278,9 @@ void main() {
     final data = read(
       'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgetData.kt',
     );
+    final receivers = read(
+      'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgetReceivers.kt',
+    );
 
     expect(data, contains('fun nextClass('));
     expect(data, contains('days.asSequence()'));
@@ -289,7 +305,7 @@ void main() {
     expect(source, contains('generatedAt?.let(::updatedText)'));
     expect(source, contains('distanceText('));
     expect(data, contains('fun nextUpdateAt('));
-    expect(source, contains('HomeWidgetScheduler.schedule('));
+    expect(receivers, contains('HomeWidgetScheduler.schedule('));
   });
 
   test('NextClass picker shares one full-canvas image across preview APIs', () {
@@ -338,6 +354,9 @@ void main() {
     final source = read(
       'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgets.kt',
     );
+    final receivers = read(
+      'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgetReceivers.kt',
+    );
     final manifest = read('android/app/src/main/AndroidManifest.xml');
     final bridge = read('lib/src/campus_widget/schedule_widget_bridge.dart');
     final provider = read(
@@ -350,9 +369,10 @@ void main() {
       source.indexOf('class CourseTimelineWidget :'),
       source.indexOf('@Composable\nprivate fun TimelineHeader'),
     );
-    final timelineCard = source.substring(
-      source.indexOf('@Composable\nprivate fun TimelineCourseCard'),
-      source.indexOf('class ToggleCourseTimelineDayAction'),
+    final combined = '$source$receivers';
+    final timelineCard = combined.substring(
+      combined.indexOf('@Composable\nprivate fun TimelineCourseCard'),
+      combined.indexOf('class ToggleCourseTimelineDayAction'),
     );
     final timelineItem = source.substring(
       source.indexOf('@Composable\nprivate fun TimelineCourseListItem'),
