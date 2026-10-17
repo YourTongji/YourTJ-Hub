@@ -24,6 +24,9 @@ type PushConfigResp struct {
 	Configured           bool                 `json:"configured"`
 	ApplicationServerKey string               `json:"applicationServerKey,omitempty"`
 	Native               NativePushConfigResp `json:"native"`
+	// ViewerId 是调用者自身的数字用户 ID。Service Worker 在展示推送前用它复核
+	// 收件人，避免为取一个 viewer id 渲染整个 /messages 页面（issue #1183 第 8 项）。
+	ViewerId uint64 `json:"viewerId"`
 }
 
 // GetPushConfigReq GET push/config（无参数）。
@@ -33,12 +36,15 @@ type GetPushConfigReq struct{}
 // （APNs/FCM）通道是否启用。
 // applicationServerKey 只在 Web Push 启用时返回（浏览器 subscribe 的
 // PushSubscriptionOptions 需要 65B P-256 未压缩点 base64url）。
+// viewerId 供 Service Worker 做推送收件人复核：该接口只读实例配置与调用者身份，
+// 不触碰会话/消息数据，是复核所需的轻量通路。
 func GetPushConfig(req component.BetterRequest[GetPushConfigReq]) component.Response {
 	key := webpushservice.PublicKeyOrEmpty()
 	channels := nativepushservice.LoadChannels()
 	return component.SuccessResponse(PushConfigResp{
 		Configured:           key != "",
 		ApplicationServerKey: key,
+		ViewerId:             req.UserId,
 		Native: NativePushConfigResp{
 			APNsEnabled:  channels.APNs.Enabled(),
 			FCMEnabled:   channels.FCM.Enabled(),

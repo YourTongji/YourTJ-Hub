@@ -1,7 +1,7 @@
 package notificationservice
 
 import (
-	"fmt"
+	"encoding/json"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
@@ -195,11 +195,16 @@ func TestMentionEnqueuesBothPushChannels(t *testing.T) {
 	if err := conn.Where("user_id = ?", 8765).Last(&n).Error; err != nil {
 		t.Fatal(err)
 	}
-	for _, prefix := range []string{"webpush.", "nativepush."} {
-		var count int64
-		conn.Model(&taskQueue.Entity{}).Where("type = ?", fmt.Sprintf("%s%d", prefix, n.Id)).Count(&count)
-		if count != 1 {
-			t.Errorf("%s tasks=%d, want 1", prefix, count)
+	for _, family := range []string{"webpush.", "nativepush."} {
+		var task taskQueue.Entity
+		if err := conn.Where("type = ?", family).Order("id desc").First(&task).Error; err != nil {
+			t.Fatalf("%s task missing: %v", family, err)
+		}
+		var payload struct {
+			NotificationId uint64 `json:"notificationId"`
+		}
+		if err := json.Unmarshal([]byte(task.TaskJson), &payload); err != nil || payload.NotificationId != n.Id {
+			t.Fatalf("%s task payload = %s, want notification %d", family, task.TaskJson, n.Id)
 		}
 	}
 }

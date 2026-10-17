@@ -33,8 +33,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// TaskTypeNativePush 是 nativepush outbox 任务类型前缀。任务 Type 为
-// "nativepush.{notificationId}"，RunWorker 按前缀隔离领取（与 webpush. 互不干扰）。
+// TaskTypeNativePush 是 nativepush outbox 任务族常量。行级身份由 task_json /
+// dedup_key 承载，Type 只用于按族隔离领取（与 webpush. 互不干扰）。
 const TaskTypeNativePush = "nativepush."
 
 // fcmScope 是 FCM HTTP v1 API 所需的 OAuth2 scope（service-account JWT 换取）。

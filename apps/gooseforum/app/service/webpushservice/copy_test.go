@@ -103,6 +103,10 @@ func TestBuildPushContentComment(t *testing.T) {
 	if content.Icon == "" {
 		t.Error("comment icon is empty")
 	}
+	// 复核为 unknown 时 SW 用该字段替换原始标题：必须随负载下发且为订阅语言的通用文案。
+	if content.GenericTitle != genericTitle("zh") || content.GenericTitle == "" {
+		t.Errorf("comment generic title = %q, want non-empty zh generic title", content.GenericTitle)
+	}
 }
 
 // 标题超长截断到 80 rune + 省略号；PostNo 缺失时回退 postId 锚点。

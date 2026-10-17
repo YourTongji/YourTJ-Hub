@@ -5,7 +5,8 @@
       "apnsEnabled": true,
       "fcmEnabled": false,
       "jpushEnabled": false
-    }
+    },
+    "viewerId": 1024
   },
   "code": 0
 }

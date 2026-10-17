@@ -31,7 +31,8 @@ const activeFilter = ref<NotificationFilter>(page.props.filter ?? 'all')
 const activeCategory = ref<NotificationCategory>(page.props.category ?? 'all')
 const categories: NotificationCategory[] = ['all', 'mentions', 'replies', 'likes', 'following', 'system']
 let categoryGeneration = 0
-let propsCategoryUpdate = false
+// 用户最近一次主动选择的分类；服务端 payload 只在它为空或与 payload 分类相同时接管。
+let userCategory: NotificationCategory | null = null
 const unreadCount = ref(page.props.unreadCount)
 const markingAllRead = ref(false)
 const actionError = ref('')
@@ -71,23 +72,28 @@ if (page.props.unreadCount === 0) {
 watch(
   () => page.props.notifications,
   () => {
-    categoryGeneration++
     const incomingCategory = page.props.category ?? 'all'
     const incomingFilter = page.props.filter ?? 'all'
-    propsCategoryUpdate = activeCategory.value !== incomingCategory
-    activeCategory.value = incomingCategory
-    activeFilter.value = incomingFilter
-    for (const filter of ['all', 'unread'] as const) {
-      Object.assign(lists[filter], {
-        items: filter === incomingFilter ? copyNotifications(page.props.notifications) : [],
-        nextCursor: filter === incomingFilter ? initialNextCursor() : 0,
-        hasNext: filter === incomingFilter ? page.props.pagination.hasNext : true,
-        loaded: filter === incomingFilter,
-        loading: false,
-      })
+    // 服务端 payload 只在没有更新的用户选择时接管分类：同一次 flush 内既刷新
+    // props 又点击分类时，点击胜出（issue #1183 第 3 项），否则 props 刷新会
+    // 把选中项改回服务端分类而列表还停在用户刚加载的数据上。
+    if (userCategory === null || userCategory === incomingCategory) {
+      userCategory = null
+      categoryGeneration++
+      activeCategory.value = incomingCategory
+      activeFilter.value = incomingFilter
+      for (const filter of ['all', 'unread'] as const) {
+        Object.assign(lists[filter], {
+          items: filter === incomingFilter ? copyNotifications(page.props.notifications) : [],
+          nextCursor: filter === incomingFilter ? initialNextCursor() : 0,
+          hasNext: filter === incomingFilter ? page.props.pagination.hasNext : true,
+          loaded: filter === incomingFilter,
+          loading: false,
+        })
+      }
+      actionError.value = ''
     }
     unreadCount.value = page.props.unreadCount
-    actionError.value = ''
     if (page.props.unreadCount === 0) {
       unreadStatus.clearNotifications()
     }
@@ -95,14 +101,18 @@ watch(
   },
 )
 
-watch(activeCategory, async () => {
- if (propsCategoryUpdate) { propsCategoryUpdate = false; return }
- categoryGeneration++
- for (const filter of ['all', 'unread'] as const) {
- Object.assign(lists[filter], {items: [],nextCursor:0,hasNext:true,loading:false,loaded:false})
- }
- await loadNotifications(activeFilter.value, true)
-})
+// 分类点击直接加载，不经过 activeCategory watcher：用户意图必须一次点击即生效，
+// 不能与服务端 props 刷新共用握手状态。
+async function selectCategory(category: NotificationCategory) {
+  if (category === activeCategory.value) return
+  userCategory = category
+  activeCategory.value = category
+  categoryGeneration++
+  for (const filter of ['all', 'unread'] as const) {
+    Object.assign(lists[filter], { items: [], nextCursor: 0, hasNext: true, loading: false, loaded: false })
+  }
+  await loadNotifications(activeFilter.value, true)
+}
 
 watch(activeFilter, async (filter) => {
   actionError.value = ''
@@ -378,7 +388,7 @@ function markItemReadAndNavigate(item: NotificationPayload) {
         <button v-for="category in categories" :key="category" type="button" class="gf-tab"
           :aria-pressed="activeCategory === category"
           :class="activeCategory === category ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70'"
-          @click="activeCategory = category">{{ t(`notifications.tabs.${category}`) }}</button>
+          @click="selectCategory(category)">{{ t(`notifications.tabs.${category}`) }}</button>
         <label class="ml-auto flex items-center gap-2 px-2 text-sm">
           <input type="checkbox" :checked="activeFilter === 'unread'" @change="setActiveFilter(activeFilter === 'unread' ? 'all' : 'unread')" />
           {{ t('notifications.tabs.unread') }}

@@ -137,11 +137,14 @@ func SendMentionNotifications(userIds []uint64, topicId uint64, postId uint64, p
 		if userId == 0 {
 			continue
 		}
+		// 行级 has_direct_mention 只用于「回复里同时 @ 了我」这类需要从回复分类
+		// 提升到 mention 分类的行（分类查询里 event_type='mention' 已经能选中
+		// 纯 mention 行）；纯 mention 行不再冗余写该列，payload 上的标记保留作
+		// 推送文案优先级的判据。
 		notifications = append(notifications, &eventNotification.Entity{
-			UserId:           userId,
-			HasDirectMention: true,
-			EventType:        eventNotification.EventTypeMention,
-			TopicID:          topicId,
+			UserId:    userId,
+			EventType: eventNotification.EventTypeMention,
+			TopicID:   topicId,
 			Payload: eventNotification.NotificationPayload{
 				HasDirectMention: true,
 				Content:          preview,
@@ -163,6 +166,9 @@ func SendMentionNotifications(userIds []uint64, topicId uint64, postId uint64, p
 	created, err := persistInteractions(db.Connect(), notifications)
 	if err == nil {
 		for _, notification := range created {
+			if notification == nil {
+				continue
+			}
 			notificationCommitted(notification.UserId)
 			webpushservice.EnqueueNotification(notification.UserId, notification.Id)
 			nativepushservice.EnqueueNotification(notification.UserId, notification.Id)

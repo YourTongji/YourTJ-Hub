@@ -3061,7 +3061,7 @@ func buildSponsorsMeta(c *gin.Context) PageMeta {
 func buildNotificationsPageProps(c *gin.Context) NotificationsPageProps {
 	userID := component.LoginUserId(c)
 	category := c.Query("category")
-	if !eventNotification.ValidCategory(category) || category == "" {
+	if category == "" || !eventNotification.ValidCategory(category) {
 		category = "all"
 	}
 	filter := "all"

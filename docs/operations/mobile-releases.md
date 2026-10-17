@@ -287,7 +287,6 @@ preserves REST/SSE history, a replay/rolled-back forward has no extra notificati
 only the current owner's object. Android v2 channels retain the legacy channel rather than overwrite
 its immutable OS settings. A provider HTTP success or simulator build alone cannot fill a device cell.
 
-
 iOS uses APNs directly; no Firebase project or Firebase Dart defines are required. Enable **Push
 Notifications** on Apple Developer's `tj.yourtj.forumApp` App ID. Create an APNs authentication key
 under **Certificates, Identifiers & Profiles → Keys**, grant production access for distribution,

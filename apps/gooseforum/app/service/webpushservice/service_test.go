@@ -117,7 +117,7 @@ func TestEnqueueNotificationEnabledCreatesTask(t *testing.T) {
 	if len(tasks) != 1 {
 		t.Fatalf("enabled channel produced %d task(s), want 1", len(tasks))
 	}
-	if got, want := tasks[0].Type, TaskTypePush+"9002"; got != want {
+	if got, want := tasks[0].Type, TaskTypePush; got != want {
 		t.Errorf("task type = %q, want %q", got, want)
 	}
 	var payload PushTask

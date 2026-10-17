@@ -9949,6 +9949,11 @@ export interface components {
             applicationServerKey?: string;
             /** @description Native (mobile APNs/FCM) channel states; always present. */
             native: components["schemas"]["NativePushChannels"];
+            /**
+             * Format: uint64
+             * @description The caller's own numeric user id. The service worker compares it with the push payload recipient before showing a notification, so a recipient check never renders the /messages page.
+             */
+            viewerId: number;
         };
         PushConfigSuccess: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["PushConfigResult"];

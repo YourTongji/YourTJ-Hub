@@ -5407,7 +5407,7 @@ NotificationMarkAllReadResponse:
 
 PushConfigResult:
   type: object
-  required: [configured, native]
+  required: [configured, native, viewerId]
   properties:
     configured:
       type: boolean
@@ -5418,6 +5418,11 @@ PushConfigResult:
     native:
       $ref: '#/NativePushChannels'
       description: Native (mobile APNs/FCM) channel states; always present.
+    viewerId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: The caller's own numeric user id. The service worker compares it with the push payload recipient before showing a notification, so a recipient check never renders the /messages page.
   additionalProperties: false
 
 NativePushChannels:
