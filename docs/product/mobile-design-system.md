@@ -118,7 +118,7 @@ and above the keyboard. Simple confirmations use Cupertino alerts and answer onl
 actions: tapping the barrier does not cancel. Complex credential and editing
 forms retain the bounded Gf surface. Android keeps Material menus, choices and confirmations;
 its short action sheets retain the shared safe-area and width limits. See
-[0094](../decisions/0094-adaptive-ios-interaction-surfaces.md).
+[0095](../decisions/0095-adaptive-ios-interaction-surfaces.md).
 `Partial`: legacy forms still use bounded scrollable sheets; profile, password and course
 review editing confirm discarding changed input.
 Transient feedback uses the existing shared banner; field-specific errors stay beside the field.

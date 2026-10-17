@@ -87,7 +87,7 @@ Enlarged text raises the required width, restoring a single pane when labels or 
 space. Messages keeps the conversation directory beside the selected chat, courses keep their filters or
 offering selector beside content, and Wiki keeps namespaces or its table of contents beside reading.
 Publishing uses its existing editor and preview workspace. These layouts follow available
-window space rather than device names; see [0094](../decisions/0094-adaptive-ios-interaction-surfaces.md).
+window space rather than device names; see [0095](../decisions/0095-adaptive-ios-interaction-surfaces.md).
 
 
 - `Current`: Home offers a server-defined Following sort. It requires sign-in and shows only
