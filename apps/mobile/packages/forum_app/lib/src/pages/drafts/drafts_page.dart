@@ -25,6 +25,8 @@ class DraftsPage extends ConsumerStatefulWidget {
 }
 
 class _DraftsPageState extends ConsumerState<DraftsPage> {
+  static const double _wideBreakpoint = 900;
+  static const double _sidebarWidth = 280;
   AsyncValue<DraftsPageProps> _page = const AsyncValue.loading();
   final _search = TextEditingController();
   final GfScrollToTopController _scrollToTopController =
@@ -167,12 +169,10 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
     final session = ref.read(offlineCacheEpochProvider.notifier);
     final epoch = ref.read(offlineCacheEpochProvider);
     final l10n = AppLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      animationStyle: GfMotion.dialogStyle(context),
-      builder: (context) => AlertDialog(
+    final confirmed = await showGfAlertDialog<bool>(
+      context,
+      builder: (context) => GfAlertDialog(
         title: GfText(l10n.draftDeleteLocal),
-        scrollable: true,
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -186,11 +186,12 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
           ],
         ),
         actions: [
-          TextButton(
+          GfDialogAction(
             onPressed: () => Navigator.pop(context, false),
             child: GfText(l10n.commonCancel),
           ),
-          TextButton(
+          GfDialogAction(
+            destructive: true,
             onPressed: () => Navigator.pop(context, true),
             child: GfText(l10n.draftDeleteLocal),
           ),
@@ -235,12 +236,10 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
     final epoch = ref.read(offlineCacheEpochProvider);
     final l10n = AppLocalizations.of(context);
     final title = draft.title.isEmpty ? l10n.topicNoTitle : draft.title;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      animationStyle: GfMotion.dialogStyle(context),
-      builder: (context) => AlertDialog(
+    final confirmed = await showGfAlertDialog<bool>(
+      context,
+      builder: (context) => GfAlertDialog(
         title: GfText(l10n.draftDeleteCloud),
-        scrollable: true,
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -250,11 +249,12 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
           ],
         ),
         actions: [
-          TextButton(
+          GfDialogAction(
             onPressed: () => Navigator.pop(context, false),
             child: GfText(l10n.commonCancel),
           ),
-          TextButton(
+          GfDialogAction(
+            destructive: true,
             onPressed: () => Navigator.pop(context, true),
             child: GfText(l10n.draftDeleteCloud),
           ),
@@ -465,6 +465,86 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
     );
   }
 
+  Widget _filterPanel(
+    BuildContext context,
+    AppLocalizations l10n, {
+    bool includeBottomPadding = false,
+  }) {
+    final query = _search.text.trim().toLowerCase();
+    bool matches(String title, String content) =>
+        query.isEmpty ||
+        title.toLowerCase().contains(query) ||
+        content.toLowerCase().contains(query);
+    final showLocal = _filter != _DraftFilter.cloud;
+    final showCloud =
+        _filter == _DraftFilter.all || _filter == _DraftFilter.cloud;
+    final local = showLocal
+        ? _localDrafts
+              .where(
+                (draft) =>
+                    (_filter != _DraftFilter.replies ||
+                        draft.kind == DraftKind.reply) &&
+                    matches(draft.title, draft.content),
+              )
+              .toList()
+        : <LocalDraft>[];
+    final cloud = showCloud
+        ? (_page.valueOrNull?.drafts ?? <DraftPayload>[])
+              .where((draft) => matches(draft.title, draft.description))
+              .toList()
+        : <DraftPayload>[];
+    final count = local.length + cloud.length;
+    final ready =
+        (!showLocal || _localLoaded) && (!showCloud || _page.hasValue);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 12, 16, includeBottomPadding ? 16 : 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GfSearchField(
+            controller: _search,
+            hintText: l10n.draftSearchHint,
+            clearLabel: l10n.courseCopyClearSearch,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 8),
+          GfText(
+            l10n.draftSearchScope,
+            style: GfTheme.typographyOf(context).caption,
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: includeBottomPadding
+                ? Axis.vertical
+                : Axis.horizontal,
+            child: Wrap(
+              children: [
+                for (final filter in _DraftFilter.values)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: GfText(_filterLabel(filter, l10n)),
+                      selected: _filter == filter,
+                      onSelected: (_) => setState(() => _filter = filter),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (ready) GfText(l10n.draftMatchCount(count)),
+          if (_filtered && count == 0 && ready) ...[
+            const SizedBox(height: 12),
+            GfText(l10n.draftNoMatches),
+            TextButton(
+              onPressed: _clearFilters,
+              child: GfText(l10n.draftClearFilters),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(offlineCacheEpochProvider, (_, next) {
@@ -510,9 +590,6 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
               .where((draft) => matches(draft.title, draft.description))
               .toList()
         : <DraftPayload>[];
-    final count = local.length + cloud.length;
-    final ready =
-        (!showLocal || _localLoaded) && (!showCloud || _page.hasValue);
     final scaffold = Scaffold(
       appBar: GfAppBar(
         title: GfText(l10n.draftsTitle),
@@ -592,171 +669,170 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
         controller: _scrollToTopController,
         semanticLabel: l10n.commonBackToTop,
         threshold: 360,
-        builder: (context, controller) => AppRefreshIndicator(
-          onRefresh: () => _load(silent: true),
-          child: CustomScrollView(
-            controller: controller,
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      GfSearchField(
-                        controller: _search,
-                        hintText: l10n.draftSearchHint,
-                        clearLabel: l10n.courseCopyClearSearch,
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 8),
-                      GfText(
-                        l10n.draftSearchScope,
-                        style: GfTheme.typographyOf(context).caption,
-                      ),
-                      const SizedBox(height: 8),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            for (final filter in _DraftFilter.values)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: ChoiceChip(
-                                  label: GfText(_filterLabel(filter, l10n)),
-                                  selected: _filter == filter,
-                                  onSelected: (_) =>
-                                      setState(() => _filter = filter),
-                                ),
-                              ),
-                          ],
+        builder: (context, controller) => LayoutBuilder(
+          builder: (context, constraints) {
+            final wide =
+                constraints.maxWidth >= _wideBreakpoint &&
+                MediaQuery.textScalerOf(context).scale(17) <= 25.5;
+            final list = AppRefreshIndicator(
+              onRefresh: () => _load(silent: true),
+              child: CustomScrollView(
+                controller: controller,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Offstage(
+                      offstage: wide,
+                      child: _filterPanel(context, l10n),
+                    ),
+                  ),
+                  if (showLocal) ...[
+                    SliverToBoxAdapter(child: _section(l10n.draftLocalSection)),
+                    if (_localError != null)
+                      SliverToBoxAdapter(
+                        child: _retry(
+                          _localError!,
+                          () => _loadLocal(
+                            _loadSequence,
+                            ref.read(offlineCacheEpochProvider),
+                          ),
                         ),
                       ),
-                      if (ready) GfText(l10n.draftMatchCount(count)),
-                      if (_filtered && count == 0 && ready) ...[
-                        const SizedBox(height: 12),
-                        GfText(l10n.draftNoMatches),
-                        TextButton(
-                          onPressed: _clearFilters,
-                          child: GfText(l10n.draftClearFilters),
+                    if (!_localLoaded && _localError == null)
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: GfLoading(),
                         ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              if (showLocal) ...[
-                SliverToBoxAdapter(child: _section(l10n.draftLocalSection)),
-                if (_localError != null)
-                  SliverToBoxAdapter(
-                    child: _retry(
-                      _localError!,
-                      () => _loadLocal(
-                        _loadSequence,
-                        ref.read(offlineCacheEpochProvider),
+                      )
+                    else if (_localLoaded && _localDrafts.isEmpty && !_filtered)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: GfText(l10n.draftLocalEmpty),
+                        ),
                       ),
+                    SliverList.builder(
+                      itemCount: local.length,
+                      itemBuilder: (context, index) =>
+                          _localRow(local[index], l10n),
                     ),
-                  ),
-                if (!_localLoaded && _localError == null)
-                  const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: GfLoading(),
-                    ),
-                  )
-                else if (_localLoaded && _localDrafts.isEmpty && !_filtered)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: GfText(l10n.draftLocalEmpty),
-                    ),
-                  ),
-                SliverList.builder(
-                  itemCount: local.length,
-                  itemBuilder: (context, index) =>
-                      _localRow(local[index], l10n),
-                ),
-              ],
-              if (showCloud) ...[
-                SliverToBoxAdapter(child: _section(l10n.draftCloudSection)),
-                if ((_page.valueOrNull?.drafts.length ?? 0) >= 100)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: GfText(l10n.draftCloudLimit),
-                    ),
-                  ),
-                if (_refreshError != null)
-                  SliverToBoxAdapter(
-                    child: _retry(_refreshError!, () => _load(silent: true)),
-                  ),
-                _page.when(
-                  loading: () => const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: GfLoading(),
-                    ),
-                  ),
-                  error: (error, _) => SliverToBoxAdapter(
-                    child: GfErrorRetry(
-                      message: resolveErrorMessage(l10n, error),
-                      onRetry: _load,
-                    ),
-                  ),
-                  data: (props) => cloud.isEmpty
-                      ? SliverToBoxAdapter(
-                          child: !_filtered && props.drafts.isEmpty
-                              ? Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: GfText(l10n.draftsEmpty),
-                                )
-                              : const SizedBox.shrink(),
-                        )
-                      : SliverList.builder(
-                          itemCount: cloud.length,
-                          itemBuilder: (context, index) {
-                            final draft = cloud[index];
-                            return GfDraftRow(
-                              key: ValueKey('cloud-${draft.id}'),
-                              editLabel: l10n.publishContinue,
-                              deleteLabel: l10n.draftDeleteCloud,
-                              onDelete: _managing
-                                  ? null
-                                  : () => _deleteCloud(draft),
-                              showDelete: true,
-                              onEdit: _managing
-                                  ? null
-                                  : () => _open('/publish?id=${draft.id}'),
-                              blockedLabel: l10n.draftsBlocked,
-                              title: draft.title.isEmpty
-                                  ? l10n.topicNoTitle
-                                  : draft.title,
-                              description: draft.description,
-                              categories: [
-                                for (final cat in draft.categories)
-                                  GfTopicCategory(
-                                    name: cat.name,
-                                    color: colorFromHex(cat.color),
+                  ],
+                  if (showCloud) ...[
+                    SliverToBoxAdapter(child: _section(l10n.draftCloudSection)),
+                    if ((_page.valueOrNull?.drafts.length ?? 0) >= 100)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: GfText(l10n.draftCloudLimit),
+                        ),
+                      ),
+                    if (_refreshError != null)
+                      SliverToBoxAdapter(
+                        child: _retry(
+                          _refreshError!,
+                          () => _load(silent: true),
+                        ),
+                      ),
+                    _page.when(
+                      loading: () => const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: GfLoading(),
+                        ),
+                      ),
+                      error: (error, _) => SliverToBoxAdapter(
+                        child: GfErrorRetry(
+                          message: resolveErrorMessage(l10n, error),
+                          onRetry: _load,
+                        ),
+                      ),
+                      data: (props) => cloud.isEmpty
+                          ? SliverToBoxAdapter(
+                              child: !_filtered && props.drafts.isEmpty
+                                  ? Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: GfText(l10n.draftsEmpty),
+                                    )
+                                  : const SizedBox.shrink(),
+                            )
+                          : SliverList.builder(
+                              itemCount: cloud.length,
+                              itemBuilder: (context, index) {
+                                final draft = cloud[index];
+                                return GfDraftRow(
+                                  key: ValueKey('cloud-${draft.id}'),
+                                  editLabel: l10n.publishContinue,
+                                  deleteLabel: l10n.draftDeleteCloud,
+                                  onDelete: _managing
+                                      ? null
+                                      : () => _deleteCloud(draft),
+                                  showDelete: true,
+                                  onEdit: _managing
+                                      ? null
+                                      : () => _open('/publish?id=${draft.id}'),
+                                  blockedLabel: l10n.draftsBlocked,
+                                  title: draft.title.isEmpty
+                                      ? l10n.topicNoTitle
+                                      : draft.title,
+                                  description: draft.description,
+                                  categories: [
+                                    for (final cat in draft.categories)
+                                      GfTopicCategory(
+                                        name: cat.name,
+                                        color: colorFromHex(cat.color),
+                                      ),
+                                  ],
+                                  blocked: draft.processStatus == 1,
+                                  meta: l10n.draftsMetaCreated(
+                                    formatDateTime(draft.createdAt),
                                   ),
-                              ],
-                              blocked: draft.processStatus == 1,
-                              meta: l10n.draftsMetaCreated(
-                                formatDateTime(draft.createdAt),
-                              ),
-                              updatedTime: formatDate(draft.updatedAt),
-                              onTap: _managing
-                                  ? null
-                                  : () => _open('/publish?id=${draft.id}'),
-                            );
-                          },
+                                  updatedTime: formatDate(draft.updatedAt),
+                                  onTap: _managing
+                                      ? null
+                                      : () => _open('/publish?id=${draft.id}'),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                  const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                ],
+              ),
+            );
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Offstage(
+                  offstage: !wide,
+                  child: SizedBox(
+                    width: _sidebarWidth,
+                    child: ColoredBox(
+                      color: GfTheme.colorsOf(context).base200,
+                      child: SingleChildScrollView(
+                        key: const Key('draft-filter-sidebar'),
+                        child: _filterPanel(
+                          context,
+                          l10n,
+                          includeBottomPadding: true,
                         ),
+                      ),
+                    ),
+                  ),
                 ),
+                Offstage(
+                  offstage: !wide,
+                  child: SizedBox(
+                    width: 1,
+                    child: ColoredBox(color: GfTheme.colorsOf(context).line),
+                  ),
+                ),
+                Expanded(child: list),
               ],
-              const SliverToBoxAdapter(child: SizedBox(height: 32)),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

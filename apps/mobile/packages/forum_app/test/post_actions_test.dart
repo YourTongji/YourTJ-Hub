@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/topic/post_actions.dart';
 import 'package:forum_app/src/pages/topic/post_history_sheet.dart';
+import 'package:forum_app/src/pages/topic/post_edit_sheet.dart';
 import 'package:forum_app/src/widgets/share/share_image_preview.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/private_notes.dart';
@@ -163,7 +164,7 @@ void main() {
           onReport: () {},
         ),
       );
-      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.tap(find.byType(GfPopupMenuButton<String>));
       await tester.pumpAndSettle();
       expect(find.text('Edit'), findsOneWidget);
       expect(find.text('Share'), findsNothing);
@@ -215,7 +216,7 @@ void main() {
         onReport: () {},
       ),
     );
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(find.byType(GfPopupMenuButton<String>));
     await tester.pumpAndSettle();
     expect(find.text('Share'), findsOneWidget);
     expect(find.text('Generate share image'), findsOneWidget);
@@ -243,32 +244,33 @@ void main() {
           onReport: () {},
         ),
       );
-      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.tap(find.byType(GfPopupMenuButton<String>));
       await tester.pumpAndSettle();
       expect(find.text('Share'), findsNothing);
       expect(find.text('Generate share image'), findsNothing);
     });
   }
 
-  testWidgets('share actions are absent when the containing topic is unavailable', (
-    tester,
-  ) async {
-    await pump(
-      tester,
-      repo(),
-      PostActions(
-        post: post().copyWith(isOwnPost: false),
-        topicAvailable: false,
-        onChanged: () async {},
-        onReply: null,
-        onReport: () {},
-      ),
-    );
-    await tester.tap(find.byType(PopupMenuButton<String>));
-    await tester.pumpAndSettle();
-    expect(find.text('Share'), findsNothing);
-    expect(find.text('Generate share image'), findsNothing);
-  });
+  testWidgets(
+    'share actions are absent when the containing topic is unavailable',
+    (tester) async {
+      await pump(
+        tester,
+        repo(),
+        PostActions(
+          post: post().copyWith(isOwnPost: false),
+          topicAvailable: false,
+          onChanged: () async {},
+          onReply: null,
+          onReport: () {},
+        ),
+      );
+      await tester.tap(find.byType(GfPopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      expect(find.text('Share'), findsNothing);
+      expect(find.text('Generate share image'), findsNothing);
+    },
+  );
 
   testWidgets('share card uses public author data, never private notes', (
     tester,
@@ -300,7 +302,7 @@ void main() {
       ),
     );
     await pump(tester, repo(), widget);
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(find.byType(GfPopupMenuButton<String>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Generate share image'));
     await tester.pumpAndSettle();
@@ -340,7 +342,7 @@ void main() {
         onReport: () {},
       ),
     );
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(find.byType(GfPopupMenuButton<String>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Generate share image'));
     await tester.pumpAndSettle();
@@ -658,53 +660,65 @@ void main() {
     expect(find.text('Revision history'), findsOneWidget);
   });
 
-  testWidgets(
-    'dirty reply sheet blocks outside and drag dismissal and confirms close',
-    (tester) async {
-      await pump(
-        tester,
-        repo(),
-        PostActions(
-          post: post(),
-          onChanged: () async {},
-          onReply: () {},
-          onReport: () {},
-        ),
-      );
-      await tester.tap(find.byTooltip('More options'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Edit'));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const Key('post-edit-content')),
-        'Keep my draft',
-      );
-      await tester.tapAt(const Offset(10, 10));
-      await tester.pumpAndSettle();
-      expect(find.text('Keep my draft'), findsOneWidget);
-      await tester.dragFrom(
-        tester.getTopLeft(find.byType(BottomSheet)) + const Offset(80, 8),
-        const Offset(0, 500),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Keep my draft'), findsOneWidget);
-      await tester.tap(find.byTooltip('Close'));
-      await tester.pumpAndSettle();
-      final l10n = AppLocalizations.of(
-        tester.element(find.byType(PostActions)),
-      );
-      expect(find.text(l10n.publishLeaveTitle), findsOneWidget);
-      await tester.tap(find.text(l10n.commonCancel));
-      await tester.pumpAndSettle();
-      expect(find.text('Keep my draft'), findsOneWidget);
-      await tester.tap(find.byTooltip('Close'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(l10n.publishDiscard));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('post-edit-content')), findsNothing);
-      expect(tester.takeException(), isNull);
-    },
-  );
+  for (final width in [390.0, 1120.0]) {
+    testWidgets(
+      'dirty reply editor blocks outside and drag dismissal and confirms close at $width',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = Size(width, 844);
+        addTearDown(tester.view.reset);
+        await pump(
+          tester,
+          repo(),
+          PostActions(
+            post: post(),
+            onChanged: () async {},
+            onReply: () {},
+            onReport: () {},
+          ),
+        );
+        await tester.tap(find.byTooltip('More options'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Edit'));
+        await tester.pumpAndSettle();
+        final editor = find.byType(PostEditSheet);
+        expect(
+          ModalRoute.of(tester.element(editor)),
+          width >= 760
+              ? isA<DialogRoute<bool>>()
+              : isA<ModalBottomSheetRoute<bool>>(),
+        );
+        await tester.enterText(
+          find.byKey(const Key('post-edit-content')),
+          'Keep my draft',
+        );
+        await tester.tapAt(const Offset(10, 10));
+        await tester.pumpAndSettle();
+        expect(find.text('Keep my draft'), findsOneWidget);
+        await tester.dragFrom(
+          tester.getTopLeft(editor) + const Offset(80, 8),
+          const Offset(0, 500),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Keep my draft'), findsOneWidget);
+        await tester.tap(find.byTooltip('Close'));
+        await tester.pumpAndSettle();
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(PostActions)),
+        );
+        expect(find.text(l10n.publishLeaveTitle), findsOneWidget);
+        await tester.tap(find.text(l10n.commonCancel));
+        await tester.pumpAndSettle();
+        expect(find.text('Keep my draft'), findsOneWidget);
+        await tester.tap(find.byTooltip('Close'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(l10n.publishDiscard));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('post-edit-content')), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   testWidgets('history follows older cursor and represents masked snapshots', (
     tester,
   ) async {

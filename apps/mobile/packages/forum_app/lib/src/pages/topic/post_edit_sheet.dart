@@ -46,18 +46,18 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
     if (_busy || _uploading) return;
     final l10n = AppLocalizations.of(context);
     if (_text.text != widget.content) {
-      final discard = await showDialog<bool>(
-        context: context,
-        animationStyle: GfMotion.dialogStyle(context),
-        builder: (context) => AlertDialog(
+      final discard = await showGfAlertDialog<bool>(
+        context,
+        builder: (context) => GfAlertDialog(
           title: GfText(l10n.publishLeaveTitle),
           content: GfText(l10n.publishLeaveBody),
           actions: [
-            TextButton(
+            GfDialogAction(
               onPressed: () => Navigator.pop(context, false),
               child: GfText(l10n.commonCancel),
             ),
-            TextButton(
+            GfDialogAction(
+              destructive: true,
               onPressed: () => Navigator.pop(context, true),
               child: GfText(l10n.publishDiscard),
             ),

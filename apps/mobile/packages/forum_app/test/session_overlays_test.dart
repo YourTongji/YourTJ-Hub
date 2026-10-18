@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ui_kit/ui_kit.dart';
 import 'package:forum_app/src/navigation/session_overlays.dart';
 import 'package:forum_app/src/providers.dart';
 
@@ -137,6 +138,6 @@ void main() {
     validated.complete();
     await tester.pumpAndSettle();
     expect(writes, 0);
-    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byType(GfAlertDialog), findsNothing);
   });
 }

@@ -1,0 +1,31 @@
+getExternalLinkPolicy:
+  get:
+    tags: [Forum]
+    summary: Read the trusted external-domain whitelist
+    operationId: getExternalLinkPolicy
+    description: |
+      Public read (no auth) of the admin-configured trusted external domains,
+      consumed by the mobile app to mirror the Web external-link confirmation
+      policy (issue #1200). Links whose hostname equals an entry or is a
+      subdomain of an entry skip the "leaving the site" confirmation when
+      their risk class is normal_external; the tag-mismatch (suspicious) and
+      blocked classes are never exempted, and clients enforce that boundary.
+      Entries are lower-cased hostnames (IDN in punycode) validated at save
+      time; the same list is embedded in the SSR payload as
+      layout.site.trustedExternalDomains. An empty array means no domain is
+      exempted.
+    security: []
+    responses:
+      '200':
+        description: |
+          Trusted external domains: the stored list, or the built-in default
+          whitelist when nothing has been saved (or the stored row predates
+          the field). JSON binding is lenient: query string and body are
+          ignored.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ExternalLinkPolicyResponse
+            examples:
+              stored:
+                externalValue: ../fixtures/external-link-policy-success.json

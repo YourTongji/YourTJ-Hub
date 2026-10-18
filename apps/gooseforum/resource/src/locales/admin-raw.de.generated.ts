@@ -1002,4 +1002,9 @@ export default {
   "k00xq": "Alle Ereignisse werden als reiner Text gesendet; Prüf- und Meldungsnachrichten enthalten Links zur Bearbeitung. Das Plugin stellt Nachrichten erst in eine Warteschlange, daher bedeutet ein erfolgreicher Test nur, dass das Plugin sie empfangen hat. Wenn im Chat nichts ankommt, prüfen Sie die AstrBot-Logs.",
   "k00xr": "Server-Proxy-Uploads erzwingen",
   "k00xs": "Wenn aktiviert, werden Beitragsbilder auch bei S3-Speicher über den Forum-Server hochgeladen (der in den Bucket schreibt) statt direkt aus dem Browser. Vorübergehender Ausweg bei Störungen direkter Uploads; erhöht Bandbreite und Speicherbedarf des Servers, und das Body-Limit des Reverse-Proxys muss mindestens dem Bild-Upload-Limit entsprechen.",
+  "k00xt": "Vertrauenswürdige externe Domains",
+  "k00xu": "Links zu diesen Domains (inkl. Subdomains) öffnen bei gewöhnlichen externen Links (normal_external) direkt, ohne den Hinweis „YourTJ verlassen“. Irreführende oder blockierte Links erfordern weiterhin eine Bestätigung und werden nie ausgenommen.",
+  "k00xv": "z. B. github.com",
+  "k00xw": "Noch keine Domains hinterlegt – jeder externe Link zeigt die Bestätigung.",
+  "k00xx": "Nur Domains angeben: ohne Schema, Pfad, Port oder Platzhalter, maximal 200 Einträge; eine leere Liste deaktiviert die Whitelist.",
 } as const

@@ -12,6 +12,7 @@ import 'analytics/analytics_host.dart';
 import 'router.dart';
 import 'private_notes.dart';
 import 'app_locale.dart';
+import 'external_link_policy.dart';
 import 'site_theme.dart';
 import 'theme_mode.dart';
 import 'push/push_service.dart';
@@ -49,6 +50,9 @@ class GfApp extends ConsumerWidget {
           )
         : null;
     final bootstrap = ref.watch(storageBootstrapProvider);
+    // 外链免确认白名单（issue #1200）：随应用启动拉取一次并写入
+    // LinkNavigation；失败静默保留当前清单。
+    ref.watch(externalLinkPolicyProvider);
     final reset = ref.watch(storageResetStateProvider);
     // The brand layer holds on top of the storage gate until local data is
     // prepared, so cold start shows one waiting surface instead of two. The

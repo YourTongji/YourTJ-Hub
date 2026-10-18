@@ -350,6 +350,8 @@ paths:
     $ref: ./paths/forum-read.yaml#/forumStickerList
   /api/site-theme/tokens:
     $ref: ./paths/site-theme-public.yaml#/getPublicSiteThemeTokens
+  /api/external-link-policy:
+    $ref: ./paths/external-link-policy.yaml#/getExternalLinkPolicy
   /api/forum/user/my-content:
     $ref: ./paths/user-content.yaml#/myContentList
   /api/forum/user/deleted-content:
@@ -1571,6 +1573,8 @@ components:
       $ref: ./components/schemas.yaml#/AdminSiteSettingsConfig
     AdminSiteSettingsResponse:
       $ref: ./components/schemas.yaml#/AdminSiteSettingsResponse
+    AdminSiteSettingsResult:
+      $ref: ./components/schemas.yaml#/AdminSiteSettingsResult
     AdminSaveSiteSettingsRequest:
       $ref: ./components/schemas.yaml#/AdminSaveSiteSettingsRequest
     AdminSiteChromeItem:
@@ -1611,6 +1615,12 @@ components:
       $ref: ./components/schemas.yaml#/PublicSiteThemeTokensSuccess
     PublicSiteThemeTokensResponse:
       $ref: ./components/schemas.yaml#/PublicSiteThemeTokensResponse
+    ExternalLinkPolicyResult:
+      $ref: ./components/schemas.yaml#/ExternalLinkPolicyResult
+    ExternalLinkPolicySuccess:
+      $ref: ./components/schemas.yaml#/ExternalLinkPolicySuccess
+    ExternalLinkPolicyResponse:
+      $ref: ./components/schemas.yaml#/ExternalLinkPolicyResponse
     AdminSecuritySettingsConfig:
       $ref: ./components/schemas.yaml#/AdminSecuritySettingsConfig
     AdminSecuritySettingsResponse:

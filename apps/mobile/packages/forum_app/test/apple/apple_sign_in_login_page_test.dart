@@ -88,8 +88,9 @@ Future<void> _expectLoginRowGeometry(
   TestDefaultBinaryMessenger messenger,
   MethodChannel platformViews,
 ) async {
-  await tester.binding.setSurfaceSize(const Size(390, 1100));
-  addTearDown(() => tester.binding.setSurfaceSize(null));
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(390, 1100);
+  addTearDown(tester.view.reset);
 
   final creations = <Map<Object?, Object?>>[];
   messenger.setMockMethodCallHandler(platformViews, (call) async {
@@ -143,10 +144,12 @@ Future<void> _expectLoginRowGeometry(
   // The native button occupies the same row as the other providers, whose
   // stadium silhouette is what the radius has to match.
   final sibling = tester.getSize(
-    find.descendant(
-      of: find.byType(BottomSheet),
-      matching: find.byType(OutlinedButton),
-    ).first,
+    find
+        .descendant(
+          of: find.byType(BottomSheet),
+          matching: find.byType(OutlinedButton),
+        )
+        .first,
   );
   expect(sibling.height, creations.single['height']);
   expect(creations.single['radius'], sibling.height / 2);

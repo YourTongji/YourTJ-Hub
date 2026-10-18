@@ -86,7 +86,7 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
           children: [
             if (widget.targetType == 'chat_message')
               GfText(l10n.messageReportPrivacy),
-            DropdownButtonFormField<String>(
+            GfDropdownButtonFormField<String>(
               initialValue: _reason,
               isExpanded: true,
               items: [

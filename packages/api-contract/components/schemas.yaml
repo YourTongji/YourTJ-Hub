@@ -833,6 +833,12 @@ AgentTopicItem:
       type: string
     excerpt:
       type: string
+    images:
+      type: array
+      maxItems: 9
+      items:
+        type: string
+      description: Topic gallery image URLs (topics.image_urls, falling back to the legacy firstImageUrl when empty, like the web topic list; usually site-relative `/file/img/...`), at most nine. The list only contains topics whose first post is visible, so this never exposes the gallery of a hidden, author-deleted or moderator-removed first post. Empty when the topic has no image. Older servers omit this field.
     categoryIds:
       type: array
       items:
@@ -1164,6 +1170,12 @@ PostPayload:
     isAnswer:
       type: boolean
       description: True only when the topic is a Question (contentType=1), the post is not the first post, and it replies to the question itself.
+    images:
+      type: array
+      maxItems: 9
+      items:
+        type: string
+      description: Topic gallery image URLs (topics.image_urls, falling back to the legacy firstImageUrl when empty, like the web topic list; at most nine; usually site-relative `/file/img/...`, absolute when the storage public URL prefix is set). Present only on the first post (postNo 1) when it is visible; omitted for replies and when the first post is hidden, author-deleted or moderator-removed. Older servers omit this field.
   additionalProperties: false
 
 ReplyTargetPayload:
@@ -7871,7 +7883,25 @@ AdminSiteSettingsConfig:
       type: string
     externalLinks:
       type: string
+    trustedExternalDomains:
+      type: array
+      items:
+        type: string
+      description: |
+        Trusted external-domain whitelist (issue #1200): lower-cased
+        hostnames whose normal_external links skip the external-link
+        confirmation; an entry also matches its subdomains. Optional in
+        requests — omitting the key (or sending null) keeps the stored list,
+        while an explicit empty array clears it — and always present in
+        responses (the stored list, or the built-in default when nothing has
+        been saved).
   additionalProperties: false
+
+AdminSiteSettingsResult:
+  allOf:
+    - $ref: '#/AdminSiteSettingsConfig'
+    - type: object
+      required: [trustedExternalDomains]
 
 AdminSiteSettingsResponse:
   allOf:
@@ -7880,7 +7910,7 @@ AdminSiteSettingsResponse:
       required: [result]
       properties:
         result:
-          $ref: '#/AdminSiteSettingsConfig'
+          $ref: '#/AdminSiteSettingsResult'
           description: Stored site settings, or the built-in default when nothing has been saved.
 
 AdminSaveSiteSettingsRequest:
@@ -7900,6 +7930,18 @@ AdminSaveSiteSettingsRequest:
     and params `field` naming the first offending field; nothing is
     persisted. A missing/malformed body binds to zero values (empty URL
     fields, hence valid) and is saved as-is.
+    `trustedExternalDomains` entries are normalized before persistence
+    (trimmed, lower-cased, IDN converted to punycode, de-duplicated, blank
+    entries dropped) under the trusted-domain policy (issue #1200): entries
+    carry no scheme, path, port, wildcard or IP literal, are not a bare
+    public suffix (`com`, `co.uk`, `github.io`), are limited to 200 entries,
+    and each must be a valid hostname. On rejection the request fails with
+    HTTP 200 `code: 1`, messageCode `admin.externalDomain.invalid` and params
+    `domain` naming the first offending entry; nothing is persisted. An
+    explicit empty array is valid and disables the whitelist, while omitting
+    the key (or sending null) keeps the stored list — or the built-in default
+    when nothing has been saved — so an admin tab running the previous bundle
+    cannot clear the whitelist by saving unrelated settings.
 
 AdminSiteChromeItem:
   type: object
@@ -8196,6 +8238,33 @@ PublicSiteThemeTokensSuccess:
 PublicSiteThemeTokensResponse:
   oneOf:
     - $ref: '#/PublicSiteThemeTokensSuccess'
+    - $ref: '#/ApiFailure'
+
+ExternalLinkPolicyResult:
+  type: object
+  required: [trustedDomains]
+  properties:
+    trustedDomains:
+      type: array
+      items:
+        type: string
+      description: |
+        Lower-cased hostnames (IDN in punycode) in submission order; an entry
+        also matches its subdomains. Empty means no domain is exempted.
+  additionalProperties: false
+
+ExternalLinkPolicySuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/ExternalLinkPolicyResult'
+
+ExternalLinkPolicyResponse:
+  oneOf:
+    - $ref: '#/ExternalLinkPolicySuccess'
     - $ref: '#/ApiFailure'
 
 AdminSiteThemeResponse:

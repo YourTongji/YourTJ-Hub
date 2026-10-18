@@ -325,16 +325,18 @@ type AgentTopicItem struct {
 	Id                   uint64                    `json:"id"`
 	Title                string                    `json:"title"`
 	Excerpt              string                    `json:"excerpt"`
-	CategoryIds          []uint64                  `json:"categoryIds"`
-	UserId               uint64                    `json:"userId"`
-	Status               int8                      `json:"status"`
-	ProcessStatus        int8                      `json:"processStatus"`
-	ReplyCount           uint64                    `json:"replyCount"`
-	ViewCount            uint64                    `json:"viewCount"`
-	PostCount            uint64                    `json:"postCount"`
-	LastPostedAt         *int64                    `json:"lastPostedAt,omitempty"`
-	CreatedAt            int64                     `json:"createdAt"`
-	UpdatedAt            int64                     `json:"updatedAt"`
+	// Images is topics.Entity.PublicGallery (image_urls, else first_image_url; issue #1228).
+	Images        []string `json:"images"`
+	CategoryIds   []uint64 `json:"categoryIds"`
+	UserId        uint64   `json:"userId"`
+	Status        int8     `json:"status"`
+	ProcessStatus int8     `json:"processStatus"`
+	ReplyCount    uint64   `json:"replyCount"`
+	ViewCount     uint64   `json:"viewCount"`
+	PostCount     uint64   `json:"postCount"`
+	LastPostedAt  *int64   `json:"lastPostedAt,omitempty"`
+	CreatedAt     int64    `json:"createdAt"`
+	UpdatedAt     int64    `json:"updatedAt"`
 }
 
 type AgentTopicListResponse struct {
@@ -384,6 +386,7 @@ func toAgentTopicItem(entity topics.Entity) AgentTopicItem {
 		Id:                   entity.Id,
 		Title:                entity.Title,
 		Excerpt:              entity.Excerpt,
+		Images:               entity.PublicGallery(),
 		CategoryIds:          entity.CategoryIds,
 		UserId:               entity.UserId,
 		Status:               entity.Status,

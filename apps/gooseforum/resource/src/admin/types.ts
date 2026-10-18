@@ -231,6 +231,8 @@ export interface SiteSettings {
   siteDescription: string
   siteKeywords: string
   externalLinks?: string
+  /** 外链免确认白名单（issue #1200）：小写主机名，条目覆盖其全部子域。 */
+  trustedExternalDomains?: string[]
 }
 
 export interface SiteChromeItem {

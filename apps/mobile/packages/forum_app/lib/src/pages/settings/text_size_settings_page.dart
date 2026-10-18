@@ -28,7 +28,9 @@ enum _TextSizeAxis { app, reading }
 /// The control panel keeps the default app size so the slider never moves
 /// away from the finger.
 class TextSizeSettingsPage extends ConsumerStatefulWidget {
-  const TextSizeSettingsPage({super.key});
+  const TextSizeSettingsPage({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   ConsumerState<TextSizeSettingsPage> createState() =>
@@ -75,7 +77,9 @@ class _TextSizeSettingsPageState extends ConsumerState<TextSizeSettingsPage> {
     final double appScale = ref.watch(appFontScaleProvider);
     final double readingScale = ref.watch(contentFontScaleProvider);
     return Scaffold(
-      appBar: GfAppBar(title: GfText(l10n.textSizeTitle)),
+      appBar: widget.embedded
+          ? null
+          : GfAppBar(title: GfText(l10n.textSizeTitle)),
       body: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) => Column(
           children: <Widget>[
@@ -487,7 +491,7 @@ class _TextSizeSlider extends StatelessWidget {
             Expanded(
               child: Semantics(
                 label: title,
-                child: Slider(
+                child: Slider.adaptive(
                   key: ValueKey('text-size-${axis.name}'),
                   value: value.clamp(min, max),
                   min: min,

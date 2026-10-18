@@ -257,7 +257,11 @@ func GetDefaultAiSummaryConfig() pageConfig.AiSummaryConfig {
 }
 
 func GetDefaultSiteSettingsConfig() pageConfig.SiteSettingsConfig {
-	return mustPageConfigDefaults().Site
+	config := mustPageConfigDefaults().Site
+	// 列表字段拷贝并保证非 nil（issue #1200）：调用方可能改写下发清单，
+	// 共享切片会把改动写回 embedding 的默认值。
+	config.TrustedExternalDomains = append([]string{}, config.TrustedExternalDomains...)
+	return config
 }
 
 func GetDefaultSiteChromeConfig() pageConfig.SiteChromeConfig {

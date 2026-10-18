@@ -202,6 +202,91 @@ Future<GoRouter> _pumpApp(
 
 void main() {
   tearDown(LinkNavigation.clearSessionTrust);
+  testWidgets('wide Wiki home puts namespaces beside recent documents', (
+    tester,
+  ) async {
+    final wiki = _FakeWikiRepository(_client(), data: _homeData());
+    final pages = _FakePageRepository(_client(), payloads: {});
+    await tester.binding.setSurfaceSize(const Size(1100, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pumpApp(tester, pages: pages, wiki: wiki);
+    expect(find.byKey(const Key('wiki-namespace-sidebar')), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('指南')).dx,
+      lessThan(tester.getTopLeft(find.text('内容规范')).dx),
+    );
+    await tester.binding.setSurfaceSize(const Size(500, 800));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('wiki-namespace-sidebar')), findsNothing);
+    expect(find.text('指南'), findsOneWidget);
+    await tester.binding.setSurfaceSize(const Size(1100, 800));
+    await tester.pumpAndSettle();
+    expect(wiki.homeCalls, 1);
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('wiki-namespace-sidebar')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('wide Wiki keeps its TOC and HTML controller through resizing', (
+    tester,
+  ) async {
+    final pages = _FakePageRepository(
+      _client(),
+      payloads: {
+        '/wiki/guide/start': _detailPayload(
+          path: 'guide/start',
+          title: '开始',
+          content:
+              '<h2 id="intro">介绍</h2>'
+              '${List.filled(30, '<p>占位段落。</p>').join()}'
+              '<h3 id="details">细节说明</h3>',
+        ),
+      },
+    );
+    await tester.binding.setSurfaceSize(const Size(1100, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final router = await _pumpApp(
+      tester,
+      pages: pages,
+      initialLocation: '/wiki/guide/start',
+    );
+    expect(find.byKey(const Key('wiki-toc-sidebar')), findsOneWidget);
+    final view = tester.widget<ListView>(
+      find.byKey(const Key('wiki-page-scroll')),
+    );
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const Key('wiki-toc-sidebar')),
+        matching: find.text('细节说明'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(view.controller!.offset, greaterThan(0));
+    final offset = view.controller!.offset;
+    await tester.binding.setSurfaceSize(const Size(500, 800));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('wiki-toc-sidebar')), findsNothing);
+    expect(
+      tester
+          .widget<ListView>(find.byKey(const Key('wiki-page-scroll')))
+          .controller,
+      same(view.controller),
+    );
+    expect(view.controller!.offset, closeTo(offset, 1));
+    await tester.binding.setSurfaceSize(const Size(1100, 800));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('wiki-toc-sidebar')), findsOneWidget);
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('wiki-toc-sidebar')), findsNothing);
+    expect(pages.fetchedPaths, ['/wiki/guide/start']);
+    expect(router.state.uri.path, '/wiki/guide/start');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('encoded same-page anchors scroll without opening another page', (
     tester,
   ) async {
@@ -828,5 +913,59 @@ void main() {
 
     // 页内锚点交还 fwfh 内部滚动,不产生新的页面请求。
     expect(pages.fetchedPaths, <String>['/wiki/guide/getting-started']);
+  });
+
+  testWidgets('whitelisted target still asks when the label points elsewhere', (
+    tester,
+  ) async {
+    // 目标命中白名单,但可见文本是另一个站外 URL:与 Web 全局守卫的 linkRisk
+    // 一致,按 suspicious 弹确认层且不被白名单豁免(issue #1200 review)。
+    LinkNavigation.applyTrustedDomains(<String>['github.com']);
+    addTearDown(
+      () => LinkNavigation.applyTrustedDomains(const <String>[]),
+    );
+    final pages = _FakePageRepository(
+      _client(),
+      payloads: {
+        '/wiki/guide/start': _detailPayload(
+          path: 'guide/start',
+          title: '开始',
+          content:
+              '<p><a href="https://github.com/x">https://bank.example/account</a></p>',
+        ),
+      },
+    );
+    final opened = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/url_launcher'),
+      (call) async {
+        if (call.method == 'launch') {
+          opened.add((call.arguments as Map)['url'] as String);
+        }
+        return true;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/url_launcher'),
+        null,
+      ),
+    );
+
+    await _pumpApp(tester, pages: pages, initialLocation: '/wiki/guide/start');
+    await _tapLinkText(
+      tester,
+      find.textContaining('bank.example', findRichText: true),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('即将离开 YourTJ'), findsOneWidget);
+    // suspicious 没有「本次不再询问」的复选框(只有 normalExternal 才可记住)。
+    expect(find.text('本次浏览期间不再询问此域名'), findsNothing);
+    expect(opened, isEmpty);
+
+    await tester.tap(find.text('继续访问'));
+    await tester.pumpAndSettle();
+    expect(opened, <String>['https://github.com/x']);
   });
 }

@@ -131,6 +131,11 @@ type SiteSettingsConfig struct {
 	SiteUrl         string `json:"siteUrl"`
 	SiteEmail       string `json:"siteEmail"`
 	ExternalLinks   string `json:"externalLinks"`
+	// TrustedExternalDomains 外链免确认白名单（issue #1200）：命中的主机名
+	// （含其子域）且风险为 normal_external 的站外链接跳过确认弹层；条目为
+	// 小写主机名，规范化与校验见 bundles/domainpolicy。suspicious/blocked
+	// 永不豁免。存量配置缺少该键时按内置默认清单补齐（见 GetSiteSettingsConfig）。
+	TrustedExternalDomains []string `json:"trustedExternalDomains"`
 }
 
 type FooterInfo struct {

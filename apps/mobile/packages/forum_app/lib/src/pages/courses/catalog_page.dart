@@ -429,17 +429,17 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
         ),
         actions: [
           if (_canManageCourses)
-            PopupMenuButton<String>(
+            GfPopupMenuButton<String>(
               tooltip: l10n.coursesManagement,
               icon: const GfSymbol('ellipsis', size: 20),
               useRootNavigator: true,
               onSelected: (path) => context.push(path),
               itemBuilder: (_) => [
-                PopupMenuItem(
+                GfPopupMenuItem(
                   value: '/moderation/courses',
                   child: GfText(l10n.coursesManagement),
                 ),
-                PopupMenuItem(
+                GfPopupMenuItem(
                   value: '/moderation/course-reviews',
                   child: GfText(l10n.coursesReviewModeration),
                 ),
@@ -447,40 +447,74 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
             ),
         ],
       ),
-      body: Column(
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: GfSearchField(
-              controller: _searchController,
-              hintText: l10n.coursesSearchHint,
-              clearLabel: l10n.courseCopyClearSearch,
-              onChanged: _scheduleSearch,
-              onSubmitted: (_) => _clearDebounceAndSearch(),
-              onClear: _clearSearch,
-            ),
-          ),
-          _buildFilterRow(l10n),
-          if (_optionsLoading) const LinearProgressIndicator(minHeight: 2),
-          if (_optionsError != null)
-            _retryNotice(l10n.coursesFilterLoadFailed, _loadOptions),
-          if (_refreshing) const LinearProgressIndicator(minHeight: 2),
-          if (_refreshError != null)
-            _retryNotice(
-              resolveErrorMessage(l10n, _refreshError!),
-              () => _load(refresh: true),
-            ),
-          Expanded(
-            child: _page.when(
-              loading: () => const _CourseListSkeleton(),
-              error: (Object e, StackTrace _) => GfErrorRetry(
-                message: resolveErrorMessage(l10n, e),
-                onRetry: _load,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final scale = (MediaQuery.textScalerOf(context).scale(16) / 16).clamp(
+            1.0,
+            1.5,
+          );
+          final sidebarWidth = 280 * scale;
+          final wide = constraints.maxWidth >= sidebarWidth + 560 * scale;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Offstage(
+                offstage: !wide,
+                child: SizedBox(
+                  width: sidebarWidth,
+                  child: SingleChildScrollView(
+                    key: const Key('course-filter-sidebar'),
+                    padding: const EdgeInsets.all(16),
+                    child: _buildFilterRow(l10n, sidebar: true),
+                  ),
+                ),
               ),
-              data: (_) => _buildList(l10n),
-            ),
-          ),
-        ],
+              SizedBox(
+                width: wide ? 1 : 0,
+                child: ColoredBox(color: GfTheme.colorsOf(context).line),
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      child: GfSearchField(
+                        controller: _searchController,
+                        hintText: l10n.coursesSearchHint,
+                        clearLabel: l10n.courseCopyClearSearch,
+                        onChanged: _scheduleSearch,
+                        onSubmitted: (_) => _clearDebounceAndSearch(),
+                        onClear: _clearSearch,
+                      ),
+                    ),
+                    Offstage(offstage: wide, child: _buildFilterRow(l10n)),
+                    if (_optionsLoading)
+                      const LinearProgressIndicator(minHeight: 2),
+                    if (_optionsError != null)
+                      _retryNotice(l10n.coursesFilterLoadFailed, _loadOptions),
+                    if (_refreshing)
+                      const LinearProgressIndicator(minHeight: 2),
+                    if (_refreshError != null)
+                      _retryNotice(
+                        resolveErrorMessage(l10n, _refreshError!),
+                        () => _load(refresh: true),
+                      ),
+                    Expanded(
+                      child: _page.when(
+                        loading: () => const _CourseListSkeleton(),
+                        error: (Object e, StackTrace _) => GfErrorRetry(
+                          message: resolveErrorMessage(l10n, e),
+                          onRetry: _load,
+                        ),
+                        data: (_) => _buildList(l10n),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
     return GfStatusBarScrollToTop(
@@ -489,7 +523,7 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
     );
   }
 
-  Widget _buildFilterRow(AppLocalizations l10n) {
+  Widget _buildFilterRow(AppLocalizations l10n, {bool sidebar = false}) {
     final Widget dept = _filterChip(
       label: l10n.coursesFilterDepartment,
       dropdown: true,
@@ -551,6 +585,17 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
         _load();
       },
     );
+
+    if (sidebar) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final filter in [dept, term, campus, instructor, onlyReviews])
+            Padding(padding: const EdgeInsets.only(bottom: 12), child: filter),
+          if (_hasActiveFilters) _resetChip(l10n),
+        ],
+      );
+    }
 
     return ShaderMask(
       // 左右边缘渐隐：提示横向还有更多筛选 chip。渐隐区正好落在 12dp 内边距上，

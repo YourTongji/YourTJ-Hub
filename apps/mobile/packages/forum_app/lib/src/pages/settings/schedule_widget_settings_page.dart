@@ -13,7 +13,9 @@ import '../../providers.dart';
 import 'schedule_widget_transparency.dart';
 
 class ScheduleWidgetSettingsPage extends ConsumerStatefulWidget {
-  const ScheduleWidgetSettingsPage({super.key});
+  const ScheduleWidgetSettingsPage({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   ConsumerState<ScheduleWidgetSettingsPage> createState() =>
@@ -132,7 +134,9 @@ class _ScheduleWidgetSettingsPageState
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     return Scaffold(
-      appBar: GfAppBar(title: GfText(l.scheduleWidgetSettingsTitle)),
+      appBar: widget.embedded
+          ? null
+          : GfAppBar(title: GfText(l.scheduleWidgetSettingsTitle)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

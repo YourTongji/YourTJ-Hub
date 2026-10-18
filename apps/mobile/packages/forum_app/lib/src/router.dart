@@ -6,6 +6,7 @@ import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -43,8 +44,6 @@ import 'pages/schedule/schedule_page.dart';
 import 'pages/search/search_page.dart';
 import 'pages/settings/profile_privacy_page.dart';
 import 'pages/settings/settings_page.dart';
-import 'pages/settings/schedule_widget_settings_page.dart';
-import 'pages/settings/text_size_settings_page.dart';
 import 'pages/topic/topic_page.dart';
 import 'providers.dart';
 import 'current_user.dart';
@@ -73,6 +72,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
   CancelToken? _unreadCancel;
   bool _unreadNotifications = false;
   bool _unreadMessages = false;
+  ShortcutRegistryEntry? _shortcuts;
 
   @override
   void initState() {
@@ -84,6 +84,37 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
     unawaited(_purgeStaleOfflineCacheOnBoot());
     unawaited(_pollUnread());
     _onRouteVisibilityChanged();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _shortcuts ??= ShortcutRegistry.of(context).addAll({
+      for (var i = 0; i < 4; i++)
+        SingleActivator(
+          [
+            LogicalKeyboardKey.digit1,
+            LogicalKeyboardKey.digit2,
+            LogicalKeyboardKey.digit3,
+            LogicalKeyboardKey.digit4,
+          ][i],
+          meta: true,
+        ): VoidCallbackIntent(
+          () => _activateShortcut(() => _selectDestination(i)),
+        ),
+      const SingleActivator(
+        LogicalKeyboardKey.keyF,
+        meta: true,
+      ): VoidCallbackIntent(
+        () => _activateShortcut(() => context.push('/search')),
+      ),
+    });
+  }
+
+  void _activateShortcut(VoidCallback action) {
+    if (_activeInTree && routeIsUncovered(context) && !shellDrawerOpen.value) {
+      action();
+    }
   }
 
   ForegroundRealtimeCoordinator _createRealtime() {
@@ -173,6 +204,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     _activeInTree = false;
+    _shortcuts?.dispose();
     _realtime.stop();
     _unreadCancel?.cancel('shell disposed');
     shellDrawerOpen.value = false;
@@ -339,6 +371,8 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
         ),
     ];
 
+    final GfShellDestination currentDestination =
+        GfShellDestination.values[widget.navigationShell.currentIndex];
     return Scaffold(
       body: AccountDrawerLayer(
         key: accountDrawerLayerKey,
@@ -386,9 +420,19 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
             return false;
           },
           child: ReadingWindow(
-            maxContentWidth: widget.navigationShell.currentIndex == 1
-                ? 1120
-                : 720,
+            navigationRailWidth: ReadingNavigationRail.widthFor(
+              context,
+              destinations,
+            ),
+            maxContentWidth:
+                // Feed, campus and chat carry wide workspaces; notifications
+                // stay a reading column. Keyed by destination, not branch order.
+                switch (currentDestination) {
+                  GfShellDestination.home ||
+                  GfShellDestination.campus ||
+                  GfShellDestination.messages => 1120,
+                  GfShellDestination.notifications => 720,
+                },
             rail: ReadingNavigationRail(
               currentIndex: widget.navigationShell.currentIndex,
               onSelected: _selectDestination,
@@ -429,6 +473,20 @@ int? publishTopicIdFromUri(Uri uri) {
       uri.queryParameters['topicId'] ?? uri.queryParameters['id'] ?? '';
   return int.tryParse(rawTopicId);
 }
+
+GoRoute _readingPageRoute({
+  required String path,
+  required GoRouterWidgetBuilder builder,
+  GoRouterRedirect? redirect,
+  double maxContentWidth = 720,
+}) => GoRoute(
+  path: path,
+  redirect: redirect,
+  builder: (context, state) => ReadingPageWindow(
+    maxContentWidth: maxContentWidth,
+    child: builder(context, state),
+  ),
+);
 
 final appNavigatorKey = GlobalKey<NavigatorState>();
 final appSessionOverlays = SessionOverlayRegistry();
@@ -495,8 +553,9 @@ final GoRouter appRouter = GoRouter(
         ),
       ],
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/chat',
+      maxContentWidth: 1120,
       redirect: (_, state) =>
           (int.tryParse(state.uri.queryParameters['userId'] ?? '') ?? 0) > 0
           ? null
@@ -507,9 +566,14 @@ final GoRouter appRouter = GoRouter(
         targetAvatarUrl: state.uri.queryParameters['avatar'] ?? '',
       ),
     ),
-    GoRoute(path: '/search', builder: (_, _) => const SearchPage()),
-    GoRoute(
+    _readingPageRoute(
+      path: '/search',
+      maxContentWidth: 1120,
+      builder: (_, _) => const SearchPage(),
+    ),
+    _readingPageRoute(
       path: '/publish',
+      maxContentWidth: 1120,
       builder: (BuildContext context, GoRouterState state) => PublishPage(
         topicId: publishTopicIdFromUri(state.uri),
         localDraftKey: state.uri.queryParameters['local'],
@@ -521,14 +585,14 @@ final GoRouter appRouter = GoRouter(
         },
       ),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/c/:slug/:id',
       builder: (BuildContext context, GoRouterState state) => CategoryPage(
         slug: state.pathParameters['slug']!,
         categoryId: int.parse(state.pathParameters['id']!),
       ),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/p/:postId',
       builder: (BuildContext context, GoRouterState state) => TopicPage(
         topicId: int.parse(state.pathParameters['postId']!),
@@ -536,57 +600,70 @@ final GoRouter appRouter = GoRouter(
       ),
     ),
     for (final stream in ['following', 'followers'])
-      GoRoute(
+      _readingPageRoute(
         path: '/u/:userId/$stream',
         builder: (_, state) => ProfilePage.connections(
           userId: int.parse(state.pathParameters['userId']!),
           initialStream: stream,
         ),
       ),
-    GoRoute(
+    _readingPageRoute(
       path: '/a/:publicUid',
       builder: (_, state) =>
           AnonymousProfilePage(uid: state.pathParameters['publicUid']!),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/settings/anonymous-identity',
       builder: (_, state) => const AnonymousIdentityPage(),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/u/:userId',
       builder: (BuildContext context, GoRouterState state) =>
           ProfilePage(userId: int.parse(state.pathParameters['userId']!)),
     ),
-    GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
-    GoRoute(
-      path: '/settings/widgets',
-      builder: (_, _) => const ScheduleWidgetSettingsPage(),
+    _readingPageRoute(
+      path: '/settings',
+      maxContentWidth: 1120,
+      builder: (_, _) => const SettingsPage(),
     ),
-    GoRoute(
+    _readingPageRoute(
+      path: '/settings/widgets',
+      maxContentWidth: 1120,
+      builder: (_, _) => const SettingsPage(initialSection: 'widgets'),
+    ),
+    _readingPageRoute(
       path: '/settings/profile-privacy',
+      maxContentWidth: 1120,
       builder: (_, _) => const ProfilePrivacyPage(),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/settings/text-size',
-      builder: (_, _) => const TextSizeSettingsPage(),
+      maxContentWidth: 1120,
+      builder: (_, _) => const SettingsPage(initialSection: 'textSize'),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/settings/:section',
+      maxContentWidth: 1120,
       builder: (_, state) => SettingsPage(
         initialSection: state.pathParameters['section'],
         autoEditProfile: state.uri.queryParameters['edit'] == '1',
       ),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/my-course-reviews',
       builder: (_, _) => const MyCourseReviewsPage(),
     ),
-    GoRoute(path: '/my-content', builder: (_, _) => const ContentPage()),
-    GoRoute(
+    _readingPageRoute(
+      path: '/my-content',
+      maxContentWidth: 1120,
+      builder: (_, _) => const ContentPage(),
+    ),
+    _readingPageRoute(
       path: '/recycle-bin',
+      maxContentWidth: 1120,
       builder: (_, _) => const ContentPage(deleted: true),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/profile',
       builder: (_, state) => switch (state.uri.queryParameters['stream']) {
         'following' || 'followers' => ProfilePage.connections(
@@ -600,10 +677,15 @@ final GoRouter appRouter = GoRouter(
       path: '/moderation',
       builder: (_, _) => const AdminPage(target: MobileWebTarget.moderation),
     ),
-    GoRoute(path: '/about', builder: (_, _) => const SiteInfoIndexPage()),
+    _readingPageRoute(
+      path: '/about',
+      maxContentWidth: 1120,
+      builder: (_, _) => const SiteInfoIndexPage(),
+    ),
     for (final kind in SiteInfoKind.values)
-      GoRoute(
+      _readingPageRoute(
         path: '/${kind.name}',
+        maxContentWidth: 1120,
         builder: (_, _) => SiteInfoPage(kind: kind),
       ),
     GoRoute(
@@ -616,21 +698,28 @@ final GoRouter appRouter = GoRouter(
       builder: (_, _) => const AdminPage(target: MobileWebTarget.courseReviews),
     ),
     GoRoute(path: '/campus/official', redirect: (_, _) => '/campus'),
-    GoRoute(
+    _readingPageRoute(
       path: '/campus/explore',
+      maxContentWidth: 1120,
       builder: (_, _) => const CampusExplorePage(),
     ),
     GoRoute(path: '/admin', builder: (_, _) => const AdminPage()),
     GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
-    GoRoute(path: '/drafts', builder: (_, _) => const DraftsPage()),
+    _readingPageRoute(
+      path: '/drafts',
+      maxContentWidth: 1120,
+      builder: (_, _) => const DraftsPage(),
+    ),
     GoRoute(path: '/schedule', builder: (_, _) => const SchedulePage()),
-    GoRoute(
+    _readingPageRoute(
       path: '/courses',
+      maxContentWidth: 1120,
       builder: (_, state) =>
           CourseCatalogPage(initialQuery: state.uri.queryParameters['q'] ?? ''),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/courses/:courseId',
+      maxContentWidth: 1120,
       builder: (BuildContext context, GoRouterState state) => CourseDetailPage(
         courseId: int.parse(state.pathParameters['courseId']!),
         focusReviewId: int.tryParse(
@@ -641,16 +730,21 @@ final GoRouter appRouter = GoRouter(
         ),
       ),
     ),
-    GoRoute(
+    _readingPageRoute(
       path: '/wiki/search',
       builder: (_, state) =>
           WikiSearchPage(initialQuery: state.uri.queryParameters['q'] ?? ''),
     ),
-    GoRoute(path: '/wiki', builder: (_, _) => const WikiHomePage()),
-    GoRoute(
+    _readingPageRoute(
+      path: '/wiki',
+      maxContentWidth: 1120,
+      builder: (_, _) => const WikiHomePage(),
+    ),
+    _readingPageRoute(
       // 多段 wiki 路径（如 /wiki/guide/getting-started）经 (.*) 通配捕获；
       // go_router 对 path 参数自动 percent-decode，页面内按段重新编码。
       path: '/wiki/:wikiPath(.*)',
+      maxContentWidth: 1120,
       builder: (BuildContext context, GoRouterState state) => WikiPage(
         wikiPath: state.pathParameters['wikiPath']!,
         // state.uri.fragment 保留 percent-encoded 态;解码后再传给 scrollToAnchor。

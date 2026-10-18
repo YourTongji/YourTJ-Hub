@@ -4,6 +4,7 @@ import 'dart:ui' show Tristate;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +15,7 @@ import 'package:visibility_detector/visibility_detector.dart';
 import 'package:core/core.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/asset_url.dart';
+import 'package:forum_app/src/link_navigation.dart';
 import 'package:forum_app/src/pages/courses/catalog_page.dart';
 import 'package:forum_app/src/pages/courses/detail_page.dart';
 import 'package:forum_app/src/pages/courses/review_form_sheet.dart';
@@ -643,6 +645,95 @@ void main() {
     );
   });
 
+  testWidgets('wide catalog keeps filters beside results across resizing', (
+    tester,
+  ) async {
+    final repository = FakeCourseRepository(
+      _client(),
+      listPages: {1: (_catalogPageOne(), false)},
+    );
+    final container = _container(
+      courseRepo: repository,
+      pageRepo: FakePageRepository(_client()),
+    );
+    await tester.binding.setSurfaceSize(const Size(1100, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(_app(container, const CourseCatalogPage()));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('course-filter-sidebar')), findsOneWidget);
+    final field = tester.widget<TextField>(find.byType(TextField)).controller!;
+    await tester.enterText(find.byType(TextField), '高等数学');
+    await tester.pump(const Duration(milliseconds: 310));
+    await tester.pumpAndSettle();
+    final calls = repository.listCalls.length;
+    final list = tester.widget<CustomScrollView>(find.byType(CustomScrollView));
+    await tester.binding.setSurfaceSize(const Size(500, 800));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('course-filter-sidebar')), findsNothing);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller,
+      same(field),
+    );
+    expect(field.text, '高等数学');
+    expect(
+      tester.widget<CustomScrollView>(find.byType(CustomScrollView)).controller,
+      same(list.controller),
+    );
+    await tester.binding.setSurfaceSize(const Size(1100, 800));
+    await tester.pumpAndSettle();
+    expect(repository.listCalls.length, calls);
+    expect(find.byKey(const Key('course-filter-sidebar')), findsOneWidget);
+    await tester.pumpWidget(
+      _app(container, const CourseCatalogPage(), textScale: 2),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('course-filter-sidebar')), findsNothing);
+    expect(field.text, '高等数学');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'wide course detail keeps offerings beside the review reading area',
+    (tester) async {
+      final repository = FakeCourseRepository(
+        _client(),
+        detailPayload: _detailPayload(),
+        reviewPayloads: _reviewPayloads(),
+      );
+      final container = _container(courseRepo: repository);
+      await tester.binding.setSurfaceSize(const Size(1100, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _app(container, const CourseDetailPage(courseId: 42)),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('course-detail-sidebar')), findsOneWidget);
+      final scroll = tester
+          .widget<CustomScrollView>(find.byType(CustomScrollView))
+          .controller;
+      final calls = repository.reviewCalls.length;
+      await tester.binding.setSurfaceSize(const Size(500, 800));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('course-detail-sidebar')), findsNothing);
+      expect(
+        tester
+            .widget<CustomScrollView>(find.byType(CustomScrollView))
+            .controller,
+        same(scroll),
+      );
+      await tester.binding.setSurfaceSize(const Size(1100, 800));
+      await tester.pumpAndSettle();
+      expect(repository.reviewCalls.length, calls);
+      expect(find.byKey(const Key('course-detail-sidebar')), findsOneWidget);
+      await tester.pumpWidget(
+        _app(container, const CourseDetailPage(courseId: 42), textScale: 2),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('course-detail-sidebar')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   group('课程目录', () {
     testWidgets('渲染列表行，滚动到底触发 hasNext 翻页', (tester) async {
       final FakeCourseRepository course = FakeCourseRepository(
@@ -1245,6 +1336,70 @@ void main() {
       );
       await tester.pumpAndSettle();
     }
+
+    testWidgets('whitelisted review link still asks when its label differs', (
+      tester,
+    ) async {
+      // 课评正文是服务端 HTML(GfHtmlContent):目标命中白名单、标签却是另一个
+      // 站外 URL 时,与 Web 全局守卫的 linkRisk 一致按 suspicious 确认
+      // (issue #1200 review)。
+      LinkNavigation.applyTrustedDomains(<String>['github.com']);
+      addTearDown(() => LinkNavigation.applyTrustedDomains(const <String>[]));
+      final opened = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/url_launcher'),
+        (call) async {
+          if (call.method == 'launch') {
+            opened.add((call.arguments as Map)['url'] as String);
+          }
+          return true;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/url_launcher'),
+          null,
+        ),
+      );
+      final course = FakeCourseRepository(
+        _client(),
+        reviewPayloads: <ReviewPayload>[
+          const ReviewPayload(
+            id: 9,
+            offeringId: 901,
+            rating: 5,
+            content: '资料在 https://github.com/x',
+            contentHtml:
+                '<p><a href="https://github.com/x">https://bank.example/account</a></p>',
+            author: ReviewAuthorPayload(kind: 'member', label: 'bob'),
+            viewer: ReviewViewerPayload(
+              canEdit: false,
+              canDelete: false,
+              isHelpful: false,
+            ),
+            helpfulCount: 0,
+            createdAt: '2026-09-01T08:00:00+08:00',
+            updatedAt: '2026-09-01T08:00:00+08:00',
+          ),
+        ],
+      );
+
+      await pumpDetail(tester, course);
+      final Rect rect = tester.getRect(
+        find.textContaining('bank.example', findRichText: true),
+      );
+      await tester.tapAt(Offset(rect.left + 12, rect.center.dy));
+      await tester.pumpAndSettle();
+
+      expect(find.text('即将离开 YourTJ'), findsOneWidget);
+      // suspicious 没有「本次不再询问」的复选框(只有 normalExternal 才可记住)。
+      expect(find.text('本次浏览期间不再询问此域名'), findsNothing);
+      expect(opened, isEmpty);
+
+      await tester.tap(find.text('继续访问'));
+      await tester.pumpAndSettle();
+      expect(opened, <String>['https://github.com/x']);
+    });
 
     testWidgets(
       'review action bar stays on one row with 44 pixel targets at 200% text',
@@ -2033,14 +2188,14 @@ void main() {
         await tester.tap(find.text('举报内容'));
         await tester.pumpAndSettle();
         final l10n = AppLocalizations.of(
-          tester.element(find.byType(DropdownButtonFormField<String>)),
+          tester.element(find.byType(GfDropdownButtonFormField<String>)),
         );
         final submit = find.widgetWithText(
           FilledButton,
           l10n.topicReportSubmit,
         );
         expect(tester.widget<FilledButton>(submit).onPressed, isNull);
-        await tester.tap(find.byType(DropdownButtonFormField<String>));
+        await tester.tap(find.byType(GfDropdownButtonFormField<String>));
         await tester.pumpAndSettle();
         await tester.tap(find.text('垃圾信息').last);
         await tester.pumpAndSettle();
@@ -2072,7 +2227,7 @@ void main() {
       await _openReviewMenu(tester, 1);
       await tester.tap(find.text('举报内容'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.tap(find.byType(GfDropdownButtonFormField<String>));
       await tester.pumpAndSettle();
       await tester.tap(find.text('垃圾信息').last);
       await tester.pumpAndSettle();
@@ -2526,9 +2681,9 @@ void main() {
       await tester.tap(find.text('举报内容'));
       await tester.pumpAndSettle();
       final l10n = AppLocalizations.of(
-        tester.element(find.byType(DropdownButtonFormField<String>)),
+        tester.element(find.byType(GfDropdownButtonFormField<String>)),
       );
-      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.tap(find.byType(GfDropdownButtonFormField<String>));
       await tester.pumpAndSettle();
       await tester.tap(find.text('垃圾信息').last);
       await tester.pumpAndSettle();
@@ -2542,7 +2697,7 @@ void main() {
 
       course.waitReport!.complete();
       await tester.pumpAndSettle();
-      expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+      expect(find.byType(GfDropdownButtonFormField<String>), findsNothing);
     });
 
     testWidgets('展示评分分布、开课班级、相关课程与沿革', (tester) async {
@@ -2689,6 +2844,54 @@ void main() {
 
       expect(course.reviewCalls.last.offeringId, 902);
       expect(find.textContaining('只看该教学班的评价'), findsOneWidget);
+    });
+
+    testWidgets('wide offering selection focuses the review pane', (
+      tester,
+    ) async {
+      final course = FakeCourseRepository(
+        _client(),
+        detailPayload: _detailPayload(),
+        reviewPayloads: _reviewPayloads(),
+      );
+      await pumpDetail(tester, course, size: const Size(1100, 800));
+      final sidebar = find.byKey(const Key('course-detail-sidebar'));
+      final offering = find.descendant(of: sidebar, matching: find.text('02班'));
+      await tester.ensureVisible(offering);
+      await tester.pumpAndSettle();
+      await tester.tap(offering);
+      await tester.pumpAndSettle();
+      expect(course.reviewCalls.last.offeringId, 902);
+      expect(find.textContaining('只看该教学班的评价').hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('wide review deep link survives compact and wide resizing', (
+      tester,
+    ) async {
+      final course = FakeCourseRepository(
+        _client(),
+        detailPayload: _detailPayload(),
+        reviewPayloads: [_reviewPayloads().last],
+      );
+      await pumpDetail(
+        tester,
+        course,
+        focusOfferingId: 902,
+        focusReviewId: 4,
+        size: const Size(1100, 800),
+      );
+      expect(course.reviewCalls.first.offeringId, 902);
+      expect(_reviewHtml('很不错').hitTestable(), findsOneWidget);
+      final calls = course.reviewCalls.length;
+      tester.view.physicalSize = const Size(500, 800);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('只看该教学班的评价'), findsOneWidget);
+      tester.view.physicalSize = const Size(1100, 800);
+      await tester.pumpAndSettle();
+      expect(_reviewHtml('很不错').hitTestable(), findsOneWidget);
+      expect(course.reviewCalls.length, calls);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('收藏乐观切换，失败回滚', (tester) async {

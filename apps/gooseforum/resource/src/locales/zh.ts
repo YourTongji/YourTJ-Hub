@@ -4080,6 +4080,7 @@ export default {
     'wiki.saveFailed': 'Wiki 保存失败，请稍后重试。',
     'wiki.readFailed': 'Wiki 数据读取失败，请稍后重试。',
     'admin.url.invalid': '链接不符合允许的协议或目标（仅支持 http(s)、站内相对路径，部分字段支持 mailto）。',
+    'admin.externalDomain.invalid': '外链白名单条目不受支持：{domain}。只能填写不含协议、路径、端口或通配符的域名（最多 200 条）。',
   },
   serverActions: {
     uploadAttachment: '上传附件',

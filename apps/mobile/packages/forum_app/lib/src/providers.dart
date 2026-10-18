@@ -413,6 +413,11 @@ final themeRepositoryProvider = Provider<ThemeRepository>((ref) {
   return ThemeRepository(ref.watch(apiClientProvider));
 });
 
+final externalLinkPolicyRepositoryProvider =
+    Provider<ExternalLinkPolicyRepository>((ref) {
+      return ExternalLinkPolicyRepository(ref.watch(apiClientProvider));
+    });
+
 final pushRepositoryProvider = Provider<PushRepository>((ref) {
   return PushRepository(ref.watch(apiClientProvider));
 });

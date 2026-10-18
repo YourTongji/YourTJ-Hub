@@ -271,3 +271,85 @@ func TestGetSecuritySettingsConfigListFieldsAreNeverNil(t *testing.T) {
 		assertNoNilLists(t, GetSecuritySettingsConfig(defaults))
 	})
 }
+
+func TestGetSiteSettingsConfigTrustedExternalDomainsCompatibility(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}); err != nil {
+		t.Fatalf("migrate page config: %v", err)
+	}
+	conn.Where("page_type = ?", SiteSettings).Delete(&Entity{})
+	entity := Entity{PageType: SiteSettings, Config: `{}`}
+	if err := conn.Create(&entity).Error; err != nil {
+		t.Fatalf("create site settings config: %v", err)
+	}
+	t.Cleanup(func() { conn.Where("page_type = ?", SiteSettings).Delete(&Entity{}) })
+
+	defaults := SiteSettingsConfig{SiteName: "默认站点", TrustedExternalDomains: []string{"github.com", "zhihu.com"}}
+
+	t.Run("stored row without the field falls back to the default whitelist", func(t *testing.T) {
+		if err := conn.Model(&entity).Update("config", `{"siteName":"旧站点"}`).Error; err != nil {
+			t.Fatalf("update site settings config: %v", err)
+		}
+		config := GetSiteSettingsConfig(defaults)
+		if config.SiteName != "旧站点" {
+			t.Fatalf("siteName = %q, want stored value", config.SiteName)
+		}
+		if len(config.TrustedExternalDomains) != 2 || config.TrustedExternalDomains[0] != "github.com" {
+			t.Fatalf("trustedExternalDomains = %#v, want the default whitelist", config.TrustedExternalDomains)
+		}
+	})
+
+	t.Run("explicit empty whitelist stays empty", func(t *testing.T) {
+		if err := conn.Model(&entity).Update("config", `{"siteName":"新站点","trustedExternalDomains":[]}`).Error; err != nil {
+			t.Fatalf("update site settings config: %v", err)
+		}
+		config := GetSiteSettingsConfig(defaults)
+		if len(config.TrustedExternalDomains) != 0 {
+			t.Fatalf("trustedExternalDomains = %#v, want empty", config.TrustedExternalDomains)
+		}
+	})
+
+	t.Run("stored entries are normalized and invalid ones filtered", func(t *testing.T) {
+		if err := conn.Model(&entity).Update("config", `{"trustedExternalDomains":["GitHub.com","","https://bilibili.com","github.io","GITHUB.com","mp.weixin.qq.com"]}`).Error; err != nil {
+			t.Fatalf("update site settings config: %v", err)
+		}
+		config := GetSiteSettingsConfig(defaults)
+		want := []string{"github.com", "mp.weixin.qq.com"}
+		if len(config.TrustedExternalDomains) != len(want) {
+			t.Fatalf("trustedExternalDomains = %#v, want %#v", config.TrustedExternalDomains, want)
+		}
+		for i := range want {
+			if config.TrustedExternalDomains[i] != want[i] {
+				t.Fatalf("trustedExternalDomains = %#v, want %#v", config.TrustedExternalDomains, want)
+			}
+		}
+	})
+
+	t.Run("null field falls back to the default whitelist", func(t *testing.T) {
+		if err := conn.Model(&entity).Update("config", `{"trustedExternalDomains":null}`).Error; err != nil {
+			t.Fatalf("update site settings config: %v", err)
+		}
+		config := GetSiteSettingsConfig(defaults)
+		if len(config.TrustedExternalDomains) != 2 {
+			t.Fatalf("trustedExternalDomains = %#v, want the default whitelist", config.TrustedExternalDomains)
+		}
+	})
+
+	t.Run("corrupted row falls back to the default whitelist", func(t *testing.T) {
+		if err := conn.Model(&entity).Update("config", `{`).Error; err != nil {
+			t.Fatalf("update site settings config: %v", err)
+		}
+		config := GetSiteSettingsConfig(defaults)
+		if len(config.TrustedExternalDomains) != 2 {
+			t.Fatalf("trustedExternalDomains = %#v, want the default whitelist", config.TrustedExternalDomains)
+		}
+	})
+
+	t.Run("no stored row serves the default whitelist", func(t *testing.T) {
+		conn.Where("page_type = ?", SiteSettings).Delete(&Entity{})
+		config := GetSiteSettingsConfig(defaults)
+		if len(config.TrustedExternalDomains) != 2 || config.TrustedExternalDomains[0] != "github.com" {
+			t.Fatalf("trustedExternalDomains = %#v, want the default whitelist", config.TrustedExternalDomains)
+		}
+	})
+}

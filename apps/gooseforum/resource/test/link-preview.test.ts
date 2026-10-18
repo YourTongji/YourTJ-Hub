@@ -10,6 +10,7 @@ import {
   openExternalLinkGuard,
   registrableDomain,
   setExternalLinkGuardInternalOrigins,
+  setExternalLinkGuardTrustedDomains,
   trustExternalDomain,
 } from '../src/runtime/external-link-guard'
 import { createLinkPreviewHintController, formatLinkPreviewHintDomains } from '../src/runtime/link-preview-hint'
@@ -113,6 +114,7 @@ describe('external navigation classification', () => {
   afterEach(() => {
     cancelExternalLinkGuard()
     setExternalLinkGuardInternalOrigins([])
+    setExternalLinkGuardTrustedDomains([])
     sessionStorage.clear()
   })
 
@@ -159,6 +161,37 @@ describe('external navigation classification', () => {
   test('keeps private-suffix tenants isolated', () => {
     expect(registrableDomain('alice.github.io')).toBe('alice.github.io')
     expect(registrableDomain('bob.github.io')).toBe('bob.github.io')
+  })
+
+  test('a policy whitelist entry exempts its host and subdomains only', () => {
+    // 大小写/空白/根点归一化；单标签条目（localhost）被丢弃（issue #1200）。
+    setExternalLinkGuardTrustedDomains(['  GitHub.com. ', 'localhost', 'github.com'])
+    const anchor = (href: string) => {
+      const element = document.createElement('a')
+      element.href = href
+      return element
+    }
+    expect(openExternalLinkGuard(anchor('https://github.com/topics'), new MouseEvent('click', { cancelable: true }))).toBe(false)
+    expect(openExternalLinkGuard(anchor('https://gist.github.com/a'), new MouseEvent('click', { cancelable: true }))).toBe(false)
+    // 点边界比较：伪装后缀与同级域名都不继承白名单。
+    expect(openExternalLinkGuard(anchor('https://github.com.evil.test/a'), new MouseEvent('click', { cancelable: true }))).toBe(true)
+    expect(openExternalLinkGuard(anchor('https://notgithub.com/a'), new MouseEvent('click', { cancelable: true }))).toBe(true)
+    expect(openExternalLinkGuard(anchor('http://localhost/a'), new MouseEvent('click', { cancelable: true }))).toBe(true)
+  })
+
+  test('the policy whitelist never exempts a risk state', () => {
+    setExternalLinkGuardTrustedDomains(['github.com'])
+    const blocked = document.createElement('a')
+    blocked.href = 'https://github.com/x'
+    blocked.dataset.externalRisk = 'blocked'
+    expect(openExternalLinkGuard(blocked, new MouseEvent('click', { cancelable: true }))).toBe(true)
+    expect(externalLinkGuardState.pending?.risk).toBe('blocked')
+
+    const suspicious = document.createElement('a')
+    suspicious.href = 'https://github.com/x'
+    suspicious.dataset.externalRisk = 'suspicious'
+    expect(openExternalLinkGuard(suspicious, new MouseEvent('click', { cancelable: true }))).toBe(true)
+    expect(externalLinkGuardState.pending?.risk).toBe('suspicious')
   })
 })
 

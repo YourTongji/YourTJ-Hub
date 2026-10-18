@@ -1927,7 +1927,7 @@ void main() {
           fromContentManagement: true,
           locale: const Locale('en'),
         );
-        await tester.tap(find.byType(PopupMenuButton<String>));
+        await tester.tap(find.byType(GfPopupMenuButton<String>));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Edit and resubmit'));
         await tester.pumpAndSettle();
@@ -2110,6 +2110,65 @@ void main() {
     );
     expect(find.byKey(const Key('publish-appbar-submit')), findsOneWidget);
 
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('iPad long preview scrolls without moving the writing canvas', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1120, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpPublishPage(
+      tester,
+      editing: true,
+      contentType: 1,
+      content: List.generate(
+        80,
+        (i) => 'Paragraph $i of the iPad draft.',
+      ).join('\n\n'),
+    );
+    final pane = find.byKey(const Key('publish-preview-pane'));
+    expect(pane, findsOneWidget);
+    expect(tester.getSize(pane).height, lessThanOrEqualTo(560));
+    final before = tester.getTopLeft(find.byKey(const Key('publish-editor')));
+    await tester.drag(pane, const Offset(0, -350));
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.byKey(const Key('publish-editor'))), before);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('iPad large text keeps a full-width editor and its draft', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1120, 900);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await pumpPublishPage(tester, editing: true, contentType: 1);
+    final editor = find.byKey(const Key('publish-editor'));
+    await tester.enterText(editor, 'A preserved accessible iPad draft');
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.byKey(const Key('publish-preview')), findsNothing);
+    expect(tester.getSize(editor).width, greaterThan(800));
+    tester.platformDispatcher.textScaleFactorTestValue = 1;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('publish-preview-pane')), findsOneWidget);
+    expect(
+      tester.widget<TextField>(editor).controller!.text,
+      'A preserved accessible iPad draft',
+    );
+    final keyboardTop = tester.view.physicalSize.height - 300;
+    expect(
+      tester.getRect(find.byKey(const Key('publish-writing-tools'))).bottom,
+      lessThanOrEqualTo(keyboardTop),
+    );
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });

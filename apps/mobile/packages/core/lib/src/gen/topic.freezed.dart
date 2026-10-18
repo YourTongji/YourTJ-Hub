@@ -2988,6 +2988,9 @@ mixin _$PostPayload {
   bool get isLiked => throw _privateConstructorUsedError;
   bool get isBookmarked => throw _privateConstructorUsedError;
 
+  /// Topic gallery, only on the visible first post (issue #1228).
+  List<String>? get images => throw _privateConstructorUsedError;
+
   /// Serializes this PostPayload to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -3031,6 +3034,7 @@ abstract class $PostPayloadCopyWith<$Res> {
     int likeCount,
     bool isLiked,
     bool isBookmarked,
+    List<String>? images,
   });
 
   $UserBriefPayloadCopyWith<$Res> get author;
@@ -3077,6 +3081,7 @@ class _$PostPayloadCopyWithImpl<$Res, $Val extends PostPayload>
     Object? likeCount = null,
     Object? isLiked = null,
     Object? isBookmarked = null,
+    Object? images = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -3180,6 +3185,10 @@ class _$PostPayloadCopyWithImpl<$Res, $Val extends PostPayload>
                 ? _value.isBookmarked
                 : isBookmarked // ignore: cast_nullable_to_non_nullable
                       as bool,
+            images: freezed == images
+                ? _value.images
+                : images // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
           )
           as $Val,
     );
@@ -3245,6 +3254,7 @@ abstract class _$$PostPayloadImplCopyWith<$Res>
     int likeCount,
     bool isLiked,
     bool isBookmarked,
+    List<String>? images,
   });
 
   @override
@@ -3292,6 +3302,7 @@ class __$$PostPayloadImplCopyWithImpl<$Res>
     Object? likeCount = null,
     Object? isLiked = null,
     Object? isBookmarked = null,
+    Object? images = freezed,
   }) {
     return _then(
       _$PostPayloadImpl(
@@ -3395,6 +3406,10 @@ class __$$PostPayloadImplCopyWithImpl<$Res>
             ? _value.isBookmarked
             : isBookmarked // ignore: cast_nullable_to_non_nullable
                   as bool,
+        images: freezed == images
+            ? _value._images
+            : images // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
       ),
     );
   }
@@ -3429,7 +3444,9 @@ class _$PostPayloadImpl implements _PostPayload {
     required this.likeCount,
     required this.isLiked,
     required this.isBookmarked,
-  }) : _mentions = mentions;
+    final List<String>? images,
+  }) : _mentions = mentions,
+       _images = images;
 
   factory _$PostPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$PostPayloadImplFromJson(json);
@@ -3495,9 +3512,22 @@ class _$PostPayloadImpl implements _PostPayload {
   @override
   final bool isBookmarked;
 
+  /// Topic gallery, only on the visible first post (issue #1228).
+  final List<String>? _images;
+
+  /// Topic gallery, only on the visible first post (issue #1228).
+  @override
+  List<String>? get images {
+    final value = _images;
+    if (value == null) return null;
+    if (_images is EqualUnmodifiableListView) return _images;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   @override
   String toString() {
-    return 'PostPayload(mentions: $mentions, id: $id, topicId: $topicId, postNo: $postNo, content: $content, renderedContent: $renderedContent, processStatus: $processStatus, isHidden: $isHidden, isAuthorDeleted: $isAuthorDeleted, isModeratorRemoved: $isModeratorRemoved, canModerate: $canModerate, author: $author, isAnonymous: $isAnonymous, createdAt: $createdAt, replyToPostId: $replyToPostId, replyToUserId: $replyToUserId, replyToUsername: $replyToUsername, isOwnPost: $isOwnPost, updatedAt: $updatedAt, lastEditor: $lastEditor, lastEditedAt: $lastEditedAt, revisionCount: $revisionCount, likeCount: $likeCount, isLiked: $isLiked, isBookmarked: $isBookmarked)';
+    return 'PostPayload(mentions: $mentions, id: $id, topicId: $topicId, postNo: $postNo, content: $content, renderedContent: $renderedContent, processStatus: $processStatus, isHidden: $isHidden, isAuthorDeleted: $isAuthorDeleted, isModeratorRemoved: $isModeratorRemoved, canModerate: $canModerate, author: $author, isAnonymous: $isAnonymous, createdAt: $createdAt, replyToPostId: $replyToPostId, replyToUserId: $replyToUserId, replyToUsername: $replyToUsername, isOwnPost: $isOwnPost, updatedAt: $updatedAt, lastEditor: $lastEditor, lastEditedAt: $lastEditedAt, revisionCount: $revisionCount, likeCount: $likeCount, isLiked: $isLiked, isBookmarked: $isBookmarked, images: $images)';
   }
 
   @override
@@ -3547,7 +3577,8 @@ class _$PostPayloadImpl implements _PostPayload {
                 other.likeCount == likeCount) &&
             (identical(other.isLiked, isLiked) || other.isLiked == isLiked) &&
             (identical(other.isBookmarked, isBookmarked) ||
-                other.isBookmarked == isBookmarked));
+                other.isBookmarked == isBookmarked) &&
+            const DeepCollectionEquality().equals(other._images, _images));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -3579,6 +3610,7 @@ class _$PostPayloadImpl implements _PostPayload {
     likeCount,
     isLiked,
     isBookmarked,
+    const DeepCollectionEquality().hash(_images),
   ]);
 
   /// Create a copy of PostPayload
@@ -3622,6 +3654,7 @@ abstract class _PostPayload implements PostPayload {
     required final int likeCount,
     required final bool isLiked,
     required final bool isBookmarked,
+    final List<String>? images,
   }) = _$PostPayloadImpl;
 
   factory _PostPayload.fromJson(Map<String, dynamic> json) =
@@ -3677,6 +3710,10 @@ abstract class _PostPayload implements PostPayload {
   bool get isLiked;
   @override
   bool get isBookmarked;
+
+  /// Topic gallery, only on the visible first post (issue #1228).
+  @override
+  List<String>? get images;
 
   /// Create a copy of PostPayload
   /// with the given fields replaced by the non-null parameter values.

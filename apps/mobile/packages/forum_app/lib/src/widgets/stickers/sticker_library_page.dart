@@ -69,26 +69,30 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
 
   Future<XFile?> _pickUpload(StickerCollection collection) async {
     final strings = StickerStrings(context);
-    final source = await showGfBottomSheet<_StickerUploadSource>(
+    final source = await showGfActionSheet<_StickerUploadSource>(
       context,
-      builder: (context) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
-          children: [
-            ListTile(
-              leading: const GfSymbol('image', size: 23),
-              title: GfText(strings.fromPhotos),
-              onTap: () => Navigator.pop(context, _StickerUploadSource.photos),
-            ),
-            ListTile(
-              leading: const GfSymbol('folder', size: 23),
-              title: GfText(strings.fromFiles),
-              onTap: () => Navigator.pop(context, _StickerUploadSource.files),
-            ),
-          ],
+      items: [
+        GfPopupMenuItem(
+          value: _StickerUploadSource.photos,
+          child: Row(
+            children: [
+              GfSymbol('image', size: 22),
+              const SizedBox(width: 12),
+              Expanded(child: GfText(strings.fromPhotos)),
+            ],
+          ),
         ),
-      ),
+        GfPopupMenuItem(
+          value: _StickerUploadSource.files,
+          child: Row(
+            children: [
+              GfSymbol('folder', size: 22),
+              const SizedBox(width: 12),
+              Expanded(child: GfText(strings.fromFiles)),
+            ],
+          ),
+        ),
+      ],
     );
     if (source == null || !mounted || !collection.active) return null;
     if (source == _StickerUploadSource.photos) {
@@ -165,6 +169,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
     final collection = ref.read(stickerCollectionProvider);
     await showGfAlertDialog<void>(
       context,
+      adaptive: false,
       barrierDismissible: true,
       builder: (_) => _StickerRenameDialog(item: item, collection: collection),
     );
@@ -188,6 +193,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
             ),
             GfButton(
               label: strings.remove,
+              variant: GfButtonVariant.danger,
               onPressed: () => Navigator.pop(context, true),
             ),
           ],
@@ -199,46 +205,49 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
     }
   }
 
-  Future<void> _actions(StickerItemPayload item) async {
+  Future<void> _actions(StickerItemPayload item, BuildContext anchor) async {
     final collection = ref.read(stickerCollectionProvider);
     final strings = StickerStrings(context);
-    final action = await showGfBottomSheet<String>(
+    final action = await showGfActionSheet<String>(
       context,
-      builder: (context) => StickerSessionSurface(
-        collection: collection,
-        child: SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
-            children: [
-              if (item.isAvailable) ...[
-                ListTile(
-                  leading: const GfSymbol('maximize', size: 22),
-                  title: GfText(strings.viewLarger),
-                  onTap: () => Navigator.pop(context, 'preview'),
-                ),
-                ListTile(
-                  leading: const GfSymbol('pen-line', size: 22),
-                  title: GfText(strings.rename),
-                  onTap: () => Navigator.pop(context, 'rename'),
-                ),
+      surfaceBuilder: (_, child) =>
+          StickerSessionSurface(collection: collection, child: child),
+      anchorContext: anchor,
+      items: [
+        if (item.isAvailable) ...[
+          GfPopupMenuItem(
+            value: 'preview',
+            child: Row(
+              children: [
+                GfSymbol('maximize', size: 22),
+                const SizedBox(width: 12),
+                Expanded(child: GfText(strings.viewLarger)),
               ],
-              ListTile(
-                leading: GfSymbol(
-                  'trash-2',
-                  size: 22,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                title: GfText(
-                  strings.remove,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-                onTap: () => Navigator.pop(context, 'remove'),
-              ),
+            ),
+          ),
+          GfPopupMenuItem(
+            value: 'rename',
+            child: Row(
+              children: [
+                GfSymbol('pen-line', size: 22),
+                const SizedBox(width: 12),
+                Expanded(child: GfText(strings.rename)),
+              ],
+            ),
+          ),
+        ],
+        GfPopupMenuItem(
+          value: 'remove',
+          destructive: true,
+          child: Row(
+            children: [
+              GfSymbol('trash-2', size: 22),
+              const SizedBox(width: 12),
+              Expanded(child: GfText(strings.remove)),
             ],
           ),
         ),
-      ),
+      ],
     );
     if (!mounted || !collection.active) return;
     switch (action) {
@@ -440,7 +449,9 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
                                     strings.displayLabel(item),
                                   ),
                                   icon: const GfSymbol('ellipsis', size: 22),
-                                  onPressed: busy ? null : () => _actions(item),
+                                  onPressed: busy
+                                      ? null
+                                      : () => _actions(item, context),
                                 ),
                                 ReorderableDragStartListener(
                                   index: index,
@@ -576,6 +587,7 @@ class _StickerRenameDialogState extends ConsumerState<_StickerRenameDialog> {
     return PopScope(
       canPop: !_saving,
       child: GfAlertDialog(
+        adaptive: false,
         title: GfText(strings.rename),
         content: GfInput(
           controller: _controller,

@@ -125,6 +125,7 @@ const newExtension = ref('')
 const newReservedUsername = ref('')
 const newBannedUsername = ref('')
 const newSensitiveWord = ref('')
+const newTrustedDomain = ref('')
 const clearAfterMigrate = ref(false)
 const migrateTasks = ref<AdminTaskRow[]>([])
 const migrateConfirm = ref(false)
@@ -240,6 +241,7 @@ const siteForm = reactive<SiteSettings>({
   siteDescription: '',
   siteKeywords: '',
   externalLinks: '',
+  trustedExternalDomains: [],
 })
 
 const mailForm = reactive<MailSettings>({
@@ -448,6 +450,8 @@ function normalizeSite(settings: Partial<SiteSettings> = {}) {
     siteDescription: settings.siteDescription ?? '',
     siteKeywords: settings.siteKeywords ?? '',
     externalLinks: settings.externalLinks ?? '',
+    // 旧后端回显缺该字段时按空清单处理（保存时会覆盖为管理员提交值）。
+    trustedExternalDomains: [...(settings.trustedExternalDomains ?? [])],
   } satisfies SiteSettings
 }
 
@@ -1061,6 +1065,20 @@ function removeSensitiveWord(word: string) {
   securityForm.sensitiveWords = securityForm.sensitiveWords.filter(item => item !== word)
 }
 
+// ---- 外链免确认白名单（issue #1200）----
+// 输入只做体验层归一化（去空白/小写），权威校验在服务端（domainpolicy）：
+// 带协议/路径/端口/通配符/公网后缀/超限的条目会被拒绝且整单不落库。
+function addTrustedDomain() {
+  const domain = newTrustedDomain.value.trim().toLowerCase()
+  if (!domain || siteForm.trustedExternalDomains?.includes(domain)) return
+  siteForm.trustedExternalDomains = [...(siteForm.trustedExternalDomains ?? []), domain]
+  newTrustedDomain.value = ''
+}
+
+function removeTrustedDomain(domain: string) {
+  siteForm.trustedExternalDomains = (siteForm.trustedExternalDomains ?? []).filter(item => item !== domain)
+}
+
 function openBulkImport(target: BulkImportTarget) {
   bulkImportTarget.value = target
   bulkImportText.value = ''
@@ -1504,6 +1522,24 @@ onUnmounted(stopSyncPolling)
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k008e') }}<Textarea v-model="siteForm.externalLinks" class="min-h-28 font-mono text-xs" /></label>
           </section>
         </div>
+        <section class="max-w-2xl space-y-4">
+          <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><Shield class="size-5 text-muted-foreground" />{{ adminText('k00xt') }}</div>
+          <p class="text-sm text-muted-foreground">{{ adminText('k00xu') }}</p>
+          <div class="flex gap-2">
+            <Input v-model="newTrustedDomain" class="max-w-sm font-mono text-sm" :placeholder="adminText('k00xv')" @keydown.enter.prevent="addTrustedDomain" />
+            <Button type="button" variant="secondary" @click="addTrustedDomain"><Plus class="size-4" />{{ adminText('k0094') }}</Button>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <span v-if="!siteForm.trustedExternalDomains?.length" class="text-sm italic text-muted-foreground">{{ adminText('k00xw') }}</span>
+            <Badge v-for="domain in siteForm.trustedExternalDomains ?? []" :key="domain" variant="secondary" class="gap-2 px-3 py-1.5 font-mono text-sm font-normal">
+              {{ domain }}
+              <AdminActionButton compact tone="danger" class="-mr-1 size-5" :title="adminText('k005i')" @click="removeTrustedDomain(domain)">
+                <Trash2 class="size-3.5" />
+              </AdminActionButton>
+            </Badge>
+          </div>
+          <p class="text-xs text-muted-foreground">{{ adminText('k00xx') }}</p>
+        </section>
       </form>
 
       <form v-else-if="kind === 'mail'" class="grid gap-10 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]" @submit.prevent="save">

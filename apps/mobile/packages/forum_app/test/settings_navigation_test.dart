@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/settings/settings_page.dart';
+import 'package:forum_app/src/pages/settings/text_size_settings_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/push/push_service.dart';
 import 'package:forum_app/src/reading_preferences.dart';
@@ -178,7 +179,13 @@ Future<_Harness> _mount(
   double scale = 1,
   TokenStorage? tokenStorage,
   bool settle = true,
+  Size? viewport = const Size(390, 844),
 }) async {
+  if (viewport != null) {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = viewport;
+    addTearDown(tester.view.reset);
+  }
   final storage = tokenStorage ?? MemoryTokenStorage();
   if (signedIn) await storage.write('test-session');
   final client = GfApiClient(
@@ -254,6 +261,176 @@ Future<_Harness> _mount(
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('wide settings keeps its directory and opens sections in place', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1120, 900);
+    addTearDown(tester.view.reset);
+    final harness = await _mount(tester, signedIn: true, viewport: null);
+    final page = find.byType(SettingsPage);
+    final state = tester.state(page);
+    expect(find.byKey(const ValueKey('settings-directory')), findsOneWidget);
+    expect(find.byKey(const ValueKey('settings-theme-system')), findsOneWidget);
+    final account = find.byKey(const ValueKey('settings-category-account'));
+    await tester.ensureVisible(account);
+    await tester.tap(account);
+    await tester.pumpAndSettle();
+    expect(tester.state(page), same(state));
+    expect(find.byKey(const ValueKey('settings-directory')), findsOneWidget);
+    expect(find.text('alice@example.com'), findsOneWidget);
+    expect(harness.page.requests, 1);
+    final accountBounds = tester.getRect(
+      find.byKey(const ValueKey('settings-detail')),
+    );
+    expect(accountBounds.left, greaterThanOrEqualTo(260));
+    final appearance = find.byKey(
+      const ValueKey('settings-category-appearance'),
+    );
+    await tester.drag(
+      find.byKey(const ValueKey('settings-directory')),
+      const Offset(0, 900),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(appearance);
+    await tester.pumpAndSettle();
+    expect(tester.state(page), same(state));
+    expect(find.byKey(const ValueKey('settings-theme-system')), findsOneWidget);
+    expect(harness.page.requests, 1);
+    for (final width in [834.0, 390.0, 1120.0]) {
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpAndSettle();
+      expect(tester.state(page), same(state));
+      expect(
+        find.byKey(const ValueKey('settings-theme-system')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('settings-directory')),
+        width >= 800 ? findsOneWidget : findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('wide settings keeps its directory around device subpages', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1120, 900);
+    addTearDown(tester.view.reset);
+    final harness = await _mount(tester, section: 'textSize', viewport: null);
+    final page = find.byType(SettingsPage);
+    final state = tester.state(page);
+    expect(find.byKey(const ValueKey('settings-directory')), findsOneWidget);
+    expect(find.byType(TextSizeSettingsPage), findsOneWidget);
+    expect(harness.page.requests, 0);
+    for (final width in [834.0, 390.0, 1120.0]) {
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpAndSettle();
+      expect(tester.state(page), same(state));
+      expect(find.byType(TextSizeSettingsPage), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('settings-directory')),
+        width >= 800 ? findsOneWidget : findsNothing,
+      );
+      expect(harness.page.requests, 0);
+      expect(tester.takeException(), isNull);
+    }
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 500));
+  });
+
+  testWidgets(
+    'wide settings profile editing survives split view and keyboard',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1120, 900);
+      addTearDown(tester.view.reset);
+      final harness = await _mount(
+        tester,
+        signedIn: true,
+        section: 'profile',
+        autoEditProfile: true,
+        viewport: null,
+      );
+      final input = find.byKey(const ValueKey('profile-nickname'));
+      final editor = tester.state(input);
+      await tester.enterText(input, 'Unsaved iPad profile');
+      for (final width in [834.0, 390.0, 1120.0]) {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+        await tester.pumpAndSettle();
+        expect(tester.state(input), same(editor));
+        expect(find.text('Unsaved iPad profile'), findsOneWidget);
+        expect(harness.user.saveAttempts, 0);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
+  testWidgets(
+    'iPad settings directory scrolls independently and retains selection',
+    (tester) async {
+      final harness = await _mount(
+        tester,
+        signedIn: true,
+        viewport: const Size(1120, 620),
+      );
+      final directory = find.byKey(const ValueKey('settings-directory'));
+      expect(tester.getSize(directory).width, greaterThanOrEqualTo(288));
+      expect(
+        find.descendant(of: directory, matching: find.byType(Scrollbar)),
+        findsOneWidget,
+      );
+      final scrollbar = tester.widget<Scrollbar>(
+        find.descendant(of: directory, matching: find.byType(Scrollbar)),
+      );
+      expect(scrollbar.controller!.hasClients, isTrue);
+      final security = find.byKey(const ValueKey('settings-category-security'));
+      await tester.scrollUntilVisible(
+        security,
+        180,
+        scrollable: find.descendant(
+          of: directory,
+          matching: find.byType(Scrollable),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(scrollbar.controller!.offset, greaterThan(0));
+      final detailScroll = tester.widget<GfScrollToTop>(
+        find.descendant(
+          of: find.byKey(const ValueKey('settings-detail')),
+          matching: find.byType(GfScrollToTop),
+        ),
+      );
+      expect(
+        detailScroll.controller!.scrollController,
+        isNot(same(scrollbar.controller)),
+      );
+      await tester.tap(security);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('settings-detail-title')),
+        findsOneWidget,
+      );
+      expect(harness.user.requests, 1);
+      final state = tester.state(find.byType(SettingsPage));
+      for (final viewport in [
+        const Size(834, 1120),
+        const Size(620, 834),
+        const Size(1120, 620),
+      ]) {
+        tester.view.physicalSize = viewport;
+        await tester.pumpAndSettle();
+        expect(tester.state(find.byType(SettingsPage)), same(state));
+        expect(find.text('当前设备'), findsOneWidget);
+        expect(harness.user.requests, 1);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
 
   // issue #1124: profile visibility is an account privacy setting, so it
   // lives in the account section ("Account, security & privacy" from the
@@ -970,6 +1147,7 @@ void main() {
             signedIn: true,
             language: language,
             scale: 2,
+            viewport: null,
           );
           expect(find.byType(GfTabBar), findsNothing);
           expect(harness.page.requests, 0);

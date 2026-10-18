@@ -17,6 +17,7 @@ export 'src/api/repositories/post_repository.dart';
 export 'src/api/repositories/topic_repository.dart';
 export 'src/api/repositories/user_repository.dart';
 export 'src/api/repositories/course_repository.dart';
+export 'src/api/repositories/external_link_policy_repository.dart';
 export 'src/api/repositories/pk_repository.dart';
 export 'src/api/repositories/push_repository.dart';
 export 'src/api/repositories/theme_repository.dart';
@@ -34,6 +35,7 @@ export 'src/gen/chat.dart';
 export 'src/gen/realtime.dart';
 export 'src/gen/common.dart';
 export 'src/gen/content_pages.dart';
+export 'src/gen/external_link_policy.dart';
 export 'src/gen/layout.dart';
 export 'src/gen/link_preview.dart';
 export 'src/gen/moderation.dart';
@@ -55,6 +57,7 @@ export 'src/gen/sticker.dart';
 
 export 'src/markdown/markdown_converter.dart';
 export 'src/markdown/link_preview_candidate.dart';
+export 'src/markdown/url_labeled_links.dart';
 export 'src/markdown/sticker_token.dart';
 export 'src/token/token_storage.dart';
 

@@ -4,6 +4,10 @@ import { safeUrl } from '@/runtime/safe-url'
 
 const trustedDomainPrefix = 'goose:trusted-external-domain:'
 let internalOrigins = new Set<string>()
+// policyDomains 外链免确认白名单（issue #1200）：管理员配置的小写主机名，
+// 条目覆盖其全部子域；与会话级信任不同，它不随标签页关闭失效。服务端负责
+// 条目校验，这里只做归一化与「至少两级」的兜底过滤。
+let policyDomains = new Set<string>()
 
 interface PendingExternalNavigation {
   href: string
@@ -48,7 +52,28 @@ export function registrableDomain(hostname: string): string {
   return getDomain(hostname, { allowPrivateDomains: true })?.toLowerCase() || hostname.toLowerCase()
 }
 
-function isTrusted(domain: string): boolean {
+// setExternalLinkGuardTrustedDomains 注入管理员配置的免确认白名单
+// （SSR payload layout.site.trustedExternalDomains）。条目归一化为小写、去掉
+// 根点，单标签条目（如 "localhost"）被丢弃——它无法表达公开站点且会误伤。
+export function setExternalLinkGuardTrustedDomains(domains: readonly string[]) {
+  policyDomains = new Set(domains.flatMap((value) => {
+    const normalized = value.trim().toLowerCase().replace(/\.+$/, '')
+    return normalized.includes('.') ? [normalized] : []
+  }))
+}
+
+// isPolicyTrusted 命中白名单条目本身或其子域；后缀比较始终在点边界上，
+// 因此 "github.com.evil.test" 与 "notgithub.com" 都不会继承白名单。
+function isPolicyTrusted(hostname: string): boolean {
+  let candidate = hostname.trim().toLowerCase().replace(/\.+$/, '')
+  while (candidate.includes('.')) {
+    if (policyDomains.has(candidate)) return true
+    candidate = candidate.slice(candidate.indexOf('.') + 1)
+  }
+  return false
+}
+
+function isSessionTrusted(domain: string): boolean {
   try {
     return sessionStorage.getItem(`${trustedDomainPrefix}${domain}`) === '1'
   } catch {
@@ -87,7 +112,8 @@ export function openExternalLinkGuard(anchor: HTMLAnchorElement, event: MouseEve
   if (!hostname) return false
   const domain = registrableDomain(hostname)
   const risk = linkRisk(anchor)
-  if (risk === 'normal_external' && isTrusted(domain)) return false
+  // 白名单与会话信任都只豁免 normal_external：suspicious/blocked 永不跳过弹层。
+  if (risk === 'normal_external' && (isSessionTrusted(domain) || isPolicyTrusted(hostname))) return false
 
   event.preventDefault()
   externalLinkGuardState.pending = {

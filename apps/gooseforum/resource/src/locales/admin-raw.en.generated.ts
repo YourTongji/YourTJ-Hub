@@ -1002,4 +1002,9 @@ export default {
   "k00xq": "Every event is sent as plain text, and review and report messages include links for handling them. The plugin queues messages before sending, so a successful test only means the plugin received it. If nothing shows up in the chat, check the AstrBot logs.",
   "k00xr": "Force server-proxied uploads",
   "k00xs": "When on, post images are uploaded through the forum server (which writes to the bucket) even with S3 storage, instead of browser direct uploads. A temporary fallback when direct uploads fail; it increases server bandwidth and memory use, and the reverse proxy body limit must be at least the image upload limit.",
+  "k00xt": "Trusted external domains",
+  "k00xu": "Links to these domains (including their subdomains) open directly for ordinary external links (normal_external), without the \"leaving YourTJ\" confirmation. Mismatched or blocked links still require confirmation and are never exempted.",
+  "k00xv": "e.g. github.com",
+  "k00xw": "No trusted domains yet — every external link shows the confirmation.",
+  "k00xx": "Domains only: no scheme, path, port or wildcard, up to 200 entries; saving an empty list disables the whitelist.",
 } as const

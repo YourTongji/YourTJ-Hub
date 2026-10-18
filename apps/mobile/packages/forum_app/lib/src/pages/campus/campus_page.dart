@@ -14,6 +14,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../current_user.dart';
 import '../../providers.dart';
 import '../../navigation/tab_scroll_registry.dart';
+import '../../navigation/reading_window.dart';
 import '../../widgets/app_refresh_indicator.dart';
 import '../../widgets/root_surface.dart';
 import '../../widgets/logo_motion_loader.dart';
@@ -445,7 +446,10 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
         for (final m in messages)
           GfCard(
             onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => CampusMessagePage(id: m.id)),
+              MaterialPageRoute(
+                builder: (_) =>
+                    ReadingPageWindow(child: CampusMessagePage(id: m.id)),
+              ),
             ),
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Column(
@@ -513,74 +517,100 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
   Widget _today(CampusViewState state) {
     final l = AppLocalizations.of(context);
     final now = DateTime.now();
+    final courses = KeyedSubtree(
+      key: const Key('campus-today-courses'),
+      child: _section(
+        l.campusTodayCourses,
+        _dataset(state, 'today', (data) {
+          final day = data.teachingDay;
+          if (day == null || day.date != campusDateKey(now)) {
+            return GfText(l.campusDataNeedsRefresh);
+          }
+          final today = data.events;
+          final notice = switch (day.kind) {
+            'makeup' => l.campusTodayMakeup(day.label, day.sourceDate),
+            'holiday' => l.campusTodayHoliday(day.label),
+            'moved' => l.campusTodayMoved(day.label),
+            _ => '',
+          };
+          final times = sectionTimesFor(
+            day.sectionCount,
+            _times.isEmpty ? null : _times,
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (notice.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: GfText(notice),
+                ),
+              if (today.isEmpty) GfText(l.campusNoClasses),
+              for (final e in today)
+                GfCard(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      GfText(
+                        '${times[e.start - 1].start}–${times[e.end - 1].end} · ${l.schedulePeriodRange('${e.start}–${e.end}')}',
+                        style: GfTheme.typographyOf(context).caption,
+                      ),
+                      const SizedBox(height: 8),
+                      GfText(
+                        e.name,
+                        style: GfTheme.typographyOf(context).heading,
+                      ),
+                      const SizedBox(height: 6),
+                      GfText(
+                        [
+                          e.room,
+                          e.campus,
+                          e.teacher,
+                        ].where((s) => s.isNotEmpty).join(' · '),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          );
+        }),
+      ),
+    );
+    final notices = KeyedSubtree(
+      key: const Key('campus-today-notices'),
+      child: _section(
+        l.campusMessages,
+        _dataset(state, 'messages', (data) => _messages(data, recent: true)),
+        action: TextButton(
+          onPressed: () => _select('messages'),
+          child: GfText(l.campusAllNotices),
+        ),
+      ),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _todayHeader(state),
-        _section(
-          l.campusTodayCourses,
-          _dataset(state, 'today', (data) {
-            final day = data.teachingDay;
-            if (day == null || day.date != campusDateKey(now)) {
-              return GfText(l.campusDataNeedsRefresh);
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final scale = (MediaQuery.textScalerOf(context).scale(16) / 16)
+                .clamp(1.0, double.infinity);
+            if (constraints.maxWidth < 720 * scale) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [courses, notices],
+              );
             }
-            final today = data.events;
-            final notice = switch (day.kind) {
-              'makeup' => l.campusTodayMakeup(day.label, day.sourceDate),
-              'holiday' => l.campusTodayHoliday(day.label),
-              'moved' => l.campusTodayMoved(day.label),
-              _ => '',
-            };
-            final times = sectionTimesFor(
-              day.sectionCount,
-              _times.isEmpty ? null : _times,
-            );
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (notice.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: GfText(notice),
-                  ),
-                if (today.isEmpty) GfText(l.campusNoClasses),
-                for (final e in today)
-                  GfCard(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        GfText(
-                          '${times[e.start - 1].start}–${times[e.end - 1].end} · ${l.schedulePeriodRange('${e.start}–${e.end}')}',
-                          style: GfTheme.typographyOf(context).caption,
-                        ),
-                        const SizedBox(height: 8),
-                        GfText(
-                          e.name,
-                          style: GfTheme.typographyOf(context).heading,
-                        ),
-                        const SizedBox(height: 6),
-                        GfText(
-                          [
-                            e.room,
-                            e.campus,
-                            e.teacher,
-                          ].where((s) => s.isNotEmpty).join(' · '),
-                        ),
-                      ],
-                    ),
-                  ),
+                Expanded(flex: 3, child: courses),
+                const SizedBox(width: 32),
+                Expanded(flex: 2, child: notices),
               ],
             );
-          }),
-        ),
-        _section(
-          l.campusMessages,
-          _dataset(state, 'messages', (data) => _messages(data, recent: true)),
-          action: TextButton(
-            onPressed: () => _select('messages'),
-            child: GfText(l.campusAllNotices),
-          ),
+          },
         ),
       ],
     );
@@ -717,6 +747,11 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
       'connection': l.campusConnection,
     };
     final tabKeys = labels.keys.toList(growable: false);
+    final layoutScale = (MediaQuery.textScalerOf(context).scale(16) / 16).clamp(
+      1.0,
+      double.infinity,
+    );
+    final hasDirectory = MediaQuery.sizeOf(context).width >= 900 * layoutScale;
     bool isPending(String tab) {
       if (!privateVisible ||
           tab == 'connection' ||
@@ -950,14 +985,15 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
     }
 
     return RootSurface(
-      swipeTabIndex: tabKeys.indexOf(_tab),
-      swipeTabCount: tabKeys.length,
+      swipeTabIndex: hasDirectory ? null : tabKeys.indexOf(_tab),
+      swipeTabCount: hasDirectory ? 0 : tabKeys.length,
       onSwipeTabChanged: (index) => _select(tabKeys[index], fromSwipe: true),
       swipePageKey: (index) => tabKeys[index],
       swipePageBuilder: (index, top, bottom) {
         final tab = tabKeys[index];
         return scrollPage(tab, top, bottom, swipePreview: true);
       },
+      statusBarScrollToTopController: _scroll,
       title: l.campusTitle,
       showComposeAction: false,
       actions: [
@@ -967,16 +1003,69 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
           onPressed: () => context.push('/campus/explore'),
         ),
       ],
-      toolbarHeight: GfTabBar.heightFor(context),
-      toolbar: GfTabBar(
-        tabs: [
-          for (final e in labels.entries) GfTab(label: e.value, value: e.key),
+      toolbarHeight: hasDirectory ? 0 : GfTabBar.heightFor(context),
+      toolbar: hasDirectory
+          ? null
+          : GfTabBar(
+              tabs: [
+                for (final e in labels.entries)
+                  GfTab(label: e.value, value: e.key),
+              ],
+              selected: _tab,
+              onSelected: (value) => _select(value as String),
+            ),
+      body: (top, bottom) => Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (hasDirectory) ...[
+            SizedBox(
+              key: const Key('campus-module-directory'),
+              width: 200 * layoutScale,
+              child: ListView(
+                padding: EdgeInsets.fromLTRB(12, top + 24, 12, bottom + 16),
+                children: [
+                  for (final entry in labels.entries)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Semantics(
+                        selected: _tab == entry.key,
+                        child: Material(
+                          color: _tab == entry.key
+                              ? GfTheme.colorsOf(
+                                  context,
+                                ).primary.withValues(alpha: .08)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                          clipBehavior: Clip.antiAlias,
+                          child: GfSettingRow(
+                            key: Key('campus-module-${entry.key}'),
+                            symbol: switch (entry.key) {
+                              'today' => 'sun',
+                              'timetable' => 'calendar-days',
+                              'academics' => 'graduation-cap',
+                              'messages' => 'bell',
+                              'calendars' => 'calendar-days',
+                              _ => 'link',
+                            },
+                            title: entry.value,
+                            trailing: const SizedBox.shrink(),
+                            onTap: () => _select(entry.key),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            VerticalDivider(
+              width: 1,
+              thickness: 1,
+              color: GfTheme.colorsOf(context).line,
+            ),
+          ],
+          Expanded(child: scrollPage(_tab, top, bottom)),
         ],
-        selected: _tab,
-        onSelected: (value) => _select(value as String),
       ),
-      statusBarScrollToTopController: _scroll,
-      body: (top, bottom) => scrollPage(_tab, top, bottom),
     );
   }
 }

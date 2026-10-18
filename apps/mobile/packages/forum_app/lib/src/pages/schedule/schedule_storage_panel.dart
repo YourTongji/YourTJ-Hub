@@ -72,9 +72,9 @@ class _ScheduleStoragePanelState extends ConsumerState<ScheduleStoragePanel> {
     final site = notifier.site;
     final oldOwner = int.tryParse(_legacy?['pk.syncOwner'] ?? '');
     final allowed = oldOwner == null || oldOwner == 0 || oldOwner == owner;
-    final accepted = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
+    final accepted = await showGfAlertDialog<bool>(
+      context,
+      builder: (context) => GfAlertDialog(
         title: GfText(strings.review),
         content: SingleChildScrollView(
           child: Column(

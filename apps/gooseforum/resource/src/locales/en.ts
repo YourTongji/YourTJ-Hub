@@ -4078,6 +4078,7 @@ export default {
     'wiki.saveFailed': 'Failed to save wiki. Please try again later.',
     'wiki.readFailed': 'Failed to read wiki data. Please try again later.',
     'admin.url.invalid': 'The URL is not allowed: only http(s), in-site relative paths, and (for some fields) mailto: are supported.',
+    'admin.externalDomain.invalid': 'The trusted-domain entry is not allowed: {domain}. Enter domains only, without scheme, path, port or wildcard (up to 200 entries).',
   },
   serverActions: {
     uploadAttachment: 'upload attachments',

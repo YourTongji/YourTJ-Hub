@@ -15,6 +15,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
+import 'package:forum_app/src/link_navigation.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/reading_preferences.dart';
 import 'package:forum_app/src/widgets/rich_content/gf_code_block.dart';
@@ -640,6 +641,46 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Leaving YourTJ'), findsOneWidget);
     expect(find.text('https://example.com'), findsOneWidget);
+    await tester.ensureVisible(find.text('Cancel'));
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('whitelisted targets still confirm when the label is mislabeled', (
+    tester,
+  ) async {
+    // 白名单只豁免 normalExternal（issue #1200）：帖子正文是最高流量面，
+    // 「标签与目标不符」的链接即使目标命中白名单也必须弹确认层。
+    LinkNavigation.applyTrustedDomains(const <String>['github.com']);
+    addTearDown(() => LinkNavigation.applyTrustedDomains(const <String>[]));
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          locale: Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: GfMarkdownView(
+              data: '[https://bank.example](https://github.com/x)',
+            ),
+          ),
+        ),
+      ),
+    );
+    final RichText link = tester.widget<RichText>(
+      find.byWidgetPredicate(
+        (Widget widget) =>
+            widget is RichText &&
+            widget.text.toPlainText().contains('bank.example'),
+      ),
+    );
+    _linkRecognizer(link.text)?.onTap?.call();
+    await tester.pumpAndSettle();
+    expect(find.text('Leaving YourTJ'), findsOneWidget);
+    // suspicious 不提供「本次浏览期间不再询问」。
+    expect(find.byType(CheckboxListTile), findsNothing);
     await tester.ensureVisible(find.text('Cancel'));
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();

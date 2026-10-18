@@ -642,16 +642,20 @@ class _LoginPageState extends ConsumerState<LoginPage>
       final begin = await repository.beginPasskeyLogin();
       final options = begin.publicKey;
       final request = AuthenticateRequestType(
-        relyingPartyId: (options['rpId'] ?? options['relyingPartyId']) as String,
+        relyingPartyId:
+            (options['rpId'] ?? options['relyingPartyId']) as String,
         challenge: options['challenge'] as String,
         mediation: MediationType.Optional,
         preferImmediatelyAvailableCredentials: false,
         timeout: (options['timeout'] as num?)?.toInt(),
-        userVerification: (options['userVerification'] as String?) ?? 'required',
+        userVerification:
+            (options['userVerification'] as String?) ?? 'required',
         allowCredentials: (options['allowCredentials'] as List<dynamic>?)
-            ?.map((item) => CredentialType.fromJson(
-                  Map<String, dynamic>.from(item as Map),
-                ))
+            ?.map(
+              (item) => CredentialType.fromJson(
+                Map<String, dynamic>.from(item as Map),
+              ),
+            )
             .toList(growable: false),
       );
       final assertion = await authenticator.authenticate(request);
@@ -663,11 +667,13 @@ class _LoginPageState extends ConsumerState<LoginPage>
     } catch (error) {
       if (mounted) {
         final l10n = AppLocalizations.of(context);
-        setState(() => _oidcError = resolvePasskeyErrorMessage(
-              l10n,
-              error,
-              fallback: l10n.authPasskeyFailed,
-            ));
+        setState(
+          () => _oidcError = resolvePasskeyErrorMessage(
+            l10n,
+            error,
+            fallback: l10n.authPasskeyFailed,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _passkeyBusy = false);
@@ -1241,7 +1247,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
             if (_mode == _AuthMode.register &&
                 _registration?.allowedDomains.isNotEmpty == true) ...[
               const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
+              GfDropdownButtonFormField<String>(
                 key: const Key('register-email-domain'),
                 initialValue: _emailDomain,
                 isExpanded: true,
@@ -1478,7 +1484,10 @@ class _LoginPageState extends ConsumerState<LoginPage>
                     )
                   : const GfSymbol('key-round', size: 20),
               label: GfText(l10n.authPasskey),
-              onPressed: _passkeyBusy || _authController.busy || _finishingAuthentication
+              onPressed:
+                  _passkeyBusy ||
+                      _authController.busy ||
+                      _finishingAuthentication
                   ? null
                   : _loginWithPasskey,
             ),

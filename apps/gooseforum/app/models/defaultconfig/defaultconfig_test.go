@@ -54,6 +54,14 @@ func TestPageConfigDefaultGettersReturnCopies(t *testing.T) {
 	if got := GetDefaultSiteSettingsConfig().SiteName; got == "changed" {
 		t.Fatal("site settings getter returned shared mutable data")
 	}
+	// 外链免确认白名单是切片：改写下标必须不写回嵌入默认值（issue #1200）。
+	if len(site.TrustedExternalDomains) == 0 {
+		t.Fatal("site settings default lost the trusted external domains")
+	}
+	site.TrustedExternalDomains[0] = "changed.example"
+	if got := GetDefaultSiteSettingsConfig().TrustedExternalDomains[0]; got == "changed.example" {
+		t.Fatal("site settings getter returned shared trusted external domains slice")
+	}
 
 	chrome := GetDefaultSiteChromeConfig()
 	chrome.FooterInfo.List[0].Name = "changed"

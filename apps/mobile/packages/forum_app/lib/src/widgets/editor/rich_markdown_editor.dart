@@ -19,6 +19,7 @@ class RichMarkdownEditor extends StatelessWidget {
     this.editorBuilder,
     this.onHeading,
     this.onHeadingLongPress,
+    this.headingButtonKey,
     this.onInsertLink,
     this.onInsertImage,
     this.insertingImage = false,
@@ -34,6 +35,7 @@ class RichMarkdownEditor extends StatelessWidget {
   final Widget Function(BuildContext context)? editorBuilder;
   final VoidCallback? onHeading;
   final VoidCallback? onHeadingLongPress;
+  final Key? headingButtonKey;
   final VoidCallback? onInsertLink;
 
   /// Optional image action. Only shown when the caller owns an upload pipeline;
@@ -68,6 +70,7 @@ class RichMarkdownEditor extends StatelessWidget {
             controller: controller,
             onHeading: onHeading,
             onHeadingLongPress: onHeadingLongPress,
+            headingButtonKey: headingButtonKey,
             onInsertLink: onInsertLink,
             onInsertImage: onInsertImage,
             insertingImage: insertingImage,
@@ -112,6 +115,7 @@ class RichMarkdownToolbar extends StatelessWidget {
     required this.controller,
     this.onHeading,
     this.onHeadingLongPress,
+    this.headingButtonKey,
     this.onInsertLink,
     this.onInsertImage,
     this.insertingImage = false,
@@ -122,6 +126,7 @@ class RichMarkdownToolbar extends StatelessWidget {
   final QuillController controller;
   final VoidCallback? onHeading;
   final VoidCallback? onHeadingLongPress;
+  final Key? headingButtonKey;
   final VoidCallback? onInsertLink;
   final VoidCallback? onInsertImage;
   final bool insertingImage;
@@ -174,6 +179,7 @@ class RichMarkdownToolbar extends StatelessWidget {
                       : null,
                 ),
                 _ToolButton(
+                  key: headingButtonKey,
                   symbol: 'heading',
                   tooltip: l10n.publishHeading,
                   selected: attributes[Attribute.header.key]?.value != null,
@@ -426,6 +432,7 @@ class _MarkdownTableBuilder extends EmbedBuilder {
 
 class _ToolButton extends StatelessWidget {
   const _ToolButton({
+    super.key,
     required this.symbol,
     required this.tooltip,
     required this.onPressed,

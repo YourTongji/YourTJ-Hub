@@ -217,13 +217,14 @@ func TestAdminGetSiteSettingsHTTPContract(t *testing.T) {
 	t.Run("success returns the stored site settings", func(t *testing.T) {
 		conn, router := setupAdminSiteContractTest(t)
 		persistContractPageConfig(t, conn, pageConfig.SiteSettings, pageConfig.SiteSettingsConfig{
-			SiteName:        "契约站点",
-			SiteLogo:        "/static/logo.webp",
-			SiteDescription: "契约描述",
-			SiteKeywords:    "契约,测试",
-			SiteUrl:         "https://contract.example.test",
-			SiteEmail:       "hi@contract.example.test",
-			ExternalLinks:   "https://example.test",
+			SiteName:               "契约站点",
+			SiteLogo:               "/static/logo.webp",
+			SiteDescription:        "契约描述",
+			SiteKeywords:           "契约,测试",
+			SiteUrl:                "https://contract.example.test",
+			SiteEmail:              "hi@contract.example.test",
+			ExternalLinks:          "https://example.test",
+			TrustedExternalDomains: []string{"github.com", "bilibili.com"},
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodGet, path, "", "admin-site-settings-success.json")
 	})
@@ -240,11 +241,14 @@ func TestAdminSaveSiteSettingsHTTPContract(t *testing.T) {
 			conn.Where("page_type = ?", pageConfig.SiteSettings).Delete(&pageConfig.Entity{})
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"settings":{"siteName":"新站点","siteLogo":"","siteDescription":"d","siteKeywords":"k","siteUrl":"https://new.example.test","siteEmail":"","externalLinks":""}}`,
+			`{"settings":{"siteName":"新站点","siteLogo":"","siteDescription":"d","siteKeywords":"k","siteUrl":"https://new.example.test","siteEmail":"","externalLinks":"","trustedExternalDomains":["github.com"]}}`,
 			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.SiteSettings, pageConfig.SiteSettingsConfig{})
 		if stored.SiteName != "新站点" || stored.SiteUrl != "https://new.example.test" {
 			t.Fatalf("stored site settings = %#v, want submitted values", stored)
+		}
+		if len(stored.TrustedExternalDomains) != 1 || stored.TrustedExternalDomains[0] != "github.com" {
+			t.Fatalf("stored trustedExternalDomains = %#v, want [github.com]", stored.TrustedExternalDomains)
 		}
 	})
 

@@ -222,4 +222,37 @@ void main() {
       isEmpty,
     );
   });
+
+  testWidgets('chat links show the URL itself, never a Markdown label', (
+    tester,
+  ) async {
+    // 聊天是纯文本渲染(MessageContent):Markdown 语法原样显示,可点 span 的文本
+    // 就是被打开的 URL,因此聊天表面不会出现「标签与目标不符」,与同样不解释
+    // Markdown 的 Web 聊天一致(issue #1200 review 对聊天表面的核对)。
+    const content =
+        '[https://bank.example/account](https://github.com/x) '
+        'https://github.com/x';
+    final opened = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MessageContent(
+          text: content,
+          stickers: const {},
+          onOpenLink: opened.add,
+        ),
+      ),
+    );
+    final text = tester.widget<GfText>(find.byType(GfText));
+    expect(text.textSpan!.toPlainText(), content);
+    final links = textSpans(
+      text.textSpan!,
+    ).where((span) => span.recognizer != null).toList();
+    expect(links, isNotEmpty);
+    for (final span in links) {
+      // 每个可点 span 的可见文本就是它的目标:不存在显示 A、点开 B 的链接。
+      final int before = opened.length;
+      (span.recognizer as TapGestureRecognizer).onTap!();
+      expect(opened.sublist(before), <String>[span.text!]);
+    }
+  });
 }

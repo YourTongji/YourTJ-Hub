@@ -345,6 +345,9 @@ mixin _$AgentTopicItem {
   int get id => throw _privateConstructorUsedError;
   String get title => throw _privateConstructorUsedError;
   String get excerpt => throw _privateConstructorUsedError;
+
+  /// Topic gallery image URLs (issue #1228); older servers omit it.
+  List<String>? get images => throw _privateConstructorUsedError;
   List<int> get categoryIds => throw _privateConstructorUsedError;
   int get userId => throw _privateConstructorUsedError;
   int get status => throw _privateConstructorUsedError;
@@ -379,6 +382,7 @@ abstract class $AgentTopicItemCopyWith<$Res> {
     int id,
     String title,
     String excerpt,
+    List<String>? images,
     List<int> categoryIds,
     int userId,
     int status,
@@ -414,6 +418,7 @@ class _$AgentTopicItemCopyWithImpl<$Res, $Val extends AgentTopicItem>
     Object? id = null,
     Object? title = null,
     Object? excerpt = null,
+    Object? images = freezed,
     Object? categoryIds = null,
     Object? userId = null,
     Object? status = null,
@@ -447,6 +452,10 @@ class _$AgentTopicItemCopyWithImpl<$Res, $Val extends AgentTopicItem>
                 ? _value.excerpt
                 : excerpt // ignore: cast_nullable_to_non_nullable
                       as String,
+            images: freezed == images
+                ? _value.images
+                : images // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
             categoryIds: null == categoryIds
                 ? _value.categoryIds
                 : categoryIds // ignore: cast_nullable_to_non_nullable
@@ -522,6 +531,7 @@ abstract class _$$AgentTopicItemImplCopyWith<$Res>
     int id,
     String title,
     String excerpt,
+    List<String>? images,
     List<int> categoryIds,
     int userId,
     int status,
@@ -557,6 +567,7 @@ class __$$AgentTopicItemImplCopyWithImpl<$Res>
     Object? id = null,
     Object? title = null,
     Object? excerpt = null,
+    Object? images = freezed,
     Object? categoryIds = null,
     Object? userId = null,
     Object? status = null,
@@ -590,6 +601,10 @@ class __$$AgentTopicItemImplCopyWithImpl<$Res>
             ? _value.excerpt
             : excerpt // ignore: cast_nullable_to_non_nullable
                   as String,
+        images: freezed == images
+            ? _value._images
+            : images // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
         categoryIds: null == categoryIds
             ? _value._categoryIds
             : categoryIds // ignore: cast_nullable_to_non_nullable
@@ -644,6 +659,7 @@ class _$AgentTopicItemImpl implements _AgentTopicItem {
     required this.id,
     required this.title,
     required this.excerpt,
+    final List<String>? images,
     required final List<int> categoryIds,
     required this.userId,
     required this.status,
@@ -654,7 +670,8 @@ class _$AgentTopicItemImpl implements _AgentTopicItem {
     this.lastPostedAt,
     required this.createdAt,
     required this.updatedAt,
-  }) : _categoryIds = categoryIds;
+  }) : _images = images,
+       _categoryIds = categoryIds;
 
   factory _$AgentTopicItemImpl.fromJson(Map<String, dynamic> json) =>
       _$$AgentTopicItemImplFromJson(json);
@@ -670,6 +687,20 @@ class _$AgentTopicItemImpl implements _AgentTopicItem {
   final String title;
   @override
   final String excerpt;
+
+  /// Topic gallery image URLs (issue #1228); older servers omit it.
+  final List<String>? _images;
+
+  /// Topic gallery image URLs (issue #1228); older servers omit it.
+  @override
+  List<String>? get images {
+    final value = _images;
+    if (value == null) return null;
+    if (_images is EqualUnmodifiableListView) return _images;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   final List<int> _categoryIds;
   @override
   List<int> get categoryIds {
@@ -699,7 +730,7 @@ class _$AgentTopicItemImpl implements _AgentTopicItem {
 
   @override
   String toString() {
-    return 'AgentTopicItem(agentRepliesDisabled: $agentRepliesDisabled, author: $author, id: $id, title: $title, excerpt: $excerpt, categoryIds: $categoryIds, userId: $userId, status: $status, processStatus: $processStatus, replyCount: $replyCount, viewCount: $viewCount, postCount: $postCount, lastPostedAt: $lastPostedAt, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'AgentTopicItem(agentRepliesDisabled: $agentRepliesDisabled, author: $author, id: $id, title: $title, excerpt: $excerpt, images: $images, categoryIds: $categoryIds, userId: $userId, status: $status, processStatus: $processStatus, replyCount: $replyCount, viewCount: $viewCount, postCount: $postCount, lastPostedAt: $lastPostedAt, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -713,6 +744,7 @@ class _$AgentTopicItemImpl implements _AgentTopicItem {
             (identical(other.id, id) || other.id == id) &&
             (identical(other.title, title) || other.title == title) &&
             (identical(other.excerpt, excerpt) || other.excerpt == excerpt) &&
+            const DeepCollectionEquality().equals(other._images, _images) &&
             const DeepCollectionEquality().equals(
               other._categoryIds,
               _categoryIds,
@@ -744,6 +776,7 @@ class _$AgentTopicItemImpl implements _AgentTopicItem {
     id,
     title,
     excerpt,
+    const DeepCollectionEquality().hash(_images),
     const DeepCollectionEquality().hash(_categoryIds),
     userId,
     status,
@@ -780,6 +813,7 @@ abstract class _AgentTopicItem implements AgentTopicItem {
     required final int id,
     required final String title,
     required final String excerpt,
+    final List<String>? images,
     required final List<int> categoryIds,
     required final int userId,
     required final int status,
@@ -805,6 +839,10 @@ abstract class _AgentTopicItem implements AgentTopicItem {
   String get title;
   @override
   String get excerpt;
+
+  /// Topic gallery image URLs (issue #1228); older servers omit it.
+  @override
+  List<String>? get images;
   @override
   List<int> get categoryIds;
   @override

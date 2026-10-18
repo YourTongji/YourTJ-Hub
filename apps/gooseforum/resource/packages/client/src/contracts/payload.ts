@@ -239,6 +239,11 @@ export interface SitePayload {
   brandType: string
   brandText: string
   brandImage: string
+  /**
+   * 外链免确认白名单（issue #1200）：小写主机名，条目覆盖其全部子域；
+   * 命中且风险为 normal_external 的站外链接跳过确认弹层。
+   */
+  trustedExternalDomains: string[]
 }
 
 export interface ViewerPayload {
@@ -469,6 +474,8 @@ export interface PostPayload {
   isLiked: boolean
   isBookmarked: boolean
   isAnswer: boolean
+  /** Topic gallery, only on the visible first post (issue #1228). */
+  images?: string[]
 }
 
 export interface ReplyTargetPayload {

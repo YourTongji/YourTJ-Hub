@@ -4077,6 +4077,7 @@ export default {
     'wiki.saveFailed': 'Wiki の保存に失敗しました。後でもう一度お試しください。',
     'wiki.readFailed': 'Wiki データの読み込みに失敗しました。後でもう一度お試しください。',
     'admin.url.invalid': '許可されていない URL です。対応するのは http(s)、サイト内相対パス、一部フィールドの mailto: のみです。',
+    'admin.externalDomain.invalid': '外部リンクのドメインとして許可されていません: {domain}。スキーム・パス・ポート・ワイルドカードを含まないドメインのみ入力できます（最大 200 件）。',
   },
   serverActions: {
     uploadAttachment: '添付ファイルをアップロード',

@@ -183,10 +183,10 @@ void main() {
       await _openOwnMenu(tester, 2);
       await tester.tap(find.text('删除'));
       await tester.pumpAndSettle();
-      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.byType(GfAlertDialog), findsOneWidget);
       expect(
         find.descendant(
-          of: find.byType(AlertDialog),
+          of: find.byType(GfAlertDialog),
           matching: find.text('第一条匿名评价'),
         ),
         findsOneWidget,
@@ -200,7 +200,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(
         find.descendant(
-          of: find.byType(AlertDialog),
+          of: find.byType(GfAlertDialog),
           matching: find.text('删除'),
         ),
       );
@@ -214,7 +214,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(
         find.descendant(
-          of: find.byType(AlertDialog),
+          of: find.byType(GfAlertDialog),
           matching: find.text('删除'),
         ),
       );

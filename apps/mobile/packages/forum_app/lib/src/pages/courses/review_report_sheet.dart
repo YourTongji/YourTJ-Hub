@@ -127,7 +127,7 @@ class _CourseReviewReportSheetState
                 style: GfTheme.typographyOf(context).heading,
               ),
               const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
+              GfDropdownButtonFormField<String>(
                 initialValue: _reason,
                 isExpanded: true,
                 decoration: InputDecoration(

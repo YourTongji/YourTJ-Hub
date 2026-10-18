@@ -565,11 +565,22 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   }
 
   /// 正文链接：复用仓库共享的 LinkNavigation（站内路由/外链确认）。
-  Future<bool> _openReviewLink(String url) async {
+  ///
+  /// 「标签与目标不符」的链接按 suspicious 处理（对齐 Web linkRisk）：白名单与
+  /// 会话信任都不豁免，始终弹确认层（issue #1200 review）。
+  Future<bool> _openReviewLink(String url, ReviewPayload review) async {
+    final String base = ref.read(apiClientProvider).baseUrl;
+    final Set<String> mislabeled = mislabeledLinkTargetsInHtml(
+      review.contentHtml,
+      base: Uri.parse(base),
+    );
     await LinkNavigation.open(
       context,
       url,
-      baseUrl: ref.read(apiClientProvider).baseUrl,
+      baseUrl: base,
+      risk: mislabeled.contains(url)
+          ? LinkRisk.suspicious
+          : LinkRisk.normalExternal,
     );
     return true;
   }
@@ -661,52 +672,84 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     return Column(
       children: <Widget>[
         Expanded(
-          child: AppRefreshIndicator(
-            onRefresh: () async {
-              await _load();
-              await _loadRelated();
-            },
-            child: CustomScrollView(
-              controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: <Widget>[
-                SliverToBoxAdapter(child: _CourseHeader(detail: detail)),
-                const SliverToBoxAdapter(child: GfDivider()),
-                SliverToBoxAdapter(child: _RatingSection(detail: detail)),
-                const SliverToBoxAdapter(child: GfDivider()),
-                SliverToBoxAdapter(
-                  child: _AiSummaryCard(courseId: widget.courseId),
-                ),
-                const SliverToBoxAdapter(child: GfDivider()),
-                ..._buildReviewsSlivers(l10n, copy, detail),
-                const SliverToBoxAdapter(child: GfDivider()),
-                SliverToBoxAdapter(
-                  child: _OfferingsSection(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final scale = (MediaQuery.textScalerOf(context).scale(16) / 16)
+                  .clamp(1.0, 1.5);
+              final sidebarWidth = 340 * scale;
+              final wide = constraints.maxWidth >= sidebarWidth + 560 * scale;
+              final summary = Column(
+                children: [
+                  _CourseHeader(detail: detail),
+                  const GfDivider(),
+                  _RatingSection(detail: detail),
+                  const GfDivider(),
+                  _AiSummaryCard(courseId: widget.courseId),
+                  const GfDivider(),
+                ],
+              );
+              final offerings = Column(
+                children: [
+                  _OfferingsSection(
                     offerings:
                         detail.offerings ?? const <CourseOfferingPayload>[],
                     activeOfferingId: _activeOfferingId,
                     onFocusOffering: _focusOffering,
                     copy: copy,
                   ),
-                ),
-                const SliverToBoxAdapter(child: GfDivider()),
-                SliverToBoxAdapter(
-                  child: _RelatedSection(
+                  const GfDivider(),
+                  _RelatedSection(
                     related: _related,
                     courseId: widget.courseId,
-                    onOpenCourse: (int id) =>
+                    onOpenCourse: (id) =>
                         context.pushReplacement('/courses/$id'),
                     copy: copy,
                   ),
-                ),
-                SliverToBoxAdapter(
-                  child: SizedBox(
-                    // dock 现在是真实底栏（不再 overlay），这里只留呼吸间距。
-                    height: 24,
+                ],
+              );
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Offstage(
+                    offstage: !wide,
+                    child: SizedBox(
+                      width: sidebarWidth,
+                      child: ListView(
+                        key: const Key('course-detail-sidebar'),
+                        children: wide ? [summary, offerings] : const [],
+                      ),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                  SizedBox(
+                    width: wide ? 1 : 0,
+                    child: ColoredBox(color: GfTheme.colorsOf(context).line),
+                  ),
+                  Expanded(
+                    child: AppRefreshIndicator(
+                      onRefresh: () async {
+                        await _load();
+                        await _loadRelated();
+                      },
+                      child: CustomScrollView(
+                        controller: _scrollController,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: wide ? const SizedBox.shrink() : summary,
+                          ),
+                          ..._buildReviewsSlivers(l10n, copy, detail),
+                          const SliverToBoxAdapter(child: GfDivider()),
+                          SliverToBoxAdapter(
+                            child: wide ? const SizedBox.shrink() : offerings,
+                          ),
+                          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
         ColoredBox(
@@ -821,7 +864,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
               offeringMeta: offeringMeta.cardMeta,
               baseUrl: Uri.parse(ref.read(apiClientProvider).baseUrl),
               onImageTap: _openReviewImage,
-              onLinkTap: _openReviewLink,
+              onLinkTap: (String url) => _openReviewLink(url, review),
               reportBusy: _reviewReportBusy.contains(review.id),
               onHelpful: () =>
                   _toggleReviewReaction(review, CourseReviewReaction.helpful),
@@ -2276,7 +2319,7 @@ class _ReviewRow extends StatelessWidget {
     CourseCopy copy,
     GfColors colors,
   ) {
-    return PopupMenuButton<String>(
+    return GfPopupMenuButton<String>(
       key: ValueKey<String>('review-menu-${review.id}'),
       tooltip: l10n.profileMore,
       icon: const GfSymbol('ellipsis', size: 20),
@@ -2293,14 +2336,18 @@ class _ReviewRow extends StatelessWidget {
       },
       itemBuilder: (_) => <PopupMenuEntry<String>>[
         if (onEdit != null)
-          PopupMenuItem<String>(value: 'edit', child: GfText(l10n.commonEdit)),
+          GfPopupMenuItem<String>(
+            value: 'edit',
+            child: GfText(l10n.commonEdit),
+          ),
         if (onDelete != null)
-          PopupMenuItem<String>(
+          GfPopupMenuItem<String>(
+            destructive: true,
             value: 'delete',
             child: GfText(copy.delete, style: TextStyle(color: colors.error)),
           ),
         if (onReport != null)
-          PopupMenuItem<String>(
+          GfPopupMenuItem<String>(
             value: 'report',
             enabled: !reportBusy,
             child: GfText(l10n.contentReport),

@@ -17,6 +17,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/agentinstance"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/domainpolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
@@ -1334,7 +1335,7 @@ func fillSponsorsConfigDefaults(config *pageConfig.SponsorsConfig) {
 // GetSiteSettings 获取站点设置
 func GetSiteSettings(req component.BetterRequest[component.Null]) component.Response {
 	defaultSettings := defaultconfig.GetDefaultSiteSettingsConfig()
-	res := pageConfig.GetConfigByPageType(pageConfig.SiteSettings, defaultSettings)
+	res := pageConfig.GetSiteSettingsConfig(defaultSettings)
 	return component.SuccessResponse(res)
 }
 
@@ -1346,12 +1347,25 @@ type SaveSiteSettingsReq struct {
 	Settings pageConfig.SiteSettingsConfig `json:"settings"`
 }
 
-// SaveSiteSettings 保存站点设置：站点 URL 与 logo URL 经字段策略校验后落库。
+// SaveSiteSettings 保存站点设置：站点 URL 与 logo URL 经字段策略校验后落库；
+// 外链免确认白名单经 domainpolicy 归一化（小写、去重、去空行），含非法条目
+// 时整单拒绝、绝不落库（issue #1200）。
 func SaveSiteSettings(req component.BetterRequest[SaveSiteSettingsReq]) component.Response {
 	settings := req.Params.Settings
 	if field := validateSiteSettingsURLs(&settings); field != "" {
 		return component.FailResponseCode(component.MessageAdminUrlInvalid, component.MessageParams{"field": field})
 	}
+	// 部署期间仍打开的旧管理端页面不会提交 trustedExternalDomains：JSON 里键缺失
+	// 时切片为 nil（显式空数组则是非 nil 空切片）。缺失按「保留现有清单」处理，
+	// 避免一次无关的站点设置保存静默停用白名单；显式空数组仍是清空操作。
+	if settings.TrustedExternalDomains == nil {
+		settings.TrustedExternalDomains = pageConfig.GetSiteSettingsConfig(defaultconfig.GetDefaultSiteSettingsConfig()).TrustedExternalDomains
+	}
+	kept, dropped := domainpolicy.CanonicalizeList(settings.TrustedExternalDomains)
+	if len(dropped) > 0 {
+		return component.FailResponseCode(component.MessageAdminExternalDomainInvalid, component.MessageParams{"domain": strings.TrimSpace(dropped[0])})
+	}
+	settings.TrustedExternalDomains = kept
 	return savePageConfig(pageConfig.SiteSettings, settings, func() {
 		hotdataserve.ClearSiteSettingsConfigCache()
 		oauthservice.RefreshOAuthProviders()

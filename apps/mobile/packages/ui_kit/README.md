@@ -68,7 +68,17 @@ iOS 继续使用 Cupertino 原生转场与返回手势。
 未指定高度时按内容收缩；`height` 是受可用视口约束的内容高度，长内容由调用方提供滚动容器。
 安全区由入口消费一次，底部背景覆盖手势区；`keyboardAware: true` 负责键盘避让，
 调用方不再叠加 `viewInsets`。`enableDrag: false` 可保护未保存的编辑。
-`showGfAlertDialog` / `showGfModal` 用原生 `Dialog` 约束键盘上方的可用区域，使用24px圆角、原生焦点和单层滚动内容。
+`showGfMenu` / `GfPopupMenuButton` 和 `showGfActionSheet` 共享动作值、禁用和破坏性语义。
+iOS 窄窗使用 Cupertino 底部操作面板，宽窗在触发控件附近显示最大380px的可滚动菜单；
+`anchorContext` 指向实际按钮，所选导航器的 overlay 负责菜单定位。
+`useRootNavigator` 在两个平台均选择根导航器或最近的导航器；
+`showGfMenu` 默认使用根导航器，`GfPopupMenuButton` 默认使用最近的导航器。
+`GfDropdownButtonFormField` 保留校验、保存、reset和外部初值更新；iOS 用带当前选中标识的菜单，
+Android 保留 Material 下拉框。`GfRadioListTile` 在 iOS 用勾选行，Android 保留单选控件；
+两个平台均由同类型的 `RadioGroup<T>` 祖先管理选中值和更新。
+`showGfAlertDialog` / `GfAlertDialog` 在 iOS 使用 Cupertino 简单确认，`GfDialogAction` 显式标记破坏性动作；
+复杂表单需在路由入口和内容同时设置 `adaptive: false`，保留原生 `Dialog` 的键盘避让、
+24px圆角、焦点和单层滚动内容。`showGfModal` 保留编辑表面。
 回归测试包含刘海、底部手势区、长列表和键盘；应用层补充小屏双倍字号表单测试。
 
 ```bash

@@ -31,7 +31,8 @@ var siteSettingsConfigCache = &localcache.Cache[pageConfig.SiteSettingsConfig]{M
 
 func GetSiteSettingsConfigCache() pageConfig.SiteSettingsConfig {
 	return siteSettingsConfigCache.GetOrLoad("", func() (pageConfig.SiteSettingsConfig, error) {
-		return pageConfig.GetConfigByPageType(pageConfig.SiteSettings, defaultconfig.GetDefaultSiteSettingsConfig()), nil
+		// 读取走 GetSiteSettingsConfig：缺键补默认白名单、过滤非法条目（issue #1200）。
+		return pageConfig.GetSiteSettingsConfig(defaultconfig.GetDefaultSiteSettingsConfig()), nil
 	}, configFastCacheTTL)
 }
 

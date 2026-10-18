@@ -29,7 +29,7 @@ class _AccountClosureDialogState extends State<AccountClosureDialog> {
           children: [
             GfText(l10n.settingsCloseAccountWarning),
             const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
+            GfDropdownButtonFormField<String>(
               initialValue: _mode,
               isExpanded: true,
               itemHeight: null,

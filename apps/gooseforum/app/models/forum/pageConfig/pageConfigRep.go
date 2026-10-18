@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/domainpolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
@@ -94,6 +95,43 @@ func normalizeSecurityLists(config *SecurityAndRegistration) {
 	if config.SensitiveWords == nil {
 		config.SensitiveWords = []string{}
 	}
+}
+
+// GetSiteSettingsConfig 读取站点设置并兼容存量配置缺少外链免确认白名单字段
+// （issue #1200）：
+//   - trustedExternalDomains 键缺失（升级前的存量行）时用默认清单补齐——缺失
+//     表示「管理员从未配置过」，而非「显式清空」；显式空数组保持为空。
+//   - 读取路径用 domainpolicy 过滤历史脏值（协议/路径/通配符/公网后缀/超限等），
+//     绝不把非法条目下发给客户端豁免判定，并告警便于运维修正保存值。
+//
+// defaultValue 应为内置默认站点设置（defaultconfig.GetDefaultSiteSettingsConfig）；
+// 传入零值时键缺失不会被补齐。
+func GetSiteSettingsConfig(defaultValue SiteSettingsConfig) SiteSettingsConfig {
+	entity := GetByPageType(SiteSettings)
+	if entity.Id == 0 {
+		config := defaultValue
+		config.TrustedExternalDomains, _ = domainpolicy.CanonicalizeList(config.TrustedExternalDomains)
+		return config
+	}
+	config, err := jsonopt.DecodeE[SiteSettingsConfig](entity.Config)
+	if err != nil {
+		slog.Warn("pageConfig: stored config JSON corrupted, falling back to default",
+			"page_type", SiteSettings, "err", err)
+		config = defaultValue
+	}
+	var raw struct {
+		TrustedExternalDomains *[]string `json:"trustedExternalDomains"`
+	}
+	if json.Unmarshal([]byte(entity.Config), &raw) == nil && raw.TrustedExternalDomains == nil {
+		config.TrustedExternalDomains = defaultValue.TrustedExternalDomains
+	}
+	kept, dropped := domainpolicy.CanonicalizeList(config.TrustedExternalDomains)
+	if len(dropped) > 0 {
+		slog.Warn("pageConfig: dropping invalid trusted external domains on load",
+			"page_type", SiteSettings, "dropped", dropped)
+	}
+	config.TrustedExternalDomains = kept
+	return config
 }
 
 // GetPostingSettingsConfig 读取发布内容设置（issue #369，上游 c47cff94）。

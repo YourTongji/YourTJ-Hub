@@ -150,6 +150,86 @@ void main() {
   }
 
   testWidgets(
+    'tablet search keeps scope navigation and submitted query on resize',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1120, 900);
+      addTearDown(tester.view.reset);
+      final repo = await pumpSearch(tester);
+      repo.calls.first.result.complete(_result(repo.calls.first, topics: 30));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('search-sidebar')).hitTestable(),
+        findsOneWidget,
+      );
+      final field = tester.getRect(find.byType(TextField));
+      expect(field.left, greaterThan(250));
+      await tester.enterText(find.byType(TextField), 'unsubmitted');
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const ValueKey('search-sidebar')),
+          matching: find.text('Users'),
+        ),
+      );
+      await tester.pump();
+      expect(repo.calls.last.query, 'original');
+      expect(repo.calls.last.scope, 'users');
+      repo.calls.last.result.complete(_result(repo.calls.last, users: 2));
+      await tester.pumpAndSettle();
+      tester.view.physicalSize = const Size(500, 900);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('search-sidebar')).hitTestable(),
+        findsNothing,
+      );
+      expect(find.text('User 0'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'unsubmitted',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('tablet search shows the empty discovery panel once', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1120, 900);
+    addTearDown(tester.view.reset);
+    final repository = _SearchRepository();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          topicRepositoryProvider.overrideWithValue(repository),
+          writingScopeProvider.overrideWith((ref) async => 'test:guest'),
+        ],
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const SearchPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('search-sidebar')).hitTestable(),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Search courses'),
+      findsOneWidget,
+      reason: 'the sidebar holds scope navigation only, not a second panel',
+    );
+    expect(find.text('Search Wiki'), findsOneWidget);
+    expect(find.text('Recent searches'), findsNothing);
+    expect(repository.calls, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
     'scope controls remain available while loading and after failure',
     (tester) async {
       final repo = await pumpSearch(tester);

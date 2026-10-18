@@ -204,6 +204,9 @@ func apiRoute(ginApp *gin.Engine) {
 	// 站点主题公开下发（mobile Route A）：公开只读，无鉴权；数据源与
 	// /site-theme.css 一致（page_config SiteTheme 发布态），未启用返回空。
 	baseApi.GET("site-theme/tokens", ginUpNP(api.GetPublicSiteThemeTokens))
+	// 外链免确认白名单公开下发（issue #1200）：公开只读，无鉴权；数据源与
+	// SSR payload layout.site.trustedExternalDomains 一致（page_config SiteSettings）。
+	baseApi.GET("external-link-policy", ginUpNP(api.GetExternalLinkPolicy))
 	baseApi.POST("forgot-password", middleware.RateLimit(middleware.RateLimitForgotPassword), UpButterReq(api.ForgotPassword))
 	baseApi.POST("reset-password", middleware.RateLimit(middleware.RateLimitResetPassword), UpButterReq(api.ResetPassword))
 	baseApi.GET("auth/:provider", func(c *gin.Context) {

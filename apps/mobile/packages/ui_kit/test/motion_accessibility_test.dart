@@ -236,6 +236,9 @@ void main() {
   testWidgets(
     'bottom sheets use the shared cadence and have a zero-motion path',
     (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.reset);
       for (final reduced in [false, true]) {
         late BuildContext host;
         await tester.pumpWidget(

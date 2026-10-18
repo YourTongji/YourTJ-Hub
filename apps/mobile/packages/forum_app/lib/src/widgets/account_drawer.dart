@@ -589,7 +589,7 @@ Future<void> _showThemeModeSheet(BuildContext context) =>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         for (final choice in choices)
-                          RadioListTile<ThemeMode>(
+                          GfRadioListTile<ThemeMode>(
                             value: choice,
                             controlAffinity: ListTileControlAffinity.trailing,
                             contentPadding: EdgeInsets.zero,

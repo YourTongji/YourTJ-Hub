@@ -55,8 +55,11 @@ adminGetSiteSettings:
       `permission.denied` (params permission=<localized permission name>,
       `站点管理` in zh). Returns the stored site settings, or the built-in
       default configuration when nothing has been saved yet (the default is
-      not persisted by reads). JSON binding is lenient: query string and
-      body are ignored.
+      not persisted by reads). Stored rows that predate
+      `trustedExternalDomains` (the key is absent or null) report the
+      built-in default whitelist; an explicit empty array reports an empty
+      list, and invalid stored entries are filtered on read (issue #1200).
+      JSON binding is lenient: query string and body are ignored.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -111,7 +114,18 @@ adminSaveSiteSettings:
       rejected; empty values are valid. A rejected field fails the request
       with HTTP 200 `code: 1`, messageCode `admin.url.invalid` and params
       `field` naming the first offending field (`settings.siteUrl` or
-      `settings.siteLogo`); nothing is persisted. JSON binding stays
+      `settings.siteLogo`); nothing is persisted. `trustedExternalDomains`
+      entries are normalized before persistence (trimmed, lower-cased, IDN
+      converted to punycode, de-duplicated, blank entries dropped) under the
+      trusted-domain policy (issue #1200): entries carry no scheme, path,
+      port, wildcard or IP literal, are not a bare public suffix, are limited
+      to 200 entries, and each must be a valid hostname. Rejection fails the
+      request with HTTP 200 `code: 1`, messageCode
+      `admin.externalDomain.invalid` and params `domain` naming the first
+      offending entry; nothing is persisted. A request that omits
+      `trustedExternalDomains` (or sends null) keeps the stored list — or the
+      built-in default when nothing has been saved — while an explicit empty
+      array clears it. JSON binding stays
       lenient: a missing/malformed body binds to zero values (empty URL
       fields, hence valid) and is saved as-is.
     security:

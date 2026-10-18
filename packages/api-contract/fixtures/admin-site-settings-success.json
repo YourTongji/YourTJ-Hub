@@ -6,7 +6,11 @@
     "siteKeywords": "契约,测试",
     "siteUrl": "https://contract.example.test",
     "siteEmail": "hi@contract.example.test",
-    "externalLinks": "https://example.test"
+    "externalLinks": "https://example.test",
+    "trustedExternalDomains": [
+      "github.com",
+      "bilibili.com"
+    ]
   },
   "code": 0
 }

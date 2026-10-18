@@ -352,4 +352,7 @@ const (
 	MessageAdminStickerImportInvalidZip MessageCode = "admin.sticker.importInvalidZip" // 表情包导入仅支持 zip 压缩包。
 	// 管理员可配置 URL 校验（issue #409）
 	MessageAdminUrlInvalid MessageCode = "admin.url.invalid" // 链接不符合允许的协议/目标策略（http(s)、站内相对路径，部分字段允许 mailto）。
+
+	// 外链免确认白名单（issue #1200）
+	MessageAdminExternalDomainInvalid MessageCode = "admin.externalDomain.invalid" // 白名单条目不是可存储的主机名（带协议/路径/端口/通配符、公网后缀、IP 或超过条数上限），params.domain。
 )

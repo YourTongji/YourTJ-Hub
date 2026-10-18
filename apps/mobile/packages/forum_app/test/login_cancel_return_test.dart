@@ -249,6 +249,26 @@ void main() {
     await settlePageTimers(tester);
   });
 
+  testWidgets('iPad login fills the viewport with one continuous surface', (
+    tester,
+  ) async {
+    await pumpGuestTopic(tester);
+    tester.view.physicalSize = const Size(1366, 1024);
+    appRouter.push('/login');
+    await tester.pumpAndSettle();
+    final login = find.descendant(
+      of: find.byType(LoginPage),
+      matching: find.byType(Scaffold),
+    );
+    expect(tester.getSize(login).width, 1366);
+    expect(
+      tester.widget<Scaffold>(login).backgroundColor,
+      GfTheme.colorsOf(tester.element(login)).base100,
+    );
+    expect(tester.takeException(), isNull);
+    await settlePageTimers(tester);
+  });
+
   testWidgets('cancelling login returns to the topic with a stale token', (
     tester,
   ) async {

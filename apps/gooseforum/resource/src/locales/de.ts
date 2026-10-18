@@ -3946,6 +3946,7 @@ export default {
     "admin.agent.contentUnavailable": "Dieser Bot-Inhalt ist nicht verfügbar oder du darfst ihn nicht bearbeiten.",
     "admin.agent.contentConflict": "Der Inhalt wurde geändert. Dein Entwurf bleibt erhalten; kopiere ihn vor dem Neuladen.",
     "admin.opt.agent.contentEdited": "Inhalt von Bot #{agentId} korrigiert: Thema #{topicId}, Beitrag #{postId}, Version {revisionNo}.",
+    "admin.externalDomain.invalid": "Dieser Domain-Eintrag ist nicht erlaubt: {domain}. Nur Domains ohne Schema, Pfad, Port oder Platzhalter eingeben (maximal 200 Einträge).",
     "anonymous.nameLocked": "Ein bestätigter Name lässt sich ein Jahr lang nicht ändern.",
     "anonymous.dailyLimit": "Die 10 Runden für heute sind verbraucht. Frühere Namen bleiben wählbar.",
     "anonymous.candidateExpired": "Diese Namen sind abgelaufen. Lade neu und wähle erneut.",

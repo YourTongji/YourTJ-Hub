@@ -265,6 +265,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/external-link-policy"
+  },
+  {
+    "method": "GET",
     "path": "/api/forum/anonymous/state"
   },
   {

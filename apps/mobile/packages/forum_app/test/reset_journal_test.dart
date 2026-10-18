@@ -20,6 +20,41 @@ class _UnreadableDirectory implements Directory {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _ListedEntity implements FileSystemEntity {
+  _ListedEntity(this.path, this.uri);
+
+  @override
+  final String path;
+  @override
+  final Uri uri;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _WindowsStyleDirectory implements Directory {
+  _WindowsStyleDirectory({
+    required this.path,
+    required this.uri,
+    required this.entries,
+  });
+
+  @override
+  final String path;
+  @override
+  final Uri uri;
+  final List<FileSystemEntity> entries;
+
+  @override
+  Stream<FileSystemEntity> list({
+    bool recursive = false,
+    bool followLinks = true,
+  }) => Stream.fromIterable(entries);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   late Directory directory;
   late ResetJournal journal;
@@ -58,6 +93,25 @@ void main() {
       expect(await reopened.isPending(), isFalse);
     },
   );
+  test('pending lookup tolerates mixed Windows path separators', () async {
+    final directory = _WindowsStyleDirectory(
+      path: r'C:\Users\tester\AppData\Roaming\YourTJ/yourtj_private/',
+      uri: Uri.parse(
+        'file:///C:/Users/tester/AppData/Roaming/YourTJ/yourtj_private/',
+      ),
+      entries: [
+        _ListedEntity(
+          r'C:\Users\tester\AppData\Roaming\YourTJ/yourtj_private/reset.intent',
+          Uri.parse(
+            'file:///C:/Users/tester/AppData/Roaming/YourTJ/yourtj_private/reset.intent',
+          ),
+        ),
+      ],
+    );
+    final journal = ResetJournal(directory: () async => directory);
+
+    expect(await journal.isPending(), isTrue);
+  });
   test(
     'a malformed directory marker remains pending when removal fails',
     () async {

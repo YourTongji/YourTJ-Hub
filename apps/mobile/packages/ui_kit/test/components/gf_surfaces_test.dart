@@ -8,6 +8,9 @@ void main() {
   testWidgets(
     'open bottom sheet follows live theme without losing its handle',
     (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.reset);
       final brightness = ValueNotifier(Brightness.light);
       addTearDown(brightness.dispose);
       late BuildContext page;
@@ -494,6 +497,68 @@ void main() {
       expect(after, lessThan(before));
       expect(tester.takeException(), isNull);
     });
+  });
+
+  testWidgets('tablet forms center above keyboard and retain draft on resize', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1024, 768);
+    addTearDown(tester.view.reset);
+    late BuildContext host;
+    final input = TextEditingController();
+    addTearDown(input.dispose);
+    await tester.pumpWidget(
+      gfApp(
+        Builder(
+          builder: (context) {
+            host = context;
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    final result = showGfBottomSheet<String>(
+      host,
+      height: 600,
+      keyboardAware: true,
+      builder: (context) => Column(
+        children: [
+          const Text('Form title'),
+          Expanded(
+            child: ListView(
+              children: [GfInput(controller: input, hintText: 'Draft')],
+            ),
+          ),
+          GfButton(
+            label: 'Save form',
+            onPressed: () => Navigator.pop(context, input.text),
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+    final panel = find
+        .ancestor(of: find.text('Form title'), matching: find.byType(Material))
+        .first;
+    expect(tester.getRect(panel).bottom, lessThan(744));
+    expect(tester.getRect(panel).center.dx, closeTo(512, 1));
+    await tester.enterText(find.byType(TextField), 'Retained tablet draft');
+    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+    await tester.pumpAndSettle();
+    expect(tester.getRect(panel).top, greaterThanOrEqualTo(24));
+    expect(
+      tester.getRect(find.text('Save form')).bottom,
+      lessThanOrEqualTo(448),
+    );
+    tester.view.physicalSize = const Size(500, 768);
+    await tester.pumpAndSettle();
+    expect(input.text, 'Retained tablet draft');
+    expect(tester.getRect(panel).width, lessThanOrEqualTo(452));
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Save form'));
+    await tester.pumpAndSettle();
+    expect(await result, 'Retained tablet draft');
   });
 
   group('GfToast', () {

@@ -1,6 +1,7 @@
 package topics
 
 import (
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -108,4 +109,35 @@ func (itself *Entity) GetPosters() []Poster {
 		return []Poster{{UserID: itself.UserId}}
 	}
 	return itself.Posters
+}
+
+// MaxPublicGalleryImages bounds the gallery returned by read projections
+// (Agent topic list/post window and llms export, issue #1228). It mirrors
+// fileusageservice.MaxGalleryImagesPerTopicWrite; stored lists that predate
+// that write cap or come from imports may be longer.
+const MaxPublicGalleryImages = 9
+
+// PublicGallery returns the topic gallery for read projections: image_urls
+// when present, otherwise the legacy first_image_url (the same fallback as the
+// web topic list), capped at MaxPublicGalleryImages. Empty or whitespace-only
+// entries are dropped; stored order and duplicates are kept. The result is a copy.
+func (e Entity) PublicGallery() []string {
+	out := nonBlankURLs(e.ImageUrls)
+	if len(out) == 0 {
+		out = nonBlankURLs([]string{e.FirstImageURL})
+	}
+	if len(out) > MaxPublicGalleryImages {
+		out = out[:MaxPublicGalleryImages]
+	}
+	return out
+}
+
+func nonBlankURLs(src []string) []string {
+	out := make([]string, 0, len(src))
+	for _, v := range src {
+		if strings.TrimSpace(v) != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }

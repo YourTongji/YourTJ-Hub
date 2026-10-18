@@ -5,5 +5,17 @@
   "siteKeywords": "forum,discussion,community",
   "siteUrl": "",
   "siteEmail": "example@example.example",
-  "externalLinks": ""
+  "externalLinks": "",
+  "trustedExternalDomains": [
+    "bilibili.com",
+    "developer.mozilla.org",
+    "github.com",
+    "juejin.cn",
+    "mp.weixin.qq.com",
+    "python.org",
+    "rust-lang.org",
+    "stackoverflow.com",
+    "wikipedia.org",
+    "zhihu.com"
+  ]
 }

@@ -3700,6 +3700,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/external-link-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the trusted external-domain whitelist
+         * @description Public read (no auth) of the admin-configured trusted external domains,
+         *     consumed by the mobile app to mirror the Web external-link confirmation
+         *     policy (issue #1200). Links whose hostname equals an entry or is a
+         *     subdomain of an entry skip the "leaving the site" confirmation when
+         *     their risk class is normal_external; the tag-mismatch (suspicious) and
+         *     blocked classes are never exempted, and clients enforce that boundary.
+         *     Entries are lower-cased hostnames (IDN in punycode) validated at save
+         *     time; the same list is embedded in the SSR payload as
+         *     layout.site.trustedExternalDomains. An empty array means no domain is
+         *     exempted.
+         */
+        get: operations["getExternalLinkPolicy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/user/my-content": {
         parameters: {
             query?: never;
@@ -5847,8 +5876,11 @@ export interface paths {
          *     `permission.denied` (params permission=<localized permission name>,
          *     `站点管理` in zh). Returns the stored site settings, or the built-in
          *     default configuration when nothing has been saved yet (the default is
-         *     not persisted by reads). JSON binding is lenient: query string and
-         *     body are ignored.
+         *     not persisted by reads). Stored rows that predate
+         *     `trustedExternalDomains` (the key is absent or null) report the
+         *     built-in default whitelist; an explicit empty array reports an empty
+         *     list, and invalid stored entries are filtered on read (issue #1200).
+         *     JSON binding is lenient: query string and body are ignored.
          */
         get: operations["adminGetSiteSettings"];
         put?: never;
@@ -5884,7 +5916,18 @@ export interface paths {
          *     rejected; empty values are valid. A rejected field fails the request
          *     with HTTP 200 `code: 1`, messageCode `admin.url.invalid` and params
          *     `field` naming the first offending field (`settings.siteUrl` or
-         *     `settings.siteLogo`); nothing is persisted. JSON binding stays
+         *     `settings.siteLogo`); nothing is persisted. `trustedExternalDomains`
+         *     entries are normalized before persistence (trimmed, lower-cased, IDN
+         *     converted to punycode, de-duplicated, blank entries dropped) under the
+         *     trusted-domain policy (issue #1200): entries carry no scheme, path,
+         *     port, wildcard or IP literal, are not a bare public suffix, are limited
+         *     to 200 entries, and each must be a valid hostname. Rejection fails the
+         *     request with HTTP 200 `code: 1`, messageCode
+         *     `admin.externalDomain.invalid` and params `domain` naming the first
+         *     offending entry; nothing is persisted. A request that omits
+         *     `trustedExternalDomains` (or sends null) keeps the stored list — or the
+         *     built-in default when nothing has been saved — while an explicit empty
+         *     array clears it. JSON binding stays
          *     lenient: a missing/malformed body binds to zero values (empty URL
          *     fields, hence valid) and is saved as-is.
          */
@@ -10210,6 +10253,8 @@ export interface components {
             id: number;
             title: string;
             excerpt: string;
+            /** @description Topic gallery image URLs (topics.image_urls, falling back to the legacy firstImageUrl when empty, like the web topic list; usually site-relative `/file/img/...`), at most nine. The list only contains topics whose first post is visible, so this never exposes the gallery of a hidden, author-deleted or moderator-removed first post. Empty when the topic has no image. Older servers omit this field. */
+            images?: string[];
             categoryIds: number[];
             /** Format: uint64 */
             userId: number;
@@ -11708,11 +11753,22 @@ export interface components {
             siteUrl: string;
             siteEmail: string;
             externalLinks: string;
+            /**
+             * @description Trusted external-domain whitelist (issue #1200): lower-cased
+             *     hostnames whose normal_external links skip the external-link
+             *     confirmation; an entry also matches its subdomains. Optional in
+             *     requests — omitting the key (or sending null) keeps the stored list,
+             *     while an explicit empty array clears it — and always present in
+             *     responses (the stored list, or the built-in default when nothing has
+             *     been saved).
+             */
+            trustedExternalDomains?: string[];
         };
         AdminSiteSettingsResponse: components["schemas"]["ApiSuccess"] & {
             /** @description Stored site settings, or the built-in default when nothing has been saved. */
-            result: components["schemas"]["AdminSiteSettingsConfig"];
+            result: components["schemas"]["AdminSiteSettingsResult"];
         };
+        AdminSiteSettingsResult: components["schemas"]["AdminSiteSettingsConfig"] & Record<string, never>;
         /**
          * @description Replacement site settings. URL fields are validated before persistence
          *     under the shared admin URL policy (issue #409): `siteUrl` must be an
@@ -11724,6 +11780,18 @@ export interface components {
          *     and params `field` naming the first offending field; nothing is
          *     persisted. A missing/malformed body binds to zero values (empty URL
          *     fields, hence valid) and is saved as-is.
+         *     `trustedExternalDomains` entries are normalized before persistence
+         *     (trimmed, lower-cased, IDN converted to punycode, de-duplicated, blank
+         *     entries dropped) under the trusted-domain policy (issue #1200): entries
+         *     carry no scheme, path, port, wildcard or IP literal, are not a bare
+         *     public suffix (`com`, `co.uk`, `github.io`), are limited to 200 entries,
+         *     and each must be a valid hostname. On rejection the request fails with
+         *     HTTP 200 `code: 1`, messageCode `admin.externalDomain.invalid` and params
+         *     `domain` naming the first offending entry; nothing is persisted. An
+         *     explicit empty array is valid and disables the whitelist, while omitting
+         *     the key (or sending null) keeps the stored list — or the built-in default
+         *     when nothing has been saved — so an admin tab running the previous bundle
+         *     cannot clear the whitelist by saving unrelated settings.
          */
         AdminSaveSiteSettingsRequest: {
             settings?: components["schemas"]["AdminSiteSettingsConfig"];
@@ -11887,6 +11955,17 @@ export interface components {
             result: components["schemas"]["PublicSiteThemeTokensResult"];
         };
         PublicSiteThemeTokensResponse: components["schemas"]["PublicSiteThemeTokensSuccess"] | components["schemas"]["ApiFailure"];
+        ExternalLinkPolicyResult: {
+            /**
+             * @description Lower-cased hostnames (IDN in punycode) in submission order; an entry
+             *     also matches its subdomains. Empty means no domain is exempted.
+             */
+            trustedDomains: string[];
+        };
+        ExternalLinkPolicySuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ExternalLinkPolicyResult"];
+        };
+        ExternalLinkPolicyResponse: components["schemas"]["ExternalLinkPolicySuccess"] | components["schemas"]["ApiFailure"];
         AdminSecuritySettingsConfig: {
             enableSignup: boolean;
             enableEmailVerification: boolean;
@@ -12527,6 +12606,8 @@ export interface components {
             isBookmarked: boolean;
             /** @description True only when the topic is a Question (contentType=1), the post is not the first post, and it replies to the question itself. */
             isAnswer: boolean;
+            /** @description Topic gallery image URLs (topics.image_urls, falling back to the legacy firstImageUrl when empty, like the web topic list; at most nine; usually site-relative `/file/img/...`, absolute when the storage public URL prefix is set). Present only on the first post (postNo 1) when it is visible; omitted for replies and when the first post is hidden, author-deleted or moderator-removed. Older servers omit this field. */
+            images?: string[];
         };
         ReplyTargetPayload: {
             /** Format: uint64 */
@@ -22478,6 +22559,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicSiteThemeTokensResponse"];
+                };
+            };
+        };
+    };
+    getExternalLinkPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Trusted external domains: the stored list, or the built-in default
+             *     whitelist when nothing has been saved (or the stored row predates
+             *     the field). JSON binding is lenient: query string and body are
+             *     ignored.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalLinkPolicyResponse"];
                 };
             };
         };
