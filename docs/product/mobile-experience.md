@@ -56,10 +56,10 @@ bookmark. Tapping it traces the trail from the avatar to the seal, then unrolls 
 the seal as a pill of the same fill, ring and height; both retract after two seconds, and reduced
 motion switches them instantly. List rows lead the title with the reason. Each reason uses one muted
 Outline glyph borrowed from where the app already means it: the following glyph for a followed
-author, the search categories glyph for a category the reader took part in, and the reply glyph for
-new replies, whose seal, trace and reply count take the accent used for unseen content. The `recent`
-fallback carries no personal signal and the timestamp already states it, so the app leaves it
-unlabelled while Web keeps its label.
+author, the search categories glyph for a category the reader took part in, the reply glyph for new
+replies, whose seal, trace and reply count take the accent used for unseen content, and the time
+glyph for the `recent` fallback. Like Web, the app labels every reason the server sends, so no For
+You topic goes without one; feeds without a server reason stay unstamped.
 
 
 `Current`: root layout uses the available window width. Below 600 logical pixels it retains bottom

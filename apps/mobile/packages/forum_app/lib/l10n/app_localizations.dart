@@ -6552,6 +6552,12 @@ abstract class AppLocalizations {
   /// **'New replies'**
   String get feedReasonNewReply;
 
+  /// No description provided for @feedReasonRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently posted'**
+  String get feedReasonRecent;
+
   /// No description provided for @sortDaily.
   ///
   /// In en, this message translates to:

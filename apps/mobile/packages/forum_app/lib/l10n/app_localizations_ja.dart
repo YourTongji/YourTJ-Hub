@@ -3491,6 +3491,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get feedReasonNewReply => '新しい返信';
 
   @override
+  String get feedReasonRecent => '最近の投稿';
+
+  @override
   String get sortDaily => '今日の人気';
 
   @override

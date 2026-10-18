@@ -1765,6 +1765,7 @@
   "feedReasonFollowing": "From someone you follow",
   "feedReasonCategory": "A category you've posted in",
   "feedReasonNewReply": "New replies",
+  "feedReasonRecent": "Recently posted",
   "sortDaily": "Today's top",
   "anonymousPurpose": "Post and reply under a fixed name. Others can't see your main account.",
   "anonymousSettingsHint": "Post under a fixed name without showing your main account",

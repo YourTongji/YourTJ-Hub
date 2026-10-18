@@ -625,9 +625,9 @@ Widget buildTopicFeedCard(
   );
 }
 
-/// For You reasons borrow the mark of the element that justifies them. The
-/// `recent` fallback carries no personal signal and the timestamp already says
-/// it, so it stays unlabelled.
+/// For You reasons borrow the mark of the element that justifies them. Every
+/// reason the server sends is labelled, `recent` fallback included, so no For
+/// You card goes without its seal.
 GfTopicContext? _feedContext(AppLocalizations l10n, TopicPayload topic) =>
     switch (topic.feedReason) {
       'following' => GfTopicContext(
@@ -643,6 +643,11 @@ GfTopicContext? _feedContext(AppLocalizations l10n, TopicPayload topic) =>
         label: l10n.feedReasonNewReply,
         symbol: 'message-circle',
         newReplies: true,
+      ),
+      'recent' => GfTopicContext(
+        label: l10n.feedReasonRecent,
+        // Profiles and wiki pages use the same glyph for time.
+        symbol: 'clock',
       ),
       _ => null,
     };

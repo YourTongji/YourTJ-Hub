@@ -3451,6 +3451,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get feedReasonNewReply => '有新回复';
 
   @override
+  String get feedReasonRecent => '最近发布';
+
+  @override
   String get sortDaily => '今日热榜';
 
   @override
