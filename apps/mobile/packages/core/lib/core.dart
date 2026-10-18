@@ -39,6 +39,7 @@ export 'src/gen/external_link_policy.dart';
 export 'src/gen/layout.dart';
 export 'src/gen/link_preview.dart';
 export 'src/gen/moderation.dart';
+export 'src/gen/moderation_appeal.dart';
 export 'src/gen/notification.dart';
 export 'src/gen/page.dart';
 export 'src/gen/publish.dart';

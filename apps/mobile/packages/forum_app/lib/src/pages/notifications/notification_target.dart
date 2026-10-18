@@ -3,7 +3,13 @@ import '../../push/push_route.dart';
 
 /// Reuse TopicPage's floor query; older payloads safely open the topic.
 String? notificationTarget(NotificationPayload item) {
-  if (item.eventType == 'review_rejected') return '/my-content';
+  // 与 Web NotificationsPage 的深链判定逐字一致：审核拒绝与申诉受理回执
+  // （review_pending 且引导到内容管理）都落在“我的内容”。
+  if (item.eventType == 'review_rejected' ||
+      (item.eventType == 'review_pending' &&
+          item.payload.metadata?.profileUrl == '/settings?tab=content')) {
+    return '/my-content';
+  }
   if (item.eventType == 'wiki_updated') {
     final route = item.payload.metadata?.profileUrl ?? item.topic?.url;
     return route != null && route.startsWith('/wiki/')

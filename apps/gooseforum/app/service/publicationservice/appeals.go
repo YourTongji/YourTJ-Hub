@@ -57,9 +57,6 @@ func SubmitAppeal(ctx context.Context, userID uint64, kind string, targetID, rev
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&topic, post.TopicId).Error; err != nil {
 			return err
 		}
-		if err := tx.First(&revision, revisionID).Error; err != nil {
-			return err
-		}
 		matches := kind == "topic" && post.PostNo == 1 && topic.Id == targetID || kind == "post" && post.PostNo > 1 && post.Id == targetID
 		if !matches || post.UserId != userID {
 			return ErrAppealPermission

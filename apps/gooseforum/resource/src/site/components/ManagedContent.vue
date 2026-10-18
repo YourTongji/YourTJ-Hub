@@ -59,7 +59,7 @@ async function save() {
     <span v-if="item.hasPublishedVersion && item.processStatus !== 0" class="block text-xs text-base-content/60">{{ t('contentReview.live') }}</span>
     <button type="button" class="mr-3 text-xs text-primary" @click.stop="open = !open">{{ t('contentReview.view') }}</button>
     <button type="button" class="text-xs text-primary" :disabled="busy" @click.stop="edit">{{ t('contentReview.retry') }}</button>
-    <ContentAppeal :item="item" @saved="emit('saved')" />
+    <ContentAppeal v-if="item.processStatus === 1" :item="item" @saved="emit('saved')" />
     <span v-if="error && !editing" class="block text-sm text-error" role="alert">{{ error }}</span>
     <span v-if="open" class="block break-words text-sm"><span class="markdown-body block" v-html="rendered" /><img v-for="url in item.images" :key="url" :src="url" class="my-2 max-h-64 rounded" alt="" /></span>
   </span>

@@ -126,6 +126,25 @@ void main() {
       notificationTarget(notification(event: 'review_rejected')),
       '/my-content',
     );
+    // 申诉受理回执（review_pending 且引导到内容管理）与 Web 深链判定一致。
+    expect(
+      notificationTarget(
+        notification(
+          event: 'review_pending',
+          metadata: const NotificationMetadata(
+            profileUrl: '/settings?tab=content',
+          ),
+        ),
+      ),
+      '/my-content',
+    );
+    // 普通待审通知没有内容管理 profileUrl，仍按话题打开。
+    expect(
+      notificationTarget(
+        notification(event: 'review_pending', topicTitle: 'pending topic'),
+      ),
+      isNull,
+    );
     expect(notificationTarget(notification(event: 'mention')), isNull);
     expect(notificationTarget(notification(event: 'follow')), '/u/1');
   });
