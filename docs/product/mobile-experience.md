@@ -278,7 +278,15 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   transparent animated YourTJ mark until its data is ready.
   Profile stream tabs, including the following/followers lists, use the same drag progress and the
   same one-sided stretch; the bar reveals selected tabs outside its viewport and honors
-  reduced-motion settings.
+  reduced-motion settings. When tabs overflow, a 32dp fade marks only the edge that still has tabs
+  to scroll to, and clears once that end is reached.
+- `Current`: the Notifications categories (All / @me / Replies / Likes / Following / System) and the
+  Unread toggle share one header row; the toggle stays at the trailing end because it combines with
+  every category. Only the selected category shows its Filled ReIcon glyph (`layers`, `at-sign`,
+  `chat`, `heart`, `user-check`, `bullhorn`). On a switch the outgoing glyph shrinks, blurs and moves
+  toward the incoming tab while the incoming one grows in from the outgoing side; a page drag scrubs
+  the same handoff, a tap that skips tabs never flashes the ones between, and with reduced motion a tap
+  swaps the glyph at once.
 - `Current`: root headers, filter rails and bottom navigation overlay the reading viewport and
   follow the finger: they move one-to-one with downward scroll across the header's own height, any
   upward scroll pulls them back, and a partial state settles within 180 ms once scrolling stops. The
