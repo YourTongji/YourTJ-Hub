@@ -23,7 +23,7 @@ for (const theme of ['gf-light', 'gf-dark']) for (const width of [390, 1280]) {
       const rejected = page.getByRole('link', { name: '校******论', exact: true })
       assert.equal(await rejected.getAttribute('href'), '/settings?tab=content')
       assert.equal(await page.getByRole('link', { name: '校园生活中的一次讨论', exact: true }).first().getAttribute('href'), '/p/post/42/1')
-      const detail = page.getByText('它不会公开显示。你可以在内容管理修改后重新提交；如果认为判断有误，也可以申诉。', { exact: true })
+      const detail = page.getByText('它不会公开显示。你可以在内容管理修改后重新提交。如果认为判断有误，可申诉的条目会显示「申诉」按钮；Wiki 首楼和冻结账号不支持申诉。', { exact: true })
       assert.ok(await detail.evaluate(el => el.scrollHeight <= el.clientHeight))
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
       if (process.env.YOURTJ_REVIEW_SCREENSHOTS) {

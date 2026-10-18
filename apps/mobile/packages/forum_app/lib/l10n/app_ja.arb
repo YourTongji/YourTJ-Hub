@@ -1240,7 +1240,7 @@
   "contentReviewPending": "審査中",
   "notificationReviewPending": "投稿は手動確認を待っています",
   "notificationReviewPendingDetail": "確認結果をお知らせします。待っている間も内容を確認・編集できます。",
-  "notificationReviewRejectedDetail": "今回の投稿は公開されません。コンテンツ管理で編集して再送信するか、判断が誤っていると思う場合は異議を申し立ててください。",
+  "notificationReviewRejectedDetail": "今回の投稿は公開されません。コンテンツ管理で編集して再送信できます。判断が誤っていると思う場合、対象の項目には「異議を申し立てる」ボタンが表示されます（Wiki の最初の投稿と凍結中のアカウントは対象外）。",
   "contentReviewReasonLabel": "審査の理由",
   "contentReviewSheetTitle": "審査結果",
   "appealAction": "異議を申し立てる",

@@ -3445,7 +3445,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get notificationReviewRejectedDetail =>
-      '今回の投稿は公開されません。コンテンツ管理で編集して再送信するか、判断が誤っていると思う場合は異議を申し立ててください。';
+      '今回の投稿は公開されません。コンテンツ管理で編集して再送信できます。判断が誤っていると思う場合、対象の項目には「異議を申し立てる」ボタンが表示されます（Wiki の最初の投稿と凍結中のアカウントは対象外）。';
 
   @override
   String get contentReviewReasonLabel => '審査の理由';

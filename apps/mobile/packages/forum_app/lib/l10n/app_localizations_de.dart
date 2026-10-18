@@ -3612,7 +3612,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get notificationReviewRejectedDetail =>
-      'Diese Einreichung wird nicht öffentlich angezeigt. Bearbeite sie in der Inhaltsverwaltung und sende sie erneut – oder lege Einspruch ein, wenn du die Entscheidung für falsch hältst.';
+      'Diese Einreichung wird nicht öffentlich angezeigt. Bearbeite sie in der Inhaltsverwaltung und sende sie erneut. Hältst du die Entscheidung für falsch, zeigen berechtigte Einträge dort „Einspruch einlegen“ an; erste Wiki-Beiträge und gesperrte Konten sind ausgenommen.';
 
   @override
   String get contentReviewReasonLabel => 'Begründung der Prüfung';

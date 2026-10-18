@@ -1504,7 +1504,7 @@ export default {
     },
     reviewPendingDetail: '我们会尽快处理，审核结果会通知你。等待期间你可以查看或修改内容。',
     reviewApprovedDetail: '现在所有人都能看到它。',
-    reviewRejectedDetail: "它不会公开显示。你可以在内容管理修改后重新提交；如果认为判断有误，也可以申诉。",
+    reviewRejectedDetail: "它不会公开显示。你可以在内容管理修改后重新提交。如果认为判断有误，可申诉的条目会显示「申诉」按钮；Wiki 首楼和冻结账号不支持申诉。",
     appealSubmittedDetail: "复核结果会通知你。在此期间修改并重新提交，这次申诉会失效。",
     appealApprovedDetail: "现在所有人都能看到它。",
     appealRejectedDetail: "可以在内容管理查看版主的说明，修改后重新提交。",

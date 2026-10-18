@@ -1750,7 +1750,7 @@
   "contentReviewPending": "Under review",
   "notificationReviewPending": "Your post is awaiting manual review",
   "notificationReviewPendingDetail": "We’ll review it soon and notify you of the result. You can view or edit it while you wait.",
-  "notificationReviewRejectedDetail": "This submission won’t be shown publicly. Edit and resubmit it from content management, or appeal if you think the decision was wrong.",
+  "notificationReviewRejectedDetail": "This submission won’t be shown publicly. Edit and resubmit it from content management. If you think the decision was wrong, eligible items show an “Appeal” button there; Wiki first posts and frozen accounts can’t be appealed.",
   "contentReviewReasonLabel": "Reviewer’s reason",
   "contentReviewSheetTitle": "Review result",
   "appealAction": "Appeal",

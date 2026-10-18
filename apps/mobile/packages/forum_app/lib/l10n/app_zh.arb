@@ -1589,7 +1589,7 @@
   "contentReviewPending": "审核中",
   "notificationReviewPending": "你的内容正在等待人工审核",
   "notificationReviewPendingDetail": "我们会尽快处理，审核结果会通知你。等待期间你可以查看或修改内容。",
-  "notificationReviewRejectedDetail": "它不会公开显示。你可以在内容管理修改后重新提交；如果认为判断有误，也可以申诉。",
+  "notificationReviewRejectedDetail": "它不会公开显示。你可以在内容管理修改后重新提交。如果认为判断有误，可申诉的条目会显示「申诉」按钮；Wiki 首楼和冻结账号不支持申诉。",
   "contentReviewReasonLabel": "审核说明",
   "contentReviewSheetTitle": "审核结果",
   "appealAction": "申诉",

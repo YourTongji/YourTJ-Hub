@@ -46,3 +46,10 @@ for (const [template, eventType, title, href] of [
   wrapper.unmount()
  })
 }
+test('rejection detail points to the visible appeal entry instead of promising an appeal', async () => {
+ // 并非所有被拒内容都可申诉（Wiki 首楼、冻结账号等）：通用指引须以条目上的申诉按钮为条件。
+ for (const locale of ['zh', 'en', 'ja', 'de']) {
+  const messages = (await import(`../src/locales/${locale}.ts`)).default
+  expect(messages.notifications.reviewRejectedDetail, locale).toContain(messages.appeals.action)
+ }
+})

@@ -1240,7 +1240,7 @@
   "contentReviewPending": "In Prüfung",
   "notificationReviewPending": "Dein Beitrag wartet auf manuelle Prüfung",
   "notificationReviewPendingDetail": "Wir prüfen ihn bald und informieren dich über das Ergebnis. Bis dahin kannst du ihn ansehen oder bearbeiten.",
-  "notificationReviewRejectedDetail": "Diese Einreichung wird nicht öffentlich angezeigt. Bearbeite sie in der Inhaltsverwaltung und sende sie erneut – oder lege Einspruch ein, wenn du die Entscheidung für falsch hältst.",
+  "notificationReviewRejectedDetail": "Diese Einreichung wird nicht öffentlich angezeigt. Bearbeite sie in der Inhaltsverwaltung und sende sie erneut. Hältst du die Entscheidung für falsch, zeigen berechtigte Einträge dort „Einspruch einlegen“ an; erste Wiki-Beiträge und gesperrte Konten sind ausgenommen.",
   "contentReviewReasonLabel": "Begründung der Prüfung",
   "contentReviewSheetTitle": "Prüfergebnis",
   "appealAction": "Einspruch einlegen",

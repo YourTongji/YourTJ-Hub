@@ -79,6 +79,8 @@ void main() {
       );
       expect(rejected.$1, l10n.notificationReviewRejected);
       expect(rejected.$2, contains(l10n.notificationReviewRejectedDetail));
+      // 并非所有被拒内容都可申诉：指引须指向条目上实际出现的申诉按钮，而不是无条件承诺可申诉。
+      expect(l10n.notificationReviewRejectedDetail, contains(l10n.appealAction));
     }
   });
 

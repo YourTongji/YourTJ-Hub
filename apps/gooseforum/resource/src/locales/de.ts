@@ -1503,7 +1503,7 @@ export default {
     },
     reviewPendingDetail: 'Wir prüfen ihn bald und informieren dich über das Ergebnis. Bis dahin kannst du ihn ansehen oder bearbeiten.',
     reviewApprovedDetail: 'Er ist jetzt für alle sichtbar.',
-    reviewRejectedDetail: "Diese Einreichung wird nicht öffentlich angezeigt. Bearbeite sie in der Inhaltsverwaltung und sende sie erneut – oder lege Einspruch ein, wenn du die Entscheidung für falsch hältst.",
+    reviewRejectedDetail: "Diese Einreichung wird nicht öffentlich angezeigt. Bearbeite sie in der Inhaltsverwaltung und sende sie erneut. Hältst du die Entscheidung für falsch, zeigen berechtigte Einträge dort „Einspruch einlegen“ an; erste Wiki-Beiträge und gesperrte Konten sind ausgenommen.",
     appealSubmittedDetail: "Wir benachrichtigen dich über die Entscheidung. Wenn du vorher bearbeitest und erneut sendest, wird der Einspruch hinfällig.",
     appealApprovedDetail: "Er ist jetzt für alle sichtbar.",
     appealRejectedDetail: "Die Begründung findest du in der Inhaltsverwaltung. Du kannst den Beitrag bearbeiten und erneut senden.",

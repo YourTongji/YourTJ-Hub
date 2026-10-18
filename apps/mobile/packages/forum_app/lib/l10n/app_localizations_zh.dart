@@ -3405,7 +3405,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get notificationReviewRejectedDetail =>
-      '它不会公开显示。你可以在内容管理修改后重新提交；如果认为判断有误，也可以申诉。';
+      '它不会公开显示。你可以在内容管理修改后重新提交。如果认为判断有误，可申诉的条目会显示「申诉」按钮；Wiki 首楼和冻结账号不支持申诉。';
 
   @override
   String get contentReviewReasonLabel => '审核说明';

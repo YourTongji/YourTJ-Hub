@@ -1504,7 +1504,7 @@ export default {
     },
     reviewPendingDetail: 'We’ll review it soon and notify you of the result. You can view or edit it while you wait.',
     reviewApprovedDetail: 'It’s now visible to everyone.',
-    reviewRejectedDetail: "This submission won’t be shown publicly. Edit and resubmit it from content management, or appeal if you think the decision was wrong.",
+    reviewRejectedDetail: "This submission won’t be shown publicly. Edit and resubmit it from content management. If you think the decision was wrong, eligible items show an “Appeal” button there; Wiki first posts and frozen accounts can’t be appealed.",
     appealSubmittedDetail: "We’ll notify you of the decision. Editing and resubmitting before then closes the appeal.",
     appealApprovedDetail: "Everyone can see it now.",
     appealRejectedDetail: "See the moderator’s note in content management. You can edit and resubmit.",
