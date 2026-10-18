@@ -6465,7 +6465,7 @@ abstract class AppLocalizations {
   /// No description provided for @notificationReviewRejectedDetail.
   ///
   /// In en, this message translates to:
-  /// **'This submission won’t be shown publicly. Edit and resubmit it from content management, or appeal if you think the decision was wrong.'**
+  /// **'This submission won’t be shown publicly. Edit and resubmit it from content management. If you think the decision was wrong, eligible items show an “Appeal” button there; Wiki first posts and frozen accounts can’t be appealed.'**
   String get notificationReviewRejectedDetail;
 
   /// No description provided for @contentReviewReasonLabel.
