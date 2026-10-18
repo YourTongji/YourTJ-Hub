@@ -354,9 +354,6 @@ void main() {
     final source = read(
       'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgets.kt',
     );
-    final receivers = read(
-      'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgetReceivers.kt',
-    );
     final manifest = read('android/app/src/main/AndroidManifest.xml');
     final bridge = read('lib/src/campus_widget/schedule_widget_bridge.dart');
     final provider = read(
@@ -369,10 +366,9 @@ void main() {
       source.indexOf('class CourseTimelineWidget :'),
       source.indexOf('@Composable\nprivate fun TimelineHeader'),
     );
-    final combined = '$source$receivers';
-    final timelineCard = combined.substring(
-      combined.indexOf('@Composable\nprivate fun TimelineCourseCard'),
-      combined.indexOf('class ToggleCourseTimelineDayAction'),
+    final timelineCard = source.substring(
+      source.indexOf('@Composable\nprivate fun TimelineCourseCard'),
+      source.indexOf('@Composable\nprivate fun MediumDayColumn'),
     );
     final timelineItem = source.substring(
       source.indexOf('@Composable\nprivate fun TimelineCourseListItem'),
