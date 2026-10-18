@@ -265,7 +265,10 @@ func TestAgentGalleryDropsBlankEntries(t *testing.T) {
 	agentID, token := createAgentForumAgent(t, conn, "gallery-blank-agent")
 	createAgentForumCategory(t, conn, 5101, "gallery")
 	createGalleryTopic(t, conn, 6108, 11018, agentID+1000, posts.Entity{ProcessStatus: posts.ProcessStatusNormal})
-	raw, _ := json.Marshal([]string{"/file/img/b.webp", "", "  ", "/file/img/a.webp", "/file/img/b.webp"})
+	raw, err := json.Marshal([]string{"/file/img/b.webp", "", "  ", "/file/img/a.webp", "/file/img/b.webp"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := conn.Model(&topics.Entity{}).Where("id = ?", 6108).Update("image_urls", string(raw)).Error; err != nil {
 		t.Fatal(err)
 	}

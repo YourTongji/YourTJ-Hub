@@ -40,7 +40,10 @@ func TestBuildTopicListsGalleryOutsideFence(t *testing.T) {
 	host := "https://cap.example.test"
 	setLLMSSettings(t, fixture.conn, pageConfig.LLMSConfig{Enabled: true, Files: true})
 	t.Cleanup(ClearCache)
-	gallery, _ := json.Marshal([]string{"/file/img/2026/09/09/a.webp", "https://cdn.example.test/b.webp"})
+	gallery, err := json.Marshal([]string{"/file/img/2026/09/09/a.webp", "https://cdn.example.test/b.webp"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := fixture.conn.Model(&topics.Entity{}).Where("id = ?", fixture.publicTopicID).Update("image_urls", string(gallery)).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +92,10 @@ func TestBuildTopicGalleryCapsAtNine(t *testing.T) {
 	for i := 1; i <= 12; i++ {
 		long = append(long, fmt.Sprintf("/file/img/%02d.webp", i))
 	}
-	raw, _ := json.Marshal(long)
+	raw, err := json.Marshal(long)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := fixture.conn.Model(&topics.Entity{}).Where("id = ?", fixture.publicTopicID).Update("image_urls", string(raw)).Error; err != nil {
 		t.Fatal(err)
 	}

@@ -367,7 +367,7 @@ func gallerySection(heading, baseURL string, gallery []string) string {
 			section.WriteString(heading + " Images\n\n")
 		}
 		n++
-		section.WriteString(fmt.Sprintf("- ![image %d](<%s>)\n", n, link))
+		fmt.Fprintf(&section, "- ![image %d](<%s>)\n", n, link)
 	}
 	if n == 0 {
 		return ""
