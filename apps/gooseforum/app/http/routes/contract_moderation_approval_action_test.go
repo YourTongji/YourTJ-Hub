@@ -485,7 +485,10 @@ func TestModerationApprovalActionAppealHTTPContract(t *testing.T) {
 	_, appealID := contractAppealTopic(t, conn, 1301, author, "退补选的时间线和注意事项整理。", "疑似重复发布，请说明与已有话题的区别。", "角度不同，主要讲退补选时间线，已补充来源。")
 	body := func(id uint64, action, reason string) string {
 		token := contractApprovalToken(t, tokenservice.ModerationActionSubjectAppeal, id, action, "", contractApprovalIssuedAt)
-		encoded, _ := json.Marshal(map[string]string{"token": token, "reason": reason})
+		encoded, err := json.Marshal(map[string]string{"token": token, "reason": reason})
+		if err != nil {
+			t.Fatal(err)
+		}
 		return string(encoded)
 	}
 	appealStatus := func(id uint64) string {
