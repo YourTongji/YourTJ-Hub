@@ -37,6 +37,11 @@ for (const [width, locale, theme] of [[360, 'en', 'gf-light'], [390, 'de', 'gf-d
       await page.goto(`${origin}/assets/test/fixtures/browser/moderation-appeals.html?theme=${theme}&locale=${locale}`)
       const author = page.locator('[data-test="author"]')
       await author.locator('[data-test="appeal-toggle"]').click()
+      // 等表单展开过渡结束（Vue 移除 grid-rows-* 过渡类）再操作：展开中按钮位移会让 pointerup 落在按钮外，提交被吞。
+      await page.waitForFunction(() => {
+        const wrapper = document.querySelector('[data-test="author"] [data-test="appeal-form"]')?.closest('.grid')
+        return wrapper && !wrapper.className.includes('grid-rows-')
+      })
       await author.locator('textarea').fill('Please reconsider')
       await author.locator('button[type="submit"]').click()
       await author.locator('textarea').waitFor({ state: 'hidden' })
