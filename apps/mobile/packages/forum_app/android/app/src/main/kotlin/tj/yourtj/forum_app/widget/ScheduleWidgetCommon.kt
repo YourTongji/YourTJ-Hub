@@ -6,7 +6,6 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
-import androidx.glance.layout.Column
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.height
 import androidx.glance.layout.size
