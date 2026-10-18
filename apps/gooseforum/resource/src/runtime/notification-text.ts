@@ -1,5 +1,15 @@
 import type { NotificationPayload } from '@gooseforum/client'
 
+export type AppealNotice = 'appealSubmitted' | 'appealApproved' | 'appealRejected' | 'appealStale'
+
+// 申诉结论复用三种审核事件类型，只用模板区分（#1114）；更早的受理回执是 reviewPending + 内容管理链接。
+export function appealNotice(item: Pick<NotificationPayload, 'eventType' | 'payload'>): AppealNotice | '' {
+  const match = /^notifications\.templates\.(appeal(?:Submitted|Approved|Rejected|Stale))$/.exec(item.payload.templateKey ?? '')
+  if (match) return match[1] as AppealNotice
+  if (item.eventType === 'review_pending' && item.payload.metadata?.profileUrl === '/settings?tab=content') return 'appealSubmitted'
+  return ''
+}
+
 // System notification callers must pass only public presentation fields.
 export function notificationText(item: Pick<NotificationPayload, 'eventType' | 'payload'> & Partial<NotificationPayload>, t: (key: string, params?: Record<string, string>) => string): string {
   const actor = item.actor?.username || item.payload.actorName || item.payload.metadata?.followerName || t('notifications.actorFallback')
@@ -10,7 +20,7 @@ export function notificationText(item: Pick<NotificationPayload, 'eventType' | '
     const title = (item.title || item.payload.title || '').trim()
     return title && !title.startsWith('notifications.') ? title : t('notifications.fallback')
   }
-  if (event.startsWith('review_')) return t(`notifications.templates.${key[event]}`)
+  if (event.startsWith('review_')) return t(`notifications.templates.${appealNotice(item) || key[event]}`)
   if (event === 'badge') {
     const badge = item.payload.metadata?.badgeName || (item.payload.templateParams as {badgeName?: string} | undefined)?.badgeName
     return badge ? t('notifications.presentation.badge', { badge }) : t('notifications.badgeGeneric')

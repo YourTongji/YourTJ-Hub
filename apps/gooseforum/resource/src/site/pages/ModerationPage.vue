@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { userDisplayName } from '@/runtime/private-notes'
-import { ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { Ban, CircleAlert, Flag, History, Loader2, RotateCcw, Scale, ShieldCheck, X, XCircle } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
-import { ApiResponseError, fetchModerationLogs, fetchModerationReports, updateModerationTopicStatus, updateModerationPostStatus, updateModerationReportStatus, viewDeletedContent } from '@/runtime/api'
+import { ApiResponseError, fetchModerationAppeals, fetchModerationLogs, fetchModerationReports, updateModerationTopicStatus, updateModerationPostStatus, updateModerationReportStatus, viewDeletedContent } from '@/runtime/api'
 import { formatDateTime } from '@/runtime/format'
 import { fetchPage } from '@/runtime/router'
 import { showUserCard } from '@/runtime/user-card-events'
@@ -48,6 +48,12 @@ function initialConsoleTab(): 'review' | 'reports' | 'appeals' {
   const tab = new URLSearchParams(window.location.search).get('tab')
   return tab === 'reports' || tab === 'appeals' ? tab : 'review'
 }
+
+// 「申诉」标签上的待处理数：进入工作台即可看到，不必先点开队列（#1114）。
+const appealPendingCount = ref(0)
+onMounted(() => {
+  fetchModerationAppeals('pending', 1, 1).then((result) => { appealPendingCount.value = result.total }).catch(() => {})
+})
 
 const managementTabs = [
   { key: 'review', icon: ShieldCheck },
@@ -307,12 +313,13 @@ async function submitEvidenceView() {
       >
         <component :is="tab.icon" class="h-4 w-4" />
         {{ t(`moderation.managementTabs.${tab.key}`) }}
+        <span v-if="tab.key === 'appeals' && appealPendingCount" class="min-w-5 rounded-full bg-warning/15 px-1.5 text-center text-xs font-semibold tabular-nums text-warning">{{ appealPendingCount }}</span>
       </button>
     </div>
 
     <ModerationReviewQueue v-if="activeConsoleTab === 'review'" @changed="resetModerationLogs" />
 
-    <ModerationAppealQueue v-else-if="activeConsoleTab === 'appeals'" @changed="resetModerationLogs" />
+    <ModerationAppealQueue v-else-if="activeConsoleTab === 'appeals'" @changed="resetModerationLogs" @count="appealPendingCount = $event" />
 
     <section v-else-if="activeConsoleTab === 'reports'" class="space-y-3">
       <p v-if="reportError" class="rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">

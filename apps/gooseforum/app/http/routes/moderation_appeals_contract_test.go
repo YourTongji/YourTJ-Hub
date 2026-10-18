@@ -62,8 +62,8 @@ func TestModerationAppealsHTTPContract(t *testing.T) {
 	if csrf.Code != http.StatusForbidden || decodeContractEnvelope(t, csrf).MessageCode != "auth.csrf.rejected" {
 		t.Fatalf("CSRF response %s", csrf.Body.String())
 	}
-	if e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/content/appeals", body, strangerToken)); e.Code == 0 {
-		t.Fatal("nonowner submitted")
+	if e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/content/appeals", body, strangerToken)); e.Code == 0 || e.MessageCode != "content.appeal.notFound" {
+		t.Fatalf("nonowner submit: code=%d messageCode=%s", e.Code, e.MessageCode)
 	}
 	conn.Model(&users.EntityComplete{}).Where("id = ?", owner.Id).Update("is_frozen", users.StatusFrozen)
 	userservice.InvalidateUserInfoCache(owner.Id)
@@ -92,8 +92,8 @@ func TestModerationAppealsHTTPContract(t *testing.T) {
 			t.Fatalf("identity leak %s", key)
 		}
 	}
-	if e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/content/appeals", body, ownerToken)); e.Code == 0 {
-		t.Fatal("duplicate appeal accepted")
+	if e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/content/appeals", body, ownerToken)); e.Code == 0 || e.MessageCode != "content.appeal.duplicate" {
+		t.Fatalf("duplicate appeal: code=%d messageCode=%s", e.Code, e.MessageCode)
 	}
 	historyPath := fmt.Sprintf("/api/forum/content/appeals?kind=topic&id=%d", topicID)
 	history := serveAuthSecurityJSON(router, http.MethodGet, historyPath, "", ownerToken)
@@ -121,8 +121,8 @@ func TestModerationAppealsHTTPContract(t *testing.T) {
 	if got := posts.Get(postID); got.PublishedRevisionId != rev.Id || got.Content != rev.Content {
 		t.Fatal("exact rejected candidate not published")
 	}
-	if e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/moderation/appeal-action", action, modToken)); e.Code == 0 {
-		t.Fatal("decision replay accepted")
+	if e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/moderation/appeal-action", action, modToken)); e.Code == 0 || e.MessageCode != "moderation.appeal.processed" {
+		t.Fatalf("decision replay: code=%d messageCode=%s", e.Code, e.MessageCode)
 	}
 	var audit moderationAppeals.Entity
 	conn.First(&audit, item.Id)

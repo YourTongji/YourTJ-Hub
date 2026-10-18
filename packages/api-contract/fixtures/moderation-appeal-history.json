@@ -12,6 +12,7 @@
         "content": "候选正文",
         "images": [],
         "reason": "请重新核查上下文",
+        "originalReviewReason": "缺少必要的上下文说明",
         "status": "pending",
         "reviewReason": "",
         "createdAt": "2026-10-10T00:00:00Z",

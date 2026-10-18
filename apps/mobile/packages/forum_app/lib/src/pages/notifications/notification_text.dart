@@ -49,9 +49,20 @@ import '../../../l10n/app_localizations.dart';
                 ? l10n.notificationWikiUpdated
                 : l10n.notificationWikiTopic(topic),
           // 人工审核结果(issue #975):无触发者,标题即结论,副标题为内容标题。
-          'review_pending' => l10n.notificationReviewPending,
-          'review_approved' => l10n.notificationReviewApproved,
-          'review_rejected' => l10n.notificationReviewRejected,
+          // 申诉结论(#1114)复用这三种事件,按模板换成各自的结论文案。
+          'review_pending' => switch (notificationAppeal(item)) {
+            'appealSubmitted' => l10n.notificationAppealSubmitted,
+            _ => l10n.notificationReviewPending,
+          },
+          'review_approved' => switch (notificationAppeal(item)) {
+            'appealApproved' => l10n.notificationAppealApproved,
+            _ => l10n.notificationReviewApproved,
+          },
+          'review_rejected' => switch (notificationAppeal(item)) {
+            'appealRejected' => l10n.notificationAppealRejected,
+            'appealStale' => l10n.notificationAppealStale,
+            _ => l10n.notificationReviewRejected,
+          },
           'badge' =>
             badge.isEmpty
                 ? l10n.notificationBadgeUnnamed
@@ -81,25 +92,44 @@ import '../../../l10n/app_localizations.dart';
             ]
             .map(literal)
             .firstWhere((s) => s.isNotEmpty && s != title, orElse: () => '');
-  if (event == 'review_pending') {
-    return (
-      title,
-      [
-        subtitle,
-        l10n.notificationReviewPendingDetail,
-      ].where((s) => s.isNotEmpty).join('\n'),
-    );
-  }
-  if (event == 'review_rejected') {
-    return (
-      title,
-      [
-        subtitle,
-        l10n.notificationReviewRejectedDetail,
-      ].where((s) => s.isNotEmpty).join('\n'),
-    );
+  final detail = switch (notificationAppeal(item)) {
+    'appealSubmitted' => l10n.notificationAppealSubmittedDetail,
+    'appealApproved' => l10n.notificationAppealApprovedDetail,
+    'appealRejected' => l10n.notificationAppealRejectedDetail,
+    'appealStale' => l10n.notificationAppealStaleDetail,
+    _ => switch (event) {
+      'review_pending' => l10n.notificationReviewPendingDetail,
+      'review_rejected' => l10n.notificationReviewRejectedDetail,
+      _ => '',
+    },
+  };
+  if (detail.isNotEmpty) {
+    return (title, [subtitle, detail].where((s) => s.isNotEmpty).join('\n'));
   }
   return (title, subtitle);
+}
+
+/// Appeal outcome carried by a review notification (#1114), or '' when the
+/// notice is an ordinary review result. Same rule as Web `appealNotice`:
+/// older receipts are `review_pending` linking to content management.
+String notificationAppeal(NotificationPayload item) {
+  final key = item.payload.templateKey ?? '';
+  const prefix = 'notifications.templates.';
+  const appeals = {
+    'appealSubmitted',
+    'appealApproved',
+    'appealRejected',
+    'appealStale',
+  };
+  if (key.startsWith(prefix) &&
+      appeals.contains(key.substring(prefix.length))) {
+    return key.substring(prefix.length);
+  }
+  if (item.eventType == 'review_pending' &&
+      item.payload.metadata?.profileUrl == '/settings?tab=content') {
+    return 'appealSubmitted';
+  }
+  return '';
 }
 
 String notificationEvent(NotificationPayload item) =>

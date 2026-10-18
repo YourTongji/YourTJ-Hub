@@ -1,3 +1,5 @@
+import 'moderation_appeal.dart';
+
 /// Mirrors the user-content OpenAPI domain. Permissions come from the server.
 class UserContentItem {
   const UserContentItem({
@@ -17,6 +19,8 @@ class UserContentItem {
     this.images = const [],
     this.canRestore = false,
     this.canPermanent = false,
+    this.canAppeal = false,
+    this.appeal,
   });
   final int processStatus;
   final int revisionId;
@@ -34,6 +38,12 @@ class UserContentItem {
   final int? postNo;
   final bool canRestore;
   final bool canPermanent;
+
+  /// The latest rejected revision can still be appealed (#1114).
+  final bool canAppeal;
+
+  /// Appeal filed for the latest revision; null until one exists.
+  final ModerationAppealOwnerSummary? appeal;
   factory UserContentItem.fromJson(Map<String, dynamic> json) =>
       UserContentItem(
         id: (json['id'] as num).toInt(),
@@ -52,6 +62,12 @@ class UserContentItem {
         images: (json['images'] as List? ?? []).cast<String>(),
         canRestore: json['canRestore'] == true,
         canPermanent: json['canPermanent'] == true,
+        canAppeal: json['canAppeal'] == true,
+        appeal: json['appeal'] is Map<String, dynamic>
+            ? ModerationAppealOwnerSummary.fromJson(
+                json['appeal'] as Map<String, dynamic>,
+              )
+            : null,
       );
 }
 

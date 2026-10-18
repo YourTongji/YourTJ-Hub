@@ -1,6 +1,7 @@
 package httpnotifyservice
 
 import (
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -9,7 +10,7 @@ import (
 const (
 	ApprovalKindReview = "review" // 内容真正进入人工审核队列
 	ApprovalKindReport = "report" // 新举报
-	ApprovalKindAppeal = "appeal" // 新申诉
+	ApprovalKindAppeal = "appeal" // 新申诉：作者对审核结论提出复核
 
 	ApprovalActionApprove = "approve" // 待审内容：通过并公开
 	ApprovalActionReject  = "reject"  // 待审内容：拒绝
@@ -29,10 +30,11 @@ type ApprovalPayload struct {
 // 拼接作者等身份信息。所有 URL 字段均为站内路径。
 type Approval struct {
 	ID         string `json:"id"`         // 稳定审批标识（待审内容含送审版本 ID），亦为投递去重键
-	Kind       string `json:"kind"`       // review | report
+	Kind       string `json:"kind"`       // review | report | appeal
 	TargetType string `json:"targetType"` // topic | post | chat_message | course_review
 	TargetID   uint64 `json:"targetId"`
 	ReportID   uint64 `json:"reportId,omitempty"`
+	AppealID   uint64 `json:"appealId,omitempty"`
 	TopicID    uint64 `json:"topicId,omitempty"`
 	// Reason 举报为原因代码（spam/abuse/...）；人工审核为触发来源（sensitive_word/ai）。
 	Reason     string          `json:"reason,omitempty"`
@@ -64,6 +66,34 @@ type ApprovalAction struct {
 	Action string `json:"action"`
 	URL    string `json:"url"`
 }
+
+// approvalActionLabel 快捷动作文案：申诉的通过/拒绝针对申诉本身，与待审内容区分。
+func approvalActionLabel(kind, action string) string {
+	if kind == ApprovalKindAppeal {
+		switch action {
+		case ApprovalActionApprove:
+			return "通过申诉并公开"
+		case ApprovalActionReject:
+			return "驳回申诉"
+		}
+	}
+	return approvalActionLabels[action]
+}
+
+// approvalSubject 编号行：举报与申诉带各自编号，其后是目标类型与 ID。
+func approvalSubject(a Approval, target string) string {
+	subject := target + " #" + strconv.FormatUint(a.TargetID, 10)
+	switch {
+	case a.ReportID > 0:
+		subject = "举报 #" + strconv.FormatUint(a.ReportID, 10) + " · " + subject
+	case a.AppealID > 0:
+		subject = "申诉 #" + strconv.FormatUint(a.AppealID, 10) + " · " + subject
+	}
+	return subject
+}
+
+// appealPrivacyNote 申诉卡片的固定说明：外部群只收到安全引用。
+const appealPrivacyNote = "被拒内容、作者身份和申诉说明不会发到外部群，请打开确认页或版主工作台查看后处理。"
 
 // SafeText 规范化外部展示文本：去控制字符、折叠空白并按 rune 截断，避免用户输入
 // 破坏卡片结构或撑爆消息体。

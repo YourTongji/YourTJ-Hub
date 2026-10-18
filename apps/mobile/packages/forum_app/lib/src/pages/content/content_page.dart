@@ -1,5 +1,6 @@
 import '../../realtime/realtime_updates.dart';
 import 'content_password_dialog.dart';
+import 'content_review_sheet.dart';
 import '../topic/post_edit_sheet.dart';
 import '../../widgets/markdown_view.dart';
 import 'package:core/core.dart';
@@ -191,7 +192,51 @@ class _ContentPageState extends ConsumerState<ContentPage> {
     );
   }
 
+  /// Editing replaces the appealed revision, so a pending appeal would close.
+  Future<bool> _confirmEditDuringAppeal(UserContentItem item) async {
+    if (item.appeal?.status != 'pending') return true;
+    final l10n = AppLocalizations.of(context);
+    return await showGfAlertDialog<bool>(
+          context,
+          builder: (context) => GfAlertDialog(
+            content: GfText(l10n.appealEditWarning),
+            actions: [
+              GfDialogAction(
+                onPressed: () => Navigator.pop(context, false),
+                child: GfText(l10n.commonCancel),
+              ),
+              GfDialogAction(
+                onPressed: () => Navigator.pop(context, true),
+                child: GfText(l10n.appealEditAnyway),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> _review(UserContentItem item, {bool appeal = false}) async {
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final action = await showContentReviewSheet(
+      context,
+      item,
+      startAppeal: appeal,
+    );
+    if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+    switch (action) {
+      case ContentReviewAction.view:
+        await _view(item);
+      case ContentReviewAction.edit:
+        await _edit(item);
+      case ContentReviewAction.appealed:
+        await _load();
+      case null:
+        break;
+    }
+  }
+
   Future<void> _edit(UserContentItem item) async {
+    if (!await _confirmEditDuringAppeal(item) || !mounted) return;
     if (item.contentType == 'topic') {
       await context.push('/publish?id=${item.id}');
       if (mounted) await _load();
@@ -222,6 +267,10 @@ class _ContentPageState extends ConsumerState<ContentPage> {
     }
     if (action == 'view') {
       await _view(item);
+      return;
+    }
+    if (action == 'appeal') {
+      await _review(item, appeal: true);
       return;
     }
     if (action == 'restore') {
@@ -423,17 +472,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                     subtitle:
                                         !widget.deleted &&
                                             item.processStatus != 0
-                                        ? GfText(
-                                            [
-                                              item.processStatus == 2
-                                                  ? l10n.contentReviewPending
-                                                  : l10n.contentReviewBlocked,
-                                              if (item.reviewReason.isNotEmpty)
-                                                item.reviewReason,
-                                              if (item.hasPublishedVersion)
-                                                l10n.contentReviewLive,
-                                            ].join('\n'),
-                                          )
+                                        ? _ReviewSummary(item: item)
                                         : secondaryText.isEmpty
                                         ? null
                                         : GfText(
@@ -443,6 +482,8 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                           ),
                                     onTap: widget.deleted
                                         ? null
+                                        : item.processStatus == 1
+                                        ? () => _review(item)
                                         : item.processStatus != 0
                                         ? () => _view(item)
                                         : () => context.push(
@@ -484,6 +525,15 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                                     l10n.contentReviewRetry,
                                                   ),
                                                 ),
+                                                if (item.processStatus == 1 &&
+                                                    item.canAppeal &&
+                                                    item.appeal == null)
+                                                  GfPopupMenuItem(
+                                                    value: 'appeal',
+                                                    child: GfText(
+                                                      l10n.appealAction,
+                                                    ),
+                                                  ),
                                               ],
                                               if (item.canRestore)
                                                 GfPopupMenuItem(
@@ -513,6 +563,74 @@ class _ContentPageState extends ConsumerState<ContentPage> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// Review state in the list row: status, appeal progress and the reason,
+/// so authors can tell rejected, appealed and pending items apart at a glance.
+class _ReviewSummary extends StatelessWidget {
+  const _ReviewSummary({required this.item});
+
+  final UserContentItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final type = GfTheme.typographyOf(context);
+    final muted = GfTheme.colorsOf(context).baseContent.withValues(alpha: 0.6);
+    final appeal = item.appeal;
+    final (
+      String? appealLabel,
+      GfBadgeVariant appealVariant,
+    ) = switch (appeal?.status) {
+      'pending' => (l10n.appealStatePendingTitle, GfBadgeVariant.warning),
+      'approved' => (l10n.appealStateApprovedTitle, GfBadgeVariant.success),
+      'rejected' => (l10n.appealStateRejectedTitle, GfBadgeVariant.muted),
+      'stale' => (l10n.appealStateStaleTitle, GfBadgeVariant.muted),
+      _ => (null, GfBadgeVariant.muted),
+    };
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              item.processStatus == 2
+                  ? GfBadge(
+                      label: l10n.contentReviewPending,
+                      variant: GfBadgeVariant.warning,
+                    )
+                  : GfBadge(
+                      label: l10n.contentReviewBlocked,
+                      variant: GfBadgeVariant.error,
+                    ),
+              if (appealLabel != null)
+                GfBadge(label: appealLabel, variant: appealVariant),
+            ],
+          ),
+          if (item.processStatus == 1 && item.reviewReason.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            GfText(
+              item.reviewReason,
+              style: type.small.copyWith(color: muted),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          if (item.hasPublishedVersion) ...[
+            const SizedBox(height: 2),
+            GfText(
+              l10n.contentReviewLive,
+              style: type.caption.copyWith(color: muted),
+            ),
+          ],
+        ],
       ),
     );
   }

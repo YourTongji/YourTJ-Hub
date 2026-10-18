@@ -16,7 +16,7 @@ for (const [width, locale, theme] of [[360, 'en', 'gf-light'], [390, 'de', 'gf-d
   test(`appeal flow and preview retain content at ${width}px (${locale}, ${theme})`, async () => {
     const page = await browser.newPage({ viewport: { width, height: 900 } })
     page.setDefaultTimeout(10000)
-    const item = { id: 1, kind: 'post', targetId: 7, revisionId: 70, topicId: 9, postNo: 2, title: 'Candidate', content: 'Candidate '.repeat(30), images: ['/fixture/appeal.png'], reason: 'Please reconsider', status: 'pending', reviewReason: '', createdAt: '2026-10-10T00:00:00Z', reviewedAt: null }
+    const item = { id: 1, kind: 'post', targetId: 7, revisionId: 70, topicId: 9, postNo: 2, title: 'Candidate', content: 'Candidate '.repeat(30), images: ['/fixture/appeal.png'], reason: 'Please reconsider', originalReviewReason: 'Prior reason', status: 'pending', reviewReason: '', createdAt: '2026-10-10T00:00:00Z', reviewedAt: null }
     let submitted = false, reviewed = false
     try {
       await page.route('**/api/forum/content/appeals*', async route => {
@@ -36,11 +36,12 @@ for (const [width, locale, theme] of [[360, 'en', 'gf-light'], [390, 'de', 'gf-d
       await page.route('**/fixture/appeal.png', route => route.fulfill({ path: fileURLToPath(new URL('../static/pic/icons/favicon-32.png', import.meta.url)), contentType: 'image/png' }))
       await page.goto(`${origin}/assets/test/fixtures/browser/moderation-appeals.html?theme=${theme}&locale=${locale}`)
       const author = page.locator('[data-test="author"]')
-      await author.getByRole('button').last().click()
+      await author.locator('[data-test="appeal-toggle"]').click()
       await author.locator('textarea').fill('Please reconsider')
       await author.locator('button[type="submit"]').click()
       await author.locator('textarea').waitFor({ state: 'hidden' })
       assert.ok(submitted)
+      await author.locator('[data-test="appeal-state"]').waitFor()
       const moderator = page.locator('[data-test="moderator"]')
       await moderator.locator('textarea').fill('Still violates rules')
       const thumbnail = moderator.getByRole('button').filter({ has: page.locator('img') })
@@ -55,7 +56,7 @@ for (const [width, locale, theme] of [[360, 'en', 'gf-light'], [390, 'de', 'gf-d
         await mkdir(process.env.YOURTJ_REVIEW_SCREENSHOTS, { recursive: true })
         await page.screenshot({ path: `${process.env.YOURTJ_REVIEW_SCREENSHOTS}/appeals-${width}-${locale}-${theme}.png`, fullPage: true })
       }
-      await moderator.locator('button.gf-button-danger').click()
+      await moderator.locator('[data-test="appeal-reject"]').click()
       await moderator.locator('textarea').waitFor({ state: 'hidden' })
       assert.ok(reviewed)
     } finally { await page.close() }

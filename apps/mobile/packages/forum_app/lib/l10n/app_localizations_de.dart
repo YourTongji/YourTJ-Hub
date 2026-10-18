@@ -3593,7 +3593,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get contentReviewRetry => 'Bearbeiten und erneut senden';
 
   @override
-  String get contentReviewLive => 'Die bisherige Version bleibt öffentlich.';
+  String get contentReviewLive =>
+      'Deine zuvor veröffentlichte Version ist weiterhin öffentlich, diese Änderung nicht.';
 
   @override
   String get contentReviewView => 'Inhalt ansehen';
@@ -3611,7 +3612,129 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get notificationReviewRejectedDetail =>
-      'Diese Einreichung wird nicht öffentlich angezeigt. Bitte prüfe, bearbeite und sende sie über die Inhaltsverwaltung erneut. Bei Fragen wende dich an die Administration.';
+      'Diese Einreichung wird nicht öffentlich angezeigt. Bearbeite sie in der Inhaltsverwaltung und sende sie erneut – oder lege Einspruch ein, wenn du die Entscheidung für falsch hältst.';
+
+  @override
+  String get contentReviewReasonLabel => 'Begründung der Prüfung';
+
+  @override
+  String get contentReviewSheetTitle => 'Prüfergebnis';
+
+  @override
+  String get appealAction => 'Einspruch einlegen';
+
+  @override
+  String get appealFormTitle => 'Gegen diese Entscheidung Einspruch einlegen';
+
+  @override
+  String get appealFormIntro =>
+      'Hältst du die Entscheidung für falsch? Die Moderation prüft den ursprünglichen Beitrag erneut. Ein Einspruch ändert deinen Beitrag nicht – zum Ändern nutze „Bearbeiten und erneut senden“.';
+
+  @override
+  String get appealReasonLabel => 'Begründung';
+
+  @override
+  String get appealReasonPlaceholder =>
+      'Zum Beispiel: Das ist ein Zitat aus den Kursunterlagen und richtet sich gegen niemanden.';
+
+  @override
+  String get appealOncePerVersion => 'Pro Version ist ein Einspruch möglich.';
+
+  @override
+  String get appealSubmit => 'Einspruch senden';
+
+  @override
+  String get appealSubmitted =>
+      'Einspruch gesendet. Wir benachrichtigen dich über die Entscheidung.';
+
+  @override
+  String get appealSubmitFailed =>
+      'Der Einspruch konnte nicht gesendet werden. Prüfe deine Verbindung und versuche es erneut – deine Begründung bleibt erhalten.';
+
+  @override
+  String get appealYourReason => 'Deine Begründung';
+
+  @override
+  String get appealReviewerNote => 'Hinweis der Moderation';
+
+  @override
+  String get appealNoReviewerNote =>
+      'Die Moderation hat keinen Hinweis hinterlassen.';
+
+  @override
+  String appealSubmittedAt(String time) {
+    return 'Gesendet $time';
+  }
+
+  @override
+  String appealDecidedAt(String time) {
+    return 'Entschieden $time';
+  }
+
+  @override
+  String get appealStatePendingTitle => 'Einspruch wird geprüft';
+
+  @override
+  String get appealStatePendingBody =>
+      'Die Moderation prüft den ursprünglichen Beitrag und benachrichtigt dich. Wenn du vorher bearbeitest und erneut sendest, wird dieser Einspruch hinfällig.';
+
+  @override
+  String get appealStateApprovedTitle => 'Einspruch angenommen';
+
+  @override
+  String get appealStateApprovedBody =>
+      'Dein Beitrag ist öffentlich und für alle sichtbar.';
+
+  @override
+  String get appealStateRejectedTitle => 'Einspruch abgelehnt';
+
+  @override
+  String get appealStateRejectedBody =>
+      'Gegen diese Version ist kein weiterer Einspruch möglich. Bearbeite sie und sende sie erneut, um eine neue Prüfung zu starten.';
+
+  @override
+  String get appealStateStaleTitle => 'Einspruch hinfällig';
+
+  @override
+  String get appealStateStaleBody =>
+      'Der Beitrag wurde vor der Prüfung geändert oder ist nicht mehr sichtbar, daher wird nicht mehr entschieden.';
+
+  @override
+  String get appealEditWarning =>
+      'Wenn du bearbeitest und erneut sendest, wird der laufende Einspruch hinfällig.';
+
+  @override
+  String get appealEditAnyway => 'Trotzdem bearbeiten';
+
+  @override
+  String get notificationAppealSubmitted =>
+      'Einspruch eingereicht – wartet auf Prüfung';
+
+  @override
+  String get notificationAppealApproved =>
+      'Einspruch angenommen – dein Beitrag ist öffentlich';
+
+  @override
+  String get notificationAppealRejected => 'Einspruch abgelehnt';
+
+  @override
+  String get notificationAppealStale => 'Einspruch hinfällig';
+
+  @override
+  String get notificationAppealSubmittedDetail =>
+      'Wir benachrichtigen dich über die Entscheidung. Wenn du vorher bearbeitest und erneut sendest, wird der Einspruch hinfällig.';
+
+  @override
+  String get notificationAppealApprovedDetail =>
+      'Er ist jetzt für alle sichtbar.';
+
+  @override
+  String get notificationAppealRejectedDetail =>
+      'Die Begründung findest du in der Inhaltsverwaltung. Du kannst den Beitrag bearbeiten und erneut senden.';
+
+  @override
+  String get notificationAppealStaleDetail =>
+      'Der Beitrag wurde vor der Prüfung geändert oder ist nicht mehr sichtbar, daher wird nicht entschieden.';
 
   @override
   String get anonymousIdentity => 'Anonyme Identität';

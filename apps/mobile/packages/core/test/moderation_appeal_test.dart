@@ -92,4 +92,48 @@ void main() {
       {'id': 42, 'approve': false, 'reason': 'no'},
     );
   });
+
+  test('content items expose the latest appeal and the original rejection reason', () {
+    final UserContentItem item = UserContentItem.fromJson({
+      'id': 7,
+      'contentType': 'topic',
+      'title': 'candidate',
+      'processStatus': 1,
+      'revisionId': 70,
+      'canAppeal': false,
+      'appeal': {
+        'status': 'rejected',
+        'reason': 'Context matters',
+        'reviewReason': 'Still breaks the rules',
+        'createdAt': '2026-10-18T08:00:00Z',
+        'reviewedAt': '2026-10-18T09:00:00Z',
+      },
+    });
+    expect(item.canAppeal, isFalse);
+    expect(item.appeal?.status, 'rejected');
+    expect(item.appeal?.reviewReason, 'Still breaks the rules');
+    final UserContentItem fresh = UserContentItem.fromJson({
+      'id': 8,
+      'contentType': 'post',
+      'title': 'reply',
+      'canAppeal': true,
+      'appeal': null,
+    });
+    expect(fresh.canAppeal, isTrue);
+    expect(fresh.appeal, isNull);
+    final ModerationAppealItem queued = ModerationAppealItem.fromJson({
+      'id': 1,
+      'kind': 'topic',
+      'targetId': 7,
+      'revisionId': 70,
+      'topicId': 7,
+      'postNo': 1,
+      'reason': 'Context matters',
+      'originalReviewReason': 'Looks like spam',
+      'status': 'pending',
+      'reviewReason': '',
+      'createdAt': '2026-10-18T08:00:00Z',
+    });
+    expect(queued.originalReviewReason, 'Looks like spam');
+  });
 }

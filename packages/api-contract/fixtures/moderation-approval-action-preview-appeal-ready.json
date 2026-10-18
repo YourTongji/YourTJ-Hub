@@ -1,0 +1,16 @@
+{
+  "result": {
+    "state": "ready",
+    "subject": "appeal",
+    "action": "reject",
+    "targetType": "topic",
+    "targetId": 1301,
+    "title": "选课经验分享",
+    "excerpt": "退补选的时间线和注意事项整理。",
+    "workbenchUrl": "/moderation?tab=appeals",
+    "expiresAt": "2099-01-02T00:00:00Z",
+    "originalReason": "疑似重复发布，请说明与已有话题的区别。",
+    "appealReason": "角度不同，主要讲退补选时间线，已补充来源。"
+  },
+  "code": 0
+}

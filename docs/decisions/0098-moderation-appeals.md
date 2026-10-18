@@ -45,18 +45,17 @@ reasons are plain text, shown only to the owner and authorized reviewers. Notifi
 review templates and content-management links; they do not include explanations or rejected original
 text. Appeal rows and retained snapshots follow the existing governance retention policy.
 
-A stale decision reuses the rejected-review notification template so the author still learns the
-outcome. When the author has already edited and resubmitted, that notice can read like a rejection
-of the new submission even though it only closes the superseded appeal; product support should
-interpret it as "the appeal is closed and the latest submission follows the normal review flow".
-A dedicated neutral template remains possible future work.
+Appeal receipts and outcomes keep the existing review event types and differ only by template key
+(`appealSubmitted`, `appealApproved`, `appealRejected`, `appealStale`). The stale notice is neutral:
+it says the appeal closed because the content changed and the latest submission follows normal review,
+so it no longer reads like a rejection of the new submission.
 
 ### Consequences
 
 - Authors can challenge a decision without changing their words.
 - Existing publication effects, visibility and three-state content semantics remain authoritative.
 - A new audit table and migration are needed; repeated submissions of a version cannot generate a queue flood.
-- Flutter mirrors the API payloads; its native appeal interface is outside this Web feature.
+- Flutter mirrors the API payloads and offers the same native appeal flow from content management.
 
 ## Pros and Cons of the Options
 

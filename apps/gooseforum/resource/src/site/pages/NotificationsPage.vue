@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { notificationText as describeNotification } from '@/runtime/notification-text'
+import { appealNotice, notificationText as describeNotification } from '@/runtime/notification-text'
 import UserNickname from '@/site/components/UserNickname.vue'
 import { authorURL } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { Award, Bell, Clock, Check, CheckCheck, CheckCircle2, Info, MessageCircle, ShieldAlert, UserPlus } from '@lucide/vue'
+import { Award, Bell, CircleSlash, Clock, Check, CheckCheck, CheckCircle2, Info, MessageCircle, Scale, ShieldAlert, UserPlus, XCircle } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from '@/runtime/api'
 import { formatDateTime } from '@/runtime/format'
@@ -215,7 +215,19 @@ function isReviewResult(item: NotificationPayload) {
   return item.eventType === 'review_pending' || item.eventType === 'review_approved' || item.eventType === 'review_rejected'
 }
 
+// 申诉结论与审核结果同屏，但图标、详情和去向各自独立，避免“申诉被驳回”读成“新内容被拒”。
+const appealIcons = { appealSubmitted: Scale, appealApproved: CheckCircle2, appealRejected: XCircle, appealStale: CircleSlash }
+
+function reviewDetail(item: NotificationPayload) {
+  const appeal = appealNotice(item)
+  if (appeal) return t(`notifications.${appeal}Detail`)
+  if (item.eventType === 'review_pending') return t('notifications.reviewPendingDetail')
+  return item.eventType === 'review_approved' ? t('notifications.reviewApprovedDetail') : t('notifications.reviewRejectedDetail')
+}
+
 function notificationIcon(item: NotificationPayload) {
+  const appeal = appealNotice(item)
+  if (appeal) return appealIcons[appeal]
   if (item.eventType === 'review_pending') return Clock
   if (item.eventType === 'review_approved') return CheckCircle2
   if (item.eventType === 'review_rejected') return ShieldAlert
@@ -266,12 +278,18 @@ function notificationTemplateText(item: NotificationPayload) {
       return t('notifications.templates.reviewApproved')
     case 'notifications.templates.reviewRejected':
       return t('notifications.templates.reviewRejected')
+    case 'notifications.templates.appealSubmitted':
+    case 'notifications.templates.appealApproved':
+    case 'notifications.templates.appealRejected':
+    case 'notifications.templates.appealStale':
+      return t(`notifications.templates.${appealNotice(item)}`)
     default:
       return ''
   }
 }
 
 function notificationTone(item: NotificationPayload) {
+  if (appealNotice(item) === 'appealStale') return 'text-base-content/55'
   if (item.eventType === 'review_approved') return item.isRead ? 'text-base-content/55' : 'text-success'
   if (item.eventType === 'review_rejected') return item.isRead ? 'text-base-content/55' : 'text-error'
   if (item.eventType === 'follow') return item.isRead ? 'text-base-content/55' : 'text-success'
@@ -301,7 +319,7 @@ function actorURL(item: NotificationPayload) {
 }
 
 function targetURL(item: NotificationPayload) {
-  if (item.eventType === 'review_rejected' || (item.eventType === 'review_pending' && item.payload.metadata?.profileUrl === '/settings?tab=content')) return '/settings?tab=content'
+  if (item.eventType === 'review_rejected' || appealNotice(item) === 'appealSubmitted') return '/settings?tab=content'
   if (item.topic) return item.topic.url
   if (item.eventType === 'badge') return item.payload.metadata?.profileUrl || actorURL(item)
   if (item.eventType === 'follow') return actorURL(item)
@@ -452,7 +470,7 @@ function markItemReadAndNavigate(item: NotificationPayload) {
               <span v-if="!item.isRead" class="h-1.5 w-1.5 rounded-full bg-primary" />
             </div>
             <p v-if="isReviewResult(item)" class="mt-0.5 text-xs text-base-content/55">
-              {{ item.eventType === 'review_pending' ? t('notifications.reviewPendingDetail') : item.eventType === 'review_approved' ? t('notifications.reviewApprovedDetail') : t('notifications.reviewRejectedDetail') }}
+              {{ reviewDetail(item) }}
             </p>
             <p v-else-if="item.content && item.content !== notificationText(item)" class="mt-0.5 line-clamp-1 text-xs text-base-content/55">{{ item.content }}</p>
             <p v-if="!targetURL(item)" class="mt-0.5 text-xs text-base-content/55">{{ t('notifications.noDirectTarget') }}</p>

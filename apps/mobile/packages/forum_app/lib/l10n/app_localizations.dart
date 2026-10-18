@@ -6435,7 +6435,7 @@ abstract class AppLocalizations {
   /// No description provided for @contentReviewLive.
   ///
   /// In en, this message translates to:
-  /// **'Your previous version remains public.'**
+  /// **'Your previously published version is still public; this edit isn’t.'**
   String get contentReviewLive;
 
   /// No description provided for @contentReviewView.
@@ -6465,8 +6465,212 @@ abstract class AppLocalizations {
   /// No description provided for @notificationReviewRejectedDetail.
   ///
   /// In en, this message translates to:
-  /// **'This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions.'**
+  /// **'This submission won’t be shown publicly. Edit and resubmit it from content management, or appeal if you think the decision was wrong.'**
   String get notificationReviewRejectedDetail;
+
+  /// No description provided for @contentReviewReasonLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Reviewer’s reason'**
+  String get contentReviewReasonLabel;
+
+  /// No description provided for @contentReviewSheetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Review result'**
+  String get contentReviewSheetTitle;
+
+  /// No description provided for @appealAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal'**
+  String get appealAction;
+
+  /// No description provided for @appealFormTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal this decision'**
+  String get appealFormTitle;
+
+  /// No description provided for @appealFormIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Think the decision was wrong? A moderator will re-check the original post. An appeal doesn’t change your post — to change it, use “Edit and resubmit”.'**
+  String get appealFormIntro;
+
+  /// No description provided for @appealReasonLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Reason for appeal'**
+  String get appealReasonLabel;
+
+  /// No description provided for @appealReasonPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'For example: this quotes the course handout and isn’t aimed at anyone.'**
+  String get appealReasonPlaceholder;
+
+  /// No description provided for @appealOncePerVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Each version can be appealed once.'**
+  String get appealOncePerVersion;
+
+  /// No description provided for @appealSubmit.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit appeal'**
+  String get appealSubmit;
+
+  /// No description provided for @appealSubmitted.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal submitted. We’ll notify you of the decision.'**
+  String get appealSubmitted;
+
+  /// No description provided for @appealSubmitFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t submit the appeal. Check your connection and try again — your reason is still here.'**
+  String get appealSubmitFailed;
+
+  /// No description provided for @appealYourReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Your reason'**
+  String get appealYourReason;
+
+  /// No description provided for @appealReviewerNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Moderator’s note'**
+  String get appealReviewerNote;
+
+  /// No description provided for @appealNoReviewerNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The moderator didn’t leave a note.'**
+  String get appealNoReviewerNote;
+
+  /// No description provided for @appealSubmittedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Submitted {time}'**
+  String appealSubmittedAt(String time);
+
+  /// No description provided for @appealDecidedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Decided {time}'**
+  String appealDecidedAt(String time);
+
+  /// No description provided for @appealStatePendingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal under review'**
+  String get appealStatePendingTitle;
+
+  /// No description provided for @appealStatePendingBody.
+  ///
+  /// In en, this message translates to:
+  /// **'A moderator will re-check the original post and notify you. If you edit and resubmit before then, this appeal closes.'**
+  String get appealStatePendingBody;
+
+  /// No description provided for @appealStateApprovedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal approved'**
+  String get appealStateApprovedTitle;
+
+  /// No description provided for @appealStateApprovedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your post is public and everyone can see it.'**
+  String get appealStateApprovedBody;
+
+  /// No description provided for @appealStateRejectedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal not approved'**
+  String get appealStateRejectedTitle;
+
+  /// No description provided for @appealStateRejectedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This version can’t be appealed again. Edit and resubmit to start a new review.'**
+  String get appealStateRejectedBody;
+
+  /// No description provided for @appealStateStaleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal closed'**
+  String get appealStateStaleTitle;
+
+  /// No description provided for @appealStateStaleBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The post changed or became unavailable before review, so this appeal won’t be decided.'**
+  String get appealStateStaleBody;
+
+  /// No description provided for @appealEditWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Editing and resubmitting will close the appeal under review.'**
+  String get appealEditWarning;
+
+  /// No description provided for @appealEditAnyway.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit anyway'**
+  String get appealEditAnyway;
+
+  /// No description provided for @notificationAppealSubmitted.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal submitted — awaiting a moderator'**
+  String get notificationAppealSubmitted;
+
+  /// No description provided for @notificationAppealApproved.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal approved — your post is public'**
+  String get notificationAppealApproved;
+
+  /// No description provided for @notificationAppealRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal not approved'**
+  String get notificationAppealRejected;
+
+  /// No description provided for @notificationAppealStale.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal closed'**
+  String get notificationAppealStale;
+
+  /// No description provided for @notificationAppealSubmittedDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'We’ll notify you of the decision. Editing and resubmitting before then closes the appeal.'**
+  String get notificationAppealSubmittedDetail;
+
+  /// No description provided for @notificationAppealApprovedDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Everyone can see it now.'**
+  String get notificationAppealApprovedDetail;
+
+  /// No description provided for @notificationAppealRejectedDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'See the moderator’s note in content management. You can edit and resubmit.'**
+  String get notificationAppealRejectedDetail;
+
+  /// No description provided for @notificationAppealStaleDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The post changed or became unavailable before review, so this appeal won’t be decided.'**
+  String get notificationAppealStaleDetail;
 
   /// No description provided for @anonymousIdentity.
   ///

@@ -27,3 +27,22 @@ for (const profileUrl of ['/settings?tab=content', 'https://example.com/redirect
   wrapper.unmount()
  })
 }
+for (const [template, eventType, title, href] of [
+ ['appealSubmitted', 'review_pending', 'Appeal submitted — awaiting a moderator', '/settings?tab=content'],
+ ['appealApproved', 'review_approved', 'Appeal approved — your post is public', '/p/42'],
+ ['appealRejected', 'review_rejected', 'Appeal not approved', '/settings?tab=content'],
+ ['appealStale', 'review_rejected', 'Appeal closed', '/settings?tab=content'],
+]) {
+ test(`${template} notification has its own wording and destination`, () => {
+  i18n.global.locale.value = 'en'
+  const wrapper = mount(NotificationsPage, { props: { layout: {} as any, props: {
+   notifications: [{ id: 3, eventType, isRead: false, createdAt: '', title: '', content: '', actor: { id: 0, username: '' }, topic: { id: 42, title: '', url: '/p/42' }, payload: { actorId: 0, templateKey: `notifications.templates.${template}`, topicTitle: 'S******t' } }],
+   total: 1, unreadCount: 1, pagination: { hasNext: false },
+  } as any }, global: { plugins: [i18n] } })
+  const article = wrapper.get('article')
+  expect(article.text()).toContain(title)
+  expect(article.text()).not.toContain('Your post wasn’t approved')
+  expect(article.get('a').attributes('href')).toBe(href)
+  wrapper.unmount()
+ })
+}

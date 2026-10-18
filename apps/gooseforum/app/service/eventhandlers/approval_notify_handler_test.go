@@ -30,6 +30,7 @@ type approvalEnvelope struct {
 }
 
 func TestAppealHttpNotificationContainsOnlySafeReference(t *testing.T) {
+	withApprovalSigningKey(t)
 	conn := dbconnect.Connect()
 	if err := conn.AutoMigrate(&topics.Entity{}, &posts.Entity{}, &moderationAppeals.Entity{}); err != nil {
 		t.Fatal(err)
@@ -55,8 +56,18 @@ func TestAppealHttpNotificationContainsOnlySafeReference(t *testing.T) {
 	body := waitHttpNotify(t, received)
 	expectNoMoreHttpNotify(t, received)
 	a := decodeApproval(t, body).Data.Approval
-	if a.Kind != httpnotifyservice.ApprovalKindAppeal || a.ModerationURL != "/moderation?tab=appeals" || a.TargetID != topic.Id || len(a.Actions) != 0 {
+	if a.Kind != httpnotifyservice.ApprovalKindAppeal || a.ModerationURL != "/moderation?tab=appeals" || a.TargetID != topic.Id || a.AppealID != appeal.Id || a.Title != "" || a.Excerpt != "" || a.Author != nil {
 		t.Fatalf("appeal approval = %+v", a)
+	}
+	// 与待审、举报一致：通过/驳回按钮只打开确认页，令牌绑定这条申诉。
+	if len(a.Actions) != 2 || a.Actions[0].Action != httpnotifyservice.ApprovalActionApprove || a.Actions[1].Action != httpnotifyservice.ApprovalActionReject {
+		t.Fatalf("appeal actions = %+v", a.Actions)
+	}
+	for _, action := range a.Actions {
+		claims, err := tokenservice.ParseModerationAction(strings.TrimPrefix(action.URL, "/moderation/action?token="), time.Now())
+		if err != nil || claims.Subject != tokenservice.ModerationActionSubjectAppeal || claims.ID != appeal.Id || claims.Action != action.Action {
+			t.Fatalf("appeal action %+v claims %+v err %v", action, claims, err)
+		}
 	}
 	if strings.Contains(string(body), "private") || strings.Contains(string(body), "9999") {
 		t.Fatalf("private data leaked: %s", body)

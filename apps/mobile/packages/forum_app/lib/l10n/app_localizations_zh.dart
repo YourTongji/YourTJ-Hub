@@ -3388,7 +3388,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get contentReviewRetry => '修改并重新提交';
 
   @override
-  String get contentReviewLive => '原有公开版本保持可见。';
+  String get contentReviewLive => '之前公开的版本仍然可见，这次修改没有公开。';
 
   @override
   String get contentReviewView => '查看内容';
@@ -3405,7 +3405,115 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get notificationReviewRejectedDetail =>
-      '它不会公开显示，请前往内容管理自查修改后重新提交。如有疑问，请联系管理员。';
+      '它不会公开显示。你可以在内容管理修改后重新提交；如果认为判断有误，也可以申诉。';
+
+  @override
+  String get contentReviewReasonLabel => '审核说明';
+
+  @override
+  String get contentReviewSheetTitle => '审核结果';
+
+  @override
+  String get appealAction => '申诉';
+
+  @override
+  String get appealFormTitle => '申诉这次审核结果';
+
+  @override
+  String get appealFormIntro => '觉得判断有误？版主会对照原文重新复核。申诉不会改动内容，想修改请用「修改并重新提交」。';
+
+  @override
+  String get appealReasonLabel => '申诉理由';
+
+  @override
+  String get appealReasonPlaceholder => '例如：这段话引用的是课程原文，并不是针对任何人。';
+
+  @override
+  String get appealOncePerVersion => '每个版本只能申诉一次。';
+
+  @override
+  String get appealSubmit => '提交申诉';
+
+  @override
+  String get appealSubmitted => '申诉已提交，结果会通过通知告诉你。';
+
+  @override
+  String get appealSubmitFailed => '申诉没有提交成功。检查网络后再试一次，你写的理由还在。';
+
+  @override
+  String get appealYourReason => '你的申诉理由';
+
+  @override
+  String get appealReviewerNote => '版主说明';
+
+  @override
+  String get appealNoReviewerNote => '版主没有填写说明。';
+
+  @override
+  String appealSubmittedAt(String time) {
+    return '提交于 $time';
+  }
+
+  @override
+  String appealDecidedAt(String time) {
+    return '处理于 $time';
+  }
+
+  @override
+  String get appealStatePendingTitle => '申诉复核中';
+
+  @override
+  String get appealStatePendingBody =>
+      '版主会对照原文复核，结果会通过通知告诉你。在此期间修改并重新提交，这次申诉会失效。';
+
+  @override
+  String get appealStateApprovedTitle => '申诉已通过';
+
+  @override
+  String get appealStateApprovedBody => '内容已经公开，所有人都能看到。';
+
+  @override
+  String get appealStateRejectedTitle => '申诉未通过';
+
+  @override
+  String get appealStateRejectedBody => '这个版本不能再申诉了。修改后重新提交，会进入新的审核。';
+
+  @override
+  String get appealStateStaleTitle => '申诉已失效';
+
+  @override
+  String get appealStateStaleBody => '复核前内容已修改或不再可见，这次申诉不会再处理。';
+
+  @override
+  String get appealEditWarning => '修改并重新提交后，正在复核的申诉会失效。';
+
+  @override
+  String get appealEditAnyway => '继续修改';
+
+  @override
+  String get notificationAppealSubmitted => '申诉已提交，等待版主复核';
+
+  @override
+  String get notificationAppealApproved => '申诉通过，内容已公开';
+
+  @override
+  String get notificationAppealRejected => '申诉未通过';
+
+  @override
+  String get notificationAppealStale => '申诉已失效';
+
+  @override
+  String get notificationAppealSubmittedDetail =>
+      '复核结果会通知你。在此期间修改并重新提交，这次申诉会失效。';
+
+  @override
+  String get notificationAppealApprovedDetail => '现在所有人都能看到它。';
+
+  @override
+  String get notificationAppealRejectedDetail => '可以在内容管理查看版主的说明，修改后重新提交。';
+
+  @override
+  String get notificationAppealStaleDetail => '复核前内容已修改或不再可见，这次申诉不再处理。';
 
   @override
   String get anonymousIdentity => '匿名身份';

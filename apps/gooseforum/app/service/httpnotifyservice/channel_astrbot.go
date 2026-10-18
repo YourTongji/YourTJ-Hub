@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -131,11 +130,7 @@ func astrbotApprovalText(payload ApprovalPayload, test bool) string {
 			b.WriteString("\n" + label + "：" + value)
 		}
 	}
-	ids := target + " #" + strconv.FormatUint(a.TargetID, 10)
-	if a.ReportID > 0 {
-		ids = "举报 #" + strconv.FormatUint(a.ReportID, 10) + " · " + ids
-	}
-	line("编号", ids)
+	line("编号", approvalSubject(a, target))
 	line("标题", SafeText(a.Title, 100))
 	line("摘要", SafeText(a.Excerpt, 200))
 	switch {
@@ -152,6 +147,9 @@ func astrbotApprovalText(payload ApprovalPayload, test bool) string {
 	if a.TargetType == "chat_message" {
 		b.WriteString("\n私信内容不会发到外部，请在版主工作台查看证据并处理。")
 	}
+	if a.Kind == ApprovalKindAppeal {
+		b.WriteString("\n" + appealPrivacyNote)
+	}
 
 	base := strings.TrimRight(payload.BaseURI, "/")
 	if base == "" {
@@ -161,7 +159,7 @@ func astrbotApprovalText(payload ApprovalPayload, test bool) string {
 	// 文本里链接不能像按钮那样区分样式：与工作台同址的动作（如测试消息）只保留工作台一行。
 	links := make([]string, 0, len(a.Actions)+1)
 	for _, action := range a.Actions {
-		if label := approvalActionLabels[action.Action]; label != "" && action.URL != "" && action.URL != a.ModerationURL {
+		if label := approvalActionLabel(a.Kind, action.Action); label != "" && action.URL != "" && action.URL != a.ModerationURL {
 			links = append(links, label+"："+base+action.URL)
 		}
 	}

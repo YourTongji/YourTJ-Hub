@@ -1,3 +1,4 @@
+import '../../gen/moderation_appeal.dart';
 import '../../gen/user_content.dart';
 import '../gf_api_client.dart';
 
@@ -19,6 +20,19 @@ class ContentRepository {
     },
     parser: (json) => UserContentPage.fromJson(json as Map<String, dynamic>),
   );
+
+  /// Appeals the latest rejected revision of an owned topic or reply (#1114).
+  Future<void> submitAppeal(UserContentItem item, String reason) async {
+    await _client.post<Object?>(
+      '/api/forum/content/appeals',
+      body: ModerationAppealSubmitRequest(
+        kind: item.contentType,
+        id: item.id,
+        revisionId: item.revisionId,
+        reason: reason,
+      ).toJson(),
+    );
+  }
 
   Future<void> restore(UserContentItem item) async {
     await _client.post<Object?>(

@@ -3428,7 +3428,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get contentReviewRetry => '編集して再送信';
 
   @override
-  String get contentReviewLive => '以前の公開版は引き続き表示されます。';
+  String get contentReviewLive => '以前に公開した版は引き続き表示されています。今回の編集は公開されていません。';
 
   @override
   String get contentReviewView => '内容を見る';
@@ -3445,7 +3445,120 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get notificationReviewRejectedDetail =>
-      '今回の投稿は公開されません。コンテンツ管理で内容を確認・修正して再送信してください。ご不明な点は管理者にお問い合わせください。';
+      '今回の投稿は公開されません。コンテンツ管理で編集して再送信するか、判断が誤っていると思う場合は異議を申し立ててください。';
+
+  @override
+  String get contentReviewReasonLabel => '審査の理由';
+
+  @override
+  String get contentReviewSheetTitle => '審査結果';
+
+  @override
+  String get appealAction => '異議を申し立てる';
+
+  @override
+  String get appealFormTitle => 'この審査結果に異議を申し立てる';
+
+  @override
+  String get appealFormIntro =>
+      '判断が誤っていると思う場合、モデレーターが元の内容を確認し直します。申し立てで内容は変わりません。内容を変えるには「編集して再送信」を使ってください。';
+
+  @override
+  String get appealReasonLabel => '申し立ての理由';
+
+  @override
+  String get appealReasonPlaceholder => '例：授業資料の引用で、特定の人に向けたものではありません。';
+
+  @override
+  String get appealOncePerVersion => '各バージョンにつき申し立ては1回までです。';
+
+  @override
+  String get appealSubmit => '申し立てを送信';
+
+  @override
+  String get appealSubmitted => '申し立てを送信しました。結果は通知でお知らせします。';
+
+  @override
+  String get appealSubmitFailed =>
+      '申し立てを送信できませんでした。接続を確認してもう一度お試しください。入力した理由は残っています。';
+
+  @override
+  String get appealYourReason => 'あなたの申し立て理由';
+
+  @override
+  String get appealReviewerNote => 'モデレーターの説明';
+
+  @override
+  String get appealNoReviewerNote => 'モデレーターの説明はありません。';
+
+  @override
+  String appealSubmittedAt(String time) {
+    return '$time に送信';
+  }
+
+  @override
+  String appealDecidedAt(String time) {
+    return '$time に判断';
+  }
+
+  @override
+  String get appealStatePendingTitle => '異議申し立てを確認中';
+
+  @override
+  String get appealStatePendingBody =>
+      'モデレーターが元の内容を確認し、結果をお知らせします。その前に編集して再送信すると、この申し立ては無効になります。';
+
+  @override
+  String get appealStateApprovedTitle => '異議が認められました';
+
+  @override
+  String get appealStateApprovedBody => '投稿は公開され、すべての人に表示されています。';
+
+  @override
+  String get appealStateRejectedTitle => '異議は認められませんでした';
+
+  @override
+  String get appealStateRejectedBody =>
+      'このバージョンにはもう申し立てできません。編集して再送信すると、新しい審査が始まります。';
+
+  @override
+  String get appealStateStaleTitle => '申し立ては無効になりました';
+
+  @override
+  String get appealStateStaleBody => '確認前に投稿が変更されたか表示できなくなったため、この申し立ては処理されません。';
+
+  @override
+  String get appealEditWarning => '編集して再送信すると、確認中の申し立ては無効になります。';
+
+  @override
+  String get appealEditAnyway => '編集を続ける';
+
+  @override
+  String get notificationAppealSubmitted => '異議申し立てを受け付けました';
+
+  @override
+  String get notificationAppealApproved => '異議が認められ、投稿が公開されました';
+
+  @override
+  String get notificationAppealRejected => '異議は認められませんでした';
+
+  @override
+  String get notificationAppealStale => '異議申し立ては無効になりました';
+
+  @override
+  String get notificationAppealSubmittedDetail =>
+      '結果は通知でお知らせします。その前に編集して再送信すると、申し立ては無効になります。';
+
+  @override
+  String get notificationAppealApprovedDetail => 'すべての人に表示されるようになりました。';
+
+  @override
+  String get notificationAppealRejectedDetail =>
+      'モデレーターの説明はコンテンツ管理で確認できます。編集して再送信することもできます。';
+
+  @override
+  String get notificationAppealStaleDetail =>
+      '確認前に投稿が変更されたか表示できなくなったため、この申し立ては処理されません。';
 
   @override
   String get anonymousIdentity => '匿名ID';

@@ -21,7 +21,19 @@ const loading = ref(true)
 const executing = ref(false)
 const error = ref('')
 
+const reason = ref('')
+const reasonError = ref('')
+const appeal = computed(() => view.value?.subject === 'appeal')
 const destructive = computed(() => ['ban', 'hide', 'reject'].includes(view.value?.action ?? ''))
+// 申诉的通过/驳回针对申诉本身，文案与待审内容区分；驳回理由会给作者看，必须填写。
+const actionLabel = computed(() => view.value?.action ? t(`moderationAction.${appeal.value ? 'appealActions' : 'actions'}.${view.value.action}`) : '')
+const actionHint = computed(() => view.value?.action ? t(`moderationAction.${appeal.value ? 'appealActionHints' : 'actionHints'}.${view.value.action}`) : '')
+const reasonRequired = computed(() => appeal.value && view.value?.action === 'reject')
+const stateText = computed(() => {
+  if (!view.value) return ''
+  if (appeal.value && view.value.state === 'changed') return t('moderationAction.appealChanged')
+  return t(`moderationAction.states.${view.value.state}`)
+})
 const targetTypeKey = computed(() => {
   switch (view.value?.targetType) {
     case 'chat_message':
@@ -61,10 +73,16 @@ onMounted(async () => {
 
 async function confirmAction() {
   if (executing.value || view.value?.state !== 'ready') return
+  if (reasonRequired.value && !reason.value.trim()) {
+    reasonError.value = t('moderationAction.appealReasonRequired')
+    document.getElementById('moderation-action-reason')?.focus()
+    return
+  }
   executing.value = true
   error.value = ''
+  reasonError.value = ''
   try {
-    view.value = await executeModerationApprovalAction(token.value)
+    view.value = await executeModerationApprovalAction(token.value, appeal.value ? reason.value.trim() : '')
   } catch (err) {
     error.value = err instanceof Error ? err.message : t('api.moderationActionFailed')
   } finally {
@@ -88,14 +106,14 @@ async function confirmAction() {
 
         <template v-if="view">
           <div class="rounded-lg border px-3 py-2 text-sm" :class="stateTone" role="status">
-            {{ t(`moderationAction.states.${view.state}`) }}
+            {{ stateText }}
           </div>
 
           <dl v-if="view.action" class="grid gap-3 text-sm sm:grid-cols-[7rem_minmax(0,1fr)]">
             <dt class="text-base-content/60">{{ t('moderationAction.actionLabel') }}</dt>
             <dd>
-              <div class="font-medium">{{ t(`moderationAction.actions.${view.action}`) }}</div>
-              <div class="text-base-content/60">{{ t(`moderationAction.actionHints.${view.action}`) }}</div>
+              <div class="font-medium">{{ actionLabel }}</div>
+              <div class="text-base-content/60">{{ actionHint }}</div>
             </dd>
             <template v-if="targetTypeKey">
               <dt class="text-base-content/60">{{ t('moderationAction.targetLabel') }}</dt>
@@ -106,11 +124,40 @@ async function confirmAction() {
                 <div v-if="view.anonymous" class="mt-1 text-xs text-base-content/60">{{ t('moderationAction.anonymous') }}</div>
               </dd>
             </template>
+            <template v-if="view.originalReason">
+              <dt class="text-base-content/60">{{ t('moderationAction.originalReasonLabel') }}</dt>
+              <dd class="whitespace-pre-wrap break-words">{{ view.originalReason }}</dd>
+            </template>
+            <template v-if="view.appealReason">
+              <dt class="text-base-content/60">{{ t('moderationAction.appealReasonLabel') }}</dt>
+              <dd class="whitespace-pre-wrap break-words rounded-field bg-info/10 px-3 py-2">{{ view.appealReason }}</dd>
+            </template>
             <template v-if="view.expiresAt && view.state === 'ready'">
               <dt class="text-base-content/60">{{ t('moderationAction.expiresAt') }}</dt>
               <dd>{{ formatDateTime(view.expiresAt) }}</dd>
             </template>
           </dl>
+
+          <div v-if="appeal && view.state === 'ready'" class="space-y-1.5">
+            <label for="moderation-action-reason" class="text-sm font-medium">
+              {{ t(reasonRequired ? 'moderationAction.appealRejectReasonLabel' : 'moderationAction.appealApproveReasonLabel') }}
+            </label>
+            <textarea
+              id="moderation-action-reason"
+              v-model="reason"
+              rows="3"
+              maxlength="512"
+              class="gf-textarea w-full text-base sm:text-sm"
+              :placeholder="t('moderationAction.appealReasonPlaceholder')"
+              :aria-invalid="reasonError ? 'true' : undefined"
+              aria-describedby="moderation-action-reason-help"
+              @input="reasonError = ''"
+            />
+            <div id="moderation-action-reason-help" class="flex items-start justify-between gap-3 text-xs">
+              <span :class="reasonError ? 'text-error' : 'text-base-content/55'">{{ reasonError || t('moderationAction.appealReasonHint') }}</span>
+              <span class="shrink-0 tabular-nums text-base-content/45">{{ reason.length }}/512</span>
+            </div>
+          </div>
 
           <div class="flex flex-wrap items-center gap-2 pt-2">
             <button
@@ -123,7 +170,7 @@ async function confirmAction() {
             >
               <Loader2 v-if="executing" class="h-4 w-4 animate-spin" />
               <component :is="destructive ? Ban : ShieldCheck" v-else class="h-4 w-4" />
-              {{ executing ? t('moderationAction.executing') : t(`moderationAction.actions.${view.action}`) }}
+              {{ executing ? t('moderationAction.executing') : actionLabel }}
             </button>
             <a v-if="view.targetUrl" :href="view.targetUrl" class="gf-button gf-button-md gf-button-secondary" target="_blank" rel="noopener noreferrer">
               <ExternalLink class="h-4 w-4" />

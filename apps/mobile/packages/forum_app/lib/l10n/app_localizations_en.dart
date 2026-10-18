@@ -3555,7 +3555,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get contentReviewRetry => 'Edit and resubmit';
 
   @override
-  String get contentReviewLive => 'Your previous version remains public.';
+  String get contentReviewLive =>
+      'Your previously published version is still public; this edit isn’t.';
 
   @override
   String get contentReviewView => 'View content';
@@ -3572,7 +3573,127 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notificationReviewRejectedDetail =>
-      'This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions.';
+      'This submission won’t be shown publicly. Edit and resubmit it from content management, or appeal if you think the decision was wrong.';
+
+  @override
+  String get contentReviewReasonLabel => 'Reviewer’s reason';
+
+  @override
+  String get contentReviewSheetTitle => 'Review result';
+
+  @override
+  String get appealAction => 'Appeal';
+
+  @override
+  String get appealFormTitle => 'Appeal this decision';
+
+  @override
+  String get appealFormIntro =>
+      'Think the decision was wrong? A moderator will re-check the original post. An appeal doesn’t change your post — to change it, use “Edit and resubmit”.';
+
+  @override
+  String get appealReasonLabel => 'Reason for appeal';
+
+  @override
+  String get appealReasonPlaceholder =>
+      'For example: this quotes the course handout and isn’t aimed at anyone.';
+
+  @override
+  String get appealOncePerVersion => 'Each version can be appealed once.';
+
+  @override
+  String get appealSubmit => 'Submit appeal';
+
+  @override
+  String get appealSubmitted =>
+      'Appeal submitted. We’ll notify you of the decision.';
+
+  @override
+  String get appealSubmitFailed =>
+      'Couldn’t submit the appeal. Check your connection and try again — your reason is still here.';
+
+  @override
+  String get appealYourReason => 'Your reason';
+
+  @override
+  String get appealReviewerNote => 'Moderator’s note';
+
+  @override
+  String get appealNoReviewerNote => 'The moderator didn’t leave a note.';
+
+  @override
+  String appealSubmittedAt(String time) {
+    return 'Submitted $time';
+  }
+
+  @override
+  String appealDecidedAt(String time) {
+    return 'Decided $time';
+  }
+
+  @override
+  String get appealStatePendingTitle => 'Appeal under review';
+
+  @override
+  String get appealStatePendingBody =>
+      'A moderator will re-check the original post and notify you. If you edit and resubmit before then, this appeal closes.';
+
+  @override
+  String get appealStateApprovedTitle => 'Appeal approved';
+
+  @override
+  String get appealStateApprovedBody =>
+      'Your post is public and everyone can see it.';
+
+  @override
+  String get appealStateRejectedTitle => 'Appeal not approved';
+
+  @override
+  String get appealStateRejectedBody =>
+      'This version can’t be appealed again. Edit and resubmit to start a new review.';
+
+  @override
+  String get appealStateStaleTitle => 'Appeal closed';
+
+  @override
+  String get appealStateStaleBody =>
+      'The post changed or became unavailable before review, so this appeal won’t be decided.';
+
+  @override
+  String get appealEditWarning =>
+      'Editing and resubmitting will close the appeal under review.';
+
+  @override
+  String get appealEditAnyway => 'Edit anyway';
+
+  @override
+  String get notificationAppealSubmitted =>
+      'Appeal submitted — awaiting a moderator';
+
+  @override
+  String get notificationAppealApproved =>
+      'Appeal approved — your post is public';
+
+  @override
+  String get notificationAppealRejected => 'Appeal not approved';
+
+  @override
+  String get notificationAppealStale => 'Appeal closed';
+
+  @override
+  String get notificationAppealSubmittedDetail =>
+      'We’ll notify you of the decision. Editing and resubmitting before then closes the appeal.';
+
+  @override
+  String get notificationAppealApprovedDetail => 'Everyone can see it now.';
+
+  @override
+  String get notificationAppealRejectedDetail =>
+      'See the moderator’s note in content management. You can edit and resubmit.';
+
+  @override
+  String get notificationAppealStaleDetail =>
+      'The post changed or became unavailable before review, so this appeal won’t be decided.';
 
   @override
   String get anonymousIdentity => 'Anonymous identity';

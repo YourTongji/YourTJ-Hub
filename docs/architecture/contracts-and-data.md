@@ -775,5 +775,9 @@ moderator queue/action routes are covered by OpenAPI, generated Web types and Da
 omit internal author identity and are private. Publication and appeal resolution share the existing
 revision transaction, including lifecycle/version/scope fences, attachment promotion, search and
 notification tasks. A stale appeal never restores deleted content or publishes a later submission.
+My-content items expose `canAppeal` and the owner's `appeal` summary for the latest revision; queue
+items include the `originalReviewReason`. Failures use specific `content.appeal.*` and
+`moderation.appeal.*` message codes. Appeal receipts and outcomes keep the review event types and
+set `notifications.templates.appeal{Submitted,Approved,Rejected,Stale}` template keys.
 Audit records follow [governance retention](../decisions/0021-deletion-final-state-data-retention.md);
 product limits and tradeoffs live in [0098](../decisions/0098-moderation-appeals.md).

@@ -73,6 +73,12 @@ func TestModerationAppealExactVersionAndScope(t *testing.T) {
 	if _, err := publicationservice.SubmitAppeal(ctx, owner, "topic", topic.Id, revision.Id, "  "); !errors.Is(err, publicationservice.ErrAppealReason) {
 		t.Fatalf("blank explanation: %v", err)
 	}
+	if state := publicationservice.OwnerAppealStateFor(ctx, owner, topic, post); !state.CanAppeal || state.Appeal != nil {
+		t.Fatalf("fresh rejection should be appealable: %+v", state)
+	}
+	if state := publicationservice.OwnerAppealStateFor(ctx, outsider, topic, post); state.CanAppeal || state.Appeal != nil {
+		t.Fatalf("nonowner state leaked: %+v", state)
+	}
 	appeal, err := publicationservice.SubmitAppeal(ctx, owner, "topic", topic.Id, revision.Id, " Please review ")
 	if err != nil {
 		t.Fatal(err)
@@ -82,11 +88,18 @@ func TestModerationAppealExactVersionAndScope(t *testing.T) {
 	if audit.OriginalReviewReason != revision.ReviewReason || audit.OriginalReviewActorId != 91 || audit.OriginalReviewedAt == nil {
 		t.Fatal("lost initial decision audit")
 	}
-	if _, err := publicationservice.SubmitAppeal(ctx, owner, "topic", topic.Id, revision.Id, "again"); err == nil {
-		t.Fatal("duplicate accepted")
+	if _, err := publicationservice.SubmitAppeal(ctx, owner, "topic", topic.Id, revision.Id, "again"); !errors.Is(err, publicationservice.ErrAppealDuplicate) {
+		t.Fatalf("duplicate appeal: %v", err)
+	}
+	if state := publicationservice.OwnerAppealStateFor(ctx, owner, topic, post); state.CanAppeal || state.Appeal == nil || state.Appeal.Status != moderationAppeals.Pending || state.Appeal.Reason != "Please review" {
+		t.Fatalf("submitted appeal state: %+v", state)
+	}
+	var receipt eventNotification.Entity
+	if err := conn.Where("user_id = ? AND event_type = ?", owner, eventNotification.EventTypeReviewPending).Order("id DESC").Take(&receipt).Error; err != nil || receipt.Payload.TemplateKey != eventNotification.TemplateAppealSubmitted {
+		t.Fatalf("receipt template %q %v", receipt.Payload.TemplateKey, err)
 	}
 	items, total, err := publicationservice.ModeratorAppeals(ctx, mod, 1, 20, "pending")
-	if err != nil || total != 1 || len(items) != 1 || items[0].Content != revision.Content || items[0].Reason != "Please review" {
+	if err != nil || total != 1 || len(items) != 1 || items[0].Content != revision.Content || items[0].Reason != "Please review" || items[0].OriginalReviewReason != "original decision" {
 		t.Fatalf("queue: %+v %d %v", items, total, err)
 	}
 	// 话题移出分类时索引行只是软切换（effective=0），旧分类版主不得再看到私有候选。
@@ -126,8 +139,12 @@ func TestModerationAppealExactVersionAndScope(t *testing.T) {
 	if err := conn.Model(&post).Update("latest_revision_id", newer.Id).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := publicationservice.ReviewAppeal(ctx, appeal.Id, mod, true, ""); !errors.Is(err, publicationservice.ErrUnavailable) {
+	if err := publicationservice.ReviewAppeal(ctx, appeal.Id, mod, true, ""); !errors.Is(err, publicationservice.ErrAppealStale) {
 		t.Fatalf("stale approval: %v", err)
+	}
+	var staleNotice eventNotification.Entity
+	if err := conn.Where("user_id = ? AND event_type = ?", owner, eventNotification.EventTypeReviewRejected).Order("id DESC").Take(&staleNotice).Error; err != nil || staleNotice.Payload.TemplateKey != eventNotification.TemplateAppealStale {
+		t.Fatalf("stale notice template %q %v", staleNotice.Payload.TemplateKey, err)
 	}
 	if err := conn.Table("moderation_appeals").Select("id,status,review_reason,reviewed_at").Take(&appeal, appeal.Id).Error; err != nil {
 		t.Fatal(err)
@@ -206,7 +223,7 @@ func TestModerationAppealApprovalAndRejection(t *testing.T) {
 			if !approve && (post.PublishedRevisionId != 0 || topic.ProcessStatus != topics.ProcessStatusBlocked) {
 				t.Fatal("denial published candidate")
 			}
-			if err := publicationservice.ReviewAppeal(ctx, appeal.Id, reviewer.Id, approve, "repeat"); !errors.Is(err, publicationservice.ErrUnavailable) {
+			if err := publicationservice.ReviewAppeal(ctx, appeal.Id, reviewer.Id, approve, "repeat"); !errors.Is(err, publicationservice.ErrAppealProcessed) {
 				t.Fatalf("duplicate decision %v", err)
 			}
 			var notices []eventNotification.Entity
@@ -214,10 +231,19 @@ func TestModerationAppealApprovalAndRejection(t *testing.T) {
 			if len(notices) != 2 {
 				t.Fatalf("expected receipt and result, got %d", len(notices))
 			}
+			result := map[bool]string{false: eventNotification.TemplateAppealRejected, true: eventNotification.TemplateAppealApproved}[approve]
+			templates := map[string]bool{}
 			for _, notice := range notices {
 				if notice.Payload.Content != "" || notice.Payload.ActorId != 0 {
 					t.Fatal("unsafe notification")
 				}
+				templates[notice.Payload.TemplateKey] = true
+			}
+			if !templates[eventNotification.TemplateAppealSubmitted] || !templates[result] {
+				t.Fatalf("appeal notices must use appeal templates, got %v", templates)
+			}
+			if state := publicationservice.OwnerAppealStateFor(ctx, owner.Id, topic, post); !approve && (state.CanAppeal || state.Appeal == nil || state.Appeal.Status != moderationAppeals.Rejected || state.Appeal.ReviewReason != "decision explanation") {
+				t.Fatalf("rejected appeal state: %+v", state)
 			}
 		})
 	}

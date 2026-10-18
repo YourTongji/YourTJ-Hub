@@ -22,6 +22,7 @@ const (
 	ModerationActionSubjectReviewTopic = "review.topic" // 待人工审核的话题（ID = topic id）
 	ModerationActionSubjectReviewPost  = "review.post"  // 待人工审核的回复（ID = post id）
 	ModerationActionSubjectReport      = "report"       // 待处理举报（ID = report id）
+	ModerationActionSubjectAppeal      = "appeal"       // 待复核的申诉（ID = appeal id）
 )
 
 // moderationActionPurpose 派生签名密钥的用途标签：与重置密码/激活 JWT（直接用

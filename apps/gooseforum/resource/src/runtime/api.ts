@@ -332,6 +332,10 @@ export interface MyContentItem {
   hasPublishedVersion: boolean
   content: string
   images: string[]
+  /** 最新被拒版本是否仍可申诉（#1114），与提交接口同一规则。 */
+  canAppeal?: boolean
+  /** 最新版本已提交的申诉；未申诉为 null。 */
+  appeal?: OwnerAppeal | null
   id: number
   contentType: DeletedContentType
   title: string
@@ -631,31 +635,32 @@ export async function fetchModerationReports(cursor = 0, pageSize = 20, status =
 
 export type AppealItem = components['schemas']['ModerationAppealItem']
 export type AppealStatus = AppealItem['status']
+export type OwnerAppeal = components['schemas']['ModerationAppealOwnerSummary']
 
 export async function fetchContentAppeals(kind: 'topic' | 'post', id: number): Promise<components['schemas']['ModerationAppealHistoryResult']> {
   const response = await feedFetch(`/api/forum/content/appeals?${new URLSearchParams({ kind, id: String(id) })}`, { headers: { Accept: 'application/json' } })
-  return readApiResponse(response, t('appeals.loadFailed'))
+  return readApiResponse(response, t('appeals.queue.loadFailed'))
 }
 
 export async function submitContentAppeal(kind: 'topic' | 'post', id: number, revisionId: number, reason: string): Promise<unknown> {
   const response = await feedFetch('/api/forum/content/appeals', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, id, revisionId, reason }),
   })
-  return readApiResponse(response, t('appeals.actionFailed'))
+  return readApiResponse(response, t('appeals.submitFailed'))
 }
 
 export async function fetchModerationAppeals(status: AppealStatus, page = 1, pageSize = 20): Promise<components['schemas']['ModerationAppealQueueResult']> {
   const response = await feedFetch('/api/forum/moderation/appeals', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, page, pageSize }),
   })
-  return readApiResponse(response, t('appeals.loadFailed'))
+  return readApiResponse(response, t('appeals.queue.loadFailed'))
 }
 
 export async function moderationAppealAction(id: number, approve: boolean, reason: string): Promise<unknown> {
   const response = await feedFetch('/api/forum/moderation/appeal-action', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, approve, reason }),
   })
-  return readApiResponse(response, t('appeals.actionFailed'))
+  return readApiResponse(response, t('appeals.queue.actionFailed'))
 }
 
 // 前台版主工作台待审队列（issue #975）：与后台审核队列同形，按版主管辖分类收窄。
@@ -701,17 +706,18 @@ export async function previewModerationApprovalAction(token: string): Promise<Mo
   return postModerationApprovalAction('/api/forum/moderation/approval-action/preview', token)
 }
 
-export async function executeModerationApprovalAction(token: string): Promise<ModerationApprovalActionView> {
-  return postModerationApprovalAction('/api/forum/moderation/approval-action/execute', token)
+/** reason 只用于申诉复核：驳回必填，作者会看到。 */
+export async function executeModerationApprovalAction(token: string, reason = ''): Promise<ModerationApprovalActionView> {
+  return postModerationApprovalAction('/api/forum/moderation/approval-action/execute', token, reason)
 }
 
-async function postModerationApprovalAction(url: string, token: string): Promise<ModerationApprovalActionView> {
+async function postModerationApprovalAction(url: string, token: string, reason = ''): Promise<ModerationApprovalActionView> {
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ token }),
+    body: JSON.stringify(reason ? { token, reason } : { token }),
   })
   return readApiResponse<ModerationApprovalActionView>(response, t('api.moderationActionFailed'))
 }

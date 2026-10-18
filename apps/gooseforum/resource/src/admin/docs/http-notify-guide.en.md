@@ -18,6 +18,7 @@ Approval events (issue #1049, moderator to-dos):
 - `moderation.report.post.created`: a reply was reported
 - `moderation.report.chat_message.created`: a chat message was reported
 - `moderation.report.course_review.created`: a course review was reported
+- `moderation.appeal.submitted`: an author appealed a rejected topic or reply
 
 `moderation.report.created` remains the aggregate "all reports" event with an unchanged payload. **Scope change**: it used to fire only for topic and reply reports; chat message and course review reports now fire it too, so `targetType` can be `chat_message` or `course_review`. Existing subscribers should make sure they handle these values. If one URL subscribes to both the aggregate event and a specific report event, each report is delivered once, using the specific event. The publish-first AI check (still checking) is not manual review and sends nothing; a notification is sent only when the AI verdict asks for human review. A pending state for course reviews is not implemented yet (planned); only course review reports notify today.
 
@@ -149,6 +150,8 @@ The `data` of an approval event is a safe summary: titles and excerpts have cont
 
 `id` is a stable approval identifier and the deduplication key: the same URL does not receive the same approval twice within 24 hours (kept in process memory; after a restart or with several instances one duplicate reminder is possible). A failed delivery (network error or a non-success reply) does not use up the deduplication slot, so the same approval is still delivered if it is published again later. For pending content the `id` includes the submitted revision number, so content that is edited and sent to manual review again is notified as a new approval.
 
+Appeal approvals have `kind` set to `appeal`; `appealId` is the appeal number, and `edited` is `true` when the rejected revision edits already published content. To protect the author, the appeal payload only carries the IDs, target type, categories, and action links. It never includes the rejected title or body, the author’s identity, or the author’s explanation; those appear only on the confirmation page and in the moderator workspace.
+
 Manual review approvals carry three more fields: `reason` is `sensitive_word` (a sensitive word matched) or `ai` (AI review was uncertain or failed); `version` is the submitted revision number; `edited` is `true` when the revision edits already published content, and the title and excerpt come from the submitted revision.
 
 ### Channel types
@@ -214,6 +217,7 @@ Action links in cards and approval payloads point to the on-site confirmation pa
 - Opening the link requires signing in. The confirmation page first shows the target and its current state read-only; the action runs only after the moderator clicks the action button (such as "Approve" or "Block").
 - On execution, moderator permissions and category scope are re-checked for the signed-in account, the same commands as the moderator workspace are reused, and the moderation log records the real actor.
 - Content already handled by someone else is not handled again; actions are bound to the revision in the notification, so nothing runs if the author edits the content after the notification, and the page points to the workspace for the latest version.
+- Approving an appeal publishes the rejected revision; rejecting one requires a reason on the confirmation page, and the author sees it. The page shows the original reason and the author’s explanation side by side. Moderators never see appeals on their own content, and nothing runs if the content changed after the appeal.
 - The confirmation page is not cached, sends no Referer, and its token is not written to access logs.
 
 ### Failure protection

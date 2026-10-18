@@ -542,7 +542,25 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                               final (
                                 String symbol,
                                 GfNotificationTone tone,
-                              ) = switch (notificationEvent(n)) {
+                              ) = switch (notificationAppeal(n).isNotEmpty
+                                  ? notificationAppeal(n)
+                                  : notificationEvent(n)) {
+                                'appealSubmitted' => (
+                                  'undo-2',
+                                  GfNotificationTone.info,
+                                ),
+                                'appealApproved' => (
+                                  'circle-check',
+                                  GfNotificationTone.success,
+                                ),
+                                'appealRejected' => (
+                                  'circle-alert',
+                                  GfNotificationTone.warning,
+                                ),
+                                'appealStale' => (
+                                  'circle',
+                                  GfNotificationTone.info,
+                                ),
                                 'like' => (
                                   'heart-filled',
                                   GfNotificationTone.like,

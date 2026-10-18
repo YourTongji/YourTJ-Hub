@@ -62,6 +62,9 @@ contentAppeals:
       revision is eligible; pending, normal, deleted or superseded content is refused.
       Wiki first posts are excluded. Each revision permits exactly one durable appeal.
       The submission explanation and safe receipt commit together; duplicate requests fail.
+      Failures use content.appeal.reasonInvalid, content.appeal.duplicate, content.appeal.ineligible
+      (superseded, deleted, or the reply's topic is not public), content.appeal.frozen, or
+      content.appeal.notFound so clients can tell the author what to do next.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -164,6 +167,9 @@ moderationAppealAction:
       The decision, receipt, search task and publication effects commit atomically.
       Superseded or deleted targets cannot be restored by an appeal; stale appeals
       are retained as audit records. Final decisions cannot be processed twice.
+      Failures use moderation.appeal.reasonRequired, moderation.appeal.stale (marked stale and
+      the author notified), moderation.appeal.authorFrozen, moderation.appeal.processed, or
+      moderation.appeal.notFound (missing or outside the reviewer's scope).
     security:
       - bearerAuth: []
       - accessTokenCookie: []

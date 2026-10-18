@@ -412,6 +412,16 @@ func buildPushContent(notification eventNotification.Entity, lang string) *pushC
 	if notification.HasDirectMention || notification.Payload.HasDirectMention {
 		eventType = eventNotification.EventTypeMention
 	}
+	if text, ok := appealCopy(lang, notification.Payload.TemplateKey); ok {
+		// 申诉结论：通过直达已公开的内容，其余回到内容管理查看说明。
+		url := "/settings?tab=content"
+		if eventType == eventNotification.EventTypeReviewApproved {
+			if topic := topicURL(notification.Payload); topic != "" {
+				url = topic
+			}
+		}
+		return &pushContent{Title: truncateTitle(text[0]), Body: text[1], URL: url, Icon: pushIconPath, Id: notification.Id, GenericTitle: genericTitle(lang)}
+	}
 	body := bodyText(lang, eventType)
 	if body == "" {
 		return nil

@@ -23,6 +23,9 @@ import (
 
 type ModerationAppealSubmittedEvent struct{ AppealID uint64 }
 
+// moderationAppealsURL 申诉复核在版主工作台的入口。
+const moderationAppealsURL = "/moderation?tab=appeals"
+
 func handleHttpNotifyAppealSubmitted(ctx context.Context, event *ModerationAppealSubmittedEvent) error {
 	if !httpnotifyservice.ShouldNotify(httpnotifyservice.EventAppealSubmitted) {
 		return nil
@@ -42,12 +45,16 @@ func handleHttpNotifyAppealSubmitted(ctx context.Context, event *ModerationAppea
 	if topic.Id == 0 {
 		return nil
 	}
+	// 只发安全引用：被拒正文与标题、作者身份和申诉说明都留在站内确认页（MADR 0098）。
 	kind, targetID := ReviewSubject(topic, post)
 	approval := httpnotifyservice.ApprovalPayload{BaseURI: baseURI(), Approval: httpnotifyservice.Approval{
 		ID: "appeal:" + strconv.FormatUint(appeal.Id, 10), Kind: httpnotifyservice.ApprovalKindAppeal,
-		TargetType: kind, TargetID: targetID, TopicID: topic.Id, CreatedAt: appeal.CreatedAt.Format(time.RFC3339),
-		ModerationURL: "/moderation?tab=appeals",
+		TargetType: kind, TargetID: targetID, AppealID: appeal.Id, TopicID: topic.Id,
+		Categories: approvalCategories(topic.CategoryIds), Edited: post.PublishedRevisionId != 0,
+		CreatedAt: appeal.CreatedAt.Format(time.RFC3339), ModerationURL: moderationAppealsURL,
 	}}
+	approval.Approval.Actions = approvalActions(tokenservice.ModerationActionSubjectAppeal, appeal.Id, "", time.Now(),
+		httpnotifyservice.ApprovalActionApprove, httpnotifyservice.ApprovalActionReject)
 	httpnotifyservice.Publish(httpnotifyservice.Message{
 		Alternatives: []httpnotifyservice.Alternative{{Event: httpnotifyservice.EventAppealSubmitted, Data: approval}},
 		Approval:     &approval, DedupeKey: approval.Approval.ID,

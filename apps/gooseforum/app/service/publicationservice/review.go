@@ -159,7 +159,7 @@ func review(ctx context.Context, revisionID uint64, action, reason string, actor
 				return err
 			}
 			if appeal.PostId != post.Id || appeal.RevisionId != revisionID || appeal.Status != moderationAppeals.Pending {
-				return ErrUnavailable
+				return ErrAppealProcessed
 			}
 			allowed, err := canReviewAppealTx(tx, actorID, topic, post, revision)
 			if err != nil {
@@ -181,8 +181,8 @@ func review(ctx context.Context, revisionID uint64, action, reason string, actor
 				if err := tx.Model(&appeal).Updates(map[string]any{"status": moderationAppeals.Stale, "reviewed_at": time.Now(), "review_actor_id": actorID}).Error; err != nil {
 					return err
 				}
-				// 作者仍需得知结论：失效的申诉同样发一条结果通知。
-				return enqueueReviewNotice(tx, revision, topic, post, eventNotification.EventTypeReviewRejected, Effect{RevisionId: revisionID, NotificationOnly: true})
+				// 作者仍需得知结论：失效的申诉同样发一条结果通知（独立模板，不与“被驳回”混淆）。
+				return enqueueReviewNotice(tx, revision, topic, post, eventNotification.EventTypeReviewRejected, eventNotification.TemplateAppealStale, Effect{RevisionId: revisionID, NotificationOnly: true})
 			}
 			if action == moderationDecision.ActionAllow {
 				author, err := users.GetInteractionUserTx(tx, post.UserId)
@@ -190,14 +190,14 @@ func review(ctx context.Context, revisionID uint64, action, reason string, actor
 					return err
 				}
 				if author.IsFrozen == users.StatusFrozen {
-					return ErrUnavailable
+					return ErrAppealAuthorFrozen
 				}
 			}
 			if action == moderationDecision.ActionBlock {
 				if err := decideAppealTx(tx, appealID, actorID, false, reason); err != nil {
 					return err
 				}
-				return enqueueReviewNotice(tx, revision, topic, post, eventNotification.EventTypeReviewRejected, Effect{RevisionId: revisionID, NotificationOnly: true})
+				return enqueueReviewNotice(tx, revision, topic, post, eventNotification.EventTypeReviewRejected, eventNotification.TemplateAppealRejected, Effect{RevisionId: revisionID, NotificationOnly: true})
 			}
 		}
 		expectedStatus := posts.ProcessStatusPending
@@ -225,7 +225,7 @@ func review(ctx context.Context, revisionID uint64, action, reason string, actor
 			if err := tx.Model(&revision).Updates(map[string]any{"review_reason": reason, "reviewed_at": time.Now()}).Error; err != nil {
 				return err
 			}
-			return enqueueReviewNotice(tx, revision, topic, post, eventNotification.EventTypeReviewPending, Effect{RevisionId: revisionID, NotificationOnly: true, ReviewRequested: true})
+			return enqueueReviewNotice(tx, revision, topic, post, eventNotification.EventTypeReviewPending, "", Effect{RevisionId: revisionID, NotificationOnly: true, ReviewRequested: true})
 		}
 		if actorID == 0 && revision.ReviewedAt != nil {
 			return ErrUnavailable
@@ -390,10 +390,14 @@ func review(ctx context.Context, revisionID uint64, action, reason string, actor
 		}
 		if action == moderationDecision.ActionBlock {
 			effect.NotificationOnly = true
-			return enqueueReviewNotice(tx, revision, topic, post, eventNotification.EventTypeReviewRejected, effect)
+			return enqueueReviewNotice(tx, revision, topic, post, eventNotification.EventTypeReviewRejected, "", effect)
 		}
 		if actorID != 0 {
-			return enqueueReviewNotice(tx, revision, topic, post, eventNotification.EventTypeReviewApproved, effect)
+			template := ""
+			if appealID != 0 {
+				template = eventNotification.TemplateAppealApproved
+			}
+			return enqueueReviewNotice(tx, revision, topic, post, eventNotification.EventTypeReviewApproved, template, effect)
 		}
 		return enqueueEffect(tx, effect)
 	})
@@ -405,14 +409,16 @@ func review(ctx context.Context, revisionID uint64, action, reason string, actor
 		realtimeservice.DefaultHub.Publish(post.UserId, realtimeservice.Event{Type: realtimeservice.EventNotificationsChanged})
 	}
 	if stale && err == nil {
-		return ErrUnavailable
+		return ErrAppealStale
 	}
 	return err
 }
 
 // Notifications contain a safe subject snapshot; rejection reasons and full
 // candidates remain in content management, not notification or push payloads.
-func enqueueReviewNotice(tx *gorm.DB, revision postRevisions.Entity, topic topics.Entity, post posts.Entity, eventType string, effect Effect) error {
+// enqueueReviewNotice writes one review result notice; a non-empty template
+// overrides the default copy (appeal outcomes) without adding event types.
+func enqueueReviewNotice(tx *gorm.DB, revision postRevisions.Entity, topic topics.Entity, post posts.Entity, eventType, templateKey string, effect Effect) error {
 	template := eventNotification.TemplateReviewPending
 	if eventType == eventNotification.EventTypeReviewApproved {
 		template = eventNotification.TemplateReviewApproved
@@ -429,6 +435,9 @@ func enqueueReviewNotice(tx *gorm.DB, revision postRevisions.Entity, topic topic
 	if eventType == eventNotification.EventTypeReviewRejected {
 		payload.TemplateKey = eventNotification.TemplateReviewRejected
 		payload = eventNotification.RedactReviewRejectedPayload(payload)
+	}
+	if templateKey != "" {
+		payload.TemplateKey = templateKey
 	}
 	notice := eventNotification.Entity{UserId: post.UserId, TopicID: topic.Id, EventType: eventType, Payload: payload}
 	if err := tx.Create(&notice).Error; err != nil {

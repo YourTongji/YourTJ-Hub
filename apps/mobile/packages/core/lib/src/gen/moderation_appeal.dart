@@ -19,6 +19,7 @@ class ModerationAppealItem {
     required this.content,
     required this.images,
     required this.reason,
+    this.originalReviewReason = '',
     required this.status,
     required this.reviewReason,
     required this.createdAt,
@@ -35,6 +36,9 @@ class ModerationAppealItem {
   final String content;
   final List<String> images;
   final String reason;
+
+  /// 被申诉的原审核说明，供复核时对照。
+  final String originalReviewReason;
 
   /// pending / approved / rejected / stale（stale 由服务端按内容现状计算）。
   final String status;
@@ -54,7 +58,35 @@ class ModerationAppealItem {
         content: json['content'] as String? ?? '',
         images: (json['images'] as List? ?? []).cast<String>(),
         reason: json['reason'] as String? ?? '',
+        originalReviewReason: json['originalReviewReason'] as String? ?? '',
         status: json['status'] as String,
+        reviewReason: json['reviewReason'] as String? ?? '',
+        createdAt: json['createdAt'] as String? ?? '',
+        reviewedAt: json['reviewedAt'] as String?,
+      );
+}
+
+/// 内容管理列表里最新版本的申诉概况（`MyContentItem.appeal`，ModerationAppealOwnerSummary）。
+class ModerationAppealOwnerSummary {
+  const ModerationAppealOwnerSummary({
+    required this.status,
+    required this.reason,
+    this.reviewReason = '',
+    this.createdAt = '',
+    this.reviewedAt,
+  });
+
+  /// pending / approved / rejected / stale。
+  final String status;
+  final String reason;
+  final String reviewReason;
+  final String createdAt;
+  final String? reviewedAt;
+
+  factory ModerationAppealOwnerSummary.fromJson(Map<String, dynamic> json) =>
+      ModerationAppealOwnerSummary(
+        status: json['status'] as String,
+        reason: json['reason'] as String? ?? '',
         reviewReason: json['reviewReason'] as String? ?? '',
         createdAt: json['createdAt'] as String? ?? '',
         reviewedAt: json['reviewedAt'] as String?,

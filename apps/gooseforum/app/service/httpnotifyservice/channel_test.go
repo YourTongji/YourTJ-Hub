@@ -39,17 +39,37 @@ func TestAppealSupportedByAllNotificationChannels(t *testing.T) {
 	if !IsApprovalEvent(EventAppealSubmitted) {
 		t.Fatal("appeal is not an approval event")
 	}
-	payload := ApprovalPayload{BaseURI: "https://hub.example.test", Approval: Approval{ID: "appeal:1", Kind: ApprovalKindAppeal, TargetType: "topic", TargetID: 2, ModerationURL: "/moderation?tab=appeals"}}
-	if got := astrbotApprovalText(payload, false); !strings.Contains(got, "新申诉") || !strings.Contains(got, "/moderation?tab=appeals") {
-		t.Fatalf("astrbot appeal: %s", got)
-	}
+	payload := ApprovalPayload{BaseURI: "https://hub.example.test", Approval: Approval{
+		ID: "appeal:5", Kind: ApprovalKindAppeal, TargetType: "topic", TargetID: 2, AppealID: 5, Edited: true,
+		Categories: []string{"校园生活"}, CreatedAt: "2026-10-18T08:00:00Z", ModerationURL: "/moderation?tab=appeals",
+		Actions: []ApprovalAction{
+			{Action: ApprovalActionApprove, URL: "/moderation/action?token=approve"},
+			{Action: ApprovalActionReject, URL: "/moderation/action?token=reject"},
+		},
+	}}
+	want := []string{"新申诉 · 话题", "申诉 #5 · 话题 #2", "通过申诉并公开", "驳回申诉", appealPrivacyNote,
+		"https://hub.example.test/moderation/action?token=approve", "https://hub.example.test/moderation/action?token=reject", "https://hub.example.test/moderation?tab=appeals"}
+	text := astrbotApprovalText(payload, false)
 	card := feishuCard(payload, false)
 	body, err := json.Marshal(card)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(body), "新申诉") || !strings.Contains(string(body), "/moderation?tab=appeals") {
-		t.Fatalf("feishu appeal: %s", body)
+	for _, fragment := range want {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("astrbot appeal missing %q: %s", fragment, text)
+		}
+		if !strings.Contains(string(body), fragment) {
+			t.Fatalf("feishu appeal missing %q: %s", fragment, body)
+		}
+	}
+	// 申诉用蓝色标题栏与反馈图标，与待审（橙）、举报（红）区分；按钮沿用通过/拒绝样式。
+	header := card["header"].(map[string]any)
+	if header["template"] != "blue" || header["icon"].(map[string]any)["token"] != "feedback_outlined" {
+		t.Fatalf("feishu appeal header = %+v", header)
+	}
+	if !strings.Contains(string(body), `"primary_filled"`) || !strings.Contains(string(body), `"danger"`) || !strings.Contains(string(body), "编辑后") {
+		t.Fatalf("feishu appeal styling: %s", body)
 	}
 }
 

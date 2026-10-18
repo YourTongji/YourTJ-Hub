@@ -283,3 +283,30 @@ func TestBuildPushContentReviewResult(t *testing.T) {
 		t.Fatalf("rejected push = %+v", content)
 	}
 }
+
+// 申诉结论按模板出独立文案：通过直达内容，其余回内容管理；驳回/失效不带内容标题。
+func TestBuildPushContentAppealTemplates(t *testing.T) {
+	cases := []struct {
+		eventType, template, wantTitle, wantURL string
+	}{
+		{eventNotification.EventTypeReviewPending, eventNotification.TemplateAppealSubmitted, "申诉已提交", "/settings?tab=content"},
+		{eventNotification.EventTypeReviewApproved, eventNotification.TemplateAppealApproved, "申诉通过，内容已公开", urlconfig.PostDetail(1001)},
+		{eventNotification.EventTypeReviewRejected, eventNotification.TemplateAppealRejected, "申诉未通过", "/settings?tab=content"},
+		{eventNotification.EventTypeReviewRejected, eventNotification.TemplateAppealStale, "申诉已失效", "/settings?tab=content"},
+	}
+	for _, tc := range cases {
+		notification := eventNotification.Entity{Id: 9, EventType: tc.eventType, Payload: eventNotification.NotificationPayload{TemplateKey: tc.template, TopicId: 1001, TopicTitle: "敏******题"}}
+		content := buildPushContent(notification, "zh")
+		if content == nil || content.Title != tc.wantTitle || content.URL != tc.wantURL || content.Body == "" || content.GenericTitle != genericTitle("zh") {
+			t.Fatalf("%s: %+v", tc.template, content)
+		}
+		if strings.Contains(content.Title+content.Body, "敏") {
+			t.Fatalf("%s leaked the subject: %+v", tc.template, content)
+		}
+		for _, lang := range []string{"en", "ja", "de"} {
+			if localized := buildPushContent(notification, lang); localized == nil || localized.Title == content.Title || localized.Body == "" {
+				t.Fatalf("%s missing %s copy", tc.template, lang)
+			}
+		}
+	}
+}

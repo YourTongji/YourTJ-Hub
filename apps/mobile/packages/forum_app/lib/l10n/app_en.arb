@@ -1745,12 +1745,60 @@
   "topicPendingReviewReply": "Under review · Only you and reviewers can see this reply until it’s approved.",
   "contentReviewBlocked": "Not approved",
   "contentReviewRetry": "Edit and resubmit",
-  "contentReviewLive": "Your previous version remains public.",
+  "contentReviewLive": "Your previously published version is still public; this edit isn’t.",
   "contentReviewView": "View content",
   "contentReviewPending": "Under review",
   "notificationReviewPending": "Your post is awaiting manual review",
   "notificationReviewPendingDetail": "We’ll review it soon and notify you of the result. You can view or edit it while you wait.",
-  "notificationReviewRejectedDetail": "This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions.",
+  "notificationReviewRejectedDetail": "This submission won’t be shown publicly. Edit and resubmit it from content management, or appeal if you think the decision was wrong.",
+  "contentReviewReasonLabel": "Reviewer’s reason",
+  "contentReviewSheetTitle": "Review result",
+  "appealAction": "Appeal",
+  "appealFormTitle": "Appeal this decision",
+  "appealFormIntro": "Think the decision was wrong? A moderator will re-check the original post. An appeal doesn’t change your post — to change it, use “Edit and resubmit”.",
+  "appealReasonLabel": "Reason for appeal",
+  "appealReasonPlaceholder": "For example: this quotes the course handout and isn’t aimed at anyone.",
+  "appealOncePerVersion": "Each version can be appealed once.",
+  "appealSubmit": "Submit appeal",
+  "appealSubmitted": "Appeal submitted. We’ll notify you of the decision.",
+  "appealSubmitFailed": "Couldn’t submit the appeal. Check your connection and try again — your reason is still here.",
+  "appealYourReason": "Your reason",
+  "appealReviewerNote": "Moderator’s note",
+  "appealNoReviewerNote": "The moderator didn’t leave a note.",
+  "appealSubmittedAt": "Submitted {time}",
+  "@appealSubmittedAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "appealDecidedAt": "Decided {time}",
+  "@appealDecidedAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "appealStatePendingTitle": "Appeal under review",
+  "appealStatePendingBody": "A moderator will re-check the original post and notify you. If you edit and resubmit before then, this appeal closes.",
+  "appealStateApprovedTitle": "Appeal approved",
+  "appealStateApprovedBody": "Your post is public and everyone can see it.",
+  "appealStateRejectedTitle": "Appeal not approved",
+  "appealStateRejectedBody": "This version can’t be appealed again. Edit and resubmit to start a new review.",
+  "appealStateStaleTitle": "Appeal closed",
+  "appealStateStaleBody": "The post changed or became unavailable before review, so this appeal won’t be decided.",
+  "appealEditWarning": "Editing and resubmitting will close the appeal under review.",
+  "appealEditAnyway": "Edit anyway",
+  "notificationAppealSubmitted": "Appeal submitted — awaiting a moderator",
+  "notificationAppealApproved": "Appeal approved — your post is public",
+  "notificationAppealRejected": "Appeal not approved",
+  "notificationAppealStale": "Appeal closed",
+  "notificationAppealSubmittedDetail": "We’ll notify you of the decision. Editing and resubmitting before then closes the appeal.",
+  "notificationAppealApprovedDetail": "Everyone can see it now.",
+  "notificationAppealRejectedDetail": "See the moderator’s note in content management. You can edit and resubmit.",
+  "notificationAppealStaleDetail": "The post changed or became unavailable before review, so this appeal won’t be decided.",
   "anonymousIdentity": "Anonymous identity",
   "anonymousBoundary": "Each account has one anonymous identity, and a confirmed name can't change for a year. It can't sign in, send messages or follow people. Likes and votes still count once per account, whichever identity you use.",
   "anonymousRetry": "Try again",

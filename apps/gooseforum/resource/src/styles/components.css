@@ -821,6 +821,16 @@
     @apply bg-error/10 text-error;
   }
 
+  /* 图片描边：浅色主题纯黑 10%，深色主题纯白 10%（跟随 data-theme，不跟系统偏好）。 */
+  .gf-image-outline {
+    outline: 1px solid oklch(0 0 0 / 0.1);
+    outline-offset: -1px;
+  }
+
+  [data-theme="gf-dark"] .gf-image-outline {
+    outline-color: oklch(1 0 0 / 0.1);
+  }
+
   .gf-status-message {
     @apply rounded-md px-3 py-2 text-sm font-medium;
   }

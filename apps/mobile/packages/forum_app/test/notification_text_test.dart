@@ -245,6 +245,66 @@ void main() {
     },
   );
 
+  test('appeal outcomes have their own wording and destination (#1114)', () {
+    NotificationPayload appeal(String event, String template) =>
+        NotificationPayload(
+          id: 9,
+          eventType: event,
+          isRead: false,
+          createdAt: '',
+          title: '',
+          content: '',
+          actor: const NotificationActorPayload(id: 0, username: ''),
+          payload: NotificationInnerPayload(
+            actorId: 0,
+            topicId: 42,
+            topicTitle: 'S******t',
+            templateKey: 'notifications.templates.$template',
+          ),
+        );
+    final cases =
+        <(String, String, String Function(AppLocalizations), String?)>[
+          (
+            'review_pending',
+            'appealSubmitted',
+            (l) => l.notificationAppealSubmitted,
+            '/my-content',
+          ),
+          (
+            'review_approved',
+            'appealApproved',
+            (l) => l.notificationAppealApproved,
+            '/p/42',
+          ),
+          (
+            'review_rejected',
+            'appealRejected',
+            (l) => l.notificationAppealRejected,
+            '/my-content',
+          ),
+          (
+            'review_rejected',
+            'appealStale',
+            (l) => l.notificationAppealStale,
+            '/my-content',
+          ),
+        ];
+    for (final l10n in <AppLocalizations>[
+      AppLocalizationsEn(),
+      AppLocalizationsZh(),
+      AppLocalizationsJa(),
+      AppLocalizationsDe(),
+    ]) {
+      for (final (event, template, title, target) in cases) {
+        final item = appeal(event, template);
+        final (heading, detail) = notificationText(item, l10n);
+        expect(heading, title(l10n));
+        expect(heading, isNot(l10n.notificationReviewRejected));
+        expect(detail, startsWith('S******t\n'));
+        expect(notificationTarget(item), target);
+      }
+    }
+  });
   test('all Web template keys resolve in both supported locales', () {
     for (final l10n in [AppLocalizationsEn(), AppLocalizationsZh()]) {
       for (final key in [

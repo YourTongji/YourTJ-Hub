@@ -13,7 +13,9 @@
         "revisionId": 0,
         "hasPublishedVersion": true,
         "images": [],
-        "content": "Contract reply content"
+        "content": "Contract reply content",
+        "canAppeal": false,
+        "appeal": null
       }
     ],
     "hasMore": false,

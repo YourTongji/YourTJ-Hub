@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"time"
@@ -8,13 +9,16 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationAppeals"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/reports"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/httpnotifyservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/tokenservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
+	"gorm.io/gorm"
 )
 
 // 版主快捷审批确认页（issue #1049）：通知卡片按钮携带签名 token 打开 /moderation/action，
@@ -31,8 +35,10 @@ const (
 const approvalActionExcerptRunes = 200
 
 // ModerationApprovalActionReq 确认页请求：token 放在 POST body，不进入访问日志。
+// Reason 只用于申诉复核：驳回必填，作者会看到；其他动作忽略。
 type ModerationApprovalActionReq struct {
-	Token string `json:"token" validate:"required,max=2048"`
+	Token  string `json:"token" validate:"required,max=2048"`
+	Reason string `json:"reason" validate:"max=2048"`
 }
 
 // ModerationApprovalActionView 确认页视图：无权限、token 无效或过期时不含目标内容。
@@ -49,6 +55,9 @@ type ModerationApprovalActionView struct {
 	TargetURL    string `json:"targetUrl,omitempty"`
 	WorkbenchURL string `json:"workbenchUrl"`
 	ExpiresAt    string `json:"expiresAt,omitempty"`
+	// 申诉复核才有：原审核理由与作者的申诉说明只在站内确认页展示，不进入外部通知。
+	OriginalReason string `json:"originalReason,omitempty"`
+	AppealReason   string `json:"appealReason,omitempty"`
 }
 
 // ModerationApprovalActionPreview 只读预览：校验签名与有效期、复核权限与当前状态。
@@ -88,6 +97,21 @@ func ModerationApprovalActionExecute(req component.BetterRequest[ModerationAppro
 		}
 	case tokenservice.ModerationActionSubjectReport:
 		view.State = forum.ApplyReportQuickAction(ctx, req.UserId, claims.ID, claims.Action)
+	case tokenservice.ModerationActionSubjectAppeal:
+		err := publicationservice.ReviewAppeal(ctx, claims.ID, req.UserId, claims.Action == httpnotifyservice.ApprovalActionApprove, req.Params.Reason)
+		switch {
+		case err == nil:
+			view.State = forum.QuickActionDone
+		case errors.Is(err, publicationservice.ErrAppealProcessed):
+			view.State = forum.QuickActionProcessed
+		case errors.Is(err, publicationservice.ErrAppealStale):
+			view.State = approvalActionChanged
+		case errors.Is(err, publicationservice.ErrAppealPermission):
+			view.State = forum.QuickActionForbidden
+		default:
+			// 缺少驳回理由、作者已被封禁等：保持 ready，由页面展示原因后让版主调整。
+			return reviewAppealFailure(err)
+		}
 	default:
 		view.State = forum.QuickActionInvalid
 	}
@@ -114,6 +138,8 @@ func inspectApprovalAction(userID uint64, token string) (ModerationApprovalActio
 	switch claims.Subject {
 	case tokenservice.ModerationActionSubjectReviewTopic, tokenservice.ModerationActionSubjectReviewPost:
 		view.State = inspectReviewApprovalAction(userID, claims, &view)
+	case tokenservice.ModerationActionSubjectAppeal:
+		view.State = inspectAppealApprovalAction(userID, claims, &view)
 	case tokenservice.ModerationActionSubjectReport:
 		preview, state := forum.InspectReportQuickAction(userID, claims.ID, claims.Action)
 		view.State = state
@@ -196,6 +222,49 @@ func inspectReviewApprovalAction(userID uint64, claims tokenservice.ModerationAc
 	return forum.QuickActionReady
 }
 
+// inspectAppealApprovalAction 申诉复核：范围、本人内容与状态判定都复用申诉队列口径；
+// 分区版主对“不存在”和“不在范围内”得到同一结果。预览展示被拒版本与双方理由。
+func inspectAppealApprovalAction(userID uint64, claims tokenservice.ModerationActionClaims, view *ModerationApprovalActionView) string {
+	if claims.Action != httpnotifyservice.ApprovalActionApprove && claims.Action != httpnotifyservice.ApprovalActionReject {
+		return forum.QuickActionInvalid
+	}
+	global, _, ok := moderationReviewScope(userID)
+	if !ok {
+		return forum.QuickActionForbidden
+	}
+	item, err := publicationservice.AppealForReviewer(context.Background(), userID, claims.ID)
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		if !global {
+			return forum.QuickActionForbidden
+		}
+		return forum.QuickActionNotFound
+	case errors.Is(err, publicationservice.ErrAppealPermission):
+		return forum.QuickActionForbidden
+	case errors.Is(err, publicationservice.ErrAppealStale):
+		return approvalActionChanged
+	case err != nil:
+		return forum.QuickActionFailed
+	}
+	view.TargetType = item.Kind
+	view.TargetID = item.TargetId
+	view.Title = item.Title
+	view.Excerpt = httpnotifyservice.SafeText(markdown2html.ExtractDescription(item.Content, approvalActionExcerptRunes), approvalActionExcerptRunes)
+	view.OriginalReason = item.OriginalReviewReason
+	view.AppealReason = item.Reason
+	if item.Kind == reports.TargetPost {
+		view.TargetURL = urlconfig.PostDetail(item.TopicId) + "#post-" + strconv.FormatUint(item.TargetId, 10)
+	}
+	switch item.Status {
+	case moderationAppeals.Pending:
+		return forum.QuickActionReady
+	case moderationAppeals.Stale:
+		return approvalActionChanged
+	default:
+		return forum.QuickActionProcessed
+	}
+}
+
 func reviewKindForSubject(subject string) string {
 	if subject == tokenservice.ModerationActionSubjectReviewPost {
 		return "post"
@@ -213,6 +282,8 @@ func approvalWorkbenchURL(subject string, targetType string) string {
 		return "/moderation?tab=reports"
 	case subject == tokenservice.ModerationActionSubjectReviewTopic, subject == tokenservice.ModerationActionSubjectReviewPost:
 		return "/moderation?tab=review"
+	case subject == tokenservice.ModerationActionSubjectAppeal:
+		return "/moderation?tab=appeals"
 	default:
 		return "/moderation"
 	}

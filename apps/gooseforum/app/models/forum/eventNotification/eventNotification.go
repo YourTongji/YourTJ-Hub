@@ -37,7 +37,22 @@ const (
 	TemplateReviewPending  = "notifications.templates.reviewPending"
 	TemplateReviewApproved = "notifications.templates.reviewApproved"
 	TemplateReviewRejected = "notifications.templates.reviewRejected"
+	// 审核申诉（#1114）复用三种审核事件类型，只用模板区分文案：
+	// 受理回执走 review_pending，通过走 review_approved，驳回与失效走 review_rejected（同样脱敏）。
+	TemplateAppealSubmitted = "notifications.templates.appealSubmitted"
+	TemplateAppealApproved  = "notifications.templates.appealApproved"
+	TemplateAppealRejected  = "notifications.templates.appealRejected"
+	TemplateAppealStale     = "notifications.templates.appealStale"
 )
+
+// IsAppealTemplate reports whether a review notification concerns an appeal outcome.
+func IsAppealTemplate(key string) bool {
+	switch key {
+	case TemplateAppealSubmitted, TemplateAppealApproved, TemplateAppealRejected, TemplateAppealStale:
+		return true
+	}
+	return false
+}
 
 // Future unread-scope design:
 //

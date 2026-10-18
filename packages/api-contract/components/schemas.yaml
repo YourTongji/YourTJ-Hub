@@ -8684,6 +8684,13 @@ ModerationApprovalActionRequest:
       type: string
       maxLength: 2048
       description: Signed quick-action token from the `token` query parameter of a notification button link (`/moderation/action?token=…`).
+    reason:
+      type: string
+      maxLength: 2048
+      description: |
+        Appeal decisions only (`subject=appeal`): the reviewer's explanation shown to the author,
+        at most 512 characters. Required to reject an appeal; optional when approving; ignored for
+        other subjects and by the preview.
   additionalProperties: false
 
 ModerationApprovalActionView:
@@ -8692,7 +8699,8 @@ ModerationApprovalActionView:
   description: |
     Quick-action confirmation view (issue #1049). Target content (`title`, `excerpt`, `targetUrl`)
     is only present when the signed-in caller may moderate the target; anonymous targets only
-    expose the `anonymous` marker, never the author.
+    expose the `anonymous` marker, never the author. Appeals (`subject=appeal`) describe the
+    rejected revision plus `originalReason` and `appealReason`, never the author's identity.
   properties:
     state:
       type: string
@@ -8706,7 +8714,7 @@ ModerationApprovalActionView:
         applied.
     subject:
       type: string
-      enum: [review.topic, review.post, report]
+      enum: [review.topic, review.post, report, appeal]
     action:
       type: string
       enum: [approve, reject, ban, hide, dismiss]
@@ -8734,6 +8742,12 @@ ModerationApprovalActionView:
       type: string
       format: date-time
       description: Link expiry (UTC, RFC 3339).
+    originalReason:
+      type: string
+      description: Appeals only — the rejection being appealed. Shown on the confirmation page, never in external notifications.
+    appealReason:
+      type: string
+      description: Appeals only — the author's explanation. Shown on the confirmation page, never in external notifications.
   additionalProperties: false
 
 ModerationApprovalActionResponse:
@@ -9982,6 +9996,14 @@ MyContentItem:
     hasPublishedVersion:
       type: boolean
       description: An approved version remains publicly readable while the submitted edit is pending or rejected.
+    canAppeal:
+      type: boolean
+      description: True when the latest rejected revision can still be appealed by this author (same rules as submitContentAppeal).
+    appeal:
+      description: Appeal filed for the latest revision, or null. Pending appeals whose target changed are reported as stale.
+      oneOf:
+        - $ref: '#/ModerationAppealOwnerSummary'
+        - type: 'null'
     content:
       type: string
       description: Complete latest submitted Markdown for the authenticated author, including rejected content.
@@ -12625,7 +12647,7 @@ AdminStatsUserDetailResponse:
 
 ModerationAppealItem:
   type: object
-  required: [id, kind, targetId, revisionId, topicId, postNo, title, content, images, reason, status, reviewReason, createdAt, reviewedAt]
+  required: [id, kind, targetId, revisionId, topicId, postNo, title, content, images, reason, originalReviewReason, status, reviewReason, createdAt, reviewedAt]
   properties:
     id:
       type: integer
@@ -12654,9 +12676,31 @@ ModerationAppealItem:
         type: string
     reason:
       type: string
+    originalReviewReason:
+      type: string
+      description: The rejection reason being appealed.
     status:
       type: string
       enum: [pending, approved, rejected, stale]
+    reviewReason:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+    reviewedAt:
+      type: [string, 'null']
+      format: date-time
+  additionalProperties: false
+
+ModerationAppealOwnerSummary:
+  type: object
+  required: [status, reason, reviewReason, createdAt, reviewedAt]
+  properties:
+    status:
+      type: string
+      enum: [pending, approved, rejected, stale]
+    reason:
+      type: string
     reviewReason:
       type: string
     createdAt:

@@ -30,15 +30,36 @@ type AppealActionReq struct {
 	Reason  string `json:"reason" validate:"max=512"`
 }
 
-func appealFailure(err error) component.Response {
-	if errors.Is(err, publicationservice.ErrAppealReason) {
-		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+// submitAppealFailure tells the author what happened and what to do next.
+func submitAppealFailure(err error) component.Response {
+	switch {
+	case errors.Is(err, publicationservice.ErrAppealReason):
+		return component.FailResponseCode(component.MessageContentAppealReasonInvalid, nil)
+	case errors.Is(err, publicationservice.ErrAppealFrozen):
+		return component.FailResponseCode(component.MessageContentAppealFrozen, nil)
+	case errors.Is(err, publicationservice.ErrAppealDuplicate), errors.Is(err, gorm.ErrDuplicatedKey):
+		return component.FailResponseCode(component.MessageContentAppealDuplicate, nil)
+	case errors.Is(err, publicationservice.ErrAppealPermission), errors.Is(err, gorm.ErrRecordNotFound):
+		return component.FailResponseCode(component.MessageContentAppealNotFound, nil)
+	case errors.Is(err, publicationservice.ErrUnavailable):
+		return component.FailResponseCode(component.MessageContentAppealIneligible, nil)
 	}
-	if errors.Is(err, publicationservice.ErrAppealPermission) || errors.Is(err, gorm.ErrRecordNotFound) {
-		return component.FailResponseCode(component.MessageAdminReviewNotFound, nil)
-	}
-	if errors.Is(err, publicationservice.ErrUnavailable) || errors.Is(err, gorm.ErrDuplicatedKey) {
-		return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+	return component.FailResponseCode(component.MessageOperationFailed, nil)
+}
+
+// reviewAppealFailure tells the reviewer why the decision did not apply.
+func reviewAppealFailure(err error) component.Response {
+	switch {
+	case errors.Is(err, publicationservice.ErrAppealReason):
+		return component.FailResponseCode(component.MessageModerationAppealReason, nil)
+	case errors.Is(err, publicationservice.ErrAppealStale):
+		return component.FailResponseCode(component.MessageModerationAppealStale, nil)
+	case errors.Is(err, publicationservice.ErrAppealAuthorFrozen):
+		return component.FailResponseCode(component.MessageModerationAppealAuthorFrozen, nil)
+	case errors.Is(err, publicationservice.ErrAppealPermission), errors.Is(err, gorm.ErrRecordNotFound):
+		return component.FailResponseCode(component.MessageModerationAppealNotFound, nil)
+	case errors.Is(err, publicationservice.ErrUnavailable):
+		return component.FailResponseCode(component.MessageModerationAppealProcessed, nil)
 	}
 	return component.FailResponseCode(component.MessageOperationFailed, nil)
 }
@@ -48,7 +69,7 @@ func SubmitContentAppeal(req component.BetterRequest[SubmitAppealReq]) component
 	}
 	appeal, err := publicationservice.SubmitAppeal(requestContext(req.GinContext), req.UserId, req.Params.Kind, req.Params.Id, req.Params.RevisionId, req.Params.Reason)
 	if err != nil {
-		return appealFailure(err)
+		return submitAppealFailure(err)
 	}
 	return component.SuccessResponse(appeal)
 }
@@ -58,7 +79,7 @@ func ContentAppeals(req component.BetterRequest[OwnerAppealsReq]) component.Resp
 	}
 	items, err := publicationservice.OwnerAppeals(requestContext(req.GinContext), req.UserId, req.Params.Kind, req.Params.Id)
 	if err != nil {
-		return appealFailure(err)
+		return submitAppealFailure(err)
 	}
 	return component.SuccessResponse(component.DataMap{"items": items})
 }
@@ -81,7 +102,7 @@ func ModerationAppeals(req component.BetterRequest[ModerationAppealsReq]) compon
 	}
 	items, total, err := publicationservice.ModeratorAppeals(requestContext(req.GinContext), req.UserId, page, size, status)
 	if err != nil {
-		return appealFailure(err)
+		return reviewAppealFailure(err)
 	}
 	return component.SuccessResponse(component.DataMap{"items": items, "total": total, "page": page, "pageSize": size})
 }
@@ -93,7 +114,7 @@ func ModerationAppealAction(req component.BetterRequest[AppealActionReq]) compon
 		req.GinContext.Header("Cache-Control", "no-store")
 	}
 	if err := publicationservice.ReviewAppeal(requestContext(req.GinContext), req.Params.Id, req.UserId, req.Params.Approve, req.Params.Reason); err != nil {
-		return appealFailure(err)
+		return reviewAppealFailure(err)
 	}
 	return component.SuccessResponseCode(true, component.MessageOperationSuccess, nil)
 }

@@ -315,6 +315,17 @@ const (
 	MessageAdminReviewNotFound      MessageCode = "admin.review.notFound"      // 审核对象不存在。
 	MessageAdminReviewProcessed     MessageCode = "admin.review.processed"     // 审核对象已处理。
 	MessageAdminReviewFailed        MessageCode = "admin.review.failed"        // 审核操作失败，params.error 可带原始错误。
+	// 审核申诉（#1114）：作者提交与版主复核分别给出可操作的具体原因。
+	MessageContentAppealReasonInvalid   MessageCode = "content.appeal.reasonInvalid"     // 申诉理由为空或超过 512 字。
+	MessageContentAppealDuplicate       MessageCode = "content.appeal.duplicate"         // 该版本已申诉过。
+	MessageContentAppealIneligible      MessageCode = "content.appeal.ineligible"        // 内容已修改、删除或所在话题未公开，当前不可申诉。
+	MessageContentAppealFrozen          MessageCode = "content.appeal.frozen"            // 账号冻结期间不能申诉。
+	MessageContentAppealNotFound        MessageCode = "content.appeal.notFound"          // 内容不存在或不属于当前用户。
+	MessageModerationAppealReason       MessageCode = "moderation.appeal.reasonRequired" // 驳回申诉须填写理由（不超过 512 字）。
+	MessageModerationAppealProcessed    MessageCode = "moderation.appeal.processed"      // 申诉已有处理结果。
+	MessageModerationAppealStale        MessageCode = "moderation.appeal.stale"          // 作者已修改或删除内容，申诉已失效。
+	MessageModerationAppealAuthorFrozen MessageCode = "moderation.appeal.authorFrozen"   // 作者账号冻结，暂不能恢复公开。
+	MessageModerationAppealNotFound     MessageCode = "moderation.appeal.notFound"       // 申诉不存在或不在管辖范围内。
 	// AI 课程总结（issue #181）：models 列表自动获取
 	MessageAdminAiSummaryModelsFailed        MessageCode = "admin.aiSummary.modelsFailed"        // 拉取模型列表失败，params.error 为固定文案（不携带提供方响应原文，防泄漏）。
 	MessageAdminAiSummaryModelsUnsupported   MessageCode = "admin.aiSummary.modelsUnsupported"   // 提供方未实现 /models 端点，需手动输入模型。

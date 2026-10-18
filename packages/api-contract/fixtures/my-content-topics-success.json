@@ -10,7 +10,9 @@
         "revisionId": 0,
         "hasPublishedVersion": true,
         "images": [],
-        "content": "Topic first post content"
+        "content": "Topic first post content",
+        "canAppeal": false,
+        "appeal": null
       }
     ],
     "hasMore": false,

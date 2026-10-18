@@ -2164,6 +2164,9 @@ export interface paths {
          *     revision is eligible; pending, normal, deleted or superseded content is refused.
          *     Wiki first posts are excluded. Each revision permits exactly one durable appeal.
          *     The submission explanation and safe receipt commit together; duplicate requests fail.
+         *     Failures use content.appeal.reasonInvalid, content.appeal.duplicate, content.appeal.ineligible
+         *     (superseded, deleted, or the reply's topic is not public), content.appeal.frozen, or
+         *     content.appeal.notFound so clients can tell the author what to do next.
          */
         post: operations["submitContentAppeal"];
         delete?: never;
@@ -2212,6 +2215,9 @@ export interface paths {
          *     The decision, receipt, search task and publication effects commit atomically.
          *     Superseded or deleted targets cannot be restored by an appeal; stale appeals
          *     are retained as audit records. Final decisions cannot be processed twice.
+         *     Failures use moderation.appeal.reasonRequired, moderation.appeal.stale (marked stale and
+         *     the author notified), moderation.appeal.authorFrozen, moderation.appeal.processed, or
+         *     moderation.appeal.notFound (missing or outside the reviewer's scope).
          */
         post: operations["moderationAppealAction"];
         delete?: never;
@@ -2296,7 +2302,9 @@ export interface paths {
          *     expired — it never grants authority. The caller's own session is re-authorized with the
          *     workbench permission model (category moderators, CourseManager, Admin), and the target's
          *     current state is re-checked. Unauthorized callers receive `state=forbidden` without any
-         *     target content; stale links for edited pending content return `state=changed`. Never
+         *     target content; stale links for edited pending content return `state=changed`. Appeal
+         *     links (`subject=appeal`) follow the appeal queue's scope rules: reviewers never see appeals
+         *     on their own content, and an appeal whose content changed returns `state=changed`. Never
          *     mutates state. The token travels in the POST body so it never enters access logs.
          */
         post: operations["moderationApprovalActionPreview"];
@@ -2325,7 +2333,10 @@ export interface paths {
          *     `hide` for course reviews, `dismiss`) and close the report with a compare-and-set, so a
          *     repeated or concurrent click never overwrites the first handler. `handler_id` and the
          *     moderation/operation logs record the real signed-in actor. Private-message reports
-         *     never receive quick actions. Requires a writable account.
+         *     never receive quick actions. Appeals reuse the workbench appeal decision: `approve`
+         *     publishes the appealed revision, `reject` requires `reason` (failure
+         *     `moderation.appeal.reasonRequired`; a frozen author yields
+         *     `moderation.appeal.authorFrozen`). Requires a writable account.
          */
         post: operations["moderationApprovalActionExecute"];
         delete?: never;
@@ -12463,6 +12474,8 @@ export interface components {
             content: string;
             images: string[];
             reason: string;
+            /** @description The rejection reason being appealed. */
+            originalReviewReason: string;
             /** @enum {string} */
             status: "pending" | "approved" | "rejected" | "stale";
             reviewReason: string;
@@ -13357,6 +13370,10 @@ export interface components {
             reviewReason?: string;
             /** @description An approved version remains publicly readable while the submitted edit is pending or rejected. */
             hasPublishedVersion: boolean;
+            /** @description True when the latest rejected revision can still be appealed by this author (same rules as submitContentAppeal). */
+            canAppeal?: boolean;
+            /** @description Appeal filed for the latest revision, or null. Pending appeals whose target changed are reported as stale. */
+            appeal?: components["schemas"]["ModerationAppealOwnerSummary"] | null;
             /** @description Complete latest submitted Markdown for the authenticated author, including rejected content. */
             content: string;
             images: string[];
@@ -15060,11 +15077,18 @@ export interface components {
         ModerationApprovalActionRequest: {
             /** @description Signed quick-action token from the `token` query parameter of a notification button link (`/moderation/action?token=…`). */
             token: string;
+            /**
+             * @description Appeal decisions only (`subject=appeal`): the reviewer's explanation shown to the author,
+             *     at most 512 characters. Required to reject an appeal; optional when approving; ignored for
+             *     other subjects and by the preview.
+             */
+            reason?: string;
         };
         /**
          * @description Quick-action confirmation view (issue #1049). Target content (`title`, `excerpt`, `targetUrl`)
          *     is only present when the signed-in caller may moderate the target; anonymous targets only
-         *     expose the `anonymous` marker, never the author.
+         *     expose the `anonymous` marker, never the author. Appeals (`subject=appeal`) describe the
+         *     rejected revision plus `originalReason` and `appealReason`, never the author's identity.
          */
         ModerationApprovalActionView: {
             /**
@@ -15078,7 +15102,7 @@ export interface components {
              */
             state: "ready" | "done" | "processed" | "changed" | "expired" | "invalid" | "forbidden" | "notFound" | "failed";
             /** @enum {string} */
-            subject?: "review.topic" | "review.post" | "report";
+            subject?: "review.topic" | "review.post" | "report" | "appeal";
             /** @enum {string} */
             action?: "approve" | "reject" | "ban" | "hide" | "dismiss";
             /** @enum {string} */
@@ -15098,6 +15122,10 @@ export interface components {
              * @description Link expiry (UTC, RFC 3339).
              */
             expiresAt?: string;
+            /** @description Appeals only — the rejection being appealed. Shown on the confirmation page, never in external notifications. */
+            originalReason?: string;
+            /** @description Appeals only — the author's explanation. Shown on the confirmation page, never in external notifications. */
+            appealReason?: string;
         };
         ModerationApprovalActionResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["ModerationApprovalActionView"];
@@ -15471,6 +15499,16 @@ export interface components {
         MyStickerSaveResponse: components["schemas"]["MyStickerSaveSuccess"] | components["schemas"]["ApiFailure"];
         MyStickerDeleteRequest: {
             name: string;
+        };
+        ModerationAppealOwnerSummary: {
+            /** @enum {string} */
+            status: "pending" | "approved" | "rejected" | "stale";
+            reason: string;
+            reviewReason: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            reviewedAt: string | null;
         };
         CourseBookmarkRequest: {
             /**
