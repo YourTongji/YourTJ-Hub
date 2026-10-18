@@ -1,6 +1,6 @@
 import type { ChartConfig } from "."
 import { isClient } from "@vueuse/core"
-import { h, render, useId } from "vue"
+import { getCurrentInstance, h, render, useId } from "vue"
 
 // Simple cache using a Map to store serialized object keys
 const cache = new Map<string, string>()
@@ -25,6 +25,9 @@ export function componentToString<P>(config: ChartConfig, component: Constructor
 
   // This function will be called once during mount lifecycle
   const id = useId()
+  // Template text is compiled into the globally registered TwemojiText; the detached render
+  // must reuse the app context or that component stays unresolved and the tooltip renders empty.
+  const appContext = getCurrentInstance()?.appContext ?? null
 
   // https://unovis.dev/docs/auxiliary/Crosshair#component-props
   return (_data: any, x: number | Date) => {
@@ -35,6 +38,7 @@ export function componentToString<P>(config: ChartConfig, component: Constructor
       return cachedContent
 
     const vnode = h<unknown>(component, { ...props, payload: data, config, x })
+    vnode.appContext = appContext
     const div = document.createElement("div")
     render(vnode, div)
     cache.set(serializedKey, div.innerHTML)
