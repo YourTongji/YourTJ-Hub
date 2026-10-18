@@ -223,17 +223,6 @@ func GetPublishedBeforeID(beforeID uint64, limit int) (entities []*Entity, err e
 	return
 }
 
-// GetPublished 读取单篇公开主题：与公开列表口径一致，复用规范公开谓词 + 首楼可见，
-// 因此 wiki 页面主题（topic_type=1）不经此入口返回（全量导出口径见 GetPublishedBeforeID）。
-func GetPublished(id uint64) (entity Entity, err error) {
-	err = builder().
-		Where(queryopt.Eq("id", id)).
-		Where(PublicScopePredicate(tableName)).
-		Where(FirstPostVisiblePredicate(tableName)).
-		First(&entity).Error
-	return
-}
-
 // GetPublishedForExport 读取单篇可导出主题（llms 单篇 Markdown 导出入口）：
 // issue #1166 决定恢复 wiki 页面单篇导出，因此用不限制 topic_type 的 ExportScopePredicate，
 // 其余条件与公开口径一致（含首楼可见，首楼被删/未过审时同样不导出）。
@@ -414,7 +403,7 @@ func Page(q PageQuery) struct {
 		// 删除（MODERATOR_REMOVED）的话题一律不进首页/分类/Agent 列表，
 		// 避免删除后仍公开泄露标题与正文摘录。
 		b.Where(queryopt.Eq("visibility_status", VisibilityActive))
-		// 且首楼仍可见（与 GetPublished/GetPublishedBeforeID 口径一致）：首楼被
+		// 且首楼仍可见（与 GetPublishedForExport/GetPublishedBeforeID 口径一致）：首楼被
 		// 删除/擦除后主题无正文，继续展示会产生「有标题无正文」的孤儿条目（issue #492）。
 		b.Where(FirstPostVisiblePredicate(tableName))
 	}
