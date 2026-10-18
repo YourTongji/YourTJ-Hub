@@ -785,34 +785,29 @@ void main() {
       expect(tester.widget<Text>(find.text('3')).style?.color, isNot(primary));
     });
 
-    testWidgets('a category reason echoes the chip dot instead of a glyph', (
+    testWidgets('every reason uses the same glyph mark on the avatar axis', (
       tester,
     ) async {
-      await tester.pumpWidget(
-        card(
-          feedContext: const GfTopicContext(
-            label: 'A category you have posted in',
-            symbol: 'folder',
-            dotColor: Colors.green,
+      for (final symbol in ['user-round-check', 'folder', 'message-circle']) {
+        await tester.pumpWidget(
+          card(
+            feedContext: GfTopicContext(label: 'reason', symbol: symbol),
           ),
-        ),
-      );
-      expect(
-        find.byWidgetPredicate(
-          (widget) => widget is GfSymbol && widget.name == 'folder',
-        ),
-        findsNothing,
-      );
-      expect(
-        find.byWidgetPredicate(
-          (widget) =>
-              widget is Container &&
-              widget.decoration is BoxDecoration &&
-              (widget.decoration! as BoxDecoration).color == Colors.green &&
-              (widget.decoration! as BoxDecoration).shape == BoxShape.circle,
-        ),
-        findsOneWidget,
-      );
+        );
+        final mark = find.byWidgetPredicate(
+          (widget) => widget is GfSymbol && widget.name == symbol,
+        );
+        // The reply metric reuses the reply glyph at its own size.
+        final marks = tester
+            .widgetList<GfSymbol>(mark)
+            .where((widget) => widget.size == 16);
+        expect(marks, hasLength(1), reason: symbol);
+        expect(
+          tester.getCenter(mark.first).dx,
+          closeTo(tester.getCenter(find.byType(GfAvatar)).dx, .5),
+          reason: symbol,
+        );
+      }
     });
   });
 }

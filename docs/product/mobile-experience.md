@@ -50,9 +50,10 @@ measurement](feed-ranking.md) for the shared behavior and retention.
 
 `Current`: a For You reason is a context line inside the topic, not a caption above it. On cards its
 mark sits on the avatar's axis and its label on the author name's edge; list rows lead the title with
-it. Each mark is borrowed from the element that justifies the reason: the following glyph for a
-followed author, the category chip's color dot for a category the reader took part in, and the reply
-glyph for new replies, which also tints the reply count with the accent used for unseen content. The
+it. Each reason uses one muted Outline glyph borrowed from where the app already means it: the
+following glyph for a followed author, the search categories glyph for a category the reader took
+part in, and the reply glyph for new replies, which also tints the reply count with the accent used
+for unseen content. The
 `recent` fallback carries no personal signal and the timestamp already states it, so the app leaves
 it unlabelled while Web keeps its label.
 

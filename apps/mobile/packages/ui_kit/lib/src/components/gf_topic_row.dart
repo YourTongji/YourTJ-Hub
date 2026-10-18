@@ -17,24 +17,20 @@ class GfTopicCategory {
   final VoidCallback? onTap;
 }
 
-/// Why a personalized feed shows a topic. The mark borrows the glyph or
-/// category dot of the element that justifies the reason, so the line reads as
-/// part of the item rather than a caption floating above it.
+/// Why a personalized feed shows a topic. The mark borrows the glyph of the
+/// element that justifies the reason, so the line reads as part of the item
+/// rather than a caption floating above it.
 class GfTopicContext {
   const GfTopicContext({
     required this.label,
-    this.symbol,
-    this.dotColor,
+    required this.symbol,
     this.newReplies = false,
   });
 
   final String label;
 
-  /// ReIcon glyph for the mark; ignored when [dotColor] is set.
-  final String? symbol;
-
-  /// Category color, echoing the dot of the topic's category chip.
-  final Color? dotColor;
+  /// ReIcon Outline glyph; every reason uses one so the marks stay uniform.
+  final String symbol;
 
   /// The reason is new replies: the mark and the reply count share the accent
   /// the feed already uses for unseen content.
@@ -42,20 +38,8 @@ class GfTopicContext {
 
   Widget mark(BuildContext context, {required double size}) {
     final colors = GfTheme.colorsOf(context);
-    if (dotColor case final color?) {
-      return SizedBox.square(
-        dimension: size,
-        child: Center(
-          child: Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-        ),
-      );
-    }
     return GfSymbol(
-      symbol ?? 'sparkles',
+      symbol,
       size: size,
       color: newReplies ? colors.primary : colors.iconMuted,
     );

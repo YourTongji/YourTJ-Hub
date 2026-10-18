@@ -636,10 +636,8 @@ GfTopicContext? _feedContext(AppLocalizations l10n, TopicPayload topic) =>
       ),
       'category' => GfTopicContext(
         label: l10n.feedReasonCategory,
+        // Search uses the same glyph for its categories scope.
         symbol: 'folder',
-        dotColor: topic.categories.isEmpty
-            ? null
-            : colorFromHex(topic.categories.first.color),
       ),
       'newreply' => GfTopicContext(
         label: l10n.feedReasonNewReply,
