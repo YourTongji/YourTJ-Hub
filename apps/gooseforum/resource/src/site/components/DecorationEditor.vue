@@ -52,9 +52,9 @@ onMounted(load)
         </label>
       </div>
     </fieldset>
-    <button type="button" class="gf-button gf-button-primary" :disabled="saving" @click="save">{{ t('decoration.save') }}</button>
+    <button type="button" class="gf-button gf-button-md gf-button-primary" :disabled="saving" @click="save">{{ t('decoration.save') }}</button>
   </template>
-  <button v-else-if="error" type="button" class="gf-button" @click="load">{{ t('decoration.retry') }}</button>
+  <button v-else-if="error" type="button" class="gf-button gf-button-md gf-button-secondary" @click="load">{{ t('decoration.retry') }}</button>
   <p v-if="error" role="alert" class="text-sm text-error">{{ error }}</p><p v-if="saved" role="status" class="text-sm text-success">{{ t('decoration.saved') }}</p>
 </section>
 </template>
