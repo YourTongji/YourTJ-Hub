@@ -203,6 +203,23 @@ Future<void> _pumpFixture(
   await tester.pumpAndSettle();
 }
 
+/// Renders one HTML snippet through the shared rich-content shell, for cases
+/// that need their own markup instead of the full fixture.
+Future<void> _pumpHtml(WidgetTester tester, String html) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: gfThemeData(Brightness.light),
+      home: Scaffold(
+        body: GfHtmlContent(
+          html: html,
+          profile: _profileFor(_Path.wikiHtml, 1),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 /// Disposes the tree and drains the detectors' pending timers, the same way
 /// the existing Markdown tests do.
 Future<void> _dispose(WidgetTester tester) async {
@@ -299,6 +316,61 @@ void main() {
       await _dispose(tester);
     },
   );
+
+  testWidgets('HTML inline code keeps emoji as source text inside prose', (
+    tester,
+  ) async {
+    // Pin for the mixed-paragraph shape: it passed before the style rule too,
+    // because the old code-context marker matched the `code` element. Keeping
+    // it guards the style detection that replaced that marker.
+    await _pumpHtml(tester, '<p>起点 <code>代码 🔥</code> 与 🐦‍🔥</p>');
+
+    final plainTexts = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((richText) => richText.text.toPlainText())
+        .toList();
+    expect(plainTexts.any((text) => text.contains('代码 🔥')), isTrue);
+    expect(
+      find.byWidgetPredicate(
+        (Widget widget) => _isTwemojiAsset(widget, '/1f525.png'),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (Widget widget) => _isTwemojiAsset(widget, '1f426-200d-1f525.png'),
+      ),
+      findsOneWidget,
+    );
+    await _dispose(tester);
+  });
+
+  testWidgets('HTML keyboard and sample tags keep emoji as source text', (
+    tester,
+  ) async {
+    await _pumpHtml(
+      tester,
+      '<p>起点 <kbd>按键 🔥</kbd> 与 <samp>样本 🔥</samp> 与 <tt>终端 🔥</tt>'
+      ' 与 🐦‍🔥</p>',
+    );
+
+    final plainTexts = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((richText) => richText.text.toPlainText())
+        .toList();
+    expect(plainTexts.any((text) => text.contains('按键 🔥')), isTrue);
+    expect(plainTexts.any((text) => text.contains('样本 🔥')), isTrue);
+    expect(plainTexts.any((text) => text.contains('终端 🔥')), isTrue);
+    // 同段正文 emoji 仍出图：三处代码上下文没有替换，正文替换照常。
+    expect(
+      find.byWidgetPredicate(
+        (Widget widget) => _isTwemojiAsset(widget, '1f426-200d-1f525.png'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byWidgetPredicate(_isTwemojiAsset), findsOneWidget);
+    await _dispose(tester);
+  });
 
   for (final _Path path in _Path.values) {
     for (final double width in _widths) {

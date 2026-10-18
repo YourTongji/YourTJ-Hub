@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' show parseFragment;
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -107,20 +106,9 @@ class GfHtmlWidgetFactory extends WidgetFactory {
   ) => Builder(
     builder: (context) {
       final style = resolved.prepareTextStyle();
-      // 代码上下文保持原始 Unicode（MADR 0089 skip-code），与 Markdown
-      // 渲染器及 Web 指令行为一致；标记为 GfCodeSpan 让共享 transformer 跳过。
-      final InlineSpan source = _isCodeContext(tree.element)
-          ? GfCodeSpan(
-              style: text is TextSpan ? text.style : null,
-              text: text is TextSpan ? text.text : null,
-              children: text is TextSpan
-                  ? text.children
-                  : <InlineSpan>[text],
-            )
-          : text;
       final rendered = buildTwemojiTextSpan(
         context,
-        source,
+        text,
         inheritedStyle: style,
         // HtmlWidget has already resolved system scaling into [style].
         textScaler: TextScaler.linear(1),
@@ -129,21 +117,6 @@ class GfHtmlWidgetFactory extends WidgetFactory {
           const SizedBox.shrink();
     },
   );
-
-  bool _isCodeContext(dom.Element element) {
-    dom.Node? node = element;
-    while (node is dom.Element) {
-      switch (node.localName) {
-        case 'code':
-        case 'kbd':
-        case 'pre':
-        case 'samp':
-          return true;
-      }
-      node = node.parent;
-    }
-    return false;
-  }
 
   @override
   Widget? buildHorizontalScrollView(BuildTree tree, Widget child) =>

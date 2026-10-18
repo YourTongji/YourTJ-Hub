@@ -34,22 +34,6 @@ import 'share/share_image_readiness.dart';
 TextStyle readingBodyStyle(BuildContext context, [double userScale = 1]) =>
     GfRichContentTypography.of(context, userScale: userScale).body;
 
-/// Inline code node that marks its span as [GfCodeSpan], so GfText's Twemoji
-/// transformer skips it and the code keeps its original Unicode (MADR 0089
-/// skip-code, same behavior as the Web renderer).
-class _GfInlineCodeNode extends ElementNode {
-  _GfInlineCodeNode(this.text, this.codeConfig);
-
-  final String text;
-  final CodeConfig codeConfig;
-
-  @override
-  InlineSpan build() => GfCodeSpan(style: style, text: text);
-
-  @override
-  TextStyle get style => codeConfig.style.merge(parentStyle);
-}
-
 /// 帖子 markdown 渲染视图。
 ///
 /// 基于 markdown_widget,渲染样式对齐 web 端 prose.css 语义:
@@ -438,15 +422,6 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
       markdownGenerator: MarkdownGenerator(
         linesMargin: EdgeInsets.symmetric(vertical: profile.paragraphSpacing),
         richTextBuilder: (span) => GfText.rich(span),
-        // 行内代码保持原始 Unicode、不画 Twemoji（MADR 0089 skip-code，
-        // 与 Web 渲染器一致）；通过标记 span 让 GfText 的 transformer 跳过。
-        generators: <SpanNodeGeneratorWithTag>[
-          SpanNodeGeneratorWithTag(
-            tag: MarkdownTag.code.name,
-            generator: (element, config, visitor) =>
-                _GfInlineCodeNode(element.textContent, config.code),
-          ),
-        ],
       ),
       // Embedded in the page scroll view: never repeat its safe-area insets.
       padding: EdgeInsets.zero,

@@ -131,13 +131,10 @@ class GfCodeBlock extends StatelessWidget {
     );
     final bool dark = Theme.of(context).brightness == Brightness.dark;
     final List<InlineSpan>? spans = _highlight(dark, style, plain);
-    // Code content keeps its source Unicode: no Twemoji artwork inside
-    // highlighted or plain code (MADR 0089 skip-code, same as the Web
-    // renderer). GfCodeSpan is honored by GfText's transformer.
-    if (spans == null) {
-      return GfText.rich(GfCodeSpan(text: _source, style: plain));
-    }
-    return GfText.rich(GfCodeSpan(children: spans, style: style));
+    // 代码内容保持原始 Unicode：普通与高亮代码都不画 Twemoji（MADR 0089
+    // skip-code，与 Web 渲染器一致）；共享 transformer 按等宽样式跳过。
+    if (spans == null) return GfText(_source, style: plain);
+    return GfText.rich(TextSpan(children: spans, style: style));
   }
 
   /// Returns null when highlighting is unavailable or fails, so the caller can
