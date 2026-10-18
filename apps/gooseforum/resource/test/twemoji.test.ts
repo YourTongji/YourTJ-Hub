@@ -6,9 +6,10 @@ import { version as vueVersion } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import TwemojiHtmlFixture from './fixtures/TwemojiHtmlFixture.vue'
 import TwemojiEditableFixture from './fixtures/TwemojiEditableFixture.vue'
+import TwemojiFlexFixture from './fixtures/TwemojiFlexFixture.vue'
 import TwemojiTemplateFixture from './fixtures/TwemojiTemplateFixture.vue'
 import { renderMarkdownPreview } from '../src/runtime/markdown'
-import { parseTwemoji, renderTwemojiHtml, TWEMOJI_VERSION } from '../src/runtime/twemoji'
+import { parseTwemoji, renderTwemojiHtml, TWEMOJI_VERSION, TwemojiText } from '../src/runtime/twemoji'
 
 const compilerDomPackage = JSON.parse(
   readFileSync(resolve(process.cwd(), 'node_modules/@vue/compiler-dom/package.json'), 'utf8'),
@@ -138,7 +139,9 @@ describe('Vue Twemoji rendering', () => {
     renderTwemojiHtml(preview)
 
     expect(preview.querySelector('.hljs-keyword')?.textContent).toBe('const')
-    expect(preview.querySelector('pre code img.twemoji')?.getAttribute('alt')).toBe('🐦‍🔥')
+    // MADR 0089：代码区域跳过 Twemoji，等宽对齐与语法高亮不被 img 破坏。
+    expect(preview.querySelector('pre code img.twemoji')).toBeNull()
+    expect(preview.querySelector('pre code')?.textContent).toContain('🐦‍🔥')
   })
 
   it('renders static and reactive text nodes with image alt text', () => {
@@ -150,26 +153,66 @@ describe('Vue Twemoji rendering', () => {
     expect(images.map((image) => image.attributes('alt'))).toEqual([
       '😀',
       '🐦‍🔥',
-      '🐦‍🔥',
     ])
     expect(images[1].attributes('src')).toContain(
       '/twemoji/72x72/1f426-200d-1f525.png',
     )
-    expect(wrapper.find('code img.twemoji').attributes('alt')).toBe('🐦‍🔥')
+    // 模板中的 code 元素同样跳过替换（编译期与运行时共用同一排除清单）。
+    expect(wrapper.find('code img.twemoji').exists()).toBe(false)
+    expect(wrapper.find('code').text()).toBe('🐦‍🔥')
   })
 
-  it('preserves Markdown structure and renders Emoji inside code in v-html output', () => {
+  it('keeps emoji images and text in one inline box under flex parents', () => {
+    const wrapper = mount(TwemojiFlexFixture, {
+      props: { primary: '© 2026 YourTJ Community. All rights reserved.' },
+    })
+
+    const host = wrapper.find('.footer-primary')
+    // Fragment 会让 img 与文本成为 flex 容器的独立 flex item（页脚 © 独占一行的回归）；
+    // 修复后整个文本跑是一个内联盒，flex 父级只看到一个 flex item。
+    expect(host.element.childNodes).toHaveLength(1)
+    const run = host.element.firstElementChild
+    expect(run?.classList.contains('twemoji-text')).toBe(true)
+    expect(run?.querySelector('img.twemoji')?.getAttribute('alt')).toBe('©')
+    expect(run?.textContent).toContain(' 2026 YourTJ Community. All rights reserved.')
+    wrapper.unmount()
+  })
+
+  it('renders plain text without a wrapper when no emoji is present', () => {
+    const wrapper = mount(TwemojiText, { props: { text: '#2026' } })
+
+    expect(wrapper.text()).toBe('#2026')
+    expect(wrapper.find('span').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('preserves Markdown structure and keeps code emoji as source text in v-html output', () => {
     const html = renderMarkdownPreview('**Markdown 🐦‍🔥** and `🔥`\n\n[Link ❤️](https://example.com)')
     const wrapper = mount(TwemojiHtmlFixture, { props: { html } })
 
     expect(wrapper.findAll('img.twemoji').map((image) => image.attributes('alt'))).toEqual([
       '🐦‍🔥',
-      '🔥',
       '❤️',
     ])
     expect(wrapper.find('strong').exists()).toBe(true)
     expect(wrapper.find('a').attributes('href')).toBe('https://example.com')
-    expect(wrapper.find('code img.twemoji').attributes('alt')).toBe('🔥')
+    expect(wrapper.find('code img.twemoji').exists()).toBe(false)
+    expect(wrapper.find('code').text()).toBe('🔥')
+  })
+
+  it('does not replace emoji inside code, pre, kbd or samp in runtime HTML', () => {
+    const richHtml = document.createElement('div')
+    richHtml.innerHTML =
+      '<p>para 😀 text</p><pre>block 😀 code</pre>' +
+      '<p><code>inline 😀</code> <kbd>key 😀</kbd> <samp>out 😀</samp></p>'
+
+    renderTwemojiHtml(richHtml)
+
+    expect(richHtml.querySelector('p img.twemoji')).not.toBeNull()
+    for (const tag of ['pre', 'code', 'kbd', 'samp']) {
+      expect(richHtml.querySelector(`${tag} img.twemoji`)).toBeNull()
+      expect(richHtml.querySelector(tag)?.textContent).toContain('😀')
+    }
   })
 
   it('falls back to source Unicode when an image cannot load', async () => {

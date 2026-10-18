@@ -1247,7 +1247,9 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
-        child: _wrap(const GfMarkdownView(data: '```klingon\nplain body\n```')),
+        child: _wrap(
+          const GfMarkdownView(data: '```klingon\nplain 🔥 body\n```'),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -1259,10 +1261,12 @@ void main() {
       find.byWidgetPredicate(
         (Widget widget) =>
             widget is RichText &&
-            widget.text.toPlainText().contains('plain body'),
+            widget.text.toPlainText().contains('plain 🔥 body'),
       ),
       findsOneWidget,
     );
+    // 未高亮的代码块走 `GfText(source, style: 代码样式)` 分支，同样不出图。
+    expect(find.byWidgetPredicate(_isTwemojiAsset), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });
@@ -1345,6 +1349,72 @@ void main() {
       closeTo(17 * (1 + .45 * emphasis) * 1.4, .001),
     );
     expect(config.h1.style.fontSize, lessThan(17 * 1.45 * 1.4));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('inline and fenced code keep emoji as source text', (tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: GfMarkdownView(
+              data: '正文 🐦‍🔥 和 `代码 🐦‍🔥`\n\n```\n块 🐦‍🔥\n```',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // 只有正文里的 emoji 变成 Twemoji 图片；行内代码与围栏代码保持原始
+    // Unicode（对齐 Web 渲染器的 skip-code 行为，MADR 0089）。
+    expect(find.byWidgetPredicate(_isTwemojiAsset), findsOneWidget);
+    final plainTexts = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((richText) => richText.text.toPlainText())
+        .toList();
+    expect(plainTexts.any((text) => text.contains('代码 🐦‍🔥')), isTrue);
+    expect(plainTexts.any((text) => text.contains('块 🐦‍🔥')), isTrue);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('inline code inside a link keeps emoji as source text', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: _wrap(
+          const GfMarkdownView(
+            data:
+                '[链接 🐦‍🔥](https://example.com) 与 '
+                '[`代码 🔥`](https://example.com)',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // 链接会把子 span 重建成带点击识别器的普通 TextSpan；行内代码仍须保持
+    // 原始 Unicode（MADR 0089 skip-code），链接里的正文 emoji 照常出图。
+    expect(find.byWidgetPredicate(_isTwemojiAsset), findsOneWidget);
+    final plainTexts = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((richText) => richText.text.toPlainText())
+        .toList();
+    expect(plainTexts.any((text) => text.contains('代码 🔥')), isTrue);
+    // 链接会重建标签的 span 以挂点击识别器；行内代码的 span 仍须可点击。
+    expect(
+      tester
+          .widgetList<RichText>(find.byType(RichText))
+          .map((richText) => richText.text)
+          .where((span) => span.toPlainText().contains('代码 🔥'))
+          .any((span) => _linkRecognizer(span) != null),
+      isTrue,
+    );
+
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });

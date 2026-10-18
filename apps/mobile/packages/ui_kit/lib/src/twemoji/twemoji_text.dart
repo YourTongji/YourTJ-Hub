@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../theme/gf_rich_content_typography.dart';
 import 'twemoji_asset_map.g.dart';
 
 /// A text segment that should use the bundled Twemoji artwork.
@@ -770,6 +771,21 @@ class GfSelectableText extends StatelessWidget {
   }
 }
 
+/// Code runs are recognised by their resolved style, not by a span subclass:
+/// `flutter_widget_from_html_core`'s run flattening and `markdown_widget`'s
+/// link rewrap both rebuild child spans and would drop a marker type. Markdown
+/// inline/fenced code paints [GfRichContentTypography.codeFontFamily]; the HTML
+/// renderer resolves CSS `font-family` lists to a first family, so
+/// `<code>`/`<kbd>`/`<samp>`/`<tt>` arrive as `Courier`. Only code styles set a
+/// family — the one other monospace surface is the recovery-code
+/// `GfSelectableText`, whose base32 payload has no Emoji — so this cannot
+/// swallow prose (MADR 0089 skip-code).
+bool _isCodeStyle(TextStyle style) {
+  final String? family = style.fontFamily;
+  return family == GfRichContentTypography.codeFontFamily ||
+      family == 'Courier';
+}
+
 class _TwemojiSpanBuilder {
   _TwemojiSpanBuilder(this.textScaler, [this.selectionRegistry]);
 
@@ -828,6 +844,13 @@ class _TwemojiSpanBuilder {
     if (span is! TextSpan) return span;
 
     final style = inheritedStyle.merge(span.style);
+    if (_isCodeStyle(style)) {
+      // Code keeps its source Unicode; record identity offsets so copy and
+      // selection mapping stay one-to-one with the untransformed text.
+      _recordIdentityOffsets(span);
+      return span;
+    }
+
     final transformedChildren = <InlineSpan>[];
     if (span.text case final text?) {
       final segments = _mightContainTwemoji(text)

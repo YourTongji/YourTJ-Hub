@@ -695,4 +695,49 @@ void main() {
 
     expect(copied, 'before \uFFFC 🐦‍🔥 after');
   });
+
+  testWidgets('monospace code spans keep source Unicode without artwork', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: <Widget>[
+              GfText.rich(TextSpan(text: 'prose 🐦‍🔥')),
+              GfText.rich(
+                TextSpan(
+                  text: 'emoji = "🐦‍🔥"',
+                  style: TextStyle(
+                    fontFamily: GfRichContentTypography.codeFontFamily,
+                  ),
+                ),
+              ),
+              // flutter_widget_from_html_core styles <kbd>/<samp>/<tt> as
+              // Courier with a monospace fallback.
+              GfText.rich(
+                TextSpan(
+                  text: 'key 🐦‍🔥',
+                  style: TextStyle(
+                    fontFamily: 'Courier',
+                    fontFamilyFallback: <String>['monospace'],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // 正文 emoji 出图；等宽（代码）span 保持原始 Unicode（MADR 0089 skip-code）。
+    expect(find.byType(Image), findsOneWidget);
+    final plainTexts = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((richText) => richText.text.toPlainText())
+        .toList();
+    expect(plainTexts, contains('emoji = "🐦‍🔥"'));
+    expect(plainTexts, contains('key 🐦‍🔥'));
+  });
 }

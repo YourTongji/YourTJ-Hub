@@ -1,5 +1,4 @@
 import {
-  Fragment,
   defineComponent,
   h,
   ref,
@@ -152,37 +151,45 @@ export const TwemojiText = defineComponent({
     return () => {
       const text = toDisplayString(props.text)
       const segments = parseTwemoji(text)
+      const children = segments.map((segment, index) => {
+        if (segment.type === 'text' || failedAssets.value.has(segment.asset)) {
+          return segment.type === 'text' ? segment.value : segment.value
+        }
 
-      return h(
-        Fragment,
-        null,
-        segments.map((segment, index) => {
-          if (segment.type === 'text' || failedAssets.value.has(segment.asset)) {
-            return segment.type === 'text' ? segment.value : segment.value
-          }
+        return h('img', {
+          key: `${segment.asset}-${index}`,
+          class: 'twemoji',
+          style: {
+            display: 'inline-block',
+            width: '1em',
+            height: '1em',
+            margin: '0 0.05em 0 0.1em',
+            verticalAlign: '-0.1em',
+            objectFit: 'contain',
+          },
+          src: `${assetBase}${segment.asset}`,
+          alt: segment.value,
+          draggable: false,
+          loading: 'lazy',
+          decoding: 'async',
+          onError: () => {
+            failedAssets.value = new Set(failedAssets.value).add(segment.asset)
+          },
+        })
+      })
 
-          return h('img', {
-            key: `${segment.asset}-${index}`,
-            class: 'twemoji',
-            style: {
-              display: 'inline-block',
-              width: '1em',
-              height: '1em',
-              margin: '0 0.05em 0 0.1em',
-              verticalAlign: '-0.1em',
-              objectFit: 'contain',
-            },
-            src: `${assetBase}${segment.asset}`,
-            alt: segment.value,
-            draggable: false,
-            loading: 'lazy',
-            decoding: 'async',
-            onError: () => {
-              failedAssets.value = new Set(failedAssets.value).add(segment.asset)
-            },
-          })
-        }),
+      // 无 emoji 时保持纯文本节点，避免给列表数字等高频插值增加额外 DOM。
+      const hasImage = children.some(
+        (child) => typeof child !== 'string',
       )
+      if (!hasImage) {
+        return children.join('')
+      }
+
+      // Fragment 子节点在 flex 父级下会成为彼此独立的 flex item（img 与文本被
+      // gap/垂直对齐拆开，页脚版权行 © 独占一行即此类回归）；包一层 inline 盒让
+      // 整个文本跑对布局引擎表现为一个原子内联盒。
+      return h('span', { class: 'twemoji-text' }, children)
     }
   },
 })

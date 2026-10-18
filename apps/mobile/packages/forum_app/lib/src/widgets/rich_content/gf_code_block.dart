@@ -131,6 +131,8 @@ class GfCodeBlock extends StatelessWidget {
     );
     final bool dark = Theme.of(context).brightness == Brightness.dark;
     final List<InlineSpan>? spans = _highlight(dark, style, plain);
+    // 代码内容保持原始 Unicode：普通与高亮代码都不画 Twemoji（MADR 0089
+    // skip-code，与 Web 渲染器一致）；共享 transformer 按等宽样式跳过。
     if (spans == null) return GfText(_source, style: plain);
     return GfText.rich(TextSpan(children: spans, style: style));
   }
