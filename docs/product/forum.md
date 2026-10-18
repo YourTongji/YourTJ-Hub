@@ -179,7 +179,7 @@ Web 确认弹窗约束键盘焦点。规则覆盖主题、回复、Wiki 和课�
 按内置默认清单生效，显式清空表示不豁免任何域名，管理端提交时缺省该字段则保留现有清单（旧页面保存
 不会静默停用）。两端都在 punycode 形式上比较，IDN 链接在 Web（浏览器主机名）与 Flutter
 （`Uri.host` 的百分号编码形式）均先归一化。Web 由页面 payload 下发，Flutter 启动时读取公开端点，
-两端共用同一份清单。见[决策 0095](../decisions/0095-trusted-external-domain-whitelist.md)。
+两端共用同一份清单。见[决策 0097](../decisions/0097-trusted-external-domain-whitelist.md)。
 
 `Current`：阅读渲染支持 Mermaid、KaTeX、`\(...\)`、`\[...\]` 与常见数学环境。
 `Planned`：Vditor 对替代数学分隔符的所见即所得预览；保存及阅读不受此编辑器限制影响。
