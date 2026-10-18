@@ -237,6 +237,33 @@ ScrollPosition _position(WidgetTester tester) => tester
     .position;
 
 void main() {
+  testWidgets('feed display options lead each mode with its glyph', (
+    tester,
+  ) async {
+    await _mount(tester, _Pages());
+    await tester.tap(find.byTooltip('显示方式'));
+    await tester.pumpAndSettle();
+    for (final (label, symbol) in [
+      ('卡片', 'layout-grid'),
+      ('列表', 'list-square'),
+    ]) {
+      final row = find
+          .ancestor(of: find.text(label), matching: find.byType(Row))
+          .first;
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.byWidgetPredicate(
+            (widget) => widget is GfSymbol && widget.name == symbol,
+          ),
+        ),
+        findsOneWidget,
+        reason: '$label option needs its leading $symbol glyph',
+      );
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'discovery retains untitled moments and respects cache clearing',
     (tester) async {

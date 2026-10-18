@@ -1378,10 +1378,22 @@ class _HomeToolbar extends ConsumerWidget {
         for (final mode in GfTopicFeedMode.values)
           GfPopupMenuItem(
             value: mode,
-            child: GfText(
-              mode == GfTopicFeedMode.card
-                  ? l10n.topicFeedModeCard
-                  : l10n.topicFeedModeList,
+            // Same glyphs as the toolbar button, so the sheet previews it.
+            child: Row(
+              children: [
+                GfSymbol(
+                  mode == GfTopicFeedMode.card ? 'layout-grid' : 'list-square',
+                  size: 22,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GfText(
+                    mode == GfTopicFeedMode.card
+                        ? l10n.topicFeedModeCard
+                        : l10n.topicFeedModeList,
+                  ),
+                ),
+              ],
             ),
           ),
       ],
