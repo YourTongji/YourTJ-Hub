@@ -1255,7 +1255,6 @@
   "feedReasonFollowing": "フォロー中のユーザー",
   "feedReasonCategory": "参加したカテゴリ",
   "feedReasonNewReply": "新しい返信",
-  "feedReasonRecent": "最近の投稿",
   "sortDaily": "今日の人気",
   "anonymousPurpose": "固定の名前で投稿・返信できます。メインアカウントは他の人に表示されません。",
   "anonymousSettingsHint": "メインアカウントを出さずに固定の名前で投稿",

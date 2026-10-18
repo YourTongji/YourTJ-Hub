@@ -451,8 +451,8 @@ Widget _topicRow(
 
   return FeedVisibility(
     topic: topic,
-    reason: _feedReason(l10n, topic.feedReason),
     child: GfTopicRow(
+      feedContext: _feedContext(l10n, topic),
       title: topic.processStatus == 2
           ? "${l10n.contentReviewPending} · ${topicDisplayTitle(topic)}"
           : topicDisplayTitle(topic),
@@ -528,8 +528,8 @@ Widget buildTopicFeedCard(
 
   return FeedVisibility(
     topic: topic,
-    reason: _feedReason(l10n, topic.feedReason),
     child: GfTopicCard(
+      feedContext: _feedContext(l10n, topic),
       avatarFrameColors: decorationColors(
         context,
         topic.author.decoration?.avatarFrame,
@@ -625,10 +625,26 @@ Widget buildTopicFeedCard(
   );
 }
 
-String? _feedReason(AppLocalizations l10n, String? reason) => switch (reason) {
-  'following' => l10n.feedReasonFollowing,
-  'category' => l10n.feedReasonCategory,
-  'newreply' => l10n.feedReasonNewReply,
-  'recent' => l10n.feedReasonRecent,
-  _ => null,
-};
+/// For You reasons borrow the mark of the element that justifies them. The
+/// `recent` fallback carries no personal signal and the timestamp already says
+/// it, so it stays unlabelled.
+GfTopicContext? _feedContext(AppLocalizations l10n, TopicPayload topic) =>
+    switch (topic.feedReason) {
+      'following' => GfTopicContext(
+        label: l10n.feedReasonFollowing,
+        symbol: 'user-round-check',
+      ),
+      'category' => GfTopicContext(
+        label: l10n.feedReasonCategory,
+        symbol: 'folder',
+        dotColor: topic.categories.isEmpty
+            ? null
+            : colorFromHex(topic.categories.first.color),
+      ),
+      'newreply' => GfTopicContext(
+        label: l10n.feedReasonNewReply,
+        symbol: 'message-circle',
+        newReplies: true,
+      ),
+      _ => null,
+    };

@@ -17,6 +17,7 @@ void main() {
       bool unseen = false,
       String title = '同济大学樱花大道拍照攻略',
       Brightness brightness = Brightness.light,
+      GfTopicContext? feedContext,
     }) {
       return gfApp(
         GfTopicRow(
@@ -33,10 +34,39 @@ void main() {
           onTap: onTap,
           pinned: pinned,
           unseen: unseen,
+          feedContext: feedContext,
         ),
         brightness: brightness,
       );
     }
+
+    testWidgets('feed context leads the title and links new replies', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildRow(
+          feedContext: const GfTopicContext(
+            label: '有新回复',
+            symbol: 'message-circle',
+            newReplies: true,
+          ),
+        ),
+      );
+      final label = find.text('有新回复');
+      final title = find.text('同济大学樱花大道拍照攻略');
+      expect(
+        tester.getBottomLeft(label).dy,
+        lessThanOrEqualTo(tester.getTopLeft(title).dy),
+      );
+      final primary = GfTheme.colorsOf(
+        tester.element(find.byType(GfTopicRow)),
+      ).primary;
+      expect(tester.widget<Text>(find.text('42')).style?.color, primary);
+
+      await tester.pumpWidget(buildRow());
+      expect(label, findsNothing);
+      expect(tester.widget<Text>(find.text('42')).style?.color, isNot(primary));
+    });
 
     testWidgets('renders title, description, chip, meta in both themes', (
       tester,

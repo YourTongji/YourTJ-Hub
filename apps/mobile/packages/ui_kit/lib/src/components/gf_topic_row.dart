@@ -17,6 +17,51 @@ class GfTopicCategory {
   final VoidCallback? onTap;
 }
 
+/// Why a personalized feed shows a topic. The mark borrows the glyph or
+/// category dot of the element that justifies the reason, so the line reads as
+/// part of the item rather than a caption floating above it.
+class GfTopicContext {
+  const GfTopicContext({
+    required this.label,
+    this.symbol,
+    this.dotColor,
+    this.newReplies = false,
+  });
+
+  final String label;
+
+  /// ReIcon glyph for the mark; ignored when [dotColor] is set.
+  final String? symbol;
+
+  /// Category color, echoing the dot of the topic's category chip.
+  final Color? dotColor;
+
+  /// The reason is new replies: the mark and the reply count share the accent
+  /// the feed already uses for unseen content.
+  final bool newReplies;
+
+  Widget mark(BuildContext context, {required double size}) {
+    final colors = GfTheme.colorsOf(context);
+    if (dotColor case final color?) {
+      return SizedBox.square(
+        dimension: size,
+        child: Center(
+          child: Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+        ),
+      );
+    }
+    return GfSymbol(
+      symbol ?? 'sparkles',
+      size: size,
+      color: newReplies ? colors.primary : colors.iconMuted,
+    );
+  }
+}
+
 enum GfTopicContentType { question, moment, article }
 
 /// Compact title size; text scale beyond [_enlargedTextScaleCeiling] × this
@@ -49,6 +94,7 @@ class GfTopicRow extends StatelessWidget {
     this.home = false,
     this.contentType,
     this.contentTypeLabel,
+    this.feedContext,
   });
 
   final String title;
@@ -76,6 +122,9 @@ class GfTopicRow extends StatelessWidget {
   final GfTopicContentType? contentType;
   final String? contentTypeLabel;
 
+  /// Personalized-feed reason, shown as a quiet lead-in above the title.
+  final GfTopicContext? feedContext;
+
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
@@ -95,6 +144,31 @@ class GfTopicRow extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (feedContext case final feedContext?)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Row(
+                        children: [
+                          feedContext.mark(context, size: 14),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: GfText(
+                              feedContext.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: colors.baseContent.withValues(
+                                  alpha: 0.55,
+                                ),
+                                fontSize: 12,
+                                height: 1.4,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   if (title.isNotEmpty || pinned || contentType != null || hot)
                     Row(
                       children: [
@@ -254,13 +328,20 @@ class GfTopicRow extends StatelessWidget {
             size: GfAvatarStackSize.sm,
           ),
         GfText(activityText, style: style),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            GfSymbol('message-circle', size: 14, color: style.color),
-            const SizedBox(width: 4),
-            GfText('$replyCount', style: style),
-          ],
+        Builder(
+          builder: (context) {
+            final replyStyle = feedContext?.newReplies == true
+                ? style.copyWith(color: colors.primary)
+                : style;
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GfSymbol('message-circle', size: 14, color: replyStyle.color),
+                const SizedBox(width: 4),
+                GfText('$replyCount', style: replyStyle),
+              ],
+            );
+          },
         ),
       ],
     );

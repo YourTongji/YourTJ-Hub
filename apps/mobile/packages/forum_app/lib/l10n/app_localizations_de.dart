@@ -3658,9 +3658,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get feedReasonNewReply => 'Neue Antworten';
 
   @override
-  String get feedReasonRecent => 'Kürzlich veröffentlicht';
-
-  @override
   String get sortDaily => 'Top-Themen heute';
 
   @override

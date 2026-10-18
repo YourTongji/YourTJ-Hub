@@ -3619,9 +3619,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get feedReasonNewReply => 'New replies';
 
   @override
-  String get feedReasonRecent => 'Recently posted';
-
-  @override
   String get sortDaily => 'Today\'s top';
 
   @override

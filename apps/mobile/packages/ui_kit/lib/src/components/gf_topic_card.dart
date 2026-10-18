@@ -80,6 +80,7 @@ class GfTopicCard extends StatefulWidget {
     this.pinned = false,
     this.unseen = false,
     this.hot = false,
+    this.feedContext,
   });
 
   final String title;
@@ -119,6 +120,10 @@ class GfTopicCard extends StatefulWidget {
   final bool pinned;
   final bool unseen;
   final bool hot;
+
+  /// Personalized-feed reason. Its mark sits on the avatar's axis and its
+  /// label on the name's edge, like a social-context line.
+  final GfTopicContext? feedContext;
 
   @override
   State<GfTopicCard> createState() => _GfTopicCardState();
@@ -373,7 +378,13 @@ class _GfTopicCardState extends State<GfTopicCard> {
           spacing: 8,
           runSpacing: 4,
           children: <Widget>[
-            _Metric(icon: 'message-circle', value: '${widget.replyCount}'),
+            _Metric(
+              icon: 'message-circle',
+              value: '${widget.replyCount}',
+              color: widget.feedContext?.newReplies == true
+                  ? colors.primary
+                  : null,
+            ),
             _Metric(icon: 'eye', value: '${widget.viewCount}'),
             if (widget.onLike != null)
               _LikeAction(
@@ -401,40 +412,78 @@ class _GfTopicCardState extends State<GfTopicCard> {
       ],
     );
 
-    return GfCard(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-      onTap: widget.onTap,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Semantics(
-              button: widget.onAuthorTap != null,
-              label: widget.authorName,
-              child: InkWell(
-                onTap: widget.onAuthorTap,
-                borderRadius: BorderRadius.circular(24),
-                child: SizedBox(
-                  width: 44,
-                  height: 44,
-                  child: Center(
-                    child: GfAvatar(
-                      frameColors: widget.avatarFrameColors,
-                      frameAssetUrl: widget.avatarFrameAssetUrl,
-                      frameScale: widget.avatarFrameScale,
-                      src: widget.authorAvatarUrl,
-                      size: 36,
-                    ),
+    final GfTopicContext? feedContext = widget.feedContext;
+    final Widget body = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Semantics(
+            button: widget.onAuthorTap != null,
+            label: widget.authorName,
+            child: InkWell(
+              onTap: widget.onAuthorTap,
+              borderRadius: BorderRadius.circular(24),
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: Center(
+                  child: GfAvatar(
+                    frameColors: widget.avatarFrameColors,
+                    frameAssetUrl: widget.avatarFrameAssetUrl,
+                    frameScale: widget.avatarFrameScale,
+                    src: widget.authorAvatarUrl,
+                    size: 36,
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 10),
-          Expanded(child: textContent),
-        ],
-      ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: textContent),
+      ],
+    );
+    return GfCard(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+      onTap: widget.onTap,
+      child: feedContext == null
+          ? body
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Row(
+                    children: <Widget>[
+                      // Same 44px column as the avatar, so the mark shares
+                      // its axis and the label starts on the name's edge.
+                      SizedBox(
+                        width: 44,
+                        child: Center(
+                          child: feedContext.mark(context, size: 16),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: GfText(
+                          feedContext.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: colors.baseContent.withValues(alpha: 0.55),
+                            fontSize: 13,
+                            height: 1.35,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                body,
+              ],
+            ),
     );
   }
 }
@@ -843,10 +892,11 @@ ImageProvider<Object> _feedImageProvider(
 }
 
 class _Metric extends StatelessWidget {
-  const _Metric({required this.icon, required this.value});
+  const _Metric({required this.icon, required this.value, this.color});
 
   final String icon;
   final String value;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -856,12 +906,12 @@ class _Metric extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          GfSymbol(icon, size: 18, color: colors.iconMuted),
+          GfSymbol(icon, size: 18, color: color ?? colors.iconMuted),
           const SizedBox(width: 5),
           GfText(
             value,
             style: TextStyle(
-              color: colors.baseContent.withValues(alpha: 0.55),
+              color: color ?? colors.baseContent.withValues(alpha: 0.55),
               fontSize: 13,
             ),
           ),
