@@ -695,4 +695,30 @@ void main() {
 
     expect(copied, 'before \uFFFC 🐦‍🔥 after');
   });
+
+  testWidgets('code spans keep source Unicode without Twemoji artwork', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: <Widget>[
+              GfText.rich(TextSpan(text: 'prose 🐦‍🔥')),
+              GfText.rich(GfCodeSpan(text: 'emoji = "🐦‍🔥"')),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // 正文 emoji 出图；代码 span 保持原始 Unicode（MADR 0089 skip-code）。
+    expect(find.byType(Image), findsOneWidget);
+    final plainTexts = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((richText) => richText.text.toPlainText())
+        .toList();
+    expect(plainTexts, contains('emoji = "🐦‍🔥"'));
+  });
 }

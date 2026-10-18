@@ -1348,4 +1348,32 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });
+
+  testWidgets('inline and fenced code keep emoji as source text', (tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: GfMarkdownView(
+              data: '正文 🐦‍🔥 和 `代码 🐦‍🔥`\n\n```\n块 🐦‍🔥\n```',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // 只有正文里的 emoji 变成 Twemoji 图片；行内代码与围栏代码保持原始
+    // Unicode（对齐 Web 渲染器的 skip-code 行为，MADR 0089）。
+    expect(find.byWidgetPredicate(_isTwemojiAsset), findsOneWidget);
+    final plainTexts = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((richText) => richText.text.toPlainText())
+        .toList();
+    expect(plainTexts.any((text) => text.contains('代码 🐦‍🔥')), isTrue);
+    expect(plainTexts.any((text) => text.contains('块 🐦‍🔥')), isTrue);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
 }

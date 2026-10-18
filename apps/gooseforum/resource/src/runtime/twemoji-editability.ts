@@ -4,9 +4,13 @@ export function isContentEditableValue(value: string | null | undefined): boolea
 }
 
 export const TWEMOJI_TEXT_FREE_TAGS = new Set([
+  'code',
   'iframe',
+  'kbd',
   'math',
   'option',
+  'pre',
+  'samp',
   'script',
   'select',
   'style',

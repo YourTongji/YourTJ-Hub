@@ -243,7 +243,7 @@ void _expectOnlyRichContentScrolls({required bool html}) {
 }
 
 void main() {
-  testWidgets('Markdown uses Twemoji in prose, inline code and code blocks', (
+  testWidgets('Markdown uses Twemoji in prose and keeps code emoji as text', (
     tester,
   ) async {
     await _pumpFixture(
@@ -260,17 +260,18 @@ void main() {
       ),
       findsOneWidget,
     );
+    // 行内代码与围栏代码保持原始 Unicode（MADR 0089 skip-code），不出 Twemoji 图。
     expect(
       find.byWidgetPredicate(
         (Widget widget) => _isTwemojiAsset(widget, '/1f525.png'),
       ),
-      findsNWidgets(2),
+      findsNothing,
     );
     await _dispose(tester);
   });
 
   testWidgets(
-    'Wiki/course HTML uses Twemoji in prose and code with selectable text',
+    'Wiki/course HTML uses Twemoji in prose and keeps code emoji as text',
     (tester) async {
       final semantics = tester.ensureSemantics();
       await _pumpFixture(
@@ -287,11 +288,12 @@ void main() {
       expect(birdOnFire, findsOneWidget);
       expect(find.byType(RichText), findsWidgets);
       expect(find.bySemanticsLabel('🐦‍🔥'), findsOneWidget);
+      // 行内 <code> 与 <pre> 代码保持原始 Unicode（MADR 0089 skip-code）。
       expect(
         find.byWidgetPredicate(
           (Widget widget) => _isTwemojiAsset(widget, '/1f525.png'),
         ),
-        findsNWidgets(2),
+        findsNothing,
       );
       semantics.dispose();
       await _dispose(tester);

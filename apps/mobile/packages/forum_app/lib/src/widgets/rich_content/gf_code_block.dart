@@ -131,8 +131,13 @@ class GfCodeBlock extends StatelessWidget {
     );
     final bool dark = Theme.of(context).brightness == Brightness.dark;
     final List<InlineSpan>? spans = _highlight(dark, style, plain);
-    if (spans == null) return GfText(_source, style: plain);
-    return GfText.rich(TextSpan(children: spans, style: style));
+    // Code content keeps its source Unicode: no Twemoji artwork inside
+    // highlighted or plain code (MADR 0089 skip-code, same as the Web
+    // renderer). GfCodeSpan is honored by GfText's transformer.
+    if (spans == null) {
+      return GfText.rich(GfCodeSpan(text: _source, style: plain));
+    }
+    return GfText.rich(GfCodeSpan(children: spans, style: style));
   }
 
   /// Returns null when highlighting is unavailable or fails, so the caller can

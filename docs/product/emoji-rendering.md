@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-13
+> Last verified: 2026-10-18
 
 ## Supported behavior
 
@@ -28,18 +28,20 @@ Web serves the files from the same-origin Vite asset tree. Flutter bundles them
 in `ui_kit`, so Emoji graphics work offline. Images use the surrounding text
 size and remain inline with line wrapping. Flutter image decoding uses the
 shared asset cache; Web does not walk the document globally and only processes
-Vue text nodes or the text nodes in Vue-managed rich HTML. Code formatting and
-syntax highlighting remain intact while Emoji in code uses Twemoji. Editable
-controls retain their native input behavior.
+Vue text nodes or the text nodes in Vue-managed rich HTML. Following
+[MADR 0089](../decisions/0089-unified-twemoji-rendering.md), code regions are
+skipped: inline code, fenced blocks, and keyboard/sample tags keep the original
+Unicode text so monospace alignment and syntax highlighting stay intact.
+Editable controls retain their native input behavior.
 
 Flutter's `GfText` and `GfSelectableText` are the shared display components.
 Markdown and the HTML renderers for Wiki/course reviews use the same span
-transformer and preserve inline/fenced code formatting while rendering Emoji.
-Selectable copy maps each image placeholder back to its complete original
-Unicode sequence, including code. Missing Flutter assets fall back to native text. Web images
-retain the original Unicode in their `alt` text and fall back to text on load
-failure. Text fields remain native Flutter controls during IME composition;
-their post-submit display uses the shared renderer.
+transformer and skip code spans the same way, preserving inline/fenced code
+formatting. Selectable copy maps each image placeholder back to its complete
+original Unicode sequence. Missing Flutter assets fall back to native text. Web
+images retain the original Unicode in their `alt` text and fall back to text on
+load failure. Text fields remain native Flutter controls during IME
+composition; their post-submit display uses the shared renderer.
 
 ## Boundaries
 

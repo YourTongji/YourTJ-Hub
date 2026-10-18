@@ -27,6 +27,14 @@ class TwemojiSegment {
 
 const String twemojiVersion = twemojiAssetVersion;
 
+/// Marker span for code content (inline code, fenced blocks, keyboard and
+/// sample text). The Twemoji transformer leaves [GfCodeSpan] subtrees
+/// untouched so monospace alignment and syntax highlighting keep the original
+/// Unicode, matching the Web renderer's skip-code behavior (MADR 0089).
+class GfCodeSpan extends TextSpan {
+  const GfCodeSpan({super.style, super.text, super.children});
+}
+
 // Derived once from the complete manifest so the common no-emoji path can
 // skip the sequence parser without maintaining a second Unicode range table.
 final Set<int> _twemojiFirstCodepoints = twemojiAssetBySequence.keys
@@ -529,7 +537,9 @@ class GfText extends Text {
 
 TextSpan _applyTextStyleOverrides(TextSpan span, TextStyle overrideStyle) {
   final children = span.children?.map((child) {
-    if (child is TextSpan && child.runtimeType == TextSpan) {
+    // TextSpan subclasses (GfCodeSpan) take part in style overrides like
+    // any plain span; WidgetSpan and its subclasses stay untouched.
+    if (child is TextSpan) {
       return _applyTextStyleOverrides(child, overrideStyle);
     }
     return child;
@@ -826,6 +836,12 @@ class _TwemojiSpanBuilder {
       return span;
     }
     if (span is! TextSpan) return span;
+    if (span is GfCodeSpan) {
+      // Code keeps its source Unicode; record identity offsets so copy and
+      // selection mapping stay one-to-one with the untransformed text.
+      _recordIdentityOffsets(span);
+      return span;
+    }
 
     final style = inheritedStyle.merge(span.style);
     final transformedChildren = <InlineSpan>[];
