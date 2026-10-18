@@ -17,3 +17,13 @@ for (const [state, subject] of [['Pending', '没有标题的待审正文'], ['Ap
   wrapper.unmount()
  })
 }
+for (const profileUrl of ['/settings?tab=content', 'https://example.com/redirect', '/admin', '/settings?tab=content&extra=1']) {
+ test(`pending appeal notification only accepts the exact content-management destination: ${profileUrl}`, () => {
+  const wrapper = mount(NotificationsPage, { props: { layout: {} as any, props: {
+   notifications: [{ id: 2, eventType: 'review_pending', isRead: true, createdAt: '', title: '', content: '', actor: { id: 0, username: '' }, topic: { id: 42, title: '', url: '/p/42' }, payload: { actorId: 0, templateKey: 'notifications.templates.reviewPending', topicTitle: 'Redacted candidate', metadata: { profileUrl } } }],
+   total: 1, unreadCount: 0, pagination: { hasNext: false },
+  } as any }, global: { plugins: [i18n] } })
+  expect(wrapper.get('article a').attributes('href')).toBe(profileUrl === '/settings?tab=content' ? '/settings?tab=content' : '/p/42')
+  wrapper.unmount()
+ })
+}

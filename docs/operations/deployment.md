@@ -626,7 +626,8 @@ cleanup and the unsafe downgrade boundary are owned by
 - AI 通过静默公开；转人工及人工通过分别通知作者并链接内容，转人工后不再接受延迟的自动结果；拒绝产生一次站内通知，链接 `/settings?tab=content`（App 转至内容管理）。推送和发布副作用
   经 `content-published` 任务投递。SSE `content.changed` 通知作者重读，连接恢复的 hello 同样触发重读。
   已公开内容改稿期间旧版保留，拒绝改稿不会撤掉旧版。草稿保存不送审，发布草稿不能绕过审核。
-- schema 先自动迁移，数据迁移 31 将活跃的旧 pending 内容分批纳入版本和任务队列；成功后才推进迁移版本。
+- schema 先自动迁移，数据迁移的目标版本为 33：v31 将活跃的旧 pending 内容分批纳入版本和任务队列，v32 回填 Bot 徽章，
+  v33 为活跃的旧被拒内容建立可申诉的不可变版本；每步成功后才推进迁移版本。
   中途失败可重启重试；已有版本记录不会重复送审。旧实现已覆盖的公开正文无法可靠还原，不从历史猜测。
 - 任何模型故障、拒答、无效 JSON、未配置、超出每分钟护栏、图片数超限或标题超过 300 字／可见正文超过
   4000 字（超出部分未送审，证据状态 `text_truncated`）都转人工审核，审核队列负担会
@@ -641,6 +642,8 @@ cleanup and the unsafe downgrade boundary are owned by
 - 审核入口：前台“版主管理 → 待审核”（`/api/forum/moderation/review-queue|review-action`）与后台相同。
   队列返回候选版本全文和 `revisionId`；版本化内容的处理请求必须带所见版本 ID，过期或遗漏返回已处理提示。
   版主须有当前分类和候选分类的管理权限。通过不通知；拒绝通知带可编辑入口。
+  作者申诉走 `/api/forum/content/appeals`（内容管理里每个被拒版本一次），版主在“版主管理 → 申诉”复核
+  （`/api/forum/moderation/appeals|appeal-action`），通过即公开该版本并通知作者，拒绝须写理由；目标已变更时申诉失效。
 - 待审图片登记为私有 `post_revision` 引用；`/file/img` 对匿名和他人返回 404，作者、站点管理员、相关版主
   以 `private, no-store` 预览。批准仅切换有效公开引用，旧版保留期间其图片继续公开，历史候选引用始终私有。
   App 对本站图片匿名 404 后用登录态重试一次，不跟随重定向，不将授权响应写入磁盘缓存。

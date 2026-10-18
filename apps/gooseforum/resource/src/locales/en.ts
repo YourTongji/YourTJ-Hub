@@ -2506,6 +2506,25 @@ export default {
     following: 'Following',
     viewProfile: 'View profile',
   },
+  appeals: {
+    title: "Appeals",
+    hint: "Explain why this rejected version should be published. Each version can be appealed once.",
+    reason: "Explanation",
+    submit: "Submit appeal",
+    reviewReason: "Review explanation",
+    reasonRequired: "Enter an explanation.",
+    reviewReasonRequired: "An explanation is required to reject an appeal.",
+    loadFailed: "Could not load appeals.",
+    actionFailed: "Could not process the appeal.",
+    empty: "No appeals in this queue.",
+    refresh: "Refresh",
+    status: {
+      pending: "Pending",
+      approved: "Approved",
+      rejected: "Rejected",
+      stale: "Superseded",
+    },
+  },
   contentReview: {
     blocked: 'Not approved',
     retry: 'Edit and resubmit',
@@ -3724,6 +3743,7 @@ export default {
     blocked: 'Blocked',
     emptyDescription: 'There is nothing to handle in your scope right now.',
     managementTabs: {
+      appeals: "Appeals",
       review: 'Pending review',
       reports: 'Reports',
       ban: 'Blocked posts',

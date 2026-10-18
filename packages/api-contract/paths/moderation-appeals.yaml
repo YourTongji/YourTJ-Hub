@@ -1,0 +1,207 @@
+contentAppeals:
+  get:
+    tags: [Forum]
+    summary: Read appeal history for an owned topic or reply
+    operationId: listContentAppeals
+    description: |
+      Owner-only history, including decision reasons. Frozen accounts may read.
+      No author identity is returned. Responses are private and must not be cached.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    parameters:
+      - name: kind
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [topic, post]
+      - name: id
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    responses:
+      '200':
+        description: Successful result or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ModerationAppealHistoryResponse
+            examples:
+              success:
+                externalValue: ../fixtures/moderation-appeal-history.json
+              permissionDenied:
+                externalValue: ../fixtures/permission-denied.json
+      '401':
+        description: Missing, invalid or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen or unactivated account for writes, or cookie CSRF rejection.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/csrf-rejected.json
+  post:
+    tags: [Forum]
+    summary: Appeal the latest rejected topic or reply revision
+    operationId: submitContentAppeal
+    description: |
+      Requires a writable account and ownership. Only the latest rejected active forum
+      revision is eligible; pending, normal, deleted or superseded content is refused.
+      Wiki first posts are excluded. Each revision permits exactly one durable appeal.
+      The submission explanation and safe receipt commit together; duplicate requests fail.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ModerationAppealSubmitRequest
+    responses:
+      '200':
+        description: Successful result or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ModerationAppealSubmitResponse
+            examples:
+              success:
+                externalValue: ../fixtures/moderation-appeal-submit.json
+              permissionDenied:
+                externalValue: ../fixtures/permission-denied.json
+      '401':
+        description: Missing, invalid or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen or unactivated account for writes, or cookie CSRF rejection.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/csrf-rejected.json
+
+moderationAppeals:
+  post:
+    tags: [Forum]
+    summary: Page through appeals within the moderator scope
+    operationId: listModerationAppeals
+    description: |
+      Admins and global moderators see eligible appeals. Category moderators must have
+      scope over both the current topic and candidate categories; filtering precedes
+      pagination and total. Candidate text is private and responses contain no author
+      identity fields. Callers without moderation access receive permission.denied.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ModerationAppealQueueRequest
+    responses:
+      '200':
+        description: Successful result or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ModerationAppealQueueResponse
+            examples:
+              success:
+                externalValue: ../fixtures/moderation-appeal-queue.json
+              permissionDenied:
+                externalValue: ../fixtures/permission-denied.json
+      '401':
+        description: Missing, invalid or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen or unactivated account for writes, or cookie CSRF rejection.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/csrf-rejected.json
+
+moderationAppealAction:
+  post:
+    tags: [Forum]
+    summary: Approve or reject a moderation appeal
+    operationId: moderationAppealAction
+    description: |
+      Requires a writable moderator account and current target/category authorization.
+      Rejection requires a reason. Approval publishes the exact appealed snapshot and
+      its images through the existing publication transaction; never a later revision.
+      The decision, receipt, search task and publication effects commit atomically.
+      Superseded or deleted targets cannot be restored by an appeal; stale appeals
+      are retained as audit records. Final decisions cannot be processed twice.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ModerationAppealActionRequest
+    responses:
+      '200':
+        description: Successful result or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: ../components/schemas.yaml#/ApiSuccess
+                - $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              success:
+                externalValue: ../fixtures/moderation-appeal-action.json
+              permissionDenied:
+                externalValue: ../fixtures/permission-denied.json
+      '401':
+        description: Missing, invalid or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen or unactivated account for writes, or cookie CSRF rejection.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/csrf-rejected.json

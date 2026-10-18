@@ -462,6 +462,10 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("moderation/report-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationReportStatus))
 	forumLoginApi.POST("moderation/logs", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationLogList))
 	forumLoginApi.POST("moderation/view-deleted-content", middleware.CheckWritableAccount, UpButterReq(forum.ViewDeletedContent))
+	forumLoginApi.POST("content/appeals", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(8192, api.SubmitContentAppeal))
+	forumLoginApi.GET("content/appeals", middleware.NoUpdateUserActivity, UpQueryReq(api.ContentAppeals))
+	forumLoginApi.POST("moderation/appeals", middleware.NoUpdateUserActivity, UpLimitedJsonReq(8192, api.ModerationAppeals))
+	forumLoginApi.POST("moderation/appeal-action", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(8192, api.ModerationAppealAction))
 	forumLoginApi.POST("moderation/review-queue", middleware.NoUpdateUserActivity, UpButterReq(api.ModerationReviewQueue))
 	forumLoginApi.POST("moderation/review-action", middleware.CheckWritableAccount, UpButterReq(api.ModerationReviewAction))
 	// 通知卡片快捷审批确认页（issue #1049）：token 只防篡改，权限按当前会话复核。

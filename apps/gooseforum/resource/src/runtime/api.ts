@@ -1,9 +1,8 @@
 import { feedFetch, feedTopicHeaders } from './feed-telemetry'
-import type { TopicPayload } from '@gooseforum/client'
+import type { components, TopicPayload } from '@gooseforum/client'
 // CourseSummaryPayload 以别名导入：本文件 1663 行另有一个同名但形状不同的
 // CourseSummaryPayload（AI 总结：consensus/keywords/pros/cons），二者同名异物。
 // 这里导入的是课程卡片（id/name/ratingAvg/...），故别名为 CourseCatalogItem 避免混淆。
-import type { components } from '@gooseforum/client'
 import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, MentionTarget, ModerationApprovalActionView, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationCategory, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import type { ReviewQueueItem } from '@/admin/types'
@@ -628,6 +627,35 @@ export async function fetchModerationReports(cursor = 0, pageSize = 20, status =
     body: JSON.stringify({ cursor, pageSize, status }),
   })
   return readApiResponse<ModerationReportListResponse>(response, t('api.moderationReportsFailed'))
+}
+
+export type AppealItem = components['schemas']['ModerationAppealItem']
+export type AppealStatus = AppealItem['status']
+
+export async function fetchContentAppeals(kind: 'topic' | 'post', id: number): Promise<components['schemas']['ModerationAppealHistoryResult']> {
+  const response = await feedFetch(`/api/forum/content/appeals?${new URLSearchParams({ kind, id: String(id) })}`, { headers: { Accept: 'application/json' } })
+  return readApiResponse(response, t('appeals.loadFailed'))
+}
+
+export async function submitContentAppeal(kind: 'topic' | 'post', id: number, revisionId: number, reason: string): Promise<unknown> {
+  const response = await feedFetch('/api/forum/content/appeals', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, id, revisionId, reason }),
+  })
+  return readApiResponse(response, t('appeals.actionFailed'))
+}
+
+export async function fetchModerationAppeals(status: AppealStatus, page = 1, pageSize = 20): Promise<components['schemas']['ModerationAppealQueueResult']> {
+  const response = await feedFetch('/api/forum/moderation/appeals', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, page, pageSize }),
+  })
+  return readApiResponse(response, t('appeals.loadFailed'))
+}
+
+export async function moderationAppealAction(id: number, approve: boolean, reason: string): Promise<unknown> {
+  const response = await feedFetch('/api/forum/moderation/appeal-action', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, approve, reason }),
+  })
+  return readApiResponse(response, t('appeals.actionFailed'))
 }
 
 // 前台版主工作台待审队列（issue #975）：与后台审核队列同形，按版主管辖分类收窄。

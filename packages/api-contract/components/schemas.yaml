@@ -12616,3 +12616,159 @@ AdminStatsUserDetailResponse:
             result:
               $ref: '#/AdminStatsUserDetailResult'
     - $ref: '#/ApiFailure'
+
+
+ModerationAppealItem:
+  type: object
+  required: [id, kind, targetId, revisionId, topicId, postNo, title, content, images, reason, status, reviewReason, createdAt, reviewedAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    kind:
+      type: string
+      enum: [topic, post]
+    targetId:
+      type: integer
+      format: uint64
+    revisionId:
+      type: integer
+      format: uint64
+    topicId:
+      type: integer
+      format: uint64
+    postNo:
+      type: integer
+    title:
+      type: string
+    content:
+      type: string
+    images:
+      type: array
+      items:
+        type: string
+    reason:
+      type: string
+    status:
+      type: string
+      enum: [pending, approved, rejected, stale]
+    reviewReason:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+    reviewedAt:
+      type: [string, 'null']
+      format: date-time
+  additionalProperties: false
+
+ModerationAppealSubmitRequest:
+  type: object
+  required: [kind, id, revisionId, reason]
+  properties:
+    kind:
+      type: string
+      enum: [topic, post]
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    revisionId:
+      type: integer
+      format: uint64
+      minimum: 1
+    reason:
+      type: string
+      minLength: 1
+      maxLength: 512
+      description: Required explanation; whitespace-only text is rejected.
+  additionalProperties: false
+
+ModerationAppealActionRequest:
+  type: object
+  required: [id, approve]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    approve:
+      type: boolean
+    reason:
+      type: string
+      maxLength: 512
+      description: A nonblank reason is required when rejecting an appeal.
+  additionalProperties: false
+
+ModerationAppealQueueRequest:
+  type: object
+  properties:
+    page:
+      type: integer
+    pageSize:
+      type: integer
+    status:
+      type: string
+      enum: [pending, approved, rejected, stale]
+      default: pending
+  additionalProperties: false
+
+ModerationAppealHistoryResult:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ModerationAppealItem'
+  additionalProperties: false
+
+ModerationAppealQueueResult:
+  type: object
+  required: [items, total, page, pageSize]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ModerationAppealItem'
+    total:
+      type: integer
+      format: int64
+    page:
+      type: integer
+    pageSize:
+      type: integer
+  additionalProperties: false
+
+ModerationAppealSubmitResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/ModerationAppealItem'
+    - $ref: '#/ApiFailure'
+
+ModerationAppealHistoryResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/ModerationAppealHistoryResult'
+    - $ref: '#/ApiFailure'
+
+ModerationAppealQueueResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/ModerationAppealQueueResult'
+    - $ref: '#/ApiFailure'

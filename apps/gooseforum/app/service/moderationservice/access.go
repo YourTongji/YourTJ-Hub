@@ -1,6 +1,9 @@
 package moderationservice
 
 import (
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"gorm.io/gorm"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -147,4 +150,36 @@ func uniqueUint64(values []uint64) []uint64 {
 		res = append(res, value)
 	}
 	return res
+}
+
+// ScopeForUserTx avoids cached grants when authorizing retained candidates or publication.
+func ScopeForUserTx(tx *gorm.DB, userID uint64) (bool, []uint64, error) {
+	var user users.EntityComplete
+	if err := tx.First(&user, userID).Error; err != nil {
+		return false, nil, err
+	}
+	if user.IsFrozen == users.StatusFrozen {
+		return false, nil, nil
+	}
+	var n int64
+	if err := tx.Model(&rolePermissionRs.Entity{}).Where("role_id = ? AND permission_id = ?", user.RoleId, permission.Admin.Id()).Count(&n).Error; err != nil {
+		return false, nil, err
+	}
+	if n > 0 {
+		return true, nil, nil
+	}
+	var grants []moderators.Entity
+	if err := tx.Where("user_id = ? AND status = ?", userID, moderators.StatusEnabled).Find(&grants).Error; err != nil {
+		return false, nil, err
+	}
+	ids := []uint64{}
+	for _, grant := range grants {
+		if grant.ScopeType == moderators.ScopeGlobal {
+			return true, nil, nil
+		}
+		if grant.ScopeType == moderators.ScopeCategory {
+			ids = append(ids, grant.ScopeId)
+		}
+	}
+	return false, ids, nil
 }

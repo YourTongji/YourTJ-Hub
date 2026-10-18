@@ -291,7 +291,7 @@ function actorURL(item: NotificationPayload) {
 }
 
 function targetURL(item: NotificationPayload) {
-  if (item.eventType === 'review_rejected') return '/settings?tab=content'
+  if (item.eventType === 'review_rejected' || (item.eventType === 'review_pending' && item.payload.metadata?.profileUrl === '/settings?tab=content')) return '/settings?tab=content'
   if (item.topic) return item.topic.url
   if (item.eventType === 'badge') return item.payload.metadata?.profileUrl || actorURL(item)
   if (item.eventType === 'follow') return actorURL(item)

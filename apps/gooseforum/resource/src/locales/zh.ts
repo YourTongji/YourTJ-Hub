@@ -2508,6 +2508,25 @@ export default {
     following: '已关注',
     viewProfile: '查看主页',
   },
+  appeals: {
+    title: "申诉",
+    hint: "说明为什么该拒绝版本应当公开。每个内容版本只能申诉一次。",
+    reason: "申诉说明",
+    submit: "提交申诉",
+    reviewReason: "复核说明",
+    reasonRequired: "请填写申诉说明。",
+    reviewReasonRequired: "拒绝申诉时必须填写复核说明。",
+    loadFailed: "无法加载申诉。",
+    actionFailed: "申诉处理失败。",
+    empty: "此队列没有申诉。",
+    refresh: "刷新",
+    status: {
+      pending: "待复核",
+      approved: "已通过",
+      rejected: "已拒绝",
+      stale: "已失效",
+    },
+  },
   contentReview: {
     blocked: '未通过审核',
     retry: '修改并重新提交',
@@ -3726,6 +3745,7 @@ export default {
     blocked: '已封禁',
     emptyDescription: '当前范围内没有需要处理的内容。',
     managementTabs: {
+      appeals: "申诉",
       review: '待审核',
       reports: '举报',
       ban: '封禁记录',

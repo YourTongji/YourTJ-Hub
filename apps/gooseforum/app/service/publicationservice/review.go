@@ -11,6 +11,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationAppeals"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -111,6 +112,11 @@ func available(topic topics.Entity, post posts.Entity) bool {
 // Review compares the exact revision under the post lock. Human decisions and
 // worker retries share this path; a terminal decision has exactly one notice.
 func Review(ctx context.Context, revisionID uint64, action, reason string, actorID uint64) error {
+	return review(ctx, revisionID, action, reason, actorID, 0)
+}
+
+func review(ctx context.Context, revisionID uint64, action, reason string, actorID, appealID uint64) error {
+	var stale bool
 	var topic topics.Entity
 	var post posts.Entity
 	var oldCategories []uint64
@@ -147,10 +153,61 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 		if err := tx.First(&revision, revisionID).Error; err != nil {
 			return err
 		}
-		if post.LatestRevisionId != revisionID || revision.ProcessStatus != posts.ProcessStatusPending || !available(topic, post) {
+		if appealID != 0 {
+			var appeal moderationAppeals.Entity
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&appeal, appealID).Error; err != nil {
+				return err
+			}
+			if appeal.PostId != post.Id || appeal.RevisionId != revisionID || appeal.Status != moderationAppeals.Pending {
+				return ErrUnavailable
+			}
+			allowed, err := canReviewAppealTx(tx, actorID, topic, post, revision)
+			if err != nil {
+				return err
+			}
+			if !allowed {
+				return ErrAppealPermission
+			}
+			parentAvailable := true
+			if post.PostNo > 1 {
+				if err := appealParentPublicTx(tx, topic); errors.Is(err, ErrUnavailable) || errors.Is(err, gorm.ErrRecordNotFound) {
+					parentAvailable = false
+				} else if err != nil {
+					return err
+				}
+			}
+			if !appealable(topic, post, revision) || !parentAvailable {
+				stale = true
+				if err := tx.Model(&appeal).Updates(map[string]any{"status": moderationAppeals.Stale, "reviewed_at": time.Now(), "review_actor_id": actorID}).Error; err != nil {
+					return err
+				}
+				// 作者仍需得知结论：失效的申诉同样发一条结果通知。
+				return enqueueReviewNotice(tx, revision, topic, post, eventNotification.EventTypeReviewRejected, Effect{RevisionId: revisionID, NotificationOnly: true})
+			}
+			if action == moderationDecision.ActionAllow {
+				author, err := users.GetInteractionUserTx(tx, post.UserId)
+				if err != nil {
+					return err
+				}
+				if author.IsFrozen == users.StatusFrozen {
+					return ErrUnavailable
+				}
+			}
+			if action == moderationDecision.ActionBlock {
+				if err := decideAppealTx(tx, appealID, actorID, false, reason); err != nil {
+					return err
+				}
+				return enqueueReviewNotice(tx, revision, topic, post, eventNotification.EventTypeReviewRejected, Effect{RevisionId: revisionID, NotificationOnly: true})
+			}
+		}
+		expectedStatus := posts.ProcessStatusPending
+		if appealID != 0 {
+			expectedStatus = posts.ProcessStatusBlocked
+		}
+		if post.LatestRevisionId != revisionID || revision.ProcessStatus != expectedStatus || !available(topic, post) {
 			return ErrUnavailable
 		}
-		if post.ProcessStatus == posts.ProcessStatusBlocked || topic.ProcessStatus == topics.ProcessStatusBlocked {
+		if appealID == 0 && (post.ProcessStatus == posts.ProcessStatusBlocked || topic.ProcessStatus == topics.ProcessStatusBlocked) {
 			return ErrUnavailable
 		}
 		if post.PostNo > 1 && topic.ProcessStatus != topics.ProcessStatusNormal {
@@ -304,6 +361,11 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 				}
 			}
 		}
+		if appealID != 0 {
+			if err := decideAppealTx(tx, appealID, actorID, action == moderationDecision.ActionAllow, reason); err != nil {
+				return err
+			}
+		}
 		if actorID == 0 {
 			if err := tx.Model(&moderationDecision.Entity{}).Where("revision_id = ?", revisionID).Update("applied_action", action).Error; err != nil {
 				return err
@@ -335,12 +397,15 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 		}
 		return enqueueEffect(tx, effect)
 	})
-	if err == nil {
+	if err == nil && !stale {
 		unreadservice.Invalidate(post.UserId)
 		hotdataserve.InvalidateTopicListCacheForCategories(append(oldCategories, topic.CategoryIds...)...)
 		llmsservice.ClearCache()
 		realtimeservice.DefaultHub.Publish(post.UserId, realtimeservice.Event{Type: realtimeservice.EventContentChanged})
 		realtimeservice.DefaultHub.Publish(post.UserId, realtimeservice.Event{Type: realtimeservice.EventNotificationsChanged})
+	}
+	if stale && err == nil {
+		return ErrUnavailable
 	}
 	return err
 }

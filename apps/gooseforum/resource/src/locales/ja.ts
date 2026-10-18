@@ -2505,6 +2505,25 @@ export default {
     following: 'フォロー中',
     viewProfile: 'プロフィールを見る',
   },
+  appeals: {
+    title: "異議申し立て",
+    hint: "却下された版を公開すべき理由を説明してください。各版につき一度申し立てできます。",
+    reason: "申し立て理由",
+    submit: "申し立てを送信",
+    reviewReason: "審査理由",
+    reasonRequired: "理由を入力してください。",
+    reviewReasonRequired: "申し立てを却下するには理由が必要です。",
+    loadFailed: "申し立てを読み込めませんでした。",
+    actionFailed: "申し立てを処理できませんでした。",
+    empty: "この一覧に申し立てはありません。",
+    refresh: "更新",
+    status: {
+      pending: "審査待ち",
+      approved: "承認済み",
+      rejected: "却下済み",
+      stale: "失効",
+    },
+  },
   contentReview: {
     blocked: '承認されませんでした',
     retry: '編集して再送信',
@@ -3723,6 +3742,7 @@ export default {
     blocked: '封禁済み',
     emptyDescription: '現在の範囲には処理する内容がありません。',
     managementTabs: {
+      appeals: "異議申し立て",
       review: '審査待ち',
       reports: '通報',
       ban: '封禁済み',

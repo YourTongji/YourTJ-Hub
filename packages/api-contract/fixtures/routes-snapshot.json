@@ -273,6 +273,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/forum/content/appeals"
+  },
+  {
+    "method": "GET",
     "path": "/api/forum/courses"
   },
   {
@@ -1213,6 +1217,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/content/appeals"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/course-reviews"
   },
   {
@@ -1238,6 +1246,14 @@
   {
     "method": "POST",
     "path": "/api/forum/follow-user"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/appeal-action"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/appeals"
   },
   {
     "method": "POST",

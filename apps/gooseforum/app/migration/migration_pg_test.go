@@ -90,6 +90,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		"inbox_campaign_run",
 		"inbox_delivery",
 		"inbox_claim",
+		"moderation_appeals",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Errorf("table %q missing after postgres migration", table)
@@ -115,6 +116,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	assertCourseTeacherIdentitySchema(t, db)
 	assertSearchMaintenanceSchema(t, db)
 	assertCourseAggregationSchema(t, db)
+	assertModerationAppealsSchema(t, db)
 }
 
 // TestSchemaUpgradeCreatesNewTablesOnPostgreSQL 模拟存量实例升级场景：
@@ -249,6 +251,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		"inbox_campaign_run",
 		"inbox_delivery",
 		"inbox_claim",
+		"moderation_appeals",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Errorf("table %q missing after upgrade migration", table)
@@ -266,6 +269,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if !db.Migrator().HasColumn(&users.EntityComplete{}, "anonymous_governance_blocked") || !db.Migrator().HasColumn(&topics.Entity{}, "persona_uid") {
 		t.Fatal("anonymous columns missing")
 	}
+	assertModerationAppealsSchema(t, db)
 	assertUniqueUserEmailSchema(t, db)
 	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
@@ -496,5 +500,20 @@ func TestDecorationFrameScaleUpgradeOnPostgreSQL(t *testing.T) {
 	}
 	if frame.AssetScale != 1.25 || frame.Name != "Legacy frame" || !frame.IsEnabled {
 		t.Fatalf("upgrade changed existing appearance: %+v", frame)
+	}
+}
+
+func assertModerationAppealsSchema(t *testing.T, conn *gorm.DB) {
+	t.Helper()
+	if !conn.Migrator().HasTable("moderation_appeals") {
+		t.Fatal("appeal table missing")
+	}
+	for _, column := range []string{"post_id", "revision_id", "reason", "status", "review_reason", "review_actor_id", "reviewed_at", "original_review_reason", "original_review_actor_id", "original_reviewed_at"} {
+		if !conn.Migrator().HasColumn("moderation_appeals", column) {
+			t.Errorf("appeal column %s missing", column)
+		}
+	}
+	if !conn.Migrator().HasIndex("moderation_appeals", "uniq_moderation_appeal_revision") {
+		t.Fatal("one-appeal-per-revision constraint missing")
 	}
 }

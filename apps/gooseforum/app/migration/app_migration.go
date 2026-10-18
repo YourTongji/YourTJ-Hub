@@ -440,6 +440,15 @@ func runVersionedDataMigrations() error {
 		}
 		currentVersion = 32
 	}
+	if currentVersion < 33 {
+		if err := publicationservice.AdoptRejected(context.Background()); err != nil {
+			return fmt.Errorf("app migration v33 rejected submissions: %w", err)
+		}
+		if err := pageConfig.SyncMigrationVersion(33); err != nil {
+			return err
+		}
+		currentVersion = 33
+	}
 	slog.Info("app migration end", "version", currentVersion)
 	return nil
 }

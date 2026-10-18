@@ -2505,6 +2505,25 @@ export default {
     following: 'Folgt',
     viewProfile: 'Profil anzeigen',
   },
+  appeals: {
+    title: "Einsprüche",
+    hint: "Erkläre, warum diese abgelehnte Version veröffentlicht werden sollte. Pro Version ist ein Einspruch möglich.",
+    reason: "Begründung",
+    submit: "Einspruch einreichen",
+    reviewReason: "Prüfbegründung",
+    reasonRequired: "Bitte gib eine Begründung ein.",
+    reviewReasonRequired: "Zum Ablehnen ist eine Prüfbegründung erforderlich.",
+    loadFailed: "Einsprüche konnten nicht geladen werden.",
+    actionFailed: "Der Einspruch konnte nicht bearbeitet werden.",
+    empty: "Keine Einsprüche in dieser Liste.",
+    refresh: "Aktualisieren",
+    status: {
+      pending: "Ausstehend",
+      approved: "Genehmigt",
+      rejected: "Abgelehnt",
+      stale: "Überholt",
+    },
+  },
   contentReview: {
     blocked: 'Nicht freigegeben',
     retry: 'Bearbeiten und erneut senden',
@@ -3723,6 +3742,7 @@ export default {
     blocked: 'Gesperrt',
     emptyDescription: 'Derzeit gibt es in deinem Zuständigkeitsbereich nichts zu verwalten.',
     managementTabs: {
+      appeals: "Einsprüche",
       review: 'Zu prüfen',
       reports: 'Meldungen',
       ban: 'Gesperrte Beiträge',

@@ -169,7 +169,7 @@ func GetPostingSettingsConfig(defaultValue PostingContent) PostingContent {
 	return config
 }
 
-const AppMigrationVersion uint32 = 31
+const AppMigrationVersion uint32 = 33
 
 func GetMigrationVersion() uint32 {
 	configEntity := GetByPageType(Migration)

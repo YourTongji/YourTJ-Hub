@@ -2144,6 +2144,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/content/appeals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read appeal history for an owned topic or reply
+         * @description Owner-only history, including decision reasons. Frozen accounts may read.
+         *     No author identity is returned. Responses are private and must not be cached.
+         */
+        get: operations["listContentAppeals"];
+        put?: never;
+        /**
+         * Appeal the latest rejected topic or reply revision
+         * @description Requires a writable account and ownership. Only the latest rejected active forum
+         *     revision is eligible; pending, normal, deleted or superseded content is refused.
+         *     Wiki first posts are excluded. Each revision permits exactly one durable appeal.
+         *     The submission explanation and safe receipt commit together; duplicate requests fail.
+         */
+        post: operations["submitContentAppeal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/appeals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page through appeals within the moderator scope
+         * @description Admins and global moderators see eligible appeals. Category moderators must have
+         *     scope over both the current topic and candidate categories; filtering precedes
+         *     pagination and total. Candidate text is private and responses contain no author
+         *     identity fields. Callers without moderation access receive permission.denied.
+         */
+        post: operations["listModerationAppeals"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/appeal-action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve or reject a moderation appeal
+         * @description Requires a writable moderator account and current target/category authorization.
+         *     Rejection requires a reason. Approval publishes the exact appealed snapshot and
+         *     its images through the existing publication transaction; never a later revision.
+         *     The decision, receipt, search task and publication effects commit atomically.
+         *     Superseded or deleted targets cannot be restored by an appeal; stale appeals
+         *     are retained as audit records. Final decisions cannot be processed twice.
+         */
+        post: operations["moderationAppealAction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/moderation/review-queue": {
         parameters: {
             query?: never;
@@ -12356,6 +12432,75 @@ export interface components {
             /** @description Trimmed; blank fails with `admin.badge.codeRequired`. System badges fail with `admin.badge.systemDeleteBlocked`. */
             code?: string;
         };
+        ModerationAppealItem: {
+            /** Format: uint64 */
+            id: number;
+            /** @enum {string} */
+            kind: "topic" | "post";
+            /** Format: uint64 */
+            targetId: number;
+            /** Format: uint64 */
+            revisionId: number;
+            /** Format: uint64 */
+            topicId: number;
+            postNo: number;
+            title: string;
+            content: string;
+            images: string[];
+            reason: string;
+            /** @enum {string} */
+            status: "pending" | "approved" | "rejected" | "stale";
+            reviewReason: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            reviewedAt: string | null;
+        };
+        ModerationAppealSubmitRequest: {
+            /** @enum {string} */
+            kind: "topic" | "post";
+            /** Format: uint64 */
+            id: number;
+            /** Format: uint64 */
+            revisionId: number;
+            /** @description Required explanation; whitespace-only text is rejected. */
+            reason: string;
+        };
+        ModerationAppealActionRequest: {
+            /** Format: uint64 */
+            id: number;
+            approve: boolean;
+            /** @description A nonblank reason is required when rejecting an appeal. */
+            reason?: string;
+        };
+        ModerationAppealQueueRequest: {
+            page?: number;
+            pageSize?: number;
+            /**
+             * @default pending
+             * @enum {string}
+             */
+            status: "pending" | "approved" | "rejected" | "stale";
+        };
+        ModerationAppealHistoryResult: {
+            items: components["schemas"]["ModerationAppealItem"][];
+        };
+        ModerationAppealQueueResult: {
+            items: components["schemas"]["ModerationAppealItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        ModerationAppealSubmitResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ModerationAppealItem"];
+        }) | components["schemas"]["ApiFailure"];
+        ModerationAppealHistoryResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ModerationAppealHistoryResult"];
+        }) | components["schemas"]["ApiFailure"];
+        ModerationAppealQueueResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ModerationAppealQueueResult"];
+        }) | components["schemas"]["ApiFailure"];
         AdminReviewQueueRequest: {
             /**
              * @description Any other value (including empty) fails validation with HTTP 200 `common.request.invalidParams`.
@@ -19847,6 +19992,173 @@ export interface operations {
                 };
             };
             /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listContentAppeals: {
+        parameters: {
+            query: {
+                kind: "topic" | "post";
+                id: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful result or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationAppealHistoryResponse"];
+                };
+            };
+            /** @description Missing, invalid or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen or unactivated account for writes, or cookie CSRF rejection. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    submitContentAppeal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationAppealSubmitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful result or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationAppealSubmitResponse"];
+                };
+            };
+            /** @description Missing, invalid or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen or unactivated account for writes, or cookie CSRF rejection. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listModerationAppeals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationAppealQueueRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful result or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationAppealQueueResponse"];
+                };
+            };
+            /** @description Missing, invalid or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen or unactivated account for writes, or cookie CSRF rejection. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    moderationAppealAction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationAppealActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful result or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccess"] | components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen or unactivated account for writes, or cookie CSRF rejection. */
             403: {
                 headers: {
                     [name: string]: unknown;

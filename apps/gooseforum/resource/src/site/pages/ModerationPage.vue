@@ -8,6 +8,7 @@ import { formatDateTime } from '@/runtime/format'
 import { fetchPage } from '@/runtime/router'
 import { showUserCard } from '@/runtime/user-card-events'
 import EmptyState from '@/site/components/EmptyState.vue'
+import ModerationAppealQueue from '@/site/components/ModerationAppealQueue.vue'
 import ModerationReviewQueue from '@/site/components/ModerationReviewQueue.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
 import TopicList from '@/site/components/TopicList.vue'
@@ -25,7 +26,7 @@ const topics = ref<TopicPayload[]>([...page.props.topics])
 const busyIds = ref<number[]>([])
 const actionError = ref('')
 const loadingList = ref(false)
-const activeConsoleTab = ref<'review' | 'reports' | 'ban' | 'logs' | 'guidance'>(initialConsoleTab())
+const activeConsoleTab = ref<'review' | 'appeals' | 'reports' | 'ban' | 'logs' | 'guidance'>(initialConsoleTab())
 const reportItems = ref<ModerationReportItem[]>([])
 const reportStatus = ref<'open' | 'closed'>('open')
 const reportNextCursor = ref(0)
@@ -42,13 +43,15 @@ const logLoaded = ref(false)
 const logError = ref('')
 
 // 审批通知卡片的「打开版主工作台」按钮带 ?tab=review|reports，直达对应队列（issue #1049）。
-function initialConsoleTab(): 'review' | 'reports' {
+function initialConsoleTab(): 'review' | 'reports' | 'appeals' {
   if (typeof window === 'undefined') return 'review'
-  return new URLSearchParams(window.location.search).get('tab') === 'reports' ? 'reports' : 'review'
+  const tab = new URLSearchParams(window.location.search).get('tab')
+  return tab === 'reports' || tab === 'appeals' ? tab : 'review'
 }
 
 const managementTabs = [
   { key: 'review', icon: ShieldCheck },
+  { key: 'appeals', icon: Scale },
   { key: 'reports', icon: Flag },
   { key: 'ban', icon: Ban },
   { key: 'logs', icon: History },
@@ -300,7 +303,7 @@ async function submitEvidenceView() {
         type="button"
         class="-mb-px inline-flex h-10 items-center gap-2 border-b-2 px-1 text-sm font-semibold transition"
         :class="activeConsoleTab === tab.key ? 'border-primary text-primary' : 'border-transparent text-base-content/55 hover:text-base-content'"
-        @click="activeConsoleTab = tab.key as 'review' | 'reports' | 'ban' | 'logs' | 'guidance'"
+        @click="activeConsoleTab = tab.key as 'review' | 'appeals' | 'reports' | 'ban' | 'logs' | 'guidance'"
       >
         <component :is="tab.icon" class="h-4 w-4" />
         {{ t(`moderation.managementTabs.${tab.key}`) }}
@@ -308,6 +311,8 @@ async function submitEvidenceView() {
     </div>
 
     <ModerationReviewQueue v-if="activeConsoleTab === 'review'" @changed="resetModerationLogs" />
+
+    <ModerationAppealQueue v-else-if="activeConsoleTab === 'appeals'" @changed="resetModerationLogs" />
 
     <section v-else-if="activeConsoleTab === 'reports'" class="space-y-3">
       <p v-if="reportError" class="rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">

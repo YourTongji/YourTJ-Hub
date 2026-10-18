@@ -1,0 +1,19 @@
+{
+  "result": {
+    "id": 1,
+    "kind": "topic",
+    "targetId": 101,
+    "revisionId": 201,
+    "topicId": 101,
+    "postNo": 1,
+    "title": "候选标题",
+    "content": "候选正文",
+    "images": [],
+    "reason": "请重新核查上下文",
+    "status": "pending",
+    "reviewReason": "",
+    "createdAt": "2026-10-10T00:00:00Z",
+    "reviewedAt": null
+  },
+  "code": 0
+}
