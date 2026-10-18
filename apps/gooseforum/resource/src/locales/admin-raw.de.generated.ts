@@ -978,6 +978,7 @@ export default {
   "k00x2": "Thema gemeldet",
   "k00x3": "Antwort gemeldet",
   "k00x4": "Chatnachricht gemeldet",
+  "moderationAppealSubmitted": "Neuer Einspruch",
   "k00x5": "Kursbewertung gemeldet",
   "k00x6": "Ziel",
   "k00x7": "Generischer Webhook (JSON)",

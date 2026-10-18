@@ -104,6 +104,8 @@ func astrbotApprovalText(payload ApprovalPayload, test bool) string {
 	kind := "待人工审核"
 	if a.Kind == ApprovalKindReport {
 		kind = "新举报"
+	} else if a.Kind == ApprovalKindAppeal {
+		kind = "新申诉"
 	}
 	tags := make([]string, 0, 4)
 	if reason := approvalReasonLabels[a.Reason]; reason != "" {

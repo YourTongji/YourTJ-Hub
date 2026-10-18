@@ -7,8 +7,10 @@ import (
 	"strconv"
 	"time"
 
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationAppeals"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -18,6 +20,40 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/tokenservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
 )
+
+type ModerationAppealSubmittedEvent struct{ AppealID uint64 }
+
+func handleHttpNotifyAppealSubmitted(ctx context.Context, event *ModerationAppealSubmittedEvent) error {
+	if !httpnotifyservice.ShouldNotify(httpnotifyservice.EventAppealSubmitted) {
+		return nil
+	}
+	var appeal moderationAppeals.Entity
+	if err := db.ConnectContext(ctx).First(&appeal, event.AppealID).Error; err != nil {
+		return err
+	}
+	if appeal.Status != moderationAppeals.Pending {
+		return nil
+	}
+	post := posts.Get(appeal.PostId)
+	if post.Id == 0 || post.LatestRevisionId != appeal.RevisionId {
+		return nil
+	}
+	topic := topics.GetSimple(post.TopicId)
+	if topic.Id == 0 {
+		return nil
+	}
+	kind, targetID := ReviewSubject(topic, post)
+	approval := httpnotifyservice.ApprovalPayload{BaseURI: baseURI(), Approval: httpnotifyservice.Approval{
+		ID: "appeal:" + strconv.FormatUint(appeal.Id, 10), Kind: httpnotifyservice.ApprovalKindAppeal,
+		TargetType: kind, TargetID: targetID, TopicID: topic.Id, CreatedAt: appeal.CreatedAt.Format(time.RFC3339),
+		ModerationURL: "/moderation?tab=appeals",
+	}}
+	httpnotifyservice.Publish(httpnotifyservice.Message{
+		Alternatives: []httpnotifyservice.Alternative{{Event: httpnotifyservice.EventAppealSubmitted, Data: approval}},
+		Approval:     &approval, DedupeKey: approval.Approval.ID,
+	})
+	return nil
+}
 
 // 版主审批通知（issue #1049）：把“需要人工介入”的语义事件转成统一审批摘要。
 // 摘要在此完成匿名/隐私裁剪，通道渲染器不再回库拼接身份。

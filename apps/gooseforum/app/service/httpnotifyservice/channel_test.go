@@ -35,6 +35,24 @@ func testApproval() *ApprovalPayload {
 	}}
 }
 
+func TestAppealSupportedByAllNotificationChannels(t *testing.T) {
+	if !IsApprovalEvent(EventAppealSubmitted) {
+		t.Fatal("appeal is not an approval event")
+	}
+	payload := ApprovalPayload{BaseURI: "https://hub.example.test", Approval: Approval{ID: "appeal:1", Kind: ApprovalKindAppeal, TargetType: "topic", TargetID: 2, ModerationURL: "/moderation?tab=appeals"}}
+	if got := astrbotApprovalText(payload, false); !strings.Contains(got, "新申诉") || !strings.Contains(got, "/moderation?tab=appeals") {
+		t.Fatalf("astrbot appeal: %s", got)
+	}
+	card := feishuCard(payload, false)
+	body, err := json.Marshal(card)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "新申诉") || !strings.Contains(string(body), "/moderation?tab=appeals") {
+		t.Fatalf("feishu appeal: %s", body)
+	}
+}
+
 func TestFeishuEncodeSignsAndRendersUserTextAsPlainText(t *testing.T) {
 	endpoint := pageConfig.HttpNotifyEndpoint{ChannelType: pageConfig.HttpNotifyChannelFeishu, Secret: "feishu-secret"}
 	now := time.Unix(1_800_000_000, 0)

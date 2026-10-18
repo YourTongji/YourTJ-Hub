@@ -194,6 +194,8 @@ func feishuCard(payload ApprovalPayload, test bool) map[string]any {
 	title, template, headerIcon, reasonColor := "待人工审核 · "+target, "orange", "approval_outlined", "orange"
 	if a.Kind == ApprovalKindReport {
 		title, template, headerIcon, reasonColor = "新举报 · "+target, "red", "report_outlined", "red"
+	} else if a.Kind == ApprovalKindAppeal {
+		title = "新申诉 · " + target
 	}
 	reason := approvalReasonLabels[a.Reason]
 	if reason == "" {

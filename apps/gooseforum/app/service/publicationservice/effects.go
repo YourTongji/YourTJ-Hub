@@ -22,6 +22,7 @@ import (
 const EffectTaskType = "content-published"
 
 type Effect struct {
+	AppealId           uint64 `json:"appealId,omitempty"`
 	RevisionId         uint64 `json:"revisionId"`
 	PreviousRevisionId uint64 `json:"previousRevisionId"`
 	NotificationId     uint64 `json:"notificationId,omitempty"`
@@ -64,6 +65,11 @@ func RunEffectsTask(ctx context.Context, task *taskQueue.Entity) error {
 	// repeating them; per-approval delivery dedupe absorbs task retries.
 	if effect.ReviewRequested && post.LatestRevisionId == revision.Id && revision.ProcessStatus == posts.ProcessStatusPending {
 		if err := eventbus.PublishE(ctx, &eventhandlers.ModerationReviewRequestedEvent{RevisionID: revision.Id}); err != nil {
+			return err
+		}
+	}
+	if effect.AppealId != 0 {
+		if err := eventbus.PublishE(ctx, &eventhandlers.ModerationAppealSubmittedEvent{AppealID: effect.AppealId}); err != nil {
 			return err
 		}
 	}

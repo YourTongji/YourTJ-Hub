@@ -978,6 +978,7 @@ export default {
   "k00x2": "Topic reported",
   "k00x3": "Reply reported",
   "k00x4": "Chat message reported",
+  "moderationAppealSubmitted": "New appeal",
   "k00x5": "Course review reported",
   "k00x6": "Destination",
   "k00x7": "Generic webhook (JSON)",

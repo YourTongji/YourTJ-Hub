@@ -356,6 +356,7 @@ const httpNotifyEvents = computed(() => {
 const approvalNotifyEvents = [
   'moderation.review.topic.requested',
   'moderation.review.post.requested',
+  'moderation.appeal.submitted',
   'moderation.report.topic.created',
   'moderation.report.post.created',
   'moderation.report.chat_message.created',
@@ -364,6 +365,7 @@ const approvalNotifyEvents = [
 const approvalNotifyEventLabels: Record<(typeof approvalNotifyEvents)[number], string> = {
   'moderation.review.topic.requested': 'k00x0',
   'moderation.review.post.requested': 'k00x1',
+  'moderation.appeal.submitted': 'moderationAppealSubmitted',
   'moderation.report.topic.created': 'k00x2',
   'moderation.report.post.created': 'k00x3',
   'moderation.report.chat_message.created': 'k00x4',

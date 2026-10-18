@@ -34,6 +34,7 @@ const (
 	// 版主审批事件（issue #1049）：payload 为统一的审批安全摘要（ApprovalPayload）。
 	EventReviewTopicRequested      = "moderation.review.topic.requested"
 	EventReviewPostRequested       = "moderation.review.post.requested"
+	EventAppealSubmitted           = "moderation.appeal.submitted"
 	EventReportTopicCreated        = "moderation.report.topic.created"
 	EventReportPostCreated         = "moderation.report.post.created"
 	EventReportChatMessageCreated  = "moderation.report.chat_message.created"

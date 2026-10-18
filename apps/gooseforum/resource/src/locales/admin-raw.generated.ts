@@ -978,6 +978,7 @@ export default {
   "k00x2": "话题被举报",
   "k00x3": "回复被举报",
   "k00x4": "聊天消息被举报",
+  "moderationAppealSubmitted": "新申诉",
   "k00x5": "课评被举报",
   "k00x6": "接收方式",
   "k00x7": "通用 Webhook（JSON）",

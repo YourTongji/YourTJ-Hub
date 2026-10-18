@@ -95,7 +95,7 @@ func SubmitAppeal(ctx context.Context, userID uint64, kind string, targetID, rev
 		if item.Images == nil {
 			item.Images = []string{}
 		}
-		return enqueueEffect(tx, Effect{RevisionId: revisionID, NotificationId: notice.Id, NotificationOnly: true})
+		return enqueueEffect(tx, Effect{RevisionId: revisionID, NotificationId: notice.Id, NotificationOnly: true, AppealId: appeal.Id})
 	})
 	if err == nil {
 		unreadservice.Invalidate(userID)

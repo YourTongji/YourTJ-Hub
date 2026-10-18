@@ -9,6 +9,7 @@ import (
 const (
 	ApprovalKindReview = "review" // 内容真正进入人工审核队列
 	ApprovalKindReport = "report" // 新举报
+	ApprovalKindAppeal = "appeal" // 新申诉
 
 	ApprovalActionApprove = "approve" // 待审内容：通过并公开
 	ApprovalActionReject  = "reject"  // 待审内容：拒绝

@@ -73,6 +73,7 @@ func IsApprovalEvent(eventName string) bool {
 	switch eventName {
 	case EventReportCreated,
 		EventReviewTopicRequested, EventReviewPostRequested,
+		EventAppealSubmitted,
 		EventReportTopicCreated, EventReportPostCreated,
 		EventReportChatMessageCreated, EventReportCourseReviewCreated:
 		return true

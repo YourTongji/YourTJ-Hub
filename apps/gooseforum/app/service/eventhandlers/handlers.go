@@ -56,5 +56,6 @@ func Handlers() []cqrs.EventHandler {
 		cqrs.NewEventHandler("HttpNotifyUserSignUpHandler", handleHttpNotifyUserSignUp),
 		cqrs.NewEventHandler("HttpNotifyReportCreatedHandler", handleHttpNotifyReportCreated),
 		cqrs.NewEventHandler("HttpNotifyReviewRequestedHandler", handleHttpNotifyReviewRequested),
+		cqrs.NewEventHandler("HttpNotifyAppealSubmittedHandler", handleHttpNotifyAppealSubmitted),
 	}
 }
