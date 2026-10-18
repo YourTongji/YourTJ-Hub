@@ -712,54 +712,155 @@ void main() {
   );
 
   group('feed context', () {
-    Widget card({GfTopicContext? feedContext}) => gfApp(
-      SizedBox(
-        width: 390,
-        child: GfTopicCard(
-          title: 'Campus',
-          description: '',
-          authorName: 'Student',
-          authorAvatarUrl: '',
-          activityText: 'now',
-          categories: const [],
-          imageUrls: const [],
-          replyCount: 3,
-          viewCount: 7,
-          feedContext: feedContext,
+    Widget card({
+      GfTopicContext? feedContext,
+      double scale = 1,
+      VoidCallback? onTap,
+      TextDirection direction = TextDirection.ltr,
+    }) => gfApp(
+      MediaQuery(
+        data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+        child: Directionality(
+          textDirection: direction,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: 390,
+              child: GfTopicCard(
+                title: 'Campus',
+                description: '',
+                authorName: 'Student',
+                authorAvatarUrl: '',
+                activityText: 'now',
+                categories: const [],
+                imageUrls: const [],
+                replyCount: 3,
+                viewCount: 7,
+                onTap: onTap,
+                // For You is signed in, so the footer carries its controls.
+                onLike: (_) async => true,
+                onBookmark: (_) async => true,
+                feedContext: feedContext,
+              ),
+            ),
+          ),
         ),
       ),
     );
 
-    testWidgets('mark shares the avatar axis and label the name edge', (
-      tester,
-    ) async {
-      await forEachBrightness(tester, (tester, brightness) async {
+    // The reply metric shares a glyph; the seal's is the 16px one.
+    Finder seal(String symbol) => find.byWidgetPredicate(
+      (widget) =>
+          widget is GfSymbol && widget.name == symbol && widget.size == 16,
+    );
+    final trail = find.byKey(const Key('gf-topic-card-reason-trail'));
+
+    testWidgets(
+      'avatar, trail and seal share one axis down to the footer line',
+      (tester) async {
+        await tester.pumpWidget(card());
+        final plainHeight = tester.getSize(find.byType(GfTopicCard)).height;
+        await forEachBrightness(tester, (tester, brightness) async {
+          await tester.pumpWidget(
+            card(
+              feedContext: const GfTopicContext(
+                label: 'From someone you follow',
+                symbol: 'user-round-check',
+              ),
+            ),
+          );
+          final mark = seal('user-round-check');
+          final avatar = tester.getRect(find.byType(GfAvatar));
+          final line = tester.getRect(trail);
+          expect(
+            tester.getSize(find.byType(GfTopicCard)).height,
+            closeTo(plainHeight, .5),
+          );
+          for (final x in [tester.getCenter(mark).dx, line.center.dx]) {
+            expect(x, closeTo(avatar.center.dx, .5));
+          }
+          expect(
+            tester.getCenter(mark).dy,
+            closeTo(tester.getCenter(find.text('3')).dy, 1),
+          );
+          // Even gaps: avatar, trail, then the seal's 28px disc.
+          expect(line.top - avatar.bottom, closeTo(6, .5));
+          expect(tester.getCenter(mark).dy - 14 - line.bottom, closeTo(6, .5));
+          // Glyph only until asked: the label lives in the tooltip.
+          expect(find.text('From someone you follow'), findsNothing);
+          expect(tester.takeException(), isNull);
+        });
+      },
+    );
+
+    testWidgets(
+      'tapping the seal traces the trail and unrolls the label beside it',
+      (tester) async {
+        var opened = 0;
         await tester.pumpWidget(
           card(
+            onTap: () => opened++,
             feedContext: const GfTopicContext(
-              label: 'From someone you follow',
-              symbol: 'user-round-check',
+              label: 'A category you have posted in',
+              symbol: 'folder',
             ),
           ),
         );
-        final mark = find.byWidgetPredicate(
-          (widget) => widget is GfSymbol && widget.name == 'user-round-check',
-        );
-        final label = find.text('From someone you follow');
+        await tester.tap(seal('folder'));
+        await tester.pump(const Duration(milliseconds: 300));
+        final label = find.text('A category you have posted in');
+        expect(label, findsOneWidget);
+        expect(opened, 0);
+        final sealRect = tester.getRect(seal('folder'));
+        expect(tester.getRect(label).left, greaterThan(sealRect.right + 6));
         expect(
-          tester.getCenter(mark).dx,
-          closeTo(tester.getCenter(find.byType(GfAvatar)).dx, .5),
+          tester.getCenter(label).dy,
+          closeTo(tester.getCenter(seal('folder')).dy, 1),
         );
-        expect(
-          tester.getTopLeft(label).dx,
-          closeTo(tester.getTopLeft(find.text('Student')).dx, .5),
-        );
-        expect(
-          tester.getBottomLeft(label).dy,
-          lessThan(tester.getTopLeft(find.text('Student')).dy),
-        );
-        expect(tester.takeException(), isNull);
-      });
+        await tester.pump(const Duration(seconds: 3));
+        await tester.pumpAndSettle();
+        expect(label, findsNothing);
+      },
+    );
+
+    testWidgets('the label unrolls toward the leading side in RTL', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        card(
+          direction: TextDirection.rtl,
+          feedContext: const GfTopicContext(label: 'reason', symbol: 'folder'),
+        ),
+      );
+      await tester.tap(seal('folder'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        tester.getRect(find.text('reason')).right,
+        lessThan(tester.getRect(seal('folder')).left - 6),
+      );
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('large text keeps the seal clear of the avatar', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        card(
+          scale: 2,
+          feedContext: const GfTopicContext(
+            label: 'New replies',
+            symbol: 'message-circle',
+            newReplies: true,
+          ),
+        ),
+      );
+      // The seal is a 28px disc around the glyph's center.
+      expect(
+        tester.getCenter(seal('message-circle')).dy - 14,
+        greaterThan(tester.getBottomLeft(find.byType(GfAvatar)).dy),
+      );
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('new replies tint the reply count; other reasons do not', (
@@ -781,32 +882,23 @@ void main() {
       expect(tester.widget<Text>(find.text('7')).style?.color, isNot(primary));
 
       await tester.pumpWidget(card());
-      expect(find.text('New replies'), findsNothing);
+      expect(trail, findsNothing);
       expect(tester.widget<Text>(find.text('3')).style?.color, isNot(primary));
     });
 
-    testWidgets('every reason uses the same glyph mark on the avatar axis', (
+    testWidgets('every reason stamps the same seal in the same place', (
       tester,
     ) async {
+      Offset? place;
       for (final symbol in ['user-round-check', 'folder', 'message-circle']) {
         await tester.pumpWidget(
           card(
             feedContext: GfTopicContext(label: 'reason', symbol: symbol),
           ),
         );
-        final mark = find.byWidgetPredicate(
-          (widget) => widget is GfSymbol && widget.name == symbol,
-        );
-        // The reply metric reuses the reply glyph at its own size.
-        final marks = tester
-            .widgetList<GfSymbol>(mark)
-            .where((widget) => widget.size == 16);
-        expect(marks, hasLength(1), reason: symbol);
-        expect(
-          tester.getCenter(mark.first).dx,
-          closeTo(tester.getCenter(find.byType(GfAvatar)).dx, .5),
-          reason: symbol,
-        );
+        expect(seal(symbol), findsOneWidget, reason: symbol);
+        place ??= tester.getCenter(seal(symbol));
+        expect(tester.getCenter(seal(symbol)), place, reason: symbol);
       }
     });
   });
