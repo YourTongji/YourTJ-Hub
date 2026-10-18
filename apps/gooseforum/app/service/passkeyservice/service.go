@@ -261,12 +261,12 @@ func FinishRegistration(userID uint64, sessionJti, ceremonyID, name string, requ
 			return err
 		}
 		row := &userPasskeys.CredentialEntity{CredentialID: credential.ID, UserID: userID, CredentialData: encoded, Name: name}
-		if err := tx.SavePoint("passkey_credential_insert").Error; err != nil {
+		if err := dbconnect.Savepoint(tx, "passkey_credential_insert"); err != nil {
 			return err
 		}
 		if err := userPasskeys.CreateCredential(tx, row); err != nil {
 			if isUniqueConstraint(err) {
-				if rollbackErr := tx.RollbackTo("passkey_credential_insert").Error; rollbackErr != nil {
+				if rollbackErr := dbconnect.RollbackToSavepoint(tx, "passkey_credential_insert"); rollbackErr != nil {
 					return rollbackErr
 				}
 				ceremonyErr = ErrInvalidRequest

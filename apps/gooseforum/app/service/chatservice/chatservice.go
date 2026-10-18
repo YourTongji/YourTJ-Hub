@@ -547,18 +547,16 @@ func lockedMember(tx *gorm.DB, userId, convId uint64) (*imUserChatConfigs.Entity
 // fails after an enqueue, because the transaction state is unsafe to continue
 // then.
 //
-// The SAVEPOINT/ROLLBACK statements are issued directly instead of through
-// gorm's DB.SavePoint / DB.RollbackTo: both in-use drivers execute the statement
-// and unconditionally `return nil`, so those helpers can never report a failure
-// and the unavailable-savepoint path would be unreachable. That path matters on
-// PostgreSQL, where every statement fails once the transaction is aborted.
+// Savepoint statements go through dbconnect.Savepoint/RollbackToSavepoint: gorm's
+// DB.SavePoint / DB.RollbackTo cannot report driver failures, which made this
+// warning path unreachable (issue #1183, item 7; see those helpers).
 func enqueueChatPushBestEffort(tx *gorm.DB, savepointName, channel string, peerID, messageID uint64, enqueue func(*gorm.DB, uint64, uint64) error) error {
-	if err := tx.Exec("SAVEPOINT " + savepointName).Error; err != nil {
+	if err := db.Savepoint(tx, savepointName); err != nil {
 		slog.Warn("chat push savepoint failed", "channel", channel, "messageId", messageID, "err", err)
 		return nil
 	}
 	if err := enqueue(tx, peerID, messageID); err != nil {
-		if rollbackErr := tx.Exec("ROLLBACK TO SAVEPOINT " + savepointName).Error; rollbackErr != nil {
+		if rollbackErr := db.RollbackToSavepoint(tx, savepointName); rollbackErr != nil {
 			slog.Warn("chat push rollback failed", "channel", channel, "messageId", messageID, "err", rollbackErr)
 			return rollbackErr
 		}

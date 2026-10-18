@@ -169,7 +169,7 @@ func applyPointsTx(tx *gorm.DB, userId uint64, points int64, action PointsAction
 		recordPoints = 0
 	}
 	const insertSavepoint = "before_points_record_insert"
-	if err := tx.SavePoint(insertSavepoint).Error; err != nil {
+	if err := db.Savepoint(tx, insertSavepoint); err != nil {
 		return err
 	}
 	result := tx.Create(&pointsRecord.Entity{
@@ -181,7 +181,7 @@ func applyPointsTx(tx *gorm.DB, userId uint64, points int64, action PointsAction
 	})
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrDuplicatedKey) {
-			if err := tx.RollbackTo(insertSavepoint).Error; err != nil {
+			if err := db.RollbackToSavepoint(tx, insertSavepoint); err != nil {
 				return err
 			}
 			return nil
