@@ -45,8 +45,21 @@ route-aware fallback resumes when the launch surface leaves.
 
 `Current`: Home negotiates feed capability v2, keeps explicit Latest separate from the default root,
 restarts expired recommendation snapshots and reports foreground visible rows/detail dwell. Attribution
-traces stay in memory and are stripped from offline pages. Recommendation reasons use four localized
-labels. See [feed ranking and measurement](feed-ranking.md) for the shared behavior and retention.
+traces stay in memory and are stripped from offline pages. See [feed ranking and
+measurement](feed-ranking.md) for the shared behavior and retention.
+
+`Current`: a For You reason is part of the topic, not a caption above it. On cards the avatar column
+reads top to bottom as who wrote the topic and why it is shown: a hairline trail runs on the
+avatar's axis down to a ringed 28dp seal on the footer line. The seal fills otherwise empty space,
+so it adds no height, lands in the same place for every reason and stays clear of the trailing
+bookmark. Tapping it traces the trail from the avatar to the seal, then unrolls the reason beside
+the seal as a pill of the same fill, ring and height; both retract after two seconds, and reduced
+motion switches them instantly. List rows lead the title with the reason. Each reason uses one muted
+Outline glyph borrowed from where the app already means it: the following glyph for a followed
+author, the search categories glyph for a category the reader took part in, the reply glyph for new
+replies, whose seal, trace and reply count take the accent used for unseen content, and the time
+glyph for the `recent` fallback. Like Web, the app labels every reason the server sends, so no For
+You topic goes without one; feeds without a server reason stay unstamped.
 
 
 `Current`: root layout uses the available window width. Below 600 logical pixels it retains bottom
@@ -278,7 +291,15 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   transparent animated YourTJ mark until its data is ready.
   Profile stream tabs, including the following/followers lists, use the same drag progress and the
   same one-sided stretch; the bar reveals selected tabs outside its viewport and honors
-  reduced-motion settings.
+  reduced-motion settings. When tabs overflow, a 32dp fade marks only the edge that still has tabs
+  to scroll to, and clears once that end is reached.
+- `Current`: the Notifications categories (All / @me / Replies / Likes / Following / System) and the
+  Unread toggle share one header row; the toggle stays at the trailing end because it combines with
+  every category. Only the selected category shows its Filled ReIcon glyph (`layers`, `at-sign`,
+  `chat`, `heart`, `user-check`, `bullhorn`). On a switch the outgoing glyph shrinks, blurs and moves
+  toward the incoming tab while the incoming one grows in from the outgoing side; a page drag scrubs
+  the same handoff, a tap that skips tabs never flashes the ones between, and with reduced motion a tap
+  swaps the glyph at once.
 - `Current`: root headers, filter rails and bottom navigation overlay the reading viewport and
   follow the finger: they move one-to-one with downward scroll across the header's own height, any
   upward scroll pulls them back, and a partial state settles within 180 ms once scrolling stops. The

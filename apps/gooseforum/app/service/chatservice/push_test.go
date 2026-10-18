@@ -13,6 +13,31 @@ import (
 	"gorm.io/gorm"
 )
 
+// 一个无法建立 savepoint 的事务（此处用已回滚的事务代表）必须跳过该通道，
+// 既不能让发送失败，也不能在没有回滚点的前提下继续写入。
+func TestChatPushSavepointUnavailableSkipsChannel(t *testing.T) {
+	conn := db.Connect()
+	tx := conn.Begin()
+	if tx.Error != nil {
+		t.Fatalf("begin: %v", tx.Error)
+	}
+	if err := tx.Rollback().Error; err != nil {
+		t.Fatalf("rollback: %v", err)
+	}
+
+	enqueued := false
+	err := enqueueChatPushBestEffort(tx, "chat_push_test", "web", 1, 2, func(*gorm.DB, uint64, uint64) error {
+		enqueued = true
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("unavailable savepoint must not fail the send: %v", err)
+	}
+	if enqueued {
+		t.Fatal("enqueue must be skipped when the savepoint cannot be established")
+	}
+}
+
 func TestChatPushCommittedReplay(t *testing.T) {
 	setupMarkReadTestDB(t)
 	conn := db.Connect()

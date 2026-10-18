@@ -173,6 +173,56 @@ func TestLLMSProjectionUntitledMomentFallbacks(t *testing.T) {
 	assertContains(t, moment, "Source: ")
 }
 
+// TestLLMSProjectionExcludesWikiTopicsFromIndexAndFull 回归 issue #1166：wiki 页面只出现在
+// 单篇 Markdown 导出里，索引与全文导出继续排除（口径来自 PublicScopePredicate）。
+func TestLLMSProjectionExcludesWikiTopicsFromIndexAndFull(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&pageConfig.Entity{}, &category.Entity{}, &topics.Entity{}, &posts.Entity{}); err != nil {
+		t.Fatalf("migrate llms wiki tables: %v", err)
+	}
+	restoreLLMSPostingSettings(t, conn)
+
+	base := uint64(time.Now().UnixNano()%1_000_000_000) + 8_300_000_000
+	topicID := base + 10
+	postID := base + 101
+	t.Cleanup(func() {
+		conn.Unscoped().Delete(&posts.Entity{}, postID)
+		conn.Unscoped().Delete(&topics.Entity{}, topicID)
+		ClearCache()
+	})
+	now := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
+	if err := conn.Create(&posts.Entity{Id: postID, TopicId: topicID, PostNo: 1, Content: "wiki body secret", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now}).Error; err != nil {
+		t.Fatalf("create wiki post: %v", err)
+	}
+	if err := conn.Create(&topics.Entity{Id: topicID, Title: "Wiki index secret", FirstPostId: postID, Status: 1, ProcessStatus: topics.ProcessStatusNormal, TopicType: topics.TopicTypeWiki, Excerpt: "wiki excerpt secret", CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+		t.Fatalf("create wiki topic: %v", err)
+	}
+
+	host := "https://forum.example.test"
+	setLLMSSettings(t, conn, pageConfig.LLMSConfig{Enabled: true, FullText: true, Files: true})
+
+	index, err := BuildIndex(host)
+	if err != nil {
+		t.Fatalf("BuildIndex() err=%v", err)
+	}
+	assertNotContains(t, index, "Wiki index secret")
+	assertNotContains(t, index, "wiki excerpt secret")
+
+	full, err := BuildFull(host)
+	if err != nil {
+		t.Fatalf("BuildFull() err=%v", err)
+	}
+	assertNotContains(t, full, "Wiki index secret")
+	assertNotContains(t, full, "wiki body secret")
+
+	topic, err := BuildTopic(host, topicID)
+	if err != nil {
+		t.Fatalf("BuildTopic() err=%v", err)
+	}
+	assertContains(t, topic, "# Wiki index secret")
+	assertContains(t, topic, "wiki body secret")
+}
+
 func TestLLMSProjectionFormattingHelpers(t *testing.T) {
 	if got := normalizeBaseURL("https://forum.example.test/path?q=1"); got != "https://forum.example.test" {
 		t.Fatalf("normalizeBaseURL()=%q", got)

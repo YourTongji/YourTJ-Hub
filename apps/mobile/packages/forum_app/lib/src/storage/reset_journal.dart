@@ -6,6 +6,8 @@ import 'private_database.dart';
 
 final resetJournalProvider = Provider<ResetJournal>((ref) => ResetJournal());
 
+const _markerName = 'reset.intent';
+
 /// Contains only a reset intent, never credentials or user content. It lives in
 /// backup-excluded application support outside disposable databases and prefs.
 /// Any existing marker is pending, including an interrupted or malformed write.
@@ -15,16 +17,20 @@ class ResetJournal {
 
   final Future<Directory> Function() _directory;
   Future<File> _file() async =>
-      File.fromUri((await _directory()).uri.resolve('reset.intent'));
+      File.fromUri((await _directory()).uri.resolve(_markerName));
 
   Future<bool> isPending() async {
     final directory = await _directory();
-    final path = File.fromUri(directory.uri.resolve('reset.intent')).path;
     // type/exists convert lookup failures into "not found". Listing preserves
     // those errors, so unreadable intent cannot reopen business routes.
-    return directory
-        .list(followLinks: false)
-        .any((entry) => entry.path == path);
+    return directory.list(followLinks: false).any((entry) {
+      // URI segments avoid comparing Windows paths with mixed separators.
+      final name = entry.uri.pathSegments.lastWhere(
+        (segment) => segment.isNotEmpty,
+        orElse: () => '',
+      );
+      return name == _markerName;
+    });
   }
 
   Future<void> begin() async {

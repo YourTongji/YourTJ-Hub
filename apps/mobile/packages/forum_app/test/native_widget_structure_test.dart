@@ -3,13 +3,34 @@ import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 
-String read(String path) => File(path).readAsStringSync();
+String normalizeLineEndings(String value) =>
+    value.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+
+String read(String path) => normalizeLineEndings(File(path).readAsStringSync());
+
+String widgetSource(String name) =>
+    read('android/app/src/main/kotlin/tj/yourtj/forum_app/widget/$name');
+
+String readAllWidgets() =>
+    [
+      'ScheduleGlanceWidget.kt',
+      'ScheduleWidgetCommon.kt',
+      'NextClassWidget.kt',
+      'TodayScheduleWidget.kt',
+      'CourseTimelineWidget.kt',
+    ].map(widgetSource).join();
 
 void main() {
-  test('Android Glance widgets are local, resizable and reboot-safe', () {
-    final source = read(
-      'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgets.kt',
+  test('Kotlin source matching accepts Windows line endings', () {
+    const windowsSource = '@Composable\r\nprivate fun TimelineHeader()\r\n';
+    expect(
+      normalizeLineEndings(windowsSource),
+      '@Composable\nprivate fun TimelineHeader()\n',
     );
+  });
+
+  test('Android Glance widgets are local, resizable and reboot-safe', () {
+    final source = readAllWidgets();
     final data = read(
       'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgetData.kt',
     );
@@ -66,10 +87,21 @@ void main() {
     expect(source, contains(RegExp(r'course\.name,\s+maxLines = 2')));
   });
 
+  test('Android widget files keep entry points next to their widgets', () {
+    final glance = widgetSource('ScheduleGlanceWidget.kt');
+    final nextClass = widgetSource('NextClassWidget.kt');
+    final today = widgetSource('TodayScheduleWidget.kt');
+    final timeline = widgetSource('CourseTimelineWidget.kt');
+
+    expect(glance, contains('fun publishScheduleWidgetPreviews'));
+    expect(nextClass, contains('class NextClassWidgetReceiver'));
+    expect(today, contains('class TodayScheduleWidgetReceiver'));
+    expect(timeline, contains('class CourseTimelineWidgetReceiver'));
+    expect(timeline, contains('class ToggleCourseTimelineDayAction'));
+  });
+
   test('Android large schedule has two independent equal-width collections', () {
-    final source = read(
-      'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgets.kt',
-    );
+    final source = widgetSource('TodayScheduleWidget.kt');
     final large = source.substring(
       source.indexOf('private fun LargeSchedule'),
       source.indexOf('private fun LargeDayColumn'),
@@ -152,9 +184,7 @@ void main() {
   });
 
   test('course bars stay 4dp regardless of current state', () {
-    final android = read(
-      'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgets.kt',
-    );
+    final android = widgetSource('TodayScheduleWidget.kt');
 
     expect(android, contains('.width(4.dp)'));
     expect(android, isNot(contains('.width(if (current)')));
@@ -259,9 +289,7 @@ void main() {
   );
 
   test('NextClass selects future days and has a dense wide compact layout', () {
-    final source = read(
-      'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgets.kt',
-    );
+    final source = widgetSource('NextClassWidget.kt');
     final data = read(
       'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgetData.kt',
     );
@@ -280,7 +308,7 @@ void main() {
     expect(source, contains('WideCompactNextClass'));
     final nextClass = source.substring(
       source.indexOf('class NextClassWidget'),
-      source.indexOf('class TodayScheduleWidget'),
+      source.indexOf('@Composable\nprivate fun WideCompactNextClass'),
     );
     expect(nextClass, contains('course?.locationText()'));
     expect(nextClass, contains('detailText("地点", "Location", it)'));
@@ -335,9 +363,7 @@ void main() {
   });
 
   test('Android course timeline is resizable, switchable and fully previewed', () {
-    final source = read(
-      'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgets.kt',
-    );
+    final source = widgetSource('CourseTimelineWidget.kt');
     final manifest = read('android/app/src/main/AndroidManifest.xml');
     final bridge = read('lib/src/campus_widget/schedule_widget_bridge.dart');
     final provider = read(
@@ -352,7 +378,7 @@ void main() {
     );
     final timelineCard = source.substring(
       source.indexOf('@Composable\nprivate fun TimelineCourseCard'),
-      source.indexOf('class ToggleCourseTimelineDayAction'),
+      source.indexOf('private fun timelineDate'),
     );
     final timelineItem = source.substring(
       source.indexOf('@Composable\nprivate fun TimelineCourseListItem'),

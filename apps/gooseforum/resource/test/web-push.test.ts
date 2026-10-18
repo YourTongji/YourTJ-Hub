@@ -410,9 +410,16 @@ describe('static sw.js (pure push worker)', () => {
       openWindow: ReturnType<typeof vi.fn>
     }
     showNotification: ReturnType<typeof vi.fn>
+    fetch: ReturnType<typeof vi.fn>
   }
 
-  function loadWorker(options: { withBroadcastChannel?: boolean } = {}): WorkerHarness {
+  function loadWorker(options: {
+    withBroadcastChannel?: boolean
+    fetch?: unknown
+    abortSignal?: unknown
+    abortController?: unknown
+    timers?: { setTimeout: (handler: () => void, timeout: number) => unknown; clearTimeout: (id: ReturnType<typeof setTimeout>) => void }
+  } = {}): WorkerHarness {
     const handlers: Record<string, (event: any) => void> = {}
     const showNotification = vi.fn(async () => undefined)
     const openWindow = vi.fn(async () => undefined)
@@ -427,7 +434,7 @@ describe('static sw.js (pure push worker)', () => {
       location: {origin:'https://yourtj.example'},
       Response,
       AbortSignal,
-      fetch: vi.fn(async () => ({ok:true,json:async()=>({layout:{viewer:{id:7,isAuthenticated:true}}})})),
+      fetch: vi.fn(async () => ({ok:true,json:async()=>({code:0,result:{viewerId:7}})})),
       addEventListener(type: string, handler: (event: any) => void) {
         handlers[type] = handler
       },
@@ -440,13 +447,26 @@ describe('static sw.js (pure push worker)', () => {
       },
       URL, // vm 沙箱不提供全局 URL，注入 Node 实现供 sw.js 使用
     }
+    if (options.fetch) {
+      sandbox.fetch = options.fetch
+    }
+    if ('abortSignal' in options) {
+      sandbox.AbortSignal = options.abortSignal
+    }
+    if ('abortController' in options) {
+      sandbox.AbortController = options.abortController
+    }
+    if (options.timers) {
+      sandbox.setTimeout = options.timers.setTimeout
+      sandbox.clearTimeout = options.timers.clearTimeout
+    }
     if (options.withBroadcastChannel) {
       resetBroadcastChannelFake()
       sandbox.BroadcastChannel = FakeBroadcastChannel
     }
     sandbox.self = sandbox
     vm.runInNewContext(SW_SOURCE, sandbox)
-    return { handlers, clients, showNotification }
+    return { handlers, clients, showNotification, fetch: sandbox.fetch as ReturnType<typeof vi.fn> }
   }
 
   function pushEvent(harness: WorkerHarness, data: unknown): Promise<void> {
@@ -537,7 +557,7 @@ describe('static sw.js (pure push worker)', () => {
     const focus = vi.fn(async () => undefined)
     const navigate = vi.fn(async () => undefined)
     const harness = loadWorker()
-    // query/hash 与目标不同不算「不在目标页」：只比较 origin + pathname
+    // 完整目标比较：origin + pathname + search + hash（本用例两侧都无 query/hash）
     harness.clients.matchAll.mockResolvedValueOnce([{ url: 'https://yourtj.example/p/post/9', focus, navigate }])
     await notificationClick(harness, { url: '/p/post/9' })
     expect(focus).toHaveBeenCalledOnce()
@@ -660,6 +680,121 @@ describe('static sw.js (pure push worker)', () => {
     expect(harness.showNotification).not.toHaveBeenCalled()
     await notificationClick(harness,{sourceKind:'notification',recipientId:8,url:'/p/post/42'})
     expect(harness.clients.openWindow).toHaveBeenCalledWith('/notifications')
+  })
+
+  // 收件人复核只在服务端「明确确认当前是另一个账号」时抑制推送；无法判定
+  // （请求失败/超时 >5s/非 2xx/响应不可解析/会话过期）时页面关闭仍会收到通知，
+  // 但不展示推送原文：标题换成服务端下发的通用文案、正文丢弃，否则身份不明的
+  // 浏览器会看到推送内容（issue #1183 AC-6）。
+  describe('an undecidable recipient check shows a body-less notification', () => {
+    const pushedTitle = 'Topic title only the recipient should see'
+    const pushedBody = 'Message body only the recipient should see'
+    const pushedPayload = (id: number) => ({
+      id,
+      sourceKind: 'chat_message',
+      recipientId: 7,
+      title: pushedTitle,
+      body: pushedBody,
+      genericTitle: '你收到一条系统通知',
+      url: '/messages?userId=9',
+    })
+    function expectBodylessNotification(harness: WorkerHarness) {
+      expect(harness.showNotification).toHaveBeenCalledOnce()
+      const [title, options] = harness.showNotification.mock.calls[0] as [string, { body?: string }]
+      expect(title).toBe('你收到一条系统通知')
+      expect(options.body).toBeUndefined()
+      expect(JSON.stringify([title, options])).not.toContain(pushedTitle)
+      expect(JSON.stringify([title, options])).not.toContain(pushedBody)
+    }
+
+    const failureCases: Array<[string, unknown]> = [
+      ['the check request fails', vi.fn(async () => { throw new Error('offline') })],
+      ['the response is not 2xx', vi.fn(async () => ({ok:false,status:500,json:async()=>({})}))],
+      ['the response is not parseable', vi.fn(async () => ({ok:true,json:async()=>{throw new Error('not json')}}))],
+      ['the session expired and the API answers an unauthenticated envelope', vi.fn(async () => ({ok:true,json:async()=>({code:1,message:'unauthorized',result:null})}))],
+    ]
+    for (const [name, fetchImpl] of failureCases) {
+      test(`${name}: the notification is still shown without the push copy`, async () => {
+        const harness = loadWorker({ fetch: fetchImpl })
+        await pushEvent(harness, pushedPayload(19))
+        expectBodylessNotification(harness)
+      })
+    }
+
+    test('the check times out after 5s: the notification is still shown without the push copy', async () => {
+      const timeouts: number[] = []
+      const hangingFetch = vi.fn((_url: string, init: any) => new Promise((_resolve, reject) => {
+        init.signal.addEventListener('abort', () => reject(new Error('timeout')))
+      }))
+      const harness = loadWorker({
+        fetch: hangingFetch,
+        abortSignal: { timeout: (ms: number) => { timeouts.push(ms); return AbortSignal.timeout(10) } },
+      })
+      await pushEvent(harness, pushedPayload(20))
+      expect(timeouts).toEqual([5000])
+      expect(hangingFetch).toHaveBeenCalledOnce()
+      expectBodylessNotification(harness)
+    })
+
+    test('a browser without AbortSignal.timeout bounds the check with AbortController and drops the copy', async () => {
+      const delays: number[] = []
+      const hangingFetch = vi.fn((_url: string, init: any) => new Promise((_resolve, reject) => {
+        init.signal.addEventListener('abort', () => reject(new Error('timeout')))
+      }))
+      const harness = loadWorker({
+        fetch: hangingFetch,
+        abortSignal: undefined,
+        abortController: AbortController,
+        timers: {
+          setTimeout: (handler: () => void, ms: number) => { delays.push(ms); return setTimeout(handler, Math.min(ms, 10)) },
+          clearTimeout,
+        },
+      })
+      await pushEvent(harness, pushedPayload(21))
+      expect(delays).toEqual([5000])
+      expect(hangingFetch).toHaveBeenCalledOnce()
+      expectBodylessNotification(harness)
+    })
+
+    test('a server payload without genericTitle is still shown body-less, without the push copy', async () => {
+      const harness = loadWorker({ fetch: vi.fn(async () => { throw new Error('offline') }) })
+      await pushEvent(harness, {
+        id: 22, sourceKind: 'chat_message', recipientId: 7, title: pushedTitle, body: pushedBody, url: '/messages?userId=9',
+      })
+      expect(harness.showNotification).toHaveBeenCalledOnce()
+      const [title, options] = harness.showNotification.mock.calls[0] as [string, { body?: string }]
+      expect(title).toBe('')
+      expect(options.body).toBeUndefined()
+      expect(JSON.stringify([title, options])).not.toContain(pushedBody)
+    })
+
+    test('an undecided click lands on the generic destination, not the pushed URL', async () => {
+      const harness = loadWorker({ fetch: vi.fn(async () => { throw new Error('offline') }) })
+      await notificationClick(harness,{sourceKind:'chat_message',recipientId:7,url:'/messages?userId=9'})
+      expect(harness.clients.openWindow).toHaveBeenCalledWith('/messages')
+    })
+
+    test('an undecided non-chat click falls back to /notifications', async () => {
+      const harness = loadWorker({ fetch: vi.fn(async () => { throw new Error('offline') }) })
+      await notificationClick(harness,{sourceKind:'notification',recipientId:7,url:'/p/post/42'})
+      expect(harness.clients.openWindow).toHaveBeenCalledWith('/notifications')
+    })
+
+    test('the recipient check reads the lightweight config endpoint, not the messages page', async () => {
+      const harness = loadWorker()
+      await pushEvent(harness, pushedPayload(24))
+      expect(harness.fetch).toHaveBeenCalled()
+      expect(harness.fetch.mock.calls.map(call => call[0])).not.toContain('/messages')
+      expect(harness.fetch.mock.calls[0][0]).toBe('/api/forum/push/config')
+    })
+
+    test('a confirmed different account still suppresses and redirects', async () => {
+      const harness = loadWorker()
+      await pushEvent(harness,{id:23,sourceKind:'notification',recipientId:8,title:'Old account activity',url:'/p/post/42'})
+      expect(harness.showNotification).not.toHaveBeenCalled()
+      await notificationClick(harness,{sourceKind:'notification',recipientId:8,url:'/p/post/42'})
+      expect(harness.clients.openWindow).toHaveBeenCalledWith('/notifications')
+    })
   })
 
 })

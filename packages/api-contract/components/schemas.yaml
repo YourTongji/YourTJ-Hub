@@ -5419,7 +5419,7 @@ NotificationMarkAllReadResponse:
 
 PushConfigResult:
   type: object
-  required: [configured, native]
+  required: [configured, native, viewerId]
   properties:
     configured:
       type: boolean
@@ -5430,6 +5430,11 @@ PushConfigResult:
     native:
       $ref: '#/NativePushChannels'
       description: Native (mobile APNs/FCM) channel states; always present.
+    viewerId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: The caller's own numeric user id. The service worker compares it with the push payload recipient before showing a notification, so a recipient check never renders the /messages page.
   additionalProperties: false
 
 NativePushChannels:
@@ -6880,7 +6885,7 @@ AdminTrafficOverviewRequest:
     startDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
-      description: Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago.
+      description: Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago (8-day inclusive window ending today).
     endDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
@@ -12223,7 +12228,7 @@ AdminStatsCategorySummaryRequest:
     startDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
-      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago.
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today).
     endDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
@@ -12237,7 +12242,7 @@ AdminStatsCategoryTrendRequest:
     startDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
-      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago.
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today).
     endDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
@@ -12255,7 +12260,7 @@ AdminStatsUserRankingRequest:
     startDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
-      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago.
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today).
     endDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
@@ -12295,7 +12300,7 @@ AdminStatsUserDetailRequest:
     startDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
-      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago.
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today).
     endDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'

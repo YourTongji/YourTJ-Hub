@@ -47,6 +47,22 @@ test('category and unread filter combine in server queries, including empty cate
  wrapper.unmount()
 })
 
+// 同一次 flush 内既发生服务端 props 刷新、又发生用户点击时，点击必须生效：
+// 一次点击就要加载被点分类的数据，且选中项与列表一致（issue #1183 第 3 项）。
+test('a props refresh in the same flush as a category click still loads the clicked category',async()=>{
+ await setLocale('en')
+ fetchNotifications.mockResolvedValue({items:[],nextCursor:0,hasNext:false,unreadCount:1})
+ const wrapper=mount(NotificationsPage,{props:{layout:{} as any,props:{category:'all',filter:'all',notifications:[item()],total:1,unreadCount:1,pagination:{page:1,nextPage:0,hasNext:false,nextUrl:''}}},global:{plugins:[i18n]}})
+ fetchNotifications.mockClear()
+ // 不 await：props 更新与随后的点击落在同一 flush。
+ void wrapper.setProps({props:{category:'all',filter:'all',notifications:[item()],total:1,unreadCount:1,pagination:{page:1,nextPage:0,hasNext:false,nextUrl:''}}})
+ await wrapper.findAll('button').find(button=>button.text()==='Likes')!.trigger('click')
+ await flushPromises()
+ expect(fetchNotifications).toHaveBeenLastCalledWith('all',0,20,'likes')
+ expect(wrapper.findAll('button').find(button=>button.text()==='Likes')!.attributes('aria-pressed')).toBe('true')
+ wrapper.unmount()
+})
+
 test('server-rendered category refresh restores both filters without re-fetching supplied rows', async()=>{
  await setLocale('en')
  const wrapper=mount(NotificationsPage,{props:{layout:{} as any,props:{category:'mentions',filter:'unread',notifications:[item()],total:1,unreadCount:1,pagination:{page:1,nextPage:0,hasNext:false,nextUrl:''}}},global:{plugins:[i18n]}})

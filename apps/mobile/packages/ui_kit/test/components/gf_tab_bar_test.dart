@@ -211,6 +211,112 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('selected-only glyphs hand off toward each other', (
+      tester,
+    ) async {
+      const symbolTabs = <GfTab>[
+        GfTab(label: '全部', value: 'all', symbol: 'layers-filled'),
+        GfTab(label: '@我', value: 'mentions', symbol: 'at-sign-filled'),
+        GfTab(label: '回复', value: 'replies', symbol: 'message-circle-filled'),
+      ];
+      late StateSetter update;
+      Object selected = 'all';
+      await tester.pumpWidget(
+        gfApp(
+          StatefulBuilder(
+            builder: (context, setState) {
+              update = setState;
+              return GfTabBar(
+                tabs: symbolTabs,
+                selected: selected,
+                selectedSymbolOnly: true,
+                onSelected: (_) {},
+              );
+            },
+          ),
+        ),
+      );
+      Finder glyph(String name) => find.byWidgetPredicate(
+        (widget) => widget is GfSymbol && widget.name == name,
+      );
+      double opacityOf(String name) => tester
+          .widget<Opacity>(
+            find
+                .ancestor(of: glyph(name), matching: find.byType(Opacity))
+                .first,
+          )
+          .opacity;
+      // The nearest Transform scales the glyph; the next one moves it.
+      double travelOf(String name) => tester
+          .widgetList<Transform>(
+            find.ancestor(of: glyph(name), matching: find.byType(Transform)),
+          )
+          .elementAt(1)
+          .transform
+          .getTranslation()
+          .x;
+
+      expect(glyph('layers-filled'), findsOneWidget);
+      expect(glyph('at-sign-filled'), findsNothing);
+      expect(glyph('message-circle-filled'), findsNothing);
+
+      update(() => selected = 'replies');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      // A skipped middle tab never flashes its glyph.
+      expect(glyph('at-sign-filled'), findsNothing);
+      expect(opacityOf('layers-filled'), inExclusiveRange(0, 1));
+      expect(opacityOf('message-circle-filled'), inExclusiveRange(0, 1));
+      expect(travelOf('layers-filled'), greaterThan(0));
+      expect(travelOf('message-circle-filled'), lessThan(0));
+
+      await tester.pumpAndSettle();
+      expect(glyph('layers-filled'), findsNothing);
+      expect(glyph('message-circle-filled'), findsOneWidget);
+      expect(opacityOf('message-circle-filled'), 1);
+      expect(travelOf('message-circle-filled'), 0);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('fades only the edges that still have tabs to scroll to', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(220, 800);
+      addTearDown(tester.view.reset);
+      final manyTabs = [
+        for (var index = 0; index < 6; index++)
+          GfTab(label: '分类 $index', value: index),
+      ];
+      await tester.pumpWidget(
+        gfApp(GfTabBar(tabs: manyTabs, selected: 0, onSelected: (_) {})),
+      );
+      await tester.pumpAndSettle();
+      Offset fade() => tester
+          .widget<TweenAnimationBuilder<Offset>>(
+            find.byType(TweenAnimationBuilder<Offset>),
+          )
+          .tween
+          .end!;
+      expect(find.byType(ShaderMask), findsOneWidget);
+      expect(fade(), const Offset(0, 1));
+
+      await tester.drag(find.text('分类 1'), const Offset(-2000, 0));
+      await tester.pumpAndSettle();
+      expect(fade(), const Offset(1, 0));
+
+      await tester.drag(find.text('分类 4'), const Offset(80, 0));
+      await tester.pumpAndSettle();
+      expect(fade(), const Offset(1, 1));
+
+      tester.view.physicalSize = const Size(1200, 800);
+      await tester.pumpWidget(
+        gfApp(GfTabBar(tabs: tabs, selected: 'latest', onSelected: (_) {})),
+      );
+      await tester.pumpAndSettle();
+      expect(fade(), Offset.zero);
+    });
+
     testWidgets('reduced motion disables the underline transition', (
       tester,
     ) async {

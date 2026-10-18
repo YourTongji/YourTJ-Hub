@@ -321,6 +321,31 @@ const (
 	chatTestVapidPrivateKey = "HSQrMjlAR05VXGNqcXh_ho2Um6KpsLe-xczT2uHo7_Y"
 )
 
+// PostgreSQL 中止事务（25P02）是 savepoint 真正会失败的形态：告警分支必须可达，
+// 即该通道被跳过而不是继续往已中止的事务里写。外层事务此时注定以回滚结束（PG 对
+// 中止事务的 COMMIT 返回 ROLLBACK），所以这里只断言可观察行为本身。gorm 的
+// DB.SavePoint 在这条路径上恒返回 nil（驱动直接丢弃 Exec 错误），因此本用例在
+// 改用显式 SAVEPOINT 之前是红的。
+func TestChatPushSavepointUnavailableOnPostgreSQL(t *testing.T) {
+	conn := chatPostgreSQL(t)("chat-push-savepoint-unavailable")
+	if err := conn.AutoMigrate(&taskQueue.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	enqueued := false
+	_ = conn.Transaction(func(tx *gorm.DB) error {
+		if execErr := tx.Exec("SELECT * FROM table_that_does_not_exist").Error; execErr == nil {
+			t.Fatal("aborted-transaction probe unexpectedly succeeded")
+		}
+		return enqueueChatPushBestEffort(tx, "chat_push_test", "web", 1, 2, func(*gorm.DB, uint64, uint64) error {
+			enqueued = true
+			return nil
+		})
+	})
+	if enqueued {
+		t.Fatal("enqueue must be skipped when the savepoint cannot be established")
+	}
+}
+
 func TestChatPushOutboxFailureIsolationOnPostgreSQL(t *testing.T) {
 	conn := chatPostgreSQL(t)("chat-push-failure-isolation")
 	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}, &taskQueue.Entity{}); err != nil {

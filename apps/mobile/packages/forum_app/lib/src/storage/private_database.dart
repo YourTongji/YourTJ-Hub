@@ -21,7 +21,7 @@ const _keys = FlutterSecureStorage(
 /// bridge explicitly excludes this directory (and future WAL files) from backup.
 Future<Directory> privateStorageDirectory() async {
   final support = await getApplicationSupportDirectory();
-  final directory = Directory('${support.path}/yourtj_private');
+  final directory = Directory.fromUri(support.uri.resolve('yourtj_private/'));
   await directory.create(recursive: true);
   if (Platform.isIOS) {
     await const MethodChannel(

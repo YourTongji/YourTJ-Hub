@@ -2,6 +2,7 @@ package taskQueue
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -41,11 +42,19 @@ func GetPendingTasks(limit int) (tasks []*Entity) {
 	return
 }
 
+// typeFamilyQuery 返回 type 列的族匹配谓词（"type LIKE ?", prefix+"%"）。族标识
+// 既可能是任务族常量（"webpush."），也可能是历史行上的「族 + id」
+// （"webpush.123"）；族常量自带尾点，补上 "%" 后两者都命中，且不会溢出到
+// "webpush2." 之类的兄弟族（因此不能去掉尾点）。
+func typeFamilyQuery(typePrefix string) (string, string) {
+	return "type LIKE ?", typePrefix + "%"
+}
+
 // GetPendingTasksByType 获取指定类型前缀的待处理任务（按 type 前缀隔离 worker）。
 func GetPendingTasksByType(typePrefix string, limit int) (tasks []*Entity) {
 	query := builder()
 	if typePrefix != "" {
-		query = query.Where("type LIKE ?", typePrefix+"%")
+		query = query.Where(typeFamilyQuery(typePrefix))
 	}
 	query.Where(queryopt.In("status", []int{StatusPending, StatusRetrying})).
 		Where("next_run_at IS NULL OR next_run_at <= ?", time.Now()).
@@ -61,7 +70,8 @@ func PendingManagedGroups(typePrefix string, limit int) (tasks []*Entity) {
 	if typePrefix != "agent-webhook." {
 		return GetPendingTasksByType(typePrefix, limit)
 	}
-	sub := builder().Select("MIN(id)").Where("type LIKE ? AND status IN (?, ?)", typePrefix+"%", StatusPending, StatusRetrying).Where("next_run_at IS NULL OR next_run_at <= ?", time.Now()).Group("schedule_group")
+	clause, like := typeFamilyQuery(typePrefix)
+	sub := builder().Select("MIN(id)").Where(clause+" AND status IN (?, ?)", like, StatusPending, StatusRetrying).Where("next_run_at IS NULL OR next_run_at <= ?", time.Now()).Group("schedule_group")
 	builder().Where("id IN (?)", sub).Order("id asc").Limit(limit).Find(&tasks)
 	return tasks
 }
@@ -179,7 +189,7 @@ func IncrementRetryCountOwned(id uint64, token string) error {
 // QueryByTypeDesc returns tasks of the given type prefix, newest first.
 func QueryByTypeDesc(typePrefix string, limit int) *gorm.DB {
 	return builder().
-		Where("type LIKE ?", typePrefix+"%").
+		Where(typeFamilyQuery(typePrefix)).
 		Order("id desc").
 		Limit(limit)
 }
@@ -209,7 +219,7 @@ func GetByID(id any) (entity Entity, err error) {
 func RecoverStaleRunning(typePrefix string, staleAfter time.Duration) error {
 	cutoff := time.Now().Add(-staleAfter)
 	return builder().
-		Where("type LIKE ?", typePrefix+"%").
+		Where(typeFamilyQuery(typePrefix)).
 		Where("status = ?", StatusRunning).
 		Where("processed_at < ?", cutoff).
 		Updates(map[string]any{
@@ -251,7 +261,7 @@ func DeleteTerminalByTypePrefix(typePrefix string, statuses []int, before time.T
 	for {
 		var ids []uint64
 		if err := builder().
-			Where("type LIKE ?", typePrefix+"%").
+			Where(typeFamilyQuery(typePrefix)).
 			Where("status IN ?", statuses).
 			Where("processed_at < ?", before).
 			Order("id asc").
@@ -334,14 +344,22 @@ func ActivePayloads(taskType string, payloads []string) (result []string) {
 	return
 }
 
-// CreateDeduplicatedTx keeps source/recipient/channel identity unique.
-func CreateDeduplicatedTx(tx *gorm.DB, entity *Entity) error {
-	return tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "dedup_key"}}, DoNothing: true}).Create(entity).Error
+// CreateDeduplicatedTx keeps source/recipient/channel identity unique. It
+// reports whether a row was actually inserted: a repeated dedup_key is
+// suppressed by ON CONFLICT DO NOTHING and still returns no error, so callers
+// that log or trace the enqueue must not treat "no error" as "staged".
+func CreateDeduplicatedTx(tx *gorm.DB, entity *Entity) (bool, error) {
+	result := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "dedup_key"}}, DoNothing: true}).Create(entity)
+	return result.RowsAffected > 0, result.Error
 }
 
 // ThrottlePush reserves a recent low-value group before sending; PostgreSQL
-// advisory locks serialize the same group across server workers.
-func ThrottlePush(id uint64, group string, before time.Time) (bool, error) {
+// advisory locks serialize the same group across server workers. The count is
+// restricted to typePrefix (the throttled row's own task family) so that a
+// future task family reusing the same schedule_group string cannot silently
+// suppress this one; an empty prefix counts every family, which preserves the
+// behaviour for types that carry no family separator.
+func ThrottlePush(id uint64, typePrefix, group string, before time.Time) (bool, error) {
 	blocked := false
 	err := db.Connect().Transaction(func(tx *gorm.DB) error {
 		if tx.Name() == "postgres" {
@@ -349,8 +367,13 @@ func ThrottlePush(id uint64, group string, before time.Time) (bool, error) {
 				return err
 			}
 		}
+		query := tx.Model(&Entity{}).
+			Where("schedule_group = ? AND id <> ? AND status IN (?, ?) AND processed_at > ?", group, id, StatusRunning, StatusSuccess, before)
+		if typePrefix != "" {
+			query = query.Where(typeFamilyQuery(typePrefix))
+		}
 		var count int64
-		if err := tx.Model(&Entity{}).Where("schedule_group = ? AND id <> ? AND status IN (?, ?) AND processed_at > ?", group, id, StatusRunning, StatusSuccess, before).Count(&count).Error; err != nil {
+		if err := query.Count(&count).Error; err != nil {
 			return err
 		}
 		if count > 0 {
@@ -360,4 +383,14 @@ func ThrottlePush(id uint64, group string, before time.Time) (bool, error) {
 		return tx.Model(&Entity{}).Where("id = ?", id).Update("schedule_group", group).Error
 	})
 	return blocked, err
+}
+
+// TypePrefix 返回任务类型所属的任务族前缀（"webpush.123" → "webpush."）；
+// 类型不含分隔符时返回空串，表示无法归属到某个族。任务族的常量类型
+// （"webpush."）本身即该族标识，尾点保留。
+func TypePrefix(taskType string) string {
+	if index := strings.LastIndex(taskType, "."); index >= 0 {
+		return taskType[:index+1]
+	}
+	return ""
 }

@@ -407,37 +407,59 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             onPressed: _reading.isNotEmpty ? null : _markAllRead,
           ),
       ],
-      toolbarHeight:
-          GfTabBar.heightFor(context) +
-          MediaQuery.textScalerOf(context).scale(48),
-      toolbar: Container(
-        height:
-            GfTabBar.heightFor(context) +
-            MediaQuery.textScalerOf(context).scale(48),
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            GfTabBar(
+      toolbarHeight: GfTabBar.heightFor(context),
+      // One row: categories scroll under an edge fade, and the unread filter
+      // stays reachable at the trailing end because it combines with each.
+      toolbar: Row(
+        children: [
+          Expanded(
+            child: GfTabBar(
+              selectedSymbolOnly: true,
               tabs: <GfTab>[
-                GfTab(label: l10n.notificationsAll, value: 'all'),
-                GfTab(label: l10n.notificationsMentions, value: 'mentions'),
-                GfTab(label: l10n.notificationsReplies, value: 'replies'),
-                GfTab(label: l10n.notificationsLikes, value: 'likes'),
-                GfTab(label: l10n.notificationsFollowing, value: 'following'),
-                GfTab(label: l10n.notificationsSystem, value: 'system'),
+                GfTab(
+                  label: l10n.notificationsAll,
+                  value: 'all',
+                  symbol: 'layers-filled',
+                ),
+                GfTab(
+                  label: l10n.notificationsMentions,
+                  value: 'mentions',
+                  symbol: 'at-sign-filled',
+                ),
+                GfTab(
+                  label: l10n.notificationsReplies,
+                  value: 'replies',
+                  symbol: 'message-circle-filled',
+                ),
+                GfTab(
+                  label: l10n.notificationsLikes,
+                  value: 'likes',
+                  symbol: 'heart-filled',
+                ),
+                GfTab(
+                  label: l10n.notificationsFollowing,
+                  value: 'following',
+                  symbol: 'user-round-check-filled',
+                ),
+                GfTab(
+                  label: l10n.notificationsSystem,
+                  value: 'system',
+                  symbol: 'bullhorn-filled',
+                ),
               ],
               selected: _category,
               onSelected: (Object value) => _selectCategory(value as String),
             ),
-            FilterChip(
-              label: Text(l10n.notificationsUnread),
+          ),
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 4, end: 12),
+            child: GfSelectTag(
+              label: l10n.notificationsUnread,
               selected: _filter == 'unread',
-              onSelected: (value) => _selectFilter(value ? 'unread' : 'all'),
+              onChanged: (value) => _selectFilter(value ? 'unread' : 'all'),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
       body: (top, bottom) => Column(
         children: [

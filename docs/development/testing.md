@@ -174,10 +174,10 @@ scans only `.github/workflows/**` and the repository-root `action.yml`, so the p
 `node scripts/verify-action-pins.mjs` reports a composite action whose pinned
 ref differs from the same action's ref in the repository-root workflows, and reports one action
 pinned at two refs inside those workflows; it ignores the nested `apps/gooseforum/.github` tree,
-which GitHub never executes. Automation CI runs it as an advisory step that writes the report to the
-job summary — deleting that step's `continue-on-error` makes it blocking. Run it before changing an
-action pin; Dependabot may deliver the workflow and composite-action bumps as separate PRs, and both
-must land for the check to pass.
+which GitHub never executes. Automation CI runs it as a blocking step, so a drifted pin fails
+`automation / tools` while the report is still written to the job summary. Run it before changing an
+action pin; the grouped entry in `.github/dependabot.yml` keeps one action upgrade in a single PR, so
+if a workflow and composite-action bump ever arrive separately, both must land for the check to pass.
 
 ## Documentation and governance
 

@@ -2,20 +2,13 @@ import 'dart:async';
 import 'package:core/core.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
-import 'package:ui_kit/ui_kit.dart';
 
 /// Viewport-based exposure for recycled rows; background time cannot complete
 /// the continuous one-second, at-least-half-visible threshold.
 class FeedVisibility extends StatefulWidget {
-  const FeedVisibility({
-    super.key,
-    required this.topic,
-    required this.child,
-    this.reason,
-  });
+  const FeedVisibility({super.key, required this.topic, required this.child});
   final TopicPayload topic;
   final Widget child;
-  final String? reason;
   @override
   State<FeedVisibility> createState() => _FeedVisibilityState();
 }
@@ -129,21 +122,5 @@ class _FeedVisibilityState extends State<FeedVisibility>
   }
 
   @override
-  Widget build(BuildContext context) => widget.reason == null
-      ? widget.child
-      : Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-              child: GfText(
-                widget.reason!,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-            widget.child,
-          ],
-        );
+  Widget build(BuildContext context) => widget.child;
 }

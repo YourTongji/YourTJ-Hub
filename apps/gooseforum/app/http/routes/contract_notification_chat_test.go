@@ -783,7 +783,8 @@ func TestPendingUserReadStateCleanupAllowed(t *testing.T) {
 func TestPushConfigHTTPContract(t *testing.T) {
 	t.Run("disabled when no vapid keys configured", func(t *testing.T) {
 		conn, router := setupNotificationChatContractTest(t)
-		user := createHTTPContractUser(t, conn, contractTestID())
+		// 固定 ID：响应带 viewerId（推送复核用的调用者自身 ID），fixture 必须逐字段匹配。
+		user := createHTTPContractUser(t, conn, 2096)
 		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/push/config", "", contractSessionToken(t, user))
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("push config status = %d, want 200: %s", recorder.Code, recorder.Body.String())

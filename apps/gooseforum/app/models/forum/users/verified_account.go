@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -32,13 +33,14 @@ func CreateVerifiedAccountTx(tx *gorm.DB, user *EntityComplete, maxDaily int) er
 	// The insert runs under a savepoint: a duplicate key aborts the PostgreSQL
 	// transaction, and the claim re-check below must still execute to attribute
 	// the conflict (username race vs. email/pending_email index hit by a writer
-	// outside the claim lock, e.g. the pending-email switch).
-	if err := tx.SavePoint("create_verified_account").Error; err != nil {
+	// outside the claim lock, e.g. the pending-email switch). db.Savepoint reports
+	// a savepoint that could not be established; gorm's DB.SavePoint cannot.
+	if err := db.Savepoint(tx, "create_verified_account"); err != nil {
 		return err
 	}
 	err := tx.Create(user).Error
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
-		if rollbackErr := tx.RollbackTo("create_verified_account").Error; rollbackErr != nil {
+		if rollbackErr := db.RollbackToSavepoint(tx, "create_verified_account"); rollbackErr != nil {
 			return rollbackErr
 		}
 		if claimErr := CheckEmailClaimTx(tx, user.Email, 0); claimErr != nil {

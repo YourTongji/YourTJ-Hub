@@ -24,7 +24,6 @@ void main() {
               children: [
                 FeedVisibility(
                   topic: topic,
-                  reason: '来自你关注的人',
                   child: const SizedBox(height: 100),
                 ),
               ],
@@ -32,7 +31,6 @@ void main() {
           ),
         ),
       );
-      expect(find.text('来自你关注的人'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 900));
       await telemetry.flush();

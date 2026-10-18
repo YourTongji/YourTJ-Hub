@@ -132,8 +132,10 @@ func Enqueue(tx *gorm.DB, channel string, userID, id uint64, kind string) error 
 		return err
 	}
 	key := fmt.Sprintf("%s:%s:%d:%d", channel, kind, id, userID)
-	err = taskQueue.CreateDeduplicatedTx(tx, &taskQueue.Entity{Type: channel + fmt.Sprint(id), TaskJson: string(raw), DedupKey: &key})
-	if err == nil {
+	// type 用任务族常量即可：行级身份由 dedup_key/task_json 承载，查询侧
+	// 通过 taskQueue 的族谓词兼容历史「族 + id」行。
+	staged, err := taskQueue.CreateDeduplicatedTx(tx, &taskQueue.Entity{Type: channel, TaskJson: string(raw), DedupKey: &key})
+	if err == nil && staged {
 		Trace(channel, "outbox_staged", data)
 	}
 	return err
@@ -240,7 +242,7 @@ func Throttle(task *taskQueue.Entity, t Task, n eventNotification.Entity, channe
 		target = n.Payload.PostId
 	}
 	key := fmt.Sprintf("%s:%d:%s:%d", channel, t.UserId, n.EventType, target)
-	blocked, err := taskQueue.ThrottlePush(task.Id, key, time.Now().Add(-30*time.Second))
+	blocked, err := taskQueue.ThrottlePush(task.Id, taskQueue.TypePrefix(task.Type), key, time.Now().Add(-30*time.Second))
 	if blocked {
 		Trace(channel, "throttled", t)
 	}

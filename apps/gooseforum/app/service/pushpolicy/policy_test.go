@@ -96,7 +96,7 @@ func TestChatSourceChecksAndRollback(t *testing.T) {
 		t.Fatal("expected rollback")
 	}
 	var count int64
-	conn.Model(&taskQueue.Entity{}).Where("type = ?", "testpush.98003").Count(&count)
+	conn.Model(&taskQueue.Entity{}).Where("dedup_key = ?", "testpush.:chat_message:98003:98001").Count(&count)
 	if count != 0 {
 		t.Fatal("rolled back chat queued")
 	}
@@ -105,12 +105,15 @@ func TestChatSourceChecksAndRollback(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	conn.Model(&taskQueue.Entity{}).Where("type = ?", "testpush.98003").Count(&count)
+	conn.Model(&taskQueue.Entity{}).Where("dedup_key = ?", "testpush.:chat_message:98003:98001").Count(&count)
 	if count != 1 {
 		t.Fatal("duplicate outbox task")
 	}
 	var stored taskQueue.Entity
-	conn.Where("type = ?", "testpush.98003").First(&stored)
+	conn.Where("dedup_key = ?", "testpush.:chat_message:98003:98001").First(&stored)
+	if stored.Type != "testpush." {
+		t.Fatalf("task type = %q, want the channel family constant", stored.Type)
+	}
 	var payload map[string]any
 	if json.Unmarshal([]byte(stored.TaskJson), &payload) != nil || payload["sourceKind"] != ChatMessage {
 		t.Fatal("wrong source envelope")
@@ -146,6 +149,31 @@ func TestLowValueThrottlePreservesHighValue(t *testing.T) {
 	blocked, err = Throttle(&second, payload, n, "web")
 	if err != nil || blocked {
 		t.Fatal("unrelated target throttled")
+	}
+}
+
+// 节流计数必须限定在被节流行自己的任务族内：未来的任务族若复用同一
+// schedule_group 字符串，不得静默抑制推送。
+func TestLowValueThrottleIgnoresOtherTaskFamilies(t *testing.T) {
+	setup(t)
+	conn := db.Connect()
+	for _, typ := range []string{"agent-webhook.9", "webpush.98001"} {
+		conn.Where("type = ?", typ).Delete(&taskQueue.Entity{})
+	}
+	now := time.Now()
+	other := taskQueue.Entity{Type: "agent-webhook.9", Status: taskQueue.StatusSuccess, ProcessedAt: now, ScheduleGroup: "web:98001:like:123"}
+	if err := conn.Create(&other).Error; err != nil {
+		t.Fatal(err)
+	}
+	second := taskQueue.Entity{Type: "webpush.98001", Status: taskQueue.StatusRunning, ProcessedAt: now}
+	if err := conn.Create(&second).Error; err != nil {
+		t.Fatal(err)
+	}
+	payload := Task{UserId: 98001}
+	n := eventNotification.Entity{EventType: "like", Payload: eventNotification.NotificationPayload{TopicId: 123}}
+	blocked, err := Throttle(&second, payload, n, "web")
+	if err != nil || blocked {
+		t.Fatalf("another task family suppressed this push: blocked=%v err=%v", blocked, err)
 	}
 }
 
