@@ -3836,7 +3836,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileOwnerSelf => '只有你能看到这部分内容。';
 
   @override
-  String get notificationsMentions => '@我';
+  String get notificationsMentions => '提及';
 
   @override
   String get notificationsReplies => '回复';
