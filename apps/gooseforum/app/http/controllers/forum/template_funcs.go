@@ -12,6 +12,7 @@ import (
 )
 
 var templateFuncMap = template.FuncMap{
+	"SafeHeadHTML": siteHeadHTML,
 	"SafeHTML": func(s string) template.HTML {
 		return template.HTML(s)
 	},

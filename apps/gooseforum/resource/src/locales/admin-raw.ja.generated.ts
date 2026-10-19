@@ -309,7 +309,7 @@ export default {
   "k008b": "SEO and resources",
   "k008c": "Site description",
   "k008d": "Keywords",
-  "k008e": "External links / Meta tags",
+  "k008e": "カスタム head 断片（link/meta/script/style のみ。title と viewport はサイト側で管理）",
   "k008f": "Footer content",
   "k008g": "Edit this to match the two-line footer style in the public sidebar.",
   "k008h": "Add text",

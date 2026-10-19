@@ -309,7 +309,7 @@ export default {
   "k008b": "SEO 与资源",
   "k008c": "站点描述",
   "k008d": "关键词",
-  "k008e": "外部资源链接 / Meta 标签",
+  "k008e": "自定义 head 片段（仅 link/meta/script/style，标题和 viewport 由系统管理）",
   "k008f": "页脚内容 (Footer)",
   "k008g": "这里尽量按照前台侧栏页脚的两行展示方式编辑。",
   "k008h": "添加文字",

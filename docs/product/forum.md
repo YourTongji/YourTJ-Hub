@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-16
+> Last verified: 2026-10-19
 
 ## Content and publishing
 
@@ -186,6 +186,13 @@ Web 确认弹窗约束键盘焦点。规则覆盖主题、回复、Wiki 和课�
 （`Uri.host` 的百分号编码形式）均先归一化。Web 由页面 payload 下发，Flutter 启动时读取公开端点，
 两端共用同一份清单。见[决策 0097](../decisions/0097-trusted-external-domain-whitelist.md)。
 
+`Current`：站点设置的「自定义 head 片段」仅注入**未登录 Web 页面**，只接受额外资源标签
+`<script>`、`<style>`、`<link>` 和非页面自有的 `<meta>`。完整 `<html>/<head>/<body>` 结构、`<title>`、
+charset、viewport、description、robots、author、keywords、theme-color、color-scheme、Open Graph /
+Twitter Meta 以及 canonical、图标等系统链接在 SSR 边界过滤；自定义外部脚本、样式、
+预连接资源和验证 Meta 仍有效。缺少关闭标签的 script/style 会整项丢弃，以免吞掉模板的 head。
+历史存量配置也按此规则渲染，但运维仍需在管理面板中清理已存的整段 `<head>…</head>`，
+仅保留需要的资源标签。已登录页面和私人校园页继续不加载管理员注入的脚本。
 `Current`：阅读渲染支持 Mermaid、KaTeX、`\(...\)`、`\[...\]` 与常见数学环境。
 `Planned`：Vditor 对替代数学分隔符的所见即所得预览；保存及阅读不受此编辑器限制影响。
 

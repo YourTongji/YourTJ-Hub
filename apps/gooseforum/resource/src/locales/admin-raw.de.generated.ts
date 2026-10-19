@@ -309,7 +309,7 @@ export default {
   "k008b": "SEO und Ressourcen",
   "k008c": "Beschreibung der Website",
   "k008d": "Schlüsselwörter",
-  "k008e": "Externe Links / Meta-Tags",
+  "k008e": "Eigener head-Abschnitt (nur link/meta/script/style; Titel und viewport verwaltet die Website)",
   "k008f": "Footer-Inhalt",
   "k008g": "Bearbeite ihn so, dass er zum Stil des zweizeiligen Footers in der öffentlichen Seitenleiste passt.",
   "k008h": "Text hinzufügen",
