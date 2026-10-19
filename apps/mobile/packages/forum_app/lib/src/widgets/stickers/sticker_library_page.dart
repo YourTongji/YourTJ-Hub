@@ -204,14 +204,13 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
     }
   }
 
-  Future<void> _actions(StickerItemPayload item, BuildContext anchor) async {
+  Future<void> _actions(StickerItemPayload item) async {
     final collection = ref.read(stickerCollectionProvider);
     final strings = StickerStrings(context);
     final action = await showGfActionSheet<String>(
       context,
       surfaceBuilder: (_, child) =>
           StickerSessionSurface(collection: collection, child: child),
-      anchorContext: anchor,
       items: [
         if (item.isAvailable) ...[
           GfPopupMenuItem(
@@ -448,9 +447,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
                                     strings.displayLabel(item),
                                   ),
                                   icon: const GfSymbol('ellipsis', size: 22),
-                                  onPressed: busy
-                                      ? null
-                                      : () => _actions(item, context),
+                                  onPressed: busy ? null : () => _actions(item),
                                 ),
                                 ReorderableDragStartListener(
                                   index: index,

@@ -798,15 +798,12 @@ class _PublishPageState extends ConsumerState<PublishPage>
   }
 
   /// 长按标题按钮弹出级别菜单;选中当前级别再次确认可取消标题。
-  final _headingMenuKey = GlobalKey();
-
   Future<void> _showHeadingLevelMenu(AppLocalizations l10n) async {
     final int? currentHeader =
         _quill.getSelectionStyle().attributes[Attribute.header.key]?.value
             as int?;
     final Attribute? selected = await showGfActionSheet<Attribute>(
       context,
-      anchorContext: _headingMenuKey.currentContext,
       initialValue: switch (currentHeader) {
         1 => Attribute.h1,
         2 => Attribute.h2,
@@ -867,7 +864,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     unawaited(_saveLocal());
   }
 
-  Future<void> _pickAndInsertImage([BuildContext? anchor]) async {
+  Future<void> _pickAndInsertImage() async {
     // Pending uploads keep running; only a second picker is refused.
     if (_pickingImage || _submitting || !_sessionCurrent || _finished) return;
     final l10n = AppLocalizations.of(context);
@@ -885,7 +882,6 @@ class _PublishPageState extends ConsumerState<PublishPage>
     try {
       final source = await showGfActionSheet<ImageSource>(
         context,
-        anchorContext: anchor,
         items: [
           GfPopupMenuItem(
             value: ImageSource.gallery,
@@ -2327,7 +2323,6 @@ class _PublishPageState extends ConsumerState<PublishPage>
       placeholder: PublishType.fromValue(_contentType).hint(l10n),
       onHeading: () => _toggleFormat(Attribute.h2),
       onHeadingLongPress: () => _showHeadingLevelMenu(l10n),
-      headingButtonKey: _headingMenuKey,
       onInsertLink: _insertLink,
       showToolbar: false,
       editorBuilder: (context) => DragTarget<ComposerImageDragPayload>(
@@ -2452,14 +2447,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
                   // Markdown formatting only.
                   if (_contentType == 3 ||
                       MediaQuery.viewInsetsOf(context).bottom > 0)
-                    Builder(
-                      builder: (anchor) => _toolButton(
-                        symbol: _activelyUploading ? 'clock' : 'gallery',
-                        tooltip: l10n.publishToolImage,
-                        onPressed: _pickingImage
-                            ? null
-                            : () => _pickAndInsertImage(anchor),
-                      ),
+                    _toolButton(
+                      symbol: _activelyUploading ? 'clock' : 'gallery',
+                      tooltip: l10n.publishToolImage,
+                      onPressed: _pickingImage ? null : _pickAndInsertImage,
                     ),
                   _toolButton(
                     symbol: _stickerOpen ? 'keyboard' : 'emoji-circle',
@@ -2573,7 +2564,6 @@ class _PublishPageState extends ConsumerState<PublishPage>
     tinted: false,
     onHeading: () => _toggleFormat(Attribute.h2),
     onHeadingLongPress: () => _showHeadingLevelMenu(l10n),
-    headingButtonKey: _headingMenuKey,
     onInsertLink: _insertLink,
   );
 
@@ -2850,55 +2840,53 @@ class _PublishPageState extends ConsumerState<PublishPage>
         fontFeatures: const [FontFeature.tabularFigures()],
       ),
     );
-    return Builder(
-      builder: (anchor) => Semantics(
-        key: const Key('publish-gallery-add'),
-        button: true,
-        enabled: !_pickingImage,
-        label: empty ? title : '${l10n.publishToolImage} $count/9',
-        excludeSemantics: true,
-        onTap: _pickingImage ? null : () => _pickAndInsertImage(anchor),
-        child: Material(
-          color: colors.base200,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(empty ? 16 : 12),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: _pickingImage ? null : () => _pickAndInsertImage(anchor),
-            child: empty
-                ? Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        icon,
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              GfText(title, style: type.bodyStrong),
-                              const SizedBox(height: 4),
-                              GfText(
-                                l10n.publishGalleryHint,
-                                style: type.caption.copyWith(
-                                  color: colors.iconMuted,
-                                ),
+    return Semantics(
+      key: const Key('publish-gallery-add'),
+      button: true,
+      enabled: !_pickingImage,
+      label: empty ? title : '${l10n.publishToolImage} $count/9',
+      excludeSemantics: true,
+      onTap: _pickingImage ? null : _pickAndInsertImage,
+      child: Material(
+        color: colors.base200,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(empty ? 16 : 12),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: _pickingImage ? null : _pickAndInsertImage,
+          child: empty
+              ? Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      icon,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            GfText(title, style: type.bodyStrong),
+                            const SizedBox(height: 4),
+                            GfText(
+                              l10n.publishGalleryHint,
+                              style: type.caption.copyWith(
+                                color: colors.iconMuted,
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  )
-                : SizedBox.square(
-                    dimension: _galleryTile,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [icon, const SizedBox(height: 6), countLabel],
-                    ),
+                      ),
+                    ],
                   ),
-          ),
+                )
+              : SizedBox.square(
+                  dimension: _galleryTile,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [icon, const SizedBox(height: 6), countLabel],
+                  ),
+                ),
         ),
       ),
     );

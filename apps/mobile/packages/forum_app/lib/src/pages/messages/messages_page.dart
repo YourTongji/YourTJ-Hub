@@ -1714,14 +1714,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     settle(8);
   }
 
-  final _attachmentMenuKey = GlobalKey();
-
   Future<void> _showAttachments() async {
     if (!_sessionCurrent || _attachingImage) return;
     final l10n = AppLocalizations.of(context);
     final action = await showGfActionSheet<String>(
       context,
-      anchorContext: _attachmentMenuKey.currentContext,
       items: [
         GfPopupMenuItem(
           value: 'image',
@@ -2708,7 +2705,6 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                       accessoryBuilder: (insert) =>
                           StickerPicker(onInsert: insert),
                       onAttach: _showAttachments,
-                      attachButtonKey: _attachmentMenuKey,
                       attachLabel: l10n.messagesAttachments,
                       clearOnSend: false,
                       enabled: _drafts.current,

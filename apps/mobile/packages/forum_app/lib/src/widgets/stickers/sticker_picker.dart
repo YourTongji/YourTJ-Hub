@@ -59,7 +59,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
     });
   }
 
-  Future<void> _actions(StickerItemPayload item, BuildContext anchor) async {
+  Future<void> _actions(StickerItemPayload item) async {
     final collection = ref.read(stickerCollectionProvider);
     final strings = StickerStrings(context);
     final saved = collection.mine.any((value) => value.name == item.name);
@@ -67,7 +67,6 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
       context,
       surfaceBuilder: (_, child) =>
           StickerSessionSurface(collection: collection, child: child),
-      anchorContext: anchor,
       items: [
         GfPopupMenuItem(
           value: 'preview',
@@ -304,7 +303,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                         hint: strings.pickerHint,
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
-                          onLongPress: () => _actions(item, context),
+                          onLongPress: () => _actions(item),
                           onTap: () {
                             widget.onInsert(item.token);
                             state.used(item);

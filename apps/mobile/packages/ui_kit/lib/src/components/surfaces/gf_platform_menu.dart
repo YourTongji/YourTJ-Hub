@@ -85,14 +85,11 @@ class GfPopupMenuButton<T> extends StatelessWidget {
 }
 
 /// Short actions in a Material bottom sheet on every platform.
-///
-/// [anchorContext] is accepted for call-site compatibility and ignored.
 Future<T?> showGfActionSheet<T>(
   BuildContext context, {
   required List<PopupMenuEntry<T>> items,
   Widget? title,
   T? initialValue,
-  BuildContext? anchorContext,
   Widget Function(BuildContext, Widget)? surfaceBuilder,
 }) {
   return showGfBottomSheet<T>(
