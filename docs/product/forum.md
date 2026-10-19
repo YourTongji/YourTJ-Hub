@@ -186,6 +186,16 @@ Web 确认弹窗约束键盘焦点。规则覆盖主题、回复、Wiki 和课�
 （`Uri.host` 的百分号编码形式）均先归一化。Web 由页面 payload 下发，Flutter 启动时读取公开端点，
 两端共用同一份清单。见[决策 0097](../decisions/0097-trusted-external-domain-whitelist.md)。
 
+`Current`：站点设置「外部资源链接 / Meta 标签」只接受能放进页面 `<head>` 的元素
+（`meta`、`link`、`script`、`style`、`noscript` 等），其余内容在保存和渲染时被同一套净化剥离
+（`app/bundles/headmarkup`）：`<!DOCTYPE>`、`<html>`、`<head>`、`<body>` 等文档结构标签、body 内容与
+游离文本不进入页面；页面外壳自带的 `<title>` 以及 charset（含 `http-equiv="content-type"` 写法）、
+viewport、description、robots 等同名 meta 也被忽略（它们由每页按自己的标题与 SEO 取值输出）。
+因此管理员整段粘贴 `<head>…</head>` 不会造成嵌套 head 或重复的 viewport／title／description，
+而自定义 meta、外链样式与脚本照旧注入；存量脏配置在管理员下次保存站点设置时被清理。该字段仍是
+管理员可信内容，不做 URL 或脚本白名单（脚本与外链样式仍受页面 CSP 限制，白名单外的源会被浏览器
+静默拦截）；登录态页面不下发这段注入内容（避免把管理员脚本送进含私密表单的页面）。
+
 `Current`：阅读渲染支持 Mermaid、KaTeX、`\(...\)`、`\[...\]` 与常见数学环境。
 `Planned`：Vditor 对替代数学分隔符的所见即所得预览；保存及阅读不受此编辑器限制影响。
 

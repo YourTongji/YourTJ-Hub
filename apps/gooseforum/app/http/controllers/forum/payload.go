@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/feedconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/headmarkup"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
@@ -824,6 +825,8 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 	brandText := chrome.BrandText
 	brandImage := urlutil.Clean(urlutil.Image, chrome.BrandImage)
 
+	// 渲染防线（issue #1244）：站点设置里的整段 <head> 与重复
+	// viewport/title/description 不进入 SSR 模板，也不进入客户端 payload。
 	return LayoutPayload{
 		UmamiEnabled: !viewer.IsAuthenticated && setting.IsProduction() && hotdataserve.GetPrivacyPolicyConfigCache().Enabled,
 		Site: SitePayload{
@@ -832,7 +835,7 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 			URL:           urlutil.Clean(urlutil.External, siteConfig.SiteUrl),
 			Logo:          urlutil.Clean(urlutil.Image, siteConfig.SiteLogo),
 			Favicon:       urlutil.Clean(urlutil.Image, siteConfig.SiteLogo),
-			ExternalLinks: publicLayoutScripts(viewer.IsAuthenticated, siteConfig.ExternalLinks),
+			ExternalLinks: publicLayoutScripts(viewer.IsAuthenticated, headmarkup.Sanitize(siteConfig.ExternalLinks)),
 			BrandType:     brandType,
 			BrandText:     brandText,
 			BrandImage:    brandImage,

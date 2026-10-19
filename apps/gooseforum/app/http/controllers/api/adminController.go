@@ -19,6 +19,7 @@ import (
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/domainpolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/headmarkup"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/llmprovider"
@@ -1349,7 +1350,8 @@ type SaveSiteSettingsReq struct {
 
 // SaveSiteSettings 保存站点设置：站点 URL 与 logo URL 经字段策略校验后落库；
 // 外链免确认白名单经 domainpolicy 归一化（小写、去重、去空行），含非法条目
-// 时整单拒绝、绝不落库（issue #1200）。
+// 时整单拒绝、绝不落库（issue #1200）；自定义 head 片段经 headmarkup 净化，
+// 只保留可进 <head> 的元素，结构标签与外壳自有标签（issue #1244）落库即被剥离。
 func SaveSiteSettings(req component.BetterRequest[SaveSiteSettingsReq]) component.Response {
 	settings := req.Params.Settings
 	if field := validateSiteSettingsURLs(&settings); field != "" {
@@ -1366,6 +1368,7 @@ func SaveSiteSettings(req component.BetterRequest[SaveSiteSettingsReq]) componen
 		return component.FailResponseCode(component.MessageAdminExternalDomainInvalid, component.MessageParams{"domain": strings.TrimSpace(dropped[0])})
 	}
 	settings.TrustedExternalDomains = kept
+	settings.ExternalLinks = headmarkup.Sanitize(settings.ExternalLinks)
 	return savePageConfig(pageConfig.SiteSettings, settings, func() {
 		hotdataserve.ClearSiteSettingsConfigCache()
 		oauthservice.RefreshOAuthProviders()

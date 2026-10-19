@@ -1521,7 +1521,10 @@ onUnmounted(stopSyncPolling)
             <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><FileText class="size-5 text-muted-foreground" />{{ adminText('k008b') }}</div>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k008c') }}<Textarea v-model="siteForm.siteDescription" class="min-h-24" /></label>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k008d') }}<Input v-model="siteForm.siteKeywords" placeholder="forum, community" /></label>
-            <label class="grid gap-2 text-sm font-medium">{{ adminText('k008e') }}<Textarea v-model="siteForm.externalLinks" class="min-h-28 font-mono text-xs" /></label>
+            <label class="grid gap-2 text-sm font-medium">{{ adminText('k008e') }}
+              <Textarea v-model="siteForm.externalLinks" class="min-h-28 font-mono text-xs" />
+              <span class="text-xs font-normal text-muted-foreground">{{ adminText('siteExternalLinksHint') }}</span>
+            </label>
           </section>
         </div>
         <section class="max-w-2xl space-y-4">

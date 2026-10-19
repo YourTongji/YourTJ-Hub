@@ -310,6 +310,7 @@ export default {
   "k008c": "Beschreibung der Website",
   "k008d": "Schlüsselwörter",
   "k008e": "Externe Links / Meta-Tags",
+  "siteExternalLinksHint": "Nur Elemente innerhalb von <head> eintragen (meta, link, script, style, noscript), nicht den gesamten <head>-Block. charset, viewport, title, description und robots erzeugt die Seite selbst; hier eingetragene Kopien werden ignoriert. Skripte und externe Stylesheets unterliegen weiterhin der CSP der Seite; nur erlaubte Quellen werden ausgeführt bzw. geladen.",
   "k008f": "Footer-Inhalt",
   "k008g": "Bearbeite ihn so, dass er zum Stil des zweizeiligen Footers in der öffentlichen Seitenleiste passt.",
   "k008h": "Text hinzufügen",

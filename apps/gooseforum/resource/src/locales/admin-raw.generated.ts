@@ -310,6 +310,7 @@ export default {
   "k008c": "站点描述",
   "k008d": "关键词",
   "k008e": "外部资源链接 / Meta 标签",
+  "siteExternalLinksHint": "只填进 <head> 的元素（meta、link、script、style、noscript），不要整段 <head>。charset、viewport、title、description、robots 由页面按当前页面自动生成，这里的同名片段会被自动忽略。脚本与外链样式仍受页面 CSP 限制，白名单外的源会被浏览器拦截。",
   "k008f": "页脚内容 (Footer)",
   "k008g": "这里尽量按照前台侧栏页脚的两行展示方式编辑。",
   "k008h": "添加文字",

@@ -310,6 +310,7 @@ export default {
   "k008c": "Site description",
   "k008d": "Keywords",
   "k008e": "External links / Meta tags",
+  "siteExternalLinksHint": "Enter only elements that belong inside <head> (meta, link, script, style, noscript), not a whole <head> block. charset, viewport, title, description and robots are generated per page; copies entered here are ignored. Scripts and external stylesheets still obey the page CSP: only allowlisted sources run or load.",
   "k008f": "Footer content",
   "k008g": "Edit this to match the two-line footer style in the public sidebar.",
   "k008h": "Add text",

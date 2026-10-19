@@ -11844,6 +11844,16 @@ export interface components {
             siteKeywords: string;
             siteUrl: string;
             siteEmail: string;
+            /**
+             * @description Custom head markup: only elements that may live inside `<head>` are
+             *     accepted. The same normalization runs when the value is stored and when
+             *     it is rendered: document structure tags (`<!DOCTYPE>`/`<html>`/`<head>`/
+             *     `<body>`), body content and loose text, and the shell-owned `<title>` /
+             *     charset (including `http-equiv="content-type"`) / viewport / description /
+             *     robots metas are stripped, so dirty values are cleaned on the next save
+             *     (issue #1244). No URL or script whitelist is applied — trusted
+             *     administrator content, bounded by the page CSP.
+             */
             externalLinks: string;
             /**
              * @description Trusted external-domain whitelist (issue #1200): lower-cased
