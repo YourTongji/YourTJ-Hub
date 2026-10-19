@@ -731,8 +731,20 @@ identity survive this layout change. The header keeps a small outer margin for i
   Continue editing as full-width actions; dismissing it continues editing.
 
 - `Current`: reply composers use one rounded surface with a borderless, growing two-line input.
-  Image, hide-keyboard, collapse and send actions share the bottom row. The reply target is a
+  Image, sticker/keyboard, hide and send actions share the bottom row, and collapse sits in the input;
+  the row keeps the same actions in keyboard and sticker modes, with hide disabled while neither is
+  open. The reply target is a
   lightweight text row; attachment previews and server-required captcha controls appear only when needed.
+  The publishing identity floats above the composer on its own capsule surface so it stays legible over
+  the topic.
+- `Current`: the topic reply sticker panel replaces the software keyboard in the same slot below the
+  composer and matches the last settled keyboard height. Switching holds the outgoing surface until
+  the incoming one covers it, so the editor stays in place; without a keyboard the panel slides in and
+  out in one direction, instantly with reduced motion. The panel keeps its tab, scroll and search state
+  while the composer stays open. Searching stickers raises the keyboard below the panel and bounds the
+  editor to one line without changing its multiline input. Back closes the panel before leaving the
+  topic, and the topic stream keeps clearance above the keyboard. Platform IME timing still requires
+  physical-device verification.
   Typing `@` opens a user suggestion sheet above the software keyboard (reply target, topic author
   and participants first, then debounced server search) with Web-identical token and ranking
   semantics; selecting a candidate inserts plain `@username ` at the caret.

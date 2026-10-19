@@ -669,6 +669,62 @@ void main() {
       focus.dispose();
     });
 
+    testWidgets('sticker switches keep the action row and multiline input', (
+      tester,
+    ) async {
+      final controller = TextEditingController(text: 'one\ntwo\nthree');
+      addTearDown(controller.dispose);
+      var hidden = 0;
+      Widget composer({bool stickerOpen = false, bool compact = false}) =>
+          gfApp(
+            SizedBox(
+              width: 360,
+              child: GfPostComposer(
+                controller: controller,
+                publishLabel: 'Send',
+                hintText: 'Reply',
+                onPublish: () {},
+                onPickImage: () {},
+                imageTooltip: 'Image',
+                onPickSticker: () {},
+                stickerTooltip: 'Stickers',
+                stickerOpen: stickerOpen,
+                compactEditor: compact,
+                hideKeyboardLabel: 'Hide',
+                onHideAccessory: () => hidden++,
+              ),
+            ),
+          );
+      IconButton hide() => tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byWidgetPredicate(
+            (widget) => widget is GfSymbol && widget.name == 'keyboard-hide',
+          ),
+          matching: find.byType(IconButton),
+        ),
+      );
+
+      await tester.pumpWidget(composer());
+      final idle = tester.getRect(find.byTooltip('Hide'));
+      final idleHeight = tester.getSize(find.byType(GfPostComposer)).height;
+      expect(hide().onPressed, isNull);
+
+      await tester.pumpWidget(composer(stickerOpen: true));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(find.byTooltip('Hide')), idle);
+      expect(tester.getSize(find.byType(GfPostComposer)).height, idleHeight);
+      expect(tester.widget<TextField>(find.byType(TextField)).maxLines, 4);
+      await tester.tap(find.byTooltip('Hide'));
+      expect(hidden, 1);
+
+      await tester.pumpWidget(composer(stickerOpen: true, compact: true));
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.maxLines, 4);
+      expect(field.textInputAction, TextInputAction.newline);
+      expect(tester.getSize(find.byType(TextField)).height, lessThan(48));
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     testWidgets(
       'keeps 44 pixel image and keyboard actions below the filled reply input',
       (tester) async {

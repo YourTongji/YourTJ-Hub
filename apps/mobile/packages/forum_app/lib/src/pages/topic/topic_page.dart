@@ -173,7 +173,18 @@ class _TopicPageState extends ConsumerState<TopicPage>
 
   // 浮动层状态(web TopicFloatingControls / PostComposer 语义)。
   bool _composerOpen = false;
-  bool _replyStickerOpen = false;
+  // One input accessory at a time; the slot below the composer owns its
+  // geometry and the bottom inset (issue #1270).
+  GfInputAccessory _replyAccessory = GfInputAccessory.none;
+  bool get _replyStickerOpen => _replyAccessory == GfInputAccessory.panel;
+  final FocusNode _replyPanelFocus = FocusNode(debugLabel: 'reply-panel');
+
+  /// A sticker search field and the keyboard share the space below the editor.
+  bool get _replyPanelTyping =>
+      _replyStickerOpen &&
+      _replyPanelFocus.hasFocus &&
+      !_replyPanelFocus.hasPrimaryFocus;
+  bool _replyEditorCompact = false;
   TextSelection? _replyStickerSelection;
   bool _railOpen = false;
 
@@ -194,6 +205,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
     );
     _replyController.addListener(_onReplyValueChanged);
     _replyFocus.addListener(_onReplyFocusChanged);
+    _replyPanelFocus.addListener(_syncReplyEditorCompact);
     _load(postNo: widget.initialPostNo);
     _restoreReplyDraft();
   }
@@ -216,7 +228,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
       _replySaveFailed = false;
       _discardReplyOnLeave = false;
       _composerOpen = false;
-      _replyStickerOpen = false;
+      _replyAccessory = GfInputAccessory.none;
       _mentionSession.close();
       _restoreReplyDraft();
     }
@@ -381,6 +393,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
     _replyController.dispose();
     _replyCaptchaCode.dispose();
     _replyFocus.dispose();
+    _replyPanelFocus.dispose();
     _mentionSession.dispose();
     super.dispose();
   }
@@ -939,8 +952,17 @@ class _TopicPageState extends ConsumerState<TopicPage>
   /// 焦点丢失(键盘收起/点按他处)关闭候选会话,不劫持系统返回。
   void _onReplyFocusChanged() {
     if (!_replyFocus.hasFocus) _mentionSession.close();
-    if (_replyFocus.hasFocus && _replyStickerOpen) {
-      setState(() => _replyStickerOpen = false);
+    final GfInputAccessory next = _replyFocus.hasFocus
+        ? GfInputAccessory.keyboard
+        : _replyAccessory == GfInputAccessory.keyboard
+        ? GfInputAccessory.none
+        : _replyAccessory;
+    if (next != _replyAccessory) setState(() => _replyAccessory = next);
+  }
+
+  void _syncReplyEditorCompact() {
+    if (_replyPanelTyping != _replyEditorCompact) {
+      setState(() => _replyEditorCompact = _replyPanelTyping);
     }
   }
 
@@ -1060,8 +1082,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
   }
 
   Future<void> _closeComposer() async {
+    _replyAccessory = GfInputAccessory.none;
     FocusManager.instance.primaryFocus?.unfocus();
-    _replyStickerOpen = false;
     _mentionSession.close();
     if (await _saveReplyDraft() && mounted && _writingCurrent) {
       setState(() => _composerOpen = false);
@@ -1122,16 +1144,23 @@ class _TopicPageState extends ConsumerState<TopicPage>
     _replyChanged();
   }
 
+  /// Declares the target accessory before moving focus, so the slot holds the
+  /// outgoing surface until the incoming one covers it.
   void _pickReplySticker() {
     if (_replyStickerOpen) {
-      FocusManager.instance.primaryFocus?.unfocus();
-      setState(() => _replyStickerOpen = false);
+      setState(() => _replyAccessory = GfInputAccessory.keyboard);
       _replyFocus.requestFocus();
     } else {
       _replyStickerSelection = _replyController.selection;
-      FocusManager.instance.primaryFocus?.unfocus();
-      setState(() => _replyStickerOpen = true);
+      setState(() => _replyAccessory = GfInputAccessory.panel);
+      // Focus stays inside the composer while the software keyboard leaves.
+      _replyPanelFocus.requestFocus();
     }
+  }
+
+  void _hideReplyAccessory() {
+    setState(() => _replyAccessory = GfInputAccessory.none);
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   void _insertReplySticker(String token) {
@@ -1226,7 +1255,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
         setState(() {
           _replyImageUrl = null;
           _composerOpen = false;
-          _replyStickerOpen = false;
+          _replyAccessory = GfInputAccessory.none;
         });
         await _saveReplyDraft();
       }
@@ -1496,8 +1525,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
 
   Future<void> _goBack() async {
     if (_replyStickerOpen) {
-      FocusManager.instance.primaryFocus?.unfocus();
-      setState(() => _replyStickerOpen = false);
+      _hideReplyAccessory();
       return;
     }
     if (_replying || _leavingReply) return;
@@ -1593,7 +1621,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
       _posts.clear();
       _replyTargets.clear();
       _composerOpen = false;
-      _replyStickerOpen = false;
+      _replyAccessory = GfInputAccessory.none;
       _railOpen = false;
     });
     _load(postNo: floor > 1 ? floor : null);
@@ -1647,6 +1675,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
         ? topicTitle
         : l10n.topicTitle;
     final scaffold = Scaffold(
+      // The reply accessory slot consumes the keyboard inset itself.
+      resizeToAvoidBottomInset: false,
       appBar: GfAppBar(
         leading: GfIconButton(
           symbol: 'chevron-left',
@@ -1838,7 +1868,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                               ),
                             ),
                             const SliverToBoxAdapter(
-                              child: SizedBox(height: 104),
+                              child: _ReplyDockClearance(),
                             ),
                           ],
                         ),
@@ -1850,273 +1880,327 @@ class _TopicPageState extends ConsumerState<TopicPage>
                   left: _composerOpen ? 0 : 12,
                   right: _composerOpen ? 0 : 12,
                   bottom: _composerOpen ? 0 : 12,
-                  // Bound the open composer to the keyboard-resized viewport.
+                  // The open composer spans the body; its accessory slot owns
+                  // the bottom edge, keyboard inset and safe area included.
                   top: _composerOpen ? 0 : null,
-                  child: SafeArea(
-                    top: false,
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: <Widget>[
-                          if (_composerOpen)
-                            IdentityPicker(
-                              value: _replyIdentity,
-                              disabled: _replying,
-                              onChanged: (v) {
-                                setState(() {
-                                  _replyIdentity = v;
-                                  _replyRevision++;
-                                });
-                                unawaited(_saveReplyDraft());
-                              },
-                            ),
-
-                          if (_composerOpen && !_replyStickerOpen)
-                            Flexible(
-                              child: ConstrainedBox(
+                  child: LayoutBuilder(
+                    builder: (context, box) => SafeArea(
+                      top: false,
+                      bottom: !_composerOpen,
+                      child: Align(
+                        alignment: Alignment.bottomCenter,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: <Widget>[
+                            if (_composerOpen)
+                              ConstrainedBox(
                                 constraints: const BoxConstraints(
                                   maxWidth: 560,
                                 ),
-                                child: ListenableBuilder(
-                                  listenable: _mentionSession,
-                                  builder: (context, _) =>
-                                      MentionCandidatesPanel(
-                                        session: _mentionSession,
-                                        messages: MentionPanelMessages(
-                                          listboxLabel:
-                                              l10n.mentionListboxLabel,
-                                          loading: l10n.mentionLoading,
-                                          noResults: l10n.mentionNoResults,
-                                          searchFailed:
-                                              l10n.mentionSearchFailed,
-                                          keepTyping: l10n.mentionKeepTyping,
-                                          tagReplyTarget:
-                                              l10n.mentionTagReplyTarget,
-                                          tagTopicAuthor:
-                                              l10n.mentionTagTopicAuthor,
-                                          tagParticipant:
-                                              l10n.mentionTagParticipant,
-                                          agentLabel: l10n.mentionAgentLabel,
+                                child: Align(
+                                  alignment: AlignmentDirectional.centerStart,
+                                  child: Padding(
+                                    padding:
+                                        const EdgeInsetsDirectional.fromSTEB(
+                                          12,
+                                          0,
+                                          12,
+                                          8,
                                         ),
-                                        onSelect: _selectMentionCandidate,
+                                    // Floats on its own surface so the identity
+                                    // stays legible over any reading content.
+                                    child: GfFloatingSurface(
+                                      key: const Key('reply-identity-surface'),
+                                      radius: 999,
+                                      blur: false,
+                                      child: Material(
+                                        type: MaterialType.transparency,
+                                        child: IdentityPicker(
+                                          value: _replyIdentity,
+                                          disabled: _replying,
+                                          // Avatar concentric with the capsule.
+                                          padding:
+                                              const EdgeInsetsDirectional.fromSTEB(
+                                                10,
+                                                4,
+                                                14,
+                                                4,
+                                              ),
+                                          onChanged: (v) {
+                                            setState(() {
+                                              _replyIdentity = v;
+                                              _replyRevision++;
+                                            });
+                                            unawaited(_saveReplyDraft());
+                                          },
+                                        ),
                                       ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          _composerOpen
-                              ? Flexible(
-                                  key: const Key('topic-reply-composer'),
-                                  child: ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      maxWidth: 560,
-                                    ),
-                                    child: ValueListenableBuilder<TextEditingValue>(
-                                      valueListenable: _replyController,
-                                      builder: (context, value, _) {
-                                        return GfPostComposer(
-                                          hideKeyboardLabel:
-                                              l10n.commonHideKeyboard,
-                                          onCollapse: _closeComposer,
-                                          collapseLabel: l10n.draftCollapse,
-                                          controller: _replyController,
-                                          focusNode: _replyFocus,
-                                          targetName: _replyTargetDisplayName(
-                                            context,
+
+                            if (_composerOpen && !_replyStickerOpen)
+                              Flexible(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 560,
+                                  ),
+                                  child: ListenableBuilder(
+                                    listenable: _mentionSession,
+                                    builder: (context, _) =>
+                                        MentionCandidatesPanel(
+                                          session: _mentionSession,
+                                          messages: MentionPanelMessages(
+                                            listboxLabel:
+                                                l10n.mentionListboxLabel,
+                                            loading: l10n.mentionLoading,
+                                            noResults: l10n.mentionNoResults,
+                                            searchFailed:
+                                                l10n.mentionSearchFailed,
+                                            keepTyping: l10n.mentionKeepTyping,
+                                            tagReplyTarget:
+                                                l10n.mentionTagReplyTarget,
+                                            tagTopicAuthor:
+                                                l10n.mentionTagTopicAuthor,
+                                            tagParticipant:
+                                                l10n.mentionTagParticipant,
+                                            agentLabel: l10n.mentionAgentLabel,
                                           ),
-                                          targetLabel: _replyTargetName == null
-                                              ? null
-                                              : l10n.topicReplyTarget(
-                                                  _replyTargetDisplayName(
-                                                    context,
-                                                  )!,
-                                                ),
-                                          onCloseTarget: () {
-                                            _clearReplyTarget();
-                                            setState(() {});
-                                          },
-                                          onPickImage: _pickReplyImage,
-                                          onPickSticker: _pickReplySticker,
-                                          stickerOpen: _replyStickerOpen,
-                                          stickerTooltip: _replyStickerOpen
-                                              ? StickerStrings(context).keyboard
-                                              : StickerStrings(context).title,
-                                          preview: StickerDraftPreview(
-                                            content: value.text,
-                                            markdown: true,
-                                          ),
-                                          accessory: _replyStickerOpen
-                                              ? GfComposerPanel(
-                                                  child: StickerPicker(
-                                                    onInsert:
-                                                        _insertReplySticker,
+                                          onSelect: _selectMentionCandidate,
+                                        ),
+                                  ),
+                                ),
+                              ),
+                            _composerOpen
+                                ? Flexible(
+                                    key: const Key('topic-reply-composer'),
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 560,
+                                      ),
+                                      child: ValueListenableBuilder<TextEditingValue>(
+                                        valueListenable: _replyController,
+                                        builder: (context, value, _) {
+                                          return GfPostComposer(
+                                            hideKeyboardLabel:
+                                                l10n.commonHideKeyboard,
+                                            onHideAccessory:
+                                                _hideReplyAccessory,
+                                            onCollapse: _closeComposer,
+                                            collapseLabel: l10n.draftCollapse,
+                                            controller: _replyController,
+                                            focusNode: _replyFocus,
+                                            targetName: _replyTargetDisplayName(
+                                              context,
+                                            ),
+                                            targetLabel:
+                                                _replyTargetName == null
+                                                ? null
+                                                : l10n.topicReplyTarget(
+                                                    _replyTargetDisplayName(
+                                                      context,
+                                                    )!,
                                                   ),
-                                                )
-                                              : null,
-                                          imageTooltip: l10n.publishToolImage,
-                                          imageUrl: _replyImageUrl == null
-                                              ? null
-                                              : resolveApiAssetUrl(
-                                                  _replyImageUrl!,
-                                                ),
-                                          onRemoveImage: _removeReplyImage,
-                                          removeImageTooltip:
-                                              l10n.publishRemoveImage,
-                                          uploading: _uploadingReplyImage,
-                                          publishing: _replying,
-                                          canPublish: value.text
-                                              .trim()
-                                              .isNotEmpty,
-                                          publishLabel: l10n.commonSend,
-                                          hintText: l10n.topicReplyHint,
-                                          onPublish: _submitReply,
-                                          toolbar: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              if (_replySaveStatus.isNotEmpty)
-                                                Row(
-                                                  children: [
-                                                    Expanded(
-                                                      child: GfText(
-                                                        _replySaveStatus,
-                                                        style: Theme.of(
-                                                          context,
-                                                        ).textTheme.bodySmall,
-                                                      ),
-                                                    ),
-                                                    if (_replySaveFailed)
-                                                      TextButton(
-                                                        onPressed:
-                                                            _saveReplyDraft,
+                                            onCloseTarget: () {
+                                              _clearReplyTarget();
+                                              setState(() {});
+                                            },
+                                            onPickImage: _pickReplyImage,
+                                            onPickSticker: _pickReplySticker,
+                                            stickerOpen: _replyStickerOpen,
+                                            compactEditor:
+                                                _replyStickerOpen &&
+                                                _replyEditorCompact,
+                                            stickerTooltip: _replyStickerOpen
+                                                ? StickerStrings(
+                                                    context,
+                                                  ).keyboard
+                                                : StickerStrings(context).title,
+                                            preview: StickerDraftPreview(
+                                              content: value.text,
+                                              markdown: true,
+                                            ),
+                                            imageTooltip: l10n.publishToolImage,
+                                            imageUrl: _replyImageUrl == null
+                                                ? null
+                                                : resolveApiAssetUrl(
+                                                    _replyImageUrl!,
+                                                  ),
+                                            onRemoveImage: _removeReplyImage,
+                                            removeImageTooltip:
+                                                l10n.publishRemoveImage,
+                                            uploading: _uploadingReplyImage,
+                                            publishing: _replying,
+                                            canPublish: value.text
+                                                .trim()
+                                                .isNotEmpty,
+                                            publishLabel: l10n.commonSend,
+                                            hintText: l10n.topicReplyHint,
+                                            onPublish: _submitReply,
+                                            toolbar: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                if (_replySaveStatus.isNotEmpty)
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
                                                         child: GfText(
-                                                          l10n.commonRetry,
-                                                        ),
-                                                      ),
-                                                  ],
-                                                ),
-                                              if (_replyCaptcha != null)
-                                                Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    if (_showReplyCaptchaExplanation)
-                                                      Padding(
-                                                        padding:
-                                                            const EdgeInsets.only(
-                                                              bottom: 8,
-                                                            ),
-                                                        child: GfText(
-                                                          l10n.publishCaptchaExplanation,
+                                                          _replySaveStatus,
                                                           style: Theme.of(
                                                             context,
                                                           ).textTheme.bodySmall,
                                                         ),
                                                       ),
-                                                    Row(
-                                                      children: [
-                                                        InkWell(
-                                                          onTap:
-                                                              _replyCaptchaLoading
-                                                              ? null
-                                                              : _loadReplyCaptcha,
-                                                          child: GfCaptchaImage(
-                                                            imageData:
-                                                                _replyCaptcha!
-                                                                    .captchaImg,
-                                                            width: 80,
-                                                            height: 42,
-                                                            fit: BoxFit.contain,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                          width: 8,
-                                                        ),
-                                                        Expanded(
-                                                          child: GfInput(
-                                                            key: const Key(
-                                                              'reply-captcha',
-                                                            ),
-                                                            controller:
-                                                                _replyCaptchaCode,
-                                                            labelText: l10n
-                                                                .authCaptcha,
-                                                            textCapitalization:
-                                                                TextCapitalization
-                                                                    .characters,
-                                                          ),
-                                                        ),
-                                                        IconButton(
-                                                          tooltip: l10n
-                                                              .commonRefresh,
+                                                      if (_replySaveFailed)
+                                                        TextButton(
                                                           onPressed:
-                                                              _replyCaptchaLoading
-                                                              ? null
-                                                              : _loadReplyCaptcha,
-                                                          icon: const GfSymbol(
-                                                            'refresh-cw',
+                                                              _saveReplyDraft,
+                                                          child: GfText(
+                                                            l10n.commonRetry,
                                                           ),
                                                         ),
-                                                      ],
-                                                    ),
-                                                  ],
-                                                ),
-                                            ],
-                                          ),
-                                        );
-                                      },
+                                                    ],
+                                                  ),
+                                                if (_replyCaptcha != null)
+                                                  Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      if (_showReplyCaptchaExplanation)
+                                                        Padding(
+                                                          padding:
+                                                              const EdgeInsets.only(
+                                                                bottom: 8,
+                                                              ),
+                                                          child: GfText(
+                                                            l10n.publishCaptchaExplanation,
+                                                            style:
+                                                                Theme.of(
+                                                                      context,
+                                                                    )
+                                                                    .textTheme
+                                                                    .bodySmall,
+                                                          ),
+                                                        ),
+                                                      Row(
+                                                        children: [
+                                                          InkWell(
+                                                            onTap:
+                                                                _replyCaptchaLoading
+                                                                ? null
+                                                                : _loadReplyCaptcha,
+                                                            child: GfCaptchaImage(
+                                                              imageData:
+                                                                  _replyCaptcha!
+                                                                      .captchaImg,
+                                                              width: 80,
+                                                              height: 42,
+                                                              fit: BoxFit
+                                                                  .contain,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 8,
+                                                          ),
+                                                          Expanded(
+                                                            child: GfInput(
+                                                              key: const Key(
+                                                                'reply-captcha',
+                                                              ),
+                                                              controller:
+                                                                  _replyCaptchaCode,
+                                                              labelText: l10n
+                                                                  .authCaptcha,
+                                                              textCapitalization:
+                                                                  TextCapitalization
+                                                                      .characters,
+                                                            ),
+                                                          ),
+                                                          IconButton(
+                                                            tooltip: l10n
+                                                                .commonRefresh,
+                                                            onPressed:
+                                                                _replyCaptchaLoading
+                                                                ? null
+                                                                : _loadReplyCaptcha,
+                                                            icon:
+                                                                const GfSymbol(
+                                                                  'refresh-cw',
+                                                                ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ],
+                                                  ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      ),
                                     ),
-                                  ),
-                                )
-                              : GfFloatingControls(
-                                  joinLabel: l10n.topicJoinDiscussion,
-                                  actions: <GfTopicAction>[
-                                    if (_topicAvailable) ...[
-                                      GfTopicAction(
-                                        symbol: _liked
-                                            ? 'heart-filled'
-                                            : 'heart',
-                                        active: _liked,
-                                        title:
-                                            '${l10n.topicLike} · ${formatNumber(_likeCount)}',
-                                        activeColor: colors.error,
-                                        onTap: _toggleLike,
-                                      ),
-                                      GfTopicAction(
-                                        symbol: _bookmarked
-                                            ? 'bookmark-filled'
-                                            : 'bookmark',
-                                        active: _bookmarked,
-                                        title: _bookmarked
-                                            ? l10n.topicBookmarked
-                                            : l10n.topicBookmark,
-                                        activeColor: colors.warning,
-                                        onTap: _toggleBookmark,
-                                      ),
-                                      GfTopicAction(
-                                        symbol: _watched
-                                            ? 'bell-filled'
-                                            : 'bell',
-                                        active: _watched,
-                                        title: _watched
-                                            ? l10n.topicUnwatch
-                                            : l10n.topicWatch,
-                                        activeColor: colors.primary,
-                                        onTap: _toggleWatch,
-                                      ),
+                                  )
+                                : GfFloatingControls(
+                                    joinLabel: l10n.topicJoinDiscussion,
+                                    actions: <GfTopicAction>[
+                                      if (_topicAvailable) ...[
+                                        GfTopicAction(
+                                          symbol: _liked
+                                              ? 'heart-filled'
+                                              : 'heart',
+                                          active: _liked,
+                                          title:
+                                              '${l10n.topicLike} · ${formatNumber(_likeCount)}',
+                                          activeColor: colors.error,
+                                          onTap: _toggleLike,
+                                        ),
+                                        GfTopicAction(
+                                          symbol: _bookmarked
+                                              ? 'bookmark-filled'
+                                              : 'bookmark',
+                                          active: _bookmarked,
+                                          title: _bookmarked
+                                              ? l10n.topicBookmarked
+                                              : l10n.topicBookmark,
+                                          activeColor: colors.warning,
+                                          onTap: _toggleBookmark,
+                                        ),
+                                        GfTopicAction(
+                                          symbol: _watched
+                                              ? 'bell-filled'
+                                              : 'bell',
+                                          active: _watched,
+                                          title: _watched
+                                              ? l10n.topicUnwatch
+                                              : l10n.topicWatch,
+                                          activeColor: colors.primary,
+                                          onTap: _toggleWatch,
+                                        ),
+                                      ],
                                     ],
-                                  ],
-                                  onOpenReply: _canReply
-                                      ? () => _openComposer()
-                                      : null,
-                                  currentNo: _currentFloor,
-                                  maxNo: props.postStream.maxPostNo,
-                                  onFloorTap: () =>
-                                      setState(() => _railOpen = !_railOpen),
+                                    onOpenReply: _canReply
+                                        ? () => _openComposer()
+                                        : null,
+                                    currentNo: _currentFloor,
+                                    maxNo: props.postStream.maxPostNo,
+                                    onFloorTap: () =>
+                                        setState(() => _railOpen = !_railOpen),
+                                  ),
+                            if (_composerOpen)
+                              GfInputAccessorySlot(
+                                accessory: _replyAccessory,
+                                panelFocusNode: _replyPanelFocus,
+                                availableHeight: box.maxHeight,
+                                panelBuilder: (_) => StickerPicker(
+                                  onInsert: _insertReplySticker,
                                 ),
-                        ],
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -2875,4 +2959,14 @@ class _PendingReviewNotice extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Keeps the last reply readable above the dock and, since the page no longer
+/// resizes for the keyboard, above the software keyboard too.
+class _ReplyDockClearance extends StatelessWidget {
+  const _ReplyDockClearance();
+
+  @override
+  Widget build(BuildContext context) =>
+      SizedBox(height: 104 + MediaQuery.viewInsetsOf(context).bottom);
 }

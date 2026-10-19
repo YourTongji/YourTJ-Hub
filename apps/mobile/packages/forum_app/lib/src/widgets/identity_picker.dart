@@ -26,10 +26,14 @@ class IdentityPicker extends ConsumerStatefulWidget {
     required this.value,
     required this.onChanged,
     this.disabled = false,
+    this.padding = const EdgeInsetsDirectional.fromSTEB(6, 4, 10, 4),
   });
   final String value;
   final ValueChanged<String> onChanged;
   final bool disabled;
+
+  /// Inner padding of the pressable capsule.
+  final EdgeInsetsGeometry padding;
   @override
   ConsumerState<IdentityPicker> createState() => _IdentityPickerState();
 }
@@ -83,6 +87,7 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
         : user?.username ?? l.anonymousMember;
     final kind = widget.value == 'persona' ? l.anonymousTag : l.anonymousMember;
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Flexible(
           child: Semantics(
@@ -99,7 +104,7 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
                 onTap: widget.disabled ? null : openMenu,
                 child: Container(
                   constraints: const BoxConstraints(minHeight: 48),
-                  padding: const EdgeInsetsDirectional.fromSTEB(6, 4, 10, 4),
+                  padding: widget.padding,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

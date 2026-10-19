@@ -3391,6 +3391,93 @@ void main() {
         },
       );
     }
+    testWidgets(
+      'reply input keeps its anchor while keyboard and stickers trade places',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final library = StickerLibrary(ComposerStickerRepository(client));
+        final container = await makeContainer(
+          pageRepo: CountingPageRepository(client),
+          extraOverrides: [
+            stickerLibraryProvider.overrideWithValue(library),
+            stickerCollectionProvider.overrideWith(
+              (ref) => StickerCollection(
+                ComposerStickerRepository(client),
+                library,
+              ),
+            ),
+          ],
+        );
+        await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('参与讨论'));
+        await tester.pump();
+        final surface = find.byKey(const Key('reply-input-surface'));
+        final field = find
+            .descendant(
+              of: find.byType(GfPostComposer),
+              matching: find.byType(TextField),
+            )
+            .first;
+        await tester.enterText(field, 'line one\nline two\nline three');
+
+        // Frame-by-frame IME animation, as reported through window insets.
+        Future<List<double>> keyboard(double from, double to) async {
+          final trace = <double>[tester.getBottomLeft(surface).dy];
+          for (var frame = 1; frame <= 10; frame++) {
+            tester.view.viewInsets = FakeViewPadding(
+              bottom: from + (to - from) * frame / 10,
+            );
+            await tester.pump(const Duration(milliseconds: 16));
+            trace.add(tester.getBottomLeft(surface).dy);
+          }
+          await tester.pump(const Duration(milliseconds: 400));
+          await tester.pumpAndSettle();
+          trace.add(tester.getBottomLeft(surface).dy);
+          return trace;
+        }
+
+        await keyboard(0, 300);
+        final anchor = tester.getBottomLeft(surface).dy;
+        expect(anchor, lessThan(844 - 300));
+        for (var round = 0; round < 2; round++) {
+          await tester.tap(find.byTooltip('表情库'));
+          await tester.pump();
+          final toStickers = await keyboard(300, 0);
+          expect(find.byType(StickerPicker), findsOneWidget);
+          for (final y in toStickers) {
+            expect(y, closeTo(anchor, 3), reason: 'keyboard → stickers');
+          }
+          expect(tester.widget<TextField>(field).maxLines, 4);
+          await tester.tap(find.byTooltip('键盘'));
+          await tester.pump();
+          final toKeyboard = await keyboard(0, 300);
+          expect(find.byType(StickerPicker), findsNothing);
+          for (final y in toKeyboard) {
+            expect(y, closeTo(anchor, 3), reason: 'stickers → keyboard');
+          }
+        }
+        expect(
+          tester.widget<TextField>(field).controller!.text,
+          'line one\nline two\nline three',
+        );
+        // Dismissing the keyboard lowers the editor in one direction only.
+        final dismissal = await keyboard(300, 0);
+        for (var i = 1; i < dismissal.length; i++) {
+          expect(dismissal[i], greaterThanOrEqualTo(dismissal[i - 1] - 0.5));
+        }
+        tester.view.viewInsets = const FakeViewPadding();
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(seconds: 1));
+      },
+    );
     testWidgets('sticker caret follows removal of the reply target', (
       tester,
     ) async {

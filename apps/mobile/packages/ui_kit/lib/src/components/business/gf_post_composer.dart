@@ -10,6 +10,8 @@ import '../gf_symbol.dart';
 
 /// Compact reply surface with a borderless growing editor and one action row.
 /// Optional verification content appears only when supplied by the caller.
+/// Input accessories (keyboard or sticker panel) live below it in a
+/// [GfInputAccessorySlot]; switching them never changes this surface.
 class GfPostComposer extends StatefulWidget {
   const GfPostComposer({
     super.key,
@@ -19,6 +21,7 @@ class GfPostComposer extends StatefulWidget {
     required this.hintText,
     this.focusNode,
     this.hideKeyboardLabel,
+    this.onHideAccessory,
     this.onCollapse,
     this.collapseLabel,
     this.targetName,
@@ -29,8 +32,8 @@ class GfPostComposer extends StatefulWidget {
     this.onPickSticker,
     this.stickerTooltip,
     this.stickerOpen = false,
+    this.compactEditor = false,
     this.preview,
-    this.accessory,
     this.imageUrl,
     this.onRemoveImage,
     this.removeImageTooltip,
@@ -44,6 +47,9 @@ class GfPostComposer extends StatefulWidget {
   final TextEditingController controller;
   final FocusNode? focusNode;
   final String? hideKeyboardLabel;
+
+  /// Dismisses the open keyboard or panel; defaults to removing focus.
+  final VoidCallback? onHideAccessory;
   final VoidCallback? onCollapse;
   final String? collapseLabel;
   final VoidCallback onPublish;
@@ -60,8 +66,12 @@ class GfPostComposer extends StatefulWidget {
   final VoidCallback? onPickSticker;
   final String? stickerTooltip;
   final bool stickerOpen;
+
+  /// Bounds the rendered editor to one line, e.g. while a panel field and the
+  /// keyboard share the space below. The field stays multiline: return keeps
+  /// inserting newlines and longer drafts scroll inside it.
+  final bool compactEditor;
   final Widget? preview;
-  final Widget? accessory;
   final String? imageUrl;
   final VoidCallback? onRemoveImage;
   final String? removeImageTooltip;
@@ -110,7 +120,7 @@ class _GfPostComposerState extends State<GfPostComposer> {
   }
 
   Widget _tool({
-    required String symbol,
+    required Widget icon,
     required String? tooltip,
     required VoidCallback? onPressed,
   }) {
@@ -118,7 +128,7 @@ class _GfPostComposerState extends State<GfPostComposer> {
     return IconButton(
       tooltip: tooltip,
       onPressed: onPressed,
-      icon: GfSymbol(symbol, size: 23),
+      icon: icon,
       style: IconButton.styleFrom(
         fixedSize: const Size.square(44),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -133,157 +143,167 @@ class _GfPostComposerState extends State<GfPostComposer> {
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    return LayoutBuilder(
-      builder: (context, constraints) => Material(
-        key: const Key('reply-composer-surface'),
-        color: colors.base100,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: colors.line)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Flexible(
-                  child: SingleChildScrollView(
-                    reverse: true,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (widget.preview != null) widget.preview!,
-                        if (widget.targetName != null)
-                          Row(
-                            children: [
-                              GfSymbol(
-                                'corner-down-left',
-                                size: 17,
-                                color: colors.iconMuted,
+    return Material(
+      key: const Key('reply-composer-surface'),
+      color: colors.base100,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: colors.line)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Flexible(
+                child: SingleChildScrollView(
+                  reverse: true,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (widget.preview != null) widget.preview!,
+                      if (widget.targetName != null)
+                        Row(
+                          children: [
+                            GfSymbol(
+                              'corner-down-left',
+                              size: 17,
+                              color: colors.iconMuted,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: GfText(
+                                widget.targetLabel ?? widget.targetName!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GfTheme.typographyOf(
+                                  context,
+                                ).caption.copyWith(color: colors.iconMuted),
                               ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: GfText(
-                                  widget.targetLabel ?? widget.targetName!,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GfTheme.typographyOf(
-                                    context,
-                                  ).caption.copyWith(color: colors.iconMuted),
+                            ),
+                            if (widget.onCloseTarget != null)
+                              _tool(
+                                icon: const GfSymbol('x', size: 23),
+                                tooltip: MaterialLocalizations.of(
+                                  context,
+                                ).closeButtonTooltip,
+                                onPressed: widget.publishing
+                                    ? null
+                                    : widget.onCloseTarget,
+                              ),
+                          ],
+                        ),
+                      if (widget.imageUrl != null &&
+                          widget.imageUrl!.isNotEmpty) ...[
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: Image(
+                                  image: ResizeImage(
+                                    GfMediaScope.imageProvider(
+                                      context,
+                                      widget.imageUrl!,
+                                    ),
+                                    policy: ResizeImagePolicy.fit,
+                                    width:
+                                        (176 *
+                                                MediaQuery.devicePixelRatioOf(
+                                                  context,
+                                                ))
+                                            .round(),
+                                    height:
+                                        (144 *
+                                                MediaQuery.devicePixelRatioOf(
+                                                  context,
+                                                ))
+                                            .round(),
+                                  ),
+                                  width: 112,
+                                  height: 88,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => Container(
+                                    width: 112,
+                                    height: 88,
+                                    color: colors.base200,
+                                    alignment: Alignment.center,
+                                    child: GfSymbol(
+                                      'image-off',
+                                      color: colors.iconMuted,
+                                    ),
+                                  ),
                                 ),
                               ),
-                              if (widget.onCloseTarget != null)
-                                _tool(
-                                  symbol: 'x',
-                                  tooltip: MaterialLocalizations.of(
-                                    context,
-                                  ).closeButtonTooltip,
-                                  onPressed: widget.publishing
-                                      ? null
-                                      : widget.onCloseTarget,
+                              if (widget.onRemoveImage != null)
+                                Positioned(
+                                  right: 0,
+                                  top: 0,
+                                  child: IconButton(
+                                    tooltip: widget.removeImageTooltip,
+                                    onPressed: widget.publishing
+                                        ? null
+                                        : widget.onRemoveImage,
+                                    icon: const GfSymbol('x', size: 18),
+                                    style: IconButton.styleFrom(
+                                      fixedSize: const Size.square(44),
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      foregroundColor: colors.base100,
+                                      backgroundColor: colors.baseContent
+                                          .withValues(alpha: .7),
+                                      shape: const CircleBorder(),
+                                    ),
+                                  ),
                                 ),
                             ],
                           ),
-                        if (widget.imageUrl != null &&
-                            widget.imageUrl!.isNotEmpty) ...[
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Stack(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Image(
-                                    image: ResizeImage(
-                                      GfMediaScope.imageProvider(
-                                        context,
-                                        widget.imageUrl!,
-                                      ),
-                                      policy: ResizeImagePolicy.fit,
-                                      width:
-                                          (176 *
-                                                  MediaQuery.devicePixelRatioOf(
-                                                    context,
-                                                  ))
-                                              .round(),
-                                      height:
-                                          (144 *
-                                                  MediaQuery.devicePixelRatioOf(
-                                                    context,
-                                                  ))
-                                              .round(),
-                                    ),
-                                    width: 112,
-                                    height: 88,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) => Container(
-                                      width: 112,
-                                      height: 88,
-                                      color: colors.base200,
-                                      alignment: Alignment.center,
-                                      child: GfSymbol(
-                                        'image-off',
-                                        color: colors.iconMuted,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                if (widget.onRemoveImage != null)
-                                  Positioned(
-                                    right: 0,
-                                    top: 0,
-                                    child: IconButton(
-                                      tooltip: widget.removeImageTooltip,
-                                      onPressed: widget.publishing
-                                          ? null
-                                          : widget.onRemoveImage,
-                                      icon: const GfSymbol('x', size: 18),
-                                      style: IconButton.styleFrom(
-                                        fixedSize: const Size.square(44),
-                                        tapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                        foregroundColor: colors.base100,
-                                        backgroundColor: colors.baseContent
-                                            .withValues(alpha: .7),
-                                        shape: const CircleBorder(),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      if (widget.toolbar != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: widget.toolbar!,
+                        ),
+                      AnimatedContainer(
+                        key: const Key('reply-input-surface'),
+                        duration: GfMotion.duration(context, GfMotion.press),
+                        curve: GfMotion.enterCurve,
+                        decoration: BoxDecoration(
+                          color: colors.base200,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: _focus.hasFocus
+                                ? colors.primary.withValues(alpha: .32)
+                                : Colors.transparent,
                           ),
-                          const SizedBox(height: 8),
-                        ],
-                        if (widget.toolbar != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: widget.toolbar!,
-                          ),
-                        AnimatedContainer(
-                          key: const Key('reply-input-surface'),
-                          duration: GfMotion.duration(context, GfMotion.press),
-                          curve: GfMotion.enterCurve,
-                          decoration: BoxDecoration(
-                            color: colors.base200,
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: _focus.hasFocus
-                                  ? colors.primary.withValues(alpha: .32)
-                                  : Colors.transparent,
-                            ),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: ConstrainedBox(
+                                constraints: widget.compactEditor
+                                    ? BoxConstraints(
+                                        maxHeight:
+                                            MediaQuery.textScalerOf(
+                                                  context,
+                                                ).scale(16) *
+                                                1.4 +
+                                            22,
+                                      )
+                                    : const BoxConstraints(),
                                 child: TextField(
                                   controller: widget.controller,
                                   focusNode: _focus,
                                   readOnly: widget.publishing,
                                   keyboardType: TextInputType.multiline,
                                   textInputAction: TextInputAction.newline,
-                                  maxLines: widget.accessory == null ? 4 : 1,
+                                  maxLines: 4,
                                   minLines: 1,
                                   style: GfTheme.typographyOf(
                                     context,
@@ -314,112 +334,123 @@ class _GfPostComposerState extends State<GfPostComposer> {
                                   ),
                                 ),
                               ),
-                              if (widget.onCollapse != null)
-                                IconButton(
-                                  key: const Key('reply-collapse'),
-                                  onPressed: widget.publishing
-                                      ? null
-                                      : widget.onCollapse,
-                                  tooltip:
-                                      widget.collapseLabel ??
-                                      MaterialLocalizations.of(
-                                        context,
-                                      ).closeButtonTooltip,
-                                  icon: const GfSymbol(
-                                    'chevron-down',
-                                    size: 22,
-                                  ),
-                                  style: IconButton.styleFrom(
-                                    fixedSize: const Size.square(44),
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                    foregroundColor: colors.iconMuted,
-                                    padding: EdgeInsets.zero,
-                                    shape: const CircleBorder(),
-                                  ),
+                            ),
+                            if (widget.onCollapse != null)
+                              IconButton(
+                                key: const Key('reply-collapse'),
+                                onPressed: widget.publishing
+                                    ? null
+                                    : widget.onCollapse,
+                                tooltip:
+                                    widget.collapseLabel ??
+                                    MaterialLocalizations.of(
+                                      context,
+                                    ).closeButtonTooltip,
+                                icon: const GfSymbol('chevron-down', size: 22),
+                                style: IconButton.styleFrom(
+                                  fixedSize: const Size.square(44),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  foregroundColor: colors.iconMuted,
+                                  padding: EdgeInsets.zero,
+                                  shape: const CircleBorder(),
                                 ),
-                            ],
-                          ),
+                              ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    if (widget.onPickImage != null)
-                      IconButton(
-                        tooltip: widget.imageTooltip,
-                        onPressed: widget.uploading || widget.publishing
-                            ? null
-                            : widget.onPickImage,
-                        icon: widget.uploading
-                            ? const SizedBox.square(
-                                dimension: 20,
-                                child: GfProgressIndicator(strokeWidth: 2),
-                              )
-                            : const GfSymbol('gallery', size: 23),
-                        style: IconButton.styleFrom(
-                          fixedSize: const Size.square(44),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          foregroundColor: colors.primary,
-                          disabledForegroundColor: colors.iconMuted.withValues(
-                            alpha: .4,
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  if (widget.onPickImage != null)
+                    IconButton(
+                      tooltip: widget.imageTooltip,
+                      onPressed: widget.uploading || widget.publishing
+                          ? null
+                          : widget.onPickImage,
+                      icon: widget.uploading
+                          ? const SizedBox.square(
+                              dimension: 20,
+                              child: GfProgressIndicator(strokeWidth: 2),
+                            )
+                          : const GfSymbol('gallery', size: 23),
+                      style: IconButton.styleFrom(
+                        fixedSize: const Size.square(44),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        foregroundColor: colors.primary,
+                        disabledForegroundColor: colors.iconMuted.withValues(
+                          alpha: .4,
+                        ),
+                        padding: EdgeInsets.zero,
+                        shape: const CircleBorder(),
+                      ),
+                    ),
+                  if (widget.onPickSticker != null)
+                    _tool(
+                      icon: AnimatedSwitcher(
+                        duration: GfMotion.duration(
+                          context,
+                          GfMotion.selection,
+                        ),
+                        switchInCurve: GfMotion.enterCurve,
+                        switchOutCurve: GfMotion.enterCurve,
+                        transitionBuilder: (child, animation) => FadeTransition(
+                          opacity: animation,
+                          child: ScaleTransition(
+                            scale: Tween<double>(
+                              begin: .25,
+                              end: 1,
+                            ).animate(animation),
+                            child: child,
                           ),
-                          padding: EdgeInsets.zero,
-                          shape: const CircleBorder(),
+                        ),
+                        child: GfSymbol(
+                          widget.stickerOpen ? 'keyboard' : 'emoji-circle',
+                          key: ValueKey<bool>(widget.stickerOpen),
+                          size: 23,
                         ),
                       ),
-                    if (widget.onPickSticker != null)
-                      _tool(
-                        symbol: widget.stickerOpen
-                            ? 'keyboard'
-                            : 'emoji-circle',
-                        tooltip: widget.stickerTooltip,
-                        onPressed: widget.publishing
-                            ? null
-                            : widget.onPickSticker,
-                      ),
-                    if (!widget.stickerOpen)
-                      _tool(
-                        symbol: 'keyboard-hide',
-                        tooltip:
-                            widget.hideKeyboardLabel ??
-                            MaterialLocalizations.of(
-                              context,
-                            ).closeButtonTooltip,
-                        onPressed: () =>
-                            FocusManager.instance.primaryFocus?.unfocus(),
-                      ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: GfButton(
-                          label: widget.publishLabel,
-                          size: GfButtonSize.medium,
-                          loading: widget.publishing,
-                          onPressed:
-                              widget.publishing ||
-                                  widget.uploading ||
-                                  !widget.canPublish
-                              ? null
-                              : widget.onPublish,
-                        ),
-                      ),
+                      tooltip: widget.stickerTooltip,
+                      onPressed: widget.publishing
+                          ? null
+                          : widget.onPickSticker,
                     ),
-                  ],
-                ),
-                if (widget.accessory != null)
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: constraints.maxHeight * .4,
-                    ),
-                    child: widget.accessory!,
+                  // Always present so the row never reflows on a switch.
+                  _tool(
+                    icon: const GfSymbol('keyboard-hide', size: 23),
+                    tooltip:
+                        widget.hideKeyboardLabel ??
+                        MaterialLocalizations.of(context).closeButtonTooltip,
+                    onPressed: _focus.hasFocus || widget.stickerOpen
+                        ? widget.onHideAccessory ??
+                              () =>
+                                  FocusManager.instance.primaryFocus?.unfocus()
+                        : null,
                   ),
-              ],
-            ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: GfButton(
+                        label: widget.publishLabel,
+                        size: GfButtonSize.medium,
+                        loading: widget.publishing,
+                        onPressed:
+                            widget.publishing ||
+                                widget.uploading ||
+                                !widget.canPublish
+                            ? null
+                            : widget.onPublish,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
