@@ -2034,106 +2034,93 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                             publishLabel: l10n.commonSend,
                                             hintText: l10n.topicReplyHint,
                                             onPublish: _submitReply,
-                                            toolbar: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                if (_replySaveStatus.isNotEmpty)
-                                                  Row(
-                                                    children: [
-                                                      Expanded(
-                                                        child: GfText(
-                                                          _replySaveStatus,
-                                                          style: Theme.of(
-                                                            context,
-                                                          ).textTheme.bodySmall,
-                                                        ),
-                                                      ),
-                                                      if (_replySaveFailed)
-                                                        TextButton(
-                                                          onPressed:
-                                                              _saveReplyDraft,
-                                                          child: GfText(
-                                                            l10n.commonRetry,
-                                                          ),
-                                                        ),
-                                                    ],
+                                            status: _replySaveStatus.isEmpty
+                                                ? null
+                                                : _ReplySaveStatus(
+                                                    text: _replySaveStatus,
+                                                    failed: _replySaveFailed,
+                                                    retryLabel:
+                                                        l10n.commonRetry,
+                                                    onRetry: _saveReplyDraft,
                                                   ),
-                                                if (_replyCaptcha != null)
-                                                  Column(
+                                            toolbar: _replyCaptcha == null
+                                                ? null
+                                                : Column(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
                                                     crossAxisAlignment:
                                                         CrossAxisAlignment
                                                             .start,
                                                     children: [
-                                                      if (_showReplyCaptchaExplanation)
-                                                        Padding(
-                                                          padding:
-                                                              const EdgeInsets.only(
-                                                                bottom: 8,
-                                                              ),
-                                                          child: GfText(
-                                                            l10n.publishCaptchaExplanation,
-                                                            style:
-                                                                Theme.of(
-                                                                      context,
-                                                                    )
-                                                                    .textTheme
-                                                                    .bodySmall,
-                                                          ),
-                                                        ),
-                                                      Row(
+                                                      Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
                                                         children: [
-                                                          InkWell(
-                                                            onTap:
-                                                                _replyCaptchaLoading
-                                                                ? null
-                                                                : _loadReplyCaptcha,
-                                                            child: GfCaptchaImage(
-                                                              imageData:
-                                                                  _replyCaptcha!
-                                                                      .captchaImg,
-                                                              width: 80,
-                                                              height: 42,
-                                                              fit: BoxFit
-                                                                  .contain,
-                                                            ),
-                                                          ),
-                                                          const SizedBox(
-                                                            width: 8,
-                                                          ),
-                                                          Expanded(
-                                                            child: GfInput(
-                                                              key: const Key(
-                                                                'reply-captcha',
+                                                          if (_showReplyCaptchaExplanation)
+                                                            Padding(
+                                                              padding:
+                                                                  const EdgeInsets.only(
+                                                                    bottom: 8,
+                                                                  ),
+                                                              child: GfText(
+                                                                l10n.publishCaptchaExplanation,
+                                                                style: Theme.of(
+                                                                  context,
+                                                                ).textTheme.bodySmall,
                                                               ),
-                                                              controller:
-                                                                  _replyCaptchaCode,
-                                                              labelText: l10n
-                                                                  .authCaptcha,
-                                                              textCapitalization:
-                                                                  TextCapitalization
-                                                                      .characters,
                                                             ),
-                                                          ),
-                                                          IconButton(
-                                                            tooltip: l10n
-                                                                .commonRefresh,
-                                                            onPressed:
-                                                                _replyCaptchaLoading
-                                                                ? null
-                                                                : _loadReplyCaptcha,
-                                                            icon:
-                                                                const GfSymbol(
+                                                          Row(
+                                                            children: [
+                                                              InkWell(
+                                                                onTap:
+                                                                    _replyCaptchaLoading
+                                                                    ? null
+                                                                    : _loadReplyCaptcha,
+                                                                child: GfCaptchaImage(
+                                                                  imageData:
+                                                                      _replyCaptcha!
+                                                                          .captchaImg,
+                                                                  width: 80,
+                                                                  height: 42,
+                                                                  fit: BoxFit
+                                                                      .contain,
+                                                                ),
+                                                              ),
+                                                              const SizedBox(
+                                                                width: 8,
+                                                              ),
+                                                              Expanded(
+                                                                child: GfInput(
+                                                                  key: const Key(
+                                                                    'reply-captcha',
+                                                                  ),
+                                                                  controller:
+                                                                      _replyCaptchaCode,
+                                                                  labelText: l10n
+                                                                      .authCaptcha,
+                                                                  textCapitalization:
+                                                                      TextCapitalization
+                                                                          .characters,
+                                                                ),
+                                                              ),
+                                                              IconButton(
+                                                                tooltip: l10n
+                                                                    .commonRefresh,
+                                                                onPressed:
+                                                                    _replyCaptchaLoading
+                                                                    ? null
+                                                                    : _loadReplyCaptcha,
+                                                                icon: const GfSymbol(
                                                                   'refresh-cw',
                                                                 ),
+                                                              ),
+                                                            ],
                                                           ),
                                                         ],
                                                       ),
                                                     ],
                                                   ),
-                                              ],
-                                            ),
                                           );
                                         },
                                       ),
@@ -2958,6 +2945,48 @@ class _PendingReviewNotice extends StatelessWidget {
 
 /// Keeps the last reply readable above the dock and, since the page no longer
 /// resizes for the keyboard, above the software keyboard too.
+/// Draft state beside the send action: quiet while saving or saved; a failed
+/// local save turns it into a compact retry in the warning color.
+class _ReplySaveStatus extends StatelessWidget {
+  const _ReplySaveStatus({
+    required this.text,
+    required this.failed,
+    required this.retryLabel,
+    required this.onRetry,
+  });
+
+  final String text;
+  final bool failed;
+  final String retryLabel;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = GfTheme.colorsOf(context);
+    final label = GfText(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: GfTheme.typographyOf(
+        context,
+      ).meta.copyWith(color: failed ? colors.warning : colors.iconMuted),
+    );
+    if (!failed) return label;
+    return Tooltip(
+      message: retryLabel,
+      child: TextButton(
+        onPressed: onRetry,
+        style: TextButton.styleFrom(
+          minimumSize: const Size(0, 44),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+        ),
+        child: label,
+      ),
+    );
+  }
+}
+
 class _ReplyDockClearance extends StatelessWidget {
   const _ReplyDockClearance();
 

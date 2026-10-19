@@ -33,9 +33,10 @@ class IdentityPicker extends ConsumerStatefulWidget {
   final ValueChanged<String> onChanged;
   final bool disabled;
 
-  /// Avatar-only 44px button beside an input. A small swap badge in the
-  /// primary color marks it as switchable; the name stays in the tooltip and
-  /// semantics label.
+  /// Avatar-only 44px button that docks into an input. A small swap badge in
+  /// the primary color marks it as switchable; the name stays in the tooltip
+  /// and semantics label. A failed identity load retries on tap instead of
+  /// showing a separate button.
   final bool compact;
 
   /// Reports `true` while the choice sheet, or the setup sheet it leads to,
@@ -72,6 +73,9 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
 
   Future<void> openMenu() async {
     if (widget.disabled) return;
+    if (widget.compact && ref.read(anonymousIdentityProvider).hasError) {
+      ref.invalidate(anonymousIdentityProvider);
+    }
     final onMenuChanged = widget.onMenuChanged;
     onMenuChanged?.call(true);
     try {
@@ -251,7 +255,7 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
             ),
           ),
         ),
-        if (state.hasError)
+        if (state.hasError && !widget.compact)
           GfIconButton(
             symbol: 'refresh-cw',
             tooltip: l.anonymousRetry,

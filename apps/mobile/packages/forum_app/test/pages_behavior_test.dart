@@ -3418,13 +3418,17 @@ void main() {
         await tester.tap(find.byTooltip('参与讨论'));
         await tester.pump();
         final surface = find.byKey(const Key('reply-input-surface'));
-        // The identity stands beside the input, centred on it.
+        // The identity docks into the input's leading edge, centred on it.
         final identity = find.byKey(const Key('identity-picker'));
         expect(find.descendant(of: surface, matching: identity), findsNothing);
         expect(tester.getSize(identity), const Size.square(44));
         expect(
-          tester.getTopRight(identity).dx,
+          tester.getCenter(identity).dx,
           lessThan(tester.getTopLeft(surface).dx),
+        );
+        expect(
+          tester.getTopRight(identity).dx,
+          greaterThan(tester.getTopLeft(surface).dx),
         );
         expect(
           tester.getCenter(identity).dy,
@@ -3438,6 +3442,15 @@ void main() {
             )
             .first;
         await tester.enterText(field, 'line one\nline two\nline three');
+        // Draft state sits beside send, never above the editor where the
+        // composer's top edge could clip it.
+        await tester.pump();
+        final saveState = find.textContaining('保存');
+        expect(saveState, findsOneWidget);
+        expect(
+          tester.getCenter(saveState).dy,
+          closeTo(tester.getCenter(find.widgetWithText(GfButton, '发送')).dy, 1),
+        );
 
         // Frame-by-frame IME animation, as reported through window insets.
         Future<List<double>> keyboard(double from, double to) async {

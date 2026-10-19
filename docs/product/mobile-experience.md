@@ -737,13 +737,15 @@ identity survive this layout change. The header keeps a small outer margin for i
   the hide-keyboard sign, a keyboard above a down chevron, and is named after the open surface
   (hide keyboard or hide stickers), so neighbouring actions never share a symbol. The reply target is a
   lightweight text row; attachment previews and server-required captcha controls appear only when needed.
-  The publishing identity is an avatar button beside the shortened input and centred over the image
-  action, so it adds no height and never covers the topic. It stays centred on the input as lines are
-  added, gliding to each new centre rather than jumping, and holds still once the input reaches its
-  height limit and scrolls. A small swap badge
-  in the primary color (ReIcon Arrow Swap Horizontal) marks it as switchable, a switch scales the new
-  avatar in, and the name and kind stay in its tooltip and accessibility label. Choosing an identity
-  keeps the keyboard's space and returns focus to the input, so the composer does not jump.
+  The publishing identity docks into the input's leading edge: a ring in the surface color carves a
+  socket around the avatar, centred over the image action, so it adds no height and never covers the
+  topic. As lines are added the avatar glides to the input's new centre and the socket slides along
+  the edge with it; both hold still once the input reaches its height limit and scrolls. A small swap
+  badge in the primary color (ReIcon Arrow Swap Horizontal) marks it as switchable, a switch scales the
+  new avatar in, and the name and kind stay in its tooltip and accessibility label. Choosing an identity
+  keeps the keyboard's space and returns focus to the input, so the composer does not jump. Draft save
+  state sits beside the send action as one muted line, so it never grows or clips the editor; a failed
+  local save turns it into a tappable retry in the warning color.
 - `Current`: the topic reply sticker panel replaces the software keyboard in the same slot below the
   composer and matches the last settled keyboard height. Switching holds the outgoing surface until
   the incoming one covers it, so the editor stays in place; without a keyboard the panel slides in and

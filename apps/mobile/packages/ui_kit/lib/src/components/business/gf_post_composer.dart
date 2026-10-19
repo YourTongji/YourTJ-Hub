@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
@@ -23,6 +25,7 @@ class GfPostComposer extends StatefulWidget {
     required this.hintText,
     this.focusNode,
     this.leading,
+    this.status,
     this.hideKeyboardLabel,
     this.hidePanelLabel,
     this.onHideAccessory,
@@ -51,10 +54,15 @@ class GfPostComposer extends StatefulWidget {
   final TextEditingController controller;
   final FocusNode? focusNode;
 
-  /// Stands beside the input's leading edge, centred on it while it grows and
-  /// gliding to each new centre, e.g. the publishing identity; it supplies its
-  /// own 44px hit square.
+  /// Docks into the input's leading edge: a ring in the surface color carves
+  /// a socket around it, and it glides with the input's centre as lines are
+  /// added, e.g. the publishing identity. A 44px square whose content fits a
+  /// 32px circle.
   final Widget? leading;
+
+  /// Short state beside the send action, e.g. draft saving; it shares the
+  /// action row, so it never adds height or gets clipped by the editor.
+  final Widget? status;
   final String? hideKeyboardLabel;
 
   /// Names the same hide action while the sticker panel is open.
@@ -102,6 +110,12 @@ class GfPostComposer extends StatefulWidget {
 }
 
 class _GfPostComposerState extends State<GfPostComposer> {
+  /// Where the input starts behind a docked [GfPostComposer.leading]; with
+  /// the 38px socket centred in its 44px square, 3px of ring overlaps the
+  /// input by 13px.
+  static const double _dockInset = 28;
+  static const double _dockSocket = 38;
+
   final FocusNode _ownedFocus = FocusNode();
   FocusNode get _focus => widget.focusNode ?? _ownedFocus;
 
@@ -281,13 +295,12 @@ class _GfPostComposerState extends State<GfPostComposer> {
                           padding: const EdgeInsets.only(top: 6),
                           child: widget.toolbar!,
                         ),
-                      Row(
+                      Stack(
                         children: [
-                          if (widget.leading != null) ...[
-                            _LayoutGlide(child: widget.leading!),
-                            const SizedBox(width: 4),
-                          ],
-                          Expanded(
+                          Padding(
+                            padding: EdgeInsetsDirectional.only(
+                              start: widget.leading == null ? 0 : _dockInset,
+                            ),
                             child: AnimatedContainer(
                               key: const Key('reply-input-surface'),
                               duration: GfMotion.duration(
@@ -351,12 +364,17 @@ class _GfPostComposerState extends State<GfPostComposer> {
                                           constraints: const BoxConstraints(
                                             minHeight: 44,
                                           ),
-                                          contentPadding: EdgeInsets.fromLTRB(
-                                            16,
-                                            11,
-                                            widget.onCollapse == null ? 16 : 4,
-                                            11,
-                                          ),
+                                          contentPadding:
+                                              EdgeInsetsDirectional.fromSTEB(
+                                                widget.leading == null
+                                                    ? 16
+                                                    : 24,
+                                                11,
+                                                widget.onCollapse == null
+                                                    ? 16
+                                                    : 4,
+                                                11,
+                                              ),
                                         ),
                                       ),
                                     ),
@@ -389,6 +407,31 @@ class _GfPostComposerState extends State<GfPostComposer> {
                               ),
                             ),
                           ),
+                          if (widget.leading != null)
+                            PositionedDirectional(
+                              start: 0,
+                              top: 0,
+                              bottom: 0,
+                              width: 44,
+                              child: Center(
+                                child: _LayoutGlide(
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      Container(
+                                        width: _dockSocket,
+                                        height: _dockSocket,
+                                        decoration: ShapeDecoration(
+                                          color: colors.base100,
+                                          shape: const CircleBorder(),
+                                        ),
+                                      ),
+                                      widget.leading!,
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ],
@@ -468,18 +511,35 @@ class _GfPostComposerState extends State<GfPostComposer> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: GfButton(
-                        label: widget.publishLabel,
-                        size: GfButtonSize.medium,
-                        loading: widget.publishing,
-                        onPressed:
-                            widget.publishing ||
-                                widget.uploading ||
-                                !widget.canPublish
-                            ? null
-                            : widget.onPublish,
+                    // Send keeps its width; the status takes what is left.
+                    child: LayoutBuilder(
+                      builder: (context, box) => Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (widget.status != null) ...[
+                            Flexible(child: widget.status!),
+                            const SizedBox(width: 8),
+                          ],
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: math.max(
+                                0,
+                                box.maxWidth - (widget.status == null ? 0 : 8),
+                              ),
+                            ),
+                            child: GfButton(
+                              label: widget.publishLabel,
+                              size: GfButtonSize.medium,
+                              loading: widget.publishing,
+                              onPressed:
+                                  widget.publishing ||
+                                      widget.uploading ||
+                                      !widget.canPublish
+                                  ? null
+                                  : widget.onPublish,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

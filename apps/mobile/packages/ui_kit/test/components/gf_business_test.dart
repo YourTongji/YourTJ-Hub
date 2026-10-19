@@ -620,6 +620,11 @@ void main() {
                   onCollapse: () => collapsed = true,
                   collapseLabel: 'Collapse',
                   toolbar: const Text('Verification required'),
+                  status: const Text(
+                    'Saved on this device',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ),

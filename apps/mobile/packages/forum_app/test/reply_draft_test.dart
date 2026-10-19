@@ -462,7 +462,8 @@ void main() {
     expect(find.text('本机保存失败，请重试'), findsOneWidget);
     expect(find.text('已保存到本机'), findsNothing);
     store.fail = false;
-    await tester.tap(find.text('重试'));
+    // The failed status itself retries; it sits beside the send action.
+    await tester.tap(find.text('本机保存失败，请重试'));
     await tester.pumpAndSettle();
     expect((await store.drafts(scope)).single.content, '保存失败也不丢');
     await disposePage(tester);
