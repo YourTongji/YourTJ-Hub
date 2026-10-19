@@ -110,6 +110,36 @@ void main() {
     expect(editorBottom(tester), anchor);
   });
 
+  testWidgets('a reserved keyboard space holds the editor until it returns', (
+    tester,
+  ) async {
+    useScreen(tester);
+    final anchor = await openSettledKeyboard(tester);
+
+    // A sheet borrows focus: the keyboard leaves, its space stays.
+    await tester.pumpWidget(_page(GfInputAccessory.reserved, panelFocus));
+    final leaving = await animateKeyboard(tester, 300, 0);
+    await settle(tester);
+    expect([...leaving, editorBottom(tester)], everyElement(anchor));
+    expect(find.byKey(const Key('panel')), findsNothing);
+
+    // Focus comes back and the keyboard fills the reserve.
+    await tester.pumpWidget(_page(GfInputAccessory.keyboard, panelFocus));
+    final returning = await animateKeyboard(tester, 0, 300);
+    await settle(tester);
+    expect([...returning, editorBottom(tester)], everyElement(anchor));
+
+    // Without a returning keyboard the reserve is released.
+    await tester.pumpWidget(_page(GfInputAccessory.reserved, panelFocus));
+    await animateKeyboard(tester, 300, 0);
+    await tester.pumpWidget(_page(GfInputAccessory.none, panelFocus));
+    await settle(tester);
+    expect(editorBottom(tester), 844);
+    await tester.pumpWidget(_page(GfInputAccessory.keyboard, panelFocus));
+    await settle(tester);
+    expect(editorBottom(tester), 844, reason: 'no keyboard appeared');
+  });
+
   testWidgets('a reversed switch follows the latest intent without bouncing', (
     tester,
   ) async {

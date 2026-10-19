@@ -7,7 +7,15 @@ import '../../theme/gf_theme.dart';
 import '../gf_motion.dart';
 
 /// The input surface a composer intends to show below its editor.
-enum GfInputAccessory { none, keyboard, panel }
+enum GfInputAccessory {
+  none,
+  keyboard,
+  panel,
+
+  /// Keeps the space of the keyboard that just left, e.g. while a sheet
+  /// briefly takes focus, so the editor holds still until it returns.
+  reserved,
+}
 
 /// Sole owner of a composer's bottom edge: software keyboard, in-app panel or
 /// the bottom safe area. The host `Scaffold` must not resize for the keyboard
@@ -73,9 +81,13 @@ class _GfInputAccessorySlotState extends State<GfInputAccessorySlot>
   final Map<Orientation, double> _settledKeyboard = <Orientation, double>{};
   double _inset = 0;
   bool _holding = false;
+
+  /// Minimum height kept for a reserved keyboard, until one covers it again.
+  double _reserve = 0;
   late bool _panelMounted = widget.accessory == GfInputAccessory.panel;
   Timer? _settleTimer;
   Timer? _holdTimer;
+  Timer? _reserveTimer;
 
   @override
   void initState() {
@@ -92,6 +104,11 @@ class _GfInputAccessorySlotState extends State<GfInputAccessorySlot>
     _settleTimer?.cancel();
     _settleTimer = Timer(_settle, _keyboardSettled);
     if (_holding && inset >= _panelHeight() - .5) _release(animate: false);
+    if (widget.accessory != GfInputAccessory.reserved &&
+        _reserve > 0 &&
+        inset >= _reserve - .5) {
+      _clearReserve();
+    }
   }
 
   @override
@@ -104,6 +121,21 @@ class _GfInputAccessorySlotState extends State<GfInputAccessorySlot>
     final GfInputAccessory from = oldWidget.accessory;
     final GfInputAccessory to = widget.accessory;
     if (from == to) return;
+    if (to == GfInputAccessory.reserved) {
+      _reserveTimer?.cancel();
+      _reserve = math.max(_reserve, _inset);
+      return;
+    }
+    if (from == GfInputAccessory.reserved) {
+      // A returning keyboard fills the reserve; anything else releases it.
+      if (to == GfInputAccessory.keyboard && _inset < _reserve - .5) {
+        _reserveTimer = Timer(_holdLimit, () {
+          if (mounted) setState(_clearReserve);
+        });
+      } else {
+        _clearReserve();
+      }
+    }
     if (to == GfInputAccessory.panel) {
       _cancelHold();
       _panelMounted = true;
@@ -132,6 +164,7 @@ class _GfInputAccessorySlotState extends State<GfInputAccessorySlot>
     widget.panelFocusNode.removeListener(_panelFocusChanged);
     _settleTimer?.cancel();
     _holdTimer?.cancel();
+    _reserveTimer?.cancel();
     _revealCurve.dispose();
     _reveal.dispose();
     super.dispose();
@@ -153,8 +186,17 @@ class _GfInputAccessorySlotState extends State<GfInputAccessorySlot>
     if (_holding && _inset > 0) {
       _release(animate: true);
     } else {
+      if (widget.accessory == GfInputAccessory.keyboard && _inset > 0) {
+        _clearReserve();
+      }
       setState(() {});
     }
+  }
+
+  void _clearReserve() {
+    _reserve = 0;
+    _reserveTimer?.cancel();
+    _reserveTimer = null;
   }
 
   void _cancelHold() {
@@ -251,7 +293,7 @@ class _GfInputAccessorySlotState extends State<GfInputAccessorySlot>
               width: double.infinity,
               height: searching
                   ? extent + floor
-                  : math.max(floor, visible ? extent : 0),
+                  : math.max(math.max(floor, _reserve), visible ? extent : 0),
               child: ClipRect(child: child),
             ),
           );

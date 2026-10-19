@@ -27,15 +27,21 @@ class IdentityPicker extends ConsumerStatefulWidget {
     required this.onChanged,
     this.disabled = false,
     this.compact = false,
+    this.onMenuChanged,
   });
   final String value;
   final ValueChanged<String> onChanged;
   final bool disabled;
 
-  /// Avatar-only 44px button for an input's leading edge. A small chevron
-  /// badge hints that the identity can be switched; the name stays in the
-  /// tooltip and semantics label.
+  /// Avatar-only 44px button beside an input. A small swap badge in the
+  /// primary color marks it as switchable; the name stays in the tooltip and
+  /// semantics label.
   final bool compact;
+
+  /// Reports `true` while the choice sheet, or the setup sheet it leads to,
+  /// holds focus and `false` once the flow ends, so a host can keep its
+  /// keyboard space in the meantime.
+  final ValueChanged<bool>? onMenuChanged;
   @override
   ConsumerState<IdentityPicker> createState() => _IdentityPickerState();
 }
@@ -66,12 +72,18 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
 
   Future<void> openMenu() async {
     if (widget.disabled) return;
-    final value = await showGfBottomSheet<String>(
-      context,
-      showDragHandle: true,
-      builder: (_) => _IdentityMenu(selected: widget.value),
-    );
-    if (value != null && mounted) await choose(value);
+    final onMenuChanged = widget.onMenuChanged;
+    onMenuChanged?.call(true);
+    try {
+      final value = await showGfBottomSheet<String>(
+        context,
+        showDragHandle: true,
+        builder: (_) => _IdentityMenu(selected: widget.value),
+      );
+      if (value != null && mounted) await choose(value);
+    } finally {
+      onMenuChanged?.call(false);
+    }
   }
 
   @override
@@ -99,7 +111,7 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
       src: resolveApiAssetUrl(
         widget.value == 'persona' ? p?.avatarUrl ?? '' : user?.avatarUrl ?? '',
       ),
-      size: 28,
+      size: widget.compact ? 32 : 28,
     );
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -152,25 +164,21 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
                               if (!widget.disabled)
                                 PositionedDirectional(
                                   end: -3,
-                                  bottom: -3,
+                                  bottom: -2,
                                   child: Container(
                                     key: const Key('identity-switch-badge'),
-                                    width: 14,
-                                    height: 14,
-                                    decoration: ShapeDecoration(
+                                    width: 16,
+                                    height: 16,
+                                    // Concentric with the glyph's own square.
+                                    decoration: BoxDecoration(
                                       color: colors.base100,
-                                      shape: CircleBorder(
-                                        side: BorderSide(
-                                          color: colors.base200,
-                                          width: 1.5,
-                                        ),
-                                      ),
+                                      borderRadius: BorderRadius.circular(5),
                                     ),
                                     alignment: Alignment.center,
                                     child: GfSymbol(
-                                      'chevron-down',
-                                      size: 10,
-                                      color: colors.iconMuted,
+                                      'arrow-swap-horizontal-filled',
+                                      size: 14,
+                                      color: colors.primary,
                                     ),
                                   ),
                                 ),

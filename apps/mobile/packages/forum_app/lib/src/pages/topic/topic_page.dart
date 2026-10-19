@@ -177,6 +177,9 @@ class _TopicPageState extends ConsumerState<TopicPage>
   // geometry and the bottom inset (issue #1270).
   GfInputAccessory _replyAccessory = GfInputAccessory.none;
   bool get _replyStickerOpen => _replyAccessory == GfInputAccessory.panel;
+
+  /// The identity sheet flow is borrowing the editor's focus.
+  bool _replyIdentityMenu = false;
   final FocusNode _replyPanelFocus = FocusNode(debugLabel: 'reply-panel');
 
   /// A sticker search field and the keyboard share the space below the editor.
@@ -954,10 +957,33 @@ class _TopicPageState extends ConsumerState<TopicPage>
     if (!_replyFocus.hasFocus) _mentionSession.close();
     final GfInputAccessory next = _replyFocus.hasFocus
         ? GfInputAccessory.keyboard
-        : _replyAccessory == GfInputAccessory.keyboard
-        ? GfInputAccessory.none
-        : _replyAccessory;
+        : _replyAccessory != GfInputAccessory.keyboard
+        ? _replyAccessory
+        : _replyIdentityMenu
+        ? GfInputAccessory.reserved
+        : GfInputAccessory.none;
     if (next != _replyAccessory) setState(() => _replyAccessory = next);
+  }
+
+  /// Holds the keyboard space while the identity sheet borrows focus, then
+  /// hands it back to the editor so the composer never drops and rises.
+  void _onReplyIdentityMenuChanged(bool open) {
+    _replyIdentityMenu = open;
+    if (open) {
+      if (_replyAccessory == GfInputAccessory.keyboard) {
+        setState(() => _replyAccessory = GfInputAccessory.reserved);
+      }
+      return;
+    }
+    if (_replyAccessory != GfInputAccessory.reserved) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _replyAccessory != GfInputAccessory.reserved) return;
+      if (_composerOpen && (ModalRoute.of(context)?.isCurrent ?? true)) {
+        _replyFocus.requestFocus();
+      } else {
+        setState(() => _replyAccessory = GfInputAccessory.none);
+      }
+    });
   }
 
   void _syncReplyEditorCompact() {
@@ -1940,6 +1966,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                               value: _replyIdentity,
                                               disabled: _replying,
                                               compact: true,
+                                              onMenuChanged:
+                                                  _onReplyIdentityMenuChanged,
                                               onChanged: (v) {
                                                 setState(() {
                                                   _replyIdentity = v;

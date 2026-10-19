@@ -3418,16 +3418,18 @@ void main() {
         await tester.tap(find.byTooltip('参与讨论'));
         await tester.pump();
         final surface = find.byKey(const Key('reply-input-surface'));
-        // The identity is the input's leading avatar, flush with its edge.
+        // The identity stands beside the input, bottom-aligned with it.
         final identity = find.byKey(const Key('identity-picker'));
-        expect(
-          find.descendant(of: surface, matching: identity),
-          findsOneWidget,
-        );
+        expect(find.descendant(of: surface, matching: identity), findsNothing);
         expect(tester.getSize(identity), const Size.square(44));
-        final inset = tester.getTopLeft(identity) - tester.getTopLeft(surface);
-        expect(inset.dx, closeTo(0, 1));
-        expect(inset.dy, closeTo(0, 1));
+        expect(
+          tester.getTopRight(identity).dx,
+          lessThan(tester.getTopLeft(surface).dx),
+        );
+        expect(
+          tester.getBottomLeft(identity).dy,
+          closeTo(tester.getBottomLeft(surface).dy, 1),
+        );
         expect(find.byKey(const Key('identity-switch-badge')), findsOneWidget);
         final field = find
             .descendant(
@@ -3456,6 +3458,24 @@ void main() {
         await keyboard(0, 300);
         final anchor = tester.getBottomLeft(surface).dy;
         expect(anchor, lessThan(844 - 300));
+
+        // Switching identity lends focus to a sheet; the keyboard space is
+        // kept while it is away and the editor gets focus back.
+        await tester.tap(identity);
+        await tester.pump();
+        final toSheet = await keyboard(300, 0);
+        expect(find.byKey(const Key('identity-option-member')), findsOneWidget);
+        for (final y in toSheet) {
+          expect(y, closeTo(anchor, 3), reason: 'identity sheet opening');
+        }
+        await tester.tap(find.byKey(const Key('identity-option-member')));
+        await tester.pump();
+        final fromSheet = await keyboard(0, 300);
+        expect(find.byKey(const Key('identity-option-member')), findsNothing);
+        expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+        for (final y in fromSheet) {
+          expect(y, closeTo(anchor, 3), reason: 'identity sheet closing');
+        }
         for (var round = 0; round < 2; round++) {
           await tester.tap(find.byTooltip('表情库'));
           await tester.pump();
