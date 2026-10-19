@@ -1,7 +1,7 @@
 import '../../realtime/realtime_updates.dart';
 import 'content_password_dialog.dart';
 import 'content_review_sheet.dart';
-import '../topic/post_edit_sheet.dart';
+import '../topic/post_editor.dart';
 import '../../widgets/markdown_view.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
@@ -246,7 +246,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
     // (question, moment or article) from the latest editable version.
     if (item.contentType != 'post') return;
     final epoch = ref.read(offlineCacheEpochProvider);
-    final saved = await showPostEditSheet(
+    final saved = await showPostEditor(
       context,
       postId: item.id,
       content: item.content,

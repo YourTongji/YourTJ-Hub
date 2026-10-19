@@ -8,7 +8,7 @@ import '../../format.dart';
 import '../../asset_url.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
-import 'post_edit_sheet.dart';
+import 'post_editor.dart';
 import 'post_history_sheet.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/share/share_image_preview.dart';
@@ -105,7 +105,7 @@ class _PostActionsState extends ConsumerState<PostActions> {
       return;
     }
     if (action == 'edit') {
-      final saved = await showPostEditSheet(
+      final saved = await showPostEditor(
         context,
         postId: post.id,
         content: post.content,

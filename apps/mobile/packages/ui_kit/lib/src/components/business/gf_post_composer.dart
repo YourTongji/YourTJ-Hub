@@ -40,6 +40,7 @@ class GfPostComposer extends StatefulWidget {
     this.stickerTooltip,
     this.stickerOpen = false,
     this.compactEditor = false,
+    this.expandEditor = false,
     this.preview,
     this.imageUrl,
     this.onRemoveImage,
@@ -91,6 +92,11 @@ class GfPostComposer extends StatefulWidget {
   /// keyboard share the space below. The field stays multiline: return keeps
   /// inserting newlines and longer drafts scroll inside it.
   final bool compactEditor;
+
+  /// Fills the height the composer is given: the input grows into the space
+  /// above the action row instead of stopping at four lines, for full-screen
+  /// editing of longer text.
+  final bool expandEditor;
   final Widget? preview;
   final String? imageUrl;
   final VoidCallback? onRemoveImage;
@@ -166,9 +172,18 @@ class _GfPostComposerState extends State<GfPostComposer> {
     );
   }
 
+  /// Grouped content scrolls above a capped input; an expanded input fills
+  /// the space instead.
+  Widget _scrollUnless(bool expand, Widget child) =>
+      expand ? child : SingleChildScrollView(reverse: true, child: child);
+
+  Widget _fillUnless(bool capped, Widget child) =>
+      capped ? child : Expanded(child: child);
+
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
+    final bool expand = widget.expandEditor;
     return Material(
       key: const Key('reply-composer-surface'),
       color: colors.base100,
@@ -183,10 +198,11 @@ class _GfPostComposerState extends State<GfPostComposer> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Flexible(
-                child: SingleChildScrollView(
-                  reverse: true,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                fit: expand ? FlexFit.tight : FlexFit.loose,
+                child: _scrollUnless(
+                  expand,
+                  Column(
+                    mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (widget.preview != null) widget.preview!,
@@ -295,144 +311,155 @@ class _GfPostComposerState extends State<GfPostComposer> {
                           padding: const EdgeInsets.only(top: 6),
                           child: widget.toolbar!,
                         ),
-                      Stack(
-                        children: [
-                          Padding(
-                            padding: EdgeInsetsDirectional.only(
-                              start: widget.leading == null ? 0 : _dockInset,
-                            ),
-                            child: AnimatedContainer(
-                              key: const Key('reply-input-surface'),
-                              duration: GfMotion.duration(
-                                context,
-                                GfMotion.press,
+                      _fillUnless(
+                        !expand,
+                        Stack(
+                          fit: expand ? StackFit.expand : StackFit.loose,
+                          children: [
+                            Padding(
+                              padding: EdgeInsetsDirectional.only(
+                                start: widget.leading == null ? 0 : _dockInset,
                               ),
-                              curve: GfMotion.enterCurve,
-                              decoration: BoxDecoration(
-                                color: colors.base200,
-                                borderRadius: BorderRadius.circular(24),
-                                border: Border.all(
-                                  color: _focus.hasFocus
-                                      ? colors.primary.withValues(alpha: .32)
-                                      : Colors.transparent,
+                              child: AnimatedContainer(
+                                key: const Key('reply-input-surface'),
+                                duration: GfMotion.duration(
+                                  context,
+                                  GfMotion.press,
                                 ),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    child: ConstrainedBox(
-                                      constraints: widget.compactEditor
-                                          ? BoxConstraints(
-                                              maxHeight:
-                                                  MediaQuery.textScalerOf(
-                                                        context,
-                                                      ).scale(16) *
-                                                      1.4 +
-                                                  22,
-                                            )
-                                          : const BoxConstraints(),
-                                      child: TextField(
-                                        controller: widget.controller,
-                                        focusNode: _focus,
-                                        readOnly: widget.publishing,
-                                        keyboardType: TextInputType.multiline,
-                                        textInputAction:
-                                            TextInputAction.newline,
-                                        maxLines: 4,
-                                        minLines: 1,
-                                        style: GfTheme.typographyOf(context)
-                                            .body
-                                            .copyWith(
-                                              fontSize: 16,
-                                              height: 1.4,
-                                            ),
-                                        cursorColor: colors.primary,
-                                        decoration: InputDecoration(
-                                          hintText: widget.hintText,
-                                          hintStyle: TextStyle(
-                                            color: colors.iconMuted,
-                                          ),
-                                          border: InputBorder.none,
-                                          enabledBorder: InputBorder.none,
-                                          focusedBorder: InputBorder.none,
-                                          disabledBorder: InputBorder.none,
-                                          errorBorder: InputBorder.none,
-                                          focusedErrorBorder: InputBorder.none,
-                                          filled: false,
-                                          isDense: true,
-                                          constraints: const BoxConstraints(
-                                            minHeight: 44,
-                                          ),
-                                          contentPadding:
-                                              EdgeInsetsDirectional.fromSTEB(
-                                                widget.leading == null
-                                                    ? 16
-                                                    : 24,
-                                                11,
-                                                widget.onCollapse == null
-                                                    ? 16
-                                                    : 4,
-                                                11,
+                                curve: GfMotion.enterCurve,
+                                decoration: BoxDecoration(
+                                  color: colors.base200,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: _focus.hasFocus
+                                        ? colors.primary.withValues(alpha: .32)
+                                        : Colors.transparent,
+                                  ),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: expand
+                                      ? CrossAxisAlignment.stretch
+                                      : CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: ConstrainedBox(
+                                        constraints: widget.compactEditor
+                                            ? BoxConstraints(
+                                                maxHeight:
+                                                    MediaQuery.textScalerOf(
+                                                          context,
+                                                        ).scale(16) *
+                                                        1.4 +
+                                                    22,
+                                              )
+                                            : const BoxConstraints(),
+                                        child: TextField(
+                                          controller: widget.controller,
+                                          focusNode: _focus,
+                                          readOnly: widget.publishing,
+                                          keyboardType: TextInputType.multiline,
+                                          textInputAction:
+                                              TextInputAction.newline,
+                                          expands: expand,
+                                          maxLines: expand ? null : 4,
+                                          minLines: expand ? null : 1,
+                                          textAlignVertical: expand
+                                              ? TextAlignVertical.top
+                                              : null,
+                                          style: GfTheme.typographyOf(context)
+                                              .body
+                                              .copyWith(
+                                                fontSize: 16,
+                                                height: 1.4,
                                               ),
+                                          cursorColor: colors.primary,
+                                          decoration: InputDecoration(
+                                            hintText: widget.hintText,
+                                            hintStyle: TextStyle(
+                                              color: colors.iconMuted,
+                                            ),
+                                            border: InputBorder.none,
+                                            enabledBorder: InputBorder.none,
+                                            focusedBorder: InputBorder.none,
+                                            disabledBorder: InputBorder.none,
+                                            errorBorder: InputBorder.none,
+                                            focusedErrorBorder:
+                                                InputBorder.none,
+                                            filled: false,
+                                            isDense: true,
+                                            constraints: const BoxConstraints(
+                                              minHeight: 44,
+                                            ),
+                                            contentPadding:
+                                                EdgeInsetsDirectional.fromSTEB(
+                                                  widget.leading == null
+                                                      ? 16
+                                                      : 24,
+                                                  11,
+                                                  widget.onCollapse == null
+                                                      ? 16
+                                                      : 4,
+                                                  11,
+                                                ),
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                  if (widget.onCollapse != null)
-                                    IconButton(
-                                      key: const Key('reply-collapse'),
-                                      onPressed: widget.publishing
-                                          ? null
-                                          : widget.onCollapse,
-                                      tooltip:
-                                          widget.collapseLabel ??
-                                          MaterialLocalizations.of(
-                                            context,
-                                          ).closeButtonTooltip,
-                                      icon: const GfSymbol(
-                                        'chevron-down',
-                                        size: 22,
-                                      ),
-                                      style: IconButton.styleFrom(
-                                        fixedSize: const Size.square(44),
-                                        tapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                        foregroundColor: colors.iconMuted,
-                                        padding: EdgeInsets.zero,
-                                        shape: const CircleBorder(),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          if (widget.leading != null)
-                            PositionedDirectional(
-                              start: 0,
-                              top: 0,
-                              bottom: 0,
-                              width: 44,
-                              child: Center(
-                                child: _LayoutGlide(
-                                  child: Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      Container(
-                                        width: _dockSocket,
-                                        height: _dockSocket,
-                                        decoration: ShapeDecoration(
-                                          color: colors.base100,
+                                    if (widget.onCollapse != null)
+                                      IconButton(
+                                        key: const Key('reply-collapse'),
+                                        onPressed: widget.publishing
+                                            ? null
+                                            : widget.onCollapse,
+                                        tooltip:
+                                            widget.collapseLabel ??
+                                            MaterialLocalizations.of(
+                                              context,
+                                            ).closeButtonTooltip,
+                                        icon: const GfSymbol(
+                                          'chevron-down',
+                                          size: 22,
+                                        ),
+                                        style: IconButton.styleFrom(
+                                          fixedSize: const Size.square(44),
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                          foregroundColor: colors.iconMuted,
+                                          padding: EdgeInsets.zero,
                                           shape: const CircleBorder(),
                                         ),
                                       ),
-                                      widget.leading!,
-                                    ],
-                                  ),
+                                  ],
                                 ),
                               ),
                             ),
-                        ],
+                            if (widget.leading != null)
+                              PositionedDirectional(
+                                start: 0,
+                                top: 0,
+                                bottom: 0,
+                                width: 44,
+                                child: Center(
+                                  child: _LayoutGlide(
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        Container(
+                                          width: _dockSocket,
+                                          height: _dockSocket,
+                                          decoration: ShapeDecoration(
+                                            color: colors.base100,
+                                            shape: const CircleBorder(),
+                                          ),
+                                        ),
+                                        widget.leading!,
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
