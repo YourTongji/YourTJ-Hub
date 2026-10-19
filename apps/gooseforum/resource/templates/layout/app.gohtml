@@ -7,7 +7,7 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="{{.Payload.Layout.Theme.ThemeColor}}" data-goose-theme-color>
     <title>{{.Payload.Meta.Title}}</title>
-    {{if .Payload.Meta.Description}}<meta name="description" content="{{.Payload.Meta.Description}}">{{end}}
+    {{if .Payload.Meta.Description}}<meta name="description" content="{{.Payload.Meta.Description}}">{{else if .Payload.Layout.Site.Description}}<meta name="description" content="{{.Payload.Layout.Site.Description}}">{{end}}
     {{if .Payload.Meta.Canonical}}<link rel="canonical" href="{{.Payload.Meta.Canonical}}">{{end}}
     {{if .Payload.Meta.PrevURL}}<link rel="prev" href="{{.Payload.Meta.PrevURL}}">{{end}}
     {{if .Payload.Meta.NextURL}}<link rel="next" href="{{.Payload.Meta.NextURL}}">{{end}}

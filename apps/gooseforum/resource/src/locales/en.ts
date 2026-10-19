@@ -151,6 +151,7 @@ export default {
     searchNavigate: "Choose",
     searchOpen: "Open",
     searchClose: "Close",
+    customHeadResources: "Custom head fragment (resources and non-system meta only; page structure, title and site metadata are filtered)",
   },
   statsAdmin: {
     filterTitle: 'Statistics filters',

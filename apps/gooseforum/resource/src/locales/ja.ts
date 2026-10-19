@@ -151,6 +151,7 @@ export default {
     searchNavigate: "選択",
     searchOpen: "開く",
     searchClose: "閉じる",
+    customHeadResources: "カスタム head 断片（リソースタグとシステム管理外の meta のみ。ページ構造・タイトル・サイト管理メタデータは除外）",
   },
   statsAdmin: {
     filterTitle: '統計フィルター',

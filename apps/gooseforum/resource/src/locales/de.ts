@@ -151,6 +151,7 @@ export default {
     searchNavigate: "Wählen",
     searchOpen: "Öffnen",
     searchClose: "Schließen",
+    customHeadResources: "Eigener head-Abschnitt (nur Ressourcen-Tags und nicht systemverwaltete Meta-Tags; Seitenstruktur, Titel und Website-Metadaten werden gefiltert)",
   },
   statsAdmin: {
     filterTitle: 'Statistikfilter',

@@ -151,6 +151,7 @@ export default {
     searchNavigate: "选择",
     searchOpen: "打开",
     searchClose: "关闭",
+    customHeadResources: "自定义 head 片段（仅保留资源标签和非系统 meta；页面结构、标题及系统元信息会被过滤）",
   },
   statsAdmin: {
     filterTitle: '统计筛选',

@@ -1,6 +1,7 @@
 package forum
 
 import (
+	"errors"
 	"html/template"
 	"io"
 	"strings"
@@ -8,18 +9,20 @@ import (
 	"golang.org/x/net/html"
 )
 
-// siteHeadHTML filters legacy full HTML documents and page-owned metadata from
-// the administrator's head resource slot. Incomplete raw-text tags are dropped
-// so that a bad setting cannot consume the template's closing </head>.
+// siteHeadHTML preserves allowed resources from a head fragment or a legacy
+// full document, without moving body resources into the page head. Incomplete
+// raw-text tags are dropped so a bad setting cannot consume the template's
+// closing </head>.
 func siteHeadHTML(input string) template.HTML {
 	z := html.NewTokenizer(strings.NewReader(input))
 	var out strings.Builder
 	var rawTag, rawStart string
 	var body strings.Builder
+	mode := headModeFragment
 	for {
 		kind := z.Next()
 		if kind == html.ErrorToken {
-			if z.Err() != io.EOF {
+			if !errors.Is(z.Err(), io.EOF) {
 				return ""
 			}
 			return template.HTML(out.String())
@@ -38,7 +41,32 @@ func siteHeadHTML(input string) template.HTML {
 			}
 			continue
 		}
-		if kind != html.StartTagToken && kind != html.SelfClosingTagToken {
+		if kind != html.StartTagToken && kind != html.EndTagToken && kind != html.SelfClosingTagToken {
+			continue
+		}
+		switch t.Data {
+		case "html":
+			if kind == html.StartTagToken && mode == headModeFragment {
+				mode = headModeOutside
+			} else if kind == html.EndTagToken && mode != headModeAfter {
+				mode = headModeAfter
+			}
+			continue
+		case "head":
+			switch kind {
+			case html.StartTagToken, html.SelfClosingTagToken:
+				if mode == headModeFragment || mode == headModeOutside {
+					mode = headModeInside
+				}
+			case html.EndTagToken:
+				mode = headModeAfter
+			}
+			continue
+		case "body":
+			mode = headModeAfter
+			continue
+		}
+		if mode != headModeFragment && mode != headModeInside {
 			continue
 		}
 		switch t.Data {
@@ -59,6 +87,15 @@ func siteHeadHTML(input string) template.HTML {
 	}
 }
 
+type siteHeadMode uint8
+
+const (
+	headModeFragment siteHeadMode = iota
+	headModeOutside
+	headModeInside
+	headModeAfter
+)
+
 func headMetaAllowed(attrs []html.Attribute) bool {
 	for _, attr := range attrs {
 		value := strings.ToLower(strings.TrimSpace(attr.Val))
@@ -67,7 +104,7 @@ func headMetaAllowed(attrs []html.Attribute) bool {
 			return false
 		case "name":
 			switch value {
-			case "viewport", "description", "robots", "author", "keywords", "theme-color", "color-scheme":
+			case "viewport", "description", "robots", "theme-color", "color-scheme":
 				return false
 			}
 			if strings.HasPrefix(value, "twitter:") {
@@ -87,7 +124,7 @@ func headLinkAllowed(attrs []html.Attribute) bool {
 		if strings.ToLower(attr.Key) == "rel" {
 			for _, rel := range strings.Fields(strings.ToLower(attr.Val)) {
 				switch rel {
-				case "canonical", "prev", "next", "manifest", "icon", "apple-touch-icon":
+				case "canonical", "prev", "next", "manifest", "icon", "apple-touch-icon", "apple-touch-icon-precomposed":
 					return false
 				}
 			}

@@ -309,7 +309,7 @@ export default {
   "k008b": "SEO and resources",
   "k008c": "Site description",
   "k008d": "Keywords",
-  "k008e": "Custom head fragment (link/meta/script/style only; page title and viewport managed by the site)",
+  "k008e": "External links / Meta tags",
   "k008f": "Footer content",
   "k008g": "Edit this to match the two-line footer style in the public sidebar.",
   "k008h": "Add text",
