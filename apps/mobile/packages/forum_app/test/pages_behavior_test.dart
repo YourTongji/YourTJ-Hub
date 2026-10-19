@@ -3408,10 +3408,8 @@ void main() {
           extraOverrides: [
             stickerLibraryProvider.overrideWithValue(library),
             stickerCollectionProvider.overrideWith(
-              (ref) => StickerCollection(
-                ComposerStickerRepository(client),
-                library,
-              ),
+              (ref) =>
+                  StickerCollection(ComposerStickerRepository(client), library),
             ),
           ],
         );
@@ -3420,6 +3418,17 @@ void main() {
         await tester.tap(find.byTooltip('参与讨论'));
         await tester.pump();
         final surface = find.byKey(const Key('reply-input-surface'));
+        // The identity is the input's leading avatar, flush with its edge.
+        final identity = find.byKey(const Key('identity-picker'));
+        expect(
+          find.descendant(of: surface, matching: identity),
+          findsOneWidget,
+        );
+        expect(tester.getSize(identity), const Size.square(44));
+        final inset = tester.getTopLeft(identity) - tester.getTopLeft(surface);
+        expect(inset.dx, closeTo(0, 1));
+        expect(inset.dy, closeTo(0, 1));
+        expect(find.byKey(const Key('identity-switch-badge')), findsOneWidget);
         final field = find
             .descendant(
               of: find.byType(GfPostComposer),

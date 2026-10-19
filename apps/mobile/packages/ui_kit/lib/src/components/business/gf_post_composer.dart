@@ -20,6 +20,7 @@ class GfPostComposer extends StatefulWidget {
     required this.publishLabel,
     required this.hintText,
     this.focusNode,
+    this.leading,
     this.hideKeyboardLabel,
     this.hidePanelLabel,
     this.onHideAccessory,
@@ -47,6 +48,10 @@ class GfPostComposer extends StatefulWidget {
 
   final TextEditingController controller;
   final FocusNode? focusNode;
+
+  /// Sits at the input's leading edge on its first line, e.g. the publishing
+  /// identity avatar; it supplies its own 44px hit square.
+  final Widget? leading;
   final String? hideKeyboardLabel;
 
   /// Names the same hide action while the sticker panel is open.
@@ -289,6 +294,7 @@ class _GfPostComposerState extends State<GfPostComposer> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            ?widget.leading,
                             Expanded(
                               child: ConstrainedBox(
                                 constraints: widget.compactEditor
@@ -329,12 +335,13 @@ class _GfPostComposerState extends State<GfPostComposer> {
                                     constraints: const BoxConstraints(
                                       minHeight: 44,
                                     ),
-                                    contentPadding: EdgeInsets.fromLTRB(
-                                      16,
-                                      11,
-                                      widget.onCollapse == null ? 16 : 4,
-                                      11,
-                                    ),
+                                    contentPadding:
+                                        EdgeInsetsDirectional.fromSTEB(
+                                          widget.leading == null ? 16 : 2,
+                                          11,
+                                          widget.onCollapse == null ? 16 : 4,
+                                          11,
+                                        ),
                                   ),
                                 ),
                               ),

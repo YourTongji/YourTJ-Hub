@@ -1893,54 +1893,6 @@ class _TopicPageState extends ConsumerState<TopicPage>
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: <Widget>[
-                            if (_composerOpen)
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 560,
-                                ),
-                                child: Align(
-                                  alignment: AlignmentDirectional.centerStart,
-                                  child: Padding(
-                                    padding:
-                                        const EdgeInsetsDirectional.fromSTEB(
-                                          12,
-                                          0,
-                                          12,
-                                          8,
-                                        ),
-                                    // Floats on its own surface so the identity
-                                    // stays legible over any reading content.
-                                    child: GfFloatingSurface(
-                                      key: const Key('reply-identity-surface'),
-                                      radius: 999,
-                                      blur: false,
-                                      child: Material(
-                                        type: MaterialType.transparency,
-                                        child: IdentityPicker(
-                                          value: _replyIdentity,
-                                          disabled: _replying,
-                                          // Avatar concentric with the capsule.
-                                          padding:
-                                              const EdgeInsetsDirectional.fromSTEB(
-                                                10,
-                                                4,
-                                                14,
-                                                4,
-                                              ),
-                                          onChanged: (v) {
-                                            setState(() {
-                                              _replyIdentity = v;
-                                              _replyRevision++;
-                                            });
-                                            unawaited(_saveReplyDraft());
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-
                             if (_composerOpen && !_replyStickerOpen)
                               Flexible(
                                 child: ConstrainedBox(
@@ -1984,6 +1936,18 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                         valueListenable: _replyController,
                                         builder: (context, value, _) {
                                           return GfPostComposer(
+                                            leading: IdentityPicker(
+                                              value: _replyIdentity,
+                                              disabled: _replying,
+                                              compact: true,
+                                              onChanged: (v) {
+                                                setState(() {
+                                                  _replyIdentity = v;
+                                                  _replyRevision++;
+                                                });
+                                                unawaited(_saveReplyDraft());
+                                              },
+                                            ),
                                             hideKeyboardLabel:
                                                 l10n.commonHideKeyboard,
                                             hidePanelLabel: StickerStrings(

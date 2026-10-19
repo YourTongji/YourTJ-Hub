@@ -26,14 +26,16 @@ class IdentityPicker extends ConsumerStatefulWidget {
     required this.value,
     required this.onChanged,
     this.disabled = false,
-    this.padding = const EdgeInsetsDirectional.fromSTEB(6, 4, 10, 4),
+    this.compact = false,
   });
   final String value;
   final ValueChanged<String> onChanged;
   final bool disabled;
 
-  /// Inner padding of the pressable capsule.
-  final EdgeInsetsGeometry padding;
+  /// Avatar-only 44px button for an input's leading edge. A small chevron
+  /// badge hints that the identity can be switched; the name stays in the
+  /// tooltip and semantics label.
+  final bool compact;
   @override
   ConsumerState<IdentityPicker> createState() => _IdentityPickerState();
 }
@@ -86,6 +88,19 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
         ? user!.nickname
         : user?.username ?? l.anonymousMember;
     final kind = widget.value == 'persona' ? l.anonymousTag : l.anonymousMember;
+    final avatar = GfAvatar(
+      frameColors: widget.value == 'persona'
+          ? const []
+          : decorationColors(context, user?.decoration?.avatarFrame),
+      frameAssetUrl: widget.value == 'persona'
+          ? ''
+          : decorationFrameAssetUrl(user?.decoration?.avatarFrame),
+      frameScale: user?.decoration?.avatarFrame?.assetScale ?? 1.25,
+      src: resolveApiAssetUrl(
+        widget.value == 'persona' ? p?.avatarUrl ?? '' : user?.avatarUrl ?? '',
+      ),
+      size: 28,
+    );
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -97,85 +112,133 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
             excludeSemantics: true,
             onTap: widget.disabled ? null : openMenu,
             child: Tooltip(
-              message: name,
+              message: widget.compact ? '$name · $kind' : name,
               child: InkWell(
                 key: const Key('identity-picker'),
-                customBorder: const StadiumBorder(),
+                customBorder: widget.compact
+                    ? const CircleBorder()
+                    : const StadiumBorder(),
                 onTap: widget.disabled ? null : openMenu,
-                child: Container(
-                  constraints: const BoxConstraints(minHeight: 48),
-                  padding: widget.padding,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      GfAvatar(
-                        frameColors: widget.value == 'persona'
-                            ? const []
-                            : decorationColors(
-                                context,
-                                user?.decoration?.avatarFrame,
-                              ),
-                        frameAssetUrl: widget.value == 'persona'
-                            ? ''
-                            : decorationFrameAssetUrl(
-                                user?.decoration?.avatarFrame,
-                              ),
-                        frameScale:
-                            user?.decoration?.avatarFrame?.assetScale ?? 1.25,
-                        src: resolveApiAssetUrl(
-                          widget.value == 'persona'
-                              ? p?.avatarUrl ?? ''
-                              : user?.avatarUrl ?? '',
-                        ),
-                        size: 28,
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: GfDecoratedName(
-                          name,
-                          colors: widget.value == 'persona'
-                              ? const []
-                              : decorationColors(
+                child: widget.compact
+                    ? SizedBox.square(
+                        dimension: 44,
+                        child: Center(
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              AnimatedSwitcher(
+                                duration: GfMotion.duration(
                                   context,
-                                  user?.decoration?.nicknameStyle,
+                                  GfMotion.selection,
                                 ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.bodyStrong,
+                                switchInCurve: GfMotion.enterCurve,
+                                switchOutCurve: GfMotion.enterCurve,
+                                transitionBuilder: (child, animation) =>
+                                    FadeTransition(
+                                      opacity: animation,
+                                      child: ScaleTransition(
+                                        scale: Tween<double>(
+                                          begin: .25,
+                                          end: 1,
+                                        ).animate(animation),
+                                        child: child,
+                                      ),
+                                    ),
+                                child: KeyedSubtree(
+                                  key: ValueKey<String>(widget.value),
+                                  child: avatar,
+                                ),
+                              ),
+                              if (!widget.disabled)
+                                PositionedDirectional(
+                                  end: -3,
+                                  bottom: -3,
+                                  child: Container(
+                                    key: const Key('identity-switch-badge'),
+                                    width: 14,
+                                    height: 14,
+                                    decoration: ShapeDecoration(
+                                      color: colors.base100,
+                                      shape: CircleBorder(
+                                        side: BorderSide(
+                                          color: colors.base200,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: GfSymbol(
+                                      'chevron-down',
+                                      size: 10,
+                                      color: colors.iconMuted,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: ShapeDecoration(
-                            color: colors.base200,
-                            shape: const StadiumBorder(),
-                          ),
-                          child: GfText(
-                            kind,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: type.caption.copyWith(
-                              color: colors.baseContent.withValues(alpha: .7),
+                      )
+                    : Container(
+                        constraints: const BoxConstraints(minHeight: 48),
+                        padding: const EdgeInsetsDirectional.fromSTEB(
+                          6,
+                          4,
+                          10,
+                          4,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            avatar,
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: GfDecoratedName(
+                                name,
+                                colors: widget.value == 'persona'
+                                    ? const []
+                                    : decorationColors(
+                                        context,
+                                        user?.decoration?.nicknameStyle,
+                                      ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: type.bodyStrong,
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: ShapeDecoration(
+                                  color: colors.base200,
+                                  shape: const StadiumBorder(),
+                                ),
+                                child: GfText(
+                                  kind,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: type.caption.copyWith(
+                                    color: colors.baseContent.withValues(
+                                      alpha: .7,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (!widget.disabled) ...[
+                              const SizedBox(width: 4),
+                              GfSymbol(
+                                'chevron-down',
+                                size: 16,
+                                color: colors.iconMuted,
+                              ),
+                            ],
+                          ],
                         ),
                       ),
-                      if (!widget.disabled) ...[
-                        const SizedBox(width: 4),
-                        GfSymbol(
-                          'chevron-down',
-                          size: 16,
-                          color: colors.iconMuted,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
               ),
             ),
           ),

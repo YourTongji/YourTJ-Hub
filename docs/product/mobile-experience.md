@@ -737,8 +737,9 @@ identity survive this layout change. The header keeps a small outer margin for i
   the hide-keyboard sign, a keyboard above a down chevron, and is named after the open surface
   (hide keyboard or hide stickers), so neighbouring actions never share a symbol. The reply target is a
   lightweight text row; attachment previews and server-required captcha controls appear only when needed.
-  The publishing identity floats above the composer on its own capsule surface so it stays legible over
-  the topic.
+  The publishing identity is the input's leading avatar, concentric with its end cap, so it adds no
+  height and never covers the topic; a small chevron badge marks it as switchable, a switch scales the
+  new avatar in, and the name and kind stay in its tooltip and accessibility label.
 - `Current`: the topic reply sticker panel replaces the software keyboard in the same slot below the
   composer and matches the last settled keyboard height. Switching holds the outgoing surface until
   the incoming one covers it, so the editor stays in place; without a keyboard the panel slides in and
