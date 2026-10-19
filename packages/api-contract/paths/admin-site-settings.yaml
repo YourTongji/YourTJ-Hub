@@ -125,7 +125,10 @@ adminSaveSiteSettings:
       offending entry; nothing is persisted. A request that omits
       `trustedExternalDomains` (or sends null) keeps the stored list — or the
       built-in default when nothing has been saved — while an explicit empty
-      array clears it. JSON binding stays
+      array clears it. `externalLinks` is normalized before persistence (see
+      the field description in `AdminSiteSettingsConfig`): only `<head>`
+      elements survive, so shell-emitted document metadata is never stored.
+      JSON binding stays
       lenient: a missing/malformed body binds to zero values (empty URL
       fields, hence valid) and is saved as-is.
     security:

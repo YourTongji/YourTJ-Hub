@@ -929,7 +929,16 @@ async function save() {
   if (props.kind === 'posting' && !validatePostingExtensions()) return
   saving.value = true
   try {
-    if (props.kind === 'site-info') await saveSiteSettings(normalizeSite(siteForm))
+    if (props.kind === 'site-info') {
+      await saveSiteSettings(normalizeSite(siteForm))
+      // 保存路径会净化 externalLinks（issue #1244），回填落库后的值；回填失败
+      // 只影响表单显示，不改变已成功的保存结果。
+      try {
+        siteForm.externalLinks = normalizeSite(await getSiteSettings()).externalLinks
+      } catch {
+        /* 保留表单当前值 */
+      }
+    }
     else if (props.kind === 'mail') await saveMailSettings(mailPayload())
     else if (props.kind === 'security') await saveSecuritySettings(normalizeSecurity(securityForm))
     else if (props.kind === 'posting') await savePostingSettings(normalizePosting(postingForm))

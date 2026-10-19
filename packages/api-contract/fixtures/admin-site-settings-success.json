@@ -6,7 +6,7 @@
     "siteKeywords": "契约,测试",
     "siteUrl": "https://contract.example.test",
     "siteEmail": "hi@contract.example.test",
-    "externalLinks": "https://example.test",
+    "externalLinks": "<meta name=\"keywords\" content=\"contract,test\"/>\n<link rel=\"alternate\" href=\"https://contract.example.test/feed.atom\"/>",
     "trustedExternalDomains": [
       "github.com",
       "bilibili.com"

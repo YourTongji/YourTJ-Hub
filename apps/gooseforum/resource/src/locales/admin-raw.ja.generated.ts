@@ -310,7 +310,7 @@ export default {
   "k008c": "Site description",
   "k008d": "Keywords",
   "k008e": "External links / Meta tags",
-  "siteExternalLinksHint": "Enter only elements that belong inside <head> (meta, link, script, style, noscript), not a whole <head> block. charset, viewport, title, description and robots are generated per page; copies entered here are ignored. Scripts and external stylesheets still obey the page CSP: only allowlisted sources run or load.",
+  "siteExternalLinksHint": "Enter only elements that belong inside <head> (meta, link, script, style, noscript), not a whole <head> block. charset, viewport, title, description, robots, color-scheme, theme-color, og:/twitter:/article: tags and links whose rel tokens include canonical/prev/next/manifest/icon/apple-touch-icon are emitted by the page shell for the current page; saving strips such copies, so pages without a value (login, register/password reset, error, admin) never get them, and the home description comes from the site description. Scripts and external stylesheets still obey the page CSP: only allowlisted sources run or load.",
   "k008f": "Footer content",
   "k008g": "Edit this to match the two-line footer style in the public sidebar.",
   "k008h": "Add text",

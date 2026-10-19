@@ -835,7 +835,7 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 			URL:           urlutil.Clean(urlutil.External, siteConfig.SiteUrl),
 			Logo:          urlutil.Clean(urlutil.Image, siteConfig.SiteLogo),
 			Favicon:       urlutil.Clean(urlutil.Image, siteConfig.SiteLogo),
-			ExternalLinks: publicLayoutScripts(viewer.IsAuthenticated, headmarkup.Sanitize(siteConfig.ExternalLinks)),
+			ExternalLinks: publicLayoutScripts(viewer.IsAuthenticated, siteConfig.ExternalLinks),
 			BrandType:     brandType,
 			BrandText:     brandText,
 			BrandImage:    brandImage,
@@ -3565,12 +3565,15 @@ func previewTopicAuthor(topic *topics.Entity, authors map[uint64]*TopicAuthorPay
 }
 
 // Authenticated composers and settings contain private persona choices. Never
-// send them to analytics, session replay or administrator-injected scripts.
-func publicLayoutScripts(authenticated bool, scripts string) string {
+// send them to analytics, session replay or administrator-injected markup.
+// Anonymous shells get the administrator markup after headmarkup.Sanitize:
+// saving normalizes the stored value too, but a stale row must not reach the
+// page on its own (issue #1244).
+func publicLayoutScripts(authenticated bool, markup string) string {
 	if authenticated {
 		return ""
 	}
-	return scripts
+	return headmarkup.Sanitize(markup)
 }
 
 func dailyTabLabel(lang string) string {

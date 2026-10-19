@@ -217,13 +217,14 @@ func TestAdminGetSiteSettingsHTTPContract(t *testing.T) {
 	t.Run("success returns the stored site settings", func(t *testing.T) {
 		conn, router := setupAdminSiteContractTest(t)
 		persistContractPageConfig(t, conn, pageConfig.SiteSettings, pageConfig.SiteSettingsConfig{
-			SiteName:               "契约站点",
-			SiteLogo:               "/static/logo.webp",
-			SiteDescription:        "契约描述",
-			SiteKeywords:           "契约,测试",
-			SiteUrl:                "https://contract.example.test",
-			SiteEmail:              "hi@contract.example.test",
-			ExternalLinks:          "https://example.test",
+			SiteName:        "契约站点",
+			SiteLogo:        "/static/logo.webp",
+			SiteDescription: "契约描述",
+			SiteKeywords:    "契约,测试",
+			SiteUrl:         "https://contract.example.test",
+			SiteEmail:       "hi@contract.example.test",
+			ExternalLinks: "<meta name=\"keywords\" content=\"contract,test\"/>\n" +
+				"<link rel=\"alternate\" href=\"https://contract.example.test/feed.atom\"/>",
 			TrustedExternalDomains: []string{"github.com", "bilibili.com"},
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodGet, path, "", "admin-site-settings-success.json")

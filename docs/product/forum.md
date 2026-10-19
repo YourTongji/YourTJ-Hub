@@ -189,10 +189,18 @@ Web 确认弹窗约束键盘焦点。规则覆盖主题、回复、Wiki 和课�
 `Current`：站点设置「外部资源链接 / Meta 标签」只接受能放进页面 `<head>` 的元素
 （`meta`、`link`、`script`、`style`、`noscript` 等），其余内容在保存和渲染时被同一套净化剥离
 （`app/bundles/headmarkup`）：`<!DOCTYPE>`、`<html>`、`<head>`、`<body>` 等文档结构标签、body 内容与
-游离文本不进入页面；页面外壳自带的 `<title>` 以及 charset（含 `http-equiv="content-type"` 写法）、
-viewport、description、robots 等同名 meta 也被忽略（它们由每页按自己的标题与 SEO 取值输出）。
-因此管理员整段粘贴 `<head>…</head>` 不会造成嵌套 head 或重复的 viewport／title／description，
-而自定义 meta、外链样式与脚本照旧注入；存量脏配置在管理员下次保存站点设置时被清理。该字段仍是
+游离文本不进入页面；页面外壳为每页输出的文档元数据也被忽略——`<title>`、charset（含
+`http-equiv="content-type"` 写法）、viewport、description、robots、color-scheme、theme-color 与
+`og:`／`twitter:`／`article:` 前缀的 meta，以及 `rel` 含 canonical／prev／next／manifest／icon／
+apple-touch-icon token（HTML 中 `rel` 是 token 集合，`rel="canonical alternate"`、`rel="shortcut icon"`
+同样命中）的 link。其中 `<title>`、charset、viewport、color-scheme、theme-color、manifest 与
+apple-touch-icon 由外壳每页输出（`icon` 在站点配置了 favicon 时输出），而 description、robots、
+canonical、prev/next 与 `og:`／`twitter:`／`article:` meta 视页面是否有取值而定：description／robots 由页面
+按当前页面算出，没有取值的页面（登录、注册／找回密码、错误页、管理台）不输出，首页的 description
+取站点描述。本字段里的同名片段一律在保存时被剥离，外壳在该页不输出这些标签
+时也不会用本字段的值补上。因此管理员整段粘贴
+`<head>…</head>` 不会造成嵌套 head 或重复的 viewport／title／description，而自定义 meta、外链样式与
+脚本照旧注入；保存会把净化后的值直接落库，存量脏配置在管理员下次保存站点设置时被清理。该字段仍是
 管理员可信内容，不做 URL 或脚本白名单（脚本与外链样式仍受页面 CSP 限制，白名单外的源会被浏览器
 静默拦截）；登录态页面不下发这段注入内容（避免把管理员脚本送进含私密表单的页面）。
 
