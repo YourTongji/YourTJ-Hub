@@ -737,8 +737,10 @@ identity survive this layout change. The header keeps a small outer margin for i
   the hide-keyboard sign, a keyboard above a down chevron, and is named after the open surface
   (hide keyboard or hide stickers), so neighbouring actions never share a symbol. The reply target is a
   lightweight text row; attachment previews and server-required captcha controls appear only when needed.
-  The publishing identity is an avatar button beside the shortened input, bottom-aligned with it and
-  centred over the image action, so it adds no height and never covers the topic. A small swap badge
+  The publishing identity is an avatar button beside the shortened input and centred over the image
+  action, so it adds no height and never covers the topic. It stays centred on the input as lines are
+  added, gliding to each new centre rather than jumping, and holds still once the input reaches its
+  height limit and scrolls. A small swap badge
   in the primary color (ReIcon Arrow Swap Horizontal) marks it as switchable, a switch scales the new
   avatar in, and the name and kind stay in its tooltip and accessibility label. Choosing an identity
   keeps the keyboard's space and returns focus to the input, so the composer does not jump.

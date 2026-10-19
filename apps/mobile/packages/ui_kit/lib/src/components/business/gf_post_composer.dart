@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../../theme/gf_theme.dart';
 import '../../twemoji/twemoji_text.dart';
@@ -49,8 +51,9 @@ class GfPostComposer extends StatefulWidget {
   final TextEditingController controller;
   final FocusNode? focusNode;
 
-  /// Stands beside the input's leading edge, bottom-aligned with it, e.g. the
-  /// publishing identity; it supplies its own 44px hit square.
+  /// Stands beside the input's leading edge, centred on it while it grows and
+  /// gliding to each new centre, e.g. the publishing identity; it supplies its
+  /// own 44px hit square.
   final Widget? leading;
   final String? hideKeyboardLabel;
 
@@ -279,10 +282,9 @@ class _GfPostComposerState extends State<GfPostComposer> {
                           child: widget.toolbar!,
                         ),
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           if (widget.leading != null) ...[
-                            widget.leading!,
+                            _LayoutGlide(child: widget.leading!),
                             const SizedBox(width: 4),
                           ],
                           Expanded(
@@ -488,5 +490,149 @@ class _GfPostComposerState extends State<GfPostComposer> {
         ),
       ),
     );
+  }
+}
+
+/// Glides its child to each new layout position instead of jumping (FLIP):
+/// a move is first painted as an offset back to the old place, which then
+/// eases out, so a control centred on a line-by-line growing input rides its
+/// centre. Positions are measured from the parent's bottom edge, where the
+/// composer is anchored, so moving the whole composer (e.g. with the
+/// keyboard) never glides. Instant with reduced motion.
+class _LayoutGlide extends StatefulWidget {
+  const _LayoutGlide({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_LayoutGlide> createState() => _LayoutGlideState();
+}
+
+class _LayoutGlideState extends State<_LayoutGlide>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _glide = AnimationController(
+    vsync: this,
+    value: 1,
+  );
+
+  @override
+  void dispose() {
+    _glide.dispose();
+    super.dispose();
+  }
+
+  void _moved() {
+    if (!mounted) return;
+    _glide.duration = GfMotion.duration(context, GfMotion.layout);
+    _glide.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) => _GlideBox(
+    progress: _glide,
+    enabled: !GfMotion.reducedOf(context),
+    onMoved: _moved,
+    child: widget.child,
+  );
+}
+
+class _GlideBox extends SingleChildRenderObjectWidget {
+  const _GlideBox({
+    required this.progress,
+    required this.enabled,
+    required this.onMoved,
+    super.child,
+  });
+
+  final Animation<double> progress;
+  final bool enabled;
+  final VoidCallback onMoved;
+
+  @override
+  _RenderGlideBox createRenderObject(BuildContext context) =>
+      _RenderGlideBox(progress, enabled, onMoved);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderGlideBox renderObject) {
+    renderObject
+      ..progress = progress
+      ..enabled = enabled
+      ..onMoved = onMoved;
+  }
+}
+
+class _RenderGlideBox extends RenderProxyBox {
+  _RenderGlideBox(this._progress, this.enabled, this.onMoved);
+
+  Animation<double> _progress;
+  set progress(Animation<double> value) {
+    if (value == _progress) return;
+    if (attached) {
+      _progress.removeListener(markNeedsPaint);
+      value.addListener(markNeedsPaint);
+    }
+    _progress = value;
+  }
+
+  bool enabled;
+  VoidCallback onMoved;
+  double? _lastY;
+  double _from = 0;
+  bool _restartPending = false;
+
+  /// Remaining offset back towards the previous position.
+  double get _shift => _restartPending
+      ? _from
+      : _from * (1 - GfMotion.enterCurve.transform(_progress.value));
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _progress.addListener(markNeedsPaint);
+  }
+
+  @override
+  void detach() {
+    _progress.removeListener(markNeedsPaint);
+    super.detach();
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final ParentData? data = parentData;
+    final RenderObject? row = parent;
+    final double y = data is BoxParentData && row is RenderBox
+        ? data.offset.dy - row.size.height
+        : 0;
+    final double? last = _lastY;
+    _lastY = y;
+    if (!enabled) {
+      _from = 0;
+    } else if (last != null && (y - last).abs() >= .5) {
+      _from = _shift + last - y;
+      if (!_restartPending) {
+        _restartPending = true;
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          _restartPending = false;
+          onMoved();
+        });
+      }
+    }
+    super.paint(context, offset.translate(0, _shift));
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      child != null &&
+      result.addWithPaintOffset(
+        offset: Offset(0, _shift),
+        position: position,
+        hitTest: (result, transformed) =>
+            child!.hitTest(result, position: transformed),
+      );
+
+  @override
+  void applyPaintTransform(RenderBox child, Matrix4 transform) {
+    transform.translateByDouble(0, _shift, 0, 1);
   }
 }

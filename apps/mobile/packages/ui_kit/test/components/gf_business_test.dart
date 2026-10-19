@@ -670,6 +670,88 @@ void main() {
       focus.dispose();
     });
 
+    testWidgets('the leading control glides with a growing input centre', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      addTearDown(controller.dispose);
+      Widget composer({bool reduceMotion = false}) => gfApp(
+        Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(disableAnimations: reduceMotion),
+            // Bottom-anchored like the page, so growth moves the centre.
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: SizedBox(
+                width: 360,
+                child: GfPostComposer(
+                  controller: controller,
+                  publishLabel: 'Send',
+                  hintText: 'Reply',
+                  onPublish: () {},
+                  leading: const SizedBox.square(
+                    key: Key('leading'),
+                    dimension: 44,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final leading = find.byKey(const Key('leading'));
+      final surface = find.byKey(const Key('reply-input-surface'));
+      double lead() => tester.getCenter(leading).dy;
+      double input() => tester.getCenter(surface).dy;
+
+      await tester.pumpWidget(composer());
+      expect(lead(), closeTo(input(), .5));
+
+      // A new line moves the centre; the control follows it in one easing
+      // glide instead of jumping with the line.
+      final before = lead();
+      controller.text = 'one\ntwo';
+      await tester.pump();
+      final after = input();
+      final direction = (after - before).sign;
+      expect((after - before).abs(), greaterThan(5));
+      expect(lead(), closeTo(before, .5));
+      final trace = <double>[lead()];
+      for (var frame = 0; frame < 16; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        trace.add(lead());
+      }
+      await tester.pumpAndSettle();
+      trace.add(lead());
+      for (var i = 1; i < trace.length; i++) {
+        expect((trace[i] - trace[i - 1]) * direction, greaterThan(-.01));
+      }
+      // Two frames in, the control is visibly between the two centres.
+      expect((trace[2] - before).abs(), greaterThan(1));
+      expect((trace[2] - after).abs(), greaterThan(1));
+      expect(trace.last, closeTo(after, .5));
+
+      // Past the editor's height limit the input scrolls and nothing moves.
+      controller.text = List.filled(4, 'line').join('\n');
+      await tester.pumpAndSettle();
+      final capped = lead();
+      expect(capped, closeTo(input(), .5));
+      controller.text = List.filled(7, 'line').join('\n');
+      await tester.pump();
+      expect(lead(), capped);
+      await tester.pumpAndSettle();
+      expect(lead(), capped);
+
+      // Reduced motion lands on the new centre at once.
+      await tester.pumpWidget(composer(reduceMotion: true));
+      controller.text = 'one';
+      await tester.pump();
+      await tester.pump();
+      expect(lead(), closeTo(input(), .5));
+    });
+
     testWidgets('sticker switches keep the action row and multiline input', (
       tester,
     ) async {

@@ -3418,7 +3418,7 @@ void main() {
         await tester.tap(find.byTooltip('参与讨论'));
         await tester.pump();
         final surface = find.byKey(const Key('reply-input-surface'));
-        // The identity stands beside the input, bottom-aligned with it.
+        // The identity stands beside the input, centred on it.
         final identity = find.byKey(const Key('identity-picker'));
         expect(find.descendant(of: surface, matching: identity), findsNothing);
         expect(tester.getSize(identity), const Size.square(44));
@@ -3427,8 +3427,8 @@ void main() {
           lessThan(tester.getTopLeft(surface).dx),
         );
         expect(
-          tester.getBottomLeft(identity).dy,
-          closeTo(tester.getBottomLeft(surface).dy, 1),
+          tester.getCenter(identity).dy,
+          closeTo(tester.getCenter(surface).dy, 1),
         );
         expect(find.byKey(const Key('identity-switch-badge')), findsOneWidget);
         final field = find
