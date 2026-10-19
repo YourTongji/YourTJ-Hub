@@ -376,6 +376,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
     return Scaffold(
       body: AccountDrawerLayer(
         key: accountDrawerLayerKey,
+        onSystemBack: () => _selectDestination(0),
         // The drawer overlays the page; chrome keeps whatever state the
         // reader left it in.
         onChanged: (open) {

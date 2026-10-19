@@ -4,6 +4,7 @@ import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
@@ -208,6 +209,101 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     shellDrawerOpen.value = false;
   });
+
+  for (final branch in [0, 1, 2, 3]) {
+    testWidgets(
+      'system back closes drawer and returns home from branch $branch',
+      (tester) async {
+        await _mount(tester);
+        final shell = tester.widget<GfShell>(find.byType(GfShell));
+        shell.navigationShell.goBranch(branch);
+        await tester.pumpAndSettle();
+        _openDrawer();
+        await tester.pumpAndSettle();
+        expect(_isDrawerOpen(), isTrue);
+
+        expect(await tester.binding.handlePopRoute(), isTrue);
+        await tester.pumpAndSettle();
+
+        expect(_isDrawerOpen(), isFalse);
+        expect(find.byType(Drawer), findsNothing);
+        expect(
+          tester
+              .widget<GfShell>(find.byType(GfShell))
+              .navigationShell
+              .currentIndex,
+          0,
+        );
+        expect(await tester.binding.handlePopRoute(), isFalse);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+      },
+    );
+  }
+
+  for (final commit in [false, true]) {
+    testWidgets(
+      'predictive back ${commit ? 'commits' : 'cancels'} drawer close',
+      (tester) async {
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        final handlesBack = <bool>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'SystemNavigator.setFrameworkHandlesBack') {
+              handlesBack.add(call.arguments as bool);
+            }
+            return null;
+          },
+        );
+        addTearDown(() {
+          tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          );
+        });
+        await _mount(tester);
+        tester
+            .widget<GfShell>(find.byType(GfShell))
+            .navigationShell
+            .goBranch(1);
+        await tester.pumpAndSettle();
+        _openDrawer();
+        await tester.pumpAndSettle();
+        final route = ModalRoute.of(
+          tester.element(find.byType(AccountDrawerLayer)),
+        )!;
+        expect(route.popDisposition, RoutePopDisposition.doNotPop);
+        expect(handlesBack.last, isTrue);
+        for (final call in [
+          const MethodCall('startBackGesture', {
+            'touchOffset': [0.0, 300.0],
+            'progress': 0.0,
+            'swipeEdge': 0,
+          }),
+          MethodCall(commit ? 'commitBackGesture' : 'cancelBackGesture'),
+        ]) {
+          await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+            'flutter/backgesture',
+            const StandardMethodCodec().encodeMethodCall(call),
+            null,
+          );
+          await tester.pumpAndSettle();
+        }
+        expect(_isDrawerOpen(), !commit);
+        expect(
+          tester
+              .widget<GfShell>(find.byType(GfShell))
+              .navigationShell
+              .currentIndex,
+          commit ? 0 : 1,
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.android),
+    );
+  }
 
   testWidgets(
     'iOS drawer exposes a labelled semantic close action',

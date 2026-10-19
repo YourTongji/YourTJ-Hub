@@ -21,10 +21,12 @@ class AccountDrawerLayer extends StatefulWidget {
     super.key,
     required this.child,
     required this.onChanged,
+    this.onSystemBack,
   });
 
   final Widget child;
   final ValueChanged<bool> onChanged;
+  final VoidCallback? onSystemBack;
 
   @override
   State<AccountDrawerLayer> createState() => AccountDrawerLayerState();
@@ -153,82 +155,91 @@ class AccountDrawerLayerState extends State<AccountDrawerLayer>
   }
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      _drawerWidth = (constraints.maxWidth * .84).clamp(0, 400);
-      _openingWidth = constraints.maxWidth * drawerSwipeOpeningFraction;
-      _direction = Directionality.of(context) == TextDirection.ltr ? 1 : -1;
-      return RawGestureDetector(
-        behavior: HitTestBehavior.translucent,
-        excludeFromSemantics: true,
-        gestures: {
-          _DirectionalDrawerGestureRecognizer:
-              GestureRecognizerFactoryWithHandlers<
-                _DirectionalDrawerGestureRecognizer
-              >(
-                _DirectionalDrawerGestureRecognizer.new,
-                (recognizer) => recognizer
-                  ..screenWidth = constraints.maxWidth
-                  ..drawerWidth = _drawerWidth
-                  ..openingWidth = _openingWidth
-                  ..openingDirection = _direction
-                  ..isOpen = (() => _progress.value > 0)
-                  ..canOpen = _drawerGesturePolicy.canOpen
-                  ..dragStartBehavior = DragStartBehavior.down
-                  ..onStart = _startDrag
-                  ..onUpdate = _updateDrag
-                  ..onEnd = _endDrag
-                  ..onCancel = _cancelDrag,
-              ),
-        },
-        child: DrawerGestureGate(
-          policy: _drawerGesturePolicy,
-          child: Stack(
-            fit: StackFit.expand,
-            clipBehavior: Clip.hardEdge,
-            children: [
-              IgnorePointer(
-                ignoring: _progress.value > 0,
-                child: ExcludeSemantics(
-                  excluding: _progress.value > 0,
-                  child: widget.child,
+  Widget build(BuildContext context) => PopScope(
+    // Advertise the open overlay before Android starts a predictive back.
+    canPop: _historyEntry == null,
+    onPopInvokedWithResult: (didPop, _) {
+      if (didPop || _historyEntry == null) return;
+      close();
+      widget.onSystemBack?.call();
+    },
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        _drawerWidth = (constraints.maxWidth * .84).clamp(0, 400);
+        _openingWidth = constraints.maxWidth * drawerSwipeOpeningFraction;
+        _direction = Directionality.of(context) == TextDirection.ltr ? 1 : -1;
+        return RawGestureDetector(
+          behavior: HitTestBehavior.translucent,
+          excludeFromSemantics: true,
+          gestures: {
+            _DirectionalDrawerGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<
+                  _DirectionalDrawerGestureRecognizer
+                >(
+                  _DirectionalDrawerGestureRecognizer.new,
+                  (recognizer) => recognizer
+                    ..screenWidth = constraints.maxWidth
+                    ..drawerWidth = _drawerWidth
+                    ..openingWidth = _openingWidth
+                    ..openingDirection = _direction
+                    ..isOpen = (() => _progress.value > 0)
+                    ..canOpen = _drawerGesturePolicy.canOpen
+                    ..dragStartBehavior = DragStartBehavior.down
+                    ..onStart = _startDrag
+                    ..onUpdate = _updateDrag
+                    ..onEnd = _endDrag
+                    ..onCancel = _cancelDrag,
                 ),
-              ),
-              if (_progress.value > 0) ...[
-                Positioned.fill(
-                  child: BlockSemantics(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: close,
-                      child: Semantics(
-                        label: MaterialLocalizations.of(
-                          context,
-                        ).modalBarrierDismissLabel,
-                        child: ColoredBox(
-                          color: Colors.black.withValues(
-                            alpha: .54 * _progress.value,
+          },
+          child: DrawerGestureGate(
+            policy: _drawerGesturePolicy,
+            child: Stack(
+              fit: StackFit.expand,
+              clipBehavior: Clip.hardEdge,
+              children: [
+                IgnorePointer(
+                  ignoring: _progress.value > 0,
+                  child: ExcludeSemantics(
+                    excluding: _progress.value > 0,
+                    child: widget.child,
+                  ),
+                ),
+                if (_progress.value > 0) ...[
+                  Positioned.fill(
+                    child: BlockSemantics(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: close,
+                        child: Semantics(
+                          label: MaterialLocalizations.of(
+                            context,
+                          ).modalBarrierDismissLabel,
+                          child: ColoredBox(
+                            color: Colors.black.withValues(
+                              alpha: .54 * _progress.value,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                PositionedDirectional(
-                  top: 0,
-                  bottom: 0,
-                  start: -_drawerWidth * (1 - _progress.value),
-                  width: _drawerWidth,
-                  child: FocusScope(
-                    node: _focusScopeNode,
-                    child: const AccountDrawer(),
+                  PositionedDirectional(
+                    top: 0,
+                    bottom: 0,
+                    start: -_drawerWidth * (1 - _progress.value),
+                    width: _drawerWidth,
+                    child: FocusScope(
+                      node: _focusScopeNode,
+                      child: const AccountDrawer(),
+                    ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-      );
-    },
+        );
+      },
+    ),
   );
 }
 
