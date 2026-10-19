@@ -221,8 +221,9 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   returning preserves the selected destination.
   About links to native friend links, sponsors, terms and privacy pages using the site’s published
   configuration; disabled policies remain hidden.
-- `Current`: with the account drawer open, Android system Back (button or gesture) closes it
-  and returns to Home. Closing the drawer with its scrim or a panel swipe keeps the current destination.
+- `Current`: with the account drawer open, Android system Back (button or gesture) closes only
+  the drawer, preserving the current destination and reading position. Scrim taps and panel swipes
+  likewise close the drawer without navigating.
 - `Current`: Home cards retain both images for two-image topics. A portrait single image sits beside
   the text; a landscape image appears below the text with aspect-preserving fit. Portrait galleries
   show up to three columns; two landscape images share a row; larger landscape galleries overlap

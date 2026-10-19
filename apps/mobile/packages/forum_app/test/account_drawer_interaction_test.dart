@@ -212,11 +212,14 @@ void main() {
 
   for (final branch in [0, 1, 2, 3]) {
     testWidgets(
-      'system back closes drawer and returns home from branch $branch',
+      'system back closes drawer and preserves branch $branch and scroll',
       (tester) async {
         await _mount(tester);
         final shell = tester.widget<GfShell>(find.byType(GfShell));
         shell.navigationShell.goBranch(branch);
+        await tester.pumpAndSettle();
+        final page = tester.state<_GesturePageState>(find.byType(_GesturePage));
+        page.scroll.jumpTo(240);
         await tester.pumpAndSettle();
         _openDrawer();
         await tester.pumpAndSettle();
@@ -232,8 +235,13 @@ void main() {
               .widget<GfShell>(find.byType(GfShell))
               .navigationShell
               .currentIndex,
-          0,
+          branch,
         );
+        expect(
+          tester.state<_GesturePageState>(find.byType(_GesturePage)),
+          same(page),
+        );
+        expect(page.scroll.offset, 240);
         expect(await tester.binding.handlePopRoute(), isFalse);
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pumpAndSettle();
@@ -245,7 +253,9 @@ void main() {
     testWidgets(
       'predictive back ${commit ? 'commits' : 'cancels'} drawer close',
       (tester) async {
-        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
         final handlesBack = <bool>[];
         tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
           SystemChannels.platform,
@@ -296,7 +306,7 @@ void main() {
               .widget<GfShell>(find.byType(GfShell))
               .navigationShell
               .currentIndex,
-          commit ? 0 : 1,
+          1,
         );
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pumpAndSettle();

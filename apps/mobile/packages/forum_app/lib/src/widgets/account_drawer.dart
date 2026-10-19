@@ -21,12 +21,10 @@ class AccountDrawerLayer extends StatefulWidget {
     super.key,
     required this.child,
     required this.onChanged,
-    this.onSystemBack,
   });
 
   final Widget child;
   final ValueChanged<bool> onChanged;
-  final VoidCallback? onSystemBack;
 
   @override
   State<AccountDrawerLayer> createState() => AccountDrawerLayerState();
@@ -161,7 +159,6 @@ class AccountDrawerLayerState extends State<AccountDrawerLayer>
     onPopInvokedWithResult: (didPop, _) {
       if (didPop || _historyEntry == null) return;
       close();
-      widget.onSystemBack?.call();
     },
     child: LayoutBuilder(
       builder: (context, constraints) {
