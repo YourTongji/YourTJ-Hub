@@ -189,6 +189,7 @@ Web 确认弹窗约束键盘焦点。规则覆盖主题、回复、Wiki 和课�
 `Current`：站点设置的「自定义 head 片段」仅注入**未登录 Web 页面**，只输出 `<script>`、`<style>`、
 `<link>` 和非系统自有的 `<meta>`。裸 head 片段可直接填写；若存量值包含完整文档，只读取 `<head>` 中的
 资源，`<html>/<head>/<body>` 结构标签和 body 内资源不会输出。SSR 优先使用页面 description，缺省时回退到站点描述；
+robots 优先使用页面指令，缺省时显式输出 `index, follow`；
 页面管理的 charset、viewport、description、
 robots、theme-color、color-scheme、Open Graph/Twitter 元数据及 canonical、分页、manifest、图标链接在
 SSR 边界过滤；其他非系统 meta（如 author、keywords 和站点验证标签）、外部脚本、样式表与预连接资源仍保留。

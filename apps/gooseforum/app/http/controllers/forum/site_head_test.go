@@ -139,3 +139,18 @@ func TestSSRShellUsesSiteDescriptionWhenPageDescriptionIsEmpty(t *testing.T) {
 		t.Fatalf("site description was not used as the fallback: %s", page)
 	}
 }
+
+func TestSSRShellUsesDefaultRobotsWhenPageDirectiveIsEmpty(t *testing.T) {
+	payload := PagePayload{Meta: PageMeta{Title: "Home"}}
+	var buf strings.Builder
+	if err := currentRegistry.render(&buf, "app_shell.gohtml", templateData{Payload: payload, Lang: "en"}); err != nil {
+		t.Fatal(err)
+	}
+	page := buf.String()
+	if n := strings.Count(page, `<meta name="robots"`); n != 1 {
+		t.Fatalf("SSR has %d robots directives, want one default", n)
+	}
+	if !strings.Contains(page, `<meta name="robots" content="index, follow">`) {
+		t.Fatalf("default robots directive missing: %s", page)
+	}
+}

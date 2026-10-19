@@ -11,7 +11,7 @@
     {{if .Payload.Meta.Canonical}}<link rel="canonical" href="{{.Payload.Meta.Canonical}}">{{end}}
     {{if .Payload.Meta.PrevURL}}<link rel="prev" href="{{.Payload.Meta.PrevURL}}">{{end}}
     {{if .Payload.Meta.NextURL}}<link rel="next" href="{{.Payload.Meta.NextURL}}">{{end}}
-    {{if .Payload.Meta.Robots}}<meta name="robots" content="{{.Payload.Meta.Robots}}">{{end}}
+    {{if .Payload.Meta.Robots}}<meta name="robots" content="{{.Payload.Meta.Robots}}">{{else}}<meta name="robots" content="index, follow">{{end}}
     {{with .Payload.Meta.OpenGraph}}
     {{if .Title}}<meta property="og:title" content="{{.Title}}">{{end}}
     {{if .Description}}<meta property="og:description" content="{{.Description}}">{{end}}
