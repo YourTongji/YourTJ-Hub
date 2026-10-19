@@ -169,7 +169,6 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
     final collection = ref.read(stickerCollectionProvider);
     await showGfAlertDialog<void>(
       context,
-      adaptive: false,
       barrierDismissible: true,
       builder: (_) => _StickerRenameDialog(item: item, collection: collection),
     );
@@ -587,7 +586,6 @@ class _StickerRenameDialogState extends ConsumerState<_StickerRenameDialog> {
     return PopScope(
       canPop: !_saving,
       child: GfAlertDialog(
-        adaptive: false,
         title: GfText(strings.rename),
         content: GfInput(
           controller: _controller,

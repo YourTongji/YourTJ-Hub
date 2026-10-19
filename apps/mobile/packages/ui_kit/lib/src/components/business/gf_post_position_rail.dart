@@ -74,7 +74,7 @@ class _GfPostPositionRailState extends State<GfPostPositionRail> {
             ),
           ],
         ),
-        Slider.adaptive(
+        Slider(
           value: _value,
           min: 1,
           max: _maximum,

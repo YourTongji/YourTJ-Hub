@@ -663,15 +663,9 @@ labels grow with system text size; selected states expose semantics. Complex dia
 surface with 24-pixel corners, while inline alerts use a quiet 16-pixel surface. Avatars, loading,
 badges, dividers and selectors share the same semantic palette without third-party default skins.
 
-`Current`: iOS short menus, attachment and language choices, and dropdown fields use shared Cupertino
-actions. Windows narrower than 600 logical pixels present a bottom action sheet; wider windows use
-a scrollable menu up to 380 pixels wide near the initiating control, bounded by root safe areas and
-the keyboard. Cancellation leaves the current value unchanged; choices show the current selection,
-disabled actions cannot activate and destructive actions use the platform's destructive treatment.
-Simple confirmations use Cupertino alerts. Complex credential and editing forms retain their Gf
-surface, validation and failed-save recovery. Android retains Material presentation. Radio rows,
-switches and sliders also follow the platform; both palettes follow the selected light/dark theme.
-These are Flutter Cupertino components; native UIKit and Liquid Glass presentation are not claimed.
+`Current`: short menus, attachment and language choices, dropdown fields, radio rows, switches,
+sliders and simple confirmations use Material presentation on every platform, including iOS and
+iPad; see [0100](../decisions/0100-material-interaction-surfaces-on-ios.md).
 
 ## Publishing
 

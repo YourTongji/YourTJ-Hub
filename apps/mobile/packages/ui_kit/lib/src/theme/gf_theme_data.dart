@@ -75,13 +75,6 @@ ThemeData gfThemeData(
     useMaterial3: true,
     brightness: brightness,
     colorScheme: colorScheme,
-    cupertinoOverrideTheme: CupertinoThemeData(
-      brightness: brightness,
-      primaryColor: colors.primary,
-      scaffoldBackgroundColor: colors.base100,
-      barBackgroundColor: colors.base100,
-      textTheme: CupertinoTextThemeData(primaryColor: colors.primary),
-    ),
     // Keep Material's interaction lifecycle but remove its visible ink spread.
     splashFactory: InkRipple.splashFactory,
     splashColor: Colors.transparent,

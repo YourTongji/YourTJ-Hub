@@ -110,15 +110,10 @@ Focusing an editor is not an edit. Keyboard layouts prioritize the active writin
 introductory guidance, retain focus, and keep the primary action reachable. Implemented behavior
 lives in [mobile experience](mobile-experience.md#publishing).
 
-`Current`: profile and password editing use pages and preserve input on failed saves. iOS short
-menus and single choices use Cupertino action sheets with separate cancellation, checked selection,
-disabled actions and explicit destructive actions. Compact windows present them at the bottom;
-wide windows place a scrollable surface up to 380 pixels wide near the trigger, inside safe areas
-and above the keyboard. Simple confirmations use Cupertino alerts and answer only through their own
-actions: tapping the barrier does not cancel. Complex credential and editing
-forms retain the bounded Gf surface. Android keeps Material menus, choices and confirmations;
-its short action sheets retain the shared safe-area and width limits. See
-[0095](../decisions/0095-adaptive-ios-interaction-surfaces.md).
+`Current`: profile and password editing use pages and preserve input on failed saves. Shared short
+choice sheets use a drag handle, 24-pixel top corners, one safe-area boundary and a 640-pixel width
+limit. Menus, choices and confirmations use Material presentation on every platform; see
+[0100](../decisions/0100-material-interaction-surfaces-on-ios.md).
 `Partial`: legacy forms still use bounded scrollable sheets; profile, password and course
 review editing confirm discarding changed input.
 Transient feedback uses the existing shared banner; field-specific errors stay beside the field.

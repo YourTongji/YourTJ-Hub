@@ -1342,17 +1342,15 @@ class _HomeToolbar extends ConsumerWidget {
                   onSelected: (value) => onSelected(value as String),
                 ),
               ),
-              Builder(
-                builder: (anchor) => IconButton(
-                  tooltip: l10n.homeFeedOptions,
-                  icon: GfSymbol(
-                    feedMode == GfTopicFeedMode.card
-                        ? 'layout-grid'
-                        : 'list-square',
-                    size: 20,
-                  ),
-                  onPressed: () => _showOptions(anchor),
+              IconButton(
+                tooltip: l10n.homeFeedOptions,
+                icon: GfSymbol(
+                  feedMode == GfTopicFeedMode.card
+                      ? 'layout-grid'
+                      : 'list-square',
+                  size: 20,
                 ),
+                onPressed: () => _showOptions(context),
               ),
               const SizedBox(width: 4),
             ],
@@ -1370,33 +1368,54 @@ class _HomeToolbar extends ConsumerWidget {
 
   Future<void> _showOptions(BuildContext context) async {
     final l10n = AppLocalizations.of(context);
-    final selected = await showGfActionSheet<GfTopicFeedMode>(
+    final selected = await showGfBottomSheet<GfTopicFeedMode>(
       context,
-      title: GfText(l10n.homeFeedOptions),
-      initialValue: feedMode,
-      items: [
-        for (final mode in GfTopicFeedMode.values)
-          GfPopupMenuItem(
-            value: mode,
-            // Same glyphs as the toolbar button, so the sheet previews it.
-            child: Row(
-              children: [
-                GfSymbol(
-                  mode == GfTopicFeedMode.card ? 'layout-grid' : 'list-square',
-                  size: 22,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GfText(
-                    mode == GfTopicFeedMode.card
-                        ? l10n.topicFeedModeCard
-                        : l10n.topicFeedModeList,
-                  ),
-                ),
-              ],
+      builder: (sheetContext) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+              child: GfText(
+                l10n.homeFeedOptions,
+                style: GfTheme.typographyOf(context).title2,
+              ),
             ),
-          ),
-      ],
+            for (final mode in GfTopicFeedMode.values)
+              ListTile(
+                // Same glyphs as the toolbar button, so the sheet previews it.
+                title: Row(
+                  children: [
+                    GfSymbol(
+                      mode == GfTopicFeedMode.card
+                          ? 'layout-grid'
+                          : 'list-square',
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GfText(
+                        mode == GfTopicFeedMode.card
+                            ? l10n.topicFeedModeCard
+                            : l10n.topicFeedModeList,
+                      ),
+                    ),
+                  ],
+                ),
+                trailing: feedMode == mode
+                    ? const GfSymbol('check', size: 20)
+                    : null,
+                selected: feedMode == mode,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                onTap: () => Navigator.pop(sheetContext, mode),
+              ),
+          ],
+        ),
+      ),
     );
     if (!context.mounted) return;
     if (selected != null) onFeedModeSelected(selected);

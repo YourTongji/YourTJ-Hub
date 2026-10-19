@@ -80,3 +80,5 @@ This uses Flutter's Cupertino appearance, not native UIKit presentation or a Liq
 - [Mobile interaction standard](../product/mobile-design-system.md)
 - [Mobile experience](../product/mobile-experience.md)
 - [Issue 1165](https://github.com/YourTongji/YourTJ-Hub/issues/1165)
+- [0100](0100-material-interaction-surfaces-on-ios.md) — the iOS Cupertino interaction surfaces in
+  this record were rolled back to Material; the tablet layouts continue to apply

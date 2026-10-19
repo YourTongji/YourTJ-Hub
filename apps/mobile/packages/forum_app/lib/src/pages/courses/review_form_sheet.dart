@@ -515,7 +515,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
       url: _anonymous ? '' : (publisher?.avatarUrl ?? ''),
       colors: colors,
     );
-    final Widget toggle = Switch.adaptive(
+    final Widget toggle = Switch(
       value: _anonymous,
       onChanged: _submitting
           ? null

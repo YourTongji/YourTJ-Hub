@@ -491,7 +491,7 @@ class _TextSizeSlider extends StatelessWidget {
             Expanded(
               child: Semantics(
                 label: title,
-                child: Slider.adaptive(
+                child: Slider(
                   key: ValueKey('text-size-${axis.name}'),
                   value: value.clamp(min, max),
                   min: min,

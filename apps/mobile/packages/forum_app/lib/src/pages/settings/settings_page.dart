@@ -651,7 +651,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Future<T?> _showAccountDialog<T>(int epoch, Widget child) =>
       showGfAlertDialog<T>(
         context,
-        adaptive: false,
         builder: (_) => _SettingsAccountDialog(epoch: epoch, child: child),
       );
 
@@ -2233,7 +2232,6 @@ class _SettingsCredentialDialogState<T>
     return PopScope(
       canPop: !_saving,
       child: GfAlertDialog(
-        adaptive: false,
         title: GfText(widget.title),
         content: AutofillGroup(
           onDisposeAction: AutofillContextAction.cancel,

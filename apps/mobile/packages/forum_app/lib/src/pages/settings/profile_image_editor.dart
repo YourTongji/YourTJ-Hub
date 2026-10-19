@@ -224,7 +224,7 @@ class _ProfileImageEditorState extends State<ProfileImageEditor> {
                           children: [
                             const GfSymbol('minus'),
                             Expanded(
-                              child: Slider.adaptive(
+                              child: Slider(
                                 value: _zoom,
                                 min: 1,
                                 max: 4,

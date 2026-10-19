@@ -79,7 +79,7 @@ class _ScheduleWidgetTransparencyState
             l.scheduleWidgetTransparencyTitle,
             style: GfTheme.typographyOf(context).bodyStrong,
           ),
-          Slider.adaptive(
+          Slider(
             value: _value.toDouble(),
             min: ScheduleWidgetBridge.minTransparencyPercent.toDouble(),
             max: ScheduleWidgetBridge.maxTransparencyPercent.toDouble(),
