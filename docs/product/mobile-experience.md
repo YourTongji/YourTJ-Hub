@@ -733,7 +733,9 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: reply composers use one rounded surface with a borderless, growing two-line input.
   Image, sticker/keyboard, hide and send actions share the bottom row, and collapse sits in the input;
   the row keeps the same actions in keyboard and sticker modes, with hide disabled while neither is
-  open. The reply target is a
+  open. The switch shows the destination (emoji, or the plain keyboard to return to typing); hide uses
+  the hide-keyboard sign, a keyboard above a down chevron, and is named after the open surface
+  (hide keyboard or hide stickers), so neighbouring actions never share a symbol. The reply target is a
   lightweight text row; attachment previews and server-required captcha controls appear only when needed.
   The publishing identity floats above the composer on its own capsule surface so it stays legible over
   the topic.

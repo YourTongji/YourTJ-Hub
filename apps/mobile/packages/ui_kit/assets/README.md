@@ -39,22 +39,25 @@ to differently named ReIcon glyphs; other ReIcon assets use the same name:
 | `grip-vertical` | `reorder` | `heading` | `text-square` |
 | `id-card` | `user-id` | `image-off` | `gallery-slash` |
 | `info` | `info-circle` | `key-round` | `key` |
-| `keyboard-hide` | `keyboard` | `languages` | `language` |
-| `layout-grid` | `grid` | `list-ordered` | `ordered-list` |
-| `log-out` | `logout` | `mail` | `envelope` |
-| `quote` | `quote-down` | `redo-2` | `redo` |
-| `refresh-cw` | `refresh` | `share-2` | `share` |
-| `sliders-horizontal` | `slider-horizontal` | `smartphone` | `mobile` |
-| `smile` | `face-smile` | `square-pen` | `pen-square` |
-| `trash-2` | `trash` | `type` | `text` |
-| `undo-2` | `undo` | `university` | `building` |
-| `user-round-check` | `user-check` | `user-round-plus` | `user-add` |
-| `user-round` | `user` | `users-round` | `users` |
-| `message-circle` | `chat` |  |  |
+| `languages` | `language` | `layout-grid` | `grid` |
+| `list-ordered` | `ordered-list` | `log-out` | `logout` |
+| `mail` | `envelope` | `quote` | `quote-down` |
+| `redo-2` | `redo` | `refresh-cw` | `refresh` |
+| `share-2` | `share` | `sliders-horizontal` | `slider-horizontal` |
+| `smartphone` | `mobile` | `smile` | `face-smile` |
+| `square-pen` | `pen-square` | `trash-2` | `trash` |
+| `type` | `text` | `undo-2` | `undo` |
+| `university` | `building` | `user-round-check` | `user-check` |
+| `user-round-plus` | `user-add` | `user-round` | `user` |
+| `users-round` | `users` | `message-circle` | `chat` |
 
 The `-filled` suffix selects the Filled weight of the same mapped icon.
 `gallery-duotone` layers the ReIcon Gallery Filled shape at low opacity behind
 the matching Outline strokes for the short-post image picker.
+`keyboard-hide` places the ReIcon Keyboard Outline, scaled to 85%, above the
+ReIcon Chevron Down stroke: the platform hide-keyboard sign. ReIcon has no
+dismiss glyph, and the plain `keyboard` asset stays reserved for switching back
+to the software keyboard, so the two actions never share a symbol.
 The `circle`, `circle-dot`, and `strikethrough` assets remain control glyphs
 because ReIcon has no matching radio or strikethrough symbol; see
 [LICENSE-lucide.txt](LICENSE-lucide.txt). Provider and social brand marks

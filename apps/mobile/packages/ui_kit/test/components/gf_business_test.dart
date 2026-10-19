@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui' show SemanticsAction;
 
 import 'package:flutter/material.dart';
@@ -691,6 +692,7 @@ void main() {
                 stickerOpen: stickerOpen,
                 compactEditor: compact,
                 hideKeyboardLabel: 'Hide',
+                hidePanelLabel: 'Hide stickers',
                 onHideAccessory: () => hidden++,
               ),
             ),
@@ -711,10 +713,21 @@ void main() {
 
       await tester.pumpWidget(composer(stickerOpen: true));
       await tester.pumpAndSettle();
-      expect(tester.getRect(find.byTooltip('Hide')), idle);
+      // Switch-to-keyboard and hide read differently, by glyph and by name.
+      final shown = tester
+          .widgetList<GfSymbol>(find.byType(GfSymbol))
+          .map((symbol) => symbol.name)
+          .toList();
+      expect(shown, containsAll(<String>['keyboard', 'keyboard-hide']));
+      expect(
+        File('assets/icons/keyboard-hide.svg').readAsStringSync(),
+        isNot(File('assets/icons/keyboard.svg').readAsStringSync()),
+      );
+      expect(find.byTooltip('Hide'), findsNothing);
+      expect(tester.getRect(find.byTooltip('Hide stickers')), idle);
       expect(tester.getSize(find.byType(GfPostComposer)).height, idleHeight);
       expect(tester.widget<TextField>(find.byType(TextField)).maxLines, 4);
-      await tester.tap(find.byTooltip('Hide'));
+      await tester.tap(find.byTooltip('Hide stickers'));
       expect(hidden, 1);
 
       await tester.pumpWidget(composer(stickerOpen: true, compact: true));

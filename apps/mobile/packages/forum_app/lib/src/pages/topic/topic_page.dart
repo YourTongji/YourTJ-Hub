@@ -1986,6 +1986,9 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                           return GfPostComposer(
                                             hideKeyboardLabel:
                                                 l10n.commonHideKeyboard,
+                                            hidePanelLabel: StickerStrings(
+                                              context,
+                                            ).hidePanel,
                                             onHideAccessory:
                                                 _hideReplyAccessory,
                                             onCollapse: _closeComposer,

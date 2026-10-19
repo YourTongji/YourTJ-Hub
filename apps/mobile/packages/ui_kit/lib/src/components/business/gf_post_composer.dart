@@ -21,6 +21,7 @@ class GfPostComposer extends StatefulWidget {
     required this.hintText,
     this.focusNode,
     this.hideKeyboardLabel,
+    this.hidePanelLabel,
     this.onHideAccessory,
     this.onCollapse,
     this.collapseLabel,
@@ -47,6 +48,9 @@ class GfPostComposer extends StatefulWidget {
   final TextEditingController controller;
   final FocusNode? focusNode;
   final String? hideKeyboardLabel;
+
+  /// Names the same hide action while the sticker panel is open.
+  final String? hidePanelLabel;
 
   /// Dismisses the open keyboard or panel; defaults to removing focus.
   final VoidCallback? onHideAccessory;
@@ -419,10 +423,13 @@ class _GfPostComposerState extends State<GfPostComposer> {
                           ? null
                           : widget.onPickSticker,
                     ),
-                  // Always present so the row never reflows on a switch.
+                  // Always present so the row never reflows on a switch. The
+                  // hide glyph (keyboard over a down chevron) never repeats the
+                  // plain keyboard glyph of the switch beside it.
                   _tool(
                     icon: const GfSymbol('keyboard-hide', size: 23),
                     tooltip:
+                        (widget.stickerOpen ? widget.hidePanelLabel : null) ??
                         widget.hideKeyboardLabel ??
                         MaterialLocalizations.of(context).closeButtonTooltip,
                     onPressed: _focus.hasFocus || widget.stickerOpen
