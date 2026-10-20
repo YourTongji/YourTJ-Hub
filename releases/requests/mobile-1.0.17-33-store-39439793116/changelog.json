@@ -1,0 +1,292 @@
+{
+  "schemaVersion": 1,
+  "notesFormatVersion": 2,
+  "version": "1.0.17",
+  "buildNumber": 33,
+  "highlights": [
+    {
+      "id": "pr-1070",
+      "title": "匿名身份",
+      "summary": "每个认证用户支持获取一个持久的匿名身份，在允许匿名的板块使用花名发帖和回复，并且支持隐藏你的匿名主页。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-1133",
+      "title": "主页隐私设置",
+      "summary": "支持分别设置个人主页中各类信息的可见范围，提供更细化的个人隐私信息控制。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-1058",
+      "title": "机器人回复开关",
+      "summary": "主题作者可以设置是否允许机器人回复自己的主题。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-1168",
+      "title": "通行密钥",
+      "summary": "在站点开启且设备支持时，可添加、管理通行密钥并用于登录。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-1043",
+      "title": "内容审核优化",
+      "summary": "优化了内容审查，使得内容审查更加无感，在内容管理中可以跟踪审核状态，已公开内容修改送审时保留原公开版本，被拒后可修改重新提交。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-1234",
+      "title": "审核结果申诉",
+      "summary": "可以在内容管理中查看被拒内容和原因，向管理人员发起申诉。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-1121",
+      "title": "个人贴纸审核",
+      "summary": "上传个人贴纸后查看审核状态，通过后再使用。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-1157",
+      "title": "个人资料装饰",
+      "summary": "可以佩戴系统发放的头像框和多彩昵称。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-1208",
+      "title": "平台链接预览",
+      "summary": "支持在内容中展示 B 站和 Apple Music 链接预览。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-1062",
+      "title": "为你推荐",
+      "summary": "引入实验性的内容推荐以及今日热榜。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-1214",
+      "title": "外链打开提示",
+      "summary": "按站点白名单处理外链，受信任的链接可免去重复确认。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-1123",
+      "title": "搜索页面",
+      "summary": "优化了搜索页面的设计，调整搜索入口、最近搜索和结果分类布局，支持删除单条搜索记录。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-1135",
+      "title": "消息分类",
+      "summary": "为通知新增了分类，按互动类型展示通知信息，并可结合未读筛选你收到的各类平台通知。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-1135-push",
+      "title": "私信与互动推送",
+      "summary": "完善私信和互动通知的推送分类及内容展示。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-1170",
+      "title": "平板与宽屏布局",
+      "summary": "按窗口宽度组织导航和内容，改善设置页及阅读页面的大屏布局。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-1169",
+      "title": "Emoji 显示与复制",
+      "summary": "统一内容中的 Twemoji 展示，改善在不同系统下 Emoji 文本选择与复制。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-1117",
+      "title": "邮箱激活引导",
+      "summary": "补充APP中未激活邮箱的提示及重新发送验证邮件入口。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-1137",
+      "title": "启动页面衔接",
+      "summary": "在品牌启动层下完成数据准备，就绪后再显示应用内容。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-1287",
+      "title": "回复重新编辑器优化",
+      "summary": "使用全屏回复编辑器修改内容，保留图片、贴纸和提及操作。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "fix"
+    },
+    {
+      "id": "pr-1286",
+      "title": "回复输入表情贴纸跳动优化",
+      "summary": "改善回复区在键盘和表情面板切换时的位置保持。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "fix"
+    },
+    {
+      "id": "pr-1130",
+      "title": "编辑器光标跟随",
+      "summary": "输入时让光标保持在可见区域，并限制正文图片的编辑展示高度。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "fix"
+    },
+    {
+      "id": "pr-1118",
+      "title": "排课搜索输入",
+      "summary": "修复排课器搜索时键盘收起和输入内容丢失的问题。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "fix"
+    },
+    {
+      "id": "pr-1141",
+      "title": "课表显示修复",
+      "summary": "修复课表覆盖灰框和调休规则相关的状态冲突。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "fix"
+    }
+  ],
+  "breaking": [],
+  "requiredActions": [],
+  "evidence": {
+    "pr-1070": [
+      "99247e9483cd5f10a306de0f"
+    ],
+    "pr-1133": [
+      "459eef881749a83f307e4191"
+    ],
+    "pr-1058": [
+      "bf059cb6268d6505a8684cf3"
+    ],
+    "pr-1168": [
+      "a5e66b8c7e4d26314c59c260"
+    ],
+    "pr-1234": [
+      "80e9e0192c9919510481b149"
+    ],
+    "pr-1121": [
+      "d03dfcacdda75c51abc68cb8"
+    ],
+    "pr-1157": [
+      "8ac4dbda1377671494d029fa"
+    ],
+    "pr-1208": [
+      "cf71d2240bf1cc62f19af702"
+    ],
+    "pr-1214": [
+      "20bec10461e272a67c9a7235",
+      "d91cff85201b739401926460"
+    ],
+    "pr-1123": [
+      "fadf9fb24544dc3fa46ff101"
+    ],
+    "pr-1135": [
+      "c2ab5d9261758edfbb536724"
+    ],
+    "pr-1170": [
+      "7460c39efb3bf4a4af6a3fa2"
+    ],
+    "pr-1169": [
+      "3de87512ebd289f9a940943a"
+    ],
+    "pr-1117": [
+      "978c5535c2ddecda1476c32e"
+    ],
+    "pr-1137": [
+      "4d4f0d5eb9165a457456041f"
+    ],
+    "pr-1287": [
+      "8fef9af8e423f0bd3e0e6e65"
+    ],
+    "pr-1286": [
+      "540e2b15366ff32b24098658"
+    ],
+    "pr-1130": [
+      "b087df272f0950dddbebe609",
+      "96cc9369e58e0572fe2342cb"
+    ],
+    "pr-1118": [
+      "e17cb1a6cf19ad498eb2528d"
+    ],
+    "pr-1141": [
+      "0186ac91e91d476310fb9429",
+      "e17cb1a6cf19ad498eb2528d"
+    ],
+    "pr-1043": [
+      "80e9e0192c9919510481b149"
+    ],
+    "pr-1135-push": [
+      "bee34c5f78d4811562551d0c"
+    ],
+    "pr-1062": [
+      "4dbf9f6164dcdd2924086dcc"
+    ]
+  },
+  "testflightNotes": []
+}
