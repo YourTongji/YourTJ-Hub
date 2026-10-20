@@ -764,6 +764,60 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('back with the sticker panel open folds it before closing', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.reset);
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: MemoryTokenStorage(),
+      baseUrl: 'https://example.test',
+    );
+    final library = StickerLibrary(ComposerStickerRepository(client));
+    addTearDown(library.dispose);
+    await pump(
+      tester,
+      repo(),
+      PostActions(
+        post: post(),
+        onChanged: () async {},
+        onReply: () {},
+        onReport: () {},
+      ),
+      overrides: [
+        stickerLibraryProvider.overrideWithValue(library),
+        stickerCollectionProvider.overrideWith(
+          (ref) =>
+              StickerCollection(ComposerStickerRepository(client), library),
+        ),
+      ],
+    );
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    final GfPostComposer composer = tester.widget(
+      find.byKey(const Key('post-edit-composer')),
+    );
+    await tester.tap(find.byTooltip(composer.stickerTooltip!));
+    await tester.pumpAndSettle();
+    expect(find.byType(StickerPicker), findsOneWidget);
+    final l10n = AppLocalizations.of(tester.element(find.byType(PostEditor)));
+    // First back only folds the panel; the clean editor stays open.
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(StickerPicker), findsNothing);
+    expect(find.byType(PostEditor), findsOneWidget);
+    expect(find.text(l10n.publishLeaveTitle), findsNothing);
+    // Second back closes the unchanged editor without asking.
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(PostEditor), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final width in [390.0, 1120.0]) {
     testWidgets(
       'dirty reply editor opens full screen and confirms every close at $width',

@@ -144,10 +144,14 @@ class _PostEditorState extends ConsumerState<PostEditor> {
     _stickerSelection = _text.selection;
   }
 
+  /// Saved content keeps leading indentation; only trailing whitespace is
+  /// dropped. The dirty check compares the same normalized value.
+  static String _normalized(String text) => text.trimRight();
+
   Future<void> _close() async {
     if (_busy || _uploading) return;
     final l10n = AppLocalizations.of(context);
-    if (_text.text != widget.content) {
+    if (_normalized(_text.text) != _normalized(widget.content)) {
       final discard = await showGfAlertDialog<bool>(
         context,
         builder: (context) => GfAlertDialog(
@@ -188,7 +192,7 @@ class _PostEditorState extends ConsumerState<PostEditor> {
     try {
       final UpdatePostResult updated = await ref
           .read(postRepositoryProvider)
-          .updatePost(postId: widget.postId, content: _text.text.trim());
+          .updatePost(postId: widget.postId, content: _normalized(_text.text));
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       if (updated.pendingReview) {
         final AppLocalizations l10n = AppLocalizations.of(context);
@@ -272,7 +276,13 @@ class _PostEditorState extends ConsumerState<PostEditor> {
     return PopScope(
       canPop: _allowPop,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _close();
+        if (didPop) return;
+        // Back first folds an open sticker panel, like the topic composer.
+        if (_stickerOpen) {
+          _hideAccessory();
+          return;
+        }
+        _close();
       },
       child: Scaffold(
         // The accessory slot is the only consumer of the keyboard inset.
