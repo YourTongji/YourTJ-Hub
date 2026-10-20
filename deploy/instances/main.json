@@ -7,7 +7,7 @@
   "pg_dbname": "yourtj_main",
   "search_maintenance_enabled": true,
   "feed": {
-    "ranking_enabled": false,
+    "ranking_enabled": true,
     "for_you_enabled": false,
     "metrics_enabled": false,
     "rollout_percent": 20,
