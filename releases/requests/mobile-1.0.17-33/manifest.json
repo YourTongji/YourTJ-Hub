@@ -36,6 +36,9 @@
     "ios-testflight": "testflight.en-US.txt",
     "ios-app-store": "ios.zh-Hans.txt"
   },
-  "serverRequirement": null,
+  "serverRequirement": {
+    "sourceSha": "f34e7b04c2880b4ab1eb3ee220291715ba2ec72f",
+    "reason": "正式 App 的匿名身份、主页隐私、通行密钥、通知分类与审核申诉依赖对应服务端接口；Web 0.0.51 已部署此源码，发布前按生产回执复核。"
+  },
   "requiredDisclosures": []
 }
