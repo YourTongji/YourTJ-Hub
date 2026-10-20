@@ -240,22 +240,25 @@ func (c *Client) fetchDocument(ctx context.Context, rawURL string, policy docume
 }
 
 func (c *Client) dialVerified(ctx context.Context, network, address string) (net.Conn, error) {
-	return c.dialVerifiedWithPolicy(ctx, network, address, false)
+	return c.dialVerifiedWithPolicy(ctx, network, address, false, isPublic)
 }
-func (c *Client) dialVerifiedWithPolicy(ctx context.Context, network, address string, rejectMapped bool) (net.Conn, error) {
+
+// dialVerifiedWithPolicy resolves again for every connection and pins the
+// accepted address, so a receiver cannot rebind DNS between check and dial.
+func (c *Client) dialVerifiedWithPolicy(ctx context.Context, network, address string, rejectMapped bool, accept func(netip.Addr) bool) (net.Conn, error) {
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return nil, &FetchError{Class: ErrorBlocked, Err: err}
 	}
-	addresses, err := c.resolvePublic(ctx, strings.Trim(host, "[]"), rejectMapped)
+	addresses, err := c.resolveAccepted(ctx, strings.Trim(host, "[]"), rejectMapped, accept)
 	if err != nil {
 		return nil, err
 	}
 	return c.dialContext(ctx, network, net.JoinHostPort(addresses[0].String(), port))
 }
 
-// resolvePublic is shared by configuration checks and each fresh connection.
-func (c *Client) resolvePublic(ctx context.Context, host string, rejectMapped bool) ([]netip.Addr, error) {
+// resolveAccepted is shared by configuration checks and each fresh connection.
+func (c *Client) resolveAccepted(ctx context.Context, host string, rejectMapped bool, accept func(netip.Addr) bool) ([]netip.Addr, error) {
 	addresses := []netip.Addr{}
 	if literal, err := netip.ParseAddr(host); err == nil {
 		addresses = append(addresses, literal)
@@ -271,8 +274,8 @@ func (c *Client) resolvePublic(ctx context.Context, host string, rejectMapped bo
 		return nil, &FetchError{Class: ErrorUnavailable, Err: errors.New("DNS returned no addresses")}
 	}
 	for _, address := range addresses {
-		if (rejectMapped && address.Is4In6()) || !isPublic(address.Unmap()) {
-			return nil, &FetchError{Class: ErrorBlocked, Err: errors.New("non-public target")}
+		if (rejectMapped && address.Is4In6()) || !accept(address.Unmap()) {
+			return nil, &FetchError{Class: ErrorBlocked, Err: errors.New("rejected target address")}
 		}
 	}
 	return addresses, nil
@@ -285,8 +288,57 @@ func (c *Client) CheckWebhookTarget(ctx context.Context, rawURL string) error {
 		return err
 	}
 	target, _ := url.Parse(rawURL)
-	_, err := c.resolvePublic(ctx, target.Hostname(), true)
+	_, err := c.resolveAccepted(ctx, target.Hostname(), true, isPublic)
 	return err
+}
+
+// CheckNotifyTarget checks the notification URL policy and every DNS answer
+// without making an HTTP request. Actual sends resolve again and pin their
+// validated dial address.
+func (c *Client) CheckNotifyTarget(ctx context.Context, rawURL string) error {
+	if err := ValidateNotifyURL(rawURL); err != nil {
+		return err
+	}
+	target, err := url.Parse(rawURL)
+	if err != nil {
+		return &FetchError{Class: ErrorInvalid, Err: err}
+	}
+	_, err = c.resolveAccepted(ctx, target.Hostname(), true, isNotifyTarget)
+	return err
+}
+
+// DoNotify sends a caller-built notification request to a target accepted by
+// ValidateNotifyURL and returns the live response; the caller closes the body
+// and owns response interpretation. Every connection re-resolves and pins the
+// accepted address, proxies are off, connections are not pooled and redirects
+// are not followed. Request headers stay exactly as the caller built them:
+// they are set by this codebase (X-Goose-* and channel credentials).
+func (c *Client) DoNotify(ctx context.Context, req *http.Request, timeout time.Duration) (*http.Response, error) {
+	if req == nil || req.URL == nil {
+		return nil, &FetchError{Class: ErrorInvalid}
+	}
+	if err := ValidateNotifyURL(req.URL.String()); err != nil {
+		return nil, err
+	}
+	select {
+	case c.semaphore <- struct{}{}:
+		defer func() { <-c.semaphore }()
+	case <-ctx.Done():
+		return nil, classifyError(ctx.Err())
+	}
+	base := c.httpClient.Transport.(*http.Transport)
+	transport := base.Clone()
+	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		return c.dialVerifiedWithPolicy(ctx, network, address, true, isNotifyTarget)
+	}
+	transport.DisableKeepAlives = true
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport, Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	response, err := client.Do(req.WithContext(ctx))
+	if err != nil {
+		return nil, classifyError(err)
+	}
+	return response, nil
 }
 
 var reservedPrefixes = []netip.Prefix{
@@ -306,8 +358,17 @@ var reservedPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("2002::/16"),
 }
 
-func isPublic(address netip.Addr) bool {
-	if !address.IsValid() || !address.IsGlobalUnicast() || address.IsPrivate() || address.IsLoopback() || address.IsLinkLocalUnicast() || address.IsUnspecified() {
+func isPublic(address netip.Addr) bool { return !address.IsPrivate() && isNotifyTarget(address) }
+
+// isNotifyTarget accepts intranet notification receivers: RFC1918/ULA private
+// space and any port are legitimate for an enterprise webhook. Everything the
+// server itself can reach locally (loopback, link-local, multicast,
+// unspecified) and the reserved non-routable prefixes stay blocked.
+//
+// shortcut: 私网目标一律放行（企业内网通知是合法场景）；若通知配置将来向多租户或
+// 非站点管理员开放，需改为显式的“允许内网目标”开关或端点白名单。
+func isNotifyTarget(address netip.Addr) bool {
+	if !address.IsGlobalUnicast() {
 		return false
 	}
 	for _, prefix := range reservedPrefixes {
@@ -344,22 +405,7 @@ func ValidateWebhookURL(raw string) error {
 		return &FetchError{Class: ErrorBlocked}
 	}
 	if _, err := netip.ParseAddr(hostname); err != nil {
-		numeric := true
-		parts := strings.Split(hostname, ".")
-		if len(parts) > 4 {
-			numeric = false
-		}
-		for _, part := range parts {
-			base := 10
-			if strings.HasPrefix(part, "0x") {
-				base = 16
-				part = strings.TrimPrefix(part, "0x")
-			}
-			if _, err := strconv.ParseUint(part, base, 32); err != nil {
-				numeric = false
-			}
-		}
-		if numeric {
+		if numericHost(hostname) {
 			return &FetchError{Class: ErrorBlocked}
 		}
 	}
@@ -367,6 +413,55 @@ func ValidateWebhookURL(raw string) error {
 		return &FetchError{Class: ErrorBlocked}
 	}
 	if ip, err := netip.ParseAddr(u.Hostname()); err == nil && (ip.Is4In6() || !isPublic(ip)) {
+		return &FetchError{Class: ErrorBlocked}
+	}
+	return nil
+}
+
+// numericHost reports hostnames that some resolvers read as an IPv4 literal
+// (127.1, 0177.0.0.1, 0x7f.1, 2130706433). They must be rejected at the URL
+// layer instead of being handed to DNS.
+func numericHost(hostname string) bool {
+	parts := strings.Split(hostname, ".")
+	if len(parts) > 4 {
+		return false
+	}
+	for _, part := range parts {
+		base := 10
+		if strings.HasPrefix(part, "0x") {
+			base = 16
+			part = strings.TrimPrefix(part, "0x")
+		}
+		if _, err := strconv.ParseUint(part, base, 32); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+// ValidateNotifyURL is the URL-level half of the notification target policy:
+// http or https on any port, including RFC1918/ULA intranet receivers, but no
+// loopback, link-local, multicast, unspecified, reserved, IPv4-mapped literal,
+// userinfo, fragment or localhost host name.
+func ValidateNotifyURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return &FetchError{Class: ErrorInvalid}
+	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.Fragment != "" {
+		return &FetchError{Class: ErrorBlocked}
+	}
+	hostname := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
+	if hostname == "" || hostname == "localhost" || strings.HasSuffix(hostname, ".localhost") || strings.Contains(hostname, "%") {
+		return &FetchError{Class: ErrorBlocked}
+	}
+	if ip, err := netip.ParseAddr(hostname); err == nil {
+		if ip.Is4In6() || !isNotifyTarget(ip) {
+			return &FetchError{Class: ErrorBlocked}
+		}
+		return nil
+	}
+	if numericHost(hostname) {
 		return &FetchError{Class: ErrorBlocked}
 	}
 	return nil
@@ -417,7 +512,7 @@ func (c *Client) PostJSON(ctx context.Context, rawURL string, body []byte, heade
 	base := c.httpClient.Transport.(*http.Transport)
 	transport := base.Clone()
 	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
-		return c.dialVerifiedWithPolicy(ctx, network, address, true)
+		return c.dialVerifiedWithPolicy(ctx, network, address, true, isPublic)
 	}
 	transport.DisableKeepAlives = true
 	defer transport.CloseIdleConnections()
