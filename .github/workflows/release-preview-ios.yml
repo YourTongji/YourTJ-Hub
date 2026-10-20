@@ -89,6 +89,15 @@ jobs:
           IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
         run: |
           python3 scripts/mobile-release/build_ios.py
+      - name: Preserve Xcode diagnostics even when archive fails
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: preview-ios-build-logs-${{ github.run_attempt }}
+          path: .source/apps/mobile/build/release/*.log
+          retention-days: 30
+          include-hidden-files: true
+          if-no-files-found: ignore
       - name: Preserve signed IPA and symbols for recovery
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
