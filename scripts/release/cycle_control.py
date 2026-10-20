@@ -133,7 +133,10 @@ def production_gate(github, source, channels, manifest=None, binding=None, promo
         return None
     cycle = authorize_source(state, source, channels, int(time.time()), allow_closed=reserved)
     if cycle.get('completion'):
-        require(manifest and manifest['candidateId'] == cycle['completion']['candidate']
+        request_id = manifest['candidateId'] if manifest else None
+        if manifest and manifest.get('operation') == 'promote-ios' and channels == ['ios-app-store']:
+            request_id = manifest['existingRelease']['candidateId']
+        require(manifest and request_id == cycle['completion']['candidate']
                 and set(channels) <= set(cycle['completion']['channels']),
                 'This cycle ended with another formal request; start a new cycle for later platforms')
     fetch_source(source)
