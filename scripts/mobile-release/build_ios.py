@@ -28,7 +28,7 @@ WIDGET_APP_GROUP = "group.tj.yourtj.forumApp.widgets"
 
 
 def validate_profile(profile, team, now=None, bundle_id=BUNDLE_ID,
-                     require_push=True):
+                     require_push=True, associated_domains=()):
     now = now or datetime.datetime.now(datetime.timezone.utc)
     expires = profile["ExpirationDate"].replace(tzinfo=datetime.timezone.utc)
     entitlements = profile["Entitlements"]
@@ -44,6 +44,9 @@ def validate_profile(profile, team, now=None, bundle_id=BUNDLE_ID,
         raise ValueError("App Store profile must enable production Push Notifications; regenerate the profile")
     if bundle_id == BUNDLE_ID and entitlements.get("com.apple.developer.applesignin") != ["Default"]:
         raise ValueError("App Store profile must enable Sign in with Apple")
+    allowed_domains = entitlements.get("com.apple.developer.associated-domains", [])
+    if associated_domains and "*" not in allowed_domains and not set(associated_domains) <= set(allowed_domains):
+        raise ValueError("App Store profile must enable Associated Domains for the source app; regenerate IOS_PROFILE_BASE64")
     if WIDGET_APP_GROUP not in entitlements.get(
             "com.apple.security.application-groups", []):
         raise ValueError("Distribution profile must enable the schedule App Group")
@@ -133,7 +136,9 @@ def main():
         ["security", "cms", "-D", "-i", str(profile_path)], stderr=subprocess.DEVNULL))
     widget_profile = plistlib.loads(subprocess.check_output(
         ["security", "cms", "-D", "-i", str(widget_profile_path)], stderr=subprocess.DEVNULL))
-    validate_profile(profile, team)
+    source_entitlements = plistlib.loads((APP / "ios/Runner/Runner.entitlements").read_bytes())
+    validate_profile(profile, team, associated_domains=source_entitlements.get(
+        "com.apple.developer.associated-domains", []))
     validate_profile(
         widget_profile, team, bundle_id=WIDGET_BUNDLE_ID,
         require_push=False,

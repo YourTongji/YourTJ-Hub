@@ -16,8 +16,10 @@ class IosResumeTest(unittest.TestCase):
         note.write_text('Reviewed iOS App Store changes', encoding='utf-8')
         test_note = Path(self.notes.name) / 'testflight.txt'
         test_note.write_text('Test the iOS-only beta widget', encoding='utf-8')
-        self.env = patch.dict(os.environ, RELEASE_NOTES_DIGESTS=json.dumps({'ios.zh-Hans.txt': hashlib.sha256(note.read_bytes()).hexdigest(), 'testflight.en-US.txt': hashlib.sha256(test_note.read_bytes()).hexdigest()}), MOBILE_VERSION='1.0.1', MOBILE_BUILD_NUMBER='2', IOS_IPA_PATH='/unused.ipa', IOS_PUBLISH_TARGET='both', IOS_EXISTING_BUILD_ONLY='false', IOS_TESTFLIGHT_NOTES_PATH=str(test_note), IOS_STORE_NOTES_PATH=str(note))
+        # Tests run inside release jobs; never inherit their live receipt destination.
+        self.env = patch.dict(os.environ, RELEASE_RESULT_PATH=str(Path(self.notes.name) / 'result.json'), RELEASE_NOTES_DIGESTS=json.dumps({'ios.zh-Hans.txt': hashlib.sha256(note.read_bytes()).hexdigest(), 'testflight.en-US.txt': hashlib.sha256(test_note.read_bytes()).hexdigest()}), MOBILE_VERSION='1.0.1', MOBILE_BUILD_NUMBER='2', IOS_IPA_PATH='/unused.ipa', IOS_PUBLISH_TARGET='both', IOS_EXISTING_BUILD_ONLY='false', IOS_TESTFLIGHT_NOTES_PATH=str(test_note), IOS_STORE_NOTES_PATH=str(note))
         self.env.start()
+        os.environ.pop('IOS_EXPECTED_BUILD_ID', None)
         os.environ.pop('IOS_STORE_PATH', None)
         os.environ.pop('GITHUB_STEP_SUMMARY', None)
         self.addCleanup(self.env.stop)

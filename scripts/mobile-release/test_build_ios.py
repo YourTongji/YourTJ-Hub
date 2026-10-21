@@ -23,6 +23,7 @@ class DistributionProfileTest(unittest.TestCase):
             "Entitlements": {
                 "application-identifier": "4HJTS3G3T2.tj.yourtj.forumApp",
                 "get-task-allow": False,
+                "com.apple.developer.associated-domains": ["*"],
                 "aps-environment": "production",
                 "com.apple.developer.applesignin": ["Default"],
                 "com.apple.security.application-groups": [
@@ -48,6 +49,16 @@ class DistributionProfileTest(unittest.TestCase):
             validate_profile(self.profile, "4HJTS3G3T2", self.now)
         with self.assertRaisesRegex(ValueError, "Apple"):
             validate_app_entitlements(self.profile["Entitlements"], "4HJTS3G3T2")
+
+    def test_associated_domains_requires_matching_profile_capability(self):
+        self.profile["Entitlements"].pop("com.apple.developer.associated-domains")
+        for allowed in ([], ["webcredentials:f.yourtj.de"]):
+            self.profile["Entitlements"]["com.apple.developer.associated-domains"] = allowed
+            with self.assertRaisesRegex(ValueError, "Associated Domains"):
+                validate_profile(self.profile, "4HJTS3G3T2", self.now,
+                                 associated_domains=["webcredentials:dev.yourtj.de"])
+        self.profile["Entitlements"]["com.apple.developer.associated-domains"] = ["*"]
+        validate_profile(self.profile, "4HJTS3G3T2", self.now, associated_domains=["webcredentials:dev.yourtj.de"])
 
     def test_app_store_profile(self):
         validate_profile(self.profile, "4HJTS3G3T2", self.now)

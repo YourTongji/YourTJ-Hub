@@ -18,23 +18,63 @@ def check_groups(groups, selected):
     if (not selected or selected == GROUP_ID or len(matches) != 1
             or matches[0]['attributes'].get('isInternalGroup') is not True):
         raise ValueError('Preview needs a dedicated internal TestFlight group, distinct from production')
-    if any(g['id'] != selected and g['attributes'].get('hasAccessToAllBuilds') is not False for g in groups):
-        raise ValueError('Another TestFlight group has automatic/unknown all-build access; reconcile before uploading previews')
+    for group in groups:
+        if group['id'] == selected:
+            continue
+        attributes = group['attributes']
+        automatic = attributes.get('hasAccessToAllBuilds')
+        # External groups require explicit build assignment/review, and omit this internal flag.
+        # https://developer.apple.com/help/app-store-connect/test-a-beta-version/invite-external-testers/
+        if automatic is True or (attributes.get('isInternalGroup') is not False and automatic is not False):
+            raise ValueError('Another TestFlight group may automatically receive previews; reconcile before uploading')
+
+
+def preview_group():
+    group = os.environ.get('PRERELEASE_TESTFLIGHT_GROUP_ID', '')
+    check_groups(asc('testflight', 'groups', 'list', '--app', APP_ID, '--paginate')['data'], group)
+    return group
+
+
+def assign_internal_group(build, group):
+    def membership():
+        result = asc('builds', 'groups', 'list', '--build-id', build)
+        if (result.get('appId') != APP_ID or result.get('buildId') != build
+                or result.get('complete') is not True or result.get('failures')):
+            raise ValueError('Cannot verify the complete preview build audience')
+        groups = result.get('groups', [])
+        if any(g.get('id') != group or g.get('type') != 'internal' for g in groups):
+            raise ValueError('Preview build has an unexpected testing audience')
+        return any(g.get('id') == group for g in groups)
+
+    if membership():
+        return
+    groups = asc('testflight', 'groups', 'list', '--app', APP_ID, '--paginate')['data']
+    check_groups(groups, group)
+    selected = next(g for g in groups if g['id'] == group)
+    # Apple rejects explicit assignment to internal groups with automatic all-build access.
+    if selected['attributes'].get('hasAccessToAllBuilds') is not True:
+        asc('builds', 'add-groups', '--build-id', build, '--group', group)
+    if not membership():
+        raise ValueError('Internal group has not received the preview; reconcile and retry')
 
 
 def main():
     dart_defines()
     if os.environ.get('MOBILE_PREVIEW') != 'true':
         raise ValueError('This publisher accepts previews only')
-    group = os.environ.get('PRERELEASE_TESTFLIGHT_GROUP_ID', '')
-    check_groups(asc('testflight', 'groups', 'list', '--app', APP_ID, '--paginate')['data'], group)
+    group = preview_group()
     version, number = os.environ['MOBILE_VERSION'], os.environ['MOBILE_BUILD_NUMBER']
     result_path = Path(os.environ.get('RELEASE_RESULT_PATH', '.preview-ios.json'))
     def record(stage, **data):
         result_path.write_text(json.dumps({'stage': stage, 'version': version, 'buildNumber': number,
             'source': os.environ['SOURCE_SHA'], 'environment': os.environ['MOBILE_ENVIRONMENT'], **data}) + '\n')
     record('checking_upload')
-    if find_build(version, number) is None:
+    existing = find_build(version, number)
+    expected = os.environ.get('IOS_EXPECTED_BUILD_ID')
+    if os.environ.get('IOS_EXISTING_BUILD_ONLY') == 'true' and (
+            not existing or not expected or existing['id'] != expected):
+        raise ValueError('Preview recovery requires the exact existing Apple build; never re-upload')
+    if existing is None:
         uploads = asc('builds', 'uploads', 'list', '--app', APP_ID, '--cf-bundle-short-version', version,
                       '--cf-bundle-version', number, '--paginate')['data']
         if uploads:
@@ -45,11 +85,13 @@ def main():
                 '--version', version, '--build-number', number)
     record('processing')
     build = wait_for_build(version, number)
+    if expected and build != expected:
+        raise ValueError('Apple build differs from the original preview receipt')
     record('processed', buildId=build)
     subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / 'release/cycle_control.py'),
                     'check-build'], check=True)
     # Recheck scope after processing; a group may have changed while waiting.
-    check_groups(asc('testflight', 'groups', 'list', '--app', APP_ID, '--paginate')['data'], group)
+    preview_group()
     asc('builds', 'update', '--build-id', build, '--uses-non-exempt-encryption=false')
     notes = (f"{os.environ['MOBILE_ENVIRONMENT'].upper()} testing only. Source {os.environ['SOURCE_SHA']}. "
              "Complete the release issue's device checklist. Current candidate and return-to-production instructions: "
@@ -58,7 +100,7 @@ def main():
                 if n.get('attributes', {}).get('locale') == 'en-US']
     asc('builds', 'test-notes', 'update' if existing else 'create', '--build-id', build,
         '--locale', 'en-US', '--whats-new', notes)
-    asc('builds', 'add-groups', '--build-id', build, '--group', group)
+    assign_internal_group(build, group)
     details = resource(asc('builds', 'build-beta-detail', 'view', '--build-id', build))
     stage = details.get('attributes', {}).get('internalBuildState')
     record('assigned', buildId=build, appleState=stage, group=group)
@@ -71,4 +113,10 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    if sys.argv[1:] == ['--check-groups']:
+        preview_group()
+        print('Internal TestFlight audience checks passed.')
+    elif sys.argv[1:]:
+        raise SystemExit('Usage: publish_preview_ios.py [--check-groups]')
+    else:
+        main()

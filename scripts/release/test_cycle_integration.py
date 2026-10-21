@@ -144,6 +144,23 @@ class CycleIntegrationTests(unittest.TestCase):
             with self.assertRaisesRegex(ReleaseError, 'start a new cycle'):
                 production_gate(Mock(), SHA, ['android'], manifest=candidate())
 
+    def test_closed_cycle_allows_store_copy_promotion_of_completed_request_only(self):
+        state = transition(empty_state(), 'start', 'alice', 100, cycle='42', source=SHA,
+                           issue=1240, channels=['ios-testflight', 'ios-app-store'])
+        state['cycles']['42'].update(phase='closed', frozen=False, qa={'source': SHA},
+            productionQa={'source': SHA}, completion={'candidate': 'mobile-original',
+            'channels': ['ios-testflight', 'ios-app-store']})
+        state['active'] = None
+        manifest = candidate() | {'candidateId': 'mobile-store-copy', 'operation': 'promote-ios',
+                                 'existingRelease': {'candidateId': 'mobile-original', 'buildId': 'apple-build'}}
+        with patch('cycle_control.load', return_value=state), patch('cycle_control.fetch_source'), \
+             patch('cycle_control.includes_hotfixes'), patch('cycle_control.reviewed_main_pr'), \
+             patch('build_identity.verify_production_number'):
+            production_gate(Mock(), SHA, ['ios-app-store'], manifest=manifest)
+            manifest['existingRelease']['candidateId'] = 'another-release'
+            with self.assertRaisesRegex(ReleaseError, 'start a new cycle'):
+                production_gate(Mock(), SHA, ['ios-app-store'], manifest=manifest)
+
     def test_rerunning_only_dev_deploy_cannot_preserve_previous_qa(self):
         state = transition(empty_state(), 'start', 'alice', 100, cycle='42', source=SHA,
                            issue=1240, channels=['web'])

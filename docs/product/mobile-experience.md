@@ -731,8 +731,29 @@ identity survive this layout change. The header keeps a small outer margin for i
   Continue editing as full-width actions; dismissing it continues editing.
 
 - `Current`: reply composers use one rounded surface with a borderless, growing two-line input.
-  Image, hide-keyboard, collapse and send actions share the bottom row. The reply target is a
+  Image, sticker/keyboard, hide and send actions share the bottom row, and collapse sits in the input;
+  the row keeps the same actions in keyboard and sticker modes, with hide disabled while neither is
+  open. The switch shows the destination (emoji, or the plain keyboard to return to typing); hide uses
+  the hide-keyboard sign, a keyboard above a down chevron, and is named after the open surface
+  (hide keyboard or hide stickers), so neighbouring actions never share a symbol. The reply target is a
   lightweight text row; attachment previews and server-required captcha controls appear only when needed.
+  The publishing identity docks into the input's leading edge: a ring in the surface color carves a
+  socket around the avatar, centred over the image action, so it adds no height and never covers the
+  topic. As lines are added the avatar glides to the input's new centre and the socket slides along
+  the edge with it; both hold still once the input reaches its height limit and scrolls. A small swap
+  badge in the primary color (ReIcon Arrow Swap Horizontal) marks it as switchable, a switch scales the
+  new avatar in, and the name and kind stay in its tooltip and accessibility label. Choosing an identity
+  keeps the keyboard's space and returns focus to the input, so the composer does not jump. Draft save
+  state sits beside the send action as one muted line, so it never grows or clips the editor; a failed
+  local save turns it into a tappable retry in the warning color.
+- `Current`: the topic reply sticker panel replaces the software keyboard in the same slot below the
+  composer and matches the last settled keyboard height. Switching holds the outgoing surface until
+  the incoming one covers it, so the editor stays in place; without a keyboard the panel slides in and
+  out in one direction, instantly with reduced motion. The panel keeps its tab, scroll and search state
+  while the composer stays open. Searching stickers raises the keyboard below the panel and bounds the
+  editor to one line without changing its multiline input. Back closes the panel before leaving the
+  topic, and the topic stream keeps clearance above the keyboard. Platform IME timing still requires
+  physical-device verification.
   Typing `@` opens a user suggestion sheet above the software keyboard (reply target, topic author
   and participants first, then debounced server search) with Web-identical token and ranking
   semantics; selecting a candidate inserts plain `@username ` at the caret.
