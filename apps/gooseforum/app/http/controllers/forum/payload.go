@@ -2097,7 +2097,9 @@ const (
 
 func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section string, activityTab string) UserProfileProps {
 	currentUserID := component.LoginUserId(c)
-	isFollowing := userFollow.IsFollowing(currentUserID, user.Id)
+	// 本人卡片不算「已关注」：存量自关注行（#594 carve-out）也能自愈，
+	// 与 UserCard 契约「own card 恒 false」一致。
+	isFollowing := currentUserID > 0 && currentUserID != user.Id && userFollow.IsFollowing(currentUserID, user.Id)
 	userCard, ok := userservice.GetUserCard(user.Id)
 	if !ok {
 		userCard = &vo.UserCard{}
@@ -2114,7 +2116,7 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 	userCard.Badges = []badgeservice.UserBadge{}
 	userCard.IsFollowing = isFollowing
 	// 互关以「已关注」为前提，直接短路，不依赖 MutualFollowingMap 的过滤。
-	userCard.IsMutualFollowing = isFollowing && currentUserID != user.Id && userFollow.MutualFollowingMap(currentUserID, []uint64{user.Id})[user.Id]
+	userCard.IsMutualFollowing = isFollowing && userFollow.MutualFollowingMap(currentUserID, []uint64{user.Id})[user.Id]
 	userCard.IsSelf = currentUserID == user.Id
 	// Resolve visibility before any section query so hidden sections never
 	// load rows, counts or cursors (issue #1124).

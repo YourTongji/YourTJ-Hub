@@ -108,6 +108,12 @@ func TestUserProfileMutualFollowState(t *testing.T) {
 		}
 	}
 
+	// 存量自关注行（#594 carve-out 允许用 action=2 自愈）：本人条目与本人卡片
+	// 都不能因此得出「已关注/已互关」。
+	if err := conn.Create(&userFollow.Entity{UserId: viewer.Id, FollowUserId: viewer.Id, Status: 1}).Error; err != nil {
+		t.Fatalf("seed residual self follow: %v", err)
+	}
+
 	props := requestFollowStateProps(t, router, followStatePath(target.Id, ""), contractSessionToken(t, viewer))
 	if !props.User.IsFollowing || !props.User.IsMutualFollowing {
 		t.Fatalf("profile card follow state = %+v, want both directions true", props.User)
