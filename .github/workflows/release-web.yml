@@ -61,7 +61,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         if: steps.start.outputs.build_required == 'true'
         with:
-          node-version: 24
+          node-version-file: .node-version
       - name: Install frontend dependencies
         if: steps.start.outputs.build_required == 'true'
         working-directory: .source/apps/gooseforum/resource

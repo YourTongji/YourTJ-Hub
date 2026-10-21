@@ -58,7 +58,7 @@ services:
       retries: 10
 
   meilisearch:
-    image: getmeili/meilisearch:v1.11
+    image: getmeili/meilisearch:v1.47.1
     container_name: yourtj-meilisearch
     restart: unless-stopped
     environment:

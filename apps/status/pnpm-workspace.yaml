@@ -4,3 +4,10 @@ allowBuilds:
   esbuild: true
   sharp: true
   workerd: true
+overrides:
+  # GHSA-68fv-2mgg-jv7q: reject pathological indexed source maps.
+  source-map-js: ^1.2.2
+  # GHSA-wq5f-xc86-pv6w: use librsvg's fixed prebuilt binaries in local tooling.
+  sharp: ^0.35.5
+  # GHSA-hrr3-gc8f-f4qj: normalize percent-encoded hostnames consistently.
+  fast-uri: ^3.1.8
