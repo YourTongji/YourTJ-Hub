@@ -71,8 +71,10 @@ func GetUserCard(req component.BetterRequest[GetUserCardReq]) component.Response
 	currentUserId := req.UserId
 	card.IsSelf = currentUserId == userId
 	card.IsFollowing = false
+	card.IsMutualFollowing = false
 	if currentUserId > 0 && currentUserId != userId {
 		card.IsFollowing = userFollow.IsFollowing(currentUserId, userId)
+		card.IsMutualFollowing = userFollow.MutualFollowingMap(currentUserId, []uint64{userId})[userId]
 	}
 
 	return component.SuccessResponse(card)

@@ -3229,6 +3229,32 @@ FollowUserRequest:
       description: 1 follows, 2 unfollows. Values outside 1-2 fail with `common.request.invalidParams` (HTTP 200).
   additionalProperties: false
 
+FollowUserResult:
+  type: object
+  required: [isFollowing, isMutualFollowing]
+  properties:
+    isFollowing:
+      type: boolean
+      description: Follow state after the action was applied (true after follow, false after unfollow).
+    isMutualFollowing:
+      type: boolean
+      description: True only when the action left both the viewer following the target and the target following the viewer; false after unfollow and for one-way follows.
+  additionalProperties: false
+
+FollowUserSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/FollowUserResult'
+
+FollowUserResponse:
+  oneOf:
+    - $ref: '#/FollowUserSuccess'
+    - $ref: '#/ApiFailure'
+
 CreateReportRequest:
   type: object
   required: [targetType, targetId, reason]
@@ -4753,7 +4779,7 @@ UserBadge:
 
 UserCard:
   type: object
-  required: [userId, username, nickname, avatarUrl, profileCoverUrl, bio, signature, websiteName, website, prestige, isAdmin, topicCount, replyCount, likeReceivedCount, likeGivenCount, followerCount, followingCount, collectionCount, isOnline, isFollowing, externalInformation, isSelf, badges, lastActiveTime, createdAt, isAccountClosed]
+  required: [userId, username, nickname, avatarUrl, profileCoverUrl, bio, signature, websiteName, website, prestige, isAdmin, topicCount, replyCount, likeReceivedCount, likeGivenCount, followerCount, followingCount, collectionCount, isOnline, isFollowing, isMutualFollowing, externalInformation, isSelf, badges, lastActiveTime, createdAt, isAccountClosed]
   properties:
     decoration:
       $ref: "#/DecorationDisplay"
@@ -4808,6 +4834,9 @@ UserCard:
     isFollowing:
       type: boolean
       description: Viewer-specific; always false on this route because the route group mounts no JWT middleware.
+    isMutualFollowing:
+      type: boolean
+      description: Viewer-specific; true only when the authenticated viewer follows this user and the user follows back. Always false for anonymous requests and on the viewer's own card.
     externalInformation:
       $ref: '#/ExternalInformation'
     isSelf:
