@@ -9871,12 +9871,12 @@ export interface components {
             followingCount: number;
             collectionCount: number;
             isOnline: boolean;
-            /** @description Viewer-specific; always false on this route because the route group mounts no JWT middleware. */
+            /** @description Viewer-specific; true only when the authenticated viewer follows this user. Always false for anonymous requests, on the viewer's own card and on the closed (soft-deleted) tombstone card. */
             isFollowing: boolean;
-            /** @description Viewer-specific; true only when the authenticated viewer follows this user and the user follows back. Always false for anonymous requests and on the viewer's own card. */
+            /** @description Viewer-specific; true only when the authenticated viewer follows this user and the user follows back. Always false for anonymous requests, on the viewer's own card and on the closed (soft-deleted) tombstone card. */
             isMutualFollowing: boolean;
             externalInformation: components["schemas"]["ExternalInformation"];
-            /** @description Viewer-specific; always false on this route because the route group mounts no JWT middleware. */
+            /** @description Viewer-specific; true only when the authenticated viewer requests their own card. Always false for anonymous requests and on the closed (soft-deleted) tombstone card. */
             isSelf: boolean;
             /** @description Always an array (empty when the user holds no badges), never null. */
             badges: components["schemas"]["UserBadge"][];

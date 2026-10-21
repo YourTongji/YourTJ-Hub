@@ -160,6 +160,18 @@ describe('UserCard 关注状态（issue #593）', () => {
     expect(getUserCardMock).toHaveBeenCalledTimes(1)
   })
 
+  test('goose:follow-changed 广播同时纠正打开中的互关位（issue #1320）', async () => {
+    getUserCardMock.mockResolvedValueOnce(makeCard({ isFollowing: true, isMutualFollowing: false }))
+    await mountCard()
+    showCard()
+    await flushAll()
+    expect(followButton()?.textContent?.trim()).toBe(t('userCard.following'))
+
+    broadcastFollowChange(42, true, true)
+    await flushAll()
+    expect(followButton()?.textContent?.trim()).toBe(t('userCard.mutualFollowing'))
+  })
+
   test('缓存命中后超过 TTL 触发 stale-while-revalidate，旧态被服务端纠正', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     getUserCardMock.mockResolvedValueOnce(makeCard({ isFollowing: false, followerCount: 10 }))
@@ -253,7 +265,7 @@ describe('UserCard 关注状态（issue #593）', () => {
     expect(getKnownMutualFollowState(42)).toBe(true)
   })
 
-  test('提交响应不带对象（旧服务端）时回落为已关注', async () => {
+  test('关注响应互关位为 false 时只显示已关注', async () => {
     getUserCardMock.mockResolvedValueOnce(makeCard({ isFollowing: false }))
     getUserCardMock.mockRejectedValueOnce(new Error('network down'))
     followUserMock.mockResolvedValueOnce({ isFollowing: true, isMutualFollowing: false })

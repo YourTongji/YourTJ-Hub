@@ -241,23 +241,35 @@ func TestUserCardHTTPContract(t *testing.T) {
 		conn, router := setupAccountContractTest(t)
 		target := createHTTPContractUser(t, conn, contractTestID())
 		viewer := createHTTPContractUser(t, conn, contractTestID())
-		if err := conn.Create(&userFollow.Entity{UserId: viewer.Id, FollowUserId: target.Id, Status: 1}).Error; err != nil {
-			t.Fatalf("create follow relation: %v", err)
+		// 双向关注：卡片必须同时给出 isFollowing 与 isMutualFollowing（issue #1320）。
+		for _, pair := range [][2]uint64{{viewer.Id, target.Id}, {target.Id, viewer.Id}} {
+			if err := conn.Create(&userFollow.Entity{UserId: pair[0], FollowUserId: pair[1], Status: 1}).Error; err != nil {
+				t.Fatalf("create follow relation %d -> %d: %v", pair[0], pair[1], err)
+			}
 		}
 
-		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/user-card?userId="+fmt.Sprint(target.Id), "", contractSessionToken(t, viewer))
-		if recorder.Code != http.StatusOK {
-			t.Fatalf("authenticated user card status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		readCard := func(token string) (isFollowing, isMutualFollowing bool) {
+			t.Helper()
+			recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/user-card?userId="+fmt.Sprint(target.Id), "", token)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("user card status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+			}
+			var result struct {
+				IsFollowing       bool `json:"isFollowing"`
+				IsMutualFollowing bool `json:"isMutualFollowing"`
+			}
+			if err := json.Unmarshal(decodeContractEnvelope(t, recorder).Result, &result); err != nil {
+				t.Fatalf("decode user card: %v", err)
+			}
+			return result.IsFollowing, result.IsMutualFollowing
 		}
-		response := decodeContractEnvelope(t, recorder)
-		var result struct {
-			IsFollowing bool `json:"isFollowing"`
+
+		if isFollowing, isMutual := readCard(contractSessionToken(t, viewer)); !isFollowing || !isMutual {
+			t.Fatalf("authenticated user card isFollowing=%v isMutualFollowing=%v, want both true", isFollowing, isMutual)
 		}
-		if err := json.Unmarshal(response.Result, &result); err != nil {
-			t.Fatalf("decode authenticated user card: %v", err)
-		}
-		if !result.IsFollowing {
-			t.Fatal("authenticated user card isFollowing = false, want true")
+		// 匿名请求没有 viewer 视角，两个字段恒为 false。
+		if isFollowing, isMutual := readCard(""); isFollowing || isMutual {
+			t.Fatalf("anonymous user card isFollowing=%v isMutualFollowing=%v, want both false", isFollowing, isMutual)
 		}
 	})
 

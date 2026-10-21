@@ -2113,7 +2113,8 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 	// Go nil 切片会序列化为 JSON null，移动端非空镜像解析失败（2026-09-06 生产回归）。
 	userCard.Badges = []badgeservice.UserBadge{}
 	userCard.IsFollowing = isFollowing
-	userCard.IsMutualFollowing = currentUserID > 0 && currentUserID != user.Id && userFollow.MutualFollowingMap(currentUserID, []uint64{user.Id})[user.Id]
+	// 互关以「已关注」为前提，直接短路，不依赖 MutualFollowingMap 的过滤。
+	userCard.IsMutualFollowing = isFollowing && currentUserID != user.Id && userFollow.MutualFollowingMap(currentUserID, []uint64{user.Id})[user.Id]
 	userCard.IsSelf = currentUserID == user.Id
 	// Resolve visibility before any section query so hidden sections never
 	// load rows, counts or cursors (issue #1124).
@@ -2896,6 +2897,9 @@ func buildUserConnectionsForViewer(list []*users.EntityComplete, currentUserID u
 		if user == nil || user.Id == 0 {
 			continue
 		}
+		isSelf := currentUserID > 0 && currentUserID == user.Id
+		// 本人条目不可关注自己：存量自关注行（status=1）也不能得出「与自己互关」。
+		isFollowing := !isSelf && userFollow.IsFollowing(currentUserID, user.Id)
 		res = append(res, UserConnectionPayload{
 			Decoration:        decorations[user.Id],
 			ID:                user.Id,
@@ -2904,9 +2908,9 @@ func buildUserConnectionsForViewer(list []*users.EntityComplete, currentUserID u
 			AvatarURL:         user.GetWebAvatarUrl(),
 			Bio:               user.Bio,
 			URL:               "/u/" + strconv.FormatUint(user.Id, 10),
-			IsFollowing:       userFollow.IsFollowing(currentUserID, user.Id),
-			IsMutualFollowing: mutual[user.Id],
-			IsSelf:            currentUserID > 0 && currentUserID == user.Id,
+			IsFollowing:       isFollowing,
+			IsMutualFollowing: isFollowing && mutual[user.Id],
+			IsSelf:            isSelf,
 		})
 	}
 	return res

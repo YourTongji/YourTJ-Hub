@@ -263,10 +263,16 @@ onMounted(() => {
   window.addEventListener('resize', hideNow)
   window.addEventListener('goose:page', hideNow)
   // 用户主页等处关注/取关后，同步纠正打开中的卡片与缓存条目
-  offFollowChange = onFollowChange(({ userId, isFollowing: following }) => {
+  offFollowChange = onFollowChange(({ userId, isFollowing: following, isMutualFollowing: mutual }) => {
     const cached = cache.get(userId)
-    if (cached) cached.isFollowing = following
-    if (card.value?.userId === userId) isFollowing.value = following
+    if (cached) {
+      cached.isFollowing = following
+      cached.isMutualFollowing = mutual
+    }
+    if (card.value?.userId === userId) {
+      isFollowing.value = following
+      isMutualFollowing.value = mutual
+    }
   })
 })
 

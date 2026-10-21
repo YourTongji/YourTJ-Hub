@@ -147,6 +147,12 @@ func TestUserProfileMutualFollowState(t *testing.T) {
 		t.Fatalf("anonymous viewer follow state = %+v, want all false", anonymous.User)
 	}
 
+	// 看自己的主页：关注与互关都不能为 true。
+	own := requestFollowStateProps(t, router, followStatePath(viewer.Id, ""), contractSessionToken(t, viewer))
+	if own.User.IsFollowing || own.User.IsMutualFollowing {
+		t.Fatalf("own profile follow state = %+v, want all false", own.User)
+	}
+
 	// 单向关注（viewer 关注了 target，target 未回关）不是互关。
 	if err := conn.Model(&userFollow.Entity{}).Where("user_id = ? AND follow_user_id = ?", target.Id, viewer.Id).Update("status", 0).Error; err != nil {
 		t.Fatalf("clear reverse follow: %v", err)
@@ -154,6 +160,42 @@ func TestUserProfileMutualFollowState(t *testing.T) {
 	oneWay := requestFollowStateProps(t, router, followStatePath(target.Id, ""), contractSessionToken(t, viewer))
 	if !oneWay.User.IsFollowing || oneWay.User.IsMutualFollowing {
 		t.Fatalf("one-way follow state = %+v, want isFollowing=true isMutualFollowing=false", oneWay.User)
+	}
+
+	// 反向残留：viewer→target 已置 0 而 target→viewer 仍为 1，两个标记都应为 false。
+	if err := conn.Model(&userFollow.Entity{}).Where("user_id = ? AND follow_user_id = ?", target.Id, viewer.Id).Update("status", 1).Error; err != nil {
+		t.Fatalf("restore reverse follow: %v", err)
+	}
+	if err := conn.Model(&userFollow.Entity{}).Where("user_id = ? AND follow_user_id = ?", viewer.Id, target.Id).Update("status", 0).Error; err != nil {
+		t.Fatalf("clear forward follow: %v", err)
+	}
+	residual := requestFollowStateProps(t, router, followStatePath(target.Id, ""), contractSessionToken(t, viewer))
+	if residual.User.IsFollowing || residual.User.IsMutualFollowing {
+		t.Fatalf("residual unfollow state = %+v, want all false", residual.User)
+	}
+}
+
+// 存量自关注行（status=1）不得让连接列表的本人条目变成「已关注/已互关」。
+func TestUserProfileConnectionSelfEntryFollowState(t *testing.T) {
+	conn, router := setupProfilePageContractTest(t)
+	base := contractTestID()
+	viewer := createHTTPContractUser(t, conn, base)
+	target := createHTTPContractUser(t, conn, base+1)
+	for _, pair := range [][2]uint64{
+		{viewer.Id, viewer.Id},
+		{viewer.Id, target.Id},
+	} {
+		if err := conn.Create(&userFollow.Entity{UserId: pair[0], FollowUserId: pair[1], Status: 1}).Error; err != nil {
+			t.Fatalf("follow %d -> %d: %v", pair[0], pair[1], err)
+		}
+	}
+
+	props := requestFollowStateProps(t, router, followStatePath(target.Id, "followers"), contractSessionToken(t, viewer))
+	if len(props.Followers) != 1 || props.Followers[0].ID != viewer.Id {
+		t.Fatalf("followers = %+v, want only the viewer's own entry", props.Followers)
+	}
+	if entry := props.Followers[0]; entry.IsFollowing || entry.IsMutualFollowing {
+		t.Fatalf("self entry follow state = %+v, want all false", entry)
 	}
 }
 
