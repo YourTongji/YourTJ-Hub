@@ -176,9 +176,7 @@ class GfTopicList extends StatelessWidget {
   }
 }
 
-/// Sticker sizes that fit one excerpt line: the row's 13/15px text and the
-/// card's 17px text (MADR 0030 keeps token parsing in the shared helper).
-const double _rowStickerSize = 18;
+/// 卡片摘要（17px 文本）里的贴纸图片尺寸；列表行是小字视图，改用 [名字] 文本。
 const double _cardStickerSize = 22;
 
 /// One resolution for the whole page: the visible topics' descriptions are
@@ -303,16 +301,11 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
       fontWeight: FontWeight.w500,
       color: colors.baseContent.withValues(alpha: 0.88),
     );
-    final String title = topicDisplayTitle(topic);
-    final (String plain, InlineSpan? span) = _feedExcerpt(
-      title,
+    final String title = stickerLabelText(
+      topicDisplayTitle(topic),
       widget.stickerUrlByName,
-      _rowStickerSize,
     );
-    if (span != null) {
-      return GfText.rich(span, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
-    }
-    return GfText(plain, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
+    return GfText(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
   }
 
   @override
@@ -546,16 +539,12 @@ Widget _topicRow(
   final String displayTitle = topic.processStatus == 2
       ? "${l10n.contentReviewPending} · ${topicDisplayTitle(topic)}"
       : topicDisplayTitle(topic);
-  // An untitled moment keeps its excerpt in the title slot; both slots carry the
-  // page's resolved stickers.
-  final (String title, InlineSpan? titleSpan) = _feedExcerpt(
-    displayTitle,
-    stickerUrlByName,
-    _rowStickerSize,
-  );
-  final (String description, InlineSpan? descriptionSpan) = topic.title.isEmpty
-      ? ('', null)
-      : _feedExcerpt(topic.description, stickerUrlByName, _rowStickerSize);
+  // 列表行是小字视图：贴纸显示 [名字] 纯文本（卡片视图才渲染图片）。
+  // 无标题瞬间把摘要放在标题位，因此两个槽位都走同一规则。
+  final String title = stickerLabelText(displayTitle, stickerUrlByName);
+  final String description = topic.title.isEmpty
+      ? ''
+      : stickerLabelText(topic.description, stickerUrlByName);
   final List<GfTopicCategory> categories = <GfTopicCategory>[
     for (final CategoryBriefPayload cat in topic.categories)
       if (cat.id != hiddenCategoryId)
@@ -578,9 +567,7 @@ Widget _topicRow(
     child: GfTopicRow(
       feedContext: _feedContext(l10n, topic),
       title: title,
-      titleSpan: titleSpan,
       description: description,
-      descriptionSpan: descriptionSpan,
       categories: categories,
       participantAvatarUrls: participantAvatarUrls,
       participantFrameScales: [

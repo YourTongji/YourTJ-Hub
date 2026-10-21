@@ -68,6 +68,17 @@ export function renderableStickerSegments(content: string, urlByName: Map<string
   return segments
 }
 
+/**
+ * 小字视图（列表行、置顶条）的纯文本贴纸文案：可解析的贴纸显示 [名字]，
+ * 未知/停用/个人贴纸省略。卡片与预览仍用 renderableStickerSegments 渲染图片。
+ */
+export function stickerLabelText(content: string, urlByName: Map<string, string>): string {
+  const parts = renderableStickerSegments(content, urlByName).map((segment) =>
+    segment.type === 'sticker' ? `[${segment.name}]` : segment.text,
+  )
+  return parts.join('').replace(/\s+/g, ' ').trim()
+}
+
 /** 预览是否还有可见内容：全部 token 都未解析时不应留下空行。 */
 export function hasRenderableStickerText(content: string, urlByName: Map<string, string>): boolean {
   return renderableStickerSegments(content, urlByName)

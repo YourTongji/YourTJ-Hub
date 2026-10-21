@@ -141,7 +141,7 @@ describe('TopicRow.vue 列表行一致性验证', () => {
     expect(wrapper.find('p').text()).toBe('测试内容描述')
   })
 
-  test('摘要中的表情 token 渲染为内联图片，未知 token 丢弃且不出现原文', () => {
+  test('列表行把表情 token 渲染为 [名字] 文本，未知 token 丢弃且不出现原文', () => {
     const stickerUrls = new Map([['cat', '/file/img/cat.png']])
     const topic = createMockTopic(2, { description: '看这个 [:sticker:cat:] 和 [:sticker:missing:] 结尾' })
     const wrapper = mount(TopicRow, {
@@ -150,14 +150,13 @@ describe('TopicRow.vue 列表行一致性验证', () => {
     })
 
     try {
-      const image = wrapper.get('p img')
-      expect(image.attributes('src')).toBe('/file/img/cat.png')
-      expect(image.attributes('alt')).toBe('[:sticker:cat:]')
-      expect(image.attributes('loading')).toBe('lazy')
-      expect(image.classes()).toEqual(expect.arrayContaining(['inline-block', 'object-contain', 'align-middle', 'h-5', 'w-5']))
+      // 小字视图不发图片：可解析贴纸显示 [名字]，未知贴纸整段省略。
+      expect(wrapper.find('p img').exists()).toBe(false)
       const text = wrapper.get('p').text()
       expect(text).toContain('看这个')
+      expect(text).toContain('[cat]')
       expect(text).toContain('结尾')
+      expect(text).not.toContain('missing')
       expect(wrapper.text()).not.toContain('[:sticker:')
     } finally {
       wrapper.unmount()
@@ -187,7 +186,7 @@ describe('TopicRow.vue 列表行一致性验证', () => {
     expect(wrapper.text()).not.toContain('[:sticker:')
   })
 
-  test('无标题瞬间的摘要链接把已解析表情渲染为图片并使用 leading-6 尺寸', () => {
+  test('无标题瞬间的链接文案把表情渲染为 [名字] 文本', () => {
     const stickerUrls = new Map([['cat', '/file/img/cat.png']])
     const topic = createMockTopic(2, { title: '', description: '[:sticker:cat:] 新发现' })
     const wrapper = mount(TopicRow, {
@@ -197,9 +196,8 @@ describe('TopicRow.vue 列表行一致性验证', () => {
 
     try {
       const link = wrapper.get(`a[href="${topic.url}"]`)
-      const image = link.get('img')
-      expect(image.attributes('src')).toBe('/file/img/cat.png')
-      expect(image.classes()).toEqual(expect.arrayContaining(['h-6', 'w-6']))
+      expect(link.find('img').exists()).toBe(false)
+      expect(link.text()).toContain('[cat]')
       expect(link.text()).toContain('新发现')
       expect(wrapper.text()).not.toContain('[:sticker:')
     } finally {

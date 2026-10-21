@@ -800,31 +800,28 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.byType(StickerImage), findsOneWidget);
+    // 置顶条是小字视图：贴纸显示 [名字]，不发图片。
+    expect(find.byType(StickerImage), findsNothing);
+    expect(find.textContaining('[smile]'), findsOneWidget);
     expect(
       _richTexts(tester).where((text) => text.contains('[:sticker:')),
       isEmpty,
     );
   });
 
-  testWidgets('list row renders a resolved token as an inline image', (
+  testWidgets('list row renders a resolved token as a text label', (
       tester,
     ) async {
       await pumpFeed(tester, [topicWith('正文 [:sticker:smile:] 结尾')]);
 
-      final image = find.byType(StickerImage);
-      expect(image, findsOneWidget);
-      expect(tester.getSize(image), const Size(18, 18));
+      // 列表行是小字视图：贴纸显示 [名字] 文本，不渲染图片。
+      expect(find.byType(StickerImage), findsNothing);
+      expect(find.textContaining('[smile]'), findsOneWidget);
       expect(
         _richTexts(tester).where((text) => text.contains('[:sticker:')),
         isEmpty,
       );
       expect(_richTexts(tester).where((text) => text.contains('正文')), hasLength(1));
-      // 摘要里的贴纸不能抢走行的点击/长按目标。
-      expect(
-        find.ancestor(of: image, matching: find.byType(IgnorePointer)),
-        findsWidgets,
-      );
     });
 
     testWidgets('card renders the same token larger', (tester) async {
@@ -905,7 +902,9 @@ void main() {
         topicWith('瞬间 [:sticker:smile:]', title: ''),
       ]);
 
-      expect(tester.getSize(find.byType(StickerImage)), const Size(18, 18));
+      // 列表行小字视图：标题位里的贴纸同样是 [名字] 文本，不发图片。
+      expect(find.byType(StickerImage), findsNothing);
+      expect(find.textContaining('[smile]'), findsOneWidget);
       // 只出现在 15px 的标题位，不再重复一行 13px 摘要。
       final Finder row = find.byType(GfTopicRow);
       expect(
@@ -913,7 +912,7 @@ void main() {
           of: row,
           matching: find.byWidgetPredicate(
             (Widget w) =>
-                w is Text && w.textSpan != null && w.style?.fontSize == 15,
+                w is Text && w.style?.fontSize == 15,
           ),
         ),
         findsOneWidget,

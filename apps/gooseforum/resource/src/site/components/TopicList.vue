@@ -8,10 +8,10 @@ import { closeAllTopicPreviews } from '@/runtime/topic-hover-preview'
 import TopicCardActions from '@/site/components/TopicCardActions.vue'
 import TopicFeedPreview from '@/site/components/TopicFeedPreview.vue'
 import TopicRow from '@/site/components/TopicRow.vue'
-import StickerText from '@/site/components/StickerText.vue'
 import { useResolvedStickers } from '@/site/composables/useResolvedStickers'
 import { stripStickerTokens } from '@/site/utils/sticker-token'
 import { topicRenderableLabel } from '@/runtime/topic-description'
+import { stickerLabelText } from '@/site/utils/sticker-token'
 const props = withDefaults(defineProps<{
   topics: TopicPayload[]
   viewerId?: number
@@ -44,6 +44,10 @@ const regularTopics = computed(() => pinnedTopics.value.length
 
 // 表情解析的边界是整份列表：一次批量解析，行/卡片只消费结果（issue #1304）。
 const { resolvedUrls: stickerUrls, ensureContentStickers } = useResolvedStickers()
+
+// 置顶条是小字视图：贴纸显示 [名字] 纯文本（卡片视图才渲染图片）。
+const pinnedLabel = (topic: TopicPayload) =>
+  stickerLabelText(topicRenderableLabel(topic.id, topic.title, topic.description, stickerUrls.value), stickerUrls.value)
 watch(() => props.topics.map(topic => topic.description ?? ''), (contents) => {
   void ensureContentStickers(contents)
 }, { immediate: true })
@@ -116,10 +120,10 @@ onBeforeUnmount(clearInteractions)
           <span class="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">{{ t('topicList.pinned') }}</span>
           <a
             :href="pinnedTopics[0]!.url"
-            :title="stripStickerTokens(topicRenderableLabel(pinnedTopics[0]!.id, pinnedTopics[0]!.title, pinnedTopics[0]!.description, stickerUrls))"
+            :title="pinnedLabel(pinnedTopics[0]!)"
             class="flex min-h-11 min-w-0 flex-1 items-center rounded text-sm font-medium text-base-content/90 outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
           >
-            <span class="truncate"><StickerText :content="topicRenderableLabel(pinnedTopics[0]!.id, pinnedTopics[0]!.title, pinnedTopics[0]!.description, stickerUrls)" :sticker-urls="stickerUrls" /></span>
+            <span class="truncate">{{ pinnedLabel(pinnedTopics[0]!) }}</span>
           </a>
           <button
             v-if="pinnedTopics.length > 1"
@@ -142,11 +146,11 @@ onBeforeUnmount(clearInteractions)
           <div class="min-h-0 overflow-hidden">
             <a
               :href="topic.url"
-              :title="stripStickerTokens(topicRenderableLabel(topic.id, topic.title, topic.description, stickerUrls))"
+              :title="pinnedLabel(topic)"
               class="group flex min-h-11 items-center gap-2.5 rounded-md border-t border-primary/5 px-1 py-2 text-sm outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary motion-reduce:transition-none"
             >
               <span class="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">{{ t('topicList.pinned') }}</span>
-              <span class="min-w-0 flex-1 line-clamp-2 break-words font-medium leading-5 text-base-content/90 group-hover:text-primary"><StickerText :content="topicRenderableLabel(topic.id, topic.title, topic.description, stickerUrls)" :sticker-urls="stickerUrls" /></span>
+              <span class="min-w-0 flex-1 line-clamp-2 break-words font-medium leading-5 text-base-content/90 group-hover:text-primary">{{ pinnedLabel(topic) }}</span>
             </a>
           </div>
         </li>
@@ -200,7 +204,7 @@ onBeforeUnmount(clearInteractions)
       <a
         :href="topic.url"
         class="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-        :aria-label="stripStickerTokens(topicRenderableLabel(topic.id, topic.title, topic.description, stickerUrls))"
+        :aria-label="pinnedLabel(topic)"
       />
       <TopicCardActions
         :topic="topic"

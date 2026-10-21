@@ -11,10 +11,9 @@ import {
   unregisterTopicPreview,
 } from '@/runtime/topic-hover-preview'
 import { topicDescription, topicRenderableLabel } from '@/runtime/topic-description'
-import { hasRenderableStickerText } from '@/site/utils/sticker-token'
+import { stickerLabelText } from '@/site/utils/sticker-token'
 import { feedReasonKey } from '@/site/utils/feed-reason'
 import AvatarStack from '@/site/components/AvatarStack.vue'
-import StickerText from '@/site/components/StickerText.vue'
 import TopicFeedPreview from '@/site/components/TopicFeedPreview.vue'
 import type { TopicPayload } from '@gooseforum/client'
 
@@ -33,9 +32,14 @@ const props = withDefaults(defineProps<{
   stickerUrls: () => new Map<string, string>(),
 })
 
-// 未知/停用表情被丢弃后可能没有可见内容，此时不保留空的摘要行。
-const showDescription = computed(() => Boolean(props.topic.title)
-  && hasRenderableStickerText(topicDescription(props.topic), props.stickerUrls))
+// 列表行是小字视图：贴纸显示 [名字] 纯文本，未知/停用被省略后可能没有可见内容。
+const descriptionText = computed(() => stickerLabelText(topicDescription(props.topic), props.stickerUrls))
+const showDescription = computed(() => Boolean(props.topic.title) && descriptionText.value !== '')
+// 无标题即时的链接文案同样用纯文本，避免空链接或图片撑高列表行。
+const untitledLabel = computed(() => stickerLabelText(
+  topicRenderableLabel(props.topic.id, props.topic.title, props.topic.description, props.stickerUrls),
+  props.stickerUrls,
+))
 
 const { t } = useI18n()
 const feedReason = (reason?: string | null) => { const key = feedReasonKey(reason); return key ? t(key) : '' }
@@ -186,11 +190,7 @@ onBeforeUnmount(() => {
             class="min-w-0 truncate text-[15px] leading-6 text-base-content/70 group-hover:text-primary sm:text-base"
             @click="closePreview"
           >
-            <StickerText
-              :content="topicRenderableLabel(topic.id, topic.title, topic.description, stickerUrls)"
-              :sticker-urls="stickerUrls"
-              size="h-6 w-6"
-            />
+            {{ untitledLabel }}
           </a>
           <span v-if="topic.processStatus === 2" class="inline-flex shrink-0 whitespace-nowrap rounded bg-warning/15 px-2 py-0.5 text-xs text-warning">{{ t('topic.pendingReviewBadge') }}</span>
           <span
@@ -228,7 +228,7 @@ onBeforeUnmount(() => {
       <p v-if="showDescription || feedReason(topic.feedReason)" class="mt-1 min-h-5 truncate text-[13px] leading-5 text-base-content/55">
         <span v-if="feedReason(topic.feedReason)" class="font-medium text-base-content/70" data-test="feed-reason">{{ feedReason(topic.feedReason) }}</span
         ><span v-if="feedReason(topic.feedReason) && showDescription" aria-hidden="true"> · </span
-        ><StickerText v-if="showDescription" :content="topicDescription(topic)" :sticker-urls="stickerUrls" />
+><template v-if="showDescription">{{ descriptionText }}</template>
       </p>
       <div class="mt-1.5 flex min-h-6 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/55 lg:hidden">
         <AvatarStack :users="topic.participants" size="sm" />

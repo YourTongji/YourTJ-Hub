@@ -73,10 +73,10 @@ Class: feature
 
 ## Addendum
 
-`Current`：客户端 token 展开不再限于私信气泡。列表与卡片的帖子摘要（`topics.excerpt`）保留正文里的
-`[:sticker:name:]` token，Web 与移动端按当前公开贴纸列表在客户端展开成图片；未知或停用名字在预览里
-省略，不回退字面量，截断不会切开一个 token。爬虫/无 JS 的 SSR 列表由服务端展开成 `<img>`，口径与
-公开列表 API 一致（个人 `u_*` 与停用名字不解析）。纯文本落点（通知、收藏预览、SEO/meta、RSS、
+`Current`：客户端 token 展开不再限于私信气泡。帖子摘要（`topics.excerpt`）保留正文里的
+`[:sticker:name:]` token，Web 与移动端按当前公开贴纸列表展开：卡片与悬停预览渲染成图片，
+列表行、置顶条与 SSR 爬虫列表这类小字视图显示为 `[名字]` 文本，不渲染图片。两档都不回退字面量：
+未知、停用与个人 `u_*` 名字省略，截断不会切开一个 token；口径与公开列表 API 一致。纯文本落点（通知、收藏预览、SEO/meta、RSS、
 分享卡、llms 导出）仍按文本处理，token 从文本中去掉。帖子/回复正文的服务端展开规则不变。
 
 ## Links

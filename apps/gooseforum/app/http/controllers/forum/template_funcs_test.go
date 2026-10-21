@@ -68,21 +68,22 @@ func TestTopicListDescriptionRendersPublicStickersOnly(t *testing.T) {
 	})
 
 	description := `A & <b>"q"</b> [:sticker:crawler_ok:]|[:sticker:crawler_off:]|[:sticker:u_crawler_private:]|[:sticker:crawler_missing:]`
-	html := string(topicListDescription(description))
+	// 小字视图（爬虫列表）不展开图片：可解析的公开贴纸显示 [名字]，其余省略。
+	label := topicListDescription(description)
 
-	if !strings.Contains(html, `src="/file/img/stickers/crawler_ok.png"`) || !strings.Contains(html, `alt="[sticker:crawler_ok]"`) {
-		t.Fatalf("public sticker not rendered as an image: %s", html)
+	if !strings.Contains(label, "[crawler_ok]") {
+		t.Fatalf("public sticker not rendered as a text label: %q", label)
 	}
-	if !strings.Contains(html, "A &amp; &lt;b&gt;") {
-		t.Fatalf("text segment not escaped: %s", html)
+	if !strings.Contains(label, `A & <b>"q"</b>`) {
+		t.Fatalf("text segment lost: %q", label)
 	}
 	for _, omitted := range []string{"crawler_off", "crawler_private", "crawler_missing", "[:sticker:"} {
-		if strings.Contains(html, omitted) {
-			t.Fatalf("disabled/personal/unknown sticker %q leaked: %s", omitted, html)
+		if strings.Contains(label, omitted) {
+			t.Fatalf("disabled/personal/unknown sticker %q leaked: %q", omitted, label)
 		}
 	}
-	if escaped := string(topicListDescription("纯文字")); escaped != "纯文字" {
-		t.Fatalf("token-free description changed: %q", escaped)
+	if untouched := topicListDescription("纯文字"); untouched != "纯文字" {
+		t.Fatalf("token-free description changed: %q", untouched)
 	}
 
 	// 模板接线：列表摘要用同一渲染，且模板不二次转义 <img>。
@@ -97,8 +98,12 @@ func TestTopicListDescriptionRendersPublicStickersOnly(t *testing.T) {
 	if err := tmpl.ExecuteTemplate(&out, "partials/topic_list.gohtml", data); err != nil {
 		t.Fatalf("execute topic_list partial: %v", err)
 	}
-	if html := out.String(); !strings.Contains(html, `class="gf-crawler-topic-excerpt"`) || !strings.Contains(html, `<img src="/file/img/stickers/crawler_ok.png"`) || strings.Contains(html, "&lt;img") {
-		t.Fatalf("crawler list excerpt did not render the sticker image:\n%s", html)
+	html := out.String()
+	if !strings.Contains(html, `class="gf-crawler-topic-excerpt"`) || !strings.Contains(html, "[crawler_ok]") {
+		t.Fatalf("crawler list excerpt did not render the sticker label:\n%s", html)
+	}
+	if strings.Contains(html, "<img") || strings.Contains(html, "&lt;img") || strings.Contains(html, "[:sticker:") {
+		t.Fatalf("crawler list excerpt rendered an image or raw token:\n%s", html)
 	}
 }
 

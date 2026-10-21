@@ -631,10 +631,11 @@ resolved in one batch. Anonymous reply bookmarks omit author identity. Reply exc
 plain-text previews: in prose, Markdown escapes and HTML entities resolve to the final characters
 and sticker tokens are dropped; tokens inside code spans, code blocks, link targets and math keep
 their literal source, matching rendering. Topic list descriptions (`description`/`excerpt`) are
-image-capable: prose sticker tokens stay in the stored excerpt so web and mobile list/card previews
-render resolvable names as images, unknown or disabled names are omitted, and truncation never
-splits a token; the text-only projections of the same value (meta/OG descriptions, RSS, share
-cards, llms export, notification text, crawler link labels) strip the tokens. Missing fields on
+image-capable: prose sticker tokens stay in the stored excerpt so cards and hover previews render
+resolvable names as images, while small-text surfaces (list rows, pinned strip, crawler/no-JS SSR
+list) show them as `[name]` text. Unknown, disabled and personal names are omitted in previews and
+truncation never splits a token; the text-only projections of the same value (meta/OG descriptions,
+RSS, share cards, llms export, notification text, crawler link labels) strip the tokens. Missing fields on
 older servers remain valid. Bookmark
 ordering and cursor semantics are unchanged; activity reply URLs include the post number when known.
 

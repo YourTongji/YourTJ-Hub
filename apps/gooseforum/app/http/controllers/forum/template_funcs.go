@@ -42,25 +42,28 @@ var templateFuncMap = template.FuncMap{
 	"topicListDescription": topicListDescription,
 }
 
-// topicListDescription 把爬虫列表摘要渲染成图片：可解析为公开贴纸的 token 换成
-// <img>（与列表卡片一致），其余文字逐段转义；未知/停用/个人贴纸直接省略。
-func topicListDescription(description string) template.HTML {
+// topicListDescription 渲染爬虫列表摘要：小字视图不展开贴纸图片，可解析的公开
+// 贴纸显示为 [名字]，未知/停用/个人贴纸省略（#1304）。
+func topicListDescription(description string) string {
+	return stickerLabelText(description)
+}
+
+// stickerLabelText 把小字视图（爬虫列表、置顶条、列表行）里的贴纸 token 换成
+// [名字]：可解析的公开贴纸保留名字，其余省略，绝不露出 [:sticker:…] 原文。
+func stickerLabelText(description string) string {
 	segments := markdown2html.SplitStickerTokens(description)
 	urls := publicCrawlerStickerURLs(segments)
 	var builder strings.Builder
 	for _, segment := range segments {
 		if segment.Name == "" {
-			builder.WriteString(template.HTMLEscapeString(segment.Text))
+			builder.WriteString(segment.Text)
 			continue
 		}
-		url := urls[segment.Name]
-		if url == "" {
-			continue
+		if urls[segment.Name] != "" {
+			builder.WriteString("[" + segment.Name + "]")
 		}
-		builder.WriteString(`<img src="` + template.HTMLEscapeString(url) + `" alt="[sticker:` +
-			template.HTMLEscapeString(segment.Name) + `]" class="gf-crawler-sticker" loading="lazy">`)
 	}
-	return template.HTML(builder.String())
+	return strings.Join(strings.Fields(builder.String()), " ")
 }
 
 // publicCrawlerStickerURLs 只解析公开列表 API 同口径的贴纸（官方、启用、已审核）：
@@ -100,7 +103,7 @@ func topicListLabel(title, description string) string {
 	if title != "" {
 		return title
 	}
-	if description = strings.TrimSpace(markdown2html.StripStickerTokens(description)); description != "" {
+	if description = strings.TrimSpace(stickerLabelText(description)); description != "" {
 		return description
 	}
 	return "(｀・ω・´)"
