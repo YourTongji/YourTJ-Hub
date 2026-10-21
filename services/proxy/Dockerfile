@@ -1,4 +1,5 @@
 # Preserve 1Panel's OpenResty/WAF layout; update its private OpenSSL, not Ubuntu's CLI.
+FROM 1panel/openresty@sha256:a991d1b3e8ed582f80475db3ca04bb0b5a46f7ba3dea4700ea33419d63922faf AS legacy-waf
 FROM 1panel/openresty@sha256:9eb6915fb7690f7c5d7c3e8aee939e8d403681bc5ee86802472c86d1b8c0a9d1 AS build
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential perl curl ca-certificates patch
 WORKDIR /tmp/build
@@ -19,6 +20,9 @@ RUN curl -fSL --retry 3 --connect-timeout 15 --max-time 180 https://github.com/o
 
 FROM 1panel/openresty@sha256:9eb6915fb7690f7c5d7c3e8aee939e8d403681bc5ee86802472c86d1b8c0a9d1
 RUN apt-get update && apt-get -y --no-remove upgrade && rm -rf /var/lib/apt/lists/*
+# 1Panel v1 data is incompatible with the newer image's v2 WAF configuration schema.
+RUN rm -rf /usr/local/openresty/1pwaf
+COPY --from=legacy-waf /usr/local/openresty/1pwaf/ /usr/local/openresty/1pwaf/
 COPY --from=build /stage/usr/local/openresty/openssl3/ /usr/local/openresty/openssl3/
 COPY --from=build /tmp/build/openssl-3.5.9/LICENSE.txt /usr/share/doc/yourtj-openresty-openssl/LICENSE.txt
 RUN /usr/local/openresty/openssl3/bin/openssl version | grep -F 'OpenSSL 3.5.9' \

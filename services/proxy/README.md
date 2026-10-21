@@ -10,6 +10,9 @@ docker build -f services/proxy/Dockerfile -t yourtj-openresty-security:1.31.1.1-
 ```
 
 基础镜像固定 1Panel 官方 amd64 digest，保留 OpenResty 1.31.1.1 与 WAF 布局。
+WAF 代码使用另一个固定官方镜像中的 v1 bundle，保持现有 1Panel v1 配置兼容；
+不复制生产配置或密钥进镜像，也不通过禁用 WAF 避开兼容问题。
+这不是 WAF 版本升级，不能声称修复其潜在漏洞；面板迁移到 v2 时须重新选择对应 bundle。
 只替换 OpenResty 私有路径下的 OpenSSL 为 3.5.9，保留官方异步 session callback 补丁。
 源码与补丁固定版本及 SHA-256；builder 新增工具不复制到运行镜像，运行阶段安装系统更新。
 APT 包随上游安全源更新，产物不保证逐字节重建相同，部署必须记录本次镜像内容 digest。
