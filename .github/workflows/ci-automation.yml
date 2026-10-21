@@ -12,7 +12,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
-          node-version: 24
+          node-version-file: .node-version
       - run: python3 -m unittest discover -s scripts/release -p 'test_*.py'
       - run: python3 -m unittest discover -s scripts/ci -p 'test_*.py'
       - run: python3 -m unittest discover -s scripts/mobile-release -p 'test_*.py'

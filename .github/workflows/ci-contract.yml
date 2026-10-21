@@ -24,7 +24,7 @@ jobs:
           version: 11.10.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: pnpm
           cache-dependency-path: packages/api-contract/pnpm-lock.yaml
       - name: Install contract tooling
