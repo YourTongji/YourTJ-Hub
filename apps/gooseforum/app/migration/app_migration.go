@@ -158,10 +158,14 @@ func runVersionedDataMigrations() error {
 			return dataMigrationError("aggregate search indexes", 13, result.Failed, result.LastFailed)
 		} else {
 			if currentVersion < 13 {
-				pageConfig.SyncMigrationVersion(13)
+				if err := pageConfig.SyncMigrationVersion(13); err != nil {
+					return err
+				}
 				currentVersion = 13
 			}
-			pageConfig.SyncSearchIndexMigrationVersion(13)
+			if err := pageConfig.SyncSearchIndexMigrationVersion(13); err != nil {
+				return err
+			}
 			searchIndexVersion = 13
 		}
 	}
@@ -261,10 +265,14 @@ func runVersionedDataMigrations() error {
 			return fmt.Errorf("app migration v20 topic search index topicType rebuild: %d failed (lastFailed: %s)", topicIndexResult.Failed+topicIndexResult.FailedCount, topicIndexResult.LastFailed)
 		} else {
 			if currentVersion < 20 {
-				pageConfig.SyncMigrationVersion(20)
+				if err := pageConfig.SyncMigrationVersion(20); err != nil {
+					return err
+				}
 				currentVersion = 20
 			}
-			pageConfig.SyncSearchIndexMigrationVersion(20)
+			if err := pageConfig.SyncSearchIndexMigrationVersion(20); err != nil {
+				return err
+			}
 			searchIndexVersion = 20
 		}
 	}

@@ -159,7 +159,7 @@ func TestIncompleteReservationIsNotReplayable(t *testing.T) {
 	if err := conn.Transaction(func(tx *gorm.DB) error {
 		reservation, replay, err := BeginTx(ctx, tx, 1)
 		if !errors.Is(err, agentWrites.ErrIncomplete) || reservation != nil || replay != nil {
-			return fmt.Errorf("incomplete reservation replayed: reservation=%#v replay=%#v err=%v", reservation, replay, err)
+			return fmt.Errorf("incomplete reservation replayed: reservation=%#v replay=%#v err=%w", reservation, replay, err)
 		}
 		return nil
 	}); err != nil {
@@ -175,7 +175,7 @@ func TestIncompleteReservationIsNotReplayable(t *testing.T) {
 			return err
 		}
 		if err := agentWrites.CompleteTx(tx, reservation.Entry, 11, 21); !errors.Is(err, agentWrites.ErrIncomplete) {
-			return fmt.Errorf("second completion: %v", err)
+			return fmt.Errorf("second completion: %w", err)
 		}
 		return nil
 	}); err != nil {
