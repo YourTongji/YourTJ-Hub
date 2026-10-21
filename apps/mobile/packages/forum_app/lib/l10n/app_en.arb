@@ -255,6 +255,7 @@
   "profileTitle": "Profile",
   "profileFollow": "Follow",
   "profileFollowing": "Following",
+  "profileMutualFollowing": "Mutual",
   "profileTopics": "Topics",
   "profilePosts": "Posts",
   "profileReplies": "Replies",

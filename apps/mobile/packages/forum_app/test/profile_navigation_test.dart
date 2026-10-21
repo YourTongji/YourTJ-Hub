@@ -114,9 +114,14 @@ class _FollowActions extends TopicRepository {
   final pending = Completer<bool>();
   int calls = 0;
   @override
-  Future<bool> followUser({required int userId, required bool isFollowing}) {
+  Future<({bool isFollowing, bool isMutualFollowing})> followUser({
+    required int userId,
+    required bool isFollowing,
+  }) async {
     calls++;
-    return pending.future;
+    await pending.future;
+    // 入参是操作前状态：假仓库执行后翻转，与服务端返回的 applied 状态一致。
+    return (isFollowing: !isFollowing, isMutualFollowing: false);
   }
 }
 

@@ -804,7 +804,12 @@ export async function getUserCard(userId: number): Promise<UserCardPayload> {
   return result
 }
 
-export async function followUser(userId: number, isFollowing: boolean): Promise<boolean> {
+export interface FollowUserResult {
+  isFollowing: boolean
+  isMutualFollowing: boolean
+}
+
+export async function followUser(userId: number, isFollowing: boolean): Promise<FollowUserResult> {
   const response = await feedFetch('/api/forum/follow-user', {
     method: 'POST',
     headers: {
@@ -817,11 +822,16 @@ export async function followUser(userId: number, isFollowing: boolean): Promise<
   })
   await assertHttpOk(response, t('api.followFailed'))
 
-  const data = (await response.json()) as ApiResponse<boolean>
+  const data = (await response.json()) as ApiResponse<FollowUserResult>
   if (data.code !== undefined && data.code !== 0) {
     throw new Error(responseMessage(data, t('api.followFailed')))
   }
-  return data.result ?? data.data ?? true
+  // 服务端返回动作执行后的真实状态（issue #1320）；旧服务端的裸 true 回退为乐观值。
+  const result = data.result ?? data.data
+  if (!result || typeof result !== 'object') {
+    return { isFollowing: !isFollowing, isMutualFollowing: false }
+  }
+  return { isFollowing: Boolean(result.isFollowing), isMutualFollowing: Boolean(result.isMutualFollowing) }
 }
 
 export interface SubmitTopicInput {

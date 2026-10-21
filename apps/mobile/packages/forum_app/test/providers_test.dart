@@ -41,8 +41,13 @@ class _GatedFollowRepository implements TopicRepository {
   final Completer<bool> result;
 
   @override
-  Future<bool> followUser({required int userId, required bool isFollowing}) =>
-      result.future;
+  Future<({bool isFollowing, bool isMutualFollowing})> followUser({
+    required int userId,
+    required bool isFollowing,
+  }) async {
+    final applied = await result.future;
+    return (isFollowing: applied, isMutualFollowing: false);
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
