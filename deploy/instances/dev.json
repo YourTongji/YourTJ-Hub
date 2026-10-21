@@ -21,9 +21,11 @@
     "web_origins": [
       "https://dev.yourtj.de"
     ],
-    "apple_team_id": "",
+    "apple_team_id": "4HJTS3G3T2",
     "ios_bundle_id": "tj.yourtj.forumApp",
     "android_package_name": "tj.yourtj.forum_app",
-    "android_sha256_cert_fingerprints": []
+    "android_sha256_cert_fingerprints": [
+      "A7:A6:1B:B2:B8:55:98:F4:6E:F5:3A:BA:88:49:0F:CA:54:9E:20:A4:51:44:0E:0D:B9:09:FE:7B:CA:66:E9:93"
+    ]
   }
 }
