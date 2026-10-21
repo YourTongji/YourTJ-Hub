@@ -14,3 +14,9 @@ overrides:
   # osmtogeojson pins an obsolete parser; keep its DOM API on the maintained release.
   # https://github.com/xmldom/xmldom/releases/tag/0.9.12
   'osmtogeojson>@xmldom/xmldom': ^0.9.12
+  # GHSA-68fv-2mgg-jv7q: reject pathological indexed source maps.
+  source-map-js: ^1.2.2
+  # GHSA-rj75-hqrm-r3gf: typography still pins the vulnerable parser major.
+  '@tailwindcss/typography>postcss-selector-parser': ^7.1.6
+  # GHSA-238p-pmpm-9mq7: keep Mermaid on the same patched KaTeX as the site.
+  'mermaid>katex': ^0.18.2

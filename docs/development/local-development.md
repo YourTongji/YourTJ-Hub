@@ -14,8 +14,8 @@
 
 | 工具 | 当前要求与事实源 |
 |---|---|
-| Go | `go.mod` 要求 1.26.9；默认 `GOTOOLCHAIN=auto` 可自动获取工具链。见 [go.mod](../../apps/gooseforum/go.mod)。 |
-| Node.js / pnpm | Node.js 24、pnpm 11，与 [Web CI](../../.github/workflows/ci-frontend.yml) 一致。前端命令在 `apps/gooseforum/resource/` 的独立 workspace 内执行。 |
+| Go | `go.mod` 要求 1.26.10；默认 `GOTOOLCHAIN=auto` 可自动获取工具链。见 [go.mod](../../apps/gooseforum/go.mod)。 |
+| Node.js / pnpm | Node.js 24.22.1、pnpm 11（根目录 `.node-version` 固定具体版本，供 CI 与本地版本管理器共同读取；状态站 engines 允许已修复的后续 24.x），与 [Web CI](../../.github/workflows/ci-frontend.yml) 一致。前端命令在 `apps/gooseforum/resource/` 的独立 workspace 内执行。 |
 | Flutter / Dart | 使用 [Mobile CI](../../.github/workflows/ci-mobile.yml) 验证的 Flutter 3.44.9；[移动工作区](../../apps/mobile/pubspec.yaml)要求 Dart ≥3.12.2、<4.0.0，并声明 Melos 依赖。 |
 | Docker Compose | 仅在运行本地 PostgreSQL／Meilisearch 等依赖时需要。 |
 
