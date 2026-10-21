@@ -495,6 +495,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileFollowing => 'Following';
 
   @override
+  String get profileMutualFollowing => 'Mutual';
+
+  @override
   String get profileTopics => 'Topics';
 
   @override

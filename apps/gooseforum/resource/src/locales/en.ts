@@ -2551,6 +2551,7 @@ export default {
     joinedAt: 'Joined {date}',
     follow: 'Follow',
     following: 'Following',
+    mutualFollowing: 'Mutual',
     viewProfile: 'View profile',
   },
   appeals: {
@@ -2785,6 +2786,7 @@ export default {
     coverSaved: 'Cover saved',
     follow: 'Follow',
     following: 'Following',
+    mutualFollowing: 'Mutual',
     joinedAt: 'Joined {date}',
     lastActive: 'Last active {time}',
     emptyTopics: 'No topics posted yet.',
