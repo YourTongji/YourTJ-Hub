@@ -11,8 +11,8 @@
     "for_you_enabled": true,
     "metrics_enabled": true,
     "rollout_percent": 20,
-    "experiment_period": "main-default-entry-v1",
-    "experiment_salt": "main-default-entry-v1"
+    "experiment_period": "main-recovery-20261022-v1",
+    "experiment_salt": "main-recovery-20261022-v1"
   },
   "passkeys": {
     "enabled": false,
