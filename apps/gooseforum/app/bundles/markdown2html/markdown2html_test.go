@@ -179,6 +179,98 @@ func TestExtractPreviewConvertsMarkdownToReadableText(t *testing.T) {
 	}
 }
 
+// issue #1304: 摘要保留贴纸 token 供图片化落点展开，但不能露出 Markdown 转义反斜杠。
+func TestExtractDescriptionIsPlainText(t *testing.T) {
+	input := `居然还能一键查看绩点和换算\.\}\.\}好高级…` + "\n\n" +
+		`[:sticker:Atari哭哭:] https://xlsabc\.github\.io/https\-Xlsabc\.github\.io\-deutsch\-web/` + "\n\n" +
+		`A &amp; B...`
+	got := ExtractDescription(input, 200)
+
+	if strings.Contains(got, `\`) {
+		t.Fatalf("description kept Markdown escapes: %q", got)
+	}
+	if !strings.Contains(got, "[:sticker:Atari哭哭:]") {
+		t.Fatalf("description dropped sticker token: %q", got)
+	}
+	if !strings.Contains(got, "https://xlsabc.github.io/https-Xlsabc.github.io-deutsch-web/") {
+		t.Fatalf("description lost link text: %q", got)
+	}
+	if strings.Contains(got, "&amp;") || strings.Contains(got, "...") {
+		t.Fatalf("description kept raw entity or Typographer source: %q", got)
+	}
+	if !strings.Contains(got, "A & B…") {
+		t.Fatalf("description did not decode entity and Typographer text: %q", got)
+	}
+}
+
+// issue #1304: 截断不能切出半个 token（图片化落点无法识别残片）。
+func TestExtractDescriptionTruncatesAtStickerTokenBoundary(t *testing.T) {
+	got := ExtractDescription("一二三四五六七八九十"+"[:sticker:Atari哭哭:]"+"尾巴", 12)
+	if got != "一二三四五六七八九十..." {
+		t.Fatalf("description = %q, want the token dropped whole at the cut", got)
+	}
+
+	// 切点落在 token 之后时照常按码点截断，不丢前面的 token。
+	later := ExtractDescription("[:sticker:a:]"+strings.Repeat("鹅", 30), 20)
+	if wantLater := "[:sticker:a:]" + strings.Repeat("鹅", 7) + "..."; later != wantLater {
+		t.Fatalf("description = %q, want %q", later, wantLater)
+	}
+}
+
+// issue #1304：代码、链接等位置在帖内是字面量，摘要不能保留这些 token，
+// 否则列表会把它们渲染成图片（与帖内渲染不一致）。
+func TestExtractDescriptionDropsNonProseStickerTokens(t *testing.T) {
+	input := "正文 [:sticker:prose:] 保留\n\n" +
+		"`[:sticker:code:]`\n\n" +
+		"[链接 [:sticker:label:]](https://example.com/a) 与 https://example.com/[:sticker:dest:]\n\n" +
+		"反引号外\\[:sticker:escaped:] 转义保留字面量"
+	got := ExtractDescription(input, 500)
+
+	if !strings.Contains(got, "[:sticker:prose:]") {
+		t.Fatalf("description dropped a prose token: %q", got)
+	}
+	for _, dropped := range []string{"code", "label", "dest", "escaped"} {
+		if strings.Contains(got, "[:sticker:"+dropped+":]") {
+			t.Fatalf("description kept non-prose token %q: %q", dropped, got)
+		}
+	}
+	if strings.Contains(got, `\`) {
+		t.Fatalf("description kept a stray backslash: %q", got)
+	}
+}
+
+// issue #1304: 纯文本落点（通知、SEO/meta、RSS、分享卡、llms 导出）用这个助手去 token。
+func TestStripStickerTokensRemovesTokensFromPlainText(t *testing.T) {
+	got := StripStickerTokens("文字 [:sticker:Atari哭哭:] 尾巴 [:sticker:unknown:] 收尾")
+	if got != "文字 尾巴 收尾" {
+		t.Fatalf("StripStickerTokens() = %q", got)
+	}
+	if kept := StripStickerTokens("没有贴纸"); kept != "没有贴纸" {
+		t.Fatalf("StripStickerTokens() touched token-free text: %q", kept)
+	}
+}
+
+func TestExtractPreviewIsPlainText(t *testing.T) {
+	input := `换算\.\}\.\}好高级 ` + "[:sticker:Atari哭哭:]" + ` https://xlsabc\.github\.io/ A &amp; B...`
+	got := ExtractPreview(input, 160)
+
+	if strings.Contains(got, `\`) {
+		t.Fatalf("preview kept Markdown escapes: %q", got)
+	}
+	if strings.Contains(got, "[:sticker:") {
+		t.Fatalf("preview kept sticker token: %q", got)
+	}
+	if !strings.Contains(got, "https://xlsabc.github.io/") {
+		t.Fatalf("preview lost link text: %q", got)
+	}
+	if strings.Contains(got, "&amp;") || strings.Contains(got, "...") {
+		t.Fatalf("preview kept raw entity or Typographer source: %q", got)
+	}
+	if !strings.Contains(got, "A & B…") {
+		t.Fatalf("preview did not decode entity and Typographer text: %q", got)
+	}
+}
+
 func TestExtractPreviewUsesImageFallbackAndTruncatesRunes(t *testing.T) {
 	if got := ExtractPreview("![](/file/image.png)", 64); got != "[图片]" {
 		t.Fatalf("image preview = %q, want [图片]", got)

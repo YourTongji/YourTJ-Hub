@@ -32,8 +32,8 @@ func TestVersionedMigrationBackfillsPresetPacks(t *testing.T) {
 			t.Fatal(err)
 		}
 		assertPresetPacks(t, conn, rows)
-		if got := pageConfig.GetMigrationVersion(); got != 33 {
-			t.Fatalf("migration version=%d, want 33", got)
+		if got := pageConfig.GetMigrationVersion(); got != 34 {
+			t.Fatalf("migration version=%d, want 34", got)
 		}
 	}
 }

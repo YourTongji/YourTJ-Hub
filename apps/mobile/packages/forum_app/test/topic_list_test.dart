@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -7,8 +8,50 @@ import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
 import 'package:forum_app/src/widgets/topic_list.dart';
 import 'fixtures/page_fixtures.dart';
+
+const StickerItemPayload _smile = StickerItemPayload(
+  name: 'smile',
+  url: '/file/img/stickers/smile.png',
+);
+
+class _MemoryTokenStorage implements TokenStorage {
+  @override
+  Future<String?> read() async => null;
+  @override
+  Future<void> write(String token) async {}
+  @override
+  Future<void> clear() async {}
+}
+
+/// 记录每次查询：一页列表只能解析一次，行不自己发请求。
+class _StickerCatalog extends StickerRepository {
+  _StickerCatalog(this.items)
+    : super(GfApiClient(dio: Dio(), tokenStorage: _MemoryTokenStorage()));
+
+  final List<StickerItemPayload> items;
+  int listCalls = 0;
+  final List<String> resolvedNames = <String>[];
+
+  @override
+  Future<List<StickerItemPayload>> list() async {
+    listCalls++;
+    return items;
+  }
+
+  @override
+  Future<List<StickerItemPayload>> resolve(List<String> names) async {
+    resolvedNames.addAll(names);
+    return const <StickerItemPayload>[];
+  }
+}
+
+/// 富文本的纯文本镜像（Text.rich 不暴露 data）。
+Iterable<String> _richTexts(WidgetTester tester) => tester
+    .widgetList<RichText>(find.byType(RichText))
+    .map((RichText rich) => rich.text.toPlainText());
 
 void main() {
   testWidgets('author, image and body have distinct navigation targets', (
@@ -690,5 +733,231 @@ void main() {
     expect(avatar.frameScale, 1.4);
     expect(avatar.frameAssetUrl, isNotEmpty);
     expect(avatar.frameColors, isEmpty);
+  });
+
+  // issue #1304：列表行与卡片把摘要里的 `[:sticker:name:]` 渲染为图片，
+  // 未识别/停用的 token 直接省略而不再以原文出现（MADR 0030 共享解析）。
+  group('feed excerpts render stickers', () {
+    Future<StickerLibrary> pumpFeed(
+      WidgetTester tester,
+      List<TopicPayload> topics, {
+      GfTopicFeedMode mode = GfTopicFeedMode.list,
+      _StickerCatalog? catalog,
+    }) async {
+      final library = StickerLibrary(catalog ?? _StickerCatalog([_smile]));
+      addTearDown(library.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: GfTopicList(
+              loading: false,
+              topics: topics,
+              feedMode: mode,
+              stickerLibrary: library,
+              hasMore: false,
+              onLoadMore: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return library;
+    }
+
+    TopicPayload topicWith(String description, {String title = '标题'}) =>
+        parsePageProps<HomeProps>(
+          parsePayload(homePayloadJson()),
+        )!.topics.first.copyWith(title: title, description: description);
+
+    testWidgets('pinned strip renders an untitled pinned moment sticker', (
+    tester,
+  ) async {
+    final library = StickerLibrary(_StickerCatalog([_smile]));
+    addTearDown(library.dispose);
+    final topic = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!
+        .topics
+        .first
+        .copyWith(id: 7, title: '', description: '置顶 [:sticker:smile:]');
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        theme: gfThemeData(Brightness.light),
+        home: Scaffold(
+          body: GfTopicList(
+            collapsePinned: true,
+            loading: false,
+            topics: [topic.copyWith(pinWeight: 1)],
+            stickerLibrary: library,
+            hasMore: false,
+            onLoadMore: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(StickerImage), findsOneWidget);
+    expect(
+      _richTexts(tester).where((text) => text.contains('[:sticker:')),
+      isEmpty,
+    );
+  });
+
+  testWidgets('list row renders a resolved token as an inline image', (
+      tester,
+    ) async {
+      await pumpFeed(tester, [topicWith('正文 [:sticker:smile:] 结尾')]);
+
+      final image = find.byType(StickerImage);
+      expect(image, findsOneWidget);
+      expect(tester.getSize(image), const Size(18, 18));
+      expect(
+        _richTexts(tester).where((text) => text.contains('[:sticker:')),
+        isEmpty,
+      );
+      expect(_richTexts(tester).where((text) => text.contains('正文')), hasLength(1));
+      // 摘要里的贴纸不能抢走行的点击/长按目标。
+      expect(
+        find.ancestor(of: image, matching: find.byType(IgnorePointer)),
+        findsWidgets,
+      );
+    });
+
+    testWidgets('card renders the same token larger', (tester) async {
+      await pumpFeed(
+        tester,
+        [topicWith('正文 [:sticker:smile:]')],
+        mode: GfTopicFeedMode.card,
+      );
+
+      expect(tester.getSize(find.byType(StickerImage)), const Size(22, 22));
+      expect(
+        _richTexts(tester).where((text) => text.contains('[:sticker:')),
+        isEmpty,
+      );
+    });
+
+    testWidgets('unknown and disabled tokens disappear instead of leaking', (
+      tester,
+    ) async {
+      final catalog = _StickerCatalog(const <StickerItemPayload>[]);
+      await pumpFeed(
+        tester,
+        [
+          topicWith('第一条 [:sticker:ghost:]'),
+          topicWith('第二条 [:sticker:hidden:]', title: '另一个标题'),
+        ],
+        catalog: catalog,
+      );
+
+      expect(find.byType(StickerImage), findsNothing);
+      expect(
+        _richTexts(tester).where((text) => text.contains('[:sticker:')),
+        isEmpty,
+      );
+      // 一页只解析一次，且两根行一起进同一批。
+      expect(catalog.listCalls, 1);
+      expect(catalog.resolvedNames, ['ghost', 'hidden']);
+    });
+
+    testWidgets('an all-unknown excerpt renders nothing at all', (
+      tester,
+    ) async {
+      await pumpFeed(tester, [
+        topicWith('[:sticker:ghost:]'),
+      ], catalog: _StickerCatalog(const <StickerItemPayload>[]));
+
+      expect(find.byType(StickerImage), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(GfTopicRow),
+          matching: find.byWidgetPredicate(
+            (Widget w) => w is Text && w.style?.fontSize == 13,
+          ),
+        ),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('token-free excerpts keep the plain text path', (tester) async {
+      await pumpFeed(tester, [topicWith('普通摘要')]);
+
+      expect(find.byType(StickerImage), findsNothing);
+      final Text description = tester.widget<Text>(
+        find.byWidgetPredicate(
+          (Widget w) => w is Text && w.data == '普通摘要',
+        ),
+      );
+      expect(description.style?.fontSize, 13);
+      expect(description.maxLines, 1);
+      expect(description.overflow, TextOverflow.ellipsis);
+    });
+
+    testWidgets('an untitled moment renders its excerpt token in the title', (
+      tester,
+    ) async {
+      await pumpFeed(tester, [
+        topicWith('瞬间 [:sticker:smile:]', title: ''),
+      ]);
+
+      expect(tester.getSize(find.byType(StickerImage)), const Size(18, 18));
+      // 只出现在 15px 的标题位，不再重复一行 13px 摘要。
+      final Finder row = find.byType(GfTopicRow);
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.byWidgetPredicate(
+            (Widget w) =>
+                w is Text && w.textSpan != null && w.style?.fontSize == 15,
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        _richTexts(tester).where((text) => text.contains('瞬间')),
+        hasLength(1),
+      );
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.byWidgetPredicate(
+            (Widget w) => w is Text && w.style?.fontSize == 13,
+          ),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('feeds without a library omit tokens instead of markup', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: GfTopicList(
+              loading: false,
+              topics: [topicWith('正文 [:sticker:smile:]')],
+              hasMore: false,
+              onLoadMore: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(StickerImage), findsNothing);
+      expect(
+        _richTexts(tester).where((text) => text.contains('[:sticker:')),
+        isEmpty,
+      );
+    });
   });
 }

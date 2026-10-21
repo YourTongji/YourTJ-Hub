@@ -10,12 +10,14 @@ const props = withDefaults(defineProps<{
   showHot?: boolean
   showPinned?: boolean
   showStats?: boolean
+  stickerUrls?: Map<string, string>
 }>(), {
   compact: false,
   showCategories: true,
   showHot: true,
   showPinned: true,
   showStats: true,
+  stickerUrls: () => new Map<string, string>(),
 })
 
 const images = computed(() => {
@@ -51,6 +53,7 @@ const singleImageClass = computed(() => {
         :show-hot="showHot"
         :show-pinned="showPinned"
         :show-stats="showStats"
+        :sticker-urls="stickerUrls"
         class="min-w-0 flex-1"
       />
       <img
@@ -71,6 +74,7 @@ const singleImageClass = computed(() => {
         :show-hot="showHot"
         :show-pinned="showPinned"
         :show-stats="showStats"
+        :sticker-urls="stickerUrls"
       >
         <template #media>
           <div v-if="hasImages" class="mt-3 grid gap-1.5" :class="gridClass">

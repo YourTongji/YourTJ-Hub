@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/localcache"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/cacheconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
@@ -325,15 +326,16 @@ func topicLabel(topic *topics.Entity) string {
 	if title := singleLine(topic.Title); title != "" {
 		return title
 	}
-	return truncateRunes(singleLine(topic.Excerpt), 200)
+	return truncateRunes(singleLine(markdown2html.StripStickerTokens(topic.Excerpt)), 200)
 }
 
+// 导出文档是纯文本（Markdown 里的图片语法也只会被当成字面量），贴纸 token 一律去掉。
 func topicDescription(topic *topics.Entity) string {
 	parts := make([]string, 0, 2)
 	if categories := categoryNames(topic.CategoryIds); len(categories) > 0 {
 		parts = append(parts, "Categories: "+strings.Join(categories, ", "))
 	}
-	if excerpt := truncateRunes(singleLine(topic.Excerpt), 200); excerpt != "" {
+	if excerpt := truncateRunes(singleLine(markdown2html.StripStickerTokens(topic.Excerpt)), 200); excerpt != "" {
 		parts = append(parts, excerpt)
 	}
 	return strings.Join(parts, ". ")

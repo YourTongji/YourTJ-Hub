@@ -8,7 +8,10 @@ import { closeAllTopicPreviews } from '@/runtime/topic-hover-preview'
 import TopicCardActions from '@/site/components/TopicCardActions.vue'
 import TopicFeedPreview from '@/site/components/TopicFeedPreview.vue'
 import TopicRow from '@/site/components/TopicRow.vue'
-import { topicDisplayLabel } from '@/runtime/topic-description'
+import StickerText from '@/site/components/StickerText.vue'
+import { useResolvedStickers } from '@/site/composables/useResolvedStickers'
+import { stripStickerTokens } from '@/site/utils/sticker-token'
+import { topicRenderableLabel } from '@/runtime/topic-description'
 const props = withDefaults(defineProps<{
   topics: TopicPayload[]
   viewerId?: number
@@ -38,6 +41,12 @@ const visiblePinnedTopics = computed(() => pinnedTopicsExpanded.value ? pinnedTo
 const regularTopics = computed(() => pinnedTopics.value.length
   ? props.topics.filter(topic => topic.pinWeight <= 0)
   : props.topics)
+
+// 表情解析的边界是整份列表：一次批量解析，行/卡片只消费结果（issue #1304）。
+const { resolvedUrls: stickerUrls, ensureContentStickers } = useResolvedStickers()
+watch(() => props.topics.map(topic => topic.description ?? ''), (contents) => {
+  void ensureContentStickers(contents)
+}, { immediate: true })
 
 // 两种视图各自是一棵常驻的键控树，切换只改 display（issue #1164）：
 // v-if/v-else 互斥分支会让 Vue 无法复用 vnode，切换即整表卸载重建（实测 20 条约 55ms 脚本）。
@@ -107,10 +116,10 @@ onBeforeUnmount(clearInteractions)
           <span class="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">{{ t('topicList.pinned') }}</span>
           <a
             :href="pinnedTopics[0]!.url"
-            :title="topicDisplayLabel(pinnedTopics[0]!.id, pinnedTopics[0]!.title, pinnedTopics[0]!.description)"
+            :title="stripStickerTokens(topicRenderableLabel(pinnedTopics[0]!.id, pinnedTopics[0]!.title, pinnedTopics[0]!.description, stickerUrls))"
             class="flex min-h-11 min-w-0 flex-1 items-center rounded text-sm font-medium text-base-content/90 outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
           >
-            <span class="truncate">{{ topicDisplayLabel(pinnedTopics[0]!.id, pinnedTopics[0]!.title, pinnedTopics[0]!.description) }}</span>
+            <span class="truncate"><StickerText :content="topicRenderableLabel(pinnedTopics[0]!.id, pinnedTopics[0]!.title, pinnedTopics[0]!.description, stickerUrls)" :sticker-urls="stickerUrls" /></span>
           </a>
           <button
             v-if="pinnedTopics.length > 1"
@@ -133,11 +142,11 @@ onBeforeUnmount(clearInteractions)
           <div class="min-h-0 overflow-hidden">
             <a
               :href="topic.url"
-              :title="topicDisplayLabel(topic.id, topic.title, topic.description)"
+              :title="stripStickerTokens(topicRenderableLabel(topic.id, topic.title, topic.description, stickerUrls))"
               class="group flex min-h-11 items-center gap-2.5 rounded-md border-t border-primary/5 px-1 py-2 text-sm outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary motion-reduce:transition-none"
             >
               <span class="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">{{ t('topicList.pinned') }}</span>
-              <span class="min-w-0 flex-1 line-clamp-2 break-words font-medium leading-5 text-base-content/90 group-hover:text-primary">{{ topicDisplayLabel(topic.id, topic.title, topic.description) }}</span>
+              <span class="min-w-0 flex-1 line-clamp-2 break-words font-medium leading-5 text-base-content/90 group-hover:text-primary"><StickerText :content="topicRenderableLabel(topic.id, topic.title, topic.description, stickerUrls)" :sticker-urls="stickerUrls" /></span>
             </a>
           </div>
         </li>
@@ -167,6 +176,7 @@ onBeforeUnmount(clearInteractions)
         :show-categories="showCategories"
         :show-hot="showHot"
         :show-pinned="showPinned"
+        :sticker-urls="stickerUrls"
       >
         <template v-if="slots.activity" #activity="{ topic: rowTopic }">
           <slot name="activity" :topic="rowTopic" />
@@ -185,12 +195,12 @@ onBeforeUnmount(clearInteractions)
       :data-feed-id="feedMode === 'card' ? topic.id : undefined" :data-feed-trace="feedMode === 'card' ? topic.feedTrace : undefined"
       class="gf-card group relative overflow-hidden [&_a.gf-topic-chip]:pointer-events-auto [&_a.gf-topic-chip]:relative [&_a.gf-topic-chip]:z-10"
     >
-      <TopicFeedPreview :topic="topic" :show-categories="showCategories" :show-hot="showHot" :show-pinned="showPinned" compact :show-stats="false" class="pointer-events-none" />
+      <TopicFeedPreview :topic="topic" :show-categories="showCategories" :show-hot="showHot" :show-pinned="showPinned" :sticker-urls="stickerUrls" compact :show-stats="false" class="pointer-events-none" />
       <!-- stretched-link：整卡可点，互动按钮浮于遮罩之上，避免嵌套交互元素 -->
       <a
         :href="topic.url"
         class="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-        :aria-label="topicDisplayLabel(topic.id, topic.title, topic.description)"
+        :aria-label="stripStickerTokens(topicRenderableLabel(topic.id, topic.title, topic.description, stickerUrls))"
       />
       <TopicCardActions
         :topic="topic"

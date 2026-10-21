@@ -253,12 +253,26 @@ func isPublicImageURL(value string) bool {
 	return strings.HasPrefix(value, "/")
 }
 
+// unescapeTextNode 按渲染结果解码普通文本节点：去掉 Markdown 转义反斜杠并
+// 解析 HTML 实体。raw/代码节点保持源文本（渲染时也不解码）。
+func unescapeTextNode(node *ast.Text, value []byte) []byte {
+	if node.IsRaw() {
+		return value
+	}
+	value = util.UnescapePunctuations(value)
+	value = util.ResolveNumericReferences(value)
+	return util.ResolveEntityNames(value)
+}
+
 // ExtractDescription extracts readable summary text from Markdown.
 func ExtractDescription(content string, maxLength int) string {
 	if maxLength <= 0 {
 		maxLength = 200
 	}
 
+	// 摘要保留正文里的 token（列表/卡片会渲染为图片），但代码、链接等位置
+	// 帖内本来就是字面量，不能留在摘要里被预览端展开。
+	content = stripNonProseStickerTokens(content)
 	reader := text.NewReader([]byte(content))
 	doc := GetParser().Parser().Parse(reader)
 
@@ -294,13 +308,27 @@ func ExtractDescription(content string, maxLength int) string {
 	description = strings.TrimSpace(description)
 
 	if utf8.RuneCountInString(description) > maxLength {
-		runes := []rune(description)
-		if len(runes) > maxLength {
-			description = string(runes[:maxLength]) + "..."
-		}
+		description = truncateStickerTokenAware(description, maxLength) + "..."
 	}
 
 	return description
+}
+
+// truncateStickerTokenAware 按码点截断；切点落在 [:sticker:name:] 内部时退到
+// token 起点，避免摘要露出半个 token（图片化落点无法识别残片，只能显示字面量）。
+func truncateStickerTokenAware(text string, limit int) string {
+	runes := []rune(text)
+	if len(runes) <= limit {
+		return text
+	}
+	cut := len(string(runes[:limit]))
+	for _, token := range stickerTokenRe.FindAllStringIndex(text, -1) {
+		if token[0] < cut && cut < token[1] {
+			cut = token[0]
+			break
+		}
+	}
+	return strings.TrimRight(text[:cut], " ")
 }
 
 // ExtractMentions shares the source-aware parser used by rendered post links.
@@ -314,6 +342,7 @@ func ExtractPreview(content string, maxLength int) string {
 		return ""
 	}
 
+	content = stripStickerTokens(content)
 	reader := text.NewReader([]byte(content))
 	doc := GetParser().Parser().Parse(reader)
 	var builder strings.Builder
@@ -323,10 +352,13 @@ func ExtractPreview(content string, maxLength int) string {
 		}
 		switch node := n.(type) {
 		case *ast.Text:
-			builder.Write(node.Segment.Value(reader.Source()))
+			builder.Write(unescapeTextNode(node, node.Segment.Value(reader.Source())))
 			if node.SoftLineBreak() || node.HardLineBreak() {
 				builder.WriteByte(' ')
 			}
+		case *ast.String:
+			// Typographer 的替换结果是 HTML 实体（如 `&hellip;`），与渲染一致解码。
+			builder.Write(util.ResolveEntityNames(util.ResolveNumericReferences(node.Value)))
 		case *ast.Image:
 			builder.WriteString("[图片]")
 			return ast.WalkSkipChildren, nil
@@ -384,13 +416,7 @@ func ExtractVisibleText(content string) string {
 
 		switch node := n.(type) {
 		case *ast.Text:
-			value := node.Segment.Value(reader.Source())
-			if !node.IsRaw() {
-				value = util.UnescapePunctuations(value)
-				value = util.ResolveNumericReferences(value)
-				value = util.ResolveEntityNames(value)
-			}
-			builder.Write(value)
+			builder.Write(unescapeTextNode(node, node.Segment.Value(reader.Source())))
 			if node.SoftLineBreak() || node.HardLineBreak() {
 				builder.WriteByte('\n')
 			}
@@ -421,10 +447,13 @@ func extractDescriptionBlockText(node ast.Node, source []byte) string {
 		}
 		switch typed := n.(type) {
 		case *ast.Text:
-			builder.Write(typed.Segment.Value(source))
+			builder.Write(unescapeTextNode(typed, typed.Segment.Value(source)))
 			if typed.SoftLineBreak() || typed.HardLineBreak() {
 				builder.WriteByte(' ')
 			}
+		case *ast.String:
+			// Typographer 的替换结果是 HTML 实体（如 `&hellip;`），与渲染一致解码。
+			builder.Write(util.ResolveEntityNames(util.ResolveNumericReferences(typed.Value)))
 		case *ast.CodeBlock, *ast.FencedCodeBlock, *ast.Image:
 			return ast.WalkSkipChildren, nil
 		}

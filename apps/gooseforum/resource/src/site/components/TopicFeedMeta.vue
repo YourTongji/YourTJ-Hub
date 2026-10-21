@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import UserNickname from '@/site/components/UserNickname.vue'
 import PersonaTag from './PersonaTag.vue'
 import { authorURL } from '@/runtime/anonymous-identity'
@@ -7,23 +8,30 @@ import { BookOpen, Eye, HelpCircle, MessageSquare, Pin, Sparkles } from '@lucide
 import { useI18n } from 'vue-i18n'
 import { formatNumber, timeAgo } from '@/runtime/format'
 import UserAvatar from '@/site/components/UserAvatar.vue'
+import StickerText from '@/site/components/StickerText.vue'
 import { feedReasonKey } from '@/site/utils/feed-reason'
+import { hasRenderableStickerText } from '@/site/utils/sticker-token'
 import type { TopicPayload } from '@gooseforum/client'
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   topic: TopicPayload
   compact?: boolean
   showCategories?: boolean
   showHot?: boolean
   showPinned?: boolean
   showStats?: boolean
+  stickerUrls?: Map<string, string>
 }>(), {
   compact: false,
   showCategories: true,
   showHot: true,
   showPinned: true,
   showStats: true,
+  stickerUrls: () => new Map<string, string>(),
 })
+
+// 只含未解析表情的摘要不留下空段落。
+const showDescription = computed(() => hasRenderableStickerText(props.topic.description ?? '', props.stickerUrls))
 
 const { t } = useI18n()
 const feedReason = (reason?: string | null) => { const key = feedReasonKey(reason); return key ? t(key) : '' }
@@ -106,16 +114,16 @@ const feedReason = (reason?: string | null) => { const key = feedReasonKey(reaso
       />
     </h3>
     <p
-      v-if="topic.description"
+      v-if="showDescription"
       :class="!topic.title && topic.unseen
         ? 'mt-1.5 flex min-w-0 flex-nowrap items-start gap-1.5 text-sm leading-6 text-base-content/55'
         : 'mt-1.5 line-clamp-2 text-sm leading-6 text-base-content/55'"
     >
       <template v-if="!topic.title && topic.unseen">
-        <span class="min-w-0 flex-1 line-clamp-2">{{ topic.description }}</span>
+        <span class="min-w-0 flex-1 line-clamp-2"><StickerText :content="topic.description ?? ''" :sticker-urls="stickerUrls" size="h-6 w-6" /></span>
         <span class="mt-2 inline-block h-2 w-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
       </template>
-      <template v-else>{{ topic.description }}</template>
+      <template v-else><StickerText :content="topic.description ?? ''" :sticker-urls="stickerUrls" size="h-6 w-6" /></template>
     </p>
 
     <slot name="media" />

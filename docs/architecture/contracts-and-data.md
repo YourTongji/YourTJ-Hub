@@ -627,8 +627,15 @@ the current cursor appears on refresh. This is a live filtered feed, not a froze
 to bookmark entries. These are hand-written page contracts in Go, TypeScript and Dart; no new
 `/api` operation or schema migration is involved. Authors are fetched once per batch, content
 visibility requires an active published topic and a matching, active, normal, undeleted first post,
-resolved in one batch. Anonymous reply bookmarks omit author identity. Reply
-excerpts are plain Markdown previews. Missing fields on older servers remain valid. Bookmark
+resolved in one batch. Anonymous reply bookmarks omit author identity. Reply excerpts are
+plain-text previews: in prose, Markdown escapes and HTML entities resolve to the final characters
+and sticker tokens are dropped; tokens inside code spans, code blocks, link targets and math keep
+their literal source, matching rendering. Topic list descriptions (`description`/`excerpt`) are
+image-capable: prose sticker tokens stay in the stored excerpt so web and mobile list/card previews
+render resolvable names as images, unknown or disabled names are omitted, and truncation never
+splits a token; the text-only projections of the same value (meta/OG descriptions, RSS, share
+cards, llms export, notification text, crawler link labels) strip the tokens. Missing fields on
+older servers remain valid. Bookmark
 ordering and cursor semantics are unchanged; activity reply URLs include the post number when known.
 
 `Current`: profile topics use the same batched current-viewer interaction hydration as the home

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { authorURL } from '@/runtime/anonymous-identity'
-import { nextTick, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import { MessageSquare, Pin, Sparkles, HelpCircle, BookOpen } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { formatNumber, timeAgo } from '@/runtime/format'
@@ -10,24 +10,32 @@ import {
   registerTopicPreview,
   unregisterTopicPreview,
 } from '@/runtime/topic-hover-preview'
-import { topicDescription, topicDisplayLabel } from '@/runtime/topic-description'
+import { topicDescription, topicRenderableLabel } from '@/runtime/topic-description'
+import { hasRenderableStickerText } from '@/site/utils/sticker-token'
 import { feedReasonKey } from '@/site/utils/feed-reason'
 import AvatarStack from '@/site/components/AvatarStack.vue'
+import StickerText from '@/site/components/StickerText.vue'
 import TopicFeedPreview from '@/site/components/TopicFeedPreview.vue'
 import type { TopicPayload } from '@gooseforum/client'
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   topic: TopicPayload
   home?: boolean
   showCategories?: boolean
   showHot?: boolean
   showPinned?: boolean
+  stickerUrls?: Map<string, string>
 }>(), {
   home: false,
   showCategories: true,
   showHot: true,
   showPinned: false,
+  stickerUrls: () => new Map<string, string>(),
 })
+
+// 未知/停用表情被丢弃后可能没有可见内容，此时不保留空的摘要行。
+const showDescription = computed(() => Boolean(props.topic.title)
+  && hasRenderableStickerText(topicDescription(props.topic), props.stickerUrls))
 
 const { t } = useI18n()
 const feedReason = (reason?: string | null) => { const key = feedReasonKey(reason); return key ? t(key) : '' }
@@ -178,7 +186,11 @@ onBeforeUnmount(() => {
             class="min-w-0 truncate text-[15px] leading-6 text-base-content/70 group-hover:text-primary sm:text-base"
             @click="closePreview"
           >
-            {{ topicDisplayLabel(topic.id, topic.title, topic.description) }}
+            <StickerText
+              :content="topicRenderableLabel(topic.id, topic.title, topic.description, stickerUrls)"
+              :sticker-urls="stickerUrls"
+              size="h-6 w-6"
+            />
           </a>
           <span v-if="topic.processStatus === 2" class="inline-flex shrink-0 whitespace-nowrap rounded bg-warning/15 px-2 py-0.5 text-xs text-warning">{{ t('topic.pendingReviewBadge') }}</span>
           <span
@@ -213,10 +225,10 @@ onBeforeUnmount(() => {
           <Sparkles class="h-3 w-3" /> hot
         </span>
       </div>
-      <p v-if="topic.title || feedReason(topic.feedReason)" class="mt-1 min-h-5 truncate text-[13px] leading-5 text-base-content/55">
+      <p v-if="showDescription || feedReason(topic.feedReason)" class="mt-1 min-h-5 truncate text-[13px] leading-5 text-base-content/55">
         <span v-if="feedReason(topic.feedReason)" class="font-medium text-base-content/70" data-test="feed-reason">{{ feedReason(topic.feedReason) }}</span
-        ><span v-if="feedReason(topic.feedReason) && topic.title && topicDescription(topic)" aria-hidden="true"> · </span
-        ><template v-if="topic.title">{{ topicDescription(topic) }}</template>
+        ><span v-if="feedReason(topic.feedReason) && showDescription" aria-hidden="true"> · </span
+        ><StickerText v-if="showDescription" :content="topicDescription(topic)" :sticker-urls="stickerUrls" />
       </p>
       <div class="mt-1.5 flex min-h-6 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/55 lg:hidden">
         <AvatarStack :users="topic.participants" size="sm" />
@@ -249,7 +261,7 @@ onBeforeUnmount(() => {
           @click="closePreview"
         >
           <a :href="topic.url" class="block outline-none focus-visible:ring-2 focus-visible:ring-primary/50">
-            <TopicFeedPreview :topic="topic" />
+            <TopicFeedPreview :topic="topic" :sticker-urls="stickerUrls" />
           </a>
         </div>
       </Transition>

@@ -568,6 +568,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           controller: _scrollToTopController,
           builder: (_, ScrollController controller) => _SearchResults(
             props: props,
+            stickerLibrary: ref.watch(stickerLibraryProvider),
             scope: _scope,
             loadingMore: _loadingMore,
             loadMoreError: _loadMoreError,
@@ -944,6 +945,7 @@ class _SuggestionRow extends StatelessWidget {
 
 class _SearchResults extends StatelessWidget {
   const _SearchResults({
+    this.stickerLibrary,
     required this.props,
     required this.scope,
     required this.loadingMore,
@@ -958,6 +960,7 @@ class _SearchResults extends StatelessWidget {
   });
 
   final SearchPageProps props;
+  final StickerLibrary? stickerLibrary;
   final String scope;
   final bool loadingMore;
   final String? loadMoreError;
@@ -1009,7 +1012,8 @@ class _SearchResults extends StatelessWidget {
 
     // The delegate constructs individual rows, including after topic pages append.
     // No shrink-wrapped grid or whole-section Column expands the viewport cache.
-    Widget buildRow(int index) {
+    Widget buildRow(int index,
+        {Map<String, String> stickerUrlByName = const <String, String>{}}) {
       if (failed.isNotEmpty) {
         if (index == 0) return _PartialFailure(scopes: failed);
         index--;
@@ -1065,6 +1069,7 @@ class _SearchResults extends StatelessWidget {
             'topics' => _TopicRow(
               key: ValueKey('search-topic-${props.topics[index].id}'),
               topic: props.topics[index],
+              stickerUrlByName: stickerUrlByName,
             ),
             _ => _CategoryRow(
               key: ValueKey('search-category-${props.categories[index].id}'),
@@ -1089,7 +1094,7 @@ class _SearchResults extends StatelessWidget {
       throw RangeError.index(index, sections);
     }
 
-    return AppRefreshIndicator(
+    Widget listFor(Map<String, String> stickerUrlByName) => AppRefreshIndicator(
       onRefresh: onRefresh,
       child: ListView.builder(
         controller: controller,
@@ -1101,10 +1106,19 @@ class _SearchResults extends StatelessWidget {
         itemCount: itemCount,
         itemBuilder: (context, index) => Material(
           color: GfTheme.colorsOf(context).base100,
-          child: buildRow(index),
+          child: buildRow(index, stickerUrlByName: stickerUrlByName),
         ),
       ),
     );
+
+    final StickerLibrary? library = stickerLibrary;
+    return library == null
+        ? listFor(const <String, String>{})
+        : TopicStickerExcerpts(
+            library: library,
+            topics: props.topics,
+            builder: listFor,
+          );
   }
 }
 
@@ -1298,12 +1312,17 @@ class _UserRow extends StatelessWidget {
 }
 
 class _TopicRow extends StatelessWidget {
-  const _TopicRow({super.key, required this.topic});
+  const _TopicRow({
+    super.key,
+    required this.topic,
+    this.stickerUrlByName = const <String, String>{},
+  });
   final TopicPayload topic;
+  final Map<String, String> stickerUrlByName;
 
   @override
   Widget build(BuildContext context) {
-    return buildTopicFeedCard(context, topic);
+    return buildTopicFeedCard(context, topic, stickerUrlByName: stickerUrlByName);
   }
 }
 

@@ -449,6 +449,18 @@ func runVersionedDataMigrations() error {
 		}
 		currentVersion = 33
 	}
+
+	if currentVersion < 34 {
+		result := datamigration.BackfillTopicExcerpt()
+		if result.Failed > 0 {
+			return dataMigrationError("topic excerpt", 34, result.Failed, result.LastFailed)
+		}
+		if err := pageConfig.SyncMigrationVersion(34); err != nil {
+			return err
+		}
+		slog.Info("app migration topic excerpt backfilled", "updated", result.Updated, "skipped", result.Skipped)
+		currentVersion = 34
+	}
 	slog.Info("app migration end", "version", currentVersion)
 	return nil
 }

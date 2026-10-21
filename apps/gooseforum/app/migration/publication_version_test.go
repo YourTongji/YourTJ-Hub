@@ -23,7 +23,7 @@ func TestVersionedMigrationRunsPublicationAdoptionFrom30(t *testing.T) {
 	if err := runVersionedDataMigrations(); err != nil {
 		t.Fatal(err)
 	}
-	if got := pageConfig.GetMigrationVersion(); got != 33 {
-		t.Fatalf("migration stopped at %d; publication adoption, robot badges and rejected-submission adoption require version 33", got)
+	if got := pageConfig.GetMigrationVersion(); got != 34 {
+		t.Fatalf("migration stopped at %d; publication adoption, robot badges, rejected-submission adoption and topic excerpt backfill require version 34", got)
 	}
 }

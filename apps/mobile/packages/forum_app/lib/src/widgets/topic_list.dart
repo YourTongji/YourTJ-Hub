@@ -11,6 +11,7 @@ import '../format.dart';
 import 'status_views.dart';
 import '../asset_url.dart';
 import '../images/image_save.dart';
+import 'sticker_message_span.dart';
 
 enum GfTopicFeedMode { list, card }
 
@@ -34,6 +35,7 @@ class GfTopicList extends StatelessWidget {
     this.loadMoreError,
     this.hiddenCategoryId,
     this.onCategorySelected,
+    this.stickerLibrary,
   });
 
   final bool loading;
@@ -55,6 +57,11 @@ class GfTopicList extends StatelessWidget {
   final String? loadMoreError;
   final int? hiddenCategoryId;
   final ValueChanged<int>? onCategorySelected;
+
+  /// Page-level sticker resolution for feed excerpts. Rows only receive the
+  /// resolved name→url map, so scrolling never triggers a lookup per item;
+  /// null keeps excerpts plain.
+  final StickerLibrary? stickerLibrary;
 
   @override
   Widget build(BuildContext context) {
@@ -88,24 +95,26 @@ class GfTopicList extends StatelessWidget {
     final pinned = collapsePinned
         ? topics.where((topic) => topic.pinWeight > 0).toList()
         : <TopicPayload>[];
-    Widget card(TopicPayload topic) => buildTopicFeedCard(
-      context,
-      topic,
-      hiddenCategoryId: hiddenCategoryId,
-      onCategorySelected: onCategorySelected,
-      onReturn: onReturnFromTopic,
-      onFirstMediaFrame: onFirstMediaFrame,
-      onLike: onLikeTopic == null || topic.liked == null
-          ? null
-          : (target) => onLikeTopic!(topic, target),
-      onBookmark: onBookmarkTopic == null || topic.bookmarked == null
-          ? null
-          : (target) => onBookmarkTopic!(topic, target),
-    );
+    Widget card(TopicPayload topic, Map<String, String> stickerUrlByName) =>
+        buildTopicFeedCard(
+          context,
+          topic,
+          stickerUrlByName: stickerUrlByName,
+          hiddenCategoryId: hiddenCategoryId,
+          onCategorySelected: onCategorySelected,
+          onReturn: onReturnFromTopic,
+          onFirstMediaFrame: onFirstMediaFrame,
+          onLike: onLikeTopic == null || topic.liked == null
+              ? null
+              : (target) => onLikeTopic!(topic, target),
+          onBookmark: onBookmarkTopic == null || topic.bookmarked == null
+              ? null
+              : (target) => onBookmarkTopic!(topic, target),
+        );
     final visibleTopics = pinned.isEmpty
         ? topics
         : topics.where((topic) => topic.pinWeight <= 0).toList();
-    return ListView.separated(
+    Widget feed(Map<String, String> stickerUrlByName) => ListView.separated(
       controller: controller,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: padding,
@@ -124,6 +133,7 @@ class GfTopicList extends StatelessWidget {
           if (index == 0) {
             return _PinnedTopicStrip(
               key: const ValueKey('pinned-topic-strip'),
+              stickerUrlByName: stickerUrlByName,
               topics: pinned,
               // Under a header (the announcement strip) keep one 6-pixel gap.
               topMargin: header == null ? 6 : 0,
@@ -143,10 +153,11 @@ class GfTopicList extends StatelessWidget {
         }
         final TopicPayload topic = visibleTopics[index];
         return feedMode == GfTopicFeedMode.card
-            ? card(topic)
+            ? card(topic, stickerUrlByName)
             : _topicRow(
                 context,
                 topic,
+                stickerUrlByName: stickerUrlByName,
                 isLast: index == visibleTopics.length - 1,
                 onCategorySelected: onCategorySelected,
                 hiddenCategoryId: hiddenCategoryId,
@@ -154,7 +165,104 @@ class GfTopicList extends StatelessWidget {
               );
       },
     );
+    final StickerLibrary? library = stickerLibrary;
+    return library == null
+        ? feed(const <String, String>{})
+        : TopicStickerExcerpts(
+            library: library,
+            topics: topics,
+            builder: feed,
+          );
   }
+}
+
+/// Sticker sizes that fit one excerpt line: the row's 13/15px text and the
+/// card's 17px text (MADR 0030 keeps token parsing in the shared helper).
+const double _rowStickerSize = 18;
+const double _cardStickerSize = 22;
+
+/// One resolution for the whole page: the visible topics' descriptions are
+/// sent together, rows only read the resolved map. Unknown or disabled tokens
+/// vanish from the excerpt instead of surfacing as markup.
+class TopicStickerExcerpts extends StatefulWidget {
+  const TopicStickerExcerpts({
+    super.key,
+    required this.library,
+    required this.topics,
+    required this.builder,
+  });
+
+  final StickerLibrary library;
+  final List<TopicPayload> topics;
+  final Widget Function(Map<String, String> urlByName) builder;
+
+  @override
+  State<TopicStickerExcerpts> createState() => TopicStickerExcerptsState();
+}
+
+class TopicStickerExcerptsState extends State<TopicStickerExcerpts> {
+  String? _requested;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.library.addListener(_catalogChanged);
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(TopicStickerExcerpts oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.library != widget.library) {
+      oldWidget.library.removeListener(_catalogChanged);
+      widget.library.addListener(_catalogChanged);
+    }
+    _resolve();
+  }
+
+  @override
+  void dispose() {
+    widget.library.removeListener(_catalogChanged);
+    super.dispose();
+  }
+
+  void _catalogChanged() => setState(() {});
+
+  void _resolve() {
+    final String sources = [
+      for (final TopicPayload topic in widget.topics)
+        '${topic.title}\n${topic.description}',
+    ].join('\n');
+    if (sources == _requested) return;
+    _requested = sources;
+    // A failed lookup leaves the excerpt readable without its stickers.
+    widget.library.resolveContent(sources).catchError((Object _) {});
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      widget.builder(widget.library.urlByName);
+}
+
+/// Feed excerpt text plus its resolved span. Tokens always travel through the
+/// span, so resolved ones render as images and unresolved ones disappear.
+(String, InlineSpan?) _feedExcerpt(
+  String text,
+  Map<String, String> urlByName,
+  double stickerSize,
+) {
+  if (!containsStickerToken(text)) return (text, null);
+  return (
+    '',
+    buildStickerMessageSpan(
+      text,
+      urlByName,
+      stickerSize: stickerSize,
+      collectible: false,
+      deferLongPress: true,
+      dropUnknownStickers: true,
+    ),
+  );
 }
 
 /// Collapsed pins, in card and list feeds alike, fold into one line beside
@@ -166,10 +274,12 @@ class _PinnedTopicStrip extends StatefulWidget {
     super.key,
     required this.topics,
     required this.topMargin,
+    this.stickerUrlByName = const <String, String>{},
     this.onReturn,
   });
 
   final List<TopicPayload> topics;
+  final Map<String, String> stickerUrlByName;
   final double topMargin;
   final VoidCallback? onReturn;
 
@@ -184,6 +294,26 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
   // Retain the disclosure when its lazy list item leaves the viewport.
   @override
   bool get wantKeepAlive => true;
+
+  // 无标题瞬间的置顶标题其实是摘要，可能带 [:sticker:name:]；与列表行同样走共享分段。
+  Widget pinnedTitle(BuildContext context, TopicPayload topic, GfColors colors,
+      {double fontSize = 12.5}) {
+    final TextStyle style = TextStyle(
+      fontSize: fontSize,
+      fontWeight: FontWeight.w500,
+      color: colors.baseContent.withValues(alpha: 0.88),
+    );
+    final String title = topicDisplayTitle(topic);
+    final (String plain, InlineSpan? span) = _feedExcerpt(
+      title,
+      widget.stickerUrlByName,
+      _rowStickerSize,
+    );
+    if (span != null) {
+      return GfText.rich(span, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
+    }
+    return GfText(plain, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -264,16 +394,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
                           style: TextStyle(fontSize: 11, color: muted),
                         ),
                       )
-                    : GfText(
-                        topicDisplayTitle(topics.first),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: colors.baseContent.withValues(alpha: 0.82),
-                        ),
-                      ),
+                    : pinnedTitle(context, topics.first, colors, fontSize: 12),
               ),
               if (!single) ...<Widget>[
                 if (!expanded) ...<Widget>[
@@ -334,18 +455,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
                 ),
               ),
               const SizedBox(width: 9),
-              Expanded(
-                child: GfText(
-                  topicDisplayTitle(topic),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
-                    color: colors.baseContent.withValues(alpha: 0.88),
-                  ),
-                ),
-              ),
+              Expanded(child: pinnedTitle(context, topic, colors)),
               if (topic.unseen == true) ...<Widget>[
                 const SizedBox(width: 6),
                 Container(
@@ -427,11 +537,25 @@ Widget _topicRow(
   BuildContext context,
   TopicPayload topic, {
   required bool isLast,
+  required Map<String, String> stickerUrlByName,
   int? hiddenCategoryId,
   ValueChanged<int>? onCategorySelected,
   VoidCallback? onReturn,
 }) {
   final AppLocalizations l10n = AppLocalizations.of(context);
+  final String displayTitle = topic.processStatus == 2
+      ? "${l10n.contentReviewPending} · ${topicDisplayTitle(topic)}"
+      : topicDisplayTitle(topic);
+  // An untitled moment keeps its excerpt in the title slot; both slots carry the
+  // page's resolved stickers.
+  final (String title, InlineSpan? titleSpan) = _feedExcerpt(
+    displayTitle,
+    stickerUrlByName,
+    _rowStickerSize,
+  );
+  final (String description, InlineSpan? descriptionSpan) = topic.title.isEmpty
+      ? ('', null)
+      : _feedExcerpt(topic.description, stickerUrlByName, _rowStickerSize);
   final List<GfTopicCategory> categories = <GfTopicCategory>[
     for (final CategoryBriefPayload cat in topic.categories)
       if (cat.id != hiddenCategoryId)
@@ -453,10 +577,10 @@ Widget _topicRow(
     topic: topic,
     child: GfTopicRow(
       feedContext: _feedContext(l10n, topic),
-      title: topic.processStatus == 2
-          ? "${l10n.contentReviewPending} · ${topicDisplayTitle(topic)}"
-          : topicDisplayTitle(topic),
-      description: topic.title.isEmpty ? '' : topic.description,
+      title: title,
+      titleSpan: titleSpan,
+      description: description,
+      descriptionSpan: descriptionSpan,
       categories: categories,
       participantAvatarUrls: participantAvatarUrls,
       participantFrameScales: [
@@ -515,9 +639,15 @@ Widget buildTopicFeedCard(
   Future<bool> Function(bool target)? onBookmark,
   int? hiddenCategoryId,
   ValueChanged<int>? onCategorySelected,
+  Map<String, String> stickerUrlByName = const <String, String>{},
 }) {
   final AppLocalizations l10n = AppLocalizations.of(context);
   final String nickname = topic.author.nickname?.trim() ?? '';
+  final (String description, InlineSpan? descriptionSpan) = _feedExcerpt(
+    topic.description,
+    stickerUrlByName,
+    _cardStickerSize,
+  );
   final List<String> images = <String>[
     for (final String image in topic.images ?? const <String>[])
       resolveApiAssetUrl(image),
@@ -547,7 +677,8 @@ Widget buildTopicFeedCard(
       title: topic.processStatus == 2
           ? "${l10n.contentReviewPending} · ${topic.title}"
           : topic.title,
-      description: topic.description,
+      description: description,
+      descriptionSpan: descriptionSpan,
       authorName: topic.author.publicUid != null
           ? '${topic.author.nickname ?? topic.author.username} · ${l10n.anonymousTag}'
           : privateDisplayName(

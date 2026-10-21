@@ -23,6 +23,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/llmprovider"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/randopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
@@ -2381,12 +2382,13 @@ func notifyReviewResult(authorID uint64, approved bool, topicID uint64, title st
 	}
 }
 
-// reviewSubjectTitle 通知里的内容标题：无标题瞬间回落摘要（截断）。
+// reviewSubjectTitle 通知里的内容标题：无标题瞬间回落摘要（截断）。通知是纯文本，
+// 摘要里的贴纸 token 在这里无法展开，先去 token 再截断以免只切出半个 token。
 func reviewSubjectTitle(title, excerpt string) string {
 	if strings.TrimSpace(title) != "" {
 		return title
 	}
-	runes := []rune(strings.TrimSpace(excerpt))
+	runes := []rune(markdown2html.StripStickerTokens(strings.TrimSpace(excerpt)))
 	if len(runes) > 40 {
 		return string(runes[:40]) + "…"
 	}

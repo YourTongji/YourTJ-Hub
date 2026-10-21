@@ -83,10 +83,16 @@ class GfTopicCard extends StatefulWidget {
     this.unseen = false,
     this.hot = false,
     this.feedContext,
+    this.descriptionSpan,
   });
 
   final String title;
   final String description;
+
+  /// Prebuilt rich excerpt (page-level sticker resolution): when present it
+  /// owns the text and [description] stays empty. Sticker images inside it are
+  /// not tappable so the card's own tap target stays the only one.
+  final InlineSpan? descriptionSpan;
   final String avatarFrameAssetUrl;
   final double avatarFrameScale;
   final String authorName;
@@ -191,6 +197,33 @@ class _GfTopicCardState extends State<GfTopicCard> {
     );
   }
 
+  /// Sticker spans carry their own image widget; the card owns taps, so inline
+  /// content must not compete for them.
+  Widget _excerpt(GfColors colors) {
+    final TextStyle style = TextStyle(
+      color: colors.baseContent.withValues(alpha: 0.85),
+      fontSize: 17,
+      height: 1.4,
+    );
+    final InlineSpan? span = widget.descriptionSpan;
+    if (span == null) {
+      return GfText(
+        widget.description,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      );
+    }
+    return IgnorePointer(
+      child: GfText.rich(
+        span,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
@@ -284,18 +317,10 @@ class _GfTopicCardState extends State<GfTopicCard> {
                       ],
                     ],
                   ),
-                  if (widget.description.isNotEmpty) ...<Widget>[
+                  if (widget.description.isNotEmpty ||
+                      widget.descriptionSpan != null) ...<Widget>[
                     const SizedBox(height: 2),
-                    GfText(
-                      widget.description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.baseContent.withValues(alpha: 0.85),
-                        fontSize: 17,
-                        height: 1.4,
-                      ),
-                    ),
+                    _excerpt(colors),
                   ],
                 ],
               ),

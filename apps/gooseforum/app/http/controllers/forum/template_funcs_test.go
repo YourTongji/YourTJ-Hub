@@ -4,6 +4,9 @@ import (
 	"html/template"
 	"strings"
 	"testing"
+
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 )
 
 func TestTopicListLabelNeverEmpty(t *testing.T) {
@@ -28,6 +31,75 @@ func TestTopicListLabelNeverEmpty(t *testing.T) {
 	if fallback := topicListLabel("", ""); fallback == "" {
 		t.Fatal("topicListLabel() returned an empty label for an untitled, excerpt-less topic")
 	}
+
+	// 纯贴纸摘要：链接文案用去 token 的纯文本，不能露出 token。
+	if label := topicListLabel("", "[:sticker:crawler_label:]"); strings.Contains(label, "[:sticker:") || label == "" {
+		t.Fatalf("topicListLabel() = %q, want token-free text", label)
+	}
+}
+
+// issue #1304：列表卡片把贴纸渲染成图片，爬虫/无 JS 的 SSR 列表同样展开；
+// 公开口径与列表 API 一致（个人 u_* 与停用/审核中名字不解析），其余文字转义。
+func TestTopicListDescriptionRendersPublicStickersOnly(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&sticker.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	rows := []sticker.Entity{
+		{Name: "crawler_ok", FileName: "stickers/crawler_ok.png", ReviewStatus: sticker.ReviewStatusApproved},
+		{Name: "crawler_off", FileName: "stickers/crawler_off.png", ReviewStatus: sticker.ReviewStatusApproved},
+		{Name: "u_crawler_private", FileName: "stickers/crawler_private.png", ReviewStatus: sticker.ReviewStatusApproved},
+	}
+	for i := range rows {
+		// gorm 的 default 标签会跳过零值字段，先落行再用 Save 写入 false 的启用/官方标记。
+		if err := conn.Create(&rows[i]).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	rows[1].IsEnabled = false
+	rows[2].IsOfficial = false
+	for i := 1; i < len(rows); i++ {
+		if err := sticker.Save(&rows[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Cleanup(func() {
+		conn.Where("name IN ?", []string{"crawler_ok", "crawler_off", "u_crawler_private"}).Delete(&sticker.Entity{})
+	})
+
+	description := `A & <b>"q"</b> [:sticker:crawler_ok:]|[:sticker:crawler_off:]|[:sticker:u_crawler_private:]|[:sticker:crawler_missing:]`
+	html := string(topicListDescription(description))
+
+	if !strings.Contains(html, `src="/file/img/stickers/crawler_ok.png"`) || !strings.Contains(html, `alt="[sticker:crawler_ok]"`) {
+		t.Fatalf("public sticker not rendered as an image: %s", html)
+	}
+	if !strings.Contains(html, "A &amp; &lt;b&gt;") {
+		t.Fatalf("text segment not escaped: %s", html)
+	}
+	for _, omitted := range []string{"crawler_off", "crawler_private", "crawler_missing", "[:sticker:"} {
+		if strings.Contains(html, omitted) {
+			t.Fatalf("disabled/personal/unknown sticker %q leaked: %s", omitted, html)
+		}
+	}
+	if escaped := string(topicListDescription("纯文字")); escaped != "纯文字" {
+		t.Fatalf("token-free description changed: %q", escaped)
+	}
+
+	// 模板接线：列表摘要用同一渲染，且模板不二次转义 <img>。
+	tmpl, err := template.New("partials/topic_list.gohtml").
+		Funcs(templateFuncs()).
+		ParseFiles("../../../../resource/templates/partials/topic_list.gohtml")
+	if err != nil {
+		t.Fatalf("parse topic_list partial: %v", err)
+	}
+	var out strings.Builder
+	data := map[string]any{"Lang": "en", "Topics": []TopicPayload{{ID: 1304, Title: "标题", Description: description}}}
+	if err := tmpl.ExecuteTemplate(&out, "partials/topic_list.gohtml", data); err != nil {
+		t.Fatalf("execute topic_list partial: %v", err)
+	}
+	if html := out.String(); !strings.Contains(html, `class="gf-crawler-topic-excerpt"`) || !strings.Contains(html, `<img src="/file/img/stickers/crawler_ok.png"`) || strings.Contains(html, "&lt;img") {
+		t.Fatalf("crawler list excerpt did not render the sticker image:\n%s", html)
+	}
 }
 
 // issue #895：爬虫/无 JS 的 SSR 话题列表不能出现空链接文案。
@@ -41,7 +113,7 @@ func TestTopicListPartialRendersUntitledMomentFallback(t *testing.T) {
 	data := map[string]any{
 		"Lang": "en",
 		"Topics": []TopicPayload{{
-			ID:   895,
+			ID:    895,
 			Title: "",
 			URL:   "/p/post/895",
 		}},

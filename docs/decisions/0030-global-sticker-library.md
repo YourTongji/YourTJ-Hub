@@ -71,6 +71,14 @@ Class: feature
 - Good: 一处维护全端一致；复用 sanitize/math 管线；SSR/SEO 自然正确。
 - Bad: 客户端展开（私信/移动端）需各端维护一份 token 解析（当前实现：web `sticker-token.ts` 分段 + 移动端 core 纯函数，规则对齐服务端正则）；帖子主链路仍以服务端展开为唯一权威。
 
+## Addendum
+
+`Current`：客户端 token 展开不再限于私信气泡。列表与卡片的帖子摘要（`topics.excerpt`）保留正文里的
+`[:sticker:name:]` token，Web 与移动端按当前公开贴纸列表在客户端展开成图片；未知或停用名字在预览里
+省略，不回退字面量，截断不会切开一个 token。爬虫/无 JS 的 SSR 列表由服务端展开成 `<img>`，口径与
+公开列表 API 一致（个人 `u_*` 与停用名字不解析）。纯文本落点（通知、收藏预览、SEO/meta、RSS、
+分享卡、llms 导出）仍按文本处理，token 从文本中去掉。帖子/回复正文的服务端展开规则不变。
+
 ## Links
 
 - [MADR 0009：对象存储内网代理读](0009-image-egress-internal-proxy.md)

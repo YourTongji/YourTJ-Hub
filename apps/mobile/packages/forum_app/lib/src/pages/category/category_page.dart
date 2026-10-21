@@ -132,6 +132,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
                           loading: _loadingMore,
                           topics: _topics,
                           feedMode: GfTopicFeedMode.card,
+                          stickerLibrary: ref.watch(stickerLibraryProvider),
                           hiddenCategoryId: widget.categoryId,
                           hasMore: props.pagination.hasNext,
                           onLoadMore: _loadMore,

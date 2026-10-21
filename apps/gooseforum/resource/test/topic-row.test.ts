@@ -141,6 +141,82 @@ describe('TopicRow.vue 列表行一致性验证', () => {
     expect(wrapper.find('p').text()).toBe('测试内容描述')
   })
 
+  test('摘要中的表情 token 渲染为内联图片，未知 token 丢弃且不出现原文', () => {
+    const stickerUrls = new Map([['cat', '/file/img/cat.png']])
+    const topic = createMockTopic(2, { description: '看这个 [:sticker:cat:] 和 [:sticker:missing:] 结尾' })
+    const wrapper = mount(TopicRow, {
+      props: { topic, home: true, stickerUrls },
+      global: { plugins: [i18n] },
+    })
+
+    try {
+      const image = wrapper.get('p img')
+      expect(image.attributes('src')).toBe('/file/img/cat.png')
+      expect(image.attributes('alt')).toBe('[:sticker:cat:]')
+      expect(image.attributes('loading')).toBe('lazy')
+      expect(image.classes()).toEqual(expect.arrayContaining(['inline-block', 'object-contain', 'align-middle', 'h-5', 'w-5']))
+      const text = wrapper.get('p').text()
+      expect(text).toContain('看这个')
+      expect(text).toContain('结尾')
+      expect(wrapper.text()).not.toContain('[:sticker:')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  test('无 token 的摘要不渲染图片，文本保持原样', () => {
+    const wrapper = mount(TopicRow, {
+      props: { topic: createMockTopic(2), home: true },
+      global: { plugins: [i18n] },
+    })
+
+    expect(wrapper.get('p').text()).toBe('测试内容描述')
+    expect(wrapper.find('p img').exists()).toBe(false)
+  })
+
+  test('表情尚未解析时只渲染文本段，不暴露 token', () => {
+    const topic = createMockTopic(2, { description: '看图 [:sticker:cat:] 再说' })
+    const wrapper = mount(TopicRow, {
+      props: { topic, home: true },
+      global: { plugins: [i18n] },
+    })
+
+    expect(wrapper.find('p img').exists()).toBe(false)
+    expect(wrapper.get('p').text()).toContain('看图')
+    expect(wrapper.get('p').text()).toContain('再说')
+    expect(wrapper.text()).not.toContain('[:sticker:')
+  })
+
+  test('无标题瞬间的摘要链接把已解析表情渲染为图片并使用 leading-6 尺寸', () => {
+    const stickerUrls = new Map([['cat', '/file/img/cat.png']])
+    const topic = createMockTopic(2, { title: '', description: '[:sticker:cat:] 新发现' })
+    const wrapper = mount(TopicRow, {
+      props: { topic, home: true, stickerUrls },
+      global: { plugins: [i18n] },
+    })
+
+    try {
+      const link = wrapper.get(`a[href="${topic.url}"]`)
+      const image = link.get('img')
+      expect(image.attributes('src')).toBe('/file/img/cat.png')
+      expect(image.classes()).toEqual(expect.arrayContaining(['h-6', 'w-6']))
+      expect(link.text()).toContain('新发现')
+      expect(wrapper.text()).not.toContain('[:sticker:')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  test('只含未解析表情的摘要不留空段落', () => {
+    const wrapper = mount(TopicRow, {
+      props: { topic: createMockTopic(2, { description: '[:sticker:missing:]' }), home: true },
+      global: { plugins: [i18n] },
+    })
+
+    expect(wrapper.find('p').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('[:sticker:')
+  })
+
   test('打开另一行预览时只保留最新的 Hover Card', async () => {
     vi.useFakeTimers()
     const first = mount(TopicRow, {
