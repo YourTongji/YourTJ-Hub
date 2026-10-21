@@ -46,7 +46,7 @@ class _GatedFollowRepository implements TopicRepository {
     required bool isFollowing,
   }) async {
     final applied = await result.future;
-    return (isFollowing: applied, isMutualFollowing: false);
+    return (isFollowing: applied, isMutualFollowing: applied);
   }
 
   @override
@@ -89,8 +89,9 @@ void main() {
 
     response.complete(true);
     await mutation;
+    // 成功后以服务端返回的 applied 状态为准，互关位同样被写入。
     expect(state.following, isTrue);
-    expect(state.mutualFollowing, isFalse);
+    expect(state.mutualFollowing, isTrue);
   });
 
   test('a failed follow toggle rolls back the mutual flag too', () async {

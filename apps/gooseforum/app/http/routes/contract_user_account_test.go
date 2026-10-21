@@ -248,9 +248,9 @@ func TestUserCardHTTPContract(t *testing.T) {
 			}
 		}
 
-		readCard := func(token string) (isFollowing, isMutualFollowing bool) {
+		readCard := func(token string, userID uint64) (isFollowing, isMutualFollowing bool) {
 			t.Helper()
-			recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/user-card?userId="+fmt.Sprint(target.Id), "", token)
+			recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/user-card?userId="+fmt.Sprint(userID), "", token)
 			if recorder.Code != http.StatusOK {
 				t.Fatalf("user card status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 			}
@@ -264,12 +264,19 @@ func TestUserCardHTTPContract(t *testing.T) {
 			return result.IsFollowing, result.IsMutualFollowing
 		}
 
-		if isFollowing, isMutual := readCard(contractSessionToken(t, viewer)); !isFollowing || !isMutual {
+		if isFollowing, isMutual := readCard(contractSessionToken(t, viewer), target.Id); !isFollowing || !isMutual {
 			t.Fatalf("authenticated user card isFollowing=%v isMutualFollowing=%v, want both true", isFollowing, isMutual)
 		}
 		// 匿名请求没有 viewer 视角，两个字段恒为 false。
-		if isFollowing, isMutual := readCard(""); isFollowing || isMutual {
+		if isFollowing, isMutual := readCard("", target.Id); isFollowing || isMutual {
 			t.Fatalf("anonymous user card isFollowing=%v isMutualFollowing=%v, want both false", isFollowing, isMutual)
+		}
+		// 本人卡片恒为 false：存量自关注行（#594 carve-out）也不能让本人卡片自称已关注。
+		if err := conn.Create(&userFollow.Entity{UserId: viewer.Id, FollowUserId: viewer.Id, Status: 1}).Error; err != nil {
+			t.Fatalf("seed residual self follow: %v", err)
+		}
+		if isFollowing, isMutual := readCard(contractSessionToken(t, viewer), viewer.Id); isFollowing || isMutual {
+			t.Fatalf("own user card isFollowing=%v isMutualFollowing=%v, want both false", isFollowing, isMutual)
 		}
 	})
 
