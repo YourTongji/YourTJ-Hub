@@ -176,8 +176,9 @@ class GfTopicList extends StatelessWidget {
   }
 }
 
-/// 卡片摘要（17px 文本）里的贴纸图片尺寸；列表行是小字视图，改用 [名字] 文本。
-const double _cardStickerSize = 22;
+/// 卡片摘要（17px 文本，行高约 24px）里的贴纸图片尺寸：允许到两倍行距。
+/// 列表行是小字视图，改用 [名字] 文本。
+const double _cardStickerSize = 48;
 
 /// One resolution for the whole page: the visible topics' descriptions are
 /// sent together, rows only read the resolved map. Unknown or disabled tokens

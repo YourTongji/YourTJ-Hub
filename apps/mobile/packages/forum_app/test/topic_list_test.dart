@@ -831,7 +831,7 @@ void main() {
         mode: GfTopicFeedMode.card,
       );
 
-      expect(tester.getSize(find.byType(StickerImage)), const Size(22, 22));
+      expect(tester.getSize(find.byType(StickerImage)), const Size(48, 48));
       expect(
         _richTexts(tester).where((text) => text.contains('[:sticker:')),
         isEmpty,

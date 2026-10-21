@@ -7,7 +7,7 @@ import { renderableStickerSegments } from '@/site/utils/sticker-token'
 const props = withDefaults(defineProps<{
   content: string
   stickerUrls?: Map<string, string>
-  // 对齐所在行行高：leading-5 → h-5 w-5，leading-6 → h-6 w-6
+  // 卡片最大允许两倍行距：leading-6（24px）→ h-12 w-12；更小的行用 h-5 w-5
   size?: string
 }>(), {
   stickerUrls: () => new Map<string, string>(),

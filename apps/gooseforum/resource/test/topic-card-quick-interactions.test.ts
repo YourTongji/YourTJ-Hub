@@ -291,7 +291,8 @@ describe('TopicCardActions 卡片快捷互动（issue #380）', () => {
     expect(vi.mocked(resolveForumStickers).mock.calls[0]![0]).toEqual(['cat', 'gone'])
     const image = view.get('img[src="/file/img/cat.png"]')
     expect(image.attributes('alt')).toBe('[:sticker:cat:]')
-    expect(image.classes()).toEqual(expect.arrayContaining(['h-6', 'w-6']))
+    // 卡片允许两倍行距：贴纸图片按 h-12/w-12 渲染。
+    expect(image.classes()).toEqual(expect.arrayContaining(['h-12', 'w-12']))
     expect(view.text()).not.toContain('[:sticker:')
     for (const link of view.findAll('a[aria-label]')) {
       expect(link.attributes('aria-label')).not.toContain('[:sticker:')
