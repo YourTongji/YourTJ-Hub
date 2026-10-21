@@ -508,3 +508,40 @@ func TestMidnightAfterOwnerLock(t *testing.T) {
 		})
 	}
 }
+
+func TestConfirmRejectsDisabledPersona(t *testing.T) {
+	s := setup(t, false)
+	day, _ := anonymousnames.Day(s.Now())
+	first, err := s.Generate(1, day, "first-request")
+	if err != nil {
+		t.Fatal(err)
+	}
+	persona, err := s.Confirm(1, first.ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := s.State(1)
+	if err != nil || state.NameChangeAvailableAt == nil {
+		t.Fatal(state, err)
+	}
+	// The rename window stays open, so only the disabled guard can refuse this confirmation.
+	s.Now = func() time.Time { return *state.NameChangeAvailableAt }
+	day, _ = anonymousnames.Day(s.Now())
+	rename, err := s.Generate(1, day, "rename-request")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetDisabled(1, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Confirm(1, rename.ID, 1); ErrorCode(err) != "anonymous.unavailable" {
+		t.Fatalf("disabled persona confirmation: %v", err)
+	}
+	var stored identity.Persona
+	if err := s.DB.First(&stored, "uid = ?", persona.PublicUID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.Name != persona.Name || !stored.Disabled {
+		t.Fatalf("disabled persona was renamed: %+v", stored)
+	}
+}

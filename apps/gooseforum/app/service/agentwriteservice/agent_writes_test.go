@@ -147,3 +147,45 @@ func TestFinishTxPreservesEachPendingReplyDepth(t *testing.T) {
 		t.Fatalf("latest result not replaced: %#v", event)
 	}
 }
+
+// A reservation that committed without its content reference must never replay as
+// a successful write with zero topic/post IDs.
+func TestIncompleteReservationIsNotReplayable(t *testing.T) {
+	conn, ctx := writeFixture(t)
+	incomplete := agentWrites.Entry{InstanceID: "write-policy", AgentID: 1, Operation: "post", TargetID: 10, RequestKey: "reply", Digest: "one", ExpiresAt: time.Now().Add(time.Hour)}
+	if err := conn.Create(&incomplete).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Transaction(func(tx *gorm.DB) error {
+		reservation, replay, err := BeginTx(ctx, tx, 1)
+		if !errors.Is(err, agentWrites.ErrIncomplete) || reservation != nil || replay != nil {
+			return fmt.Errorf("incomplete reservation replayed: reservation=%#v replay=%#v err=%v", reservation, replay, err)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// A committed reference is written once; completing it again is not a success.
+	if err := conn.Transaction(func(tx *gorm.DB) error {
+		reservation, _, err := BeginTx(WithOptions(context.Background(), Options{Operation: "post", TargetID: 10, Key: "reply2", Digest: "one", CredentialHash: "hash"}), tx, 1)
+		if err != nil {
+			return err
+		}
+		if err := agentWrites.CompleteTx(tx, reservation.Entry, 10, 20); err != nil {
+			return err
+		}
+		if err := agentWrites.CompleteTx(tx, reservation.Entry, 11, 21); !errors.Is(err, agentWrites.ErrIncomplete) {
+			return fmt.Errorf("second completion: %v", err)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var stored agentWrites.Entry
+	if err := conn.Where("agent_id = ? AND request_key = ?", 1, "reply2").Take(&stored).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.TopicID != 10 || stored.PostID != 20 {
+		t.Fatalf("committed reference overwritten: %#v", stored)
+	}
+}

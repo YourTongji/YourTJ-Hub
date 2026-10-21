@@ -11,6 +11,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/emailactivationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/totpservice"
@@ -55,6 +56,14 @@ func Register(c *gin.Context) {
 	securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
 
 	if !securityConfig.EnableSignup {
+		c.JSON(200, component.FailDataCode(component.MessageAuthSignupDisabled, nil))
+		return
+	}
+	// issue #1284 B18：站点启用了邮箱验证但邮件服务未配置时，账号会建出来停在
+	// 未激活状态、激活邮件永远发不出去，而接口仍回「注册成功，请前往邮箱验证」。
+	// 入口直接拒绝，不制造无法激活的账号（Signal: auth.signupDisabled）。
+	if securityConfig.EnableEmailVerification && !mailservice.IsConfigured() {
+		slog.Error("注册被拒绝：站点启用了邮箱验证但邮件服务未配置", "ip", c.ClientIP())
 		c.JSON(200, component.FailDataCode(component.MessageAuthSignupDisabled, nil))
 		return
 	}

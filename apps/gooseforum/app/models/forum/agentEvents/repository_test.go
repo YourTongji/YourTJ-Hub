@@ -228,3 +228,40 @@ func TestPurgedDiagnosticsKeepNamespacedReplayFloor(t *testing.T) {
 		t.Fatalf("foreign instance floor leaked: %d %v", foreign, err)
 	}
 }
+
+// acked_at records the first acknowledgement for audit; a repeated ACK is
+// idempotent and must not refresh that time.
+func TestAckKeepsFirstAcknowledgedTime(t *testing.T) {
+	conn, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.AutoMigrate(&Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	e := Entity{ID: "evt_ack", InstanceID: "ack", AgentID: 7, Seq: 1, SourceIntentID: "src_ack", Reasons: []string{}, OccurredAt: now, ExpiresAt: now.Add(time.Hour)}
+	if err := conn.Create(&e).Error; err != nil {
+		t.Fatal(err)
+	}
+	firstAck := now.Add(time.Minute)
+	if err := AckTx(conn, "ack", 7, []string{"evt_ack"}, firstAck); err != nil {
+		t.Fatal(err)
+	}
+	var saved Entity
+	if err := conn.Where("id = ?", "evt_ack").Take(&saved).Error; err != nil {
+		t.Fatal(err)
+	}
+	if saved.AckedAt == nil || !saved.AckedAt.UTC().Equal(firstAck) {
+		t.Fatalf("first ACK did not record the acknowledgement: %#v", saved.AckedAt)
+	}
+	if err := AckTx(conn, "ack", 7, []string{"evt_ack"}, firstAck.Add(time.Hour)); err != nil {
+		t.Fatalf("repeated ACK returned an error: %v", err)
+	}
+	if err := conn.Where("id = ?", "evt_ack").Take(&saved).Error; err != nil {
+		t.Fatal(err)
+	}
+	if saved.AckedAt == nil || !saved.AckedAt.UTC().Equal(firstAck) {
+		t.Fatalf("repeated ACK refreshed the first acknowledgement: %#v", saved.AckedAt)
+	}
+}
