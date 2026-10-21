@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 2,
+  "candidateId": "web-0.0.52",
+  "sourceSha": "dc41a82d1edadfb4339b81e25eedadc4d0b38b23",
+  "product": "web",
+  "version": "0.0.52",
+  "tag": "v0.0.52",
+  "buildNumber": null,
+  "channels": [
+    "web"
+  ],
+  "operation": "release",
+  "existingRelease": null,
+  "baselines": {
+    "web": {
+      "tag": "v0.0.51",
+      "sourceSha": "f34e7b04c2880b4ab1eb3ee220291715ba2ec72f",
+      "deploymentId": 7197850775
+    }
+  },
+  "notes": {
+    "web": "web.zh-CN.md"
+  },
+  "serverRequirement": null,
+  "requiredDisclosures": []
+}
