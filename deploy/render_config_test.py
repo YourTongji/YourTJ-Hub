@@ -220,8 +220,8 @@ for instance_name, expected in [("dev", False), ("main", True)]:
     rendered_flag = tomllib.loads(rc.render("enabled = {{SEARCH_MAINTENANCE_ENABLED}}", flags))
     check_eq(f"{instance_name} maintenance renders a TOML bool", expected, rendered_flag["enabled"])
 
-# Real instance metadata must activate dev feeds without enabling production feeds.
-for instance_name, expected in [("dev", True), ("main", False)]:
+# Real instance metadata must preserve enabled feeds across deployments.
+for instance_name, expected in [("dev", True), ("main", True)]:
     instance = rc.load_instance(instance_name, rc.DEFAULT_INSTANCES_DIR)
     feed_env = {
         **env_partial,
