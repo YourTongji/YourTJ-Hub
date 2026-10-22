@@ -21,7 +21,7 @@ human approval. Runtime protocol tests and the deterministic Core smoke also run
 
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/23a31929953c9b058b45f5883b91c826bfe85667)
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/32af3fbc705ea34f8e4229d38035513ce165d511)
 and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days. New
@@ -196,14 +196,16 @@ while disabling action proposals. Release-note tasks use their full deadline for
 they receive collected evidence and have no repository tools.
 
 Model requests omit JSON assistant-message mode so it does not compete with tool calling.
-Only `oryn_submit_report` can accept a final result. The host returns field paths, error codes and
+Only `oryn_submit_report` can accept a final result. Its provider-facing parameters describe the host's
+result schema; raw arguments still reach the host validator for correction feedback. The host returns field paths, error codes and
 bounded feedback so the model can correct a rejected submission in the same turn. If a turn ends
 without acceptance, the host continues the same ephemeral session with that feedback, at most twice
 within the three-turn budget. A failed turn cannot claim the same wake twice. Report continuations
 expose only the submission tool. The first accepted result is retained, duplicate submissions return
 that result, and remaining model work is cancelled without requiring a final text reply. Explicit
 cancellation and source/authority checks still apply. Model requests remain bounded by the active
-phase and task deadlines.
+phase and task deadlines. Deduplicated `harness_submission_rejected` events expose bounded field paths
+and codes in live logs without retaining submitted values.
 First-byte and idle limits remain at most 120 and
 60 seconds; the total task deadline and authorized cancellation still apply. Remove an existing
 `ORYN_REQUEST_TIMEOUT_SECONDS=300` override to use this default, or set a shorter explicit wall limit.
