@@ -11,6 +11,16 @@ const sharedResolvedUrls = ref(new Map<string, string>())
 const sharedCheckedAt = new Map<string, number>()
 const sharedPending = new Set<string>()
 
+/**
+ * 清空共享缓存：模块级状态跨组件实例存活，vitest 同文件内多个用例之间
+ * 需要显式重置（生产环境不应调用）。
+ */
+export function resetResolvedStickerCache() {
+  sharedResolvedUrls.value = new Map<string, string>()
+  sharedCheckedAt.clear()
+  sharedPending.clear()
+}
+
 /** Message-only resolution never adds personal assets to the official picker. */
 export function useResolvedStickers() {
   async function ensureContentStickers(contents: readonly string[]) {
