@@ -43,6 +43,10 @@ route-aware fallback resumes when the launch surface leaves.
 
 ## Navigation and reading
 
+`Current`: topic cards, list rows and pinned titles share the same text fallback: use the title,
+otherwise the readable summary, otherwise the localized “Untitled” label. An untitled summary
+appears once, and media remains visible when there is no readable summary.
+
 `Current`: Home negotiates feed capability v2, keeps explicit Latest separate from the default root,
 restarts expired recommendation snapshots and reports foreground visible rows/detail dwell. Attribution
 traces stay in memory and are stripped from offline pages. See [feed ranking and

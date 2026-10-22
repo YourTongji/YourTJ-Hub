@@ -327,6 +327,7 @@ void main() {
     'nickname color selection handles theme and insufficient contrast',
     (tester) async {
       final colors = <List<Color>>[];
+      final midContrast = <List<Color>>[];
       for (final brightness in [Brightness.light, Brightness.dark]) {
         await tester.pumpWidget(
           MaterialApp(
@@ -343,6 +344,19 @@ void main() {
                       kind: 'nicknameStyle',
                       lightColors: ['#123456', '#654321'],
                       darkColors: ['#abcdef', '#fedcba'],
+                    ),
+                  ),
+                );
+                // 3:1 floor: clears it but not the old 4.5:1 one (3.68 on white, 3.94 on #101010).
+                midContrast.add(
+                  decorationColors(
+                    context,
+                    const DecorationStyle(
+                      code: 'mid',
+                      name: 'Mid',
+                      kind: 'nicknameStyle',
+                      lightColors: ['#3b82f6', '#3b82f6'],
+                      darkColors: ['#6b7280', '#6b7280'],
                     ),
                   ),
                 );
@@ -367,6 +381,7 @@ void main() {
       }
       expect(colors.first.first, const Color(0xff123456));
       expect(colors.last.first, const Color(0xffabcdef));
+      expect(midContrast.map((c) => c.length), [2, 2]);
     },
   );
 }

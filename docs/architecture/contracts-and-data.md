@@ -781,3 +781,11 @@ items include the `originalReviewReason`. Failures use specific `content.appeal.
 set `notifications.templates.appeal{Submitted,Approved,Rejected,Stale}` template keys.
 Audit records follow [governance retention](../decisions/0021-deletion-final-state-data-retention.md);
 product limits and tradeoffs live in [0098](../decisions/0098-moderation-appeals.md).
+
+## Topic summary projection
+
+`Current`: Markdown summaries retain every nonempty readable text block, including one-character
+paragraphs and headings. Images and code blocks do not supply summary text. The existing 200-rune
+limit remains. Versioned data migration v34 repairs empty persisted summaries of public forum topics
+from the effective public first post, without reading pending revision candidates or changing
+publication/update timestamps. Existing nonempty summaries and nonpublic topics are preserved.
