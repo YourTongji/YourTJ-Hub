@@ -14,6 +14,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	xpmodel "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/xp"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
+	"gorm.io/gorm"
 )
 
 // issue #1284 A2：v13/v20 依赖 Meilisearch（可选依赖），而它们之后的本地版本块
@@ -22,6 +23,26 @@ import (
 // 且不推进主水位，导致这些块永不执行；新审核动作
 // 按 post.LatestRevisionId == revision.Id 判定，缺回填会让接管逻辑静默失效。
 //
+// restoreMainMigrationWatermark 在测试改写主水位之前登记还原：测试共用同一内存库，
+// 把主水位推进到 AppMigrationVersion 后不还原，后续用例会读到高水位而跳过
+// 迁移块（issue #1284 review）。
+func restoreMainMigrationWatermark(t *testing.T, conn *gorm.DB) {
+	t.Helper()
+	var previous pageConfig.Entity
+	hadPrevious := conn.Where("page_type = ?", pageConfig.Migration).Take(&previous).Error == nil
+	t.Cleanup(func() {
+		if hadPrevious {
+			if err := conn.Save(&previous).Error; err != nil {
+				t.Errorf("restore main migration watermark: %v", err)
+			}
+			return
+		}
+		if err := conn.Where("page_type = ?", pageConfig.Migration).Delete(&pageConfig.Entity{}).Error; err != nil {
+			t.Errorf("delete main migration watermark: %v", err)
+		}
+	})
+}
+
 // 测试环境无 Meilisearch（client == nil ⇒ IsAvailable() == false），因此天然覆盖
 // 「索引步骤可跳过」的路径。主水位从 v30 起跑，避免重跑 v1-v29 的存量数据重建。
 func TestVersionedMigrationAdvancesLocalVersionsWhenSearchIndexUnavailable(t *testing.T) {
@@ -33,6 +54,7 @@ func TestVersionedMigrationAdvancesLocalVersionsWhenSearchIndexUnavailable(t *te
 		&xpmodel.RuleSet{}, &xpmodel.RulePublicationLock{}, &xpmodel.RewardRule{}); err != nil {
 		t.Fatal(err)
 	}
+	restoreMainMigrationWatermark(t, conn)
 	if err := pageConfig.SyncMigrationVersion(30); err != nil {
 		t.Fatal(err)
 	}
@@ -107,6 +129,7 @@ func TestSearchIndexStepsDoNotRewindMainWatermark(t *testing.T) {
 		t.Fatal(err)
 	}
 	// 主水位已跑完、索引水位仍是 0：模拟「本次升级前索引步骤一直没跑成」的实例。
+	restoreMainMigrationWatermark(t, conn)
 	if err := pageConfig.SyncMigrationVersion(pageConfig.AppMigrationVersion); err != nil {
 		t.Fatal(err)
 	}
