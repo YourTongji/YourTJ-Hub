@@ -28,7 +28,11 @@ GitHub comments contain bounded queue receipts; Actions artifacts expire after s
 reservations carry a unique lease ID. Execution and publication check receipt ownership before model
 work or side effects; repeated settlement cannot downgrade terminal work.
 
-Manual runs use the selected workflow commit. Issue/PR events load the current default branch (`dev`),
+Manual runs use the selected workflow commit. Manual preflights and runs with `publish=false`
+use a per-run concurrency group so read-only verification can proceed alongside an automatic batch.
+They do not admit receipt reservations or run the publisher. Publishing manual runs and automatic
+events retain the shared `oryn-sweep` group; release-note smoke has its own per-run group. See
+[the concurrency decision](../decisions/0105-oryn-read-only-probes.md). Issue/PR events load the current default branch (`dev`),
 never the contributor's PR head as executable workflow or operator policy. The model sees target source
 as evidence. The default model is `opencode-go/deepseek-v4.1-flash`; repository variables override that profile.
 The configured deployment uses `oryn/glm-5.3-flash` with its configured base URL. Reasoning is `max`;

@@ -49,3 +49,31 @@ test('scope includes committed PR changes, staged repair and untracked files', a
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+// The checked-in concurrency expression uses the JS-compatible boolean/format subset of
+// GitHub expressions. Evaluate that exact text with typed workflow-dispatch fixtures.
+async function orynConcurrency(inputs, event = 'workflow_dispatch', runId = 101) {
+  const { readFileSync } = await import('node:fs');
+  const workflow = readFileSync(new URL('../.github/workflows/oryn.yml', import.meta.url), 'utf8');
+  const expression = workflow.match(/^  group: \$\{\{ (.+) \}\}$/m)?.[1];
+  assert.ok(expression, 'Oryn must declare its workflow concurrency group');
+  const evaluate = new Function('github', 'inputs', 'vars', 'format', `return (${expression});`);
+  const format = (template, ...values) => template.replace(/\{(\d+)\}/g, (_, index) => String(values[index]));
+  return evaluate({ event_name: event, run_id: runId, event: { comment: { user: { type: 'User' } } } },
+    { release_notes_smoke: false, preflight: false, publish: false, ...inputs },
+    { ORYN_ENABLED: 'true', ORYN_EVENT_ENABLED: 'true' }, format);
+}
+
+test('non-publishing manual probes can run without waiting for the publication queue', async () => {
+  assert.equal(await orynConcurrency({}), 'oryn-probe-101');
+  assert.equal(await orynConcurrency({}, 'workflow_dispatch', 102), 'oryn-probe-102');
+  assert.equal(await orynConcurrency({ preflight: true, publish: true }), 'oryn-probe-101');
+  assert.equal(await orynConcurrency({ release_notes_smoke: true }), 'oryn-release-smoke-101');
+});
+
+test('publishing manual work and automatic events keep their shared receipt-writer queue', async () => {
+  assert.equal(await orynConcurrency({ publish: true }), 'oryn-sweep');
+  for (const event of ['schedule', 'pull_request_target', 'issues', 'issue_comment']) {
+    assert.equal(await orynConcurrency({}, event), 'oryn-sweep');
+  }
+});
