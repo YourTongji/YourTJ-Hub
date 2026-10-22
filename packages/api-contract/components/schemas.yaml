@@ -8579,7 +8579,13 @@ AdminHttpNotifyEndpoint:
       type: boolean
     url:
       type: string
-      description: Webhook URL. For `feishu` endpoints the URL embeds the bot hook token, so it is encrypted at rest (AES-256-GCM) and never returned; an empty value keeps the stored URL of the matching `feishu` endpoint.
+      description: >-
+        Webhook URL. For `feishu` endpoints the URL embeds the bot hook token, so it is encrypted at rest
+        (AES-256-GCM) and never returned; an empty value keeps the stored URL of the matching `feishu`
+        endpoint. Deliveries only reach `http`/`https` targets that are not `localhost`, loopback,
+        IPv4 link-local (including the cloud metadata address `169.254.169.254`), unspecified,
+        multicast, IPv4-mapped or in a reserved non-routable prefix (such as CGNAT `100.64.0.0/10`
+        or `2002::/16`); RFC1918/ULA intranet targets are allowed (issue #1280).
     target:
       type: string
       description: Recipient inside the channel, stored and returned in plaintext (surrounding whitespace is trimmed). For `astrbot` endpoints this is the target session `umo` (the SID shown by the `/sid` command) and is required for delivery; other channels ignore it.

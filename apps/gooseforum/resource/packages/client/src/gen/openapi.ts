@@ -6455,10 +6455,21 @@ export interface paths {
          * @description Admin console operation gated by the `SiteManager` role permission;
          *     callers without it fail with HTTP 403 and `permission.denied`.
          *     Replaces the whole notify configuration with the submitted value and
-         *     clears the notify cache. There is no URL/secret validation: the Go
-         *     struct tags `settings` with `validate:"required"`, but struct-level
-         *     required never fails, so a missing or malformed body saves a
-         *     zero-value configuration.
+         *     clears the notify cache. A non-empty endpoint `url` must pass the
+         *     outbound target policy before it is stored (issue #1280): `http`/`https`
+         *     only, and `localhost` names, loopback, IPv4 link-local (including the
+         *     cloud metadata address `169.254.169.254`), unspecified, multicast,
+         *     IPv4-mapped and reserved non-routable prefixes (including CGNAT
+         *     `100.64.0.0/10`, benchmarking `198.18.0.0/15`, `2002::/16` and
+         *     `240.0.0.0/4`) are rejected, while RFC1918/ULA intranet targets stay
+         *     allowed. The check resolves DNS at save time and delivery validates and
+         *     pins the address again. A rejected `url` — whether the URL itself or the
+         *     resolved address fails the policy, or the hostname does not resolve —
+         *     answers HTTP 200 with a non-zero `code` and `messageCode`
+         *     `common.request.invalidParams`, and the configuration is not stored.
+         *     There is no secret validation: the Go struct tags `settings` with
+         *     `validate:"required"`, but struct-level required never fails, so a
+         *     missing or malformed body saves a zero-value configuration.
          */
         post: operations["adminSaveHttpNotifySettings"];
         delete?: never;
@@ -6488,8 +6499,12 @@ export interface paths {
          *     envelope with the usual `X-Goose-*` headers and signature; `feishu`
          *     endpoints receive a sample approval card whose buttons only open the
          *     moderator workbench; `astrbot` endpoints receive the same sample as
-         *     plain text in the `target` session. URLs without a host fail with a
-         *     readable reason instead of being sent. An empty `url`, `secret` or
+         *     plain text in the `target` session. URLs without a host, or whose target
+         *     is `localhost`, loopback, IPv4 link-local (including the cloud metadata
+         *     address `169.254.169.254`), unspecified, multicast, IPv4-mapped or in a
+         *     reserved non-routable prefix (such as CGNAT `100.64.0.0/10` or
+         *     `2002::/16`), fail with a readable reason instead of being
+         *     sent; RFC1918/ULA intranet targets stay allowed. An empty `url`, `secret` or
          *     `target` reuses the stored value of the endpoint with the same `id`, but only
          *     while its channel type is unchanged (a Feishu URL is a credential, and
          *     a secret means something different on each channel). Unknown
@@ -12236,7 +12251,7 @@ export interface components {
             /** @description Optional on save; omitted means `generic`. Unknown values fail with `common.request.invalidParams`. */
             channelType?: components["schemas"]["AdminHttpNotifyChannelType"];
             enabled: boolean;
-            /** @description Webhook URL. For `feishu` endpoints the URL embeds the bot hook token, so it is encrypted at rest (AES-256-GCM) and never returned; an empty value keeps the stored URL of the matching `feishu` endpoint. */
+            /** @description Webhook URL. For `feishu` endpoints the URL embeds the bot hook token, so it is encrypted at rest (AES-256-GCM) and never returned; an empty value keeps the stored URL of the matching `feishu` endpoint. Deliveries only reach `http`/`https` targets that are not `localhost`, loopback, IPv4 link-local (including the cloud metadata address `169.254.169.254`), unspecified, multicast, IPv4-mapped or in a reserved non-routable prefix (such as CGNAT `100.64.0.0/10` or `2002::/16`); RFC1918/ULA intranet targets are allowed (issue #1280). */
             url: string;
             /** @description Recipient inside the channel, stored and returned in plaintext (surrounding whitespace is trimmed). For `astrbot` endpoints this is the target session `umo` (the SID shown by the `/sid` command) and is required for delivery; other channels ignore it. */
             target?: string;
