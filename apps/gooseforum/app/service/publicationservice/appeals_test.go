@@ -248,3 +248,80 @@ func TestModerationAppealApprovalAndRejection(t *testing.T) {
 		})
 	}
 }
+
+// A moderator who authored the rejected content cannot decide their own appeal,
+// while another moderator with the same scope still can.
+func TestModeratorCannotReviewOwnAppeal(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(migration.SchemaModels()...); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	author := users.EntityComplete{Id: 961421, Username: "appeal-self-review-author"}
+	peer := users.EntityComplete{Id: 961422, Username: "appeal-self-review-peer"}
+	for _, row := range []*users.EntityComplete{&author, &peer} {
+		if err := conn.Create(row).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	grants := []moderators.Entity{
+		{UserId: author.Id, ScopeType: moderators.ScopeGlobal, Status: 1},
+		{UserId: peer.Id, ScopeType: moderators.ScopeGlobal, Status: 1},
+	}
+	for i := range grants {
+		if err := conn.Create(&grants[i]).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	topic := topics.Entity{UserId: author.Id, Title: "self reviewed topic", Status: 1, ProcessStatus: topics.ProcessStatusBlocked}
+	if err := conn.Create(&topic).Error; err != nil {
+		t.Fatal(err)
+	}
+	post := posts.Entity{TopicId: topic.Id, UserId: author.Id, PostNo: 1, Content: "blocked content", ProcessStatus: posts.ProcessStatusBlocked}
+	if err := conn.Create(&post).Error; err != nil {
+		t.Fatal(err)
+	}
+	rev := postRevisions.Entity{PostId: post.Id, Version: 1, Title: "candidate", Content: "candidate body", ProcessStatus: posts.ProcessStatusBlocked, ReviewReason: "original rejection"}
+	if err := conn.Create(&rev).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Model(&post).Update("latest_revision_id", rev.Id).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Model(&topic).Update("first_post_id", post.Id).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		conn.Where("post_id = ?", post.Id).Delete(&moderationAppeals.Entity{})
+		conn.Where("post_id = ?", post.Id).Delete(&postRevisions.Entity{})
+		conn.Where("user_id = ?", author.Id).Delete(&eventNotification.Entity{})
+		conn.Unscoped().Delete(&post)
+		conn.Unscoped().Delete(&topic)
+		for i := range grants {
+			conn.Delete(&grants[i])
+		}
+		conn.Unscoped().Delete(&author)
+		conn.Unscoped().Delete(&peer)
+	})
+	appeal, err := publicationservice.SubmitAppeal(ctx, author.Id, "topic", topic.Id, rev.Id, "explanation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := publicationservice.AppealForReviewer(ctx, author.Id, appeal.Id); !errors.Is(err, publicationservice.ErrAppealPermission) {
+		t.Fatalf("author read own appeal: %v", err)
+	}
+	if err := publicationservice.ReviewAppeal(ctx, appeal.Id, author.Id, true, ""); !errors.Is(err, publicationservice.ErrAppealPermission) {
+		t.Fatalf("author decided own appeal: %v", err)
+	}
+	conn.Table("moderation_appeals").Select("id,status,reviewed_at").Take(&appeal, appeal.Id)
+	if appeal.Status != moderationAppeals.Pending || appeal.ReviewedAt != nil {
+		t.Fatalf("self review changed the appeal: %+v", appeal)
+	}
+	if err := publicationservice.ReviewAppeal(ctx, appeal.Id, peer.Id, true, "second opinion"); err != nil {
+		t.Fatal(err)
+	}
+	conn.Table("moderation_appeals").Select("id,status,reviewed_at").Take(&appeal, appeal.Id)
+	if appeal.Status != moderationAppeals.Approved || appeal.ReviewedAt == nil {
+		t.Fatalf("peer review: %+v", appeal)
+	}
+}

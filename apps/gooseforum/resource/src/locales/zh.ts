@@ -3604,6 +3604,9 @@ export default {
     auth: {
       required: '请先登录',
       signupDisabled: '目前已关闭注册功能',
+      mail: {
+        notConfigured: '邮件服务未配置，无法发送验证邮件，请联系管理员',
+      },
       emailDomain: {
         invalid: '邮箱格式不正确',
         notAllowed: '该邮箱域名不在允许的注册白名单中',

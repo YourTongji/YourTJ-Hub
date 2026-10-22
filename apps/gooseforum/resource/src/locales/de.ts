@@ -3601,6 +3601,9 @@ export default {
     auth: {
       required: 'Melde dich an, bevor du fortfährst',
       signupDisabled: 'Die Registrierung ist derzeit deaktiviert',
+      mail: {
+        notConfigured: 'Der E-Mail-Dienst ist nicht konfiguriert, die Bestätigungs-E-Mail kann nicht gesendet werden. Bitte wende dich an die Administration der Seite.',
+      },
       emailDomain: {
         invalid: 'Ungültiges E-Mail-Format',
         notAllowed: 'Diese E-Mail-Domain ist für die Registrierung nicht zulässig',

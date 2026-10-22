@@ -1041,8 +1041,11 @@ export interface paths {
          * Create a new forum account
          * @description Public account registration. The request is validated in the same order as the
          *     server: JSON shape, then generic request validation, then the signup switch, the
-         *     honeypot field, email domain allowlist, username format/moderation, password
-         *     complexity, and finally the captcha gate (when the site requires captcha).
+         *     mail-service preflight (when email verification is enabled but the SMTP settings
+         *     are incomplete or disabled, the request is refused with `auth.mail.notConfigured`
+         *     before any account is created), the honeypot field, email domain allowlist,
+         *     username format/moderation, password complexity, and finally the captcha gate
+         *     (when the site requires captcha).
          *
          *     Account-enumeration hardening (CWE-208): when a username or an email is already
          *     taken, the endpoint returns the same generic `auth.register.failed` failure
@@ -1058,7 +1061,8 @@ export interface paths {
          *
          *     This guarantee is scoped to the occupied/creation-failed cases only: requests
          *     that fail validation before the existence checks (invalid username format,
-         *     disallowed email domain, weak password, captcha rejection, signup disabled)
+         *     disallowed email domain, weak password, captcha rejection, signup disabled,
+         *     mail service unconfigured while email verification is required)
          *     return their own distinct `messageCode` per the validation-order list above,
          *     and are intentionally not covered by the anti-enumeration envelope.
          *

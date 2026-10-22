@@ -290,7 +290,9 @@ complete operation coverage and the precondition for such a gate is met.
 - Post revisions: `post_revisions` retains immutable body/rendered HTML, content type and first-post
   title/categories/gallery snapshots. Review status, reason, actor and time are mutable results.
   `posts.latest_revision_id` selects the latest submission; `published_revision_id` records the approved
-  version. Normal public rows remain unchanged while a new candidate is pending or rejected. The
+  version. After a direct owner edit `latest_revision_id` becomes 0 while `published_revision_id` keeps
+  the last approved snapshot, so a zero `latest_revision_id` means the row itself is the public
+  projection. Normal public rows remain unchanged while a new candidate is pending or rejected. The
   owner overlay is built on copies and never enters a shared public cache. Legacy public rows get a
   baseline from the current row on their next moderated edit; existing active pending rows are adopted
   by data migration 31, in bounded batches, idempotently. A legacy overwritten public version is not

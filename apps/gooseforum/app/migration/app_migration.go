@@ -14,6 +14,13 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/xpservice"
 )
 
+// 可注入的索引迁移入口：CI/本地测试没有 Meilisearch，只有替换入口才能走到
+// 「索引步骤成功」分支，验证主水位不被索引步骤改写（issue #1284）。
+var (
+	migrateAggregateSearchIndexesFn = datamigration.MigrateAggregateSearchIndexes
+	migrateTopicSearchIndexFn       = datamigration.MigrateTopicSearchIndex
+)
+
 func runVersionedDataMigrations() error {
 	unlock, err := acquireVersionedMigrationLock()
 	if err != nil {
@@ -23,11 +30,14 @@ func runVersionedDataMigrations() error {
 	defer unlock()
 
 	currentVersion := pageConfig.GetMigrationVersion()
-	if currentVersion >= pageConfig.AppMigrationVersion {
+	// 搜索索引步骤用独立水位（issue #1284 A2）：Meilisearch 是可选依赖，
+	// 它不可用时索引步骤必须重试，但不能把不依赖外部服务的版本块卡住。
+	searchIndexVersion := pageConfig.GetSearchIndexMigrationVersion(currentVersion)
+	if currentVersion >= pageConfig.AppMigrationVersion && searchIndexVersion >= pageConfig.SearchIndexMigrationVersion {
 		return nil
 	}
 
-	slog.Info("app migration start", "currentVersion", currentVersion, "targetVersion", pageConfig.AppMigrationVersion)
+	slog.Info("app migration start", "currentVersion", currentVersion, "targetVersion", pageConfig.AppMigrationVersion, "searchIndexVersion", searchIndexVersion, "searchIndexTargetVersion", pageConfig.SearchIndexMigrationVersion)
 	if currentVersion < 1 {
 		datamigration.EnsureDefaultData()
 		result := datamigration.RebuildReplyMarkdown()
@@ -138,19 +148,27 @@ func runVersionedDataMigrations() error {
 		pageConfig.SyncMigrationVersion(12)
 		currentVersion = 12
 	}
-	if currentVersion < 13 {
-		result := datamigration.MigrateAggregateSearchIndexes()
+	if searchIndexVersion < 13 {
+		result := migrateAggregateSearchIndexesFn()
 		datamigration.LogAggregateSearchIndexMigration(result)
 		if result.Skipped {
-			// Meilisearch 不可用：不推进版本，下次启动重试（避免永久跳过索引构建）
+			// Meilisearch 不可用：索引水位不推进，下次启动重试（避免永久跳过
+			// 索引构建）；主水位继续推进，否则 v31-33 在无 Meili 实例上永不执行。
 			slog.Warn("app migration aggregate search indexes skipped (meilisearch unavailable), will retry on next start")
-			return fmt.Errorf("%w: v13 aggregate search indexes (meilisearch unavailable)", ErrRetryLater)
-		}
-		if result.Failed > 0 {
+		} else if result.Failed > 0 {
 			return dataMigrationError("aggregate search indexes", 13, result.Failed, result.LastFailed)
+		} else {
+			if currentVersion < 13 {
+				if err := pageConfig.SyncMigrationVersion(13); err != nil {
+					return err
+				}
+				currentVersion = 13
+			}
+			if err := pageConfig.SyncSearchIndexMigrationVersion(13); err != nil {
+				return err
+			}
+			searchIndexVersion = 13
 		}
-		pageConfig.SyncMigrationVersion(13)
-		currentVersion = 13
 	}
 	if currentVersion < 14 {
 		// 积分回填（dev 合并,PR #110 防滥用）
@@ -227,12 +245,12 @@ func runVersionedDataMigrations() error {
 		pageConfig.SyncMigrationVersion(19)
 		currentVersion = 19
 	}
-	if currentVersion < 20 {
+	if searchIndexVersion < 20 {
 		// 话题搜索索引文档补齐 topicType 字段（review：存量部署的索引在
 		// topicType 加入前构建，聚合搜索按 topicType 过滤会失败/漏检；
 		// 全量重建写入新字段，filterable 属性由启动 EnsureTopicIndexConfigured 保证）。
 		// Meilisearch 不可用时跳过且不推进版本，下次启动重试（与 v13 同模式）。
-		topicIndexResult := datamigration.MigrateTopicSearchIndex()
+		topicIndexResult := migrateTopicSearchIndexFn()
 		slog.Info("app migration topic search index topicType rebuild done",
 			"skipped", topicIndexResult.Skipped,
 			"rebuilt", topicIndexResult.Rebuilt,
@@ -241,15 +259,23 @@ func runVersionedDataMigrations() error {
 			"failed", topicIndexResult.Failed,
 			"lastFailed", topicIndexResult.LastFailed)
 		if topicIndexResult.Skipped {
+			// 同上：索引水位不推进但主水位继续，无 Meili 实例仍要跑完本地版本块。
 			slog.Warn("app migration topic search index topicType rebuild skipped (meilisearch unavailable), will retry on next start")
-			return fmt.Errorf("%w: v20 topic search index topicType rebuild (meilisearch unavailable)", ErrRetryLater)
-		}
-		if topicIndexResult.Failed > 0 || topicIndexResult.FailedCount > 0 {
+		} else if topicIndexResult.Failed > 0 || topicIndexResult.FailedCount > 0 {
 			slog.Error("app migration topic search index topicType rebuild has failures", "failed", topicIndexResult.Failed, "failedCount", topicIndexResult.FailedCount, "lastFailed", topicIndexResult.LastFailed)
 			return fmt.Errorf("app migration v20 topic search index topicType rebuild: %d failed (lastFailed: %s)", topicIndexResult.Failed+topicIndexResult.FailedCount, topicIndexResult.LastFailed)
+		} else {
+			if currentVersion < 20 {
+				if err := pageConfig.SyncMigrationVersion(20); err != nil {
+					return err
+				}
+				currentVersion = 20
+			}
+			if err := pageConfig.SyncSearchIndexMigrationVersion(20); err != nil {
+				return err
+			}
+			searchIndexVersion = 20
 		}
-		pageConfig.SyncMigrationVersion(20)
-		currentVersion = 20
 	}
 	if currentVersion < 21 {
 		// GitHub SSOT 架构 v21：把存量 wiki 页面最新 approved 修订内容快照
@@ -468,7 +494,6 @@ func runVersionedDataMigrations() error {
 		}
 		currentVersion = 35
 	}
-
 	if currentVersion < 36 {
 		result := datamigration.BackfillTopicExcerpt()
 		if result.Failed > 0 {
@@ -480,7 +505,15 @@ func runVersionedDataMigrations() error {
 		slog.Info("app migration topic excerpt backfilled", "updated", result.Updated, "skipped", result.Skipped)
 		currentVersion = 36
 	}
-	slog.Info("app migration end", "version", currentVersion)
+	slog.Info("app migration end", "version", currentVersion, "searchIndexVersion", searchIndexVersion)
+	if searchIndexVersion < pageConfig.SearchIndexMigrationVersion {
+		// 数据迁移已跑完，但索引步骤仍在等 Meilisearch（索引是可重建投影）。
+		// 仍返回 ErrRetryLater 让 serve/独立 migrate 命令把它当作 deferred 而非失败，
+		// 并在每次启动重试。
+		slog.Warn("app migration search index steps deferred (meilisearch unavailable); run rebuild-search-index once meilisearch is configured",
+			"searchIndexVersion", searchIndexVersion, "searchIndexTargetVersion", pageConfig.SearchIndexMigrationVersion)
+		return fmt.Errorf("%w: search index steps deferred (meilisearch unavailable)", ErrRetryLater)
+	}
 	return nil
 }
 
