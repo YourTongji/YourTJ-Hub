@@ -3601,6 +3601,9 @@ export default {
     auth: {
       required: '先にログインしてください',
       signupDisabled: '現在、登録は停止されています',
+      mail: {
+        notConfigured: 'メールサービスが設定されていないため、認証メールを送信できません。サイト管理者にお問い合わせください。',
+      },
       emailDomain: {
         invalid: 'メール形式が正しくありません',
         notAllowed: 'このメールドメインは登録できません',

@@ -164,9 +164,11 @@ func CapturePublicTx(tx *gorm.DB, post *posts.Entity, plans ...*WriteCapturePlan
 		return err
 	}
 	var rev postRevisions.Entity
-	if p.PublishedRevisionId != 0 {
-		// MAX(version) may point at a private candidate while the public row still
-		// shows its prior approved version. Resolve the published pointer exactly.
+	if p.PublishedRevisionId != 0 && p.LatestRevisionId != 0 {
+		// published_revision_id alone does not fence: a direct forum edit keeps it
+		// while republishing the row content (issue #1284 A4). latest_revision_id is
+		// the candidate fence — zero means no pending/blocked candidate, so the
+		// newest revision is the public projection.
 		err = tx.Where("id = ? AND post_id = ?", p.PublishedRevisionId, p.Id).Take(&rev).Error
 	} else {
 		rev, err = postRevisions.LatestTx(tx, p.Id)

@@ -97,6 +97,20 @@ func enableContractEmailVerification(t *testing.T, conn *gorm.DB) {
 	security.EnableEmailVerification = true
 	persistHTTPContractConfig(t, conn, pageConfig.SecuritySettings, security)
 	hotdataserve.ClearSecuritySettingsConfigCache()
+	// 开启邮箱验证的实例必须同时配好邮件服务：注册入口对「需要验证但发不出邮件」
+	// 的组合直接拒绝（issue #1284 B18），否则这里的 register 用例看不到邮箱占用。
+	// 邮件配置行同样要在用例结束后还原，否则同进程后续用例会读到一个已配置的
+	// 邮件服务（共享 sqlite 内存库 + 进程级 hotdataserve 缓存）。
+	restorePageConfigAfterTest(t, conn, pageConfig.EmailSettings)
+	t.Cleanup(hotdataserve.ClearMailSettingsConfigCache)
+	persistHTTPContractConfig(t, conn, pageConfig.EmailSettings, pageConfig.MailSettingsConfig{
+		EnableMail:   true,
+		SmtpHost:     "smtp.example.test",
+		SmtpPort:     587,
+		SmtpUsername: "noreply@example.test",
+		FromEmail:    "noreply@example.test",
+	})
+	hotdataserve.ClearMailSettingsConfigCache()
 }
 
 // useContractTempKV 把 kvstore（激活邮件重发配额）重定向到进程级临时目录，

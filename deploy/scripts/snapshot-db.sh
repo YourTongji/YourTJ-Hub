@@ -20,6 +20,6 @@ sqlite3 "$SRC" ".backup '$TMP'" || {
   rm -f "$TMP"
   exit 1
 }
-python3 "$SCRIPT_DIR/feed-privacy.py" --sqlite-copy "$TMP"
-  mv -f "$TMP" "$DEST"
+python3 "$SCRIPT_DIR/feed-privacy.py" --sqlite-copy "$TMP" || { echo "snapshot-db: 脱敏失败" >&2; rm -f "$TMP"; exit 1; }
+mv -f "$TMP" "$DEST"
 echo "snapshot-db: $SRC -> $DEST"

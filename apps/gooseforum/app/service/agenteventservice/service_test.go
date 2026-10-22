@@ -506,3 +506,121 @@ func TestSourceIntentRecoversAfterDefaultRetryBudgetAndManualReplay(t *testing.T
 		t.Fatalf("replay duplicated recovered occurrence: %d %v", count, err)
 	}
 }
+
+// A cursor is scoped to its owner. Another Agent's sequence namespace must not
+// be accepted, or a stolen cursor would silently skip this Agent's unread events.
+func TestListRejectsForeignCursor(t *testing.T) {
+	conn, p, a := setup(t)
+	e := materialize(t, conn, p)
+	page, err := List(a.UserId, "", 20)
+	if err != nil || len(page.Events) != 1 || page.Events[0].ID != e.ID {
+		t.Fatalf("own stream %#v %v", page, err)
+	}
+	// The foreign cursor's seq exceeds this Agent's unread event, so accepting it
+	// would return an empty page instead of the pending event.
+	if _, err := ListWithCredential(a.UserId, encodeCursor("test-instance", "epoch-1", a.UserId+1, 10), 20, ""); !errors.Is(err, ErrInaccessible) {
+		t.Fatalf("foreign cursor accepted: %v", err)
+	}
+	own, err := ListWithCredential(a.UserId, page.NextCursor, 20, "")
+	if err != nil || len(own.Events) != 0 || own.HasMore {
+		t.Fatalf("own cursor did not page forward: %#v %v", own, err)
+	}
+}
+
+// A direct forum edit republishes the row content without touching
+// published_revision_id (postservice.appendPostRevision). Resolving that pointer
+// exactly would compare the watermark against the OLD public revision and bail
+// out, silently dropping the event for the newly public content (issue #1284 A4).
+func TestDirectEditAfterPublicationCapturesNewPublicRevision(t *testing.T) {
+	conn, p, a := setup(t)
+	// A second Agent so the edit adds a mention that the approved v1 lacks.
+	now := time.Now().Add(-time.Hour)
+	peerUser := users.EntityComplete{Id: a.UserId + 1, Username: fmt.Sprintf("peer%d", a.UserId), Email: fmt.Sprintf("peer%d@invalid.example", a.UserId), ActorType: users.ActorTypeBot}
+	peer := agents.Entity{UserId: peerUser.Id, TokenPrefix: fmt.Sprintf("agn%d", a.UserId), Enabled: 1, EventsEnabled: true, EventsEnabledAt: &now, SubscriptionGeneration: 1, EventTypes: `["agent.mentioned"]`}
+	t.Cleanup(func() {
+		conn.Where("user_id = ?", peer.UserId).Delete(&agents.Entity{})
+		conn.Unscoped().Delete(&users.EntityComplete{Id: peerUser.Id})
+	})
+	for _, value := range []any{&peerUser, &peer} {
+		if err := conn.Create(value).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	materialize(t, conn, p) // approved v1 is public, watermark already at 1
+
+	var v1 postRevisions.Entity
+	if err := conn.Where("post_id = ? AND version = 1", p.Id).Take(&v1).Error; err != nil {
+		t.Fatal(err)
+	}
+	content := "direct edit mentions @" + peerUser.Username
+	if err := conn.Create(&postRevisions.Entity{PostId: p.Id, Version: 2, EditorId: p.UserId, Content: content, ProcessStatus: posts.ProcessStatusNormal}).Error; err != nil {
+		t.Fatal(err)
+	}
+	// The direct edit path: content republished, no candidate awaiting review, and
+	// published_revision_id still names the previous public revision.
+	if err := conn.Model(&posts.Entity{}).Where("id = ?", p.Id).Updates(map[string]any{
+		"content":               content,
+		"published_revision_id": v1.Id,
+		"latest_revision_id":    0,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	if err := conn.Transaction(func(tx *gorm.DB) error { return CapturePublicTx(tx, &p) }); err != nil {
+		t.Fatal(err)
+	}
+	state, err := agentEvents.PublicationTx(conn, "test-instance", p.Id)
+	if err != nil || state.Version != 2 {
+		t.Fatalf("direct edit did not advance the public watermark: %#v %v", state, err)
+	}
+	var i agentEvents.Intent
+	if err := conn.Where("post_id = ? AND version = 2", p.Id).Take(&i).Error; err != nil {
+		t.Fatalf("edited public content produced no capture: %v", err)
+	}
+	task, claimed, err := taskQueue.ClaimTask(i.TaskID)
+	if err != nil || !claimed {
+		t.Fatalf("claim %t %v", claimed, err)
+	}
+	if err := HandleTask(context.Background(), &task); err != nil {
+		t.Fatal(err)
+	}
+	page, err := List(peer.UserId, "", 20)
+	if err != nil || len(page.Events) != 1 || page.Events[0].Type != "agent.mentioned" {
+		t.Fatalf("edited content was not delivered: %#v %v", page, err)
+	}
+}
+
+// A blocked candidate never becomes the public projection: while
+// latest_revision_id names a blocked revision, published_revision_id still
+// selects the approved snapshot, so the publication watermark must not move and
+// no occurrence may be captured (issue #1284 review round 2).
+func TestBlockedCandidateDoesNotAdvancePublicWatermark(t *testing.T) {
+	conn, p, _ := setup(t)
+	materialize(t, conn, p) // approved v1 is public, watermark already at 1
+	var v1 postRevisions.Entity
+	if err := conn.Where("post_id = ? AND version = 1", p.Id).Take(&v1).Error; err != nil {
+		t.Fatal(err)
+	}
+	v2 := postRevisions.Entity{PostId: p.Id, Version: 2, EditorId: p.UserId, Content: "blocked content", ProcessStatus: posts.ProcessStatusBlocked}
+	if err := conn.Create(&v2).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Model(&posts.Entity{}).Where("id = ?", p.Id).Updates(map[string]any{
+		"content":               v2.Content,
+		"published_revision_id": v1.Id,
+		"latest_revision_id":    v2.Id,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Transaction(func(tx *gorm.DB) error { return CapturePublicTx(tx, &p) }); err != nil {
+		t.Fatal(err)
+	}
+	state, err := agentEvents.PublicationTx(conn, "test-instance", p.Id)
+	if err != nil || state.Version != 1 {
+		t.Fatalf("blocked candidate moved the public watermark: %#v %v", state, err)
+	}
+	var count int64
+	if err := conn.Model(&agentEvents.Intent{}).Where("post_id = ? AND version = 2", p.Id).Count(&count).Error; err != nil || count != 0 {
+		t.Fatalf("blocked candidate produced a capture: %d %v", count, err)
+	}
+}
