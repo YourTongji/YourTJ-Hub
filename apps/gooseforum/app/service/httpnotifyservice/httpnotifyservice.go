@@ -2,12 +2,12 @@ package httpnotifyservice
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/safefetch"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 )
@@ -48,10 +49,42 @@ const (
 	disableAfterFailures  = 3
 )
 
+// ErrInvalidNotifyURL 是端点地址被拒在保存、测试与投递三条路径上共用的固定文案：
+// 不回显解析出的地址或端口等判定细节。
+var ErrInvalidNotifyURL = errors.New("invalid notify url (expected http(s)://host[:port]/path on a non-local target)")
+
+// saveTargetCheckTimeout 是保存校验的 DNS 预算：校验同步跑在请求里，而论坛主
+// HTTP 服务的 WriteTimeout 只有 10s，多端点时 DNS 预算必须远小于它，否则管理员
+// 拿到的是断连而不是 invalidParams。投递路径不受影响：单次投递的总超时仍由
+// DoNotify 的 timeout 决定，TLS 握手仍可用满端点超时。
+const saveTargetCheckTimeout = 3 * time.Second
+
+// ValidateEndpointTarget 校验保存的端点地址：URL 策略 + DNS 应答，不发请求。
+// 失败原因只回固定文案：解析出的地址不能进管理端回显或日志。
+func ValidateEndpointTarget(ctx context.Context, endpointURL string) error {
+	ctx, cancel := context.WithTimeout(ctx, saveTargetCheckTimeout)
+	defer cancel()
+	if err := notifyFetch.CheckNotifyTarget(ctx, strings.TrimSpace(endpointURL)); err != nil {
+		return ErrInvalidNotifyURL
+	}
+	return nil
+}
+
 var updateMu sync.Mutex
 
-var sendRequest = func(req *http.Request, timeout time.Duration) (*http.Response, error) {
-	return (&http.Client{Timeout: timeout}).Do(req)
+// notifyFetch 是通知投递的唯一出站客户端：URL/DNS 策略、pin 拨号、无代理与
+// 不跟随重定向都在 safefetch 内执行（issue #1280）。测试替换它来打到本地接收端。
+// ConnectTimeout 同时是 TLS 握手超时，所以取端点超时的上限：慢速 HTTPS 接收端的
+// 握手时间不能比端点超时更短，单次投递的总超时仍由 DoNotify 的 timeout 决定。
+var notifyFetch = safefetch.New(safefetch.Config{ConnectTimeout: maxTimeoutSeconds * time.Second, TotalTimeout: maxTimeoutSeconds * time.Second, MaxConcurrency: 8})
+
+// SetNotifyClientForTest 仅测试用（与 api.SetRunPkSyncForTest 同一风格）：替换出站
+// 客户端，供路由级契约测试把投递拨到 httptest 接收端。生产不设置；传入的客户端自己
+// 决定 resolver 与拨号目标，投递仍然经 DoNotify 走完整的通知目标策略。返回恢复函数。
+func SetNotifyClientForTest(client *safefetch.Client) (restore func()) {
+	previous := notifyFetch
+	notifyFetch = client
+	return func() { notifyFetch = previous }
 }
 
 type Envelope struct {
@@ -182,7 +215,7 @@ func deliver(endpoint pageConfig.HttpNotifyEndpoint, channel notifyChannel, even
 		recordDeliveryResult(endpoint, false, message)
 		return false
 	}
-	resp, err := sendRequest(req, endpointTimeout(endpoint))
+	resp, err := notifyFetch.DoNotify(req.Context(), req, endpointTimeout(endpoint))
 	if err != nil {
 		message := deliveryErrorMessage(err)
 		slog.Error("httpnotify: request failed", "endpoint", endpoint.Name, "event", eventName, "err", message)
@@ -232,19 +265,17 @@ func buildRequest(endpoint pageConfig.HttpNotifyEndpoint, eventName string, deli
 	return req, nil
 }
 
-// newJSONPost 校验端点 URL（仅 http/https，且须带主机名）并构造 JSON POST 请求。
+// newJSONPost 按通知目标策略校验端点 URL（http/https、任意端口、放行内网、
+// 拒绝本机与保留地址）并构造 JSON POST 请求。失败原因只回固定文案：解析出的
+// 地址等判定细节不能进管理端回显或日志。
 func newJSONPost(endpoint pageConfig.HttpNotifyEndpoint, body []byte) (*http.Request, error) {
-	targetURL, err := url.Parse(strings.TrimSpace(endpoint.URL))
+	raw := strings.TrimSpace(endpoint.URL)
+	if err := safefetch.ValidateNotifyURL(raw); err != nil {
+		return nil, ErrInvalidNotifyURL
+	}
+	targetURL, err := url.Parse(raw)
 	if err != nil {
-		return nil, err
-	}
-	if targetURL.Scheme != "http" && targetURL.Scheme != "https" {
-		return nil, fmt.Errorf("unsupported url scheme: %s", targetURL.Scheme)
-	}
-	// http:///send、http://:9966/send 等写法能通过 url.Parse，但没有主机名，
-	// net/http 只会报晦涩的 "no Host in request URL"。
-	if targetURL.Hostname() == "" {
-		return nil, errors.New("url is missing a host (expected http://host:port/path)")
+		return nil, ErrInvalidNotifyURL
 	}
 	req, err := http.NewRequest(http.MethodPost, targetURL.String(), bytes.NewReader(body))
 	if err != nil {

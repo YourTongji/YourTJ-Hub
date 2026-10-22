@@ -185,3 +185,10 @@ func ReplaceStickerTx(tx *gorm.DB, stickerID, userID uint64, fileName, status st
 func RestoreRevisionPrivate(id uint64) error {
 	return builder().Where("target_type = ? AND target_id = ? AND status = ?", TargetPostRevision, id, UsageStatusRecovering).Updates(map[string]any{"status": UsageStatusPending, "expires_at": nil}).Error
 }
+
+// ListReadReferences includes ownership audit rows to distinguish new orphan
+// uploads from legacy files. Query errors must never authorize public reads.
+func ListReadReferences(fileName string) (rows []Entity, err error) {
+	err = builder().Where("file_name = ?", fileName).Find(&rows).Error
+	return
+}

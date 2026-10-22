@@ -265,7 +265,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
                         ),
                       )
                     : GfText(
-                        topicDisplayTitle(topics.first),
+                        topicDisplayTitle(context, topics.first),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -336,7 +336,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
               const SizedBox(width: 9),
               Expanded(
                 child: GfText(
-                  topicDisplayTitle(topic),
+                  topicDisplayTitle(context, topic),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -416,11 +416,13 @@ Future<void> _openTopic(
   onReturn?.call();
 }
 
-/// 无标题瞬间与 Web TopicRow/SSR 一致：标题为空时摘要在标题位展示（不再重复一行），
-/// 摘要也为空时使用同族颜文字，保证列表行始终有可识别文案。
-String topicDisplayTitle(TopicPayload topic) => topic.title.isNotEmpty
+/// 无标题时展示摘要；无文本时复用本地化的无标题文案。
+String topicDisplayTitle(BuildContext context, TopicPayload topic) =>
+    topic.title.trim().isNotEmpty
     ? topic.title
-    : (topic.description.trim().isNotEmpty ? topic.description : '(｀・ω・´)');
+    : (topic.description.trim().isNotEmpty
+          ? topic.description
+          : AppLocalizations.of(context).topicNoTitle);
 
 /// 把后端话题 payload 映射为 [GfTopicRow](对齐 web TopicRow.vue 语义)。
 Widget _topicRow(
@@ -454,9 +456,9 @@ Widget _topicRow(
     child: GfTopicRow(
       feedContext: _feedContext(l10n, topic),
       title: topic.processStatus == 2
-          ? "${l10n.contentReviewPending} · ${topicDisplayTitle(topic)}"
-          : topicDisplayTitle(topic),
-      description: topic.title.isEmpty ? '' : topic.description,
+          ? "${l10n.contentReviewPending} · ${topicDisplayTitle(context, topic)}"
+          : topicDisplayTitle(context, topic),
+      description: topic.title.trim().isEmpty ? '' : topic.description,
       categories: categories,
       participantAvatarUrls: participantAvatarUrls,
       participantFrameScales: [
@@ -545,9 +547,9 @@ Widget buildTopicFeedCard(
       ),
       key: ValueKey<int>(topic.id),
       title: topic.processStatus == 2
-          ? "${l10n.contentReviewPending} · ${topic.title}"
-          : topic.title,
-      description: topic.description,
+          ? "${l10n.contentReviewPending} · ${topicDisplayTitle(context, topic)}"
+          : topicDisplayTitle(context, topic),
+      description: topic.title.trim().isEmpty ? '' : topic.description,
       authorName: topic.author.publicUid != null
           ? '${topic.author.nickname ?? topic.author.username} · ${l10n.anonymousTag}'
           : privateDisplayName(

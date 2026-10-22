@@ -408,6 +408,36 @@ func TestActorFreezeBeforeParticipantFenceRejectsCachedState(t *testing.T) {
 	}
 }
 
+func TestCancelledIntentSourceCannotBeReplayed(t *testing.T) {
+	conn, p, a := setup(t)
+	if err := conn.Transaction(func(tx *gorm.DB) error { return CapturePublicTx(tx, &p) }); err != nil {
+		t.Fatal(err)
+	}
+	var intent agentEvents.Intent
+	if err := conn.Where("post_id = ?", p.Id).Take(&intent).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Transaction(func(tx *gorm.DB) error { return WithdrawContentTx(tx, p.TopicId, p.Id) }); err != nil {
+		t.Fatal(err)
+	}
+	// A late materialization_error diagnostic cannot reopen the cancelled source.
+	if err := agentEvents.UpdateIntentTx(conn, intent.ID, "retry_wait", "materialization_error"); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Where("id = ?", intent.ID).Take(&intent).Error; err != nil {
+		t.Fatal(err)
+	}
+	if intent.Status != "cancelled" {
+		t.Fatalf("late diagnostic revived cancelled intent: %s", intent.Status)
+	}
+	if len(intent.Recipients) != 1 || intent.Recipients[0].AgentID != a.UserId {
+		t.Fatalf("fixture recipient lost: %#v", intent.Recipients)
+	}
+	if err := ReplayAgentIntent(a.UserId, intent.ID); !errors.Is(err, ErrInaccessible) {
+		t.Fatalf("cancelled source replayed after withdrawal: %v", err)
+	}
+}
+
 func TestSourceIntentRecoversAfterDefaultRetryBudgetAndManualReplay(t *testing.T) {
 	conn, p, a := setup(t)
 	if err := conn.Transaction(func(tx *gorm.DB) error { return CapturePublicTx(tx, &p) }); err != nil {

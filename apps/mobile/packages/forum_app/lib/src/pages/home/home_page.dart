@@ -1168,7 +1168,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                                   ),
                                 const SizedBox(height: 4),
                                 GfText(
-                                  topicDisplayTitle(topic),
+                                  topicDisplayTitle(context, topic),
                                   maxLines: 3,
                                   overflow: TextOverflow.ellipsis,
                                   style: GfTheme.typographyOf(

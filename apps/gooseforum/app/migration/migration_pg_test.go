@@ -14,6 +14,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	xpmodel "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/xp"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -46,6 +47,15 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	}
 	if err := db.AutoMigrate(SchemaModels()...); err != nil {
 		t.Fatalf("AutoMigrate on postgres failed: %v", err)
+	}
+	if err := xpmodel.EnsureAppendOnlyGuards(db); err != nil {
+		t.Fatalf("install XP append-only guards on postgres: %v", err)
+	}
+	if err := db.AutoMigrate(SchemaModels()...); err != nil {
+		t.Fatalf("repeat AutoMigrate on postgres: %v", err)
+	}
+	if err := xpmodel.EnsureAppendOnlyGuards(db); err != nil {
+		t.Fatalf("repeat XP append-only guard installation on postgres: %v", err)
 	}
 
 	// 关键新表必须存在（issue #8 回归点；agents 为本仓库 Agent 模型新增表）
@@ -83,6 +93,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		"push_device",
 		"sticker_library_owners",
 		"user_stickers",
+		"xp_balances", "xp_entries", "xp_rule_sets", "xp_rule_publication_locks", "xp_reward_rules", "xp_daily_usage", "xp_daily_rule_usage",
 		// 站内信域（issue #770）：7 表。
 		"inbox_message",
 		"inbox_message_version",
@@ -103,6 +114,9 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	}
 	if !db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
 		t.Error("users.actor_type column missing after postgres migration")
+	}
+	if !db.Migrator().HasColumn(&xpmodel.Entry{}, "actor_user_id") || !db.Migrator().HasColumn(&xpmodel.RuleSet{}, "published_by") {
+		t.Error("XP actor audit columns missing after postgres migration")
 	}
 	// Agent 评论策略（管理端按主题禁止 Agent 评论）：topics.agent_comment_disabled。
 	if !db.Migrator().HasColumn(&topics.Entity{}, "agent_comment_disabled") {
@@ -232,6 +246,15 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if err := db.AutoMigrate(SchemaModels()...); err != nil {
 		t.Fatalf("upgrade AutoMigrate on postgres failed: %v", err)
 	}
+	if err := xpmodel.EnsureAppendOnlyGuards(db); err != nil {
+		t.Fatalf("install XP append-only guards on upgraded postgres: %v", err)
+	}
+	if err := db.AutoMigrate(SchemaModels()...); err != nil {
+		t.Fatalf("repeat AutoMigrate on upgraded postgres: %v", err)
+	}
+	if err := xpmodel.EnsureAppendOnlyGuards(db); err != nil {
+		t.Fatalf("repeat XP append-only guard installation on upgraded postgres: %v", err)
+	}
 	if !db.Migrator().HasColumn(&userOAuth.Entity{}, "apple_refresh_token") {
 		t.Fatal("Apple revocation column missing after upgrade")
 	}
@@ -260,6 +283,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		"push_device",
 		"sticker_library_owners",
 		"user_stickers",
+		"xp_balances", "xp_entries", "xp_rule_sets", "xp_rule_publication_locks", "xp_reward_rules", "xp_daily_usage", "xp_daily_rule_usage",
 		// 站内信域（issue #770）：存量库升级也必须补齐 7 表。
 		"inbox_message",
 		"inbox_message_version",
@@ -276,6 +300,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	}
 	if !db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
 		t.Error("users.actor_type column missing after upgrade migration")
+	}
+	if !db.Migrator().HasColumn(&xpmodel.Entry{}, "actor_user_id") || !db.Migrator().HasColumn(&xpmodel.RuleSet{}, "published_by") {
+		t.Error("XP actor audit columns missing after postgres upgrade")
 	}
 	if !db.Migrator().HasColumn(&users.EntityComplete{}, "email_changed_at") {
 		t.Error("users.email_changed_at column missing after upgrade migration")

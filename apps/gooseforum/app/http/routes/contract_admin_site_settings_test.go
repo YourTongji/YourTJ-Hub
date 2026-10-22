@@ -1,15 +1,19 @@
 package routes
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/safefetch"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
@@ -17,6 +21,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/httpnotifyservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/themeservice"
 	"github.com/gin-gonic/gin"
@@ -779,7 +784,7 @@ func TestAdminSaveHttpNotifySettingsHTTPContract(t *testing.T) {
 			hotdataserve.ClearHttpNotifyConfigCache()
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"settings":{"enabled":true,"endpoints":[{"id":"ep9","name":"新 webhook","enabled":true,"url":"https://new.example.test/hook","secret":"new-secret","events":["post.created"],"timeoutSeconds":3,"failureCount":0,"lastError":"","abnormalTerminated":false}]}}`,
+			`{"settings":{"enabled":true,"endpoints":[{"id":"ep9","name":"新 webhook","enabled":true,"url":"https://93.184.216.34/hook","secret":"new-secret","events":["post.created"],"timeoutSeconds":3,"failureCount":0,"lastError":"","abnormalTerminated":false}]}}`,
 			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{})
 		if len(stored.Endpoints) != 1 || stored.Endpoints[0].Id != "ep9" {
@@ -803,7 +808,7 @@ func TestAdminSaveHttpNotifySettingsHTTPContract(t *testing.T) {
 		persistContractPageConfig(t, conn, pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{
 			Enabled: true,
 			Endpoints: []pageConfig.HttpNotifyStorageEndpoint{
-				{Id: "ep9", Name: "新 webhook", Enabled: true, URL: "https://new.example.test/hook",
+				{Id: "ep9", Name: "新 webhook", Enabled: true, URL: "https://93.184.216.34/hook",
 					SecretEncrypted: sealed, Events: []string{"post.created"}, TimeoutSeconds: 3},
 			},
 		})
@@ -813,7 +818,7 @@ func TestAdminSaveHttpNotifySettingsHTTPContract(t *testing.T) {
 			hotdataserve.ClearHttpNotifyConfigCache()
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"settings":{"enabled":true,"endpoints":[{"id":"ep9","name":"新 webhook","enabled":true,"url":"https://new.example.test/hook","secret":"","events":["post.created"],"timeoutSeconds":3,"failureCount":0,"lastError":"","abnormalTerminated":false}]}}`,
+			`{"settings":{"enabled":true,"endpoints":[{"id":"ep9","name":"新 webhook","enabled":true,"url":"https://93.184.216.34/hook","secret":"","events":["post.created"],"timeoutSeconds":3,"failureCount":0,"lastError":"","abnormalTerminated":false}]}}`,
 			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{})
 		if plain, err := securestore.DecryptPurpose(stored.Endpoints[0].SecretEncrypted, securestore.HttpNotifySecretPurpose); err != nil || plain != "keep-secret" {
@@ -822,6 +827,8 @@ func TestAdminSaveHttpNotifySettingsHTTPContract(t *testing.T) {
 	})
 
 	t.Run("feishu webhook url is encrypted, kept when blank, and never stored in plaintext", func(t *testing.T) {
+		// 保存会解析目标 DNS；钉住 resolver 让本用例不依赖真实 DNS。
+		useLocalNotifyReceiver(t)
 		conn, router := setupAdminSiteContractTest(t)
 		t.Cleanup(func() {
 			conn.Where("page_type = ?", pageConfig.HttpNotify).Delete(&pageConfig.Entity{})
@@ -859,10 +866,10 @@ func TestAdminSaveHttpNotifySettingsHTTPContract(t *testing.T) {
 			hotdataserve.ClearHttpNotifyConfigCache()
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"settings":{"enabled":true,"endpoints":[{"id":"ep-bot","name":"AstrBot","channelType":"astrbot","enabled":true,"url":"http://astrbot.example.test:9966/send","target":" aiocqhttp:GroupMessage:1 ","secret":"bot-token","events":["moderation.review.topic.requested"],"timeoutSeconds":3,"failureCount":0,"lastError":"","abnormalTerminated":false}]}}`,
+			`{"settings":{"enabled":true,"endpoints":[{"id":"ep-bot","name":"AstrBot","channelType":"astrbot","enabled":true,"url":"http://192.168.1.10:9966/send","target":" aiocqhttp:GroupMessage:1 ","secret":"bot-token","events":["moderation.review.topic.requested"],"timeoutSeconds":3,"failureCount":0,"lastError":"","abnormalTerminated":false}]}}`,
 			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{})
-		if len(stored.Endpoints) != 1 || stored.Endpoints[0].Target != "aiocqhttp:GroupMessage:1" || stored.Endpoints[0].URL != "http://astrbot.example.test:9966/send" {
+		if len(stored.Endpoints) != 1 || stored.Endpoints[0].Target != "aiocqhttp:GroupMessage:1" || stored.Endpoints[0].URL != "http://192.168.1.10:9966/send" {
 			t.Fatalf("stored astrbot endpoint = %#v", stored.Endpoints)
 		}
 		if plain, err := securestore.DecryptPurpose(stored.Endpoints[0].SecretEncrypted, securestore.HttpNotifySecretPurpose); err != nil || plain != "bot-token" {
@@ -877,11 +884,97 @@ func TestAdminSaveHttpNotifySettingsHTTPContract(t *testing.T) {
 			"invalid-params.json")
 	})
 
+	// issue #1280：保存是第一条出站链路的闸门，本机/链路本地与解析不出地址的目标
+	// 在落库前就被拒绝，且不回显目标细节。
+	t.Run("local or unresolvable notify target is rejected before saving", func(t *testing.T) {
+		// 两个 IP 字面量由 URL 层直接拒绝；解析不出的域名用注入的 resolver 模拟，
+		// 让本子测试不依赖真实 DNS。
+		for _, tc := range []struct {
+			hook     string
+			resolver safefetch.Resolver
+		}{
+			{"http://127.0.0.1:8080/hook", nil},
+			{"http://169.254.169.254/latest/meta-data/", nil},
+			{"https://no-such-host.invalid/hook", notifyFailingResolver{}},
+		} {
+			t.Run(tc.hook, func(t *testing.T) {
+				if tc.resolver != nil {
+					t.Cleanup(httpnotifyservice.SetNotifyClientForTest(safefetch.New(safefetch.Config{Resolver: tc.resolver})))
+				}
+				conn, router := setupAdminSiteContractTest(t)
+				t.Cleanup(func() {
+					conn.Where("page_type = ?", pageConfig.HttpNotify).Delete(&pageConfig.Entity{})
+					hotdataserve.ClearHttpNotifyConfigCache()
+				})
+				recorder := serveAdminSiteRaw(t, conn, router, http.MethodPost, path,
+					`{"settings":{"enabled":true,"endpoints":[{"id":"ep-local","name":"local","enabled":true,"url":"`+tc.hook+`","secret":"s","events":["topic.published"],"timeoutSeconds":3,"failureCount":0,"lastError":"","abnormalTerminated":false}]}}`)
+				var envelope struct {
+					Code        int    `json:"code"`
+					MessageCode string `json:"messageCode"`
+				}
+				if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil || envelope.Code == 0 {
+					t.Fatalf("save accepted %q: %s", tc.hook, recorder.Body.String())
+				}
+				if envelope.MessageCode != "common.request.invalidParams" {
+					t.Fatalf("messageCode = %q, want common.request.invalidParams", envelope.MessageCode)
+				}
+				if strings.Contains(recorder.Body.String(), "127.0.0.1") || strings.Contains(recorder.Body.String(), "169.254") {
+					t.Fatalf("save failure leaks the target: %s", recorder.Body.String())
+				}
+				if stored := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{}); len(stored.Endpoints) != 0 {
+					t.Fatalf("rejected target was stored: %#v", stored.Endpoints)
+				}
+			})
+		}
+	})
+
 	adminSiteGuardScenarios(t, http.MethodPost, path, "admin-save-http-notify-settings")
+}
+
+// notifyTestResolver 把所有域名解析成公网地址：通知策略照旧判定，只有拨号目标被
+// 覆盖，契约测试才能打到 httptest 接收端。
+type notifyTestResolver struct{}
+
+func (notifyTestResolver) LookupNetIP(context.Context, string, string) ([]netip.Addr, error) {
+	return []netip.Addr{netip.MustParseAddr("8.8.8.8")}, nil
+}
+
+// notifyFailingResolver 让所有域名解析失败，用来确定性地覆盖“解析不出”的分支。
+type notifyFailingResolver struct{}
+
+func (notifyFailingResolver) LookupNetIP(context.Context, string, string) ([]netip.Addr, error) {
+	return nil, fmt.Errorf("host not found")
+}
+
+// useLocalNotifyReceiver 让 HTTP 通知投递拨到 httptest 的 loopback 接收端
+// （httpnotifyservice.SetNotifyClientForTest 仅测试用，生产不设置）。
+func useLocalNotifyReceiver(t *testing.T) {
+	t.Helper()
+	t.Cleanup(httpnotifyservice.SetNotifyClientForTest(safefetch.New(safefetch.Config{
+		Resolver: notifyTestResolver{},
+		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+			_, port, err := net.SplitHostPort(address)
+			if err != nil {
+				return nil, err
+			}
+			return (&net.Dialer{}).DialContext(ctx, network, net.JoinHostPort("127.0.0.1", port))
+		},
+	})))
+}
+
+// notifyReceiverURL 把 httptest 地址换成普通域名 + 真实端口，接收端不变。
+func notifyReceiverURL(t *testing.T, server *httptest.Server) string {
+	t.Helper()
+	_, port, err := net.SplitHostPort(server.Listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return "http://notify.test:" + port
 }
 
 func TestAdminTestHttpNotifyEndpointHTTPContract(t *testing.T) {
 	path := "/api/admin/test-http-notify-endpoint"
+	useLocalNotifyReceiver(t)
 	type delivery struct {
 		event string
 		body  string
@@ -896,7 +989,7 @@ func TestAdminTestHttpNotifyEndpointHTTPContract(t *testing.T) {
 			_, _ = w.Write([]byte(reply))
 		}))
 		t.Cleanup(server.Close)
-		return server.URL + "/hook", received
+		return notifyReceiverURL(t, server) + "/hook", received
 	}
 	endpointBody := func(id, channel, url string) string {
 		return `{"endpoint":{"id":"` + id + `","name":"测试","channelType":"` + channel + `","enabled":false,"url":"` + url + `","secret":"","events":[],"timeoutSeconds":2,"failureCount":0,"lastError":"","abnormalTerminated":false}}`
@@ -982,12 +1075,12 @@ func TestAdminTestHttpNotifyEndpointHTTPContract(t *testing.T) {
 			Enabled: true,
 			Endpoints: []pageConfig.HttpNotifyStorageEndpoint{
 				{Id: "ep-bot", Name: "AstrBot", ChannelType: pageConfig.HttpNotifyChannelAstrBot, Enabled: true,
-					URL: server.URL, Target: "old", SecretEncrypted: sealed, TimeoutSeconds: 2},
+					URL: notifyReceiverURL(t, server), Target: "old", SecretEncrypted: sealed, TimeoutSeconds: 2},
 			},
 		})
 		hotdataserve.ClearHttpNotifyConfigCache()
 		t.Cleanup(hotdataserve.ClearHttpNotifyConfigCache)
-		body := `{"endpoint":{"id":"ep-bot","name":"AstrBot","channelType":"astrbot","enabled":true,"url":"` + server.URL + `","target":"aiocqhttp:GroupMessage:1","secret":"","events":[],"timeoutSeconds":2,"failureCount":0,"lastError":"","abnormalTerminated":false}}`
+		body := `{"endpoint":{"id":"ep-bot","name":"AstrBot","channelType":"astrbot","enabled":true,"url":"` + notifyReceiverURL(t, server) + `","target":"aiocqhttp:GroupMessage:1","secret":"","events":[],"timeoutSeconds":2,"failureCount":0,"lastError":"","abnormalTerminated":false}}`
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path, body, "admin-test-http-notify-endpoint-success.json")
 		got := <-received
 		if got["path"] != "/send" || got["authorization"] != "Bearer bot-token" || got["umo"] != "aiocqhttp:GroupMessage:1" || !strings.HasPrefix(got["content"], "【测试】") {
@@ -1009,7 +1102,7 @@ func TestAdminTestHttpNotifyEndpointHTTPContract(t *testing.T) {
 			} `json:"result"`
 		}
 		recorder := serveAdminSiteRaw(t, conn, router, http.MethodPost, path, endpointBody("", "generic", "http://:9966/send"))
-		if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil || envelope.Result.Success || !strings.Contains(envelope.Result.Params["error"], "missing a host") {
+		if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil || envelope.Result.Success || !strings.Contains(envelope.Result.Params["error"], "invalid notify url") {
 			t.Fatalf("hostless url = %s", recorder.Body.String())
 		}
 	})

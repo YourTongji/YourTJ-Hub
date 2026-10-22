@@ -135,3 +135,27 @@ func ExpireRecoveringFiles(limit int) {
 		}
 	}
 }
+
+// ReadAccess describes content visibility independently of upload ownership.
+type ReadAccess struct {
+	Tracked       bool
+	Content       bool
+	Public        bool
+	Pending       bool
+	UploadOwnerID uint64
+}
+
+func ResolveReadAccess(fileName string) (ReadAccess, error) {
+	refs, err := fileUsage.ListReadReferences(fileName)
+	access := ReadAccess{Tracked: len(refs) > 0}
+	for _, ref := range refs {
+		if ref.UsageType == fileUsage.UsageUploadOwner {
+			access.UploadOwnerID = ref.UserId
+			continue
+		}
+		access.Content = true
+		access.Pending = access.Pending || ref.Status == fileUsage.UsageStatusPending
+		access.Public = access.Public || ref.Status == fileUsage.UsageStatusActive && (ref.ExpiresAt == nil || ref.ExpiresAt.After(time.Now()))
+	}
+	return access, err
+}

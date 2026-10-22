@@ -3,19 +3,19 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { DecorationStyle } from '@gooseforum/client'
 import UserAvatar from '@/site/components/UserAvatar.vue'
-import { decorationVariables, hasNicknameContrast } from '@/site/utils/decoration-style'
+import { decorationVariables } from '@/site/utils/decoration-style'
 
 const props = defineProps<{ style: DecorationStyle; compact?: boolean }>()
 const { t } = useI18n()
 const themes = computed(() => [
-  { key: 'light', colors: props.style.lightColors, background: [255, 255, 255] },
-  { key: 'dark', colors: props.style.darkColors, background: [17, 24, 39] },
+  { key: 'light', colors: props.style.lightColors },
+  { key: 'dark', colors: props.style.darkColors },
 ].map(theme => {
   // Preview both palettes independently of the administrator's current theme or enabled setting.
   const definition = { ...props.style, isEnabled: true, lightColors: theme.colors, darkColors: theme.colors }
   const gradient = decorationVariables(definition)['--decoration-light']
-  return { ...theme, definition, nicknameStyle: gradient && hasNicknameContrast(theme.colors, theme.background)
-    ? { backgroundImage: gradient, backgroundClip: 'text', color: 'transparent' } : undefined }
+  // The save gate owns the contrast floor; the preview always shows the gradient the administrator typed.
+  return { ...theme, definition, nicknameStyle: gradient ? { backgroundImage: gradient, backgroundClip: 'text', color: 'transparent' } : undefined }
 }))
 </script>
 

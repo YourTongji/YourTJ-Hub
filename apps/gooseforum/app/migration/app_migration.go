@@ -11,6 +11,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/xpservice"
 )
 
 // 可注入的索引迁移入口：CI/本地测试没有 Meilisearch，只有替换入口才能走到
@@ -474,6 +475,24 @@ func runVersionedDataMigrations() error {
 			return err
 		}
 		currentVersion = 33
+	}
+	if currentVersion < 34 {
+		if err := datamigration.BackfillEmptyTopicExcerpts(dbconnect.Connect()); err != nil {
+			return fmt.Errorf("app migration v34 empty topic excerpts: %w", err)
+		}
+		if err := pageConfig.SyncMigrationVersion(34); err != nil {
+			return err
+		}
+		currentVersion = 34
+	}
+	if currentVersion < 35 {
+		if err := xpservice.EnsureInitialRules(context.Background(), dbconnect.Connect()); err != nil {
+			return fmt.Errorf("app migration v35 initial XP rules: %w", err)
+		}
+		if err := pageConfig.SyncMigrationVersion(35); err != nil {
+			return err
+		}
+		currentVersion = 35
 	}
 	slog.Info("app migration end", "version", currentVersion, "searchIndexVersion", searchIndexVersion)
 	if searchIndexVersion < pageConfig.SearchIndexMigrationVersion {
