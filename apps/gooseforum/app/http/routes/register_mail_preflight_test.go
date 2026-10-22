@@ -29,8 +29,8 @@ func TestRegisterRejectedWhenEmailVerificationHasNoMailService(t *testing.T) {
 	t.Cleanup(hotdataserve.ClearMailSettingsConfigCache)
 
 	_, res := postRegister(t, `{"email":"mailoff@example.com","userName":"mailoff","passWord":"password123"}`)
-	if res.Code != component.FAIL || res.MessageCode != component.MessageAuthSignupDisabled {
-		t.Fatalf("code = %d, messageCode = %q, want FAIL / %q", res.Code, res.MessageCode, component.MessageAuthSignupDisabled)
+	if res.Code != component.FAIL || res.MessageCode != component.MessageAuthMailNotConfigured {
+		t.Fatalf("code = %d, messageCode = %q, want FAIL / %q", res.Code, res.MessageCode, component.MessageAuthMailNotConfigured)
 	}
 	if users.ExistEmailOrFreshPending("mailoff@example.com", 0) {
 		t.Fatal("rejected registration must not create an account that can never be activated")
