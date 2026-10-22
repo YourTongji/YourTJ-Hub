@@ -46,9 +46,13 @@ storage. Site managers upload artwork in `/admin/decorations` and save its gener
 `apps/gooseforum/resource/static/decorations/` remains valid. External URLs and unsafe paths are
 rejected. See the [avatar-frame artwork generation spec](avatar-frame-generation.md).
 Nickname styles use validated hexadecimal colors with separate light/dark palettes; custom HTML,
-CSS, external assets and animations are not accepted. Definition validation checks ordinary-text
-contrast on supported backgrounds; clients fall back to normal text when the actual background
-cannot meet 4.5:1. Web also falls back in forced-color mode or on backgrounds it cannot safely
+CSS, external assets and animations are not accepted. Definition validation samples only the
+gradient's two endpoint stops against the supported light and dark theme backgrounds, at the WCAG
+large-text floor of 3:1; the ramp between the stops is not interpolated. The admin console's live
+preview always paints the entered gradient regardless of the floor, shows the measured lowest
+contrast below the preview, and flags a palette below 3:1 there instead of letting it be saved.
+Clients still check the actual background and fall back to normal text when it
+cannot meet 3:1. Web also falls back in forced-color mode or on backgrounds it cannot safely
 resolve. Missing/unknown/invalid decorations use the ordinary appearance. Decoration colors never
 confer official status, trust or administrative permissions.
 

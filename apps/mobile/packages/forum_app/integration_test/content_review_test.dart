@@ -7,7 +7,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/content/content_page.dart';
 import 'package:forum_app/src/pages/topic/post_actions.dart';
-import 'package:forum_app/src/pages/topic/post_edit_sheet.dart';
+import 'package:forum_app/src/pages/topic/post_editor.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:ui_kit/ui_kit.dart';
 import '../test/fixtures/page_fixtures.dart';
@@ -104,11 +104,11 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('修改并重新提交'));
       await tester.pumpAndSettle();
-      expect(find.byType(PostEditSheet), findsOneWidget);
+      expect(find.byType(PostEditor), findsOneWidget);
       expect(
         find.byTooltip(
           AppLocalizations.of(
-            tester.element(find.byType(PostEditSheet)),
+            tester.element(find.byType(PostEditor)),
           ).publishToolImage,
         ),
         findsOneWidget,
@@ -125,7 +125,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('审核中'), findsOneWidget);
       expect(find.byType(AlertDialog), findsNothing);
-      expect(find.byType(PostEditSheet), findsNothing);
+      expect(find.byType(PostEditor), findsNothing);
       expect(tester.takeException(), isNull);
 
       // Detail actions retain the author's editor while the reply is pending.

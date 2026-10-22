@@ -16,7 +16,7 @@ services:
       retries: 10
 
   meilisearch:
-    image: getmeili/meilisearch:v1.11
+    image: getmeili/meilisearch:v1.47.1
     environment:
       MEILI_MASTER_KEY: yourtj-dev-master-key
       MEILI_NO_ANALYTICS: "true"

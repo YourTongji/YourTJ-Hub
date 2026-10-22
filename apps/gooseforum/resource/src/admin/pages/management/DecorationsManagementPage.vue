@@ -13,7 +13,7 @@ import { Badge } from '@/admin/components/ui/badge'
 import { Switch } from '@/admin/components/ui/switch'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/admin/components/ui/dialog'
 import ManagementTable from './ManagementTable.vue'
-import { decorationAssetScale, hasNicknameContrast, isSafeDecorationAssetUrl } from '@/site/utils/decoration-style'
+import { NICKNAME_CONTRAST_MIN, decorationAssetScale, isSafeDecorationAssetUrl, nicknameContrastFloor } from '@/site/utils/decoration-style'
 
 const { t } = useI18n()
 const items = ref<DecorationStyle[]>([])
@@ -42,6 +42,11 @@ const scalePercent = computed({
   set: (percent: number) => { form.assetScale = percent / 100 },
 })
 const palettes = ['lightColors', 'darkColors'] as const
+// Theme surface pairs the nickname sits on; the save gate and the live readout must measure the same backgrounds.
+const nicknameBackgrounds = { lightColors: [[255, 255, 255], [243, 244, 246]], darkColors: [[17, 24, 39], [31, 41, 55]] } as const
+const contrastFloors = computed(() => form.kind === 'nicknameStyle'
+  ? { light: nicknameContrastFloor(form.lightColors, nicknameBackgrounds.lightColors), dark: nicknameContrastFloor(form.darkColors, nicknameBackgrounds.darkColors) }
+  : null)
 const kindOptions = computed(() => [
   { value: 'avatarFrame', label: t('decoration.avatarFrame') },
   { value: 'nicknameStyle', label: t('decoration.nicknameStyle') },
@@ -67,8 +72,8 @@ const errors = computed(() => {
     const colors = form[palette]
     if (colors.length < 1 || colors.length > 2 || colors.some(color => !/^#[0-9a-f]{6}$/i.test(color))) result[palette] = t('decoration.configAdmin.colorInvalid')
     else if (form.kind === 'nicknameStyle') {
-      const backgrounds = palette === 'lightColors' ? [[255, 255, 255], [243, 244, 246]] : [[17, 24, 39], [31, 41, 55]]
-      if (backgrounds.some(background => !hasNicknameContrast(colors, background))) result[palette] = t('decoration.configAdmin.contrastInvalid')
+      const floor = nicknameContrastFloor(colors, nicknameBackgrounds[palette])
+      if (floor < NICKNAME_CONTRAST_MIN) result[palette] = t('decoration.configAdmin.contrastInvalid', { ratio: floor.toFixed(2), minimum: NICKNAME_CONTRAST_MIN })
     }
   }
   const imageFrame = form.kind === 'avatarFrame' && frameMode.value === 'image'
@@ -213,7 +218,11 @@ onMounted(load)
             <aside class="space-y-3 rounded-lg border bg-muted/20 p-4 lg:sticky lg:top-0 lg:self-start">
               <h3 class="text-sm font-semibold">{{ t('decoration.configAdmin.preview') }}</h3>
               <DecorationStylePreview :style="form" />
-              <p class="text-xs leading-relaxed text-muted-foreground">{{ t(form.kind === 'avatarFrame' ? 'decoration.configAdmin.framePreviewHint' : 'decoration.configAdmin.nicknamePreviewHint') }}</p>
+              <div v-if="form.kind === 'nicknameStyle' && contrastFloors" class="space-y-1">
+                <p class="text-xs text-muted-foreground">{{ t('decoration.configAdmin.contrastLowest', { light: contrastFloors.light.toFixed(2), dark: contrastFloors.dark.toFixed(2) }) }}</p>
+                <p v-if="Math.min(contrastFloors.light, contrastFloors.dark) < NICKNAME_CONTRAST_MIN" role="alert" class="text-xs text-destructive">{{ t('decoration.configAdmin.contrastInvalid', { ratio: Math.min(contrastFloors.light, contrastFloors.dark).toFixed(2), minimum: NICKNAME_CONTRAST_MIN }) }}</p>
+              </div>
+              <p v-if="form.kind === 'avatarFrame'" class="text-xs leading-relaxed text-muted-foreground">{{ t('decoration.configAdmin.framePreviewHint') }}</p>
               <p v-if="!form.isEnabled" class="rounded-md border p-3 text-xs text-muted-foreground">{{ t('decoration.configAdmin.disabledHint') }}</p>
             </aside>
           </div>

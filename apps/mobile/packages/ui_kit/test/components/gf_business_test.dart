@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui' show SemanticsAction;
 
 import 'package:flutter/material.dart';
@@ -619,6 +620,11 @@ void main() {
                   onCollapse: () => collapsed = true,
                   collapseLabel: 'Collapse',
                   toolbar: const Text('Verification required'),
+                  status: const Text(
+                    'Saved on this device',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ),
@@ -667,6 +673,156 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       controller.dispose();
       focus.dispose();
+    });
+
+    testWidgets('the leading control glides with a growing input centre', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      addTearDown(controller.dispose);
+      Widget composer({bool reduceMotion = false}) => gfApp(
+        Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(disableAnimations: reduceMotion),
+            // Bottom-anchored like the page, so growth moves the centre.
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: SizedBox(
+                width: 360,
+                child: GfPostComposer(
+                  controller: controller,
+                  publishLabel: 'Send',
+                  hintText: 'Reply',
+                  onPublish: () {},
+                  leading: const SizedBox.square(
+                    key: Key('leading'),
+                    dimension: 44,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final leading = find.byKey(const Key('leading'));
+      final surface = find.byKey(const Key('reply-input-surface'));
+      double lead() => tester.getCenter(leading).dy;
+      double input() => tester.getCenter(surface).dy;
+
+      await tester.pumpWidget(composer());
+      expect(lead(), closeTo(input(), .5));
+
+      // A new line moves the centre; the control follows it in one easing
+      // glide instead of jumping with the line.
+      final before = lead();
+      controller.text = 'one\ntwo';
+      await tester.pump();
+      final after = input();
+      final direction = (after - before).sign;
+      expect((after - before).abs(), greaterThan(5));
+      expect(lead(), closeTo(before, .5));
+      final trace = <double>[lead()];
+      for (var frame = 0; frame < 16; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        trace.add(lead());
+      }
+      await tester.pumpAndSettle();
+      trace.add(lead());
+      for (var i = 1; i < trace.length; i++) {
+        expect((trace[i] - trace[i - 1]) * direction, greaterThan(-.01));
+      }
+      // Two frames in, the control is visibly between the two centres.
+      expect((trace[2] - before).abs(), greaterThan(1));
+      expect((trace[2] - after).abs(), greaterThan(1));
+      expect(trace.last, closeTo(after, .5));
+
+      // Past the editor's height limit the input scrolls and nothing moves.
+      controller.text = List.filled(4, 'line').join('\n');
+      await tester.pumpAndSettle();
+      final capped = lead();
+      expect(capped, closeTo(input(), .5));
+      controller.text = List.filled(7, 'line').join('\n');
+      await tester.pump();
+      expect(lead(), capped);
+      await tester.pumpAndSettle();
+      expect(lead(), capped);
+
+      // Reduced motion lands on the new centre at once.
+      await tester.pumpWidget(composer(reduceMotion: true));
+      controller.text = 'one';
+      await tester.pump();
+      await tester.pump();
+      expect(lead(), closeTo(input(), .5));
+    });
+
+    testWidgets('sticker switches keep the action row and multiline input', (
+      tester,
+    ) async {
+      final controller = TextEditingController(text: 'one\ntwo\nthree');
+      addTearDown(controller.dispose);
+      var hidden = 0;
+      Widget composer({bool stickerOpen = false, bool compact = false}) =>
+          gfApp(
+            SizedBox(
+              width: 360,
+              child: GfPostComposer(
+                controller: controller,
+                publishLabel: 'Send',
+                hintText: 'Reply',
+                onPublish: () {},
+                onPickImage: () {},
+                imageTooltip: 'Image',
+                onPickSticker: () {},
+                stickerTooltip: 'Stickers',
+                stickerOpen: stickerOpen,
+                compactEditor: compact,
+                hideKeyboardLabel: 'Hide',
+                hidePanelLabel: 'Hide stickers',
+                onHideAccessory: () => hidden++,
+              ),
+            ),
+          );
+      IconButton hide() => tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byWidgetPredicate(
+            (widget) => widget is GfSymbol && widget.name == 'keyboard-hide',
+          ),
+          matching: find.byType(IconButton),
+        ),
+      );
+
+      await tester.pumpWidget(composer());
+      final idle = tester.getRect(find.byTooltip('Hide'));
+      final idleHeight = tester.getSize(find.byType(GfPostComposer)).height;
+      expect(hide().onPressed, isNull);
+
+      await tester.pumpWidget(composer(stickerOpen: true));
+      await tester.pumpAndSettle();
+      // Switch-to-keyboard and hide read differently, by glyph and by name.
+      final shown = tester
+          .widgetList<GfSymbol>(find.byType(GfSymbol))
+          .map((symbol) => symbol.name)
+          .toList();
+      expect(shown, containsAll(<String>['keyboard', 'keyboard-hide']));
+      expect(
+        File('assets/icons/keyboard-hide.svg').readAsStringSync(),
+        isNot(File('assets/icons/keyboard.svg').readAsStringSync()),
+      );
+      expect(find.byTooltip('Hide'), findsNothing);
+      expect(tester.getRect(find.byTooltip('Hide stickers')), idle);
+      expect(tester.getSize(find.byType(GfPostComposer)).height, idleHeight);
+      expect(tester.widget<TextField>(find.byType(TextField)).maxLines, 4);
+      await tester.tap(find.byTooltip('Hide stickers'));
+      expect(hidden, 1);
+
+      await tester.pumpWidget(composer(stickerOpen: true, compact: true));
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.maxLines, 4);
+      expect(field.textInputAction, TextInputAction.newline);
+      expect(tester.getSize(find.byType(TextField)).height, lessThan(48));
+      await tester.pumpWidget(const SizedBox.shrink());
     });
 
     testWidgets(

@@ -5,7 +5,7 @@ import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/server_messages.dart';
 import 'package:forum_app/src/pages/content/content_page.dart';
-import 'package:forum_app/src/pages/topic/post_edit_sheet.dart';
+import 'package:forum_app/src/pages/topic/post_editor.dart';
 
 import 'package:core/core.dart';
 import 'package:image/image.dart' as img;
@@ -1932,7 +1932,7 @@ void main() {
         await tester.tap(find.text('Edit and resubmit'));
         await tester.pumpAndSettle();
         expect(result.pageRepository.paths.last, '/publish?id=42');
-        expect(find.byType(PostEditSheet), findsNothing);
+        expect(find.byType(PostEditor), findsNothing);
         expect(
           find.byType(QuillEditor),
           type == 3 ? findsOneWidget : findsNothing,

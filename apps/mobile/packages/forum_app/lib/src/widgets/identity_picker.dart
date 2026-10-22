@@ -26,10 +26,23 @@ class IdentityPicker extends ConsumerStatefulWidget {
     required this.value,
     required this.onChanged,
     this.disabled = false,
+    this.compact = false,
+    this.onMenuChanged,
   });
   final String value;
   final ValueChanged<String> onChanged;
   final bool disabled;
+
+  /// Avatar-only 44px button that docks into an input. A small swap badge in
+  /// the primary color marks it as switchable; the name stays in the tooltip
+  /// and semantics label. A failed identity load retries on tap instead of
+  /// showing a separate button.
+  final bool compact;
+
+  /// Reports `true` while the choice sheet, or the setup sheet it leads to,
+  /// holds focus and `false` once the flow ends, so a host can keep its
+  /// keyboard space in the meantime.
+  final ValueChanged<bool>? onMenuChanged;
   @override
   ConsumerState<IdentityPicker> createState() => _IdentityPickerState();
 }
@@ -60,12 +73,21 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
 
   Future<void> openMenu() async {
     if (widget.disabled) return;
-    final value = await showGfBottomSheet<String>(
-      context,
-      showDragHandle: true,
-      builder: (_) => _IdentityMenu(selected: widget.value),
-    );
-    if (value != null && mounted) await choose(value);
+    if (widget.compact && ref.read(anonymousIdentityProvider).hasError) {
+      ref.invalidate(anonymousIdentityProvider);
+    }
+    final onMenuChanged = widget.onMenuChanged;
+    onMenuChanged?.call(true);
+    try {
+      final value = await showGfBottomSheet<String>(
+        context,
+        showDragHandle: true,
+        builder: (_) => _IdentityMenu(selected: widget.value),
+      );
+      if (value != null && mounted) await choose(value);
+    } finally {
+      onMenuChanged?.call(false);
+    }
   }
 
   @override
@@ -82,7 +104,21 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
         ? user!.nickname
         : user?.username ?? l.anonymousMember;
     final kind = widget.value == 'persona' ? l.anonymousTag : l.anonymousMember;
+    final avatar = GfAvatar(
+      frameColors: widget.value == 'persona'
+          ? const []
+          : decorationColors(context, user?.decoration?.avatarFrame),
+      frameAssetUrl: widget.value == 'persona'
+          ? ''
+          : decorationFrameAssetUrl(user?.decoration?.avatarFrame),
+      frameScale: user?.decoration?.avatarFrame?.assetScale ?? 1.25,
+      src: resolveApiAssetUrl(
+        widget.value == 'persona' ? p?.avatarUrl ?? '' : user?.avatarUrl ?? '',
+      ),
+      size: widget.compact ? 32 : 28,
+    );
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Flexible(
           child: Semantics(
@@ -92,90 +128,134 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
             excludeSemantics: true,
             onTap: widget.disabled ? null : openMenu,
             child: Tooltip(
-              message: name,
+              message: widget.compact ? '$name · $kind' : name,
               child: InkWell(
                 key: const Key('identity-picker'),
-                customBorder: const StadiumBorder(),
+                customBorder: widget.compact
+                    ? const CircleBorder()
+                    : const StadiumBorder(),
                 onTap: widget.disabled ? null : openMenu,
-                child: Container(
-                  constraints: const BoxConstraints(minHeight: 48),
-                  padding: const EdgeInsetsDirectional.fromSTEB(6, 4, 10, 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      GfAvatar(
-                        frameColors: widget.value == 'persona'
-                            ? const []
-                            : decorationColors(
-                                context,
-                                user?.decoration?.avatarFrame,
-                              ),
-                        frameAssetUrl: widget.value == 'persona'
-                            ? ''
-                            : decorationFrameAssetUrl(
-                                user?.decoration?.avatarFrame,
-                              ),
-                        frameScale:
-                            user?.decoration?.avatarFrame?.assetScale ?? 1.25,
-                        src: resolveApiAssetUrl(
-                          widget.value == 'persona'
-                              ? p?.avatarUrl ?? ''
-                              : user?.avatarUrl ?? '',
-                        ),
-                        size: 28,
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: GfDecoratedName(
-                          name,
-                          colors: widget.value == 'persona'
-                              ? const []
-                              : decorationColors(
+                child: widget.compact
+                    ? SizedBox.square(
+                        dimension: 44,
+                        child: Center(
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              AnimatedSwitcher(
+                                duration: GfMotion.duration(
                                   context,
-                                  user?.decoration?.nicknameStyle,
+                                  GfMotion.selection,
                                 ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.bodyStrong,
+                                switchInCurve: GfMotion.enterCurve,
+                                switchOutCurve: GfMotion.enterCurve,
+                                transitionBuilder: (child, animation) =>
+                                    FadeTransition(
+                                      opacity: animation,
+                                      child: ScaleTransition(
+                                        scale: Tween<double>(
+                                          begin: .25,
+                                          end: 1,
+                                        ).animate(animation),
+                                        child: child,
+                                      ),
+                                    ),
+                                child: KeyedSubtree(
+                                  key: ValueKey<String>(widget.value),
+                                  child: avatar,
+                                ),
+                              ),
+                              if (!widget.disabled)
+                                PositionedDirectional(
+                                  end: -3,
+                                  bottom: -2,
+                                  child: Container(
+                                    key: const Key('identity-switch-badge'),
+                                    width: 16,
+                                    height: 16,
+                                    // Concentric with the glyph's own square.
+                                    decoration: BoxDecoration(
+                                      color: colors.base100,
+                                      borderRadius: BorderRadius.circular(5),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: GfSymbol(
+                                      'arrow-swap-horizontal-filled',
+                                      size: 14,
+                                      color: colors.primary,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: ShapeDecoration(
-                            color: colors.base200,
-                            shape: const StadiumBorder(),
-                          ),
-                          child: GfText(
-                            kind,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: type.caption.copyWith(
-                              color: colors.baseContent.withValues(alpha: .7),
+                      )
+                    : Container(
+                        constraints: const BoxConstraints(minHeight: 48),
+                        padding: const EdgeInsetsDirectional.fromSTEB(
+                          6,
+                          4,
+                          10,
+                          4,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            avatar,
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: GfDecoratedName(
+                                name,
+                                colors: widget.value == 'persona'
+                                    ? const []
+                                    : decorationColors(
+                                        context,
+                                        user?.decoration?.nicknameStyle,
+                                      ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: type.bodyStrong,
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: ShapeDecoration(
+                                  color: colors.base200,
+                                  shape: const StadiumBorder(),
+                                ),
+                                child: GfText(
+                                  kind,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: type.caption.copyWith(
+                                    color: colors.baseContent.withValues(
+                                      alpha: .7,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (!widget.disabled) ...[
+                              const SizedBox(width: 4),
+                              GfSymbol(
+                                'chevron-down',
+                                size: 16,
+                                color: colors.iconMuted,
+                              ),
+                            ],
+                          ],
                         ),
                       ),
-                      if (!widget.disabled) ...[
-                        const SizedBox(width: 4),
-                        GfSymbol(
-                          'chevron-down',
-                          size: 16,
-                          color: colors.iconMuted,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
               ),
             ),
           ),
         ),
-        if (state.hasError)
+        if (state.hasError && !widget.compact)
           GfIconButton(
             symbol: 'refresh-cw',
             tooltip: l.anonymousRetry,
