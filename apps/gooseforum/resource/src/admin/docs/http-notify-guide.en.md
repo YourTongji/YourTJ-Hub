@@ -172,7 +172,7 @@ sign = base64(HMAC_SHA256(key = timestamp + "\n" + secret, message = ""))
 Choose **AstrBot bot (push_lite plugin)** to push notifications through AstrBot to QQ groups, private chats, and other sessions. The plugin needs no changes:
 
 1. Install [astrbot_plugin_push_lite](https://github.com/Raven95676/astrbot_plugin_push_lite) in AstrBot. The plugin serves its API on port `9966` by default, which is not the AstrBot dashboard port.
-2. Enter the plugin's API address as the URL, for example `http://astrbot.example.com:9966/send`. If you stop at the port, `/send` is added for you. The forum server must be able to reach this address. AstrBot often runs on the same machine as the forum, but do not enter `127.0.0.1`: local targets are refused delivery, so use the host's address as reachable from the intranet.
+2. Enter the plugin's API address as the URL, for example `http://astrbot.example.com:9966/send`. If you stop at the port, `/send` is added for you. The forum server must be able to reach this address. AstrBot often runs on the same machine as the forum, but do not enter `127.0.0.1`: local targets are refused delivery, so use the host's address reachable from the intranet.
 3. Send `/sid` in the session that should get notifications, and enter the SID it returns (for example `aiocqhttp:GroupMessage:123456`) as the **Target session SID**.
 4. Enter the API token from the plugin settings as the **API token**. Like a Secret, it is stored encrypted and never shown again.
 
