@@ -809,9 +809,9 @@ void main() {
     );
   });
 
-  testWidgets('list row renders a resolved token as a text label', (
-      tester,
-    ) async {
+    testWidgets('list row renders a resolved token as a text label', (
+        tester,
+      ) async {
       await pumpFeed(tester, [topicWith('正文 [:sticker:smile:] 结尾')]);
 
       // 列表行是小字视图：贴纸显示 [名字] 文本，不渲染图片。
@@ -822,6 +822,18 @@ void main() {
         isEmpty,
       );
       expect(_richTexts(tester).where((text) => text.contains('正文')), hasLength(1));
+    });
+
+    testWidgets('a token-looking string in a real title stays literal', (
+      tester,
+    ) async {
+      await pumpFeed(tester, [
+        topicWith('普通摘要', title: '[:sticker:smile:] 字面标题'),
+      ]);
+
+      // 标题是纯文本（不经过 Markdown 管线），与 Web/SSR 对齐：原样展示，
+      // 不做 [名字] 转换或省略。
+      expect(find.textContaining('[:sticker:smile:] 字面标题'), findsOneWidget);
     });
 
     testWidgets('card renders the same token larger', (tester) async {

@@ -22,7 +22,7 @@ const segments = computed(() => renderableStickerSegments(props.content, props.s
     <img
       v-if="segment.type === 'sticker'"
       :src="segment.url"
-      :alt="`[:sticker:${segment.name}:]`"
+      :alt="`[${segment.name}]`"
       class="inline-block max-w-full object-contain align-middle"
       :class="size"
       loading="lazy"

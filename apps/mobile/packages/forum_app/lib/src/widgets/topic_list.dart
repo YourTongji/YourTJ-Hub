@@ -294,7 +294,8 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
   @override
   bool get wantKeepAlive => true;
 
-  // 无标题瞬间的置顶标题其实是摘要，可能带 [:sticker:name:]；与列表行同样走共享分段。
+  // 标题是纯文本（不经过 Markdown 管线），与列表行/SSR 对齐：有标题原样展示；
+  // 无标题瞬间的置顶标题其实是摘要，可能带 [:sticker:name:]，按小字视图规则换成 [名字]/省略。
   Widget pinnedTitle(BuildContext context, TopicPayload topic, GfColors colors,
       {double fontSize = 12.5}) {
     final TextStyle style = TextStyle(
@@ -302,10 +303,9 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
       fontWeight: FontWeight.w500,
       color: colors.baseContent.withValues(alpha: 0.88),
     );
-    final String title = stickerLabelText(
-      topicDisplayTitle(topic),
-      widget.stickerUrlByName,
-    );
+    final String title = topic.title.isEmpty
+        ? stickerLabelText(topicDisplayTitle(topic), widget.stickerUrlByName)
+        : topic.title;
     return GfText(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
   }
 
@@ -540,9 +540,11 @@ Widget _topicRow(
   final String displayTitle = topic.processStatus == 2
       ? "${l10n.contentReviewPending} · ${topicDisplayTitle(topic)}"
       : topicDisplayTitle(topic);
-  // 列表行是小字视图：贴纸显示 [名字] 纯文本（卡片视图才渲染图片）。
-  // 无标题瞬间把摘要放在标题位，因此两个槽位都走同一规则。
-  final String title = stickerLabelText(displayTitle, stickerUrlByName);
+  // 标题是纯文本（不经过 Markdown 管线），与 Web/SSR 对齐：有标题原样展示，
+  // 不做贴纸转换；无标题瞬间把摘要放在标题位，才按小字视图规则换成 [名字]/省略。
+  final String title = topic.title.isNotEmpty
+      ? displayTitle
+      : stickerLabelText(displayTitle, stickerUrlByName);
   final String description = topic.title.isEmpty
       ? ''
       : stickerLabelText(topic.description, stickerUrlByName);

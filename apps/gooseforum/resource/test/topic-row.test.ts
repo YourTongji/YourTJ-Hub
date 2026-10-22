@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import TopicList from '@/site/components/TopicList.vue'
 import TopicRow from '@/site/components/TopicRow.vue'
 import { i18n } from '../src/runtime/i18n'
 import type { TopicPayload } from '@gooseforum/client'
@@ -205,8 +206,19 @@ describe('TopicRow.vue 列表行一致性验证', () => {
     }
   })
 
-  test('只含未解析表情的摘要不留空段落', () => {
-    const wrapper = mount(TopicRow, {
+  test('有标题的话题原样展示标题：标题是纯文本（不经过 Markdown 管线），不做贴纸展开或省略', () => {
+    const topic = createMockTopic(2, { title: '[:sticker:cat:] 字面标题', pinWeight: 3 })
+    const wrapper = mount(TopicList, {
+      props: { topics: [topic], home: true, showPinned: true },
+      global: { plugins: [i18n], stubs: { TopicRow: true } },
+    })
+
+    // 与 SSR topicListLabel 对齐：token 语义只适用于摘要回退，标题保持原文。
+    const pinnedLink = wrapper.get('section a')
+    expect(pinnedLink.attributes('title')).toBe('[:sticker:cat:] 字面标题')
+  })
+
+  test('只含未解析表情的摘要不留空段落', () => {    const wrapper = mount(TopicRow, {
       props: { topic: createMockTopic(2, { description: '[:sticker:missing:]' }), home: true },
       global: { plugins: [i18n] },
     })

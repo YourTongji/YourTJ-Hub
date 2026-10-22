@@ -79,7 +79,6 @@ class GfTopicRow extends StatelessWidget {
     this.contentType,
     this.contentTypeLabel,
     this.feedContext,
-    this.titleSpan,
     this.descriptionSpan,
   });
 
@@ -112,9 +111,8 @@ class GfTopicRow extends StatelessWidget {
   final GfTopicContext? feedContext;
 
   /// Prebuilt rich excerpt (page-level sticker resolution). When present it
-  /// owns the text and [title]/[description] stay empty; the row ignores
-  /// taps inside it so the item's own ink target stays the only one.
-  final InlineSpan? titleSpan;
+  /// owns the text and [description] stays empty; the row ignores taps inside
+  /// it so the item's own ink target stays the only one.
   final InlineSpan? descriptionSpan;
 
   @override
@@ -123,7 +121,7 @@ class GfTopicRow extends StatelessWidget {
     final enlargedText =
         MediaQuery.textScalerOf(context).scale(_titleFontSize) >
         _titleFontSize * _enlargedTextScaleCeiling;
-    final bool hasTitle = title.isNotEmpty || titleSpan != null;
+    final bool hasTitle = title.isNotEmpty;
     final TextStyle titleStyle = TextStyle(
       color: colors.baseContent,
       fontSize: _titleFontSize,
@@ -188,10 +186,10 @@ class GfTopicRow extends StatelessWidget {
                           const SizedBox(width: 6),
                         ],
                         Expanded(
-                          child: _excerpt(
+                          child: GfText(
                             title,
-                            titleSpan,
                             maxLines: enlargedText ? 2 : 1,
+                            overflow: TextOverflow.ellipsis,
                             style: titleStyle,
                           ),
                         ),
@@ -228,12 +226,24 @@ class GfTopicRow extends StatelessWidget {
                   if (description.isNotEmpty || descriptionSpan != null)
                     Padding(
                       padding: EdgeInsets.only(top: hasTitle ? 2 : 0),
-                      child: _excerpt(
-                        description,
-                        descriptionSpan,
-                        maxLines: enlargedText ? 2 : 1,
-                        style: descriptionStyle,
-                      ),
+                      // Sticker spans carry their own tappable image; the row
+                      // owns taps and long presses, so the excerpt must not
+                      // compete for them.
+                      child: descriptionSpan == null
+                          ? GfText(
+                              description,
+                              maxLines: enlargedText ? 2 : 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: descriptionStyle,
+                            )
+                          : IgnorePointer(
+                              child: GfText.rich(
+                                descriptionSpan!,
+                                maxLines: enlargedText ? 2 : 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: descriptionStyle,
+                              ),
+                            ),
                     ),
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
@@ -259,29 +269,6 @@ class GfTopicRow extends StatelessWidget {
       ),
     );
   }
-
-  /// Sticker spans carry their own tappable image; the row owns taps and long
-  /// presses, so inline content must not compete for them.
-  Widget _excerpt(
-    String text,
-    InlineSpan? span, {
-    required int maxLines,
-    required TextStyle style,
-  }) => span == null
-      ? GfText(
-          text,
-          maxLines: maxLines,
-          overflow: TextOverflow.ellipsis,
-          style: style,
-        )
-      : IgnorePointer(
-          child: GfText.rich(
-            span,
-            maxLines: maxLines,
-            overflow: TextOverflow.ellipsis,
-            style: style,
-          ),
-        );
 
   Widget _typeBadge(BuildContext context) {
     final colors = GfTheme.colorsOf(context);

@@ -46,8 +46,14 @@ const regularTopics = computed(() => pinnedTopics.value.length
 const { resolvedUrls: stickerUrls, ensureContentStickers } = useResolvedStickers()
 
 // 置顶条是小字视图：贴纸显示 [名字] 纯文本（卡片视图才渲染图片）。
+// 标题是纯文本不做贴纸处理（与 SSR topicListLabel 对齐），只处理无标题回退的摘要。
 const pinnedLabel = (topic: TopicPayload) =>
-  stickerLabelText(topicRenderableLabel(topic.id, topic.title, topic.description, stickerUrls.value), stickerUrls.value)
+  topic.title?.trim()
+    ? topic.title.trim()
+    : stickerLabelText(
+        topicRenderableLabel(topic.id, topic.title, topic.description, stickerUrls.value),
+        stickerUrls.value,
+      )
 watch(() => props.topics.map(topic => topic.description ?? ''), (contents) => {
   void ensureContentStickers(contents)
 }, { immediate: true })
