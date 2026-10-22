@@ -7,6 +7,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 )
@@ -14,7 +15,7 @@ import (
 // A deployment already at v30 must still run the legacy pending adoption.
 func TestVersionedMigrationRunsPublicationAdoptionFrom30(t *testing.T) {
 	conn := dbconnect.Connect()
-	if err := conn.AutoMigrate(&pageConfig.Entity{}, &posts.Entity{}, &users.EntityComplete{}, &badges.Entity{}, &userBadges.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&topics.Entity{}, &pageConfig.Entity{}, &posts.Entity{}, &users.EntityComplete{}, &badges.Entity{}, &userBadges.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := pageConfig.SyncMigrationVersion(30); err != nil {
@@ -23,7 +24,7 @@ func TestVersionedMigrationRunsPublicationAdoptionFrom30(t *testing.T) {
 	if err := runVersionedDataMigrations(); err != nil {
 		t.Fatal(err)
 	}
-	if got := pageConfig.GetMigrationVersion(); got != 33 {
-		t.Fatalf("migration stopped at %d; publication adoption, robot badges and rejected-submission adoption require version 33", got)
+	if got := pageConfig.GetMigrationVersion(); got != pageConfig.AppMigrationVersion {
+		t.Fatalf("migration stopped at %d, want %d", got, pageConfig.AppMigrationVersion)
 	}
 }

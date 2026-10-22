@@ -470,10 +470,14 @@ func TestDirectImageUploadCompleteSuccessRecordsOwnerUsage(t *testing.T) {
 		t.Fatalf("complete url = %q, want it to contain %q", envelope.Result.URL, name)
 	}
 
-	// The completed file is now publicly readable.
+	// Completion grants private uploader preview, not public publication.
 	read := serveDirectUploadJSON(router, http.MethodGet, "/file/img/"+name, "", "")
-	if read.Code != http.StatusOK {
-		t.Fatalf("GET completed file status = %d, want 200: %s", read.Code, read.Body.String())
+	if read.Code != http.StatusNotFound {
+		t.Fatalf("anonymous completed upload status=%d, want 404", read.Code)
+	}
+	read = serveDirectUploadJSON(router, http.MethodGet, "/file/img/"+name, "", token)
+	if read.Code != http.StatusOK || read.Header().Get("Cache-Control") != "private, no-store" {
+		t.Fatalf("uploader preview status=%d cache=%q", read.Code, read.Header().Get("Cache-Control"))
 	}
 }
 

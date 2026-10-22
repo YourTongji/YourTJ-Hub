@@ -449,6 +449,15 @@ func runVersionedDataMigrations() error {
 		}
 		currentVersion = 33
 	}
+	if currentVersion < 34 {
+		if err := datamigration.BackfillEmptyTopicExcerpts(dbconnect.Connect()); err != nil {
+			return fmt.Errorf("app migration v34 empty topic excerpts: %w", err)
+		}
+		if err := pageConfig.SyncMigrationVersion(34); err != nil {
+			return err
+		}
+		currentVersion = 34
+	}
 	slog.Info("app migration end", "version", currentVersion)
 	return nil
 }
