@@ -84,6 +84,7 @@ import type {
   ManageHomeProps,
   AdminTaskRow,
   AnnouncementConfig,
+  AnnouncementItemConfig,
   HttpNotifyEndpoint,
   HttpNotifySettings,
   MailSettings,
@@ -102,6 +103,7 @@ import type {
   TermsOfServiceConfig,
 } from '@/admin/types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/admin/components/ui/select'
+import Draggable from 'vuedraggable'
 import { safeUrl } from '@/runtime/safe-url'
 import { createUuidV4 } from '@/runtime/uuid'
 import { isValidCron5Field } from '@/admin/cron'
@@ -408,6 +410,14 @@ const announcementForm = reactive<AnnouncementConfig>({
   content: '',
   items: [],
 })
+
+// 公告卡片默认折叠（只留排名/标题/启用/删除），新添加的公告默认展开。
+const expandedAnnouncementIds = reactive(new Set<string>())
+
+function toggleAnnouncementItem(item: AnnouncementItemConfig) {
+  if (expandedAnnouncementIds.has(item.id)) expandedAnnouncementIds.delete(item.id)
+  else expandedAnnouncementIds.add(item.id)
+}
 
 const pageMeta = computed(() => {
   locale.value
@@ -730,55 +740,19 @@ function validateHttpEndpoint(endpoint: HttpNotifyEndpoint) {
 
 function addAnnouncementItem() {
   if (!announcementForm.items) announcementForm.items = []
+  const id = `ann-${Date.now().toString(36)}`
   announcementForm.items.push({
-    id: `ann-${Date.now().toString(36)}`,
+    id,
     title: '',
     content: '',
     enabled: true,
   })
+  expandedAnnouncementIds.add(id)
 }
 
 function removeAnnouncementItem(index: number) {
-  announcementForm.items?.splice(index, 1)
-}
-
-// 拖拽排序状态：dragstart 记录源下标，dragover 记录目标下标
-const draggingAnnouncementIndex = ref<number | null>(null)
-const dragOverAnnouncementIndex = ref<number | null>(null)
-
-function onAnnouncementDragStart(index: number, event: DragEvent) {
-  if (!event.dataTransfer) return
-  draggingAnnouncementIndex.value = index
-  event.dataTransfer.effectAllowed = 'move'
-  event.dataTransfer.setData('text/plain', String(index))
-}
-
-function onAnnouncementDragOver(index: number, event: DragEvent) {
-  event.preventDefault()
-  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
-  if (index !== draggingAnnouncementIndex.value) {
-    dragOverAnnouncementIndex.value = index
-  }
-}
-
-function onAnnouncementDrop(index: number, event: DragEvent) {
-  event.preventDefault()
-  moveAnnouncementItem(draggingAnnouncementIndex.value, index)
-  dragOverAnnouncementIndex.value = null
-}
-
-function onAnnouncementDragEnd() {
-  draggingAnnouncementIndex.value = null
-  dragOverAnnouncementIndex.value = null
-}
-
-// 将公告从 fromIndex 移动到 toIndex（数组顺序即首页轮播的展示顺序）
-function moveAnnouncementItem(fromIndex: number | null, toIndex: number) {
-  if (fromIndex === null || fromIndex === toIndex) return
-  const items = announcementForm.items ?? []
-  if (fromIndex < 0 || fromIndex >= items.length || toIndex < 0 || toIndex > items.length) return
-  const [moved] = items.splice(fromIndex, 1)
-  items.splice(toIndex, 0, moved)
+  const [removed] = announcementForm.items?.splice(index, 1) ?? []
+  if (removed) expandedAnnouncementIds.delete(removed.id)
 }
 
 function normalizeStorage(settings: Partial<StorageSettings> = {}) {
@@ -911,7 +885,10 @@ async function load() {
       await Promise.all([loadOnesystem(), refreshSyncStatus(), loadPkSchedule()])
     }
     else if (props.kind === 'schedule') Object.assign(scheduleForm, normalizeSchedule(await getScheduleSettings()))
-    else Object.assign(announcementForm, normalizeAnnouncement(await getAnnouncement()))
+    else {
+      Object.assign(announcementForm, normalizeAnnouncement(await getAnnouncement()))
+      expandedAnnouncementIds.clear()
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : adminText('k000d')
   } finally {
@@ -2414,45 +2391,56 @@ onUnmounted(stopSyncPolling)
         </div>
 
         <div class="space-y-4">
-          <div
-            v-for="(item, index) in announcementForm.items"
-            :key="item.id"
-            draggable="true"
-            class="rounded-lg border border-border bg-card p-4 transition-[opacity,box-shadow] duration-150"
-            :class="[
-              draggingAnnouncementIndex === index && 'opacity-50',
-              dragOverAnnouncementIndex === index && 'ring-2 ring-primary/60',
-            ]"
-            @dragstart="onAnnouncementDragStart(index, $event)"
-            @dragover="onAnnouncementDragOver(index, $event)"
-            @drop="onAnnouncementDrop(index, $event)"
-            @dragend="onAnnouncementDragEnd"
+          <Draggable
+            v-model="announcementForm.items"
+            item-key="id"
+            handle=".js-announcement-handle"
+            :animation="180"
+            :delay="180"
+            :delay-on-touch-only="true"
+            :touch-start-threshold="10"
+            ghost-class="opacity-40"
+            class="space-y-4"
           >
-            <div class="mb-3 flex items-center justify-between gap-2">
-              <div class="flex items-center gap-2 text-sm font-medium">
-                <GripVertical class="size-4 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing" :title="adminText('k00j2')" />
-                {{ adminText('k0009') }} #{{ index + 1 }}
+            <template #item="{ element: item, index }">
+              <div class="rounded-lg border border-border bg-card">
+                <div class="flex items-center gap-3 p-4">
+                  <button type="button" class="js-announcement-handle cursor-grab rounded p-0.5 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:outline-none active:cursor-grabbing" :aria-label="adminText('k00bf')" :title="adminText('k00bf')">
+                    <GripVertical class="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    class="group flex min-w-0 flex-1 items-center gap-3 rounded-md text-start outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    :aria-expanded="expandedAnnouncementIds.has(item.id)"
+                    :aria-controls="`announcement-${item.id}`"
+                    @click="toggleAnnouncementItem(item)"
+                  >
+                    <span class="shrink-0 truncate text-sm font-medium">{{ adminText('k0009') }} #{{ index + 1 }}</span>
+                    <span class="min-w-0 flex-1 truncate text-sm">{{ item.title || adminText('k00j0') }}</span>
+                    <ChevronDown class="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-aria-expanded:rotate-180 motion-reduce:transition-none" />
+                  </button>
+                  <label class="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    {{ adminText('k00e2') }}
+                    <Switch v-model="item.enabled" />
+                  </label>
+                  <Button variant="ghost" type="button" class="size-8" @click="removeAnnouncementItem(index)">
+                    <Trash2 class="size-4" />
+                    <span class="sr-only">{{ adminText('k00j1') }}</span>
+                  </Button>
+                </div>
+                <div v-show="expandedAnnouncementIds.has(item.id)" :id="`announcement-${item.id}`" class="space-y-3 border-t p-4">
+                  <label class="grid gap-1.5 text-sm font-medium">
+                    {{ adminText('k00j0') }}
+                    <Input v-model="item.title" class="mt-0" :placeholder="adminText('k00j0')" />
+                  </label>
+                  <label class="grid gap-1.5 text-sm font-medium">
+                    {{ adminText('k009l') }}
+                    <Textarea v-model="item.content" class="min-h-32 resize-y font-mono text-sm" :placeholder="adminText('k004n')" />
+                  </label>
+                </div>
               </div>
-              <div class="flex items-center gap-3">
-                <label class="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  {{ adminText('k00e2') }}
-                  <Switch v-model="item.enabled" />
-                </label>
-                <Button variant="ghost" type="button" class="size-8" @click="removeAnnouncementItem(index)">
-                  <Trash2 class="size-4" />
-                  <span class="sr-only">{{ adminText('k00j1') }}</span>
-                </Button>
-              </div>
-            </div>
-            <label class="grid gap-1.5 text-sm font-medium">
-              {{ adminText('k00j0') }}
-              <Input v-model="item.title" class="mt-0" :placeholder="adminText('k00j0')" />
-            </label>
-            <label class="mt-3 grid gap-1.5 text-sm font-medium">
-              {{ adminText('k009l') }}
-              <Textarea v-model="item.content" class="min-h-32 resize-y font-mono text-sm" :placeholder="adminText('k004n')" />
-            </label>
-          </div>
+            </template>
+          </Draggable>
 
           <Button variant="outline" type="button" @click="addAnnouncementItem">
             <Plus class="size-4" />

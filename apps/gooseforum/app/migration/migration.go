@@ -74,6 +74,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPageRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
+	xpmodel "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/xp"
 	"gorm.io/gorm"
 )
 
@@ -139,6 +140,9 @@ func migrateSchema() error {
 		// 登录/注册等依赖新表的接口在运行期才会报错，故障被发现时已影响线上。
 		// 进程管理器会因此把实例标记为启动失败，触发回滚或告警。
 		return fmt.Errorf("dbconnect migration err: %w", err)
+	}
+	if err = xpmodel.EnsureAppendOnlyGuards(db); err != nil {
+		return fmt.Errorf("dbconnect XP append-only guard migration failed: %w", err)
 	}
 	slog.Info("dbconnect migration end")
 	if err = campus.BackfillIdentityReservations(db); err != nil {
@@ -772,6 +776,13 @@ func SchemaModels() []any {
 		&oidcAccessTokens.Entity{},
 		&userOAuth.Entity{},
 		&userPoints.Entity{},
+		&xpmodel.Balance{},
+		&xpmodel.Entry{},
+		&xpmodel.RuleSet{},
+		&xpmodel.RulePublicationLock{},
+		&xpmodel.RewardRule{},
+		&xpmodel.DailyUsage{},
+		&xpmodel.DailyRuleUsage{},
 		&userSessions.Entity{},
 		&userPasskeys.CredentialEntity{},
 		&userPasskeys.ChallengeEntity{},

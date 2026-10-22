@@ -51,6 +51,8 @@ class StickerStrings {
     '送信済みのステッカーは引き続き表示されます。',
   );
   String get keyboard => _s('键盘', 'Keyboard', 'Tastatur', 'キーボード');
+  String get hidePanel =>
+      _s('收起表情', 'Hide stickers', 'Sticker ausblenden', 'ステッカーを閉じる');
   String get recent => _s('最近', 'Recent', 'Zuletzt', '最近');
   String get mine => _s('我的', 'Mine', 'Meine', 'マイ');
   String get official => _s('官方', 'Official', 'Offiziell', '公式');

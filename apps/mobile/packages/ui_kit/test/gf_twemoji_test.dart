@@ -61,19 +61,58 @@ void main() {
       },
     );
 
+    test('respects default text presentation and variation selectors', () {
+      expect(parseTwemojiText('© ® ™ ❤'), <TwemojiSegment>[
+        const TwemojiSegment.text('© ® ™ ❤'),
+      ]);
+      expect(
+        parseTwemojiText('©\uFE0E ®\uFE0E ™\uFE0E ❤\uFE0E'),
+        <TwemojiSegment>[
+          const TwemojiSegment.text('©\uFE0E ®\uFE0E ™\uFE0E ❤\uFE0E'),
+        ],
+      );
+      expect(
+        parseTwemojiText('©\uFE0F ®\uFE0F ™\uFE0F ❤\uFE0F'),
+        <TwemojiSegment>[
+          const TwemojiSegment.emoji('©\uFE0F', 'a9.png'),
+          const TwemojiSegment.text(' '),
+          const TwemojiSegment.emoji('®\uFE0F', 'ae.png'),
+          const TwemojiSegment.text(' '),
+          const TwemojiSegment.emoji('™\uFE0F', '2122.png'),
+          const TwemojiSegment.text(' '),
+          const TwemojiSegment.emoji('❤\uFE0F', '2764.png'),
+        ],
+      );
+      expect(parseTwemojiText('😀\uFE0E'), <TwemojiSegment>[
+        const TwemojiSegment.text('😀\uFE0E'),
+      ]);
+      expect(parseTwemojiText('😀\uFE0F'), <TwemojiSegment>[
+        const TwemojiSegment.emoji('😀\uFE0F', '1f600.png'),
+      ]);
+    });
+
+    test('keeps the Taiwan flag sequence as its original Unicode text', () {
+      expect(parseTwemojiText('🇹🇼'), <TwemojiSegment>[
+        const TwemojiSegment.text('🇹🇼'),
+      ]);
+    });
+
     testWidgets('fast candidate scan keeps symbol, flag and keycap artwork', (
       tester,
     ) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: Scaffold(body: GfText('© ® ™ ❤️ 🐦‍🔥 🇺🇸 1️⃣ #️⃣')),
+          home: Scaffold(body: GfText('© ® ™ ❤️ 🐦‍🔥 🇺🇸 🇹🇼 1️⃣ #️⃣')),
         ),
       );
       await tester.pump();
 
-      expect(find.byType(Image), findsNWidgets(8));
+      expect(find.byType(Image), findsNWidgets(5));
+      expect(find.text('© ® ™'), findsNothing);
+      expect(find.textContaining('© ® ™'), findsOneWidget);
       expect(find.bySemanticsLabel('🐦‍🔥'), findsOneWidget);
       expect(find.bySemanticsLabel('🇺🇸'), findsOneWidget);
+      expect(find.bySemanticsLabel('🇹🇼'), findsNothing);
     });
 
     testWidgets('ordinary digits are not treated as keycap Emoji', (

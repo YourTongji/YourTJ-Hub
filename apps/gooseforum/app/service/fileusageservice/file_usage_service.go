@@ -29,22 +29,24 @@ func ReplaceTopicWithImages(topicID uint64, userID uint64, content string, extra
 	replace(fileUsage.TargetTopic, topicID, []string{fileUsage.UsageInlineImage}, userID, namesToUsages(urls, fileUsage.UsageInlineImage), false)
 }
 
-// MaxGalleryImagesPerTopicWrite caps how many explicit gallery images one
-// topic write may carry. The web quick-publish picker enforces the same limit
-// client-side; this server cap keeps the request and its usage rows bounded
-// for non-conforming clients.
+// MaxGalleryImagesPerTopicWrite caps how many in-site gallery candidates (see
+// GalleryImageURLs) one topic write may carry. The web quick-publish picker
+// enforces the same limit client-side; this server cap keeps the request and
+// its usage rows bounded for non-conforming clients.
 const MaxGalleryImagesPerTopicWrite = 9
 
 // MaxImageURLLength guards the persisted image_urls text column and the
 // file_usages.file_name varchar(512) column against oversized raw input.
 const MaxImageURLLength = 2048
 
-// FilterOwnedImageURLs returns the input URLs that resolve to a ready upload
-// owned by userID. Only such files may become ACTIVE content references:
-// registering a foreign or unknown /file/img/ name would let an attacker pin
-// another user's file and keep it publicly served after the owner's
-// delete/privacy purge (GC skips files with live references).
-func FilterOwnedImageURLs(userID uint64, urls []string) []string {
+// GalleryImageURLs returns the in-site gallery candidates among urls: trimmed,
+// within MaxImageURLLength, and resolvable to a file name (see fileNameFromURL),
+// deduplicated by that name. Existence, readiness and ownership are not checked
+// here (FilterOwnedImageURLs does that), so MaxGalleryImagesPerTopicWrite counts
+// candidates — a coarse pre-filter costing no DB lookup per unbounded input URL.
+// URLs whose path carries no /file/img/ name (e.g. external image hosts)
+// neither count nor persist.
+func GalleryImageURLs(urls []string) []string {
 	kept := make([]string, 0, len(urls))
 	seen := make(map[string]bool, len(urls))
 	for _, value := range urls {
@@ -53,14 +55,33 @@ func FilterOwnedImageURLs(userID uint64, urls []string) []string {
 			continue
 		}
 		name := fileNameFromURL(value)
-		if name == "" || len(name) > 512 || seen[name] {
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		kept = append(kept, value)
+	}
+	return kept
+}
+
+// FilterOwnedImageURLs returns the input URLs that resolve to a ready upload
+// owned by userID. Only such files may become ACTIVE content references:
+// registering a foreign or unknown /file/img/ name would let an attacker pin
+// another user's file and keep it publicly served after the owner's
+// delete/privacy purge (GC skips files with live references).
+func FilterOwnedImageURLs(userID uint64, urls []string) []string {
+	candidates := GalleryImageURLs(urls)
+	kept := make([]string, 0, len(candidates))
+	for _, value := range candidates {
+		name := fileNameFromURL(value)
+		// file_usages.file_name is varchar(512); longer names cannot be referenced.
+		if len(name) > 512 {
 			continue
 		}
 		entity := filedata.GetByName(name)
 		if entity.Id == 0 || entity.StorageStatus != filedata.StorageStatusReady || entity.UserId != userID {
 			continue
 		}
-		seen[name] = true
 		kept = append(kept, value)
 	}
 	return kept

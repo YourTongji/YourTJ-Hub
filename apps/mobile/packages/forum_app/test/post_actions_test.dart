@@ -10,25 +10,41 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/topic/post_actions.dart';
 import 'package:forum_app/src/pages/topic/post_history_sheet.dart';
-import 'package:forum_app/src/pages/topic/post_edit_sheet.dart';
+import 'package:forum_app/src/pages/topic/post_editor.dart';
 import 'package:forum_app/src/widgets/share/share_image_preview.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/private_notes.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_picker.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'fixtures/page_fixtures.dart';
+import 'fixtures/sticker_fixtures.dart';
 import 'pages_smoke_test.dart' show MemoryTokenStorage;
 
 class _Posts extends PostRepository {
   _Posts(super.client);
   final likes = <int>[];
   final bookmarks = <int>[];
+  final deleted = <int>[];
   final contents = <String>[];
   final cursors = <int>[];
   bool failEdit = true;
+
+  /// 让点赞请求挂起,用于断言忙碌态的图标颜色。
+  Completer<void>? likeGate;
+
+  @override
+  Future<bool> deletePost({required int postId}) async {
+    expect(postId, 42);
+    deleted.add(postId);
+    return true;
+  }
+
   @override
   Future<bool> likePost({required int postId, required int action}) async {
     expect(postId, 42);
     likes.add(action);
+    await likeGate?.future;
     return true;
   }
 
@@ -83,6 +99,12 @@ class _Posts extends PostRepository {
   }
 }
 
+/// The editor's input lives in the shared reply composer.
+final editorField = find.descendant(
+  of: find.byKey(const Key('post-edit-composer')),
+  matching: find.byType(TextField),
+);
+
 void main() {
   PostPayload post() {
     final props = topicDetailPayloadJson()['props'] as Map<String, dynamic>;
@@ -99,9 +121,14 @@ void main() {
     );
   }
 
-  Future<void> pump(WidgetTester tester, _Posts repo, Widget child) async {
+  Future<void> pump(
+    WidgetTester tester,
+    _Posts repo,
+    Widget child, {
+    List<Override> overrides = const [],
+  }) async {
     final container = ProviderContainer(
-      overrides: [postRepositoryProvider.overrideWithValue(repo)],
+      overrides: [postRepositoryProvider.overrideWithValue(repo), ...overrides],
     );
     addTearDown(container.dispose);
     await tester.pumpWidget(
@@ -181,10 +208,10 @@ void main() {
     final pending = Completer<void>();
     await pump(
       tester,
-      repo(),
+      repo()..likeGate = pending,
       PostActions(
         post: post(),
-        onChanged: () => pending.future,
+        onChanged: () async {},
         onReply: () {},
         onReport: () {},
       ),
@@ -568,10 +595,11 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   });
   testWidgets(
-    'reply likes and bookmarks call the API and refresh the server state',
+    'reply likes and bookmarks patch the floor in place without reloading',
     (tester) async {
       final repository = repo();
       var refreshes = 0;
+      final patches = <PostPayload>[];
       await pump(
         tester,
         repository,
@@ -580,6 +608,7 @@ void main() {
           onChanged: () async {
             refreshes++;
           },
+          onPostPatched: patches.add,
           onReply: () {},
           onReport: () {},
         ),
@@ -590,9 +619,73 @@ void main() {
       await tester.pumpAndSettle();
       expect(repository.likes, [1]);
       expect(repository.bookmarks, [1]);
-      expect(refreshes, 2);
+      // 点赞/收藏只回传本楼,不触发整窗重载(issue #1316)。
+      expect(refreshes, 0);
+      expect(patches, hasLength(2));
+      expect(patches.first.isLiked, isTrue);
+      expect(patches.first.likeCount, 4);
+      expect(patches.last.isBookmarked, isTrue);
     },
   );
+  testWidgets('unliking keeps the count at zero and patches the floor', (
+    tester,
+  ) async {
+    final repository = repo();
+    final patches = <PostPayload>[];
+    await pump(
+      tester,
+      repository,
+      PostActions(
+        // 计数为 0 却已点赞:取消赞时必须停在 0,不能写进负数(provider 与
+        // payload 都要守住下界)。
+        post: post().copyWith(isLiked: true, likeCount: 0),
+        onChanged: () async {},
+        onPostPatched: patches.add,
+        onReply: () {},
+        onReport: () {},
+      ),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(PostActions)),
+    );
+    await tester.tap(find.byTooltip('Like'));
+    await tester.pumpAndSettle();
+
+    expect(repository.likes, [2]);
+    expect(patches, hasLength(1));
+    expect(patches.single.isLiked, isFalse);
+    expect(patches.single.likeCount, 0);
+    expect(container.read(postReturnStatesProvider)[42], (
+      liked: false,
+      bookmarked: false,
+      likeCount: 0,
+    ));
+  });
+  testWidgets('delete still reloads the comment window', (tester) async {
+    final repository = repo();
+    var refreshes = 0;
+    await pump(
+      tester,
+      repository,
+      PostActions(
+        post: post(),
+        onChanged: () async {
+          refreshes++;
+        },
+        onReply: () {},
+        onReport: () {},
+      ),
+    );
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(repository.deleted, [42]);
+    expect(refreshes, 1);
+  });
   testWidgets(
     'failed reply edit retains text for retry and closes only on success',
     (tester) async {
@@ -614,17 +707,11 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Edit'));
       await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const Key('post-edit-content')),
-        'Edited reply with **formatting**',
-      );
+      await tester.enterText(editorField, 'Edited reply with **formatting**');
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(
-        tester
-            .widget<TextField>(find.byKey(const Key('post-edit-content')))
-            .controller!
-            .text,
+        tester.widget<TextField>(editorField).controller!.text,
         'Edited reply with **formatting**',
       );
       expect(refreshes, 0);
@@ -635,7 +722,7 @@ void main() {
         'Edited reply with **formatting**',
       ]);
       expect(refreshes, 1);
-      expect(find.byKey(const Key('post-edit-content')), findsNothing);
+      expect(editorField, findsNothing);
     },
   );
   testWidgets('removed replies expose neither editing nor engagement', (
@@ -660,9 +747,159 @@ void main() {
     expect(find.text('Revision history'), findsOneWidget);
   });
 
+  testWidgets('reply editor docks the full reply composer above the keyboard', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.reset);
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: MemoryTokenStorage(),
+      baseUrl: 'https://example.test',
+    );
+    final library = StickerLibrary(ComposerStickerRepository(client));
+    addTearDown(library.dispose);
+    await pump(
+      tester,
+      repo(),
+      PostActions(
+        post: post(),
+        onChanged: () async {},
+        onReply: () {},
+        onReport: () {},
+      ),
+      overrides: [
+        stickerLibraryProvider.overrideWithValue(library),
+        stickerCollectionProvider.overrideWith(
+          (ref) =>
+              StickerCollection(ComposerStickerRepository(client), library),
+        ),
+      ],
+    );
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    final composerFinder = find.byKey(const Key('post-edit-composer'));
+    GfPostComposer composer() => tester.widget(composerFinder);
+    // The same tools as replying in a topic.
+    for (final tip in [
+      composer().imageTooltip!,
+      composer().stickerTooltip!,
+      composer().hideKeyboardLabel!,
+    ]) {
+      expect(find.byTooltip(tip), findsOneWidget, reason: tip);
+    }
+    expect(tester.widget<TextField>(editorField).focusNode!.hasFocus, isTrue);
+    // Save rests on the keyboard edge and the input takes the rest.
+    final save = find.widgetWithText(GfButton, 'Save');
+    final dock = tester.getBottomLeft(save).dy;
+    expect(dock, lessThanOrEqualTo(844 - 300));
+    expect(dock, greaterThan(844 - 300 - 40));
+    expect(tester.getSize(editorField).height, greaterThan(240));
+
+    Future<List<double>> keyboard(double from, double to) async {
+      final trace = <double>[];
+      for (var frame = 1; frame <= 10; frame++) {
+        tester.view.viewInsets = FakeViewPadding(
+          bottom: from + (to - from) * frame / 10,
+        );
+        await tester.pump(const Duration(milliseconds: 16));
+        trace.add(tester.getBottomLeft(save).dy);
+      }
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      trace.add(tester.getBottomLeft(save).dy);
+      return trace;
+    }
+
+    // Keyboard and stickers trade places without moving the action row.
+    await tester.tap(find.byTooltip(composer().stickerTooltip!));
+    await tester.pump();
+    for (final y in await keyboard(300, 0)) {
+      expect(y, closeTo(dock, 3), reason: 'keyboard → stickers');
+    }
+    expect(find.byType(StickerPicker), findsOneWidget);
+    await tester.tap(find.byTooltip(composer().stickerTooltip!));
+    await tester.pump();
+    for (final y in await keyboard(0, 300)) {
+      expect(y, closeTo(dock, 3), reason: 'stickers → keyboard');
+    }
+    expect(find.byType(StickerPicker), findsNothing);
+
+    // A failed save reports beside Save and keeps the text.
+    await tester.enterText(editorField, 'Edited once');
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    final status = find.byWidget(composer().status!);
+    expect(tester.getCenter(status).dy, closeTo(tester.getCenter(save).dy, 1));
+    expect(
+      tester.getTopRight(status).dx,
+      lessThanOrEqualTo(tester.getTopLeft(save).dx),
+    );
+    expect(find.text('Edited once'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('back with the sticker panel open folds it before closing', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.reset);
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: MemoryTokenStorage(),
+      baseUrl: 'https://example.test',
+    );
+    final library = StickerLibrary(ComposerStickerRepository(client));
+    addTearDown(library.dispose);
+    await pump(
+      tester,
+      repo(),
+      PostActions(
+        post: post(),
+        onChanged: () async {},
+        onReply: () {},
+        onReport: () {},
+      ),
+      overrides: [
+        stickerLibraryProvider.overrideWithValue(library),
+        stickerCollectionProvider.overrideWith(
+          (ref) =>
+              StickerCollection(ComposerStickerRepository(client), library),
+        ),
+      ],
+    );
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    final GfPostComposer composer = tester.widget(
+      find.byKey(const Key('post-edit-composer')),
+    );
+    await tester.tap(find.byTooltip(composer.stickerTooltip!));
+    await tester.pumpAndSettle();
+    expect(find.byType(StickerPicker), findsOneWidget);
+    final l10n = AppLocalizations.of(tester.element(find.byType(PostEditor)));
+    // First back only folds the panel; the clean editor stays open.
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(StickerPicker), findsNothing);
+    expect(find.byType(PostEditor), findsOneWidget);
+    expect(find.text(l10n.publishLeaveTitle), findsNothing);
+    // Second back closes the unchanged editor without asking.
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(PostEditor), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final width in [390.0, 1120.0]) {
     testWidgets(
-      'dirty reply editor blocks outside and drag dismissal and confirms close at $width',
+      'dirty reply editor opens full screen and confirms every close at $width',
       (tester) async {
         tester.view.devicePixelRatio = 1;
         tester.view.physicalSize = Size(width, 844);
@@ -681,31 +918,22 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Edit'));
         await tester.pumpAndSettle();
-        final editor = find.byType(PostEditSheet);
-        expect(
-          ModalRoute.of(tester.element(editor)),
-          width >= 760
-              ? isA<DialogRoute<bool>>()
-              : isA<ModalBottomSheetRoute<bool>>(),
-        );
-        await tester.enterText(
-          find.byKey(const Key('post-edit-content')),
-          'Keep my draft',
-        );
-        await tester.tapAt(const Offset(10, 10));
+        final editor = find.byType(PostEditor);
+        // Full screen at every width, like editing a topic.
+        final route = ModalRoute.of(tester.element(editor));
+        expect(route, isA<MaterialPageRoute<bool>>());
+        expect((route! as MaterialPageRoute<bool>).fullscreenDialog, isTrue);
+        await tester.enterText(editorField, 'Keep my draft');
+        // System back is held while the draft is dirty and asks first.
+        final l10n = AppLocalizations.of(tester.element(editor));
+        await tester.binding.handlePopRoute();
         await tester.pumpAndSettle();
-        expect(find.text('Keep my draft'), findsOneWidget);
-        await tester.dragFrom(
-          tester.getTopLeft(editor) + const Offset(80, 8),
-          const Offset(0, 500),
-        );
+        expect(find.text(l10n.publishLeaveTitle), findsOneWidget);
+        await tester.tap(find.text(l10n.commonCancel));
         await tester.pumpAndSettle();
         expect(find.text('Keep my draft'), findsOneWidget);
         await tester.tap(find.byTooltip('Close'));
         await tester.pumpAndSettle();
-        final l10n = AppLocalizations.of(
-          tester.element(find.byType(PostActions)),
-        );
         expect(find.text(l10n.publishLeaveTitle), findsOneWidget);
         await tester.tap(find.text(l10n.commonCancel));
         await tester.pumpAndSettle();
@@ -714,7 +942,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text(l10n.publishDiscard));
         await tester.pumpAndSettle();
-        expect(find.byKey(const Key('post-edit-content')), findsNothing);
+        expect(editorField, findsNothing);
         expect(tester.takeException(), isNull);
       },
     );

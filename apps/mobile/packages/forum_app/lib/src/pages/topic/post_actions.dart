@@ -8,7 +8,7 @@ import '../../format.dart';
 import '../../asset_url.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
-import 'post_edit_sheet.dart';
+import 'post_editor.dart';
 import 'post_history_sheet.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/share/share_image_preview.dart';
@@ -22,6 +22,7 @@ class PostActions extends ConsumerStatefulWidget {
     this.topicTitle = '',
     this.topicAvailable = true,
     required this.onChanged,
+    this.onPostPatched,
     required this.onReply,
     required this.onReport,
   });
@@ -29,6 +30,10 @@ class PostActions extends ConsumerStatefulWidget {
   final String topicTitle;
   final bool topicAvailable;
   final Future<void> Function() onChanged;
+
+  /// 点赞/收藏只改变本楼互动状态(issue #1316):宿主原地替换该楼层,
+  /// 不重载评论窗口,已加载的更早回复与滚动位置保持不变。
+  final ValueChanged<PostPayload>? onPostPatched;
   final VoidCallback? onReply;
   final VoidCallback onReport;
   @override
@@ -42,7 +47,7 @@ class _PostActionsState extends ConsumerState<PostActions> {
       widget.post.isAuthorDeleted || widget.post.isModeratorRemoved;
   bool get _available =>
       widget.topicAvailable && !_removed && !widget.post.isHidden;
-  void _recordState({bool? liked, bool? bookmarked}) {
+  void _recordState({bool? liked, bool? bookmarked, int? likeCount}) {
     if (!mounted ||
         (_busy && _actionEpoch != ref.read(offlineCacheEpochProvider))) {
       return;
@@ -59,23 +64,27 @@ class _PostActionsState extends ConsumerState<PostActions> {
       liked: liked ?? oldLiked,
       bookmarked: bookmarked ?? previous?.bookmarked ?? post.isBookmarked,
       likeCount:
+          likeCount ??
           count +
-          (liked == null || liked == oldLiked
-              ? 0
-              : liked
-              ? 1
-              : -1),
+              (liked == null || liked == oldLiked
+                  ? 0
+                  : liked
+                  ? 1
+                  : -1),
     );
   }
 
-  Future<void> _run(Future<void> Function() action) async {
+  Future<void> _run(
+    Future<void> Function() action, {
+    bool reload = true,
+  }) async {
     if (_busy) return;
     final epoch = ref.read(offlineCacheEpochProvider);
     _actionEpoch = epoch;
     setState(() => _busy = true);
     try {
       await action();
-      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+      if (reload && mounted && epoch == ref.read(offlineCacheEpochProvider)) {
         await widget.onChanged();
       }
     } catch (error) {
@@ -105,7 +114,7 @@ class _PostActionsState extends ConsumerState<PostActions> {
       return;
     }
     if (action == 'edit') {
-      final saved = await showPostEditSheet(
+      final saved = await showPostEditor(
         context,
         postId: post.id,
         content: post.content,
@@ -321,14 +330,24 @@ class _PostActionsState extends ConsumerState<PostActions> {
                 onPressed: _busy
                     ? null
                     : () => _run(() async {
+                        final bool next = !post.isLiked;
+                        final int nextCount = next
+                            ? post.likeCount + 1
+                            : (post.likeCount > 0 ? post.likeCount - 1 : 0);
                         await ref
                             .read(postRepositoryProvider)
                             .likePost(
                               postId: post.id,
                               action: post.isLiked ? 2 : 1,
                             );
-                        _recordState(liked: !post.isLiked);
-                      }),
+                        _recordState(liked: next, likeCount: nextCount);
+                        if (_actionEpoch ==
+                            ref.read(offlineCacheEpochProvider)) {
+                          widget.onPostPatched?.call(
+                            post.copyWith(isLiked: next, likeCount: nextCount),
+                          );
+                        }
+                      }, reload: false),
                 style: TextButton.styleFrom(
                   minimumSize: const Size(44, 44),
                   padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -366,14 +385,20 @@ class _PostActionsState extends ConsumerState<PostActions> {
           onPressed: _busy
               ? null
               : () => _run(() async {
+                  final bool next = !post.isBookmarked;
                   await ref
                       .read(postRepositoryProvider)
                       .bookmarkPost(
                         postId: post.id,
                         action: post.isBookmarked ? 2 : 1,
                       );
-                  _recordState(bookmarked: !post.isBookmarked);
-                }),
+                  _recordState(bookmarked: next);
+                  if (_actionEpoch == ref.read(offlineCacheEpochProvider)) {
+                    widget.onPostPatched?.call(
+                      post.copyWith(isBookmarked: next),
+                    );
+                  }
+                }, reload: false),
           icon: GfSymbol(
             post.isBookmarked ? 'bookmark-filled' : 'bookmark',
             size: _postActionIconSize,

@@ -4,9 +4,10 @@
 
 The `twemoji-public/twemoji/72x72/` assets and generated map are pinned to
 [jdecked/twemoji 17.0.3](https://github.com/jdecked/twemoji/releases/tag/v17.0.3).
-The 4,008 included PNGs are the upstream 72×72 Emoji artwork; the legacy
-private-use glyph is excluded. Upstream JavaScript code is MIT licensed and
-artwork is CC BY 4.0. See `twemoji-licenses/LICENSE-MIT.txt` and
+The 4,007 included PNGs are the upstream 72×72 Emoji artwork; the legacy
+private-use glyph and Taiwan flag sequence are excluded. Upstream JavaScript
+code is MIT licensed and artwork is CC BY 4.0. See
+`twemoji-licenses/LICENSE-MIT.txt` and
 `twemoji-licenses/LICENSE-CC-BY-4.0.txt` for the full license texts and
 `twemoji-licenses/ATTRIBUTION.md` for the required artwork attribution.
 
@@ -39,22 +40,27 @@ to differently named ReIcon glyphs; other ReIcon assets use the same name:
 | `grip-vertical` | `reorder` | `heading` | `text-square` |
 | `id-card` | `user-id` | `image-off` | `gallery-slash` |
 | `info` | `info-circle` | `key-round` | `key` |
-| `keyboard-hide` | `keyboard` | `languages` | `language` |
-| `layout-grid` | `grid` | `list-ordered` | `ordered-list` |
-| `log-out` | `logout` | `mail` | `envelope` |
-| `quote` | `quote-down` | `redo-2` | `redo` |
-| `refresh-cw` | `refresh` | `share-2` | `share` |
-| `sliders-horizontal` | `slider-horizontal` | `smartphone` | `mobile` |
-| `smile` | `face-smile` | `square-pen` | `pen-square` |
-| `trash-2` | `trash` | `type` | `text` |
-| `undo-2` | `undo` | `university` | `building` |
-| `user-round-check` | `user-check` | `user-round-plus` | `user-add` |
-| `user-round` | `user` | `users-round` | `users` |
-| `message-circle` | `chat` |  |  |
+| `languages` | `language` | `layout-grid` | `grid` |
+| `list-ordered` | `ordered-list` | `log-out` | `logout` |
+| `mail` | `envelope` | `quote` | `quote-down` |
+| `redo-2` | `redo` | `refresh-cw` | `refresh` |
+| `share-2` | `share` | `sliders-horizontal` | `slider-horizontal` |
+| `smartphone` | `mobile` | `smile` | `face-smile` |
+| `square-pen` | `pen-square` | `trash-2` | `trash` |
+| `type` | `text` | `undo-2` | `undo` |
+| `university` | `building` | `user-round-check` | `user-check` |
+| `user-round-plus` | `user-add` | `user-round` | `user` |
+| `users-round` | `users` | `message-circle` | `chat` |
 
 The `-filled` suffix selects the Filled weight of the same mapped icon.
 `gallery-duotone` layers the ReIcon Gallery Filled shape at low opacity behind
 the matching Outline strokes for the short-post image picker.
+`keyboard-hide` places the ReIcon Keyboard Outline, scaled to 80%, above a
+small ReIcon Chevron Down stroke of matching weight: the platform hide-keyboard
+sign. The pair starts level with the plain keyboard and is optically centred, so
+it sits at the same height as its toolbar neighbours. ReIcon has no dismiss
+glyph, and the plain `keyboard` asset stays reserved for switching back to the
+software keyboard, so the two actions never share a symbol.
 The `circle`, `circle-dot`, and `strikethrough` assets remain control glyphs
 because ReIcon has no matching radio or strikethrough symbol; see
 [LICENSE-lucide.txt](LICENSE-lucide.txt). Provider and social brand marks

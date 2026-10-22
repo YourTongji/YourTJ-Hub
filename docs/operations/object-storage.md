@@ -36,6 +36,26 @@ S3 兼容对象存储（MinIO / Tencent COS / Alibaba OSS / Cloudflare R2）后�
 | `internalEndpoint` | 可选内网端点，仅 `s3` 模式使用；配置后服务端数据面操作经内网端点访问，浏览器直传仍走公开 `endpoint`。为空或与 `endpoint` 同主机时行为不变，详见「内网 Endpoint（可选）」 |
 | `forceProxyUpload` | 运维开关，默认 `false`；仅 `s3` 模式有效。开启后 `init` 恒回 `mode: proxy`，帖子图片改走服务端代理上传（服务端仍写入同一 bucket），详见「强制服务端代理上传（运维开关）」 |
 
+### Image read authorization and cache policy
+
+`Current`: `/file/img/*` resolves variants to their original file and checks content references.
+An active content reference permits public reads. An upload ownership record alone does not:
+unreferenced tracked uploads are readable only by their uploader with a valid session. Both multipart
+uploads and direct-upload completion register ownership before returning success. Pending
+content keeps the existing author/reviewer preview rules; recovering or purged content stays
+inaccessible even to its uploader. Files without any usage record retain legacy public access.
+Read-reference query failures deny access rather than falling back to legacy behavior.
+
+All responses use `no-store`; restricted previews and denials use `private, no-store`.
+Changing these headers cannot revoke copies already cached under the former 210-day policy.
+Rechecking permissions increases origin traffic; the reverse proxy must preserve these headers.
+This policy governs the application read route. A public bucket or `publicUrlPrefix` that bypasses
+it needs its own access controls. Referer filtering is not an authorization mechanism and is not
+implemented by this route.
+
+`Partial`: unreferenced uploads are private, but automatic orphan-file expiry/deletion is not
+implemented. This policy does not delete stored bytes or change legacy-file retention.
+
 ### 内网 Endpoint（可选）
 
 `internalEndpoint` 为可选设置，仅 S3 提供方（`provider = "s3"`）使用；本地提供方与

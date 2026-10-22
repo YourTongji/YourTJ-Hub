@@ -124,6 +124,12 @@ Only one input accessory is active: software keyboard, emoji/sticker panel, or c
 switches preserve focus intent, text selection and composition. Insertion replaces the current
 selection at the caret; it does not append to the end. Selection is clamped after document changes.
 Hardware keyboards retain editing shortcuts and do not force a large empty software-keyboard gap.
+One accessory slot below the editor owns the keyboard inset and bottom safe area; the page does not
+also resize for the keyboard. A panel takes the last settled keyboard height for the orientation,
+and a switch keeps the outgoing surface until the incoming one covers it, so the editor holds its
+position or moves once in one direction. Switching changes neither the editor's surface nor its
+multiline input semantics. A sheet that briefly borrows the editor's focus, such as the identity
+choice, reserves the keyboard's space and hands focus back, so the editor does not drop and rise.
 
 `Planned`: moment/question publishing retains type selection and the edit/preview/classification
 sequence. Articles use the existing rich editor with a focused writing canvas, selection-aware

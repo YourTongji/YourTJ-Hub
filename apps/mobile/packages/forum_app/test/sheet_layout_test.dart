@@ -6,7 +6,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/courses/review_form_sheet.dart';
-import 'package:forum_app/src/pages/topic/post_edit_sheet.dart';
+import 'package:forum_app/src/pages/topic/post_editor.dart';
 import 'package:forum_app/src/widgets/language_picker.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'fixtures/page_fixtures.dart';
@@ -111,28 +111,30 @@ void main() {
       );
       if (kind == 'language') {
         showAppLanguagePicker(page);
-      } else {
+      } else if (kind == 'reply') {
+        // The reply editor is a full-screen page whose action row docks on
+        // the keyboard.
         final props = topicDetailPayloadJson()['props'] as Map<String, dynamic>;
         final post = PostPayload.fromJson(
           (props['postStream']['posts'] as List).first as Map<String, dynamic>,
         );
+        showPostEditor(page, postId: post.id, content: post.content);
+      } else {
         showGfBottomSheet<void>(
           page,
           height: 600,
           keyboardAware: true,
-          builder: (_) => kind == 'review'
-              ? CourseReviewFormSheet(
-                  pageContext: page,
-                  offerings: const [],
-                  repository: CourseRepository(
-                    GfApiClient(
-                      dio: Dio(),
-                      tokenStorage: MemoryTokenStorage(),
-                      baseUrl: 'http://fake.local',
-                    ),
-                  ),
-                )
-              : PostEditSheet(postId: post.id, content: post.content),
+          builder: (_) => CourseReviewFormSheet(
+            pageContext: page,
+            offerings: const [],
+            repository: CourseRepository(
+              GfApiClient(
+                dio: Dio(),
+                tokenStorage: MemoryTokenStorage(),
+                baseUrl: 'http://fake.local',
+              ),
+            ),
+          ),
         );
       }
       await tester.pumpAndSettle();
