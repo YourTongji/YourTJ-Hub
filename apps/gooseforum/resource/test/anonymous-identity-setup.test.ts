@@ -102,6 +102,121 @@ test('loading failure keeps the selected identity and offers retry', async () =>
   expect(wrapper.emitted('update:modelValue')).toBeUndefined()
   expect(wrapper.find('button[aria-label="重试"]').exists()).toBe(true)
 })
+
+test('renders the member avatar frame in the trigger and identity menu', async () => {
+  const viewer = {
+    username: 'owner',
+    avatarUrl: '/static/pic/1.webp',
+    decoration: {
+      avatarFrame: {
+        code: 'gradient-frame',
+        name: 'Gradient frame',
+        kind: 'avatarFrame' as const,
+        lightColors: ['#ff0000', '#0000ff'],
+        darkColors: ['#ff8888', '#8888ff'],
+        isEnabled: true,
+        sortOrder: 1,
+      },
+    },
+  }
+  wrapper = mount(IdentityPicker, { props: { viewer }, attachTo: document.body, global: { plugins: [i18n] } })
+  await flushPromises()
+
+  expect(wrapper.find('.gf-avatar-frame').exists()).toBe(true)
+  await wrapper.find('button[aria-label^="发布身份"]').trigger('click')
+  await flushPromises()
+  expect([...document.querySelectorAll('.gf-avatar-frame')]).toHaveLength(2)
+})
+
+test('renders image avatar frames for the member identity', async () => {
+  const viewer = {
+    username: 'owner',
+    avatarUrl: '/static/pic/1.webp',
+    decoration: {
+      avatarFrame: {
+        code: 'image-frame',
+        name: 'Image frame',
+        kind: 'avatarFrame' as const,
+        lightColors: ['#ff0000'],
+        darkColors: ['#ff8888'],
+        isEnabled: true,
+        sortOrder: 1,
+        assetUrl: '/static/decorations/frame.webp',
+      },
+    },
+  }
+  wrapper = mount(IdentityPicker, { props: { viewer }, attachTo: document.body, global: { plugins: [i18n] } })
+  await flushPromises()
+
+  expect(wrapper.find('img.gf-avatar-frame-image').exists()).toBe(true)
+  await wrapper.find('button[aria-label^="发布身份"]').trigger('click')
+  await flushPromises()
+  expect(document.querySelectorAll('img.gf-avatar-frame-image')).toHaveLength(2)
+})
+
+test('keeps the member avatar undecorated when no frame is equipped', async () => {
+  wrapper = mount(IdentityPicker, {
+    props: { viewer: { username: 'owner', avatarUrl: '/avatar.svg' } },
+    attachTo: document.body,
+    global: { plugins: [i18n] },
+  })
+  await flushPromises()
+
+  expect(wrapper.find('.gf-avatar-frame, .gf-avatar-frame-image').exists()).toBe(false)
+  expect(wrapper.find('button[aria-label^="发布身份"] img[src="/avatar.svg"]').exists()).toBe(true)
+})
+
+test('does not expose the member frame when the persona identity is selected', async () => {
+  state.persona = { kind: 'persona', publicUid: 'p1', name: '星辰', avatarUrl: '/persona.svg', profileUrl: '/a/p1' }
+  wrapper = mount(IdentityPicker, {
+    props: {
+      modelValue: 'persona',
+      viewer: {
+        username: 'owner',
+        avatarUrl: '/member.svg',
+        decoration: {
+          avatarFrame: {
+            code: 'private-frame',
+            name: 'Private frame',
+            kind: 'avatarFrame',
+            lightColors: ['#ff0000'],
+            darkColors: ['#ff8888'],
+            isEnabled: true,
+            sortOrder: 1,
+          },
+          nicknameStyle: {
+            code: 'private-name',
+            name: 'Private name',
+            kind: 'nicknameStyle',
+            lightColors: ['#ff0000'],
+            darkColors: ['#ff8888'],
+            isEnabled: true,
+            sortOrder: 2,
+          },
+        },
+      },
+    },
+    attachTo: document.body,
+    global: { plugins: [i18n] },
+  })
+  await flushPromises()
+
+  const trigger = wrapper.find('button[aria-label^="发布身份"]')
+  expect(trigger.find('img[src="/persona.svg"]').exists()).toBe(true)
+  expect(trigger.find('.gf-avatar-frame, .gf-avatar-frame-image').exists()).toBe(false)
+  expect(trigger.find('.gf-decorated-nickname').exists()).toBe(false)
+
+  await trigger.trigger('click')
+  await flushPromises()
+  const memberOption = [...document.querySelectorAll<HTMLButtonElement>('button')]
+    .find((item) => item.getAttribute('aria-pressed') === 'false' && item.textContent?.includes('主账号'))
+  expect(memberOption?.querySelector('.gf-avatar-frame')).toBeTruthy()
+  const personaOption = [...document.querySelectorAll<HTMLButtonElement>('button')]
+    .find((item) => item.getAttribute('aria-pressed') === 'true')
+  expect(personaOption?.querySelector('.gf-avatar-frame, .gf-avatar-frame-image')).toBeNull()
+  expect(personaOption?.querySelector('.gf-decorated-nickname')).toBeNull()
+})
+
 test('profile privacy commits only after success and preserves the preference on failure', async () => {
   state.persona = { kind: 'persona', publicUid: 'p1', name: '躲进云里的猫', avatarUrl: '', profileUrl: '/a/p1' }
   state.nameChangeAvailableAt = '2099-01-01T00:00:00Z'

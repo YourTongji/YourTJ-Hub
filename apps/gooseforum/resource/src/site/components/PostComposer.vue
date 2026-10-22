@@ -12,11 +12,13 @@ import VditorOfficial from '@/site/components/VditorOfficial.vue'
 import StickerPicker from '@/site/components/StickerPicker.vue'
 import { useMentionAutocomplete } from '@/site/composables/useMentionAutocomplete'
 import { useKeyboardVisualViewportOffset } from '@/runtime/visual-viewport'
-import type { PostPayload } from '@gooseforum/client'
+import type { PostPayload, ViewerPayload } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 
+type ComposerViewer = Pick<ViewerPayload, 'username' | 'avatarUrl' | 'decoration'> & Partial<Pick<ViewerPayload, 'id'>>
+
 const props = defineProps<{
-  viewer?: {id?:number;username:string;avatarUrl:string}
+  viewer?: ComposerViewer
   authenticated: boolean
   errorMessage: string
   mode?: 'create' | 'edit'
