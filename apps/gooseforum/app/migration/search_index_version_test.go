@@ -12,12 +12,14 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	xpmodel "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/xp"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
 )
 
-// issue #1284 A2：v13/v20 依赖 Meilisearch（可选依赖），而 v31-33（待审帖接管、
-// 机器人徽章回填、被拒内容申诉基线）只改数据库。修复前索引步骤在无 Meilisearch
-// 的实例上直接返回 ErrRetryLater 且不推进主水位，导致这三步永不执行；新审核动作
+// issue #1284 A2：v13/v20 依赖 Meilisearch（可选依赖），而它们之后的本地版本块
+// （待审帖接管、机器人徽章回填、被拒内容申诉基线、空摘要回填、XP 初始规则）
+// 只改数据库。修复前索引步骤在无 Meilisearch 的实例上直接返回 ErrRetryLater
+// 且不推进主水位，导致这些块永不执行；新审核动作
 // 按 post.LatestRevisionId == revision.Id 判定，缺回填会让接管逻辑静默失效。
 //
 // 测试环境无 Meilisearch（client == nil ⇒ IsAvailable() == false），因此天然覆盖
@@ -27,7 +29,8 @@ func TestVersionedMigrationAdvancesLocalVersionsWhenSearchIndexUnavailable(t *te
 		t.Skip("asserts the absent-meilisearch path; an ambient meilisearch would run real index builds")
 	}
 	conn := dbconnect.Connect()
-	if err := conn.AutoMigrate(&pageConfig.Entity{}, &posts.Entity{}, &users.EntityComplete{}, &badges.Entity{}, &userBadges.Entity{}, &topics.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&pageConfig.Entity{}, &posts.Entity{}, &users.EntityComplete{}, &badges.Entity{}, &userBadges.Entity{}, &topics.Entity{},
+		&xpmodel.RuleSet{}, &xpmodel.RulePublicationLock{}, &xpmodel.RewardRule{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := pageConfig.SyncMigrationVersion(30); err != nil {
