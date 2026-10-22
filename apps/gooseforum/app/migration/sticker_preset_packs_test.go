@@ -13,6 +13,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	xpmodel "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/xp"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -21,7 +22,9 @@ import (
 func TestVersionedMigrationBackfillsPresetPacks(t *testing.T) {
 	conn := dbconnect.Connect()
 	// Later data migrations need their own schema even in this sticker regression.
-	if err := conn.AutoMigrate(&topics.Entity{}, &pageConfig.Entity{}, &sticker.Entity{}, &posts.Entity{}, &users.EntityComplete{}, &badges.Entity{}, &userBadges.Entity{}); err != nil {
+	models := []any{&topics.Entity{}, &pageConfig.Entity{}, &sticker.Entity{}, &posts.Entity{}, &users.EntityComplete{}, &badges.Entity{}, &userBadges.Entity{}}
+	models = append(models, xpmodel.Models()...)
+	if err := conn.AutoMigrate(models...); err != nil {
 		t.Fatal(err)
 	}
 	rows := seedLegacyPresetPacks(t, conn)

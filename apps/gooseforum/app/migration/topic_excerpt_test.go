@@ -7,11 +7,14 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	xpmodel "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/xp"
 )
 
 func TestVersionedMigrationRepairsEmptyShortExcerpt(t *testing.T) {
 	conn := dbconnect.Connect()
-	if err := conn.AutoMigrate(&pageConfig.Entity{}, &topics.Entity{}, &posts.Entity{}); err != nil {
+	models := []any{&pageConfig.Entity{}, &topics.Entity{}, &posts.Entity{}}
+	models = append(models, xpmodel.Models()...)
+	if err := conn.AutoMigrate(models...); err != nil {
 		t.Fatal(err)
 	}
 	topic := topics.Entity{Id: 13601360, FirstPostId: 13601360, Status: 1, ProcessStatus: topics.ProcessStatusNormal, VisibilityStatus: topics.VisibilityActive}
