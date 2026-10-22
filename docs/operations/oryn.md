@@ -21,7 +21,7 @@ human approval. Runtime protocol tests and the deterministic Core smoke also run
 
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/dc0dbbf876bd232dc9c6628a3fd8333ee4f793f7)
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/23a31929953c9b058b45f5883b91c826bfe85667)
 and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days. New
@@ -195,6 +195,7 @@ cutoff, Oryn cancels gathering and reports incomplete coverage as needs_human, r
 while disabling action proposals. Release-note tasks use their full deadline for submission because
 they receive collected evidence and have no repository tools.
 
+Model requests omit JSON assistant-message mode so it does not compete with tool calling.
 Only `oryn_submit_report` can accept a final result. The host returns field paths, error codes and
 bounded feedback so the model can correct a rejected submission in the same turn. If a turn ends
 without acceptance, the host continues the same ephemeral session with that feedback, at most twice
