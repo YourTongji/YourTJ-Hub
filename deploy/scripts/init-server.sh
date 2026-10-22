@@ -27,7 +27,8 @@ copy_if_diff() {
 copy_if_diff "$SCRIPT_DIR/../docker-compose.yaml" "$ROOT/docker-compose.yaml"
 copy_if_diff "$SCRIPT_DIR/../config.toml.example" "$ROOT/config.toml.example"
 
-for f in "$SCRIPT_DIR"/*.sh "$SCRIPT_DIR"/rotate-agent-epoch.py; do
+# feed-privacy.py + feed-raw-tables.json 是 backup-db.sh 的硬依赖, 缺任一个备份即失败。
+for f in "$SCRIPT_DIR"/*.sh "$SCRIPT_DIR"/rotate-agent-epoch.py "$SCRIPT_DIR"/feed-privacy.py "$SCRIPT_DIR"/feed-raw-tables.json; do
   copy_if_diff "$f" "$ROOT/scripts/$(basename "$f")"
 done
 chmod +x "$ROOT/scripts/"*.sh

@@ -172,7 +172,7 @@ sign = base64(HMAC_SHA256(key = timestamp + "\n" + secret, message = ""))
 Choose **AstrBot bot (push_lite plugin)** to push notifications through AstrBot to QQ groups, private chats, and other sessions. The plugin needs no changes:
 
 1. Install [astrbot_plugin_push_lite](https://github.com/Raven95676/astrbot_plugin_push_lite) in AstrBot. The plugin serves its API on port `9966` by default, which is not the AstrBot dashboard port.
-2. Enter the plugin's API address as the URL, for example `http://astrbot.example.com:9966/send`. If you stop at the port, `/send` is added for you. The forum server must be able to reach this address.
+2. Enter the plugin's API address as the URL, for example `http://astrbot.example.com:9966/send`. If you stop at the port, `/send` is added for you. The forum server must be able to reach this address. AstrBot often runs on the same machine as the forum, but do not enter `127.0.0.1`: local targets are refused delivery, so use the host's address reachable from the intranet.
 3. Send `/sid` in the session that should get notifications, and enter the SID it returns (for example `aiocqhttp:GroupMessage:123456`) as the **Target session SID**.
 4. Enter the API token from the plugin settings as the **API token**. Like a Secret, it is stored encrypted and never shown again.
 
@@ -188,7 +188,7 @@ The AstrBot channel can subscribe to every event and sends all of them as plain 
 
 Each callback URL has **Send test** and **Save this URL** at the bottom of its panel:
 
-- **Send test** immediately sends one test message using the current form values (they do not need to be saved first) and shows the result next to the buttons. An empty URL or Secret reuses the value already saved for this URL, as long as the channel type is unchanged; after switching channels, enter them again. Tests ignore the master switch, the enabled state, and the subscribed events, and they never count toward the failure counter. The forum server sends the test request; like real notifications, the target address is not restricted (internal addresses included), and the failure reason is shown to the admin. Only site managers can use it.
+- **Send test** immediately sends one test message using the current form values (they do not need to be saved first) and shows the result next to the buttons. An empty URL or Secret reuses the value already saved for this URL, as long as the channel type is unchanged; after switching channels, enter them again. Tests ignore the master switch, the enabled state, and the subscribed events, and they never count toward the failure counter. The forum server sends the test request; like real notifications, the target address is checked against the same target policy: loopback/local, IPv4 link-local (including the cloud metadata address `169.254.169.254`), unspecified, multicast and reserved targets are rejected, while RFC1918/ULA intranet addresses are allowed. The failure reason is shown to the admin and never includes the request URL. Only site managers can use it.
 - Generic webhooks receive a `webhook.test` event with the usual `X-Goose-*` headers and signature, so you can check your signature verification:
 
 ```json
@@ -206,8 +206,8 @@ Each callback URL has **Send test** and **Save this URL** at the bottom of its p
 
 - Feishu groups receive a sample approval card marked "测试" (test) that looks exactly like a real notification; its buttons only open the moderator workspace.
 - AstrBot sessions receive a sample report as text starting with "【测试】" (test); its links only open the moderator workspace.
-- A URL without a host (such as `http:///send` or `http://:9966/send`) is not sent; the result shows `url is missing a host`.
-- **Save this URL** saves only this callback URL; unsaved changes to other URLs are not submitted. The panel collapses after a successful save.
+- A URL without a host (such as `http:///send` or `http://:9966/send`), or a URL that is otherwise invalid, is not sent; the result gives the fixed reason `invalid notify url (expected http(s)://host[:port]/path on a non-local target)`. When the address a hostname resolves to is rejected, delivery fails while dialing with `safe fetch: blocked`; when the hostname does not resolve, it fails with `safe fetch: unavailable`. None of these reasons include the resolved address.
+- **Save this URL** saves only this callback URL; unsaved changes to other URLs are not submitted. Saving validates the target address and its DNS answers; a rejected target is not saved. The panel collapses after a successful save. Any address you save now rejects local targets, so an already-saved callback URL that points at the local machine (for example `http://127.0.0.1:9966/send`) has its deliveries refused and is disabled automatically after three consecutive failures; to keep receiving notifications, change it to the host's intranet address and save it again.
 
 ### Quick-action security model
 

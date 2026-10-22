@@ -3602,6 +3602,9 @@ export default {
     auth: {
       required: 'Please sign in first',
       signupDisabled: 'Registration is currently disabled',
+      mail: {
+        notConfigured: 'The email service is not configured, so the verification email cannot be sent. Please contact the site administrator.',
+      },
       emailDomain: {
         invalid: 'Invalid email format',
         notAllowed: 'This email domain is not allowed for registration',

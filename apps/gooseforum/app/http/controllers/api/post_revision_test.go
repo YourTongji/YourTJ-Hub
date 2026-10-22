@@ -494,3 +494,52 @@ func TestLazySeedV1PreservesOldProcessStatus(t *testing.T) {
 		t.Fatalf("v2 = %#v, want new body with Pending status", versions[1])
 	}
 }
+
+// issue #1284 A4：论坛直改（不走发布/审核流程）过去把 latest_revision_id 与
+// published_revision_id 一起清零，公开指针被抹掉后审核通知的「已编辑」标记
+// （approval_notify_handler.Edited = post.PublishedRevisionId != 0）与事件基线
+// 都退化成内容匹配推测。直改只清 latest（表示未经发布流程），公开指针保留。
+func TestDirectEditKeepsPublishedRevisionPointer(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	authorID := uint64(7913)
+	createTopicWriteUser(t, conn, authorID, "author2")
+	now := time.Now().Add(-time.Hour)
+	topic := topics.Entity{Id: 8913, Title: "Edited", UserId: authorID, Status: 1, PostCount: 1, PostSeq: 1, CreatedAt: now, UpdatedAt: now}
+	if err := conn.Create(&topic).Error; err != nil {
+		t.Fatalf("create topic: %v", err)
+	}
+	post := posts.Entity{Id: 8914, TopicId: topic.Id, PostNo: 1, UserId: authorID, Content: "public body", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now, UpdatedAt: now}
+	if err := conn.Create(&post).Error; err != nil {
+		t.Fatalf("create post: %v", err)
+	}
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", topic.Id).Update("first_post_id", post.Id).Error; err != nil {
+		t.Fatalf("set first_post_id: %v", err)
+	}
+	published := postRevisions.Entity{PostId: post.Id, Version: 1, EditorId: authorID, Content: "public body", ProcessStatus: posts.ProcessStatusNormal}
+	if err := conn.Create(&published).Error; err != nil {
+		t.Fatalf("create published revision: %v", err)
+	}
+	if err := conn.Model(&posts.Entity{}).Where("id = ?", post.Id).
+		Updates(map[string]any{"latest_revision_id": published.Id, "published_revision_id": published.Id}).Error; err != nil {
+		t.Fatalf("seed pointers: %v", err)
+	}
+
+	edited := posts.Get(post.Id)
+	edited.Content = "edited body"
+	tx := conn.Begin()
+	if err := postservice.AppendPostRevisionWithOld(tx, &edited, authorID, posts.ProcessStatusNormal, "public body", posts.ProcessStatusNormal); err != nil {
+		tx.Rollback()
+		t.Fatalf("AppendPostRevisionWithOld: %v", err)
+	}
+	if err := tx.Commit().Error; err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+
+	after := posts.Get(post.Id)
+	if after.LatestRevisionId != 0 {
+		t.Fatalf("latest_revision_id = %d, want 0 (direct edit is not a publication flow revision)", after.LatestRevisionId)
+	}
+	if after.PublishedRevisionId != published.Id {
+		t.Fatalf("published_revision_id = %d, want preserved %d", after.PublishedRevisionId, published.Id)
+	}
+}

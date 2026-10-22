@@ -216,7 +216,13 @@ social counts and badges, and moderator access rules beyond today's public profi
   one account-creation path. Tongji SSO also creates school-verified activated accounts; GitHub/Google OAuth never provisions accounts (issue #531). The built-in
   OIDC provider also never creates accounts — it authenticates existing users.
 - Email verification (`enableEmailVerification`): password registration stores the account as
-  `pending` but still issues a session. While the setting is on, authenticated **write**
+  `pending` but still issues a session. Registration requires a usable mail configuration:
+  when the setting is on and the SMTP settings are incomplete or disabled, `POST /api/register`
+  is refused up front with `auth.mail.notConfigured` — a dedicated code whose user-facing copy
+  states that the mail service is missing — instead of accepting the request and leaving an
+  account that can never receive its activation mail (issue #1284). The refusal is logged for
+  operators as `注册被拒绝：站点启用了邮箱验证但邮件服务未配置`; it is distinct from
+  `auth.signupDisabled`, which still means self-service registration itself is closed. While the setting is on, authenticated **write**
   endpoints reject pending accounts before the controller runs with HTTP 403 and the
   structured `permission.emailRequired` envelope (params actionCode=write) — the same
   envelope is returned by every `CheckWritableAccount` write endpoint and is parsed by the

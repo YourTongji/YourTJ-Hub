@@ -59,6 +59,14 @@ func setMessageFrom(message *mail.Msg, config pageConfig.MailSettingsConfig) err
 	return nil
 }
 
+// IsConfigured 报告站点邮件服务是否具备发信条件。注册入口用它把
+// 「启用了邮箱验证但发不出邮件」的组合挡在缓存/创建账号之前（issue #1284 B18）。
+// 发件地址不需要单独判断：normalizeSender 总会回退到默认地址。
+func IsConfigured() bool {
+	config := hotdataserve.GetMailSettingsConfigCache()
+	return config.EnableMail && strings.TrimSpace(config.SmtpHost) != "" && config.SmtpPort > 0
+}
+
 func SendActivationEmail(to, username, token string, locale ...string) error {
 	config := hotdataserve.GetMailSettingsConfigCache()
 	fromName, fromEmail := normalizeSender(config)
