@@ -303,9 +303,12 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
       fontWeight: FontWeight.w500,
       color: colors.baseContent.withValues(alpha: 0.88),
     );
-    final String title = topic.title.isEmpty
-        ? stickerLabelText(topicDisplayTitle(topic), widget.stickerUrlByName)
-        : topic.title;
+    final String title = topic.title.trim().isNotEmpty
+        ? topic.title
+        : stickerLabelText(
+            topicDisplayTitle(context, topic),
+            widget.stickerUrlByName,
+          );
     return GfText(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
   }
 
@@ -520,11 +523,13 @@ Future<void> _openTopic(
   onReturn?.call();
 }
 
-/// 无标题瞬间与 Web TopicRow/SSR 一致：标题为空时摘要在标题位展示（不再重复一行），
-/// 摘要也为空时使用同族颜文字，保证列表行始终有可识别文案。
-String topicDisplayTitle(TopicPayload topic) => topic.title.isNotEmpty
+/// 无标题时展示摘要；无文本时复用本地化的无标题文案。
+String topicDisplayTitle(BuildContext context, TopicPayload topic) =>
+    topic.title.trim().isNotEmpty
     ? topic.title
-    : (topic.description.trim().isNotEmpty ? topic.description : '(｀・ω・´)');
+    : (topic.description.trim().isNotEmpty
+          ? topic.description
+          : AppLocalizations.of(context).topicNoTitle);
 
 /// 把后端话题 payload 映射为 [GfTopicRow](对齐 web TopicRow.vue 语义)。
 Widget _topicRow(
@@ -538,14 +543,14 @@ Widget _topicRow(
 }) {
   final AppLocalizations l10n = AppLocalizations.of(context);
   final String displayTitle = topic.processStatus == 2
-      ? "${l10n.contentReviewPending} · ${topicDisplayTitle(topic)}"
-      : topicDisplayTitle(topic);
+      ? "${l10n.contentReviewPending} · ${topicDisplayTitle(context, topic)}"
+      : topicDisplayTitle(context, topic);
   // 标题是纯文本（不经过 Markdown 管线），与 Web/SSR 对齐：有标题原样展示，
   // 不做贴纸转换；无标题瞬间把摘要放在标题位，才按小字视图规则换成 [名字]/省略。
-  final String title = topic.title.isNotEmpty
+  final String title = topic.title.trim().isNotEmpty
       ? displayTitle
       : stickerLabelText(displayTitle, stickerUrlByName);
-  final String description = topic.title.isEmpty
+  final String description = topic.title.trim().isEmpty
       ? ''
       : stickerLabelText(topic.description, stickerUrlByName);
   final List<GfTopicCategory> categories = <GfTopicCategory>[
@@ -633,11 +638,18 @@ Widget buildTopicFeedCard(
 }) {
   final AppLocalizations l10n = AppLocalizations.of(context);
   final String nickname = topic.author.nickname?.trim() ?? '';
-  final (String description, InlineSpan? descriptionSpan) = _feedExcerpt(
-    topic.description,
-    stickerUrlByName,
-    _cardStickerSize,
-  );
+  // 无标题瞬间（#1366 空卡片修复）：标题槽位回退到摘要、描述槽位置空，避免两处重复。
+  // 摘要里的贴纸 token 按 [名字] 纯文本呈现——卡片标题槽没有 span 渲染路径。
+  final bool untitled = topic.title.trim().isEmpty;
+  final (String description, InlineSpan? descriptionSpan) = untitled
+      ? ('', null)
+      : _feedExcerpt(topic.description, stickerUrlByName, _cardStickerSize);
+  final String cardTitle = untitled
+      ? stickerLabelText(
+          topicDisplayTitle(context, topic),
+          stickerUrlByName,
+        )
+      : topic.title;
   final List<String> images = <String>[
     for (final String image in topic.images ?? const <String>[])
       resolveApiAssetUrl(image),
@@ -665,8 +677,8 @@ Widget buildTopicFeedCard(
       ),
       key: ValueKey<int>(topic.id),
       title: topic.processStatus == 2
-          ? "${l10n.contentReviewPending} · ${topic.title}"
-          : topic.title,
+          ? "${l10n.contentReviewPending} · $cardTitle"
+          : cardTitle,
       description: description,
       descriptionSpan: descriptionSpan,
       authorName: topic.author.publicUid != null

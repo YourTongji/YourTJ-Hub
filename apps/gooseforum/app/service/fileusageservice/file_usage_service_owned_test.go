@@ -2,6 +2,7 @@ package fileusageservice
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	fileDB "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/db4fileconnect"
@@ -25,6 +26,41 @@ func seedOwnedFile(t *testing.T, userID uint64, name string) {
 	})
 	if _, err := filedata.SaveFile(userID, name, "image/webp", []byte("img")); err != nil {
 		t.Fatalf("seed file %s: %v", name, err)
+	}
+}
+
+// TestGalleryImageURLsKeepsOnlyInSiteCandidates is the issue #1315 counting
+// unit: only URLs that resolve to an in-site file name can ever become a
+// gallery entry, so external images must not count against the gallery cap.
+func TestGalleryImageURLsKeepsOnlyInSiteCandidates(t *testing.T) {
+	got := GalleryImageURLs([]string{
+		" https://example.com/a.png ",            // external: dropped
+		"  /file/img/2026/09/gallery-a.webp  ",   // in-site, trimmed and kept
+		"https://cdn.example.com/file/img/a.png", // in-site absolute: kept
+		"/file/img/2026/09/gallery-a.webp",       // same file again: dropped
+		"",                                       // empty: dropped
+		"/file/img/" + strings.Repeat("x", MaxImageURLLength), // oversized: dropped
+	})
+	want := []string{"/file/img/2026/09/gallery-a.webp", "https://cdn.example.com/file/img/a.png"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("GalleryImageURLs = %v, want %v", got, want)
+	}
+}
+
+// TestGalleryAndFilterSplitOnOversizedNameLength covers the two size guards
+// separately: a URL within MaxImageURLLength whose resolved file name still
+// exceeds the file_usages.file_name varchar(512) column stays a gallery
+// candidate but must not become a file reference.
+func TestGalleryAndFilterSplitOnOversizedNameLength(t *testing.T) {
+	url := "/file/img/" + strings.Repeat("x", 517)
+	if len(url) > MaxImageURLLength {
+		t.Fatalf("test URL is %d bytes, exceeds MaxImageURLLength %d", len(url), MaxImageURLLength)
+	}
+	if got := GalleryImageURLs([]string{url}); !slices.Equal(got, []string{url}) {
+		t.Fatalf("GalleryImageURLs = %v, want [%s]", got, url)
+	}
+	if got := FilterOwnedImageURLs(101, []string{url}); len(got) != 0 {
+		t.Fatalf("FilterOwnedImageURLs = %v, want empty", got)
 	}
 }
 

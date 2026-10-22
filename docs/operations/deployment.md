@@ -100,7 +100,7 @@ is a retry condition. No token, message body or notification preview is logged b
 | --- | --- | --- |
 | `/assets/*`（Vite 构建，文件名含内容哈希） | `public, max-age=31536000, immutable`（`AssetsCache`） | 字节变更必然换 URL，二次访问零重验证 |
 | `/static/*`（内嵌静态文件） | `public, max-age=18144000`（`BrowserCache`） | 长公共缓存 |
-| `/file/img/*`（用户/版面图片，成功路径） | `public, max-age=18144000`（`SetLongPublic`） | 文件名内容寻址 |
+| `/file/img/*`（用户/版面图片） | `no-store`；受限预览与拒绝响应为 `private, no-store` | 每次请求重新校验引用权限，原图与变体一致 |
 | `/sw.js` | `no-cache` | Service Worker 更新必须及时可见 |
 | `/manifest.webmanifest` | `public, max-age=3600` | PWA manifest 短缓存 |
 | `/`（SSR HTML）与 `/api/*` | 路由自控（多为 `no-store`/无缓存头） | 登录态与动态内容，禁止代理层长缓存 |

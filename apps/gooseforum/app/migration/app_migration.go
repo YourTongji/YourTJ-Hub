@@ -11,6 +11,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/xpservice"
 )
 
 func runVersionedDataMigrations() error {
@@ -449,17 +450,35 @@ func runVersionedDataMigrations() error {
 		}
 		currentVersion = 33
 	}
-
 	if currentVersion < 34 {
-		result := datamigration.BackfillTopicExcerpt()
-		if result.Failed > 0 {
-			return dataMigrationError("topic excerpt", 34, result.Failed, result.LastFailed)
+		if err := datamigration.BackfillEmptyTopicExcerpts(dbconnect.Connect()); err != nil {
+			return fmt.Errorf("app migration v34 empty topic excerpts: %w", err)
 		}
 		if err := pageConfig.SyncMigrationVersion(34); err != nil {
 			return err
 		}
-		slog.Info("app migration topic excerpt backfilled", "updated", result.Updated, "skipped", result.Skipped)
 		currentVersion = 34
+	}
+	if currentVersion < 35 {
+		if err := xpservice.EnsureInitialRules(context.Background(), dbconnect.Connect()); err != nil {
+			return fmt.Errorf("app migration v35 initial XP rules: %w", err)
+		}
+		if err := pageConfig.SyncMigrationVersion(35); err != nil {
+			return err
+		}
+		currentVersion = 35
+	}
+
+	if currentVersion < 36 {
+		result := datamigration.BackfillTopicExcerpt()
+		if result.Failed > 0 {
+			return dataMigrationError("topic excerpt", 36, result.Failed, result.LastFailed)
+		}
+		if err := pageConfig.SyncMigrationVersion(36); err != nil {
+			return err
+		}
+		slog.Info("app migration topic excerpt backfilled", "updated", result.Updated, "skipped", result.Skipped)
+		currentVersion = 36
 	}
 	slog.Info("app migration end", "version", currentVersion)
 	return nil

@@ -14,6 +14,8 @@ import manifestData from '../../../../mobile/packages/ui_kit/assets/twemoji-mani
 
 type TwemojiManifest = {
   version: string
+  defaultTextPresentationCodepoints: number[]
+  excludedSequences: string[]
   entries: Array<{ sequence: string; asset: string }>
 }
 
@@ -25,6 +27,13 @@ const manifest = manifestData as TwemojiManifest
 const assetBySequence = new Map(
   manifest.entries.map(({ sequence, asset }) => [sequence, asset]),
 )
+const defaultTextPresentationCodepoints = new Set(
+  manifest.defaultTextPresentationCodepoints ?? [],
+)
+const excludedSequences = (manifest.excludedSequences ?? []).map((sequence) => ({
+  sequence,
+  codepoints: Array.from(sequence),
+}))
 const maximumCodepoints = Math.max(
   ...manifest.entries.map(({ sequence }) => Array.from(sequence).length),
 )
@@ -69,6 +78,15 @@ export function parseTwemoji(text: string): TwemojiSegment[] {
   let index = 0
 
   while (index < codepoints.length) {
+    const excluded = excludedSequences.find(({ codepoints: sequence }) =>
+      sequence.every((codepoint, offset) => codepoints[index + offset] === codepoint),
+    )
+    if (excluded) {
+      plainText += excluded.sequence
+      index += excluded.codepoints.length
+      continue
+    }
+
     let bestEnd = -1
     let bestAsset: string | undefined
     let candidate = ''
@@ -84,7 +102,11 @@ export function parseTwemoji(text: string): TwemojiSegment[] {
       const key = hasJoiner
         ? candidate
         : candidate.replaceAll(variationSelector, '')
-      const asset = assetBySequence.get(key)
+      const isBareDefaultTextEmoji =
+        end === index &&
+        defaultTextPresentationCodepoints.has(candidate.codePointAt(0) ?? 0) &&
+        !candidate.includes(variationSelector)
+      const asset = isBareDefaultTextEmoji ? undefined : assetBySequence.get(key)
       if (asset) {
         bestEnd = end + 1
         bestAsset = asset

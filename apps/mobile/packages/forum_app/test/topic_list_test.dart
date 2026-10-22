@@ -401,6 +401,63 @@ void main() {
     return () => opened;
   }
 
+  testWidgets(
+    'empty card uses localized title and short thought appears once',
+    (tester) async {
+      final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+      await pumpCardFeed(tester, [
+        home.topics.first.copyWith(title: '', description: '', pinWeight: 0),
+      ]);
+      expect(find.text('无标题'), findsOneWidget);
+      expect(find.text('(｀・ω・´)'), findsNothing);
+      await pumpCardFeed(tester, [
+        home.topics.first.copyWith(title: '', description: '失眠咯', pinWeight: 0),
+      ]);
+      expect(find.text('失眠咯'), findsOneWidget);
+      expect(find.text('无标题'), findsNothing);
+    },
+  );
+
+  testWidgets('media-only cards keep images and localized fallback', (
+    tester,
+  ) async {
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    final topic = home.topics.first.copyWith(
+      title: ' ',
+      description: ' ',
+      pinWeight: 0,
+      images: ['https://example.test/photo.png'],
+    );
+    for (final entry in {
+      'zh': '无标题',
+      'en': 'Untitled',
+      'ja': '無題',
+      'de': 'Ohne Titel',
+    }.entries) {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: Locale(entry.key),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: GfTopicList(
+              loading: false,
+              topics: [topic],
+              feedMode: GfTopicFeedMode.card,
+              hasMore: false,
+              onLoadMore: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      final card = tester.widget<GfTopicCard>(find.byType(GfTopicCard));
+      expect(card.title, entry.value);
+      expect(card.description, isEmpty);
+      expect(card.imageUrls, ['https://example.test/photo.png']);
+    }
+  });
+
   testWidgets('card mode folds pins into one announcement-style line', (
     tester,
   ) async {
@@ -634,7 +691,7 @@ void main() {
       );
       await pumpList(tester, topic);
 
-      expect(find.text('(｀・ω・´)'), findsOneWidget);
+      expect(find.text('无标题'), findsOneWidget);
     },
   );
 

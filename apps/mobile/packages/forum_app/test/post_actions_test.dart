@@ -25,13 +25,26 @@ class _Posts extends PostRepository {
   _Posts(super.client);
   final likes = <int>[];
   final bookmarks = <int>[];
+  final deleted = <int>[];
   final contents = <String>[];
   final cursors = <int>[];
   bool failEdit = true;
+
+  /// 让点赞请求挂起,用于断言忙碌态的图标颜色。
+  Completer<void>? likeGate;
+
+  @override
+  Future<bool> deletePost({required int postId}) async {
+    expect(postId, 42);
+    deleted.add(postId);
+    return true;
+  }
+
   @override
   Future<bool> likePost({required int postId, required int action}) async {
     expect(postId, 42);
     likes.add(action);
+    await likeGate?.future;
     return true;
   }
 
@@ -195,10 +208,10 @@ void main() {
     final pending = Completer<void>();
     await pump(
       tester,
-      repo(),
+      repo()..likeGate = pending,
       PostActions(
         post: post(),
-        onChanged: () => pending.future,
+        onChanged: () async {},
         onReply: () {},
         onReport: () {},
       ),
@@ -582,10 +595,11 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   });
   testWidgets(
-    'reply likes and bookmarks call the API and refresh the server state',
+    'reply likes and bookmarks patch the floor in place without reloading',
     (tester) async {
       final repository = repo();
       var refreshes = 0;
+      final patches = <PostPayload>[];
       await pump(
         tester,
         repository,
@@ -594,6 +608,7 @@ void main() {
           onChanged: () async {
             refreshes++;
           },
+          onPostPatched: patches.add,
           onReply: () {},
           onReport: () {},
         ),
@@ -604,9 +619,73 @@ void main() {
       await tester.pumpAndSettle();
       expect(repository.likes, [1]);
       expect(repository.bookmarks, [1]);
-      expect(refreshes, 2);
+      // 点赞/收藏只回传本楼,不触发整窗重载(issue #1316)。
+      expect(refreshes, 0);
+      expect(patches, hasLength(2));
+      expect(patches.first.isLiked, isTrue);
+      expect(patches.first.likeCount, 4);
+      expect(patches.last.isBookmarked, isTrue);
     },
   );
+  testWidgets('unliking keeps the count at zero and patches the floor', (
+    tester,
+  ) async {
+    final repository = repo();
+    final patches = <PostPayload>[];
+    await pump(
+      tester,
+      repository,
+      PostActions(
+        // 计数为 0 却已点赞:取消赞时必须停在 0,不能写进负数(provider 与
+        // payload 都要守住下界)。
+        post: post().copyWith(isLiked: true, likeCount: 0),
+        onChanged: () async {},
+        onPostPatched: patches.add,
+        onReply: () {},
+        onReport: () {},
+      ),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(PostActions)),
+    );
+    await tester.tap(find.byTooltip('Like'));
+    await tester.pumpAndSettle();
+
+    expect(repository.likes, [2]);
+    expect(patches, hasLength(1));
+    expect(patches.single.isLiked, isFalse);
+    expect(patches.single.likeCount, 0);
+    expect(container.read(postReturnStatesProvider)[42], (
+      liked: false,
+      bookmarked: false,
+      likeCount: 0,
+    ));
+  });
+  testWidgets('delete still reloads the comment window', (tester) async {
+    final repository = repo();
+    var refreshes = 0;
+    await pump(
+      tester,
+      repository,
+      PostActions(
+        post: post(),
+        onChanged: () async {
+          refreshes++;
+        },
+        onReply: () {},
+        onReport: () {},
+      ),
+    );
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(repository.deleted, [42]);
+    expect(refreshes, 1);
+  });
   testWidgets(
     'failed reply edit retains text for retry and closes only on success',
     (tester) async {

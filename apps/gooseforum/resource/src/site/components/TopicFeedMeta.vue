@@ -106,7 +106,7 @@ const feedReason = (reason?: string | null) => { const key = feedReasonKey(reaso
       class="mt-3 line-clamp-2 font-semibold text-base-content transition-colors group-hover:text-primary"
       :class="compact ? 'text-[15px] leading-6' : 'text-base leading-7'"
     >
-      {{ topic.title }}
+      <TwemojiText :text="topic.title" />
       <span
         v-if="topic.unseen"
         class="ml-1.5 inline-block h-2 w-2 shrink-0 rounded-full bg-primary align-middle"

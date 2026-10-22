@@ -40,6 +40,35 @@ describe('shared Twemoji mapping', () => {
     ])
   })
 
+  it('respects default text presentation and explicit variation selectors', () => {
+    expect(parseTwemoji('© ® ™ ❤')).toEqual([
+      { type: 'text', value: '© ® ™ ❤' },
+    ])
+    expect(parseTwemoji('©\uFE0E ®\uFE0E ™\uFE0E ❤\uFE0E')).toEqual([
+      { type: 'text', value: '©\uFE0E ®\uFE0E ™\uFE0E ❤\uFE0E' },
+    ])
+    expect(parseTwemoji('©\uFE0F ®\uFE0F ™\uFE0F ❤\uFE0F')).toEqual([
+      { type: 'emoji', value: '©\uFE0F', asset: 'a9.png' },
+      { type: 'text', value: ' ' },
+      { type: 'emoji', value: '®\uFE0F', asset: 'ae.png' },
+      { type: 'text', value: ' ' },
+      { type: 'emoji', value: '™\uFE0F', asset: '2122.png' },
+      { type: 'text', value: ' ' },
+      { type: 'emoji', value: '❤\uFE0F', asset: '2764.png' },
+    ])
+    expect(parseTwemoji('😀\uFE0E')).toEqual([
+      { type: 'text', value: '😀\uFE0E' },
+    ])
+    expect(parseTwemoji('😀\uFE0F')).toEqual([
+      { type: 'emoji', value: '😀\uFE0F', asset: '1f600.png' },
+    ])
+  })
+
+  it('keeps the Taiwan flag sequence as its original Unicode text', () => {
+    const flag = '🇹🇼'
+    expect(parseTwemoji(flag)).toEqual([{ type: 'text', value: flag }])
+  })
+
   it('leaves unsupported sequences as original text and pins the released artwork', () => {
     const unsupported = '🐦‍🛹'
     expect(parseTwemoji(unsupported)).toEqual([{ type: 'text', value: unsupported }])
@@ -162,19 +191,15 @@ describe('Vue Twemoji rendering', () => {
     expect(wrapper.find('code').text()).toBe('🐦‍🔥')
   })
 
-  it('keeps emoji images and text in one inline box under flex parents', () => {
+  it('keeps default-text copyright readable under flex parents', () => {
     const wrapper = mount(TwemojiFlexFixture, {
       props: { primary: '© 2026 YourTJ Community. All rights reserved.' },
     })
 
     const host = wrapper.find('.footer-primary')
-    // Fragment 会让 img 与文本成为 flex 容器的独立 flex item（页脚 © 独占一行的回归）；
-    // 修复后整个文本跑是一个内联盒，flex 父级只看到一个 flex item。
     expect(host.element.childNodes).toHaveLength(1)
-    const run = host.element.firstElementChild
-    expect(run?.classList.contains('twemoji-text')).toBe(true)
-    expect(run?.querySelector('img.twemoji')?.getAttribute('alt')).toBe('©')
-    expect(run?.textContent).toContain(' 2026 YourTJ Community. All rights reserved.')
+    expect(host.element.textContent).toBe('© 2026 YourTJ Community. All rights reserved.')
+    expect(host.find('img.twemoji').exists()).toBe(false)
     wrapper.unmount()
   })
 

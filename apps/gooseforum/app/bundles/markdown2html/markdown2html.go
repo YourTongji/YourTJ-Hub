@@ -282,7 +282,7 @@ func ExtractDescription(content string, maxLength int) string {
 			switch node := n.(type) {
 			case *ast.Heading, *ast.Paragraph, *ast.ListItem:
 				textContent := extractDescriptionBlockText(node, reader.Source())
-				if textContent != "" && utf8.RuneCountInString(textContent) > 3 {
+				if textContent != "" {
 					textParts = append(textParts, textContent)
 				}
 				return ast.WalkSkipChildren, nil

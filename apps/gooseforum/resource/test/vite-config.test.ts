@@ -78,6 +78,9 @@ describe('vite 配置约束', () => {
       expect(twemoji.status).toBe(200)
       expect(twemoji.headers.get('content-type')).toContain('image/png')
 
+      const excludedFlag = await fetch(`${origin}/assets/twemoji/72x72/1f1f9-1f1fc.png`)
+      expect(excludedFlag.status).toBe(404)
+
       const privateFile = resolve(repositoryRoot, 'docs/README.md')
       const denied = await fetch(`${origin}/assets/@fs${privateFile}`)
       expect(denied.status).toBe(403)

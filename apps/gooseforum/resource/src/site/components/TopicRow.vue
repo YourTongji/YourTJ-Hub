@@ -182,7 +182,7 @@ onBeforeUnmount(() => {
             class="min-w-0 truncate text-[15px] font-medium leading-6 text-base-content group-hover:text-primary sm:text-base"
             @click="closePreview"
           >
-            {{ topic.title }}
+            <TwemojiText :text="topic.title" />
           </a>
           <a
             v-else
@@ -190,7 +190,7 @@ onBeforeUnmount(() => {
             class="min-w-0 truncate text-[15px] leading-6 text-base-content/70 group-hover:text-primary sm:text-base"
             @click="closePreview"
           >
-            {{ untitledLabel }}
+            <TwemojiText :text="untitledLabel" />
           </a>
           <span v-if="topic.processStatus === 2" class="inline-flex shrink-0 whitespace-nowrap rounded bg-warning/15 px-2 py-0.5 text-xs text-warning">{{ t('topic.pendingReviewBadge') }}</span>
           <span
@@ -228,7 +228,7 @@ onBeforeUnmount(() => {
       <p v-if="showDescription || feedReason(topic.feedReason)" class="mt-1 min-h-5 truncate text-[13px] leading-5 text-base-content/55">
         <span v-if="feedReason(topic.feedReason)" class="font-medium text-base-content/70" data-test="feed-reason">{{ feedReason(topic.feedReason) }}</span
         ><span v-if="feedReason(topic.feedReason) && showDescription" aria-hidden="true"> · </span
-><template v-if="showDescription">{{ descriptionText }}</template>
+        ><template v-if="showDescription"><TwemojiText :text="descriptionText" /></template>
       </p>
       <div class="mt-1.5 flex min-h-6 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/55 lg:hidden">
         <AvatarStack :users="topic.participants" size="sm" />

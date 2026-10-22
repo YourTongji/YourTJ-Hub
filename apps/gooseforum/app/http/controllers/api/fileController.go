@@ -13,7 +13,6 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/httputil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
@@ -28,6 +27,7 @@ import (
 )
 
 func GetFileByFileName(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
 	filename := c.Param("filename")
 	if filename == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -37,20 +37,24 @@ func GetFileByFileName(c *gin.Context) {
 		return
 	}
 	filename = strings.TrimPrefix(filename, "/")
-	// 附件引用被标记为 RECOVERING（内容删除后 30 天窗口）或 PURGED 时不再允许公开下载。
-	// 已删除内容的附件只应在恢复（回 ACTIVE）后重新可见；RECOVERING 只是为清理协调保留引用，
-	// 不构成公开访问授权。
+	// Reads must be reauthorized after publication, withdrawal or deletion.
 	referenceName := filedata.ReferenceName(filename)
-	privatePreview := false
-	if fileusageservice.HasAnyReferences(referenceName) && !fileusageservice.HasActiveReferences(referenceName) {
-		// 待审内容（issue #975）的图片对匿名与其他用户 fail-closed；上传者本人与
-		// 有审核权限的站点管理员可授权预览（不进入任何共享缓存）。
-		privatePreview = fileusageservice.HasPendingReferences(referenceName) && canPreviewPendingFile(c, referenceName)
+	access, err := fileusageservice.ResolveReadAccess(referenceName)
+	if err != nil {
+		c.Status(http.StatusServiceUnavailable)
+		return
+	}
+	if access.Tracked && !access.Public {
+		c.Header("Cache-Control", "private, no-store")
+		privatePreview := false
+		if access.Pending {
+			privatePreview = canPreviewPendingFile(c, referenceName)
+		} else if !access.Content && access.UploadOwnerID != 0 {
+			userID, _, _, valid := authsessionservice.ValidateToken(jwtopt.GetGinAccessToken(c))
+			privatePreview = valid && userID == access.UploadOwnerID
+		}
 		if !privatePreview {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":       "File not found",
-				"messageCode": component.MessagePageNotFound,
-			})
+			c.JSON(http.StatusNotFound, gin.H{"error": "File not found", "messageCode": component.MessagePageNotFound})
 			return
 		}
 	}
@@ -81,11 +85,6 @@ func GetFileByFileName(c *gin.Context) {
 			base = "download"
 		}
 		c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": base}))
-	}
-	if privatePreview {
-		c.Header("Cache-Control", "private, no-store")
-	} else {
-		httputil.SetLongPublic(c)
 	}
 	c.Data(http.StatusOK, contentType, entity.Data)
 }
@@ -233,6 +232,13 @@ func saveImgByGinContext(c *gin.Context, adminUpload bool) {
 			component.MessageUploadSaveFailed,
 
 			component.MessageParams{"error": err.Error()}))
+		return
+	}
+	if err := fileusageservice.AddUploadOwner(userId, entity.Name); err != nil {
+		if cleanupErr := filedata.DeleteByName(entity.Name); cleanupErr != nil {
+			slog.Error("clean up image after ownership registration failure")
+		}
+		c.JSON(http.StatusInternalServerError, component.FailDataCode(component.MessageUploadSaveFailed, nil))
 		return
 	}
 	media, mediaErr := filedata.ProcessUploadedImage(entity.Name, fileData)

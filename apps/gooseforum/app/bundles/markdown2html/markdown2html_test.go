@@ -143,10 +143,10 @@ This is a useful paragraph.
 
 - Another useful point.`, 200)
 
-	if !strings.Contains(got, "Heading") || !strings.Contains(got, "This is a useful paragraph") || !strings.Contains(got, "Another useful point") {
+	if !strings.Contains(got, "短") || !strings.Contains(got, "Heading") || !strings.Contains(got, "This is a useful paragraph") || !strings.Contains(got, "Another useful point") {
 		t.Fatalf("description missed readable text: %q", got)
 	}
-	if strings.Contains(got, "hidden") || strings.Contains(got, "logo") || strings.Contains(got, "短") {
+	if strings.Contains(got, "hidden") || strings.Contains(got, "logo") {
 		t.Fatalf("description included skipped content: %q", got)
 	}
 }
@@ -169,6 +169,24 @@ func TestExtractDescriptionRt(t *testing.T) {
 
 	if got != input {
 		t.Fatalf("ExtractDescription() = %q, want %q", got, input)
+	}
+}
+
+func TestExtractDescriptionKeepsShortText(t *testing.T) {
+	for input, want := range map[string]string{
+		"失眠咯": "失眠咯", "绷（）": "绷（）", "短": "短", "ok": "ok",
+		"# 月碎": "月碎", "- 酒醒": "酒醒", "酒醒\n\n月碎\n\n盏中泪": "酒醒 月碎 盏中泪",
+	} {
+		t.Run(input, func(t *testing.T) {
+			if got := ExtractDescription(input, 200); got != want {
+				t.Fatalf("description=%q, want %q", got, want)
+			}
+		})
+	}
+	for _, input := range []string{"", "  \n\t", "![image](/image.png)", "```go\nsecret\n```"} {
+		if got := ExtractDescription(input, 200); got != "" {
+			t.Errorf("non-text content %q yielded %q", input, got)
+		}
 	}
 }
 
