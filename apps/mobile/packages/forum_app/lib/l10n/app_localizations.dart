@@ -7499,6 +7499,474 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Preview status'**
   String get previewStatusLink;
+
+  /// No description provided for @timetableOptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Timetable options'**
+  String get timetableOptions;
+
+  /// No description provided for @timetableWeekPicker.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a week'**
+  String get timetableWeekPicker;
+
+  /// No description provided for @timetableDateRange.
+  ///
+  /// In en, this message translates to:
+  /// **'{start} – {end}'**
+  String timetableDateRange(String start, String end);
+
+  /// No description provided for @timetableUpdatedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Updated {time}'**
+  String timetableUpdatedAt(String time);
+
+  /// No description provided for @timetableShowingSnapshot.
+  ///
+  /// In en, this message translates to:
+  /// **'Showing saved copy'**
+  String get timetableShowingSnapshot;
+
+  /// No description provided for @timetablePartlyUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Partly updated'**
+  String get timetablePartlyUpdated;
+
+  /// No description provided for @timetableMayBeOutdated.
+  ///
+  /// In en, this message translates to:
+  /// **'May be outdated'**
+  String get timetableMayBeOutdated;
+
+  /// No description provided for @timetableFocusDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus this day'**
+  String get timetableFocusDay;
+
+  /// No description provided for @timetableUnfocusDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the whole week'**
+  String get timetableUnfocusDay;
+
+  /// No description provided for @timetableAddBlockHere.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a block here'**
+  String get timetableAddBlockHere;
+
+  /// No description provided for @timetableOtherWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'Other week'**
+  String get timetableOtherWeek;
+
+  /// No description provided for @timetableBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Your block'**
+  String get timetableBlock;
+
+  /// No description provided for @timetableInProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'In progress'**
+  String get timetableInProgress;
+
+  /// No description provided for @timetableEmptyWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'No classes this week. Tap an empty cell to add a block.'**
+  String get timetableEmptyWeek;
+
+  /// No description provided for @timetableDayFree.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing scheduled. Tap an empty cell to add a block.'**
+  String get timetableDayFree;
+
+  /// No description provided for @timetableGestureTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap a weekday to focus it. Tap an empty cell to add a block, or long-press and drag to cover several sections.'**
+  String get timetableGestureTip;
+
+  /// No description provided for @timetableDisplay.
+  ///
+  /// In en, this message translates to:
+  /// **'Display'**
+  String get timetableDisplay;
+
+  /// No description provided for @timetableAlwaysShowWeekend.
+  ///
+  /// In en, this message translates to:
+  /// **'Always show weekends'**
+  String get timetableAlwaysShowWeekend;
+
+  /// No description provided for @timetableAlwaysShowWeekendHint.
+  ///
+  /// In en, this message translates to:
+  /// **'When off, weekends without classes fold away.'**
+  String get timetableAlwaysShowWeekendHint;
+
+  /// No description provided for @timetableShowOtherWeeks.
+  ///
+  /// In en, this message translates to:
+  /// **'Show classes from other weeks'**
+  String get timetableShowOtherWeeks;
+
+  /// No description provided for @timetableShowOtherWeeksHint.
+  ///
+  /// In en, this message translates to:
+  /// **'They appear faded in free cells.'**
+  String get timetableShowOtherWeeksHint;
+
+  /// No description provided for @timetableShowSectionTimes.
+  ///
+  /// In en, this message translates to:
+  /// **'Show class times'**
+  String get timetableShowSectionTimes;
+
+  /// No description provided for @timetableFocusToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus today when opened'**
+  String get timetableFocusToday;
+
+  /// No description provided for @timetableMemos.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocks and notes'**
+  String get timetableMemos;
+
+  /// No description provided for @timetableNoMemos.
+  ///
+  /// In en, this message translates to:
+  /// **'No blocks or notes yet. Add blocks for club meetings, study time or reminders.'**
+  String get timetableNoMemos;
+
+  /// No description provided for @timetableAddBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Add block'**
+  String get timetableAddBlock;
+
+  /// No description provided for @timetableEditBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit block'**
+  String get timetableEditBlock;
+
+  /// No description provided for @timetableBlockTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Title'**
+  String get timetableBlockTitle;
+
+  /// No description provided for @timetableBlockTitleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Club meeting'**
+  String get timetableBlockTitleHint;
+
+  /// No description provided for @timetableBlockPlace.
+  ///
+  /// In en, this message translates to:
+  /// **'Place'**
+  String get timetableBlockPlace;
+
+  /// No description provided for @timetableBlockPlaceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Library, 3rd floor'**
+  String get timetableBlockPlaceHint;
+
+  /// No description provided for @timetableBlockNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Note'**
+  String get timetableBlockNote;
+
+  /// No description provided for @timetableBlockDays.
+  ///
+  /// In en, this message translates to:
+  /// **'Days'**
+  String get timetableBlockDays;
+
+  /// No description provided for @timetableBlockStart.
+  ///
+  /// In en, this message translates to:
+  /// **'First section'**
+  String get timetableBlockStart;
+
+  /// No description provided for @timetableBlockEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'Last section'**
+  String get timetableBlockEnd;
+
+  /// No description provided for @timetableWeeksOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Week {week} only'**
+  String timetableWeeksOnly(int week);
+
+  /// No description provided for @timetableWeeksEvery.
+  ///
+  /// In en, this message translates to:
+  /// **'Every week'**
+  String get timetableWeeksEvery;
+
+  /// No description provided for @timetableWeeksOdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Odd weeks'**
+  String get timetableWeeksOdd;
+
+  /// No description provided for @timetableWeeksEven.
+  ///
+  /// In en, this message translates to:
+  /// **'Even weeks'**
+  String get timetableWeeksEven;
+
+  /// No description provided for @timetableBlockColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Color'**
+  String get timetableBlockColor;
+
+  /// No description provided for @timetableColorN.
+  ///
+  /// In en, this message translates to:
+  /// **'Color {number}'**
+  String timetableColorN(int number);
+
+  /// No description provided for @timetableSaveBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get timetableSaveBlock;
+
+  /// No description provided for @timetableDeleteBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete block'**
+  String get timetableDeleteBlock;
+
+  /// No description provided for @timetableDeleteNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete note'**
+  String get timetableDeleteNote;
+
+  /// No description provided for @timetableCredits.
+  ///
+  /// In en, this message translates to:
+  /// **'{credits} credits'**
+  String timetableCredits(String credits);
+
+  /// No description provided for @timetableCourseNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Note for every week'**
+  String get timetableCourseNote;
+
+  /// No description provided for @timetableCourseNoteHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Bring a calculator'**
+  String get timetableCourseNoteHint;
+
+  /// No description provided for @timetableWeekNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Note for week {week}'**
+  String timetableWeekNote(int week);
+
+  /// No description provided for @timetableWeekNoteHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Quiz, homework due'**
+  String get timetableWeekNoteHint;
+
+  /// No description provided for @timetableNotesLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Notes stay on this device.'**
+  String get timetableNotesLocal;
+
+  /// No description provided for @timetableNotesSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved on this device.'**
+  String get timetableNotesSaved;
+
+  /// No description provided for @timetableNotesUnsaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to save on this device. Edit the note to try again.'**
+  String get timetableNotesUnsaved;
+
+  /// No description provided for @timetableWidgets.
+  ///
+  /// In en, this message translates to:
+  /// **'Home screen widgets'**
+  String get timetableWidgets;
+
+  /// No description provided for @timetableWidgetNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next class'**
+  String get timetableWidgetNext;
+
+  /// No description provided for @timetableWidgetNextHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The upcoming class with its time and room'**
+  String get timetableWidgetNextHint;
+
+  /// No description provided for @timetableWidgetToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today’s classes'**
+  String get timetableWidgetToday;
+
+  /// No description provided for @timetableWidgetTodayHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Every class today in one list'**
+  String get timetableWidgetTodayHint;
+
+  /// No description provided for @timetableWidgetTimeline.
+  ///
+  /// In en, this message translates to:
+  /// **'Class timeline'**
+  String get timetableWidgetTimeline;
+
+  /// No description provided for @timetableWidgetTimelineHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Today’s classes along a timeline'**
+  String get timetableWidgetTimelineHint;
+
+  /// No description provided for @timetableWidgetAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get timetableWidgetAdd;
+
+  /// No description provided for @timetableWidgetAddNamed.
+  ///
+  /// In en, this message translates to:
+  /// **'Add {name} widget'**
+  String timetableWidgetAddNamed(String name);
+
+  /// No description provided for @timetableWidgetRequested.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm in the system dialog to place the widget.'**
+  String get timetableWidgetRequested;
+
+  /// No description provided for @timetableWidgetManual.
+  ///
+  /// In en, this message translates to:
+  /// **'To add a widget, long-press an empty area of your home screen, open Widgets and choose YourTJ.'**
+  String get timetableWidgetManual;
+
+  /// No description provided for @timetableWidgetIosSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'To add a widget, long-press an empty area of the Home Screen, tap +, then search for YourTJ and choose a size.'**
+  String get timetableWidgetIosSteps;
+
+  /// No description provided for @timetableCalendarSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Course calendar'**
+  String get timetableCalendarSection;
+
+  /// No description provided for @timetableMore.
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get timetableMore;
+
+  /// No description provided for @timetableMemosNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No blocks or notes yet'**
+  String get timetableMemosNone;
+
+  /// No description provided for @timetableMemoSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{blocks, plural, =1{1 block} other{{blocks} blocks}} · {notes, plural, =1{1 note} other{{notes} notes}}'**
+  String timetableMemoSummary(int blocks, int notes);
+
+  /// No description provided for @timetableMemosIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocks and notes stay on this device. Tap a class to add a note.'**
+  String get timetableMemosIntro;
+
+  /// No description provided for @timetableBlocksHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocks'**
+  String get timetableBlocksHeading;
+
+  /// No description provided for @timetableNotesHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Class notes'**
+  String get timetableNotesHeading;
+
+  /// No description provided for @timetableWidgetsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Put your next class or today’s classes on the home screen.'**
+  String get timetableWidgetsHint;
+
+  /// No description provided for @timetableExportHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Save as an .ics file for your calendar app.'**
+  String get timetableExportHint;
+
+  /// No description provided for @timetableBlockWhen.
+  ///
+  /// In en, this message translates to:
+  /// **'When'**
+  String get timetableBlockWhen;
+
+  /// No description provided for @timetableAddNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Add note'**
+  String get timetableAddNote;
+
+  /// No description provided for @timetableWeeksRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Weeks {range}'**
+  String timetableWeeksRange(String range);
+
+  /// No description provided for @timetableListSeparator.
+  ///
+  /// In en, this message translates to:
+  /// **', '**
+  String get timetableListSeparator;
+
+  /// No description provided for @timetableConfirmDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap again to delete'**
+  String get timetableConfirmDelete;
 }
 
 class _AppLocalizationsDelegate

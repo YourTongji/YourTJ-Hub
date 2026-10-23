@@ -200,6 +200,10 @@ final scheduleWidgetLinkProvider = StreamProvider<Uri?>((ref) {
   return ref.watch(scheduleWidgetBridgeProvider).links();
 });
 
+/// Counts home-screen widget taps. The campus page opens the timetable from
+/// its device snapshot once for each new value.
+final scheduleWidgetEntryProvider = StateProvider<int>((ref) => 0);
+
 /// 清除全部离线缓存(话题 + 会话 + 消息)。
 ///
 /// 登出、401 会话失效、重新登录(进入登录页)时必须清空,否则同一设备上
