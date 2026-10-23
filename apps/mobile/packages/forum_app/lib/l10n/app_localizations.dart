@@ -195,7 +195,7 @@ abstract class AppLocalizations {
   /// No description provided for @navMessages.
   ///
   /// In en, this message translates to:
-  /// **'Messages'**
+  /// **'Direct messages'**
   String get navMessages;
 
   /// No description provided for @navProfile.
@@ -1077,7 +1077,7 @@ abstract class AppLocalizations {
   /// No description provided for @messagesTitle.
   ///
   /// In en, this message translates to:
-  /// **'Messages'**
+  /// **'Direct messages'**
   String get messagesTitle;
 
   /// No description provided for @messagesEmpty.
@@ -1269,7 +1269,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsTabAccount.
   ///
   /// In en, this message translates to:
-  /// **'Account, security & privacy'**
+  /// **'Account & security'**
   String get settingsTabAccount;
 
   /// No description provided for @settingsTabPrivacy.
@@ -1461,7 +1461,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsOAuthSub.
   ///
   /// In en, this message translates to:
-  /// **'GitHub and Google login connections'**
+  /// **'GitHub, Google and Apple login connections'**
   String get settingsOAuthSub;
 
   /// No description provided for @settingsOAuthManage.
@@ -1623,7 +1623,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsAbout.
   ///
   /// In en, this message translates to:
-  /// **'About'**
+  /// **'About the community'**
   String get settingsAbout;
 
   /// No description provided for @settingsAboutVersion.
@@ -2847,7 +2847,7 @@ abstract class AppLocalizations {
   /// No description provided for @profileContent.
   ///
   /// In en, this message translates to:
-  /// **'Manage content'**
+  /// **'My content'**
   String get profileContent;
 
   /// No description provided for @profileTrash.
@@ -7499,6 +7499,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Preview status'**
   String get previewStatusLink;
+
+  /// No description provided for @profileEditAddCover.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a cover'**
+  String get profileEditAddCover;
+
+  /// No description provided for @profileEditAddSocialLinks.
+  ///
+  /// In en, this message translates to:
+  /// **'Add social links'**
+  String get profileEditAddSocialLinks;
+
+  /// No description provided for @profileEditAddWebsite.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a website'**
+  String get profileEditAddWebsite;
+
+  /// No description provided for @profileEditBasics.
+  ///
+  /// In en, this message translates to:
+  /// **'Basic information'**
+  String get profileEditBasics;
+
+  /// No description provided for @profileEditBioHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tell people a little about yourself'**
+  String get profileEditBioHint;
+
+  /// No description provided for @profileEditChangeAvatar.
+  ///
+  /// In en, this message translates to:
+  /// **'Change avatar'**
+  String get profileEditChangeAvatar;
+
+  /// No description provided for @profileEditChangeCover.
+  ///
+  /// In en, this message translates to:
+  /// **'Change cover'**
+  String get profileEditChangeCover;
+
+  /// No description provided for @profileEditDisplay.
+  ///
+  /// In en, this message translates to:
+  /// **'Display'**
+  String get profileEditDisplay;
+
+  /// No description provided for @profileEditDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get profileEditDone;
+
+  /// No description provided for @profileEditFromPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose from photos'**
+  String get profileEditFromPhotos;
+
+  /// No description provided for @profileEditLinks.
+  ///
+  /// In en, this message translates to:
+  /// **'Links'**
+  String get profileEditLinks;
+
+  /// No description provided for @profileEditNicknameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Your display name'**
+  String get profileEditNicknameHint;
+
+  /// No description provided for @profileEditSignatureHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a short signature'**
+  String get profileEditSignatureHint;
+
+  /// No description provided for @profileEditSocialHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Username or HTTPS link'**
+  String get profileEditSocialHint;
+
+  /// No description provided for @profileEditTakePhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Take a photo'**
+  String get profileEditTakePhoto;
+
+  /// No description provided for @profileEditWebsiteUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Website URL'**
+  String get profileEditWebsiteUrl;
+
+  /// No description provided for @profileLanguageHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Language of your public profile, separate from the app language.'**
+  String get profileLanguageHint;
+
+  /// No description provided for @profileEditBadgeSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Wearing: {name} · {count} displayed'**
+  String profileEditBadgeSummary(String name, int count);
+
+  /// No description provided for @contentMineTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'My content'**
+  String get contentMineTitle;
+
+  /// No description provided for @settingsManageBadges.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage badges'**
+  String get settingsManageBadges;
 }
 
 class _AppLocalizationsDelegate

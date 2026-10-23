@@ -15,7 +15,7 @@
   "navHome": "Home",
   "navSearch": "Search",
   "navPublish": "Publish",
-  "navMessages": "Messages",
+  "navMessages": "Direct messages",
   "navProfile": "Me",
   "commonCancel": "Cancel",
   "commonSave": "Save",
@@ -271,7 +271,7 @@
   "profileEmptyFollowing": "Not following anyone",
   "profileEmptyFollowers": "No followers yet",
   "profileNotLoggedIn": "Not signed in",
-  "messagesTitle": "Messages",
+  "messagesTitle": "Direct messages",
   "messagesEmpty": "No conversations yet",
   "messagesEmptyDescription": "Start a conversation with someone from the community.",
   "messagesSearchConversations": "Search conversations",
@@ -335,7 +335,7 @@
   "categoryTitle": "Category",
   "settingsTitle": "Settings",
   "settingsTabProfile": "Profile",
-  "settingsTabAccount": "Account, security & privacy",
+  "settingsTabAccount": "Account & security",
   "settingsTabPrivacy": "Privacy",
   "settingsTabBinding": "Bindings",
   "settingsTabSecurity": "Security",
@@ -402,7 +402,7 @@
     }
   },
   "settingsOAuth": "External account connections",
-  "settingsOAuthSub": "GitHub and Google login connections",
+  "settingsOAuthSub": "GitHub, Google and Apple login connections",
   "settingsOAuthManage": "Manage OAuth bindings",
   "settingsOAuthBindings": "OAuth bindings",
   "settingsBound": "Bound",
@@ -457,7 +457,7 @@
   "settingsDarkMode": "Dark mode",
   "settingsDarkCurrent": "Current: dark",
   "settingsLightCurrent": "Current: light",
-  "settingsAbout": "About",
+  "settingsAbout": "About the community",
   "settingsAboutVersion": "v0.1.0 · Tongji campus forum",
   "settingsEditProfile": "Edit profile",
   "settingsSignature": "Signature",
@@ -848,7 +848,7 @@
   "publishImageOnlyTitle": "A moment to share",
   "publishTypeLocked": "The original type is retained when editing",
   "profileMore": "More options",
-  "profileContent": "Manage content",
+  "profileContent": "My content",
   "profileTrash": "Recycle bin",
   "profileSecurity": "Account, security & privacy",
   "profileAdmin": "Admin workspace",
@@ -2070,5 +2070,35 @@
   "previewUpdateInstructions": "This is a testing build. Get updates from the release issue’s Android link or the assigned TestFlight group.",
   "previewStale": "This preview is no longer the current candidate. Check the release status for the current build or return to production.",
   "previewStatusUnknown": "Cannot verify this preview’s status. Check with the release owner before testing.",
-  "previewStatusLink": "Preview status"
+  "previewStatusLink": "Preview status",
+  "profileEditAddCover": "Add a cover",
+  "profileEditAddSocialLinks": "Add social links",
+  "profileEditAddWebsite": "Add a website",
+  "profileEditBasics": "Basic information",
+  "profileEditBioHint": "Tell people a little about yourself",
+  "profileEditChangeAvatar": "Change avatar",
+  "profileEditChangeCover": "Change cover",
+  "profileEditDisplay": "Display",
+  "profileEditDone": "Done",
+  "profileEditFromPhotos": "Choose from photos",
+  "profileEditLinks": "Links",
+  "profileEditNicknameHint": "Your display name",
+  "profileEditSignatureHint": "Add a short signature",
+  "profileEditSocialHint": "Username or HTTPS link",
+  "profileEditTakePhoto": "Take a photo",
+  "profileEditWebsiteUrl": "Website URL",
+  "profileLanguageHint": "Language of your public profile, separate from the app language.",
+  "profileEditBadgeSummary": "Wearing: {name} · {count} displayed",
+  "@profileEditBadgeSummary": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "contentMineTitle": "My content",
+  "settingsManageBadges": "Manage badges"
 }

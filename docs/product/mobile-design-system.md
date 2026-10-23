@@ -93,7 +93,10 @@ underline moves with the changing cell widths, with reduced-motion support. Load
 tab row remain stable. Direct selection by tap animates the same icon, label and underline transition
 with the 180 ms content motion. Loaded pages and scroll positions are independent per stream, while obsolete
 requests are cancelled or ignored. Following/follower statistics open the matching lists.
-Device preferences are separate from account editing, binding and security. Appearance offers System,
+Device preferences are separate from account editing, account security and privacy. The settings
+directory and compact index share the same groups, with one profile editor and a separate combined
+badge editor. Custom setting-row artwork occupies the same 24-pixel slot as standard icons;
+destructive rows use error text and omit navigation chevrons. Appearance offers System,
 Light and Dark, and an already open choice sheet updates with the selected theme.
 
 ## Transient surfaces and input

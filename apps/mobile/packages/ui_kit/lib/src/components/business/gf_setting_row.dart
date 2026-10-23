@@ -17,6 +17,7 @@ class GfSettingRow extends StatelessWidget {
     this.leading,
     this.trailing,
     this.onTap,
+    this.destructive = false,
   });
 
   final String title;
@@ -34,6 +35,7 @@ class GfSettingRow extends StatelessWidget {
 
   final Widget? trailing;
   final VoidCallback? onTap;
+  final bool destructive;
 
   @override
   Widget build(BuildContext context) {
@@ -46,11 +48,13 @@ class GfSettingRow extends StatelessWidget {
             : GfSymbol(
                 symbol!,
                 size: 22,
-                color: iconColor ?? colors.baseContent,
+                color:
+                    iconColor ??
+                    (destructive ? colors.error : colors.baseContent),
               ));
     final suffix =
         trailing ??
-        (onTap == null
+        (onTap == null || destructive
             ? null
             : GfSymbol('chevron-right', size: 18, color: colors.iconMuted));
     final subtitle =
@@ -64,10 +68,7 @@ class GfSettingRow extends StatelessWidget {
           child: Row(
             children: [
               if (prefix != null) ...[
-                if (leading != null)
-                  prefix
-                else
-                  SizedBox(width: 24, child: prefix),
+                SizedBox(width: 24, child: prefix),
                 const SizedBox(width: 14),
               ],
               Expanded(
@@ -80,7 +81,7 @@ class GfSettingRow extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 16,
                         height: 1.35,
-                        color: colors.baseContent,
+                        color: destructive ? colors.error : colors.baseContent,
                       ),
                     ),
                     if (subtitle != null) ...[

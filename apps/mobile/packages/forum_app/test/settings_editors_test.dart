@@ -16,11 +16,13 @@ Future<void> openEditor(
   WidgetTester tester,
   Widget page, {
   double scale = 1,
+  Locale locale = const Locale('en'),
+  Brightness brightness = Brightness.light,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
-      theme: gfThemeData(Brightness.light),
-      locale: const Locale('en'),
+      theme: gfThemeData(brightness),
+      locale: locale,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       builder: (context, child) => MediaQuery(
@@ -45,10 +47,132 @@ Future<void> openEditor(
   await tester.pumpAndSettle();
 }
 
+Future<void> chooseProfileImage(
+  WidgetTester tester, {
+  required bool cover,
+}) async {
+  await tester.drag(find.byType(ListView).first, const Offset(0, 2000));
+  await tester.pumpAndSettle();
+  final key = cover ? 'cover' : 'avatar';
+  final picker = find.byKey(Key('profile-edit-$key'));
+  await tester.ensureVisible(picker);
+  await tester.tap(picker);
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(ValueKey('profile-sheet-$key-gallery')));
+  await tester.pumpAndSettle();
+}
+
+Future<void> openProfileLinks(WidgetTester tester) async {
+  final row = find.byKey(const Key('profile-website-row'));
+  await tester.scrollUntilVisible(
+    row,
+    250,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.tap(row);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   SettingsUserPayload user() => SettingsUserPayload.fromJson(
     (settingsPayloadJson()['props'] as Map)['user'] as Map<String, dynamic>,
   );
+  for (final language in ['zh', 'en', 'ja', 'de']) {
+    for (final brightness in Brightness.values) {
+      testWidgets('profile and links fit 320px 200% $language $brightness', (
+        tester,
+      ) async {
+        tester.view.physicalSize = const Size(320, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await openEditor(
+          tester,
+          ProfileEditPage(user: user(), onSave: (_) async {}),
+          scale: 2,
+          locale: Locale(language),
+          brightness: brightness,
+        );
+        expect(tester.takeException(), isNull);
+        await openProfileLinks(tester);
+        expect(tester.takeException(), isNull);
+        await tester.drag(find.byType(ListView).last, const Offset(0, -1800));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
+  testWidgets('preset avatar is a retryable draft until Save', (tester) async {
+    final writes = <String>[];
+    var textWrites = 0;
+    await openEditor(
+      tester,
+      ProfileEditPage(
+        user: user(),
+        onSave: (_) async {
+          textWrites++;
+        },
+        onSavePresetAvatar: (path) async {
+          writes.add(path);
+          if (writes.length == 1) throw StateError('avatar unavailable');
+        },
+      ),
+    );
+    await tester.tap(find.byKey(const Key('profile-edit-avatar')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('profile-sheet-avatar-preset')));
+    await tester.pumpAndSettle();
+    final l = AppLocalizations.of(
+      tester.element(find.byKey(const Key('profile-preset-confirm'))),
+    );
+    await tester.tap(find.bySemanticsLabel('${l.settingsPresetAvatar} 2'));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('profile-preset-confirm')));
+    await tester.pumpAndSettle();
+    expect(writes, isEmpty);
+    expect(find.byKey(const Key('profile-preset-avatar')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('profile-save')));
+    await tester.pumpAndSettle();
+    expect(writes, ['/static/pic/2.webp']);
+    expect(find.byKey(const Key('profile-save-error')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('profile-save')));
+    await tester.pumpAndSettle();
+    expect(writes, ['/static/pic/2.webp', '/static/pic/2.webp']);
+    expect(textWrites, 0);
+    expect(find.byType(ProfileEditPage), findsNothing);
+  });
+
+  testWidgets('camera choice passes its source and stays local', (
+    tester,
+  ) async {
+    final picked = <ProfileImageSource>[];
+    final bytes = Uint8List.fromList(
+      img.encodePng(img.Image(width: 4, height: 4)),
+    );
+    await openEditor(
+      tester,
+      ProfileEditPage(
+        user: user(),
+        onSave: (_) async {},
+        onPickImage: (_, source) async {
+          picked.add(source);
+          return bytes;
+        },
+        onSaveAvatar: (_) async => fail('only selecting must not save'),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('profile-edit-avatar')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('profile-sheet-avatar-gallery')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('profile-sheet-avatar-camera')));
+    await tester.pumpAndSettle();
+    expect(picked, [ProfileImageSource.camera]);
+    expect(find.byKey(const Key('profile-local-avatar')), findsOneWidget);
+  });
+
   testWidgets(
     'profile waits for acknowledgement and prevents duplicate saves',
     (tester) async {
@@ -84,7 +208,7 @@ void main() {
       expect(find.byType(ProfileEditPage), findsNothing);
     },
   );
-  testWidgets('profile cover keeps the public profile safe area geometry', (
+  testWidgets('profile puts the centered avatar before a 5:1 cover card', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(393, 852);
@@ -99,19 +223,16 @@ void main() {
     final coverSize = tester.getSize(
       find.byKey(const Key('profile-cover-preview')),
     );
-    expect(coverSize.width, 393);
-    expect(
-      coverSize.height,
-      GfUserCard.coverHeightFor(coverSize.width, topInset: 62),
-    );
-    expect(coverSize.height, greaterThan(coverSize.width / 3));
+    expect(coverSize.width, 393 - 32);
+    expect(coverSize.height, closeTo(coverSize.width / 5, .1));
+    final avatar = tester.getRect(find.byKey(const Key('profile-edit-avatar')));
     final cover = tester.getRect(
       find.byKey(const Key('profile-cover-preview')),
     );
-    final nickname = tester.getRect(
-      find.byKey(const ValueKey('profile-nickname')),
-    );
-    expect(nickname.top - cover.bottom, 56);
+    expect(avatar.bottom, lessThan(cover.top));
+    expect(avatar.center.dx, closeTo(393 / 2, .1));
+    final save = tester.getRect(find.byKey(const Key('profile-save')));
+    expect(save.right, lessThanOrEqualTo(393 - 16));
     expect(tester.takeException(), isNull);
   });
   testWidgets('profile back preserves work unless discard is confirmed', (
@@ -151,7 +272,7 @@ void main() {
         onSave: (_) async {
           writes++;
         },
-        onPickImage: (_) async => bytes,
+        onPickImage: (_, _) async => bytes,
         onSaveAvatar: (_) async {
           writes++;
           return '/new-avatar.webp';
@@ -162,10 +283,8 @@ void main() {
         },
       ),
     );
-    await tester.tap(find.byKey(const Key('profile-edit-cover')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('profile-edit-avatar')));
-    await tester.pumpAndSettle();
+    await chooseProfileImage(tester, cover: true);
+    await chooseProfileImage(tester, cover: false);
     expect(find.byKey(const Key('profile-local-cover')), findsOneWidget);
     expect(find.byKey(const Key('profile-local-avatar')), findsOneWidget);
     expect(writes, 0);
@@ -202,7 +321,7 @@ void main() {
             infos++;
             saved = updated;
           },
-          onPickImage: (_) async => bytes,
+          onPickImage: (_, _) async => bytes,
           onSaveCover: (_) async {
             covers++;
             return '/saved-cover.webp';
@@ -222,10 +341,8 @@ void main() {
         find.byKey(const ValueKey('profile-nickname')),
         'Edited profile',
       );
-      await tester.tap(find.byKey(const Key('profile-edit-cover')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('profile-edit-avatar')));
-      await tester.pumpAndSettle();
+      await chooseProfileImage(tester, cover: true);
+      await chooseProfileImage(tester, cover: false);
       await tester.tap(find.byKey(const Key('profile-save')));
       await tester.pumpAndSettle();
       expect((infos, covers, avatars), (1, 1, 1));
@@ -261,7 +378,9 @@ void main() {
         },
       ),
     );
-    await tester.tap(find.byKey(const Key('profile-remove-cover')));
+    await tester.tap(find.byKey(const Key('profile-edit-cover')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('profile-sheet-cover-remove')));
     await tester.pumpAndSettle();
     expect(coverWrites, isEmpty);
     expect(find.byKey(const Key('profile-remove-cover')), findsNothing);
@@ -284,18 +403,21 @@ void main() {
         },
       ),
     );
+    await openProfileLinks(tester);
     final website = find.byKey(const ValueKey('profile-website'));
     await tester.ensureVisible(website);
     await tester.enterText(website, 'javascript:alert(1)');
     await tester.pump();
-    await tester.tap(find.byKey(const Key('profile-save')));
+    await tester.tap(find.byKey(const Key('profile-links-done')));
     await tester.pumpAndSettle();
     expect(writes, 0);
     expect(
       tester.widget<TextFormField>(website).controller!.text,
       'javascript:alert(1)',
     );
-    expect(find.byType(ProfileEditPage), findsOneWidget);
+    final l = AppLocalizations.of(tester.element(website));
+    expect(find.text(l.settingsInvalidLink), findsOneWidget);
+    expect(find.byKey(const Key('profile-links-done')), findsOneWidget);
   });
 
   testWidgets(
@@ -312,7 +434,7 @@ void main() {
           onSave: (_) async => throw const ApiException(
             fallbackMessage: 'Unable to save profile',
           ),
-          onPickImage: (_) async => bytes,
+          onPickImage: (_, _) async => bytes,
           onSaveAvatar: (_) async {
             images++;
             return '/avatar.webp';
@@ -323,8 +445,7 @@ void main() {
         find.byKey(const ValueKey('profile-nickname')),
         'Preserved name',
       );
-      await tester.tap(find.byKey(const Key('profile-edit-avatar')));
-      await tester.pumpAndSettle();
+      await chooseProfileImage(tester, cover: false);
       await tester.tap(find.byKey(const Key('profile-save')));
       await tester.pumpAndSettle();
       expect(images, 0);
@@ -462,8 +583,12 @@ void main() {
         ProfileEditPage(user: user(), onSave: (_) async {}),
       );
 
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('profile-bio')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       for (final type in [
-        TextInputType.url,
         TextInputType.text,
         // 昵称/简介/签名等 lines>1 的字段是 multiline,必须一并锁定。
         TextInputType.multiline,
@@ -479,6 +604,14 @@ void main() {
             reason: 'keyboardType=$type must not carry the password marking',
           );
         }
+      }
+      await openProfileLinks(tester);
+      final urlFields = find.byWidgetPredicate(
+        (w) => w is TextField && w.keyboardType == TextInputType.url,
+      );
+      expect(urlFields, findsWidgets);
+      for (final element in urlFields.evaluate()) {
+        expect((element.widget as TextField).enableSuggestions, isTrue);
       }
     },
   );

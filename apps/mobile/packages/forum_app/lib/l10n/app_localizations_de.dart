@@ -61,7 +61,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get navPublish => 'Veröffentlichen';
 
   @override
-  String get navMessages => 'Nachrichten';
+  String get navMessages => 'Direktnachrichten';
 
   @override
   String get navProfile => 'Mein Profil';
@@ -548,7 +548,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get profileNotLoggedIn => 'Nicht angemeldet';
 
   @override
-  String get messagesTitle => 'Nachrichten';
+  String get messagesTitle => 'Direktnachrichten';
 
   @override
   String get messagesEmpty => 'Noch keine Unterhaltungen';
@@ -653,7 +653,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsTabProfile => 'Profil';
 
   @override
-  String get settingsTabAccount => 'Konto, Sicherheit und Datenschutz';
+  String get settingsTabAccount => 'Konto und Sicherheit';
 
   @override
   String get settingsTabPrivacy => 'Datenschutz';
@@ -761,7 +761,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsOAuth => 'Verknüpfte Konten';
 
   @override
-  String get settingsOAuthSub => 'Anmeldung über GitHub und Google';
+  String get settingsOAuthSub => 'GitHub-, Google- und Apple-Anmeldungen';
 
   @override
   String get settingsOAuthManage => 'Kontoverknüpfungen verwalten';
@@ -850,7 +850,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsLightCurrent => 'Aktuell: hell';
 
   @override
-  String get settingsAbout => 'Info';
+  String get settingsAbout => 'Über die Community';
 
   @override
   String get settingsAboutVersion =>
@@ -1539,7 +1539,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get profileMore => 'Weitere Optionen';
 
   @override
-  String get profileContent => 'Inhalte verwalten';
+  String get profileContent => 'Meine Inhalte';
 
   @override
   String get profileTrash => 'Papierkorb';
@@ -4218,4 +4218,67 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get previewStatusLink => 'Vorschau-Status';
+
+  @override
+  String get profileEditAddCover => 'Titelbild hinzufügen';
+
+  @override
+  String get profileEditAddSocialLinks => 'Soziale Links hinzufügen';
+
+  @override
+  String get profileEditAddWebsite => 'Website hinzufügen';
+
+  @override
+  String get profileEditBasics => 'Grundinformationen';
+
+  @override
+  String get profileEditBioHint => 'Erzähle etwas über dich';
+
+  @override
+  String get profileEditChangeAvatar => 'Profilbild ändern';
+
+  @override
+  String get profileEditChangeCover => 'Titelbild ändern';
+
+  @override
+  String get profileEditDisplay => 'Darstellung';
+
+  @override
+  String get profileEditDone => 'Fertig';
+
+  @override
+  String get profileEditFromPhotos => 'Aus Fotos auswählen';
+
+  @override
+  String get profileEditLinks => 'Links';
+
+  @override
+  String get profileEditNicknameHint => 'Dein Anzeigename';
+
+  @override
+  String get profileEditSignatureHint => 'Kurze Signatur hinzufügen';
+
+  @override
+  String get profileEditSocialHint => 'Benutzername oder HTTPS-Link';
+
+  @override
+  String get profileEditTakePhoto => 'Foto aufnehmen';
+
+  @override
+  String get profileEditWebsiteUrl => 'Website-URL';
+
+  @override
+  String get profileLanguageHint =>
+      'Sprache deines öffentlichen Profils, unabhängig von der App-Sprache.';
+
+  @override
+  String profileEditBadgeSummary(String name, int count) {
+    return 'Getragen: $name · $count angezeigt';
+  }
+
+  @override
+  String get contentMineTitle => 'Meine Inhalte';
+
+  @override
+  String get settingsManageBadges => 'Abzeichen verwalten';
 }

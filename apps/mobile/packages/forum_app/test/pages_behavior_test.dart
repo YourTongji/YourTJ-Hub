@@ -1809,6 +1809,11 @@ void main() {
           ),
         ),
         GoRoute(
+          path: '/settings/profile',
+          builder: (_, _) =>
+              const Scaffold(body: Center(child: Text('settings-page'))),
+        ),
+        GoRoute(
           path: '/settings',
           builder: (_, _) =>
               const Scaffold(body: Center(child: Text('settings-page'))),
@@ -2915,9 +2920,7 @@ void main() {
         await tester.pumpWidget(routerApp(container, router));
         await tester.pumpAndSettle();
         expect(find.text('Alice'), findsNWidgets(2));
-        await tester.tap(find.byTooltip('更多功能'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('设置').last);
+        await tester.tap(find.text('编辑资料'));
         await tester.pumpAndSettle();
         expect(find.text('settings-page'), findsOneWidget);
         repo.nickname = 'Updated profile';
@@ -4066,7 +4069,16 @@ void main() {
       addTearDown(router.dispose);
       await tester.pumpWidget(routerApp(container, router));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('注销账号'));
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('settings-close-account')),
+        250,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const ValueKey('settings-detail')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       await tester.tap(find.text('注销账号'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'password');
@@ -5226,7 +5238,7 @@ void main() {
       );
       pages.complete(settingsPayloadJson());
       await tester.pumpAndSettle();
-      await tester.tap(find.text('头像'));
+      await tester.tap(find.byKey(const Key('profile-edit-avatar')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('选择预设头像'));
       await tester.pumpAndSettle();
@@ -5236,7 +5248,10 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('保存'));
+      await tester.tap(find.byKey(const Key('profile-preset-confirm')));
+      await tester.pumpAndSettle();
+      expect(saved, isNull);
+      await tester.tap(find.byKey(const Key('profile-save')));
       await tester.pumpAndSettle();
       expect(saved, {'avatarUrl': '/static/pic/4.webp'});
       await tester.pump(const Duration(seconds: 4));
@@ -5289,8 +5304,6 @@ void main() {
       };
       pages.complete(payload);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('编辑资料'));
-      await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const Key('profile-nickname')),
         'Updated nickname',
@@ -5329,19 +5342,8 @@ void main() {
       pageRepo.complete(settingsPayloadJson());
       await tester.pumpAndSettle();
       expect(find.byType(GfSettingsSkeleton), findsNothing);
-      expect(
-        tester
-            .widget<Text>(find.byKey(const ValueKey('settings-detail-title')))
-            .data,
-        '个人资料与展示',
-      );
-      expect(
-        find.descendant(
-          of: find.byKey(const ValueKey('settings-detail')),
-          matching: find.text('编辑资料'),
-        ),
-        findsOneWidget,
-      );
+      expect(find.byKey(const Key('profile-save')), findsOneWidget);
+      expect(find.text('编辑资料'), findsOneWidget);
     });
 
     testWidgets('下拉刷新再次请求设置数据', (tester) async {
@@ -5356,7 +5358,7 @@ void main() {
         pageRepo: pageRepo,
       );
       await tester.pumpWidget(
-        app(container, const SettingsPage(initialSection: 'profile')),
+        app(container, const SettingsPage(initialSection: 'account')),
       );
       await tester.pumpAndSettle();
       final int callsBefore = pageRepo.fetchCalls;
@@ -5447,7 +5449,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 打开 Security 分类 查看会话列表。
-      await tester.tap(find.text('安全'));
+      await tester.tap(find.text('账号与安全'));
       await tester.pumpAndSettle();
 
       // 契约(Unix 毫秒)直接渲染,不得再乘 1000。
@@ -5473,7 +5475,7 @@ void main() {
       await tester.pumpWidget(app(container, const SettingsPage()));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('安全'));
+      await tester.tap(find.text('账号与安全'));
       await tester.pumpAndSettle();
 
       expect(find.textContaining('2038-01-19'), findsOneWidget);
@@ -5559,7 +5561,7 @@ void main() {
       );
       // 宽屏安全详情不提供登出；持久目录保留该操作。
       await tester.tap(
-        find.descendant(of: directory, matching: find.text('安全')),
+        find.descendant(of: directory, matching: find.text('账号与安全')),
       );
       await tester.pumpAndSettle();
       expect(
@@ -5623,6 +5625,15 @@ void main() {
         overrides: [
           tokenStorageProvider.overrideWithValue(storage),
           userRepositoryProvider.overrideWithValue(userRepo),
+          pageRepositoryProvider.overrideWithValue(
+            CountingPageRepository(
+              GfApiClient(
+                dio: Dio(),
+                tokenStorage: MemTokenStorage(),
+                baseUrl: 'http://fake.local',
+              ),
+            ),
+          ),
           offlineTopicCacheProvider.overrideWithValue(topicCache),
           offlineChatCacheProvider.overrideWithValue(chatCache),
         ],
@@ -5658,7 +5669,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 打开 Security 分类 找"吊销全部会话"按钮。
-      await tester.tap(find.text('安全'));
+      await tester.tap(find.text('账号与安全'));
       await tester.pumpAndSettle();
       expect(find.text('吊销全部会话'), findsOneWidget);
 
@@ -5696,6 +5707,15 @@ void main() {
         overrides: [
           tokenStorageProvider.overrideWithValue(storage),
           userRepositoryProvider.overrideWithValue(userRepo),
+          pageRepositoryProvider.overrideWithValue(
+            CountingPageRepository(
+              GfApiClient(
+                dio: Dio(),
+                tokenStorage: MemTokenStorage(),
+                baseUrl: 'http://fake.local',
+              ),
+            ),
+          ),
           offlineTopicCacheProvider.overrideWithValue(topicCache),
           offlineChatCacheProvider.overrideWithValue(chatCache),
         ],
@@ -5730,7 +5750,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('安全'));
+      await tester.tap(find.text('账号与安全'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('吊销全部会话'));
       await tester.pumpAndSettle();

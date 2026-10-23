@@ -29,8 +29,10 @@ void main() {
   Future<void> pump(
     WidgetTester tester,
     List<UserBadgePayload> selected,
-    Future<void> Function(List<String>) save,
-  ) async {
+    Future<void> Function(List<String>) save, {
+    String worn = '',
+    Future<void> Function(String)? wear,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: gfThemeData(Brightness.light),
@@ -46,6 +48,9 @@ void main() {
                     badges: List.generate(6, badge),
                     selected: selected,
                     onSave: save,
+                    wearableBadges: [badge(0), badge(1)],
+                    wornBadgeCode: worn,
+                    onWear: wear,
                   ),
                 ),
               ),
@@ -58,6 +63,69 @@ void main() {
     await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
   }
+
+  testWidgets('wear-only edits preserve the automatic profile display choice', (
+    tester,
+  ) async {
+    final worn = <String>[];
+    var displayWrites = 0;
+    await pump(
+      tester,
+      [badge(0)],
+      (_) async {
+        displayWrites++;
+      },
+      worn: 'b0',
+      wear: (code) async {
+        worn.add(code);
+      },
+    );
+    await tester.tap(find.byType(RadioListTile<String>).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(worn, ['b1']);
+    expect(displayWrites, 0);
+  });
+
+  testWidgets('wear and display stay drafts and retry only the failed step', (
+    tester,
+  ) async {
+    final worn = <String>[];
+    var displayAttempts = 0;
+    await pump(
+      tester,
+      [badge(0)],
+      (_) async {
+        if (displayAttempts++ == 0) throw StateError('display unavailable');
+      },
+      worn: 'b0',
+      wear: (code) async {
+        worn.add(code);
+      },
+    );
+    await tester.tap(find.byType(RadioListTile<String>).last);
+    await tester.pumpAndSettle();
+    final display = find.byKey(const Key('badge-select-b0'));
+    await tester.scrollUntilVisible(
+      display,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(display);
+    await tester.pumpAndSettle();
+    expect(worn, isEmpty);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(worn, ['b1']);
+    expect(displayAttempts, 1);
+    expect(find.byType(BadgeDisplayDialog), findsOneWidget);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(worn, ['b1']);
+    expect(displayAttempts, 2);
+    expect(find.byType(BadgeDisplayDialog), findsNothing);
+  });
 
   testWidgets(
     'badge reorder semantics describe values and freeze during save',

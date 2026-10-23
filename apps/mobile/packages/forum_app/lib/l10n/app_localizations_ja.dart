@@ -56,7 +56,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get navPublish => '投稿';
 
   @override
-  String get navMessages => 'メッセージ';
+  String get navMessages => 'ダイレクトメッセージ';
 
   @override
   String get navProfile => 'マイページ';
@@ -529,7 +529,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get profileNotLoggedIn => 'ログインしていません';
 
   @override
-  String get messagesTitle => 'メッセージ';
+  String get messagesTitle => 'ダイレクトメッセージ';
 
   @override
   String get messagesEmpty => 'まだ会話はありません';
@@ -633,7 +633,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsTabProfile => 'プロフィール';
 
   @override
-  String get settingsTabAccount => 'アカウント・セキュリティ・プライバシー';
+  String get settingsTabAccount => 'アカウントとセキュリティ';
 
   @override
   String get settingsTabPrivacy => 'プライバシー';
@@ -740,7 +740,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsOAuth => '外部アカウント連携';
 
   @override
-  String get settingsOAuthSub => 'GitHubとGoogleのログイン連携';
+  String get settingsOAuthSub => 'GitHub・Google・Apple のログイン連携';
 
   @override
   String get settingsOAuthManage => 'アカウント連携を管理';
@@ -829,7 +829,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsLightCurrent => '現在：ライト';
 
   @override
-  String get settingsAbout => '情報';
+  String get settingsAbout => 'コミュニティについて';
 
   @override
   String get settingsAboutVersion => 'v0.1.0 · 同済大学キャンパスフォーラム';
@@ -1495,7 +1495,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get profileMore => 'その他の操作';
 
   @override
-  String get profileContent => 'コンテンツ管理';
+  String get profileContent => '自分のコンテンツ';
 
   @override
   String get profileTrash => 'ごみ箱';
@@ -4021,4 +4021,66 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get previewStatusLink => 'プレビュー状況';
+
+  @override
+  String get profileEditAddCover => 'カバーを追加';
+
+  @override
+  String get profileEditAddSocialLinks => 'SNS リンクを追加';
+
+  @override
+  String get profileEditAddWebsite => 'ウェブサイトを追加';
+
+  @override
+  String get profileEditBasics => '基本情報';
+
+  @override
+  String get profileEditBioHint => '自己紹介を入力';
+
+  @override
+  String get profileEditChangeAvatar => 'アバターを変更';
+
+  @override
+  String get profileEditChangeCover => 'カバーを変更';
+
+  @override
+  String get profileEditDisplay => '表示';
+
+  @override
+  String get profileEditDone => '完了';
+
+  @override
+  String get profileEditFromPhotos => '写真から選ぶ';
+
+  @override
+  String get profileEditLinks => 'リンク';
+
+  @override
+  String get profileEditNicknameHint => '表示名を入力';
+
+  @override
+  String get profileEditSignatureHint => 'ひとことを追加';
+
+  @override
+  String get profileEditSocialHint => 'ユーザー名または HTTPS リンク';
+
+  @override
+  String get profileEditTakePhoto => '写真を撮る';
+
+  @override
+  String get profileEditWebsiteUrl => 'サイト URL';
+
+  @override
+  String get profileLanguageHint => '公開プロフィールの言語です。アプリの言語とは別に設定します。';
+
+  @override
+  String profileEditBadgeSummary(String name, int count) {
+    return '着用：$name · $count 個を表示';
+  }
+
+  @override
+  String get contentMineTitle => '自分のコンテンツ';
+
+  @override
+  String get settingsManageBadges => 'バッジを管理';
 }

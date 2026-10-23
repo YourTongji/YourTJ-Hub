@@ -479,7 +479,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.byType(GfGlassSurface), findsWidgets);
+    expect(find.byTooltip('通知'), findsNothing);
     expect(
       tester
           .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
@@ -591,7 +591,7 @@ void main() {
       await _pump(tester, _Profiles(), router: router);
       router.push('/profile');
       await tester.pumpAndSettle();
-      expect(find.byType(GfGlassSurface), findsWidgets);
+      expect(find.byTooltip('通知'), findsNothing);
       expect(
         find.descendant(of: find.byType(AppBar), matching: find.text('Alice')),
         findsNothing,
@@ -1449,7 +1449,7 @@ void main() {
         cover,
       );
       expect(tester.getRect(find.byType(GfUserCard)), card);
-      expect(find.byType(GfGlassSurface), findsWidgets);
+      expect(find.byTooltip('通知'), findsNothing);
       expect(_tab('赞过'), findsOneWidget);
       expect(find.byType(GfSkeleton), findsWidgets);
       expect(find.byType(GfLoadingIndicator), findsNothing);
@@ -1481,7 +1481,7 @@ void main() {
 
   for (final loaded in [false, true]) {
     testWidgets(
-      'profile notification action returns to the existing shell branch (loaded=$loaded)',
+      'own profile returns to the shell without a duplicate notification action (loaded=$loaded)',
       (tester) async {
         final repo = _Profiles();
         final pending = Completer<PagePayload>();
@@ -1521,7 +1521,8 @@ void main() {
             await tester.pump(const Duration(milliseconds: 100));
           }
         }
-        await tester.tap(find.byTooltip('通知'));
+        expect(find.byTooltip('通知'), findsNothing);
+        router.pop();
         await tester.pumpAndSettle();
         expect(router.state.uri.path, '/notifications');
         expect(router.canPop(), isFalse);
