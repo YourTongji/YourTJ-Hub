@@ -635,8 +635,11 @@ and sticker tokens are dropped; tokens inside code spans, code blocks, link targ
 their literal source, matching rendering. Topic list descriptions (`description`/`excerpt`) are
 image-capable: prose sticker tokens stay in the stored excerpt so cards and hover previews render
 resolvable names as images, while small-text surfaces (list rows, pinned strip, crawler/no-JS SSR
-list) show them as `[name]` text. Unknown, disabled and personal names are omitted in previews and
-truncation never splits a token; the text-only projections of the same value (meta/OG descriptions,
+list) show them as `[name]` text. Unknown and disabled names are omitted in previews, while
+personal `u_*` names render in Web/App client previews (the resolve API keys on the enabled state,
+matching the in-topic rendering) and are omitted only in crawler SSR pages, where public
+indexable HTML must not hotlink personal storage assets. Truncation never splits a token; the
+text-only projections of the same value (meta/OG descriptions,
 RSS, share cards, llms export, notification text) strip the tokens. Missing fields on
 older servers remain valid. Bookmark
 ordering and cursor semantics are unchanged; activity reply URLs include the post number when known.
