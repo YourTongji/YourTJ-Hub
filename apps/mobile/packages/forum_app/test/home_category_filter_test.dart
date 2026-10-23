@@ -237,6 +237,34 @@ ScrollPosition _position(WidgetTester tester) => tester
     .position;
 
 void main() {
+  testWidgets(
+    'wide discovery drops deleted topics without waiting for a fresh hot feed',
+    (tester) async {
+      final pages = _Pages();
+      await _mount(tester, pages, size: const Size(1120, 900));
+      final panel = find.byKey(const ValueKey('home-discovery-panel'));
+      final hot = find.descendant(of: panel, matching: find.text('All hot 0'));
+      expect(hot, findsOneWidget);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(HomePage)),
+      );
+      final calls = List<String>.of(pages.calls);
+      container.read(removedTopicsProvider.notifier).add(100);
+      await tester.pumpAndSettle();
+      expect(hot, findsNothing);
+      expect(
+        find.descendant(of: panel, matching: find.text('All hot 1')),
+        findsOneWidget,
+      );
+      expect(
+        pages.calls,
+        calls,
+        reason: 'the deletion fence applies to the cached hot response',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('feed toggle shows the destination layout glyph', (tester) async {
     await _mount(tester, _Pages());
     for (final (label, symbol) in [

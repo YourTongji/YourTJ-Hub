@@ -26,7 +26,7 @@ raised surface are derived from the active palette. Light floating surfaces use 
 surfaces use brighter fills and separators. Semantic labels derive a foreground with at least 4.5:1
 contrast on supported neutral surfaces; export cards retain their own theme-specific contrast rules.
 Destructive actions use the error role. `GfListSection` provides inset groups and aligned separators;
-custom settings leading widgets share the 24dp icon column. Source rationale is recorded in
+settings symbols share a 24dp icon column; custom avatars retain their intrinsic square dimensions. Source rationale is recorded in
 [0106](../decisions/0106-mobile-component-geometry-and-color-roles.md).
 
 `Current`: the standalone `ui_kit/example` gallery previews real components and synthetic screens in
@@ -119,7 +119,8 @@ with the 180 ms content motion. Loaded pages and scroll positions are independen
 requests are cancelled or ignored. Following/follower statistics open the matching lists.
 Device preferences are separate from account editing, account security and privacy. The settings
 directory and compact index share the same groups, with one profile editor and a separate combined
-badge editor. Custom setting-row artwork occupies the same 24-pixel slot as standard icons;
+badge editor. Standard setting-row icons use a 24-pixel slot; custom avatars and artwork preserve
+their dimensions, with a 24-pixel minimum column for smaller marks;
 destructive rows use error text and omit navigation chevrons. Appearance offers System,
 Light and Dark, and an already open choice sheet updates with the selected theme.
 

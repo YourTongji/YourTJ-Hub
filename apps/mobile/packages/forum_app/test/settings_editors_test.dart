@@ -80,6 +80,47 @@ void main() {
   SettingsUserPayload user() => SettingsUserPayload.fromJson(
     (settingsPayloadJson()['props'] as Map)['user'] as Map<String, dynamic>,
   );
+  testWidgets(
+    'valid long stored profile fields can be edited without truncation',
+    (tester) async {
+      final original = user().copyWith(
+        bio: List.filled(500, '简').join(),
+        signature: List.filled(255, '签').join(),
+      );
+      SettingsUserPayload? saved;
+      await openEditor(
+        tester,
+        ProfileEditPage(
+          user: original,
+          onSave: (value) async {
+            saved = value;
+          },
+        ),
+      );
+      final nickname = find.byKey(const ValueKey('profile-nickname'));
+      await tester.ensureVisible(nickname);
+      await tester.enterText(nickname, 'Updated nickname');
+      final bio = find.byKey(const ValueKey('profile-bio'));
+      await tester.ensureVisible(bio);
+      await tester.enterText(bio, '新${List.filled(499, '简').join()}');
+      await tester.pumpAndSettle();
+      final signature = find.byKey(const ValueKey('profile-signature'));
+      await tester.ensureVisible(signature);
+      await tester.enterText(signature, '新${List.filled(254, '签').join()}');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('profile-save')));
+      await tester.pumpAndSettle();
+      expect(
+        saved,
+        isNotNull,
+        reason: 'valid existing fields must not prevent saving another field',
+      );
+      expect(saved!.bio, '新${List.filled(499, '简').join()}');
+      expect(saved!.signature, '新${List.filled(254, '签').join()}');
+    },
+  );
+
   for (final language in ['zh', 'en', 'ja', 'de']) {
     for (final brightness in Brightness.values) {
       testWidgets('profile and links fit 320px 200% $language $brightness', (

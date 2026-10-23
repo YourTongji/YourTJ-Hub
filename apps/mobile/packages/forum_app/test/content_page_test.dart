@@ -74,6 +74,62 @@ class _RestoringContent extends ContentRepository {
 }
 
 void main() {
+  testWidgets(
+    'topic deletion does not hide server-visible replies from owned content',
+    (tester) async {
+      final repo = _Content(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemoryTokenStorage(),
+          baseUrl: 'https://example.test',
+        ),
+      );
+      repo.pending.complete(
+        const UserContentPage(
+          items: [
+            UserContentItem(
+              id: 200,
+              topicId: 100,
+              contentType: 'post',
+              title: 'Retained discussion reply',
+            ),
+            UserContentItem(
+              id: 100,
+              topicId: 999,
+              contentType: 'post',
+              title: 'Unrelated reply with colliding ID',
+            ),
+          ],
+          hasMore: false,
+          nextCursorId: 0,
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [contentRepositoryProvider.overrideWithValue(repo)],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ContentPage(initialType: 'post'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Retained discussion reply'), findsOneWidget);
+      container.read(removedTopicsProvider.notifier).add(100);
+      await tester.pumpAndSettle();
+      expect(find.text('Retained discussion reply'), findsOneWidget);
+      expect(find.text('Unrelated reply with colliding ID'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final kind in ['topic', 'post']) {
     for (final fail in [false, true]) {
       testWidgets(

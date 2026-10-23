@@ -124,6 +124,39 @@ Future<GoRouter> pumpLogin(
 }
 
 void main() {
+  for (final type in ['topic', 'post']) {
+    test(
+      'guest content management retains the $type filter through login',
+      () async {
+        final target = '/my-content?type=$type';
+        final redirect = await authNavigationRedirect(
+          requested: Uri.parse(target),
+          tokenStorage: MemoryTokenStorage(),
+        );
+        expect(Uri.parse(redirect!).queryParameters['returnTo'], target);
+        expect(safeAuthReturnTo(target), target);
+      },
+    );
+  }
+  test('content-management return rejects unsupported filters', () {
+    expect(safeAuthReturnTo('/my-content?type=unexpected'), isNull);
+  });
+  test(
+    'guest campus settings goes to login and retains its destination',
+    () async {
+      final redirect = await authNavigationRedirect(
+        requested: Uri.parse('/campus/settings'),
+        tokenStorage: MemoryTokenStorage(),
+      );
+      expect(redirect, isNotNull);
+      expect(Uri.parse(redirect!).path, '/login');
+      expect(
+        Uri.parse(redirect).queryParameters['returnTo'],
+        '/campus/settings',
+      );
+    },
+  );
+
   test('auth return preserves unified search scope and keyword', () {
     final result = safeAuthReturnTo('/search?scope=courses&q=math');
     expect(result, isNotNull);

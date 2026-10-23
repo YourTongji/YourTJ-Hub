@@ -45,7 +45,11 @@ class _ContentPageState extends ConsumerState<ContentPage> {
   void _removeTopics(Set<int> removed) {
     if (widget.deleted) return;
     _items.removeWhere((item) {
-      if (!removed.contains(item.topicId ?? item.id)) return false;
+      // Topic deletion can retain discussion replies; their server visibility
+      // is independent from the topic's local feed marker.
+      if (item.contentType != 'topic' || !removed.contains(item.id)) {
+        return false;
+      }
       _selected.remove(item.id);
       return true;
     });

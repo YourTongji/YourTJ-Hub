@@ -1206,7 +1206,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                     _ProfileBody(
                                       key: ValueKey(key),
                                       props: streamProps,
-                                      stickerLibrary: ref.watch(stickerLibraryProvider),
+                                      stickerLibrary: ref.watch(
+                                        stickerLibraryProvider,
+                                      ),
                                       selectedKey: key,
                                       onFollow: _toggleConnection,
                                       onReturn: _syncReturnedInteractions,
@@ -1668,6 +1670,7 @@ class _ProfileBody extends StatelessWidget {
     Set<int> removed,
   ) {
     bool visible(UserActivityPayload item) {
+      if (_activityKey(item)?.$1 == true) return true;
       final parts =
           Uri.tryParse(_activityRoute(item) ?? '')?.pathSegments ??
           const <String>[];
@@ -1827,31 +1830,32 @@ class _ProfileBody extends StatelessWidget {
     if (topics.isEmpty) {
       return _empty('file-text', l10n.profileEmptyTopics);
     }
-    SliverList build(Map<String, String> stickerUrlByName) => SliverList.builder(
-      itemCount: topics.length,
-      itemBuilder: (BuildContext context, int index) {
-        final topic = topics[index];
-        final key = (false, topic.id);
-        final known = topic.liked != null && topic.bookmarked != null;
-        final state = (
-          liked: topic.liked ?? false,
-          bookmarked: topic.bookmarked ?? false,
-          likeCount: topic.likeCount,
+    SliverList build(Map<String, String> stickerUrlByName) =>
+        SliverList.builder(
+          itemCount: topics.length,
+          itemBuilder: (BuildContext context, int index) {
+            final topic = topics[index];
+            final key = (false, topic.id);
+            final known = topic.liked != null && topic.bookmarked != null;
+            final state = (
+              liked: topic.liked ?? false,
+              bookmarked: topic.bookmarked ?? false,
+              likeCount: topic.likeCount,
+            );
+            return buildTopicFeedCard(
+              context,
+              topic,
+              stickerUrlByName: stickerUrlByName,
+              onReturn: onReturn,
+              onLike: known
+                  ? (target) => onInteraction(key, state, false, target)
+                  : null,
+              onBookmark: known
+                  ? (target) => onInteraction(key, state, true, target)
+                  : null,
+            );
+          },
         );
-        return buildTopicFeedCard(
-          context,
-          topic,
-          stickerUrlByName: stickerUrlByName,
-          onReturn: onReturn,
-          onLike: known
-              ? (target) => onInteraction(key, state, false, target)
-              : null,
-          onBookmark: known
-              ? (target) => onInteraction(key, state, true, target)
-              : null,
-        );
-      },
-    );
 
     final StickerLibrary? library = stickerLibrary;
     return library == null
@@ -1897,7 +1901,11 @@ class _ProfileBody extends StatelessWidget {
     Set<int> removed,
   ) {
     final bookmarks = props.bookmarks
-        .where((item) => !removed.contains(item.topicId))
+        .where(
+          (item) =>
+              (item.type.toLowerCase() == 'post' && item.postNo != 1) ||
+              !removed.contains(item.topicId),
+        )
         .toList();
     if (bookmarks.isEmpty) {
       return _empty('bookmark', l10n.profileEmptyBookmarks);

@@ -1064,6 +1064,11 @@ class _HomePageState extends ConsumerState<HomePage> {
     final l10n = AppLocalizations.of(context);
     final colors = GfTheme.colorsOf(context);
     final hot = _feeds['hot'];
+    final removed = ref.watch(removedTopicsProvider);
+    final hotTopics = (hot?.topics ?? const <TopicPayload>[])
+        .where((topic) => !removed.contains(topic.id))
+        .take(5)
+        .toList();
     return NotificationListener<ScrollNotification>(
       onNotification: (_) => true,
       child: SafeArea(
@@ -1137,13 +1142,13 @@ class _HomePageState extends ConsumerState<HomePage> {
                       message: resolveErrorMessage(l10n, hot.page.error!),
                       onRetry: () => _load(target: hot),
                     )
-                  else if (hot.topics.isEmpty)
+                  else if (hotTopics.isEmpty)
                     Padding(
                       padding: const EdgeInsets.all(16),
                       child: GfText(l10n.topicEmpty),
                     )
                   else
-                    for (final topic in hot.topics.take(5))
+                    for (final topic in hotTopics)
                       Semantics(
                         button: true,
                         child: InkWell(

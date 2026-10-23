@@ -16,10 +16,10 @@ import 'decoration_page.dart' show DecorationStrings;
 /// Where a newly picked avatar or cover comes from.
 enum ProfileImageSource { gallery, camera }
 
-/// Limits shared with the Web settings form and the `users` columns.
+/// Text capacities mirror the forum `users` columns (nickname/bio/signature/website_name).
 const int profileNicknameMaxLength = 64;
-const int profileBioMaxLength = 80;
-const int profileSignatureMaxLength = 40;
+const int profileBioMaxLength = 500;
+const int profileSignatureMaxLength = 255;
 const int profileWebsiteNameMaxLength = 64;
 
 /// The twelve built-in avatars served by the site.

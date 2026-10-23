@@ -96,7 +96,7 @@ class _SegmentedItem<T> extends StatelessWidget {
               onTap: onTap,
               customBorder: const StadiumBorder(),
               child: Container(
-                constraints: const BoxConstraints(minHeight: 38),
+                constraints: const BoxConstraints(minHeight: 48),
                 padding: const EdgeInsets.symmetric(
                   horizontal: GfSpace.md,
                   vertical: GfSpace.sm,

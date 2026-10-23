@@ -8,6 +8,40 @@ import 'package:ui_kit/ui_kit.dart';
 import '../helpers.dart';
 
 void main() {
+  testWidgets('every segmented option owns a 48px touch target', (
+    tester,
+  ) async {
+    String? selected;
+    await tester.pumpWidget(
+      gfApp(
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GfSegmented<String>(
+              segments: const [('First', 'a'), ('Second', 'b')],
+              selected: 'a',
+              onSelected: (value) => selected = value,
+            ),
+          ],
+        ),
+      ),
+    );
+    final targets = find.descendant(
+      of: find.byType(GfSegmented<String>),
+      matching: find.byType(InkWell),
+    );
+    expect(targets, findsNWidgets(2));
+    for (final element in targets.evaluate()) {
+      expect(
+        tester.getSize(find.byWidget(element.widget)).height,
+        greaterThanOrEqualTo(48),
+      );
+    }
+    await tester.tapAt(tester.getTopLeft(targets.last) + const Offset(12, 2));
+    await tester.pumpAndSettle();
+    expect(selected, 'b');
+  });
+
   testWidgets(
     'small icon visuals keep a 44px target and native keyboard action',
     (tester) async {

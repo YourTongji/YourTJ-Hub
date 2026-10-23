@@ -288,6 +288,115 @@ void _select(WidgetTester tester, String label) {
 }
 
 void main() {
+  testWidgets(
+    'topic deletion retains reply activities in surviving discussions',
+    (tester) async {
+      final pages = _Profiles()
+        ..configure = (_, props) {
+          props['activities'] = [
+            {
+              'id': 1,
+              'action': 2,
+              'subjectType': 'Topic',
+              'subjectId': 100,
+              'contentPreview': 'Removed topic activity',
+              'url': '/p/100',
+              'label': 'Topic',
+              'createdAt': '2026-01-01T00:00:00Z',
+            },
+            {
+              'id': 2,
+              'action': 5,
+              'subjectType': 'Post',
+              'subjectId': 200,
+              'contentPreview': 'Retained reply activity',
+              'url': '/p/100?postNo=2',
+              'label': 'Reply',
+              'createdAt': '2026-01-01T00:00:00Z',
+            },
+          ];
+        };
+      final container = await _pump(tester, pages);
+      await tester.scrollUntilVisible(
+        find.text('Retained reply activity'),
+        250,
+        scrollable: find
+            .descendant(
+              of: find.byType(CustomScrollView).first,
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Retained reply activity'), findsOneWidget);
+      container.read(removedTopicsProvider.notifier).add(100);
+      await tester.pumpAndSettle();
+      expect(find.text('Removed topic activity'), findsNothing);
+      expect(find.text('Retained reply activity'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'topic deletion retains reply bookmarks but hides its topic and opening post',
+    (tester) async {
+      final pages = _Profiles()
+        ..configure = (_, props) {
+          props['bookmarks'] = [
+            {
+              'id': 1,
+              'type': 'topic',
+              'topicId': 100,
+              'title': 'Removed topic bookmark',
+              'url': '/p/100',
+              'bookmarkedAt': '2026-01-01T00:00:00Z',
+            },
+            {
+              'id': 2,
+              'type': 'post',
+              'topicId': 100,
+              'postId': 199,
+              'postNo': 1,
+              'title': 'Removed opening post bookmark',
+              'url': '/p/100?postNo=1',
+              'bookmarkedAt': '2026-01-01T00:00:00Z',
+            },
+            {
+              'id': 3,
+              'type': 'post',
+              'topicId': 100,
+              'postId': 200,
+              'postNo': 2,
+              'title': 'Retained reply bookmark',
+              'url': '/p/100?postNo=2',
+              'bookmarkedAt': '2026-01-01T00:00:00Z',
+            },
+          ];
+        };
+      final container = await _pump(
+        tester,
+        pages,
+        home: const ProfilePage(userId: 1, initialStream: 'bookmarks'),
+      );
+      await tester.scrollUntilVisible(
+        find.text('Retained reply bookmark'),
+        250,
+        scrollable: find
+            .descendant(
+              of: find.byType(CustomScrollView).first,
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      container.read(removedTopicsProvider.notifier).add(100);
+      await tester.pumpAndSettle();
+      expect(find.text('Removed topic bookmark'), findsNothing);
+      expect(find.text('Removed opening post bookmark'), findsNothing);
+      expect(find.text('Retained reply bookmark'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('other profile actions use the overflow menu for blocking', (
     tester,
   ) async {

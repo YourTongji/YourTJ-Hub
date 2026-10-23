@@ -3,7 +3,26 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 void main() {
-  testWidgets('custom artwork keeps settings titles on the icon column', (
+  testWidgets('custom setting avatars preserve their square dimensions', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: gfThemeData(Brightness.light),
+        home: Scaffold(
+          body: GfSettingRow(
+            title: 'Identity',
+            leading: const GfAvatar(src: '', size: 40),
+            onTap: () {},
+          ),
+        ),
+      ),
+    );
+    expect(tester.getSize(find.byType(GfAvatar)), const Size(40, 40));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('small custom artwork keeps settings titles on the icon column', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -18,7 +37,7 @@ void main() {
               ),
               GfSettingRow(
                 title: 'Avatar',
-                leading: const SizedBox(width: 40, height: 40),
+                leading: const SizedBox(width: 20, height: 20),
                 onTap: () {},
               ),
             ],
