@@ -188,7 +188,6 @@ extension GfColorRoles on GfColors {
   /// Small status labels keep 4.5:1 contrast on the neutral surfaces that
   /// host them. Derive the foreground without altering shared palette tokens.
   Color toneOnSoft(GfTone value) {
-    if (value == GfTone.neutral) return textSecondary;
     final base = tone(value);
     final surfaces = [base100, base200, base300, surfaceRaised];
     for (var step = 0; step <= 20; step++) {

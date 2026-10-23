@@ -6,7 +6,7 @@ import 'package:ui_kit/ui_kit.dart';
 void main() {
   test('small semantic labels keep AA contrast on supported surfaces', () {
     for (final colors in [GfColors.light, GfColors.dark]) {
-      for (final tone in GfTone.values.where((t) => t != GfTone.neutral)) {
+      for (final tone in GfTone.values) {
         for (final surface in [
           colors.base100,
           colors.base200,
