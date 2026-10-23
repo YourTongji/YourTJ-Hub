@@ -1048,7 +1048,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get topicNewTopic => '新規トピック';
 
   @override
-  String get scheduleTitle => '時間割プランナー';
+  String get scheduleTitle => '履修プランナー';
 
   @override
   String get scheduleTabTimetable => 'プランのプレビュー';
@@ -1775,7 +1775,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authPasswordMismatch => '2つのパスワードが一致しません';
 
   @override
-  String get schedulerWebTitle => 'Webで時間割プランナーの全機能を使う';
+  String get schedulerWebTitle => 'Webで履修プランナーの全機能を使う';
 
   @override
   String get schedulerWebAction => 'f.yourtj.deを開く';
@@ -2482,13 +2482,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get campusToday => '今日';
 
   @override
-  String get campusTimetable => '時間割';
+  String get campusTimetable => '学校の時間割';
 
   @override
   String get campusAcademics => '学業記録';
 
   @override
-  String get campusMessages => '大学のお知らせ';
+  String get campusMessages => '学校のお知らせ';
 
   @override
   String get campusCalendars => '学年暦';
@@ -4021,4 +4021,21 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get previewStatusLink => 'プレビュー状況';
+
+  @override
+  String get campusSettings => 'キャンパス設定';
+
+  @override
+  String get scheduleStatusHelp => 'プランの状態とヘルプ';
+
+  @override
+  String get courseAddToPlanner => '履修プランナーに追加';
+
+  @override
+  String get coursePlannerSelectTerm =>
+      '同じ学期と専攻を選択してからクラスを確認してください。既存プランは自動変更されません。';
+
+  @override
+  String get coursePlannerUnavailable =>
+      'この学期のクラスは利用できません。講義詳細から別の開講記録を選択してください。';
 }

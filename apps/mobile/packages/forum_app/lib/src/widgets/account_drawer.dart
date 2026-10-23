@@ -519,7 +519,7 @@ class AccountDrawer extends ConsumerWidget {
               entry('archive', l10n.accountContent, '/my-content'),
               entry('trash-2', l10n.profileTrash, '/recycle-bin'),
               entry(
-                'graduation-cap',
+                'book-open',
                 l10n.myCourseReviewsTitle,
                 '/my-course-reviews',
               ),
@@ -529,7 +529,7 @@ class AccountDrawer extends ConsumerWidget {
                 entry('shield-check', l10n.profileModeration, '/moderation'),
               if (viewer.canManageCourses) ...[
                 entry(
-                  'graduation-cap',
+                  'book-open',
                   l10n.coursesManagement,
                   '/moderation/courses',
                 ),

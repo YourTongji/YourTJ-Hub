@@ -148,13 +148,11 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(FloatingActionButton), findsNothing);
-    await tester.tap(find.byTooltip('探索校园'));
-    await tester.pumpAndSettle();
-    expect(appRouter.state.uri.path, '/campus/explore');
-    expect(find.text(AppLocalizationsZh().campusCoursesTitle), findsOneWidget);
-    appRouter.pop();
+    expect(find.byTooltip('探索校园'), findsNothing);
+    appRouter.go('/campus/explore');
     await tester.pumpAndSettle();
     expect(appRouter.state.uri.path, '/campus');
+    expect(find.text(AppLocalizationsZh().campusCoursesTitle), findsOneWidget);
 
     // Search remains a global browsing destination, reachable from home.
     appRouter.go('/');

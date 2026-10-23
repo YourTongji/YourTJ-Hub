@@ -1065,7 +1065,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get topicNewTopic => 'New topic';
 
   @override
-  String get scheduleTitle => 'Scheduler';
+  String get scheduleTitle => 'Course planner';
 
   @override
   String get scheduleTabTimetable => 'Plan preview';
@@ -1811,7 +1811,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authPasswordMismatch => 'The passwords do not match';
 
   @override
-  String get schedulerWebTitle => 'Explore the full scheduler on the Web';
+  String get schedulerWebTitle => 'Explore the full course planner on the Web';
 
   @override
   String get schedulerWebAction => 'Open f.yourtj.de';
@@ -2557,13 +2557,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get campusToday => 'Today';
 
   @override
-  String get campusTimetable => 'My timetable';
+  String get campusTimetable => 'School timetable';
 
   @override
   String get campusAcademics => 'Academic records';
 
   @override
-  String get campusMessages => 'Campus notices';
+  String get campusMessages => 'School notices';
 
   @override
   String get campusCalendars => 'Calendars';
@@ -4174,4 +4174,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get previewStatusLink => 'Preview status';
+
+  @override
+  String get campusSettings => 'Campus settings';
+
+  @override
+  String get scheduleStatusHelp => 'Plan status and help';
+
+  @override
+  String get courseAddToPlanner => 'Add to course planner';
+
+  @override
+  String get coursePlannerSelectTerm =>
+      'Select the same term and your major before confirming the class. Existing plans stay unchanged.';
+
+  @override
+  String get coursePlannerUnavailable =>
+      'This class is unavailable for the term. Choose another offering from course details.';
 }

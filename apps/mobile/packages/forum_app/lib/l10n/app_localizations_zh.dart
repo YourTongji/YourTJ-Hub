@@ -1046,7 +1046,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get topicNewTopic => '新建话题';
 
   @override
-  String get scheduleTitle => '排课器';
+  String get scheduleTitle => '选课排课';
 
   @override
   String get scheduleTabTimetable => '方案预览';
@@ -1771,7 +1771,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authPasswordMismatch => '两次输入的密码不一致';
 
   @override
-  String get schedulerWebTitle => '完整版排课器，请到网页端体验';
+  String get schedulerWebTitle => '在网页端体验完整选课排课';
 
   @override
   String get schedulerWebAction => '前往 f.yourtj.de';
@@ -2467,13 +2467,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get campusToday => '今天';
 
   @override
-  String get campusTimetable => '我的课表';
+  String get campusTimetable => '学校课表';
 
   @override
   String get campusAcademics => '学业记录';
 
   @override
-  String get campusMessages => '校园消息';
+  String get campusMessages => '学校通知';
 
   @override
   String get campusCalendars => '校历';
@@ -3971,4 +3971,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get previewStatusLink => '预发状态';
+
+  @override
+  String get campusSettings => '校园设置';
+
+  @override
+  String get scheduleStatusHelp => '方案状态与帮助';
+
+  @override
+  String get courseAddToPlanner => '添加到选课排课';
+
+  @override
+  String get coursePlannerSelectTerm => '请先选择相同学期和专业，再确认教学班；现有方案不会自动更改。';
+
+  @override
+  String get coursePlannerUnavailable => '这个学期的教学班不可用，请返回课程详情选择其他开课记录。';
 }

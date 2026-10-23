@@ -7,6 +7,7 @@
 // - 页面层：SchedulePage 在 fake repository + 预置 store 下渲染课程卡与统计；
 //   周次过滤隐藏非匹配课程。
 import 'dart:convert';
+import 'package:go_router/go_router.dart';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -40,6 +41,7 @@ class MemoryTokenStorage implements TokenStorage {
 
 /// Fake PK repository：只喂 fixture，不发真实网络。
 class FakePkRepository extends PkRepository {
+  PkReviewBrief? reviewBrief;
   FakePkRepository(super.client);
 
   static const List<PkCalendarItem> calendarsFixture = <PkCalendarItem>[
@@ -146,14 +148,16 @@ class FakePkRepository extends PkRepository {
     String? teacherName,
     int? calendarId,
     int? teachingClassId,
-  }) async => PkReviewBrief(
-    courseId: 0,
-    courseCode: courseCode,
-    courseName: '',
-    teacherName: '',
-    reviewCount: 0,
-    classes: const <PkReviewBriefClass>[],
-  );
+  }) async =>
+      reviewBrief ??
+      PkReviewBrief(
+        courseId: 0,
+        courseCode: courseCode,
+        courseName: '',
+        teacherName: '',
+        reviewCount: 0,
+        classes: const <PkReviewBriefClass>[],
+      );
 }
 
 // ---- fixture helpers ----
@@ -297,6 +301,7 @@ Widget wrapApp(
   ProviderContainer container, {
   double textScale = 1,
   Brightness brightness = Brightness.light,
+  Widget page = const SchedulePage(),
 }) {
   return UncontrolledProviderScope(
     container: container,
@@ -311,7 +316,7 @@ Widget wrapApp(
         ).copyWith(textScaler: TextScaler.linear(textScale)),
         child: child!,
       ),
-      home: const SchedulePage(),
+      home: page,
     ),
   );
 }
@@ -600,6 +605,223 @@ void main() {
   });
 
   group('SchedulePage', () {
+    testWidgets(
+      'offering handoff preserves plans until exact class confirmation',
+      (tester) async {
+        SharedPreferences.setMockInitialValues(<String, Object>{});
+        final notifier = await seededNotifier();
+        notifier.setMajorSelection(
+          PkMajorSelection(calendarId: 119, grade: 2025, major: 'm1'),
+        );
+        notifier.selectClass(detail('X.01'), '已有课程');
+        final repo = FakePkRepository(
+          GfApiClient(
+            dio: Dio(),
+            tokenStorage: MemoryTokenStorage(),
+            baseUrl: 'https://forum.example',
+          ),
+        );
+        final calls = <String>[];
+        repo.onCourseDetails = (code) {
+          calls.add(code);
+          return [];
+        };
+        final container = makeContainer(notifier, repository: repo);
+        addTearDown(container.dispose);
+        final before = notifier.activePlan.toJson();
+        await tester.pumpWidget(
+          wrapApp(
+            container,
+            page: const SchedulePage(
+              courseCode: '100001',
+              classCode: '10000101',
+              termCode: '2025-2026-1',
+              courseName: '交接课程',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(calls, isEmpty);
+        expect(notifier.activePlan.toJson(), before);
+        await tester.tap(find.text('添加到选课排课'));
+        await tester.pumpAndSettle();
+        expect(calls, ['100001']);
+        expect(notifier.activePlan.toJson(), before);
+        expect(find.textContaining('教学班不可用'), findsOneWidget);
+      },
+    );
+
+    testWidgets('handoff adds only the requested class after confirmation', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final notifier = await seededNotifier();
+      notifier.setMajorSelection(
+        PkMajorSelection(calendarId: 119, grade: 2025, major: 'm1'),
+      );
+      final repo = FakePkRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemoryTokenStorage(),
+          baseUrl: 'https://forum.example',
+        ),
+      );
+      repo.onCourseDetails = (_) => [
+        PkCourseDetailBrief.fromJson({
+          'code': '10000101',
+          'campus': '四平',
+          'teachers': [],
+          'arrangementInfo': [
+            {
+              'occupyDay': 1,
+              'occupyTime': [1, 2],
+              'occupyWeek': [1],
+              'occupyRoom': 'A101',
+            },
+          ],
+        }),
+        PkCourseDetailBrief.fromJson({
+          'code': '10000102',
+          'campus': '嘉定',
+          'teachers': [],
+          'arrangementInfo': [],
+        }),
+      ];
+      final container = makeContainer(notifier, repository: repo);
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        wrapApp(
+          container,
+          page: const SchedulePage(
+            courseCode: '100001',
+            classCode: '10000101',
+            termCode: '2025-2026-1',
+            courseName: '交接课程',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('添加到选课排课'));
+      await tester.pumpAndSettle();
+      expect(notifier.activePlan.selectedCourses, isEmpty);
+      expect(find.text('10000102'), findsNothing);
+      await tester.tap(find.text('10000101'));
+      await tester.pumpAndSettle();
+      expect(notifier.activePlan.selectedCourses, ['10000101']);
+      container.read(offlineCacheEpochProvider.notifier).state++;
+      await tester.pumpAndSettle();
+      expect(find.text('10000101'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('planner course opens catalog offering even without reviews', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final notifier = await seededNotifier();
+      final repo = FakePkRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemoryTokenStorage(),
+          baseUrl: 'https://forum.example',
+        ),
+      );
+      repo.reviewBrief = const PkReviewBrief(
+        courseId: 42,
+        courseCode: 'X',
+        courseName: '高等数学',
+        teacherName: '',
+        reviewCount: 0,
+        classes: [
+          PkReviewBriefClass(
+            classCode: 'X.01',
+            offeringId: 901,
+            teachers: [],
+            reviewCount: 0,
+          ),
+        ],
+      );
+      final container = makeContainer(notifier, repository: repo);
+      addTearDown(container.dispose);
+      final router = GoRouter(
+        initialLocation: '/schedule',
+        routes: [
+          GoRoute(path: '/schedule', builder: (_, _) => const SchedulePage()),
+          GoRoute(
+            path: '/courses/:id',
+            builder: (_, state) => Text(
+              'catalog:${state.pathParameters['id']}:${state.uri.queryParameters['offeringId']}',
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            routerConfig: router,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('zh'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('方案预览'));
+      await tester.tap(find.text('方案预览'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('高等数学'));
+      await tester.tap(find.text('高等数学'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('planner-course-details-link')));
+      await tester.pumpAndSettle();
+      expect(find.text('catalog:42:901'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('cross-term offering cannot fetch or mutate the current plan', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final notifier = await seededNotifier();
+      notifier.setMajorSelection(
+        PkMajorSelection(calendarId: 119, grade: 2025, major: 'm1'),
+      );
+      notifier.selectClass(detail('X.01'), '已有课程');
+      final repo = FakePkRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemoryTokenStorage(),
+          baseUrl: 'https://forum.example',
+        ),
+      );
+      var calls = 0;
+      repo.onCourseDetails = (_) {
+        calls++;
+        return [];
+      };
+      final container = makeContainer(notifier, repository: repo);
+      addTearDown(container.dispose);
+      final before = notifier.activePlan.toJson();
+      await tester.pumpWidget(
+        wrapApp(
+          container,
+          page: const SchedulePage(
+            courseCode: '100001',
+            classCode: '10000101',
+            termCode: '2024-2025-1',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('添加到选课排课'));
+      await tester.pumpAndSettle();
+      expect(calls, 0);
+      expect(notifier.activePlan.toJson(), before);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('渲染课程格 + 统计', (tester) async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final ScheduleStoreNotifier notifier = await seededNotifier();
@@ -609,7 +831,8 @@ void main() {
 
       await tester.pumpWidget(wrapApp(container));
       await tester.pumpAndSettle();
-      expect(find.text('网页版'), findsOneWidget);
+      expect(find.text('方案状态与帮助'), findsOneWidget);
+      expect(find.text('网页版'), findsNothing);
       await tester.ensureVisible(find.text('方案预览'));
       await tester.tap(find.text('方案预览'));
       await tester.pumpAndSettle();
@@ -635,7 +858,8 @@ void main() {
 
       await tester.pumpWidget(wrapApp(container));
       await tester.pumpAndSettle();
-      expect(find.text('网页版'), findsOneWidget);
+      expect(find.text('方案状态与帮助'), findsOneWidget);
+      expect(find.text('网页版'), findsNothing);
       await tester.ensureVisible(find.text('方案预览'));
       await tester.tap(find.text('方案预览'));
       await tester.pumpAndSettle();
@@ -669,7 +893,8 @@ void main() {
 
       await tester.pumpWidget(wrapApp(container));
       await tester.pumpAndSettle();
-      expect(find.text('网页版'), findsOneWidget);
+      expect(find.text('方案状态与帮助'), findsOneWidget);
+      expect(find.text('网页版'), findsNothing);
       await tester.ensureVisible(find.text('方案预览'));
       await tester.tap(find.text('方案预览'));
       await tester.pumpAndSettle();
@@ -698,8 +923,8 @@ void main() {
             widget is RepaintBoundary && widget.child is ScheduleTimeGrid,
       );
       expect(boundaryFinder, findsOneWidget);
-      final RenderRepaintBoundary boundary =
-          tester.renderObject<RenderRepaintBoundary>(boundaryFinder);
+      final RenderRepaintBoundary boundary = tester
+          .renderObject<RenderRepaintBoundary>(boundaryFinder);
       expect(boundary.debugNeedsPaint, isFalse);
 
       // 通知栏/分屏覆盖→返回：恢复前台必须弄脏导出边界，强制重新栅格化课表

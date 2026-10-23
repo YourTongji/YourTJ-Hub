@@ -635,7 +635,7 @@ class _ElsewhereShortcuts extends StatelessWidget {
         children: <Widget>[
           Expanded(
             child: _ElsewhereTile(
-              symbol: 'graduation-cap',
+              symbol: 'book-open',
               tone: colors.primary,
               label: l10n.searchCourses,
               compact: compact,
@@ -848,7 +848,7 @@ class _Suggestions extends StatelessWidget {
           onTap: onSearch,
         ),
         _SuggestionRow(
-          symbol: 'graduation-cap',
+          symbol: 'book-open',
           label: l10n.searchCoursesFor(query),
           onTap: onCourses,
         ),

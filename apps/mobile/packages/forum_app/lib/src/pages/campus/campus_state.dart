@@ -622,28 +622,38 @@ class CampusController extends StateNotifier<CampusViewState> {
 }
 
 final campusControllerProvider =
-    StateNotifierProvider.autoDispose<CampusController, CampusViewState>((ref) {
-      ref.watch(offlineCacheEpochProvider);
-      final controller = CampusController(
-        ref.watch(campusRepositoryProvider),
-        cache: ref.watch(campusMemoryCacheProvider),
-        persistentStore: ref.watch(campusSnapshotStoreProvider),
-        widgetBridge: ref.watch(scheduleWidgetBridgeProvider),
-        scope: switch (ref.watch(currentUserProvider).valueOrNull?.id) {
-          final int accountId => CampusCacheScope(
-            site: Uri.parse(
-              AppConfig.apiBaseUrl.isNotEmpty
-                  ? AppConfig.apiBaseUrl
-                  : GfApiClient.defaultBaseUrl,
-            ).origin,
-            accountId: accountId,
-          ),
-          _ => null,
-        },
-      )..refresh(reuseCache: true);
-      ref.listen(campusCacheEpochProvider, (_, _) => controller.discardLocal());
-      return controller;
-    });
+    StateNotifierProvider.autoDispose<CampusController, CampusViewState>(
+      (ref) => createCampusController(ref),
+    );
+
+/// Each private route owns a disposable request fence; identity/cache stores
+/// remain shared so unbind and clear actions invalidate the same projections.
+CampusController createCampusController(
+  Ref ref, {
+  String initialTab = 'today',
+}) {
+  ref.watch(offlineCacheEpochProvider);
+  final controller = CampusController(
+    ref.watch(campusRepositoryProvider),
+    cache: ref.watch(campusMemoryCacheProvider),
+    persistentStore: ref.watch(campusSnapshotStoreProvider),
+    widgetBridge: ref.watch(scheduleWidgetBridgeProvider),
+    scope: switch (ref.watch(currentUserProvider).valueOrNull?.id) {
+      final int accountId => CampusCacheScope(
+        site: Uri.parse(
+          AppConfig.apiBaseUrl.isNotEmpty
+              ? AppConfig.apiBaseUrl
+              : GfApiClient.defaultBaseUrl,
+        ).origin,
+        accountId: accountId,
+      ),
+      _ => null,
+    },
+  )..tab = initialTab;
+  unawaited(controller.refresh(reuseCache: true));
+  ref.listen(campusCacheEpochProvider, (_, _) => controller.discardLocal());
+  return controller;
+}
 
 // A 403 can reject an operation (CSRF/email verification) without invalidating
 // the session or school binding. Only explicit identity failures clear all data.
