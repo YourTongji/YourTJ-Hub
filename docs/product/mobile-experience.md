@@ -677,31 +677,33 @@ iPad; see [0100](../decisions/0100-material-interaction-surfaces-on-ios.md).
 ## Publishing
 
 `Current`: opening a publishing field or moving its caret alone does not create unsaved work.
-While the software keyboard is visible, the edit step hides its type switcher and empty photo
-strip, retaining the title, body, save status and writing row. Title focus and controller
-identity survive this layout change. The header keeps a small outer margin for its primary action.
+While the software keyboard is visible, the edit step hides its empty photo strip, retaining the
+title, body, save status and writing row. Title focus and controller identity survive this layout
+change. The header keeps a small outer margin for its primary action.
 
 
-- `Current`: new topics choose moment, question or article from a segmented switcher above the
-  fields; its raised pill slides to the chosen type. The switcher hides while the keyboard is open,
-  and the app bar then names the type. A hairline under the app bar shows the two-step position
-  (half while writing, full on preview) and announces the step. The body placeholder carries the
+- `Current`: a new topic's type (moment, question or article) is chosen only in the compose menu,
+  which both the home FAB and the drafts page's new-composition action open; the publishing page
+  has no type switcher, so a composition keeps its type once opened. The app bar names that type
+  throughout the edit step, keyboard open or not, and shows Preview on the preview step. Topic edits
+  and restored drafts keep their stored type, and `/publish` without a type opens a moment. A
+  hairline under the app bar shows the two-step position (half while writing, full on preview) and
+  announces the step. The body placeholder carries the
   type's writing hint. Moments lead with photos: with none yet, a full-width card with the
   type-coloured gallery symbol, a prompt and the nine-photo/reorder hint; with photos, a square strip
   (long-press reordering, a remove control per photo) ending in a gallery tile with the n/9 count.
   Questions attach photos after the body. Every type shows its title field; the moment title
   placeholder says it may stay empty, and opening the field alone does not create unsaved work. A
   hairline below the title takes the accent while it is focused, with the length counter shown only
-  then. Existing titles remain visible in topic edits and restored drafts, and type switches retain
-  title input. Moment previews show only a manually entered title, while title-free
-  publishing/server drafts use the existing body-derived API summary. The local save status leads
-  with a small clock, check, history or alert mark.
+  then. Existing titles remain visible in topic edits and restored drafts. Moment previews show only
+  a manually entered title, while title-free publishing/server drafts use the existing body-derived
+  API summary. The local save status leads with a small clock, check, history or alert mark.
 - `Current`: the preview step reads as the finished post: a card headed by the type's symbol and
   label rises in, followed by one settings group whose rows lead with their own symbols. Category is
   a dropdown the width of its row; each category leads with a soft colour swatch and a picked one is
   tinted with a check. As in Web's quick composer, moments and questions take one category and the
-  menu closes on pick; articles take up to three with the menu staying open and a count. Switching
-  an article to a short type keeps its first category. The row lists the picks as small pills.
+  menu closes on pick; articles take up to three with the menu staying open and a count. The row
+  lists the picks as small pills.
   Publishing identity and the bot-reply switch follow. Save draft is an app-bar icon in both steps.
 - `Current`: an article preview with two or more body images adds an image-order card above the
   settings: numbered thumbnails in reading order that long-press dragging reorders. The move swaps
@@ -719,7 +721,7 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: photo uploads never block writing. Typing, stickers and further photo picks continue
   while earlier photos upload in order. Each article photo lands where the caret was when it was
   picked, following later edits; a compact thumbnail tray above the writing row shows progress,
-  retry and removal. Save, publish, type switching and leaving still wait for pending photos.
+  retry and removal. Save, publish and leaving still wait for pending photos.
 - `Current`: the article editor follows the caret through the page while typing. The editor body
   itself does not scroll; once the caret line reaches the bottom of the visible page the page
   scrolls it back into view with a small margin, and opening the software keyboard re-reveals the
@@ -770,12 +772,10 @@ identity survive this layout change. The header keeps a small outer margin for i
   on return. Rich-text
   formatting remains available while editing.
 
-- `Current`: the type selector keeps Web's moment/question/article values. Moments and questions
+- `Current`: the compose menu keeps Web's moment/question/article values. Moments and questions
   use a simple gallery plus text; articles use an inline rich editor backed by Markdown. Article
   formatting tools are folded by default. Existing topics retain their type when edited.
-- `Current`: simple galleries support up to nine uploaded images, reordering and removal. Images
-  survive switching to the article editor. Switching back extracts images into the gallery and
-  plain text into the body; conversion is rejected when more than nine images would be lost.
+- `Current`: simple galleries support up to nine uploaded images, reordering and removal.
 - `Current`: article body images support long-press dragging to any
   paragraph: the image lands below the paragraph it is dropped on, the move
   is a single undo step, and long document drags auto-scroll at the editor
@@ -785,7 +785,7 @@ identity survive this layout change. The header keeps a small outer margin for i
   for retry or removal, and ignores the result of a removed photo. Successful URLs are immediately
   included in local recovery; gallery ordering/removal and article insertion positions remain part
   of the draft. Article insertions track intervening text edits at the original selection.
-  Pending photos visibly block leaving, manual draft submission, publishing and type changes.
+  Pending photos visibly block leaving, manual draft submission and publishing.
   Temporary picker files are retained only for the current editor: app termination requires selecting
   unuploaded photos again, and the UI distinguishes this from saved text and uploaded photos.
   Backgrounding starts no further queued upload; an already-started request may finish. Resuming
@@ -805,9 +805,8 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: changed editors debounce local recovery saves by 700 ms and flush when leaving or
   the app becomes inactive. Title, Markdown/simple text, type, category IDs and uploaded image URLs
   survive reopening, including when the page metadata request fails. Save progress, success and
-  retryable storage failure are visible. Each new composition has an independent identity;
-  changing its content type keeps that identity. Cloud-draft edits, published-topic edits and replies
-  use distinct identities. Earlier v1 recovery slots remain listed and can be explicitly reopened.
+  retryable storage failure are visible. Each new composition has an independent identity.
+  Cloud-draft edits, published-topic edits and replies use distinct identities. Earlier v1 recovery slots remain listed and can be explicitly reopened.
   Opening a cloud draft by its server ID while offline also finds its latest device recovery copy,
   before the server can confirm whether the topic is published or still a draft.
   Starting another composition never replaces a previous one. A restored editor still obtains current

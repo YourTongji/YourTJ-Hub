@@ -2961,7 +2961,7 @@ abstract class AppLocalizations {
   /// No description provided for @publishGalleryTooMany.
   ///
   /// In en, this message translates to:
-  /// **'Content supports up to 9 images. Remove some images or continue with the article editor.'**
+  /// **'Up to 9 images are supported. Use fewer images and try again.'**
   String get publishGalleryTooMany;
 
   /// No description provided for @profileActivity.

@@ -1583,7 +1583,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get publishGalleryTooMany =>
-      'Content supports up to 9 images. Remove some images or continue with the article editor.';
+      'Up to 9 images are supported. Use fewer images and try again.';
 
   @override
   String get profileActivity => 'Activity';

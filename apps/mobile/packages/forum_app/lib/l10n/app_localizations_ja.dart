@@ -1553,7 +1553,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get adminDownloadFailed => 'エクスポートをダウンロードできませんでした。再試行してください。';
 
   @override
-  String get publishGalleryTooMany => '画像は最大9枚です。一部を削除するか、記事エディターを使用してください。';
+  String get publishGalleryTooMany => '画像は最大9枚です。枚数を減らしてもう一度お試しください。';
 
   @override
   String get profileActivity => 'アクティビティ';

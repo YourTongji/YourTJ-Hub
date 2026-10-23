@@ -507,7 +507,7 @@
   "commonConfirm": "Bestätigen",
   "adminUnavailable": "Die Verwaltung ist nicht verfügbar. Bitte Berechtigungen, Sitzung und Verbindung prüfen und erneut versuchen.",
   "adminDownloadFailed": "Export konnte nicht heruntergeladen werden. Bitte erneut versuchen.",
-  "publishGalleryTooMany": "Bis zu 9 Bilder sind möglich. Entferne Bilder oder verwende den Artikeleditor.",
+  "publishGalleryTooMany": "Bis zu 9 Bilder sind möglich. Verwende weniger Bilder und versuche es erneut.",
   "profileActivity": "Aktivität",
   "profileBookmarks": "Favoriten",
   "profileModeration": "Moderation",
