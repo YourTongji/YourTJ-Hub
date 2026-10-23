@@ -152,8 +152,14 @@ class _ProfilePrivacyPageState extends ConsumerState<ProfilePrivacyPage> {
       });
     });
     final state = ref.watch(profilePrivacySettingsProvider);
+    final colors = GfTheme.colorsOf(context);
     return Scaffold(
-      appBar: GfAppBar(title: Text(l10n.profilePrivacyTitle)),
+      backgroundColor: colors.canvasGrouped,
+      appBar: GfAppBar(
+        title: Text(l10n.profilePrivacyTitle),
+        backgroundColor: colors.canvasGrouped,
+        showDivider: false,
+      ),
       body: SafeArea(
         top: false,
         child: state.when(
@@ -186,133 +192,91 @@ class _ProfilePrivacyPageState extends ConsumerState<ProfilePrivacyPage> {
   ) {
     final colors = GfTheme.colorsOf(context);
     final type = GfTheme.typographyOf(context);
-    final muted = type.caption.copyWith(
-      color: colors.baseContent.withValues(alpha: .65),
-    );
+    final muted = type.caption.copyWith(color: colors.textSecondary);
     final keys = profilePrivacyAudiences.keys.toList();
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(top: GfSpace.xs, bottom: GfSpace.xxxl),
       children: [
         Padding(
-          padding: const EdgeInsetsDirectional.only(start: 4, bottom: 12),
+          padding: const EdgeInsets.fromLTRB(
+            GfSpace.gutter + GfSpace.lg,
+            0,
+            GfSpace.gutter + GfSpace.lg,
+            GfSpace.md,
+          ),
           child: Text(l10n.profilePrivacyDescription, style: muted),
         ),
-        Material(
-          color: colors.base100,
-          borderRadius: BorderRadius.circular(16),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
-              for (final key in keys) ...[
-                if (key != keys.first) const GfDivider(),
-                Semantics(
-                  value: profilePrivacyAudienceLabel(
-                    l10n,
-                    settings.audienceOf(key),
-                  ),
-                  child: GfSettingRow(
-                    key: ValueKey('profile-privacy-row-$key'),
-                    title: profilePrivacySectionLabel(l10n, key),
-                    description: _sectionDescription(l10n, key),
-                    trailing: _saving == key
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 120,
-                                ),
-                                child: Text(
-                                  profilePrivacyAudienceLabel(
-                                    l10n,
-                                    settings.audienceOf(key),
-                                  ),
-                                  textAlign: TextAlign.end,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: type.small.copyWith(
-                                    color: colors.baseContent.withValues(
-                                      alpha: .7,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              GfSymbol(
-                                'chevron-right',
-                                size: 18,
-                                color: colors.iconMuted,
-                              ),
-                            ],
-                          ),
-                    onTap: _saving == null
-                        ? () => _choose(settings, key)
-                        : null,
-                  ),
-                ),
-              ],
-              // Bookmarks have no audience to choose: always only the owner.
-              // A fixed row keeps that from reading as public by omission.
-              const GfDivider(),
+        GfListSection(
+          footer: l10n.profilePrivacyScope,
+          children: [
+            for (final key in keys)
               Semantics(
-                value: l10n.profilePrivacySelf,
+                value: profilePrivacyAudienceLabel(
+                  l10n,
+                  settings.audienceOf(key),
+                ),
                 child: GfSettingRow(
-                  key: const ValueKey('profile-privacy-row-bookmarks'),
-                  title: l10n.profileBookmarks,
-                  description: l10n.profilePrivacyBookmarksDescription,
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        l10n.profilePrivacySelf,
-                        style: type.small.copyWith(
-                          color: colors.baseContent.withValues(alpha: .7),
+                  key: ValueKey('profile-privacy-row-$key'),
+                  title: profilePrivacySectionLabel(l10n, key),
+                  description: _sectionDescription(l10n, key),
+                  value: _saving == key
+                      ? null
+                      : profilePrivacyAudienceLabel(
+                          l10n,
+                          settings.audienceOf(key),
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      // The chevron's slot, so the label lines up with the
-                      // editable rows above.
-                      SizedBox.square(
-                        dimension: 18,
-                        child: GfSymbol(
-                          'lock-filled',
-                          size: 14,
-                          color: colors.iconMuted,
-                        ),
-                      ),
-                    ],
-                  ),
+                  trailing: _saving == key
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: GfProgressIndicator(strokeWidth: 2),
+                        )
+                      : null,
+                  onTap: _saving == null ? () => _choose(settings, key) : null,
                 ),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsetsDirectional.symmetric(horizontal: 4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 1),
-                child: GfSymbol('info', size: 16, color: colors.iconMuted),
+            // Bookmarks have no audience to choose: always only the owner.
+            // A fixed row keeps that from reading as public by omission.
+            Semantics(
+              value: l10n.profilePrivacySelf,
+              child: GfSettingRow(
+                key: const ValueKey('profile-privacy-row-bookmarks'),
+                title: l10n.profileBookmarks,
+                description: l10n.profilePrivacyBookmarksDescription,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      l10n.profilePrivacySelf,
+                      style: type.body.copyWith(color: colors.textSecondary),
+                    ),
+                    const SizedBox(width: GfSpace.xs),
+                    // The chevron's slot, so the label lines up with the
+                    // editable rows above.
+                    SizedBox.square(
+                      dimension: GfIconSize.sm,
+                      child: GfSymbol(
+                        'lock-filled',
+                        size: 14,
+                        color: colors.textPlaceholder,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 8),
-              Expanded(child: Text(l10n.profilePrivacyScope, style: muted)),
-            ],
-          ),
+            ),
+          ],
         ),
-        const SizedBox(height: 16),
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: TextButton(
-            key: const ValueKey('profile-privacy-view-profile'),
-            onPressed: () => context.go('/profile'),
-            child: Text(l10n.profilePrivacyViewProfile),
+        const SizedBox(height: GfSpace.lg),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: GfSpace.gutter),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: GfButton(
+              key: const ValueKey('profile-privacy-view-profile'),
+              label: l10n.profilePrivacyViewProfile,
+              variant: GfButtonVariant.ghost,
+              onPressed: () => context.go('/profile'),
+            ),
           ),
         ),
       ],

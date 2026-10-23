@@ -1,8 +1,22 @@
 import 'package:flutter/material.dart';
 
-/// Mobile typography using the Web design system's hierarchy and weights.
-/// Body and secondary text are enlarged for handheld reading; tighter leading
-/// keeps feeds compact without shrinking the text or overriding system scaling.
+/// Mobile type ramp. Twelve roles on fixed line heights replace ad-hoc sizes:
+/// every UI string picks a role, and only weight or colour may vary on top.
+///
+/// | role       | size/line | weight | use                                   |
+/// |------------|-----------|--------|---------------------------------------|
+/// | display    | 28/36     | 700    | profile names, hero titles            |
+/// | title1     | 22/30     | 700    | page titles in content                |
+/// | title2     | 20/28     | 600    | dialog, sheet and empty-state titles  |
+/// | title3     | 17/24     | 600    | navigation titles, card titles        |
+/// | heading    | 16/24     | 600    | row titles, section headings          |
+/// | body       | 16/24     | 400    | fields, rows, messages                |
+/// | bodyStrong | 16/24     | 600    | emphasized body, author names         |
+/// | small      | 15/22     | 400    | excerpts, descriptions                |
+/// | subhead    | 14/20     | 400    | row subtitles, compact buttons        |
+/// | caption    | 13/18     | 400    | metadata, timestamps, helper text     |
+/// | meta       | 12/16     | 500    | badges, chips, tags                   |
+/// | label      | 11/14     | 600    | counters, overlines                   |
 @immutable
 class GfTypography extends ThemeExtension<GfTypography> {
   const GfTypography({
@@ -14,44 +28,34 @@ class GfTypography extends ThemeExtension<GfTypography> {
     required this.body,
     required this.bodyStrong,
     required this.small,
+    required this.subhead,
     required this.caption,
     required this.meta,
     required this.label,
   });
 
-  /// 24 / 32 / w700 — page hero titles (web `text-xl/2xl font-bold`).
   final TextStyle display;
 
-  /// 24 / 32 / w700 — primary page titles (web `text-2xl font-bold`).
   final TextStyle title1;
 
-  /// 18 / w700 — section titles.
   final TextStyle title2;
 
-  /// 17 / w700 — profile names / sub-page titles.
   final TextStyle title3;
 
-  /// 16 / 24 / w700 — card / list titles (web `text-base font-semibold`).
   final TextStyle heading;
 
-  /// 17 / w400, line height 1.4 — readable mobile prose in compact rows.
   final TextStyle body;
 
-  /// 16 / w600 — emphasized body and author names.
   final TextStyle bodyStrong;
 
-  /// 15 / 21 — excerpts / secondary text.
   final TextStyle small;
 
-  /// 13 — metadata.
+  final TextStyle subhead;
+
   final TextStyle caption;
 
-  /// 12 — compact meta / badges.
   final TextStyle meta;
 
-  /// 10 / w700 / tracking-wide — uppercase group labels (web
-  /// `text-[10px] font-bold uppercase tracking-wide`). Callers apply
-  /// `.toUpperCase()` to the text.
   final TextStyle label;
 
   /// Builds the scale for a surface text color (typically `baseContent`).
@@ -73,17 +77,18 @@ class GfTypography extends ThemeExtension<GfTypography> {
     }
 
     return GfTypography(
-      display: style(24, FontWeight.w700, height: 32 / 24),
-      title1: style(24, FontWeight.w700, height: 32 / 24),
-      title2: style(18, FontWeight.w700, height: 26 / 18),
-      title3: style(17, FontWeight.w700, height: 1.3),
-      heading: style(16, FontWeight.w700, height: 1.5),
-      body: style(17, FontWeight.w400, height: 1.4),
-      bodyStrong: style(16, FontWeight.w600, height: 1.4),
-      small: style(15, FontWeight.w400, height: 1.4),
-      caption: style(13, FontWeight.w400, height: 1.5),
-      meta: style(12, FontWeight.w500, height: 1.3),
-      label: style(10, FontWeight.w700, height: 1.2, letterSpacing: 0.5),
+      display: style(28, FontWeight.w700, height: 36 / 28),
+      title1: style(22, FontWeight.w700, height: 30 / 22),
+      title2: style(20, FontWeight.w600, height: 28 / 20),
+      title3: style(17, FontWeight.w600, height: 24 / 17),
+      heading: style(16, FontWeight.w600, height: 24 / 16),
+      body: style(16, FontWeight.w400, height: 24 / 16),
+      bodyStrong: style(16, FontWeight.w600, height: 24 / 16),
+      small: style(15, FontWeight.w400, height: 22 / 15),
+      subhead: style(14, FontWeight.w400, height: 20 / 14),
+      caption: style(13, FontWeight.w400, height: 18 / 13),
+      meta: style(12, FontWeight.w500, height: 16 / 12),
+      label: style(11, FontWeight.w600, height: 14 / 11, letterSpacing: 0.2),
     );
   }
 
@@ -97,6 +102,7 @@ class GfTypography extends ThemeExtension<GfTypography> {
     TextStyle? body,
     TextStyle? bodyStrong,
     TextStyle? small,
+    TextStyle? subhead,
     TextStyle? caption,
     TextStyle? meta,
     TextStyle? label,
@@ -110,6 +116,7 @@ class GfTypography extends ThemeExtension<GfTypography> {
       body: body ?? this.body,
       bodyStrong: bodyStrong ?? this.bodyStrong,
       small: small ?? this.small,
+      subhead: subhead ?? this.subhead,
       caption: caption ?? this.caption,
       meta: meta ?? this.meta,
       label: label ?? this.label,
@@ -128,6 +135,7 @@ class GfTypography extends ThemeExtension<GfTypography> {
       body: TextStyle.lerp(body, other.body, t)!,
       bodyStrong: TextStyle.lerp(bodyStrong, other.bodyStrong, t)!,
       small: TextStyle.lerp(small, other.small, t)!,
+      subhead: TextStyle.lerp(subhead, other.subhead, t)!,
       caption: TextStyle.lerp(caption, other.caption, t)!,
       meta: TextStyle.lerp(meta, other.meta, t)!,
       label: TextStyle.lerp(label, other.label, t)!,
@@ -145,6 +153,7 @@ class GfTypography extends ThemeExtension<GfTypography> {
         other.body == body &&
         other.bodyStrong == bodyStrong &&
         other.small == small &&
+        other.subhead == subhead &&
         other.caption == caption &&
         other.meta == meta &&
         other.label == label;
@@ -160,6 +169,7 @@ class GfTypography extends ThemeExtension<GfTypography> {
     body,
     bodyStrong,
     small,
+    subhead,
     caption,
     meta,
     label,

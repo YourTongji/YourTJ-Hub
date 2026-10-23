@@ -547,7 +547,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
   Widget _buildCaptchaChallenge(CaptchaPayload captcha, AppLocalizations l10n) {
     final GfColors colors = GfTheme.colorsOf(context);
     final Widget image = ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(GfRadius.sm),
       child: GfCaptchaImage(imageData: captcha.captchaImg),
     );
     return TapRegion(
@@ -560,7 +560,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
           child: InkWell(
             key: const Key('login-captcha-refresh'),
             onTap: _captchaRefreshing ? null : _refreshCaptcha,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(GfRadius.sm),
             child: Stack(
               alignment: Alignment.center,
               children: <Widget>[
@@ -1169,9 +1169,9 @@ class _LoginPageState extends ConsumerState<LoginPage>
               _mode == _AuthMode.login && _returnTo != null && _returnTo != '/'
                   ? l10n.authContinueAfterLogin
                   : _subtitle(l10n),
-              style: GfTheme.typographyOf(context).small.copyWith(
-                color: colors.baseContent.withValues(alpha: 0.64),
-              ),
+              style: GfTheme.typographyOf(
+                context,
+              ).small.copyWith(color: colors.textSecondary),
             ),
           ],
           SizedBox(height: registrationHeader ? 16 : 12),
@@ -1252,7 +1252,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                 initialValue: _emailDomain,
                 isExpanded: true,
                 itemHeight: null,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(GfRadius.lg),
                 icon: const GfSymbol('chevron-down', size: 20),
                 decoration: InputDecoration(labelText: l10n.authEmailDomain),
                 items: _registration!.allowedDomains

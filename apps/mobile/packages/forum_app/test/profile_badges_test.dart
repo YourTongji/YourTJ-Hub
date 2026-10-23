@@ -160,7 +160,11 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       await tester.pumpAndSettle();
-      final card = find.byType(GfAchievementCard).first;
+      final card = find.byWidgetPredicate(
+        (widget) => widget is GfAchievementCard && widget.title == 'First post',
+      );
+      await tester.ensureVisible(card);
+      await tester.pumpAndSettle();
       final width = tester.getSize(card).width;
       expect(width, closeTo(scale == 1 ? 173 : 358, 1));
       await tester.tap(card);

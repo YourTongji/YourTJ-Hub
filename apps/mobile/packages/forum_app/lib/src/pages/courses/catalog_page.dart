@@ -43,12 +43,10 @@ class _CourseCatalogContent extends ConsumerStatefulWidget {
 }
 
 class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
-  static const Duration _searchDebounce = Duration(milliseconds: 300);
   static const int _pageSize = 20;
 
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  Timer? _debounce;
 
   AsyncValue<CourseListResultPayload> _page = const AsyncValue.loading();
   bool _canManageCourses = false;
@@ -91,8 +89,16 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
   }
 
   @override
+  void didUpdateWidget(covariant _CourseCatalogContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialQuery != widget.initialQuery) {
+      _searchController.text = widget.initialQuery;
+      _load();
+    }
+  }
+
+  @override
   void dispose() {
-    _debounce?.cancel();
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -115,32 +121,7 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
     onlyWithReviews: _onlyWithReviews,
   );
 
-  void _scheduleSearch(String _) {
-    _debounce?.cancel();
-    if (!_activeSession) return;
-    // Invalidate immediately, including the debounce interval: an older request
-    // must not replace results while the user is already entering a new query.
-    setState(() {
-      _generation++;
-      _page = const AsyncValue.loading();
-      _loadingMore = false;
-      _hasNext = false;
-      _refreshing = false;
-      _refreshError = null;
-    });
-    _debounce = Timer(_searchDebounce, () {
-      if (!mounted) return;
-      _load();
-    });
-  }
-
-  void _clearDebounceAndSearch() {
-    _debounce?.cancel();
-    _load();
-  }
-
   void _clearSearch() {
-    _debounce?.cancel();
     _searchController.clear();
     _load();
   }
@@ -209,7 +190,6 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
   }
 
   Future<void> _load({bool refresh = false}) async {
-    _debounce?.cancel();
     if (!_activeSession) return;
     final generation = ++_generation;
     final epoch = ref.read(offlineCacheEpochProvider);
@@ -482,8 +462,17 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
                         controller: _searchController,
                         hintText: l10n.coursesSearchHint,
                         clearLabel: l10n.courseCopyClearSearch,
-                        onChanged: _scheduleSearch,
-                        onSubmitted: (_) => _clearDebounceAndSearch(),
+                        readOnly: true,
+                        onTap: () => context.push(
+                          Uri(
+                            path: '/search',
+                            queryParameters: {
+                              'scope': 'courses',
+                              if (_searchController.text.isNotEmpty)
+                                'q': _searchController.text,
+                            },
+                          ).toString(),
+                        ),
                         onClear: _clearSearch,
                       ),
                     ),
@@ -698,9 +687,7 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
     final bool reducedMotion = GfMotion.reducedOf(context);
     final Color unselectedFill = colors.base100;
     final Color selectedFill = colors.primary.withValues(alpha: 0.1);
-    final Color foreground = selected
-        ? colors.primary
-        : colors.baseContent.withValues(alpha: 0.75);
+    final Color foreground = selected ? colors.primary : colors.textSecondary;
     return Semantics(
       container: true,
       button: true,
@@ -766,7 +753,9 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
                               color: colors.primary,
-                              borderRadius: BorderRadius.circular(999),
+                              borderRadius: BorderRadius.circular(
+                                GfRadius.full,
+                              ),
                             ),
                             child: GfText(
                               '$count',
@@ -965,9 +954,7 @@ class _CourseRow extends StatelessWidget {
             GfText(
               '$teacher · ${course.department}',
               textHeightBehavior: tight,
-              style: type.small.copyWith(
-                color: colors.baseContent.withValues(alpha: 0.6),
-              ),
+              style: type.small.copyWith(color: colors.textSecondary),
             ),
             SizedBox(height: metricsGap),
             ConstrainedBox(
@@ -1001,9 +988,7 @@ class _CourseRow extends StatelessWidget {
                             GfText(
                               '($reviewCount)',
                               style: type.meta.copyWith(
-                                color: colors.baseContent.withValues(
-                                  alpha: 0.5,
-                                ),
+                                color: colors.textSecondary,
                               ),
                             ),
                           ],
@@ -1012,23 +997,17 @@ class _CourseRow extends StatelessWidget {
                     ] else if (reviewCount > 0) ...<Widget>[
                       GfText(
                         l10n.coursesNoRating,
-                        style: type.meta.copyWith(
-                          color: colors.baseContent.withValues(alpha: 0.5),
-                        ),
+                        style: type.meta.copyWith(color: colors.textSecondary),
                       ),
                       GfText(
                         '($reviewCount)',
-                        style: type.meta.copyWith(
-                          color: colors.baseContent.withValues(alpha: 0.5),
-                        ),
+                        style: type.meta.copyWith(color: colors.textSecondary),
                       ),
                     ],
                     if (credit.isNotEmpty) ...<Widget>[
                       GfText(
                         '$credit ${copy.creditUnit}',
-                        style: type.meta.copyWith(
-                          color: colors.baseContent.withValues(alpha: 0.7),
-                        ),
+                        style: type.meta.copyWith(color: colors.textSecondary),
                       ),
                     ],
                     _catalogChip(context: context, label: course.primaryCode),
@@ -1083,10 +1062,7 @@ class _CourseRow extends StatelessWidget {
           GfText(
             label,
             style:
-                labelStyle ??
-                type.meta.copyWith(
-                  color: colors.baseContent.withValues(alpha: 0.7),
-                ),
+                labelStyle ?? type.meta.copyWith(color: colors.textSecondary),
           ),
           ...trailing,
         ],
@@ -1137,7 +1113,7 @@ class _CourseRow extends StatelessWidget {
               ? l10n.courseCopySummaryCollapse
               : '+${terms.length - 1}',
           style: type.meta.copyWith(
-            color: colors.baseContent.withValues(alpha: 0.6),
+            color: colors.textSecondary,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -1145,7 +1121,7 @@ class _CourseRow extends StatelessWidget {
         GfSymbol(
           termsExpanded ? 'chevron-up' : 'chevron-down',
           size: 12,
-          color: colors.baseContent.withValues(alpha: 0.6),
+          color: colors.textSecondary,
         ),
       ],
     );
@@ -1245,9 +1221,7 @@ class _InstructorPickerSheetState extends State<_InstructorPickerSheet> {
                 ? Center(
                     child: GfText(
                       copy.instructorEmptyHint,
-                      style: type.small.copyWith(
-                        color: colors.baseContent.withValues(alpha: 0.5),
-                      ),
+                      style: type.small.copyWith(color: colors.textSecondary),
                     ),
                   )
                 : ListView(
@@ -1263,7 +1237,9 @@ class _InstructorPickerSheetState extends State<_InstructorPickerSheet> {
                             ),
                             decoration: BoxDecoration(
                               color: colors.base200,
-                              borderRadius: BorderRadius.circular(999),
+                              borderRadius: BorderRadius.circular(
+                                GfRadius.full,
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,

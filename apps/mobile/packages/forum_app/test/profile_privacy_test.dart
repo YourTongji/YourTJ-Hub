@@ -149,10 +149,7 @@ Future<_Privacy> _settings(WidgetTester tester, {_Privacy? repo}) async {
 
 String _rowValue(WidgetTester tester, String key) {
   final row = find.byKey(ValueKey('profile-privacy-row-$key'));
-  return tester
-      .widgetList<Text>(find.descendant(of: row, matching: find.byType(Text)))
-      .last
-      .data!;
+  return tester.widget<GfSettingRow>(row).value!;
 }
 
 Future<void> _pick(WidgetTester tester, String key, String audience) async {
@@ -347,7 +344,11 @@ void main() {
     ) async {
       final repo = await _settings(tester);
       final row = find.byKey(const ValueKey('profile-privacy-row-bookmarks'));
-      expect(_rowValue(tester, 'bookmarks'), 'Only you');
+      // Fixed rows show the audience beside a lock instead of a chevron.
+      expect(
+        find.descendant(of: row, matching: find.text('Only you')),
+        findsOne,
+      );
       expect(
         find.descendant(
           of: row,

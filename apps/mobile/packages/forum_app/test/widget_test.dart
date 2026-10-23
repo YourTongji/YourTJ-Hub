@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:forum_app/l10n/app_localizations_en.dart';
 import 'package:forum_app/l10n/app_localizations_zh.dart';
 import 'package:forum_app/src/app.dart';
+import 'package:forum_app/src/widgets/account_drawer.dart';
 import 'package:forum_app/src/storage/storage_providers.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
@@ -65,12 +66,20 @@ class NoopOfflineCache implements OfflineTopicCache, OfflineChatCache {
 }
 
 class RouterPageRepository extends PageRepository {
-  RouterPageRepository(super.client);
+  RouterPageRepository(super.client, {this.authenticated = false});
+  final bool authenticated;
 
   @override
   Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path == '/' || path.startsWith('/?sort=')) {
-      return parsePayload(homePayloadJson());
+      final json = homePayloadJson();
+      if (authenticated) {
+        final viewer = (json['layout'] as Map)['viewer'] as Map;
+        viewer['isAuthenticated'] = true;
+        viewer['id'] = 1;
+        viewer['username'] = 'alice';
+      }
+      return parsePayload(json);
     }
     if (path.startsWith('/u/')) {
       return parsePayload(userProfilePayloadJson());
@@ -115,19 +124,19 @@ void main() {
       '首页',
       '校园',
       '通知',
-      '消息',
+      '私信',
     ]);
     expect(navigation.items.map((item) => item.symbol), [
       'house',
       'graduation-cap',
       'bell',
-      'mail',
+      'message-circle',
     ]);
     expect(navigation.items.map((item) => item.selectedSymbol), [
       'house-filled',
       'graduation-cap-filled',
       'bell-filled',
-      'mail-filled',
+      'message-circle-filled',
     ]);
     expect(navigation.showLabels, isFalse);
     expect(navigation.onAction, isNull);
@@ -148,13 +157,11 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(FloatingActionButton), findsNothing);
-    await tester.tap(find.byTooltip('探索校园'));
-    await tester.pumpAndSettle();
-    expect(appRouter.state.uri.path, '/campus/explore');
-    expect(find.text(AppLocalizationsZh().campusCoursesTitle), findsOneWidget);
-    appRouter.pop();
+    expect(find.byTooltip('探索校园'), findsNothing);
+    appRouter.go('/campus/explore');
     await tester.pumpAndSettle();
     expect(appRouter.state.uri.path, '/campus');
+    expect(find.text(AppLocalizationsZh().campusCoursesTitle), findsOneWidget);
 
     // Search remains a global browsing destination, reachable from home.
     appRouter.go('/');
@@ -189,7 +196,7 @@ void main() {
             (ref) async => const CurrentUser(id: 1, username: 'alice'),
           ),
           pageRepositoryProvider.overrideWithValue(
-            RouterPageRepository(client),
+            RouterPageRepository(client, authenticated: true),
           ),
           offlineTopicCacheProvider.overrideWithValue(NoopOfflineCache()),
           offlineChatCacheProvider.overrideWithValue(NoopOfflineCache()),
@@ -200,15 +207,24 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(GfLogo), findsOneWidget);
-    appRouter.push('/profile');
+    accountDrawerLayerKey.currentState!.open();
     await tester.pumpAndSettle();
-
-    await tester.tap(find.byTooltip('更多功能'));
-    await tester.pumpAndSettle();
-    expect(find.text('设置'), findsOneWidget);
-    expect(find.text('内容管理'), findsOneWidget);
-    expect(find.text('回收站'), findsOneWidget);
-    expect(find.text('草稿箱'), findsOneWidget);
+    final drawerScroll = find
+        .descendant(
+          of: find.byType(AccountDrawer),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    for (final label in ['设置', '我的内容', '回收站', '草稿箱']) {
+      tester.state<ScrollableState>(drawerScroll).position.jumpTo(0);
+      await tester.pump();
+      await tester.scrollUntilVisible(
+        find.text(label),
+        180,
+        scrollable: drawerScroll,
+      );
+      expect(find.text(label), findsOneWidget);
+    }
 
     // 点击“草稿箱”导航到 /drafts。
     await tester.tap(find.text('草稿箱'));

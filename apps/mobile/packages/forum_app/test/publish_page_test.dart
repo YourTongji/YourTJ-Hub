@@ -787,45 +787,80 @@ void main() {
     });
   }
 
-  testWidgets('moment optional title and body survive every type switch', (
+  Finder appBarTitle(String text) =>
+      find.descendant(of: find.byType(GfAppBar), matching: find.text(text));
+
+  void expectNoTypeSwitcher() {
+    for (final value in [1, 2, 3]) {
+      expect(find.byKey(Key('publish-type-$value')), findsNothing);
+    }
+  }
+
+  // The compose menu is the only place a new topic's type is chosen (#1372
+  // D-5); the page names that type instead of offering a second choice.
+  for (final (type, label) in [(2, '瞬间'), (1, '提问'), (3, '文章')]) {
+    testWidgets('new type $type is named by the app bar with no switcher', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      await pumpPublishPage(tester, editing: false, contentType: type);
+      expectNoTypeSwitcher();
+      expect(appBarTitle(label), findsOneWidget);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pumpAndSettle();
+      expect(appBarTitle(label), findsOneWidget);
+      tester.view.resetViewInsets();
+      await tester.pumpAndSettle();
+      expectNoTypeSwitcher();
+      expect(appBarTitle(label), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 800));
+    });
+  }
+
+  testWidgets('a topic edit keeps its stored type over the route default', (
     tester,
   ) async {
     usePhoneViewport(tester);
-    await pumpPublishPage(tester, editing: false, contentType: 2);
-    await tester.enterText(find.byKey(const Key('publish-editor')), '保留正文');
-    await tester.enterText(find.byKey(const Key('publish-title')), '保留标题');
-    for (final (type, value) in [('文章', 3), ('提问', 1), ('瞬间', 2)]) {
-      await tester.tap(find.byKey(Key('publish-type-$value')));
-      await tester.pumpAndSettle();
-      expect(
-        tester
-            .widget<Semantics>(find.byKey(Key('publish-type-$value')))
-            .properties
-            .selected,
-        isTrue,
-        reason: type,
-      );
-      expect(
-        tester
-            .widget<TextField>(find.byKey(const Key('publish-title')))
-            .controller!
-            .text,
-        '保留标题',
-      );
-      if (type == '文章') {
-        expect(
-          tester
-              .widget<QuillEditor>(find.byType(QuillEditor))
-              .controller
-              .document
-              .toPlainText()
-              .trim(),
-          '保留正文',
-        );
-      } else {
-        expect(find.text('保留正文'), findsOneWidget);
-      }
-    }
+    await pumpPublishPage(
+      tester,
+      editing: true,
+      contentType: 1,
+      initialContentType: 3,
+    );
+    expectNoTypeSwitcher();
+    expect(appBarTitle('提问'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 800));
+  });
+
+  testWidgets('a restored new-topic draft keeps its stored type', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    await WritingStore().save(
+      writingScope('http://fake.local', 1),
+      LocalDraft(
+        key: 'question-recovery',
+        kind: DraftKind.newTopic,
+        title: '恢复的提问',
+        content: '恢复的正文',
+        contentType: 1,
+        topicId: 0,
+        categories: [],
+        images: [],
+        updatedAt: 1,
+      ),
+    );
+    await pumpPublishPage(
+      tester,
+      editing: false,
+      contentType: 2,
+      localDraftKey: 'question-recovery',
+    );
+    expect(find.text('恢复的正文'), findsOneWidget);
+    expectNoTypeSwitcher();
+    expect(appBarTitle('提问'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 800));
   });

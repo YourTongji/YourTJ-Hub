@@ -70,6 +70,27 @@ final topicReturnStatesProvider = Provider<Map<int, TopicReturnState>>((ref) {
   return <int, TopicReturnState>{};
 });
 
+/// Successful topic deletions hide stale list responses in place. The session
+/// epoch drops tombstones on account/site changes; no private data is persisted.
+class RemovedTopics extends Notifier<Set<int>> {
+  @override
+  Set<int> build() {
+    ref.watch(offlineCacheEpochProvider);
+    return {};
+  }
+
+  void add(int id) => state = {...state, id};
+
+  /// A confirmed restore makes this topic eligible for the existing lists again.
+  void remove(int id) {
+    if (state.contains(id)) state = {...state}..remove(id);
+  }
+}
+
+final removedTopicsProvider = NotifierProvider<RemovedTopics, Set<int>>(
+  RemovedTopics.new,
+);
+
 /// Reply state handed back to profile activity without confusing post/topic IDs.
 typedef PostReturnState = ({bool liked, bool bookmarked, int likeCount});
 final postReturnStatesProvider = Provider<Map<int, PostReturnState>>((ref) {

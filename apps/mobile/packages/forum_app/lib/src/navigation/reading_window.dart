@@ -82,7 +82,7 @@ class ReadingNavigationRail extends StatelessWidget {
                               vertical: extended ? 16 : 12,
                             ),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(GfRadius.lg),
                             ),
                             foregroundColor: currentIndex == i
                                 ? colors.primary

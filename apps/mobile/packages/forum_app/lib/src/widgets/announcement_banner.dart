@@ -155,7 +155,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
       margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
       decoration: BoxDecoration(
         color: colors.base200,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(GfRadius.md),
         border: Border.all(color: colors.line),
       ),
       child: GestureDetector(
@@ -194,7 +194,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
     return InkWell(
       key: const Key('announcement-collapsed-tap'),
       onTap: () => _setCollapsed(false),
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(GfRadius.md),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         child: Row(
@@ -204,7 +204,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
               height: 22,
               decoration: BoxDecoration(
                 color: colors.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(GfRadius.xs),
               ),
               alignment: Alignment.center,
               child: ExcludeSemantics(
@@ -212,21 +212,9 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
               ),
             ),
             const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-              decoration: BoxDecoration(
-                color: colors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: GfText(
-                l10n.announcementLabel,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: colors.primary,
-                  letterSpacing: 0.2,
-                ),
-              ),
+            GfBadge(
+              label: l10n.announcementLabel,
+              variant: GfBadgeVariant.info,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -237,7 +225,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
-                  color: colors.baseContent.withValues(alpha: 0.82),
+                  color: colors.textPrimary,
                 ),
               ),
             ),
@@ -250,7 +238,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                 child: GfSymbol(
                   'chevron-down',
                   size: 13,
-                  color: colors.baseContent.withValues(alpha: 0.45),
+                  color: colors.textSecondary,
                 ),
               ),
             ),
@@ -278,7 +266,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
             height: 28,
             decoration: BoxDecoration(
               color: colors.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(GfRadius.sm),
             ),
             alignment: Alignment.center,
             child: ExcludeSemantics(
@@ -293,24 +281,9 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
               children: [
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colors.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: GfText(
-                        l10n.announcementLabel,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: colors.primary,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
+                    GfBadge(
+                      label: l10n.announcementLabel,
+                      variant: GfBadgeVariant.info,
                     ),
                     if (item.title.trim().isNotEmpty) ...[
                       const SizedBox(width: 8),
@@ -334,7 +307,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                       child: InkWell(
                         key: const Key('announcement-collapse-btn'),
                         onTap: () => _setCollapsed(true),
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(GfRadius.xs),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 6,
@@ -348,9 +321,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w500,
-                                  color: colors.baseContent.withValues(
-                                    alpha: 0.5,
-                                  ),
+                                  color: colors.textSecondary,
                                 ),
                               ),
                               const SizedBox(width: 2),
@@ -359,9 +330,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                                 child: GfSymbol(
                                   'chevron-down',
                                   size: 11,
-                                  color: colors.baseContent.withValues(
-                                    alpha: 0.5,
-                                  ),
+                                  color: colors.textSecondary,
                                 ),
                               ),
                             ],
@@ -377,9 +346,9 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                     item.html,
                     baseUrl: Uri.parse(ref.read(apiClientProvider).baseUrl),
                     textStyle: type.body.copyWith(
-                      fontSize: 12.5,
+                      fontSize: 13,
                       height: 1.45,
-                      color: colors.baseContent.withValues(alpha: 0.85),
+                      color: colors.textPrimary,
                     ),
                     customStylesBuilder: (element) =>
                         element.localName == 'p' ? {'margin': '0 0 4px'} : null,
@@ -436,13 +405,13 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                           );
                           _restart();
                         },
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(GfRadius.xs),
                         child: Padding(
                           padding: const EdgeInsets.all(3),
                           child: GfSymbol(
                             'chevron-left',
                             size: 13,
-                            color: colors.baseContent.withValues(alpha: 0.5),
+                            color: colors.textSecondary,
                           ),
                         ),
                       ),
@@ -455,13 +424,13 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                           );
                           _restart();
                         },
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(GfRadius.xs),
                         child: Padding(
                           padding: const EdgeInsets.all(3),
                           child: GfSymbol(
                             'chevron-right',
                             size: 13,
-                            color: colors.baseContent.withValues(alpha: 0.5),
+                            color: colors.textSecondary,
                           ),
                         ),
                       ),

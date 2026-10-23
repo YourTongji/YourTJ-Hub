@@ -352,7 +352,7 @@ class _WikiPageState extends ConsumerState<WikiPage> {
                           child: TextButton.icon(
                             icon: const GfSymbol('search', size: 18),
                             label: GfText(l10n.commonSearch),
-                            onPressed: () => context.push('/wiki/search'),
+                            onPressed: () => context.push('/search?scope=wiki'),
                           ),
                         ),
                       ],
@@ -436,7 +436,7 @@ class _WikiProse extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography typography = GfTheme.typographyOf(context);
     final GfRadii radii = GfTheme.radiiOf(context);
-    final Color faint = colors.baseContent.withValues(alpha: 0.45);
+    final Color faint = colors.textSecondary;
 
     final Widget body;
     if (page.content.trim().isEmpty) {
@@ -445,9 +445,7 @@ class _WikiProse extends StatelessWidget {
         child: Center(
           child: GfText(
             l10n.commonEmpty,
-            style: typography.small.copyWith(
-              color: colors.baseContent.withValues(alpha: 0.55),
-            ),
+            style: typography.small.copyWith(color: colors.textSecondary),
           ),
         ),
       );

@@ -237,29 +237,53 @@ ScrollPosition _position(WidgetTester tester) => tester
     .position;
 
 void main() {
-  testWidgets('feed display options lead each mode with its glyph', (
-    tester,
-  ) async {
+  testWidgets(
+    'wide discovery drops deleted topics without waiting for a fresh hot feed',
+    (tester) async {
+      final pages = _Pages();
+      await _mount(tester, pages, size: const Size(1120, 900));
+      final panel = find.byKey(const ValueKey('home-discovery-panel'));
+      final hot = find.descendant(of: panel, matching: find.text('All hot 0'));
+      expect(hot, findsOneWidget);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(HomePage)),
+      );
+      final calls = List<String>.of(pages.calls);
+      container.read(removedTopicsProvider.notifier).add(100);
+      await tester.pumpAndSettle();
+      expect(hot, findsNothing);
+      expect(
+        find.descendant(of: panel, matching: find.text('All hot 1')),
+        findsOneWidget,
+      );
+      expect(
+        pages.calls,
+        calls,
+        reason: 'the deletion fence applies to the cached hot response',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('feed toggle shows the destination layout glyph', (tester) async {
     await _mount(tester, _Pages());
-    await tester.tap(find.byTooltip('显示方式'));
-    await tester.pumpAndSettle();
     for (final (label, symbol) in [
-      ('卡片', 'layout-grid'),
-      ('列表', 'list-square'),
+      ('切换为列表', 'list-square'),
+      ('切换为卡片', 'layout-grid'),
     ]) {
-      final row = find
-          .ancestor(of: find.text(label), matching: find.byType(Row))
-          .first;
+      final button = find.byTooltip(label);
       expect(
         find.descendant(
-          of: row,
+          of: button,
           matching: find.byWidgetPredicate(
             (widget) => widget is GfSymbol && widget.name == symbol,
           ),
         ),
         findsOneWidget,
-        reason: '$label option needs its leading $symbol glyph',
       );
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsNothing);
     }
     expect(tester.takeException(), isNull);
   });

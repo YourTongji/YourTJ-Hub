@@ -25,24 +25,43 @@ class DecorationStrings {
     'Avatarrahmen & farbige Namen',
     'アバターフレームとカラーネーム',
   );
-  String get frame => _s('头像框', 'Avatar frame', 'Avatarrahmen', 'アバターフレーム');
-  String get nickname => _s('多彩昵称', 'Colorful name', 'Farbiger Name', 'カラーネーム');
+  String get appearance => _s('个人装扮', 'Appearance', 'Aussehen', '外観');
+  String get frame => _s('头像框', 'Avatar frames', 'Avatarrahmen', 'アバターフレーム');
+  String get nickname =>
+      _s('多彩昵称', 'Colorful names', 'Farbige Namen', 'カラーネーム');
   String get grant => _s(
-    '由管理员授予，未拥有的装饰仅供预览。',
-    'Granted by administrators. Unowned styles are preview only.',
-    'Vergabe durch Administratoren. Nicht erworbene Stile dienen nur als Vorschau.',
-    '管理者が付与します。未所有の装飾はプレビューのみです。',
+    '装扮由管理员授予。',
+    'Styles are granted by administrators.',
+    'Stile werden von Administratoren vergeben.',
+    '装飾は管理者が付与します。',
   );
   String get none => _s('不装备', 'None', 'Keine', '装備しない');
   String get preview => _s('预览', 'Preview', 'Vorschau', 'プレビュー');
-  String get equip => _s('装备', 'Equip', 'Anlegen', '装備');
+  String get equip =>
+      _s('使用此款', 'Use this style', 'Diesen Stil verwenden', 'このスタイルを使う');
   String get locked => _s('尚未拥有', 'Not owned', 'Nicht erworben', '未所有');
   String get equipped => _s('已装备', 'Equipped', 'Angelegt', '装備中');
+  String get available => _s('可使用', 'Available', 'Verfügbar', '使用可能');
+  String get current =>
+      _s('当前装扮', 'Current look', 'Aktuelles Aussehen', '現在の外観');
+  String get previewOnly =>
+      _s('仅供预览', 'Preview only', 'Nur Vorschau', 'プレビューのみ');
+  String get lockedHint => _s(
+    '尚未拥有，可以预览效果。',
+    'Not owned. You can preview this style.',
+    'Nicht erworben. Du kannst diesen Stil ansehen.',
+    '未所有です。見た目をプレビューできます。',
+  );
 }
 
 class DecorationPage extends ConsumerStatefulWidget {
-  const DecorationPage({super.key, this.avatarUrl = '', this.name = ''});
-  final String avatarUrl, name;
+  const DecorationPage({
+    super.key,
+    this.avatarUrl = '',
+    this.name = '',
+    this.username = '',
+  });
+  final String avatarUrl, name, username;
   @override
   ConsumerState<DecorationPage> createState() => _DecorationPageState();
 }
@@ -51,9 +70,18 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
   DecorationState? _state;
   String? _error;
   bool _saving = false;
+  String _kind = 'avatarFrame';
   String _frame = '', _nickname = '';
   late final int _epoch;
   bool get _current => mounted && ref.read(offlineCacheEpochProvider) == _epoch;
+  String get _selected => _kind == 'avatarFrame' ? _frame : _nickname;
+  String get _equipped =>
+      _kind == 'avatarFrame' ? _state!.avatarFrame : _state!.nicknameStyle;
+  bool get _owned =>
+      _selected.isEmpty ||
+      (_style(_selected, _kind) != null &&
+          _state!.ownedCodes.contains(_selected));
+
   @override
   void initState() {
     super.initState();
@@ -82,27 +110,42 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
     }
   }
 
-  Future<void> _equip(String kind, String code) async {
-    if (!_current || _saving) return;
+  Future<void> _equip() async {
+    if (!_current ||
+        _saving ||
+        _state == null ||
+        !_owned ||
+        _selected == _equipped) {
+      return;
+    }
+    final kind = _kind;
+    final previous = _state!;
+    final code = _selected;
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
+      // Confirm only this tab's choice. A preview in the other slot is never
+      // written implicitly, including an unowned style being tried on there.
       final state = await ref
           .read(userRepositoryProvider)
           .equipDecorations(
-            avatarFrame: kind == 'avatarFrame' ? code : _state!.avatarFrame,
+            avatarFrame: kind == 'avatarFrame' ? code : previous.avatarFrame,
             nicknameStyle: kind == 'nicknameStyle'
                 ? code
-                : _state!.nicknameStyle,
+                : previous.nicknameStyle,
           );
       if (_current) {
         ref.invalidate(currentUserProvider);
         setState(() {
           _state = state;
-          _frame = state.avatarFrame;
-          _nickname = state.nicknameStyle;
+          if (kind == 'avatarFrame' || _frame == previous.avatarFrame) {
+            _frame = state.avatarFrame;
+          }
+          if (kind == 'nicknameStyle' || _nickname == previous.nicknameStyle) {
+            _nickname = state.nicknameStyle;
+          }
         });
       }
     } catch (error) {
@@ -126,111 +169,305 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
     return null;
   }
 
+  Widget _choice(DecorationStyle? style, DecorationStrings s) {
+    final state = _state!;
+    final code = style?.code ?? '';
+    final selected = _selected == code;
+    final equipped = _equipped == code;
+    final owned = code.isEmpty || state.ownedCodes.contains(code);
+    final colors = GfTheme.colorsOf(context);
+    final background = selected
+        ? Color.alphaBlend(
+            colors.primary.withValues(alpha: .07),
+            colors.surfaceGrouped,
+          )
+        : colors.surfaceGrouped;
+    final label = style?.name ?? s.none;
+    return MergeSemantics(
+      child: Semantics(
+        selected: selected,
+        button: true,
+        enabled: !_saving,
+        child: Material(
+          color: background,
+          child: InkWell(
+            key: ValueKey('decoration-option-$_kind-$code'),
+            onTap: _saving
+                ? null
+                : () => setState(() {
+                    _error = null;
+                    if (_kind == 'avatarFrame') {
+                      _frame = code;
+                    } else {
+                      _nickname = code;
+                    }
+                  }),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 88),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    if (_kind == 'avatarFrame') ...[
+                      SizedBox(
+                        width: 80,
+                        child: _DecorationAvatar(
+                          avatarUrl: widget.avatarUrl,
+                          style: style,
+                          size: 40,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_kind == 'nicknameStyle')
+                            GfDecoratedName(
+                              label,
+                              colors: decorationColors(
+                                context,
+                                style,
+                                background: background,
+                              ),
+                              style: GfTheme.typographyOf(context).title3,
+                            )
+                          else
+                            GfText(
+                              label,
+                              style: GfTheme.typographyOf(context).body,
+                            ),
+                          const SizedBox(height: 4),
+                          GfText(
+                            equipped
+                                ? s.equipped
+                                : owned
+                                ? s.available
+                                : '${s.locked} · ${s.previewOnly}',
+                            style: GfTheme.typographyOf(
+                              context,
+                            ).caption.copyWith(color: colors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    GfSymbol(
+                      equipped
+                          ? 'circle-check'
+                          : owned
+                          ? 'circle'
+                          : 'lock-filled',
+                      size: 20,
+                      color: equipped ? colors.primary : colors.textSecondary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final epoch = ref.watch(offlineCacheEpochProvider);
     if (epoch != _epoch) return const SizedBox.shrink();
     final s = DecorationStrings(context);
     final l = AppLocalizations.of(context);
+    final colors = GfTheme.colorsOf(context);
     final state = _state;
-    return Scaffold(
-      appBar: GfAppBar(title: GfText(s.title)),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            GfText(s.grant),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                GfAvatar(
-                  src: resolveApiAssetUrl(widget.avatarUrl),
-                  size: 64,
-                  frameColors: decorationColors(
-                    context,
-                    _style(_frame, 'avatarFrame'),
-                  ),
-                  frameAssetUrl: decorationFrameAssetUrl(
-                    _style(_frame, 'avatarFrame'),
-                  ),
-                  frameScale: _style(_frame, 'avatarFrame')?.assetScale ?? 1.25,
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: GfDecoratedName(
-                    widget.name,
-                    colors: decorationColors(
-                      context,
-                      _style(_nickname, 'nicknameStyle'),
-                    ),
-                    style: GfTheme.typographyOf(context).title3,
-                  ),
-                ),
-              ],
+    final error = _error == null
+        ? null
+        : Semantics(
+            liveRegion: true,
+            child: GfText(
+              _error!,
+              key: const Key('decoration-save-error'),
+              style: TextStyle(color: colors.error),
             ),
-            if (_error != null) ...[
-              GfText(
-                _error!,
-                style: TextStyle(color: GfTheme.colorsOf(context).error),
-              ),
-              if (state == null)
-                GfButton(label: l.commonRetry, onPressed: _load),
-            ],
-            if (state == null && _error == null)
-              const LinearProgressIndicator(),
-            if (state != null)
-              for (final kind in ['avatarFrame', 'nicknameStyle']) ...[
-                const SizedBox(height: 24),
-                GfText(
-                  kind == 'avatarFrame' ? s.frame : s.nickname,
-                  style: GfTheme.typographyOf(context).title3,
-                ),
-                ListTile(
-                  title: GfText(s.none),
-                  trailing: TextButton(
-                    onPressed: _saving ? null : () => _equip(kind, ''),
-                    child: GfText(s.equip),
+          );
+    final previewing =
+        state != null &&
+        (_frame != state.avatarFrame || _nickname != state.nicknameStyle);
+    return Scaffold(
+      backgroundColor: colors.canvasGrouped,
+      appBar: GfAppBar(
+        title: GfText(s.appearance),
+        backgroundColor: colors.canvasGrouped,
+      ),
+      bottomNavigationBar: state == null
+          ? null
+          : SafeArea(
+              top: false,
+              minimum: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (error != null) ...[error, const SizedBox(height: 12)],
+                  GfButton(
+                    key: const Key('decoration-apply'),
+                    size: GfButtonSize.large,
+                    label: !_owned
+                        ? s.previewOnly
+                        : _selected == _equipped
+                        ? s.equipped
+                        : s.equip,
+                    expanded: true,
+                    loading: _saving,
+                    onPressed: _saving || !_owned || _selected == _equipped
+                        ? null
+                        : _equip,
                   ),
-                ),
-                for (final style in state.catalog.where(
-                  (style) => style.kind == kind && style.isEnabled,
-                ))
-                  ListTile(
-                    title: GfText(style.name),
-                    subtitle: GfText(
-                      !state.ownedCodes.contains(style.code)
-                          ? s.locked
-                          : (kind == 'avatarFrame'
-                                    ? state.avatarFrame
-                                    : state.nicknameStyle) ==
-                                style.code
-                          ? s.equipped
-                          : '',
-                    ),
-                    trailing: Wrap(
+                  const SizedBox(height: 8),
+                  GfText(
+                    !_owned ? s.lockedHint : s.grant,
+                    textAlign: TextAlign.center,
+                    style: GfTheme.typographyOf(
+                      context,
+                    ).caption.copyWith(color: colors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+      body: SafeArea(
+        top: false,
+        bottom: state == null,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Row(
+                children: [
+                  _DecorationAvatar(
+                    avatarUrl: widget.avatarUrl,
+                    style: _style(_frame, 'avatarFrame'),
+                    size: 64,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        TextButton(
-                          onPressed: () => setState(() {
-                            if (kind == 'avatarFrame') {
-                              _frame = style.code;
-                            } else {
-                              _nickname = style.code;
-                            }
-                          }),
-                          child: GfText(s.preview),
+                        GfDecoratedName(
+                          widget.name,
+                          key: const Key('decoration-preview-name'),
+                          colors: decorationColors(
+                            context,
+                            _style(_nickname, 'nicknameStyle'),
+                            background: colors.canvasGrouped,
+                          ),
+                          style: GfTheme.typographyOf(context).title3,
                         ),
-                        TextButton(
-                          onPressed:
-                              _saving || !state.ownedCodes.contains(style.code)
-                              ? null
-                              : () => _equip(kind, style.code),
-                          child: GfText(s.equip),
-                        ),
+                        if (widget.username.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          GfText(
+                            '@${widget.username}',
+                            style: GfTheme.typographyOf(
+                              context,
+                            ).caption.copyWith(color: colors.textSecondary),
+                          ),
+                        ],
+                        if (state != null) ...[
+                          const SizedBox(height: 4),
+                          GfText(
+                            previewing ? s.preview : s.current,
+                            style: GfTheme.typographyOf(context).caption
+                                .copyWith(
+                                  color: previewing
+                                      ? colors.primary
+                                      : colors.textSecondary,
+                                ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
-              ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (error != null && state == null) ...[
+              error,
+              GfButton(label: l.commonRetry, onPressed: _load),
+              const SizedBox(height: 16),
+            ],
+            if (state == null && _error == null)
+              const LinearProgressIndicator(),
+            if (state != null) ...[
+              Semantics(
+                enabled: !_saving,
+                child: GfSegmented<String>(
+                  segments: [
+                    (s.frame, 'avatarFrame'),
+                    (s.nickname, 'nicknameStyle'),
+                  ],
+                  selected: _kind,
+                  onSelected: (kind) {
+                    if (!_saving) {
+                      setState(() {
+                        _kind = kind;
+                        _error = null;
+                      });
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+              GfListSection(
+                margin: EdgeInsets.zero,
+                children: [
+                  _choice(null, s),
+                  for (final style in state.catalog.where(
+                    (style) => style.kind == _kind && style.isEnabled,
+                  ))
+                    _choice(style, s),
+                ],
+              ),
+            ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Reserve the artwork's painted bounds, including the largest supported scale,
+/// so trying an image frame never overlaps the name or the neighbouring row.
+class _DecorationAvatar extends StatelessWidget {
+  const _DecorationAvatar({
+    required this.avatarUrl,
+    required this.style,
+    required this.size,
+  });
+  final String avatarUrl;
+  final DecorationStyle? style;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final asset = decorationFrameAssetUrl(style);
+    final rawScale = style?.assetScale ?? 1.25;
+    final scale = rawScale.isFinite ? rawScale.clamp(.5, 2.0).toDouble() : 1.25;
+    return Padding(
+      padding: const EdgeInsets.all(4),
+      child: SizedBox.square(
+        dimension: asset.isEmpty ? size : size * scale.clamp(1, 2),
+        child: Center(
+          child: GfAvatar(
+            src: resolveApiAssetUrl(avatarUrl),
+            size: size,
+            frameColors: decorationColors(context, style),
+            frameAssetUrl: asset,
+            frameScale: scale,
+          ),
         ),
       ),
     );

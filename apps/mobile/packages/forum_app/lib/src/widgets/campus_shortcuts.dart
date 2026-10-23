@@ -13,7 +13,7 @@ class CampusShortcuts extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final colors = GfTheme.colorsOf(context);
     final entries = [
-      ('graduation-cap', l10n.campusCourseReviews, '/courses', colors.primary),
+      ('book-open', l10n.campusCourseReviews, '/courses', colors.primary),
       ('calendar-days', l10n.scheduleTitle, '/schedule', colors.success),
       ('book-open', l10n.wikiTitle, '/wiki', colors.warning),
     ];
@@ -39,7 +39,7 @@ class CampusShortcuts extends StatelessWidget {
                     child: Material(
                       color: colors.base200,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(GfRadius.lg),
                         side: BorderSide(
                           color: colors.line.withValues(alpha: 0.55),
                         ),

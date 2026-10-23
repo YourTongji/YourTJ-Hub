@@ -245,11 +245,7 @@ class GfUserCard extends StatelessWidget {
       colors: nicknameColors,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        fontSize: 22,
-        fontWeight: FontWeight.w700,
-        color: colors.baseContent,
-      ),
+      style: GfTheme.typographyOf(context).title1,
     );
     final nameRow = compact
         ? Row(
@@ -273,11 +269,9 @@ class GfUserCard extends StatelessWidget {
       '@$username',
       maxLines: compact ? 1 : null,
       overflow: compact ? TextOverflow.ellipsis : null,
-      style: TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w500,
-        color: colors.baseContent.withValues(alpha: 0.55),
-      ),
+      style: GfTheme.typographyOf(
+        context,
+      ).subhead.copyWith(color: colors.textSecondary),
     );
     final usernameRow = compact || usernameAction != null
         ? Row(
@@ -351,14 +345,7 @@ class GfUserCard extends StatelessWidget {
               if (showUsername) usernameRow,
               if (bio != null && bio!.trim().isNotEmpty) ...<Widget>[
                 SizedBox(height: sectionGap),
-                GfText(
-                  bio!.trim(),
-                  style: TextStyle(
-                    fontSize: 16,
-                    height: 1.4,
-                    color: colors.baseContent,
-                  ),
-                ),
+                GfText(bio!.trim(), style: GfTheme.typographyOf(context).body),
               ],
               if (signature?.trim().isNotEmpty == true) ...[
                 SizedBox(height: sectionGap),
@@ -387,9 +374,7 @@ class GfUserCard extends StatelessWidget {
                                   fontSize: 14,
                                   height: compact ? 1.45 : 1.55,
                                   fontWeight: FontWeight.w500,
-                                  color: colors.baseContent.withValues(
-                                    alpha: .62,
-                                  ),
+                                  color: colors.textSecondary,
                                 ),
                               ),
                             ),
@@ -464,7 +449,9 @@ class GfUserCard extends StatelessWidget {
                               button: statActions[i] != null,
                               child: InkWell(
                                 onTap: statActions[i],
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(
+                                  GfRadius.sm,
+                                ),
                                 child: SizedBox(
                                   height: 48,
                                   child: Padding(
@@ -479,8 +466,8 @@ class GfUserCard extends StatelessWidget {
                                           maxLines: 1,
                                           softWrap: false,
                                           style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w700,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
                                             fontFeatures: const [
                                               FontFeature.tabularFigures(),
                                             ],
@@ -493,8 +480,8 @@ class GfUserCard extends StatelessWidget {
                                           maxLines: 1,
                                           softWrap: false,
                                           style: TextStyle(
-                                            fontSize: 12,
-                                            color: colors.iconMuted,
+                                            fontSize: 14,
+                                            color: colors.textSecondary,
                                           ),
                                         ),
                                       ],

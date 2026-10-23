@@ -657,7 +657,7 @@ void main() {
       final material = tester.widget<Material>(
         find.ancestor(of: choice, matching: find.byType(Material)).first,
       );
-      expect(material.color, GfColors.forBrightness(expected).base100);
+      expect(material.color, GfColors.forBrightness(expected).surfaceRaised);
       expect(_isDrawerOpen(), isTrue);
       expect(tester.takeException(), isNull);
     }

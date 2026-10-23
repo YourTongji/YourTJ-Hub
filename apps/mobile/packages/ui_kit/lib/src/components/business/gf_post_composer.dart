@@ -244,7 +244,9 @@ class _GfPostComposerState extends State<GfPostComposer> {
                           child: Stack(
                             children: [
                               ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(
+                                  GfRadius.lg,
+                                ),
                                 child: Image(
                                   image: ResizeImage(
                                     GfMediaScope.imageProvider(
@@ -329,7 +331,9 @@ class _GfPostComposerState extends State<GfPostComposer> {
                                 curve: GfMotion.enterCurve,
                                 decoration: BoxDecoration(
                                   color: colors.base200,
-                                  borderRadius: BorderRadius.circular(24),
+                                  borderRadius: BorderRadius.circular(
+                                    GfRadius.xl,
+                                  ),
                                   border: Border.all(
                                     color: _focus.hasFocus
                                         ? colors.primary.withValues(alpha: .32)
