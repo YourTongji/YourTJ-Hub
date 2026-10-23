@@ -16,6 +16,7 @@ vi.mock('@/runtime/api', () => ({
 }))
 
 import { bookmarkTopic, likeTopic, resolveForumStickers } from '@/runtime/api'
+import { resetResolvedStickerCache } from '@/site/composables/useResolvedStickers'
 
 const i18n = createI18n({
   legacy: false,
@@ -63,6 +64,8 @@ describe('TopicCardActions 卡片快捷互动（issue #380）', () => {
   beforeEach(() => {
     vi.mocked(likeTopic).mockReset()
     vi.mocked(bookmarkTopic).mockReset()
+    // 贴纸解析缓存是模块级共享的：用例之间从干净状态开始。
+    resetResolvedStickerCache()
     // @ts-expect-error 测试替换 window.location
     delete window.location
     window.location = {

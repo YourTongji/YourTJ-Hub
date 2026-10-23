@@ -36,10 +36,15 @@ const props = withDefaults(defineProps<{
 const descriptionText = computed(() => stickerLabelText(topicDescription(props.topic), props.stickerUrls))
 const showDescription = computed(() => Boolean(props.topic.title) && descriptionText.value !== '')
 // 无标题即时的链接文案同样用纯文本，避免空链接或图片撑高列表行。
-const untitledLabel = computed(() => stickerLabelText(
-  topicRenderableLabel(props.topic.id, props.topic.title, props.topic.description, props.stickerUrls),
-  props.stickerUrls,
-))
+// 标题是纯文本：topicRenderableLabel 有标题时原样返回，这里不再二次处理；
+// 贴纸 [名字] 转换只作用于无标题瞬间的摘要回退。
+const untitledLabel = computed(() => {
+  if (props.topic.title?.trim()) return props.topic.title.trim()
+  return stickerLabelText(
+    topicRenderableLabel(props.topic.id, props.topic.title, props.topic.description, props.stickerUrls),
+    props.stickerUrls,
+  )
+})
 
 const { t } = useI18n()
 const feedReason = (reason?: string | null) => { const key = feedReasonKey(reason); return key ? t(key) : '' }

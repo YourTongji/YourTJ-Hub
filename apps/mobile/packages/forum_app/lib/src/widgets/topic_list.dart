@@ -305,7 +305,8 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
     );
     final String title = topic.title.trim().isNotEmpty
         ? topic.title
-        : stickerLabelText(
+        : _stickerLabelOrNoTitle(
+            context,
             topicDisplayTitle(context, topic),
             widget.stickerUrlByName,
           );
@@ -531,6 +532,17 @@ String topicDisplayTitle(BuildContext context, TopicPayload topic) =>
           ? topic.description
           : AppLocalizations.of(context).topicNoTitle);
 
+/// 小字视图的贴纸文案：token 全被省略而剥空时回退本地化"无标题"占位，
+/// 与 Web 列表行的稳定颜文字回退同族，保证任何列表行都有可识别文案。
+String _stickerLabelOrNoTitle(
+  BuildContext context,
+  String text,
+  Map<String, String> urlByName,
+) {
+  final String label = stickerLabelText(text, urlByName);
+  return label.isEmpty ? AppLocalizations.of(context).topicNoTitle : label;
+}
+
 /// 把后端话题 payload 映射为 [GfTopicRow](对齐 web TopicRow.vue 语义)。
 Widget _topicRow(
   BuildContext context,
@@ -549,7 +561,7 @@ Widget _topicRow(
   // 不做贴纸转换；无标题瞬间把摘要放在标题位，才按小字视图规则换成 [名字]/省略。
   final String title = topic.title.trim().isNotEmpty
       ? displayTitle
-      : stickerLabelText(displayTitle, stickerUrlByName);
+      : _stickerLabelOrNoTitle(context, displayTitle, stickerUrlByName);
   final String description = topic.title.trim().isEmpty
       ? ''
       : stickerLabelText(topic.description, stickerUrlByName);
@@ -645,7 +657,8 @@ Widget buildTopicFeedCard(
       ? ('', null)
       : _feedExcerpt(topic.description, stickerUrlByName, _cardStickerSize);
   final String cardTitle = untitled
-      ? stickerLabelText(
+      ? _stickerLabelOrNoTitle(
+          context,
           topicDisplayTitle(context, topic),
           stickerUrlByName,
         )

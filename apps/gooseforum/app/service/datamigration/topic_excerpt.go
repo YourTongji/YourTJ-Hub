@@ -3,7 +3,6 @@ package datamigration
 import (
 	"errors"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
@@ -72,11 +71,7 @@ type TopicExcerptBackfillResult struct {
 // BackfillTopicExcerpt 按首帖正文重算存量话题摘要（列表卡片 description）。
 // issue #1304：摘要生成曾漏掉 Markdown 转义与 HTML 实体解码，修复只影响之后
 // 写入的摘要，存量行需一次性重算。幂等：摘要未变化不写库。
-func BackfillTopicExcerpt() TopicExcerptBackfillResult {
-	return BackfillTopicExcerptWithDB(dbconnect.Connect())
-}
-
-func BackfillTopicExcerptWithDB(conn *gorm.DB) TopicExcerptBackfillResult {
+func BackfillTopicExcerpt(conn *gorm.DB) TopicExcerptBackfillResult {
 	const batchSize = 200
 	result := TopicExcerptBackfillResult{}
 	if !conn.Migrator().HasTable(&topics.Entity{}) || !conn.Migrator().HasTable(&posts.Entity{}) {

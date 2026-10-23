@@ -495,7 +495,7 @@ func runVersionedDataMigrations() error {
 		currentVersion = 35
 	}
 	if currentVersion < 36 {
-		result := datamigration.BackfillTopicExcerpt()
+		result := datamigration.BackfillTopicExcerpt(dbconnect.Connect())
 		if result.Failed > 0 {
 			return dataMigrationError("topic excerpt", 36, result.Failed, result.LastFailed)
 		}

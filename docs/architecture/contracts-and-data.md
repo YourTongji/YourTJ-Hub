@@ -637,7 +637,7 @@ image-capable: prose sticker tokens stay in the stored excerpt so cards and hove
 resolvable names as images, while small-text surfaces (list rows, pinned strip, crawler/no-JS SSR
 list) show them as `[name]` text. Unknown, disabled and personal names are omitted in previews and
 truncation never splits a token; the text-only projections of the same value (meta/OG descriptions,
-RSS, share cards, llms export, notification text, crawler link labels) strip the tokens. Missing fields on
+RSS, share cards, llms export, notification text) strip the tokens. Missing fields on
 older servers remain valid. Bookmark
 ordering and cursor semantics are unchanged; activity reply URLs include the post number when known.
 

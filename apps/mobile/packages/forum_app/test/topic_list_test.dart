@@ -893,6 +893,24 @@ void main() {
       expect(find.textContaining('[:sticker:smile:] 字面标题'), findsOneWidget);
     });
 
+    testWidgets('an untitled topic whose excerpt is all-unknown tokens falls back to the no-title label', (
+      tester,
+    ) async {
+      final catalog = _StickerCatalog(const <StickerItemPayload>[]);
+      await pumpFeed(
+        tester,
+        [topicWith('[:sticker:ghost:]', title: '')],
+        catalog: catalog,
+      );
+
+      // token 全部被省略后标题槽不留白：回退到本地化"无标题"占位。
+      expect(find.text('无标题'), findsOneWidget);
+      expect(
+        _richTexts(tester).where((text) => text.contains('[:sticker:')),
+        isEmpty,
+      );
+    });
+
     testWidgets('card renders the same token larger', (tester) async {
       await pumpFeed(
         tester,

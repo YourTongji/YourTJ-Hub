@@ -153,7 +153,7 @@ func TestBackfillTopicExcerptRewritesPollutedExcerpts(t *testing.T) {
 		}
 	}
 
-	result := BackfillTopicExcerptWithDB(conn)
+	result := BackfillTopicExcerpt(conn)
 	if result.Failed != 0 || result.Updated < 1 {
 		t.Fatalf("result = %+v, want dirty topic rewritten and no failure", result)
 	}
@@ -199,7 +199,7 @@ func TestBackfillTopicExcerptRewritesPollutedExcerpts(t *testing.T) {
 
 	// 幂等：第二次执行不再产生写入。前置条件是本包没有 t.Parallel()、共用一个
 	// 进程内内存库，两次调用之间不存在其他测试改动话题行，全表 Updated == 0 才成立。
-	again := BackfillTopicExcerptWithDB(conn)
+	again := BackfillTopicExcerpt(conn)
 	if again.Updated != 0 || again.Failed != 0 {
 		t.Fatalf("second backfill = %+v, want no update and no failure", again)
 	}
