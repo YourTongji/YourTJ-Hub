@@ -34,6 +34,47 @@ class _Users extends UserRepository {
   }
 }
 
+const StickerItemPayload _smile = StickerItemPayload(
+  name: 'smile',
+  url: '/file/img/stickers/smile.png',
+);
+
+class _MemoryTokenStorage implements TokenStorage {
+  @override
+  Future<String?> read() async => null;
+  @override
+  Future<void> write(String token) async {}
+  @override
+  Future<void> clear() async {}
+}
+
+/// 记录每次查询：一页列表只能解析一次，行不自己发请求。
+class _StickerCatalog extends StickerRepository {
+  _StickerCatalog(this.items)
+    : super(GfApiClient(dio: Dio(), tokenStorage: _MemoryTokenStorage()));
+
+  final List<StickerItemPayload> items;
+  int listCalls = 0;
+  final List<String> resolvedNames = <String>[];
+
+  @override
+  Future<List<StickerItemPayload>> list() async {
+    listCalls++;
+    return items;
+  }
+
+  @override
+  Future<List<StickerItemPayload>> resolve(List<String> names) async {
+    resolvedNames.addAll(names);
+    return const <StickerItemPayload>[];
+  }
+}
+
+/// 富文本的纯文本镜像（Text.rich 不暴露 data）。
+Iterable<String> _richTexts(WidgetTester tester) => tester
+    .widgetList<RichText>(find.byType(RichText))
+    .map((RichText rich) => rich.text.toPlainText());
+
 void main() {
   testWidgets('author, image and body have distinct navigation targets', (
     tester,
