@@ -652,6 +652,8 @@ final GoRouter appRouter = GoRouter(
       path: '/settings/:section',
       maxContentWidth: 1120,
       builder: (_, state) => SettingsPage(
+        // The same route matches every section; each location owns its editor state.
+        key: ValueKey(state.uri.toString()),
         initialSection: state.pathParameters['section'],
         autoEditProfile: state.uri.queryParameters['edit'] == '1',
       ),

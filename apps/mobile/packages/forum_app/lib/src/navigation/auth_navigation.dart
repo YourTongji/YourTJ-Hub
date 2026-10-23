@@ -107,7 +107,8 @@ String? _parseAuthReturnTo(String? raw) {
     'publish' => const {'topicId', 'id', 'local', 'type', 'contentType'},
     'courses' => const {'q', 'reviewId', 'offeringId'},
     'profile' => const {'stream'},
-    'search' || 'wiki' => const {'q'},
+    'search' => const {'q', 'scope'},
+    'wiki' => const {'q'},
     'settings' =>
       uri.path == '/settings/profile' ? const {'edit'} : const <String>{},
     null || '' => const {'sort'},

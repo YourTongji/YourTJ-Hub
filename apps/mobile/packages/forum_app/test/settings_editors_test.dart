@@ -69,6 +69,9 @@ Future<void> openProfileLinks(WidgetTester tester) async {
     250,
     scrollable: find.byType(Scrollable).first,
   );
+  await tester.ensureVisible(row);
+  await tester.pumpAndSettle();
+  expect(row.hitTestable(), findsOneWidget);
   await tester.tap(row);
   await tester.pumpAndSettle();
 }

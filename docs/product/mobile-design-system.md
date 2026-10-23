@@ -78,9 +78,11 @@ second action region. The visible icon may be 20–24 pixels, but its focusable 
 44 × 44 logical pixels, preferably 48 × 48 on touch surfaces. Adjacent hit regions must not overlap.
 Pressed, selected, pending, failed and disabled states are distinguishable without color alone.
 
-`Planned`: the avatar and author name open the author, images open the shared gallery at the selected
-image, and the body opens the discussion. Child actions consume their own gestures. A guest/offline
-identity uses the brand mark or a deliberate person glyph, never a broken-image placeholder.
+`Current`: Home cards, topic posts and notifications open a profile preview from the avatar and the
+full profile from the author name. Chat headers and user-search rows open the full profile directly;
+anonymous identities retain their existing privacy rules. Images open the shared gallery at the
+selected image, and the body opens the discussion. Child actions consume their own gestures. A
+guest/offline identity uses the brand mark or a deliberate person glyph, never a broken-image placeholder.
 
 ## Navigation and windows
 

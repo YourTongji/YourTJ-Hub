@@ -273,6 +273,24 @@ void main() {
       .controller!
       .index;
 
+  testWidgets('forum unavailable is disclosed while Wiki results remain usable', (
+    tester,
+  ) async {
+    final repo = await pumpSearch(tester, wiki: _WikiRepository(items: 1));
+    repo.calls.first.result.complete(
+      _result(repo.calls.first, unavailable: true),
+    );
+    await tester.pumpAndSettle();
+    final l = AppLocalizations.of(tester.element(find.byType(SearchPage)));
+    expect(
+      find.text(
+        '${l.searchUnavailable}: ${l.searchTopics}, ${l.searchUsers}, ${l.searchCategories}, ${l.coursesTitle}',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('original wiki 0'), findsOneWidget);
+  });
+
   testWidgets('all caps course and Wiki groups and See all opens each type', (
     tester,
   ) async {
@@ -1123,25 +1141,15 @@ void main() {
               matching: find.byType(Scrollable),
             )
             .first;
-        for (final row in ['Course 0', 'original wiki 0']) {
+        for (final row in ['Category 0', 'Course 0', 'original wiki 0']) {
           await tester.scrollUntilVisible(
             find.text(row),
             200,
             scrollable: scrollable,
           );
+          expect(find.text(row), findsOneWidget);
           expect(tester.takeException(), isNull);
         }
-        await tester.scrollUntilVisible(
-          find.text('Category 0'),
-          200,
-          scrollable: find
-              .descendant(
-                of: find.byType(ListView),
-                matching: find.byType(Scrollable),
-              )
-              .first,
-        );
-        expect(find.text('Category 0'), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }

@@ -889,8 +889,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final colors = GfTheme.colorsOf(context);
     final hasDirectory = _hasDirectory;
     final scaffold = Scaffold(
-      backgroundColor: colors.base200,
+      backgroundColor: colors.canvasGrouped,
       appBar: GfAppBar(
+        backgroundColor: colors.canvasGrouped,
+        showDivider: false,
         leading: IconButton(
           icon: const GfSymbol('chevron-left'),
           tooltip: l10n.commonBack,
@@ -1758,36 +1760,12 @@ class _SettingsSessionsSkeleton extends StatelessWidget {
   }
 }
 
-/// Settings sections keep related rows together on an inset surface.
+/// Settings share the same grouped surface as profile and account forms.
 Widget _settingsSection(
   BuildContext context, {
   String? title,
   required Widget child,
-}) {
-  final GfColors colors = GfTheme.colorsOf(context);
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      if (title != null)
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: GfText(
-            title,
-            style: GfTheme.typographyOf(context).small.copyWith(
-              color: colors.iconMuted,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      Material(
-        color: colors.base100,
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
-        child: child,
-      ),
-    ],
-  );
-}
+}) => GfListSection(header: title, margin: EdgeInsets.zero, children: [child]);
 
 /// Dialog routes outlive their settings subtree. Remove exactly this route on
 /// an account switch, including while a credential write is still pending.

@@ -822,8 +822,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         if (!didPop) _close();
       },
       child: Scaffold(
-        backgroundColor: colors.base200,
+        backgroundColor: colors.canvasGrouped,
         appBar: AppBar(
+          backgroundColor: colors.canvasGrouped,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
           automaticallyImplyLeading: false,
           titleSpacing: 8,
           toolbarHeight:
@@ -1087,8 +1090,10 @@ class _ProfileLinksPageState extends State<_ProfileLinksPage> {
         if (!didPop) _close();
       },
       child: Scaffold(
-        backgroundColor: colors.base200,
+        backgroundColor: colors.canvasGrouped,
         appBar: GfAppBar(
+          backgroundColor: colors.canvasGrouped,
+          showDivider: false,
           leading: IconButton(
             tooltip: l.commonBack,
             onPressed: _close,
@@ -1340,42 +1345,15 @@ class _LabeledRow extends StatelessWidget {
   }
 }
 
-/// Rounded inset group matching the settings index.
+/// The shared mobile group keeps header, surface and footer styling aligned.
 Widget _editorSection(
   BuildContext context, {
   required String title,
   required Widget child,
   String? footer,
-}) {
-  final colors = GfTheme.colorsOf(context);
-  final type = GfTheme.typographyOf(context);
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Padding(
-        padding: const EdgeInsets.only(left: 4, bottom: 8),
-        child: GfText(
-          title,
-          style: type.small.copyWith(
-            color: colors.iconMuted,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-      Material(
-        color: colors.base100,
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
-        child: child,
-      ),
-      if (footer != null)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
-          child: GfText(
-            footer,
-            style: type.caption.copyWith(color: colors.iconMuted),
-          ),
-        ),
-    ],
-  );
-}
+}) => GfListSection(
+  header: title,
+  footer: footer,
+  margin: EdgeInsets.zero,
+  children: [child],
+);

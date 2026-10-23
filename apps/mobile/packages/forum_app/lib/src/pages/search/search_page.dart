@@ -263,11 +263,17 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           ),
         );
     props = props.copyWith(
-      failedScopes: [
+      failedScopes: {
         ...?props.failedScopes,
-        if (forumError != null) ...['topics', 'users', 'categories', 'courses'],
+        if (forumError != null ||
+            (scope == 'all' && props.searchUnavailable == true)) ...[
+          'topics',
+          'users',
+          'categories',
+          'courses',
+        ],
         if (wikiFailed && scope == 'all') 'wiki',
-      ],
+      }.toList(),
       searchUnavailable: scope == 'wiki'
           ? wikiFailed
           : props.searchUnavailable == true &&
@@ -1136,8 +1142,10 @@ class _SearchResults extends StatelessWidget {
 
     // The delegate constructs individual rows, including after topic pages append.
     // No shrink-wrapped grid or whole-section Column expands the viewport cache.
-    Widget buildRow(int index,
-        {Map<String, String> stickerUrlByName = const <String, String>{}}) {
+    Widget buildRow(
+      int index, {
+      Map<String, String> stickerUrlByName = const <String, String>{},
+    }) {
       if (failed.isNotEmpty) {
         if (index == 0) return _PartialFailure(scopes: failed);
         index--;
@@ -1441,7 +1449,11 @@ class _TopicRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return buildTopicFeedCard(context, topic, stickerUrlByName: stickerUrlByName);
+    return buildTopicFeedCard(
+      context,
+      topic,
+      stickerUrlByName: stickerUrlByName,
+    );
   }
 }
 

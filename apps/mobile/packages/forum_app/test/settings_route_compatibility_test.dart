@@ -32,6 +32,53 @@ class _Sessions extends UserRepository {
 }
 
 void main() {
+  testWidgets('successive settings deep links show the requested section', (
+    tester,
+  ) async {
+    final storage = MemoryTokenStorage();
+    await storage.write('session');
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: storage,
+      baseUrl: 'http://fake.local',
+    );
+    final router = GoRouter(
+      initialLocation: '/settings/account',
+      routes: appRouter.configuration.routes,
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          tokenStorageProvider.overrideWithValue(storage),
+          pageRepositoryProvider.overrideWithValue(_Settings(client)),
+          userRepositoryProvider.overrideWithValue(_Sessions(client)),
+          deviceStorageProvider.overrideWithValue(FakeDeviceStorage()),
+        ],
+        child: MaterialApp.router(
+          routerConfig: router,
+          theme: gfThemeData(Brightness.light),
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Account & security'), findsWidgets);
+    router.go('/settings/privacy-controls');
+    await tester.pumpAndSettle();
+    expect(find.text('Profile visibility'), findsWidgets);
+    router.go('/settings/profile');
+    await tester.pumpAndSettle();
+    expect(find.byType(ProfileEditPage), findsOneWidget);
+    router.go('/settings/badges');
+    await tester.pumpAndSettle();
+    expect(find.byType(BadgeDisplayDialog), findsOneWidget);
+    expect(find.byType(ProfileEditPage), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final path in [
     '/settings/profile',
     '/settings/profile?edit=1',
