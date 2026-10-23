@@ -287,7 +287,14 @@ class _ContentPageState extends ConsumerState<ContentPage> {
       return;
     }
     if (action == 'restore') {
-      await _run((_) => ref.read(contentRepositoryProvider).restore(item));
+      await _run((_) async {
+        await ref.read(contentRepositoryProvider).restore(item);
+        if (mounted &&
+            epoch == ref.read(offlineCacheEpochProvider) &&
+            item.contentType == 'topic') {
+          ref.read(removedTopicsProvider.notifier).remove(item.id);
+        }
+      });
     } else {
       if (!await _confirm(l10n.contentPurge, l10n.contentPurgeConfirm) ||
           !mounted ||

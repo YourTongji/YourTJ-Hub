@@ -49,7 +49,151 @@ class _Content extends ContentRepository {
   }
 }
 
+class _RestoringContent extends ContentRepository {
+  _RestoringContent(super.client, this.item, {this.fail = false, this.gate});
+  final UserContentItem item;
+  final bool fail;
+  final Completer<void>? gate;
+  bool restored = false;
+  @override
+  Future<UserContentPage> list({
+    required String contentType,
+    bool deleted = false,
+    int cursor = 0,
+  }) async => UserContentPage(
+    items: deleted != restored ? [item] : [],
+    hasMore: false,
+    nextCursorId: 0,
+  );
+  @override
+  Future<void> restore(UserContentItem item) async {
+    await gate?.future;
+    if (fail) throw StateError('restore rejected');
+    restored = true;
+  }
+}
+
 void main() {
+  for (final kind in ['topic', 'post']) {
+    for (final fail in [false, true]) {
+      testWidgets(
+        'restore $kind fail=$fail reconciles only acknowledged topic visibility',
+        (tester) async {
+          final item = UserContentItem(
+            id: 100,
+            topicId: kind == 'post' ? 200 : null,
+            contentType: kind,
+            title: 'Restorable item',
+            canRestore: true,
+          );
+          final repo = _RestoringContent(
+            GfApiClient(
+              dio: Dio(),
+              tokenStorage: MemoryTokenStorage(),
+              baseUrl: 'https://example.test',
+            ),
+            item,
+            fail: fail,
+          );
+          final container = ProviderContainer(
+            overrides: [contentRepositoryProvider.overrideWithValue(repo)],
+          );
+          addTearDown(container.dispose);
+          container.read(removedTopicsProvider.notifier).add(100);
+          Widget app(bool deleted) => UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              theme: gfThemeData(Brightness.light),
+              locale: const Locale('en'),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: ContentPage(
+                key: ValueKey(deleted),
+                deleted: deleted,
+                initialType: kind,
+              ),
+            ),
+          );
+          await tester.pumpWidget(app(true));
+          await tester.pumpAndSettle();
+          expect(
+            find.text('Restorable item'),
+            findsOneWidget,
+            reason: 'deleted topics remain available in the recycle bin',
+          );
+          await tester.tap(find.byType(GfPopupMenuButton<String>));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Restore'));
+          await tester.pumpAndSettle();
+          expect(
+            container.read(removedTopicsProvider).contains(100),
+            fail || kind == 'post',
+          );
+          if (!fail) {
+            expect(find.text('Restorable item'), findsNothing);
+            await tester.pumpWidget(app(false));
+            await tester.pumpAndSettle();
+            expect(
+              find.text('Restorable item'),
+              findsOneWidget,
+              reason:
+                  'the restored content is visible again without signing out',
+            );
+          }
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+  testWidgets(
+    'old account restore acknowledgement cannot clear a new account deletion',
+    (tester) async {
+      final gate = Completer<void>();
+      final repo = _RestoringContent(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemoryTokenStorage(),
+          baseUrl: 'https://example.test',
+        ),
+        const UserContentItem(
+          id: 100,
+          contentType: 'topic',
+          title: 'Restorable item',
+          canRestore: true,
+        ),
+        gate: gate,
+      );
+      final container = ProviderContainer(
+        overrides: [contentRepositoryProvider.overrideWithValue(repo)],
+      );
+      addTearDown(container.dispose);
+      container.read(removedTopicsProvider.notifier).add(100);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ContentPage(deleted: true),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(GfPopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Restore'));
+      await tester.pump();
+      container.read(offlineCacheEpochProvider.notifier).invalidate();
+      container.read(removedTopicsProvider.notifier).add(100);
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(container.read(removedTopicsProvider), contains(100));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final deleted in [false, true]) {
     testWidgets(
       'wide content keeps type, selection and scroll across resizing deleted=$deleted',

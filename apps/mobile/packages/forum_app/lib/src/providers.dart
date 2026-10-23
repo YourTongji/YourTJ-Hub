@@ -80,6 +80,11 @@ class RemovedTopics extends Notifier<Set<int>> {
   }
 
   void add(int id) => state = {...state, id};
+
+  /// A confirmed restore makes this topic eligible for the existing lists again.
+  void remove(int id) {
+    if (state.contains(id)) state = {...state}..remove(id);
+  }
 }
 
 final removedTopicsProvider = NotifierProvider<RemovedTopics, Set<int>>(

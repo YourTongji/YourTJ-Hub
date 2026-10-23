@@ -401,7 +401,9 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   deletion pops to its source, or goes Home when opened as a root deep link. Session-scoped
   deletion markers remove stale topic entries from feeds, profile streams and content management
   without resetting their controllers, and prevent late reads from restoring them. Failed deletion
-  leaves the page and lists unchanged; account/site changes clear those markers.
+  leaves the page and lists unchanged. An acknowledged topic restore clears its marker, so restored
+  content is visible again in the same session; failed restores, reply restores and old-account
+  responses cannot clear an unrelated topic marker. Account/site changes clear those markers.
 
 - `Current`: embedded reply Markdown adds no device safe-area spacing. Dates and reply actions
   share a compact footer, wrapping on narrow screens or large text. Reply references use Web's
@@ -668,8 +670,9 @@ success closes the editor. Pending writes prevent duplicate submission, and chan
 removes the previous account’s private form state and ignores its late responses.
 
 `Current`: native components are implemented by `ui_kit` on Flutter primitives. Ordinary account,
-security, profile, course and schedule fields use a quiet filled surface with 16-pixel corners and a
-52-pixel minimum height. Floating labels stay inside the filled surface. Focus and validation add a
+security, course and schedule fields use a quiet filled surface with 14-pixel corners and a
+52-pixel minimum height. The profile editor uses aligned inline fields inside shared inset groups,
+with the same hints, counters and field-level validation. Floating labels stay inside the filled surface. Focus and validation add a
 thin continuous outline without a glow; field labels,
 errors, native selection, autofill, password managers and IME actions remain available. Multiline
 notes grow within their available space. Search uses a capsule and preserves focus on clear.
