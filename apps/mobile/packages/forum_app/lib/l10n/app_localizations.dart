@@ -2013,7 +2013,7 @@ abstract class AppLocalizations {
   /// No description provided for @scheduleTitle.
   ///
   /// In en, this message translates to:
-  /// **'Scheduler'**
+  /// **'Course planner'**
   String get scheduleTitle;
 
   /// No description provided for @scheduleTabTimetable.
@@ -3393,7 +3393,7 @@ abstract class AppLocalizations {
   /// No description provided for @schedulerWebTitle.
   ///
   /// In en, this message translates to:
-  /// **'Explore the full scheduler on the Web'**
+  /// **'Explore the full course planner on the Web'**
   String get schedulerWebTitle;
 
   /// No description provided for @schedulerWebAction.
@@ -4701,7 +4701,7 @@ abstract class AppLocalizations {
   /// No description provided for @campusTimetable.
   ///
   /// In en, this message translates to:
-  /// **'My timetable'**
+  /// **'School timetable'**
   String get campusTimetable;
 
   /// No description provided for @campusAcademics.
@@ -4713,7 +4713,7 @@ abstract class AppLocalizations {
   /// No description provided for @campusMessages.
   ///
   /// In en, this message translates to:
-  /// **'Campus notices'**
+  /// **'School notices'**
   String get campusMessages;
 
   /// No description provided for @campusCalendars.
@@ -7499,6 +7499,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Preview status'**
   String get previewStatusLink;
+
+  /// No description provided for @campusSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Campus settings'**
+  String get campusSettings;
+
+  /// No description provided for @scheduleStatusHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan status and help'**
+  String get scheduleStatusHelp;
+
+  /// No description provided for @courseAddToPlanner.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to course planner'**
+  String get courseAddToPlanner;
+
+  /// No description provided for @coursePlannerSelectTerm.
+  ///
+  /// In en, this message translates to:
+  /// **'Select the same term and your major before confirming the class. Existing plans stay unchanged.'**
+  String get coursePlannerSelectTerm;
+
+  /// No description provided for @coursePlannerUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This class is unavailable for the term. Choose another offering from course details.'**
+  String get coursePlannerUnavailable;
 }
 
 class _AppLocalizationsDelegate

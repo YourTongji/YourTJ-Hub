@@ -1075,7 +1075,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get topicNewTopic => 'Neues Thema';
 
   @override
-  String get scheduleTitle => 'Stundenplaner';
+  String get scheduleTitle => 'Kursplaner';
 
   @override
   String get scheduleTabTimetable => 'Planvorschau';
@@ -1833,7 +1833,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die beiden Passwörter stimmen nicht überein';
 
   @override
-  String get schedulerWebTitle => 'Vollständigen Stundenplaner im Web nutzen';
+  String get schedulerWebTitle => 'Vollständigen Kursplaner im Web nutzen';
 
   @override
   String get schedulerWebAction => 'f.yourtj.de öffnen';
@@ -2589,13 +2589,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get campusToday => 'Heute';
 
   @override
-  String get campusTimetable => 'Mein Stundenplan';
+  String get campusTimetable => 'Schulstundenplan';
 
   @override
   String get campusAcademics => 'Studienleistungen';
 
   @override
-  String get campusMessages => 'Campus-Mitteilungen';
+  String get campusMessages => 'Hochschulmitteilungen';
 
   @override
   String get campusCalendars => 'Semesterkalender';
@@ -4218,4 +4218,21 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get previewStatusLink => 'Vorschau-Status';
+
+  @override
+  String get campusSettings => 'Campus-Einstellungen';
+
+  @override
+  String get scheduleStatusHelp => 'Planstatus und Hilfe';
+
+  @override
+  String get courseAddToPlanner => 'Zum Kursplaner hinzufügen';
+
+  @override
+  String get coursePlannerSelectTerm =>
+      'Vor der Bestätigung dasselbe Semester und dein Fach wählen. Bestehende Pläne bleiben unverändert.';
+
+  @override
+  String get coursePlannerUnavailable =>
+      'Dieser Kurs ist im Semester nicht verfügbar. Wähle ein anderes Angebot in den Kursdetails.';
 }

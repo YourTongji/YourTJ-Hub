@@ -900,7 +900,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
   String _templateIcon(String id) => switch (id) {
     'comprehensive' => 'book-open',
     'quick' => 'star',
-    'teacher-focused' => 'graduation-cap',
+    'teacher-focused' => 'book-open',
     'exam-focused' => 'shield-check',
     'workload' => 'clock',
     _ => 'file-text',

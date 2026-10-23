@@ -22,7 +22,7 @@ import 'widgets/account_drawer.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/admin/admin_page.dart';
 import 'pages/campus/campus_page.dart';
-import 'pages/campus/campus_explore_page.dart';
+import 'pages/campus/campus_settings_page.dart';
 import 'pages/content/content_page.dart';
 import 'pages/category/category_page.dart';
 import 'pages/courses/catalog_page.dart';
@@ -698,10 +698,11 @@ final GoRouter appRouter = GoRouter(
       builder: (_, _) => const AdminPage(target: MobileWebTarget.courseReviews),
     ),
     GoRoute(path: '/campus/official', redirect: (_, _) => '/campus'),
+    GoRoute(path: '/campus/explore', redirect: (_, _) => '/campus'),
     _readingPageRoute(
-      path: '/campus/explore',
-      maxContentWidth: 1120,
-      builder: (_, _) => const CampusExplorePage(),
+      path: '/campus/settings',
+      maxContentWidth: 720,
+      builder: (_, _) => const CampusSettingsPage(),
     ),
     GoRoute(path: '/admin', builder: (_, _) => const AdminPage()),
     GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
@@ -710,7 +711,15 @@ final GoRouter appRouter = GoRouter(
       maxContentWidth: 1120,
       builder: (_, _) => const DraftsPage(),
     ),
-    GoRoute(path: '/schedule', builder: (_, _) => const SchedulePage()),
+    GoRoute(
+      path: '/schedule',
+      builder: (_, state) => SchedulePage(
+        courseCode: state.uri.queryParameters['course'],
+        classCode: state.uri.queryParameters['class'],
+        termCode: state.uri.queryParameters['term'],
+        courseName: state.uri.queryParameters['name'],
+      ),
+    ),
     _readingPageRoute(
       path: '/courses',
       maxContentWidth: 1120,

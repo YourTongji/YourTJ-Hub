@@ -1,5 +1,5 @@
-import 'scheduler_web_tip.dart';
-import 'schedule_sync_panel.dart';
+import 'schedule_status_summary.dart';
+import 'planner_term.dart';
 import 'schedule_storage_panel.dart';
 import '../../widgets/schedule_time_grid.dart';
 
@@ -19,6 +19,7 @@ import '../../widgets/schedule_time_grid.dart';
 // - 导出只做 PNG 截图分享与 CSV（UTF-8 BOM）；XLS/XLSX 不做。
 // - PNG 为网格截图分享（无 web 海报的文字排版画布）。
 import 'dart:async';
+import 'package:go_router/go_router.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -75,7 +76,14 @@ PkCourseDetail detailFromBrief(PkCourseDetailBrief brief) {
 
 /// 主页面：排课器。
 class SchedulePage extends ConsumerStatefulWidget {
-  const SchedulePage({super.key});
+  const SchedulePage({
+    super.key,
+    this.courseCode,
+    this.classCode,
+    this.termCode,
+    this.courseName,
+  });
+  final String? courseCode, classCode, termCode, courseName;
 
   @override
   ConsumerState<SchedulePage> createState() => _SchedulePageState();
@@ -86,6 +94,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
   bool _ready = false;
   bool _tabTimetable = false;
   bool _syncing = false;
+  bool _openingOffering = false;
 
   List<PkCalendarItem> _calendars = const <PkCalendarItem>[];
   List<SectionTime> _sectionOverrides = const <SectionTime>[];
@@ -217,6 +226,64 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
     }
   }
 
+  Future<void> _openOffering() async {
+    if (_openingOffering || !_notifier.isMajorSelected) return;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final calendar = _state.majorSelected.calendarId;
+    final current = _calendars.where((c) => c.calendarId == calendar);
+    if (current.isEmpty ||
+        canonicalPlannerTerm(current.first.calendarName) == null ||
+        canonicalPlannerTerm(current.first.calendarName) !=
+            canonicalPlannerTerm(widget.termCode ?? '')) {
+      showGfToast(
+        context,
+        AppLocalizations.of(context).coursePlannerSelectTerm,
+        error: true,
+      );
+      return;
+    }
+    setState(() => _openingOffering = true);
+    try {
+      final briefs = await ref
+          .read(pkRepositoryProvider)
+          .courseDetails(calendarId: calendar!, courseCode: widget.courseCode!);
+      if (!mounted ||
+          epoch != ref.read(offlineCacheEpochProvider) ||
+          calendar != _state.majorSelected.calendarId) {
+        return;
+      }
+      final exact = briefs.where((b) => b.code == widget.classCode).toList();
+      if (exact.isEmpty) {
+        showGfToast(
+          context,
+          AppLocalizations.of(context).coursePlannerUnavailable,
+          error: true,
+        );
+        return;
+      }
+      setState(() => _openingOffering = false);
+      await showGfBottomSheet<void>(
+        context,
+        builder: (_) => _ClassListSheet(
+          briefs: exact,
+          courseName: widget.courseName ?? widget.courseCode!,
+          expectedEpoch: epoch,
+          expectedCalendar: calendar,
+        ),
+      );
+    } catch (error) {
+      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+        showGfToast(
+          context,
+          resolveErrorMessage(AppLocalizations.of(context), error),
+          error: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _openingOffering = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
@@ -235,7 +302,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
         title: GfText(l10n.scheduleTitle),
         actions: <Widget>[
           GfIconButton(
-            symbol: 'calendar-days',
+            symbol: 'plus',
             size: 44,
             tooltip: l10n.scheduleAddCustomEvent,
             onPressed: _openCustomEventSheet,
@@ -272,9 +339,27 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               children: <Widget>[
-                const SchedulerWebTip(),
-                const ScheduleSyncPanel(),
-                const ScheduleStoragePanel(),
+                const ScheduleStatusSummary(),
+                if (widget.courseCode?.isNotEmpty == true &&
+                    widget.classCode?.isNotEmpty == true)
+                  GfCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        GfText(
+                          '${widget.courseName ?? widget.courseCode} · ${widget.classCode} · ${widget.termCode}',
+                        ),
+                        GfText(l10n.coursePlannerSelectTerm),
+                        GfButton(
+                          label: l10n.courseAddToPlanner,
+                          loading: _openingOffering,
+                          onPressed: _notifier.isMajorSelected
+                              ? _openOffering
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
                 _PlanBar(notifier: _notifier, state: state),
                 const SizedBox(height: 8),
                 if (state.isConfigCollapsed)
@@ -1978,7 +2063,13 @@ class _SearchRow extends StatelessWidget {
 
 /// 教学班列表 sheet（点选即上表；stay-open 可连续加同课时段）。
 class _ClassListSheet extends ConsumerWidget {
-  const _ClassListSheet({required this.briefs, required this.courseName});
+  const _ClassListSheet({
+    required this.briefs,
+    required this.courseName,
+    this.expectedEpoch,
+    this.expectedCalendar,
+  });
+  final int? expectedEpoch, expectedCalendar;
 
   final List<PkCourseDetailBrief> briefs;
   final String courseName;
@@ -1988,6 +2079,12 @@ class _ClassListSheet extends ConsumerWidget {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final GfColors colors = GfTheme.colorsOf(context);
     final ScheduleState state = ref.watch(scheduleStoreProvider);
+    if ((expectedEpoch != null &&
+            ref.watch(offlineCacheEpochProvider) != expectedEpoch) ||
+        (expectedCalendar != null &&
+            state.majorSelected.calendarId != expectedCalendar)) {
+      return GfEmpty(message: l10n.commonRetry);
+    }
     final PkPlan active = state.plans.firstWhere(
       (PkPlan plan) => plan.id == state.activePlanId,
       orElse: () => state.plans.first,
@@ -2619,12 +2716,35 @@ class _ReviewBriefPanelState extends ConsumerState<_ReviewBriefPanel> {
         color: colors.base200,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: GfText(
-        text,
-        style: TextStyle(
-          fontSize: 12,
-          color: colors.baseContent.withValues(alpha: 0.65),
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          GfText(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              color: colors.baseContent.withValues(alpha: 0.65),
+            ),
+          ),
+          if (brief != null && brief.courseId > 0)
+            TextButton(
+              key: const Key('planner-course-details-link'),
+              onPressed: () {
+                final matches = brief.classes.where(
+                  (c) => c.classCode == widget.course.code,
+                );
+                final offering = matches.isEmpty
+                    ? null
+                    : matches.first.offeringId;
+                final router = GoRouter.of(context);
+                Navigator.of(context).pop();
+                router.push(
+                  '/courses/${brief.courseId}${offering != null && offering > 0 ? '?offeringId=$offering' : ''}',
+                );
+              },
+              child: GfText(l10n.coursesTitle),
+            ),
+        ],
       ),
     );
   }
