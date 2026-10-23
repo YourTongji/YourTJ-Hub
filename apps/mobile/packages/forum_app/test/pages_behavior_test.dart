@@ -2974,7 +2974,7 @@ void main() {
   });
 
   group('首页话题布局', () {
-    testWidgets('卡片和列表可通过阅读选项切换且记住选择', (tester) async {
+    testWidgets('卡片和列表一点即切换且记住选择', (tester) async {
       final pageRepo = CountingPageRepository(
         GfApiClient(
           dio: Dio(),
@@ -2990,16 +2990,29 @@ void main() {
       expect(find.byType(GfTopicRow), findsNothing);
       expect(find.text('新建话题'), findsNothing);
       expect(find.byType(GfLogo), findsOneWidget);
-      await tester.tap(find.byTooltip('显示方式'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('列表'));
+      // The button names the layout it switches to (issue #1372 H1).
+      final semantics = tester.ensureSemantics();
+      expect(
+        tester.getSemantics(find.byTooltip('切换为列表')),
+        isSemantics(tooltip: '切换为列表', isButton: true),
+      );
+      semantics.dispose();
+      await tester.tap(find.byTooltip('切换为列表'));
       await tester.pumpAndSettle();
 
+      expect(find.byType(BottomSheet), findsNothing);
       expect(find.byType(GfTopicCard), findsNothing);
       expect(find.byType(GfTopicRow), findsOneWidget);
       final SharedPreferences preferences =
           await SharedPreferences.getInstance();
       expect(preferences.getString('goose:home-feed-mode'), 'list');
+
+      await tester.tap(find.byTooltip('切换为卡片'));
+      await tester.pumpAndSettle();
+      expect(find.byType(GfTopicCard), findsOneWidget);
+      expect(find.byType(GfTopicRow), findsNothing);
+      expect(find.byTooltip('切换为列表'), findsOneWidget);
+      expect(preferences.getString('goose:home-feed-mode'), 'card');
     });
   });
 

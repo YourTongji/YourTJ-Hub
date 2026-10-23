@@ -1039,10 +1039,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get topicLaterReplies => '新しい返信を読み込む';
 
   @override
-  String get topicFeedModeList => 'リスト';
+  String get homeFeedSwitchToList => 'リスト表示に切り替え';
 
   @override
-  String get topicFeedModeCard => 'カード';
+  String get homeFeedSwitchToCard => 'カード表示に切り替え';
+
+  @override
+  String get profileStreamManage => '管理';
 
   @override
   String get topicNewTopic => '新規トピック';
@@ -3080,9 +3083,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get notificationsUnreadEmptyDescription => 'すべての通知を確認しました。';
-
-  @override
-  String get homeFeedOptions => '表示方法';
 
   @override
   String get homeAllCategories => 'すべてのカテゴリ';

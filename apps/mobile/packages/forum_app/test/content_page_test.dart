@@ -349,4 +349,57 @@ void main() {
     expect((tile.title as Text).data, '只有正文的瞬间摘要');
     expect((tile.subtitle as Text).data, '2026-09-28 10:00:00');
   });
+
+  // Profile streams open management on their own filter (issue #1372 H3).
+  for (final (query, expected) in [
+    ('?type=post', 'post'),
+    ('?type=topic', 'topic'),
+    ('?type=unknown', 'topic'),
+    ('', 'topic'),
+  ]) {
+    testWidgets('my-content$query preselects the $expected filter', (
+      tester,
+    ) async {
+      final repo = _Content(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemoryTokenStorage(),
+          baseUrl: 'https://example.test',
+        ),
+      );
+      repo.pending.complete(
+        const UserContentPage(items: [], hasMore: false, nextCursorId: 0),
+      );
+      final router = GoRouter(
+        initialLocation: '/my-content$query',
+        routes: [
+          appRouter.configuration.routes.whereType<GoRoute>().singleWhere(
+            (route) => route.path == '/my-content',
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [contentRepositoryProvider.overrideWithValue(repo)],
+          child: MaterialApp.router(
+            routerConfig: router,
+            theme: gfThemeData(Brightness.light),
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(repo.listTypes, [expected]);
+      expect(
+        tester
+            .widget<GfSegmented<String>>(find.byType(GfSegmented<String>))
+            .selected,
+        expected,
+      );
+    });
+  }
 }

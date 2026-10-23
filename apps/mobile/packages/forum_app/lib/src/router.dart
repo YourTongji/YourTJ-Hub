@@ -656,7 +656,8 @@ final GoRouter appRouter = GoRouter(
     _readingPageRoute(
       path: '/my-content',
       maxContentWidth: 1120,
-      builder: (_, _) => const ContentPage(),
+      builder: (_, state) =>
+          ContentPage(initialType: state.uri.queryParameters['type']),
     ),
     _readingPageRoute(
       path: '/recycle-bin',

@@ -16,8 +16,11 @@ import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
 
 class ContentPage extends ConsumerStatefulWidget {
-  const ContentPage({super.key, this.deleted = false});
+  const ContentPage({super.key, this.deleted = false, this.initialType});
   final bool deleted;
+
+  /// Filter to open on: 'topic' or 'post'; anything else opens topics.
+  final String? initialType;
   @override
   ConsumerState<ContentPage> createState() => _ContentPageState();
 }
@@ -25,7 +28,7 @@ class ContentPage extends ConsumerStatefulWidget {
 class _ContentPageState extends ConsumerState<ContentPage> {
   final List<UserContentItem> _items = [];
   final Set<int> _selected = {};
-  String _type = 'topic';
+  late String _type = widget.initialType == 'post' ? 'post' : 'topic';
   String? _error;
   bool _loading = true;
   bool _busy = false;
