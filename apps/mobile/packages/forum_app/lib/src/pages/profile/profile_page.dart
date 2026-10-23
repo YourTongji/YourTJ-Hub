@@ -1228,6 +1228,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                           context,
                                         ),
                                   ),
+                                  if ((props.isOwnProfile ||
+                                          props.user.isSelf) &&
+                                      profileStreamContentType(key) != null)
+                                    SliverToBoxAdapter(
+                                      child: ProfileStreamManageBar(
+                                        contentType: profileStreamContentType(
+                                          key,
+                                        )!,
+                                        onReturn: () => _load(streamKey: key),
+                                      ),
+                                    ),
                                   if (stream.error == null &&
                                       streamProps == null)
                                     _ProfileStreamSkeleton(

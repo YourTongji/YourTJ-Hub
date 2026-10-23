@@ -1056,10 +1056,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get topicLaterReplies => 'Load newer replies';
 
   @override
-  String get topicFeedModeList => 'List';
+  String get homeFeedSwitchToList => 'Switch to list';
 
   @override
-  String get topicFeedModeCard => 'Cards';
+  String get homeFeedSwitchToCard => 'Switch to cards';
+
+  @override
+  String get profileStreamManage => 'Manage';
 
   @override
   String get topicNewTopic => 'New topic';
@@ -3193,9 +3196,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get notificationsUnreadEmptyDescription =>
       'You have read all your notifications.';
-
-  @override
-  String get homeFeedOptions => 'Feed display';
 
   @override
   String get homeAllCategories => 'All categories';

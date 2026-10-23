@@ -2,7 +2,55 @@ import 'dart:math' as math;
 import 'package:core/core.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
+
+import '../../../l10n/app_localizations.dart';
+
+/// Content-management filter for an own-profile stream, or null when the
+/// stream has none (issue #1372 H3). Activity mixes topics, replies, likes
+/// and follows, so it has no single filter to open on.
+String? profileStreamContentType(String streamKey) => switch (streamKey) {
+  'topics' => 'topic',
+  _ => null,
+};
+
+/// Own-profile entry above a content stream: opens content management, where
+/// the same items gain multi-select deletion and review state, on the
+/// matching filter. [onReturn] lets the stream reload what was changed there.
+class ProfileStreamManageBar extends StatelessWidget {
+  const ProfileStreamManageBar({
+    super.key,
+    required this.contentType,
+    required this.onReturn,
+  });
+
+  final String contentType;
+  final VoidCallback onReturn;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 8, 0),
+    child: Align(
+      alignment: AlignmentDirectional.centerEnd,
+      child: GfButton(
+        variant: GfButtonVariant.ghost,
+        size: GfButtonSize.small,
+        icon: const GfSymbol('sliders-horizontal', size: 16),
+        label: AppLocalizations.of(context).profileStreamManage,
+        onPressed: () async {
+          await context.push(
+            Uri(
+              path: '/my-content',
+              queryParameters: {'type': contentType},
+            ).toString(),
+          );
+          if (context.mounted) onReturn();
+        },
+      ),
+    ),
+  );
+}
 
 class ProfileTabsHeader extends SliverPersistentHeaderDelegate {
   const ProfileTabsHeader({required this.height, required this.child});
