@@ -15,8 +15,9 @@ void main() {
   galleryLaunchPage = route?.pathSegments.lastOrNull;
   galleryInitialScroll =
       double.tryParse(route?.queryParameters['y'] ?? '') ?? 0;
-  if (route?.queryParameters['theme'] == 'dark')
+  if (route?.queryParameters['theme'] == 'dark') {
     galleryThemeMode.value = ThemeMode.dark;
+  }
   runApp(const GalleryApp());
 }
 

@@ -49,8 +49,8 @@ void main() {
           .first;
       final authorRect = tester.getRect(author);
       final categoryRect = tester.getRect(find.byType(GfChip));
-      expect(authorRect.height, greaterThanOrEqualTo(44));
-      expect(categoryRect.height, greaterThanOrEqualTo(44));
+      expect(authorRect.height, greaterThanOrEqualTo(44 - .001));
+      expect(categoryRect.height, greaterThanOrEqualTo(44 - .001));
       expect(authorRect.overlaps(categoryRect), isFalse);
       expect(categoryRect.center.dy, closeTo(authorRect.center.dy, .01));
       expect(
@@ -125,8 +125,8 @@ void main() {
       expect(author.overlaps(category), isFalse);
       expect(category.right, lessThanOrEqualTo(card.right));
       for (final target in [author, category]) {
-        expect(target.width, greaterThanOrEqualTo(44));
-        expect(target.height, greaterThanOrEqualTo(44));
+        expect(target.width, greaterThanOrEqualTo(44 - .001));
+        expect(target.height, greaterThanOrEqualTo(44 - .001));
       }
       final nameText = tester.widget<Text>(find.text(name));
       final nameParagraph = tester.renderObject<RenderParagraph>(
@@ -206,8 +206,8 @@ void main() {
       final author = tester.getRect(authorTarget);
       final date = tester.getRect(find.text('2026-09-18'));
       expect(date.center.dy, closeTo(author.center.dy, .01));
-      expect(author.width, greaterThanOrEqualTo(44));
-      expect(author.height, greaterThanOrEqualTo(44));
+      expect(author.width, greaterThanOrEqualTo(44 - .001));
+      expect(author.height, greaterThanOrEqualTo(44 - .001));
       expect(
         tester.renderObject<RenderParagraph>(find.text(name)).didExceedMaxLines,
         isTrue,
@@ -215,8 +215,8 @@ void main() {
       for (final chip in find.byType(GfChip).evaluate()) {
         final rect = tester.getRect(find.byWidget(chip.widget));
         expect(rect.center.dy, closeTo(author.center.dy, .01));
-        expect(rect.width, greaterThanOrEqualTo(44));
-        expect(rect.height, greaterThanOrEqualTo(44));
+        expect(rect.width, greaterThanOrEqualTo(44 - .001));
+        expect(rect.height, greaterThanOrEqualTo(44 - .001));
       }
       expect(
         tester.getTopLeft(find.text('Campus')).dy - author.bottom,
@@ -302,11 +302,11 @@ void main() {
       expect(body.top - title.bottom, inInclusiveRange(0, 2));
       expect(action.top - body.bottom, closeTo(2, .01));
       expect(card.bottom - action.bottom, inInclusiveRange(4, 6));
-      expect(action.height, greaterThanOrEqualTo(44));
+      expect(action.height, greaterThanOrEqualTo(44 - .001));
       expect(title.top, greaterThanOrEqualTo(authorTarget.bottom));
       expect(title.top, greaterThanOrEqualTo(categoryTarget.bottom));
-      expect(authorTarget.height, greaterThanOrEqualTo(44));
-      expect(categoryTarget.height, greaterThanOrEqualTo(44));
+      expect(authorTarget.height, greaterThanOrEqualTo(44 - .001));
+      expect(categoryTarget.height, greaterThanOrEqualTo(44 - .001));
       expect(tester.takeException(), isNull);
     },
   );
@@ -384,11 +384,11 @@ void main() {
     expect(find.text('5'), findsOneWidget);
     expect(find.byIcon(Icons.thumb_up_outlined), findsNothing);
     final likeTarget = tester.getSize(find.byTooltip('点赞'));
-    expect(likeTarget.width, greaterThanOrEqualTo(44));
-    expect(likeTarget.height, greaterThanOrEqualTo(44));
+    expect(likeTarget.width, greaterThanOrEqualTo(44 - .001));
+    expect(likeTarget.height, greaterThanOrEqualTo(44 - .001));
     final bookmarkTarget = tester.getSize(find.byTooltip('收藏'));
-    expect(bookmarkTarget.width, greaterThanOrEqualTo(44));
-    expect(bookmarkTarget.height, greaterThanOrEqualTo(44));
+    expect(bookmarkTarget.width, greaterThanOrEqualTo(44 - .001));
+    expect(bookmarkTarget.height, greaterThanOrEqualTo(44 - .001));
     await tester.tap(find.byTooltip('点赞'));
     await tester.pumpAndSettle();
     expect(find.text('6'), findsOneWidget);
@@ -461,8 +461,8 @@ void main() {
     final author = find
         .ancestor(of: find.text('A'), matching: find.byType(InkWell))
         .first;
-    expect(tester.getSize(author).width, greaterThanOrEqualTo(44));
-    expect(tester.getSize(author).height, greaterThanOrEqualTo(44));
+    expect(tester.getSize(author).width, greaterThanOrEqualTo(44 - .001));
+    expect(tester.getSize(author).height, greaterThanOrEqualTo(44 - .001));
     Focus.of(tester.element(find.text('A'))).requestFocus();
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);

@@ -1618,6 +1618,13 @@ servers that omit interaction fields retain read-only content previews.
 
 ## Shared visual treatment
 
+`Current`: components use the mobile geometry, type and derived color roles in the
+[mobile design standard](mobile-design-system.md#mobile-component-roles). Grouped forms, raised menus,
+neutral controls, circular conversation avatars and directional message corners share this layer;
+selection, keyboard input, minimum targets and failure recovery keep their own behavior. The component
+gallery uses synthetic screens, while workflow acceptance uses the production pages.
+
+
 `Current`: Home shows animated feed sort tabs followed by a horizontally scrollable category row.
 Category buttons use 12-pixel corners, a compact 36-pixel visual height and a minimum 48-pixel touch
 target, growing with system text size. Labels remain on one line. The selected category uses a tinted

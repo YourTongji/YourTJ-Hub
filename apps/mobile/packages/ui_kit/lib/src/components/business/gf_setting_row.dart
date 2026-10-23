@@ -103,10 +103,7 @@ class GfSettingRow extends StatelessWidget {
           child: Row(
             children: [
               if (prefix != null) ...[
-                if (leading != null)
-                  prefix
-                else
-                  SizedBox(width: GfIconSize.lg, child: prefix),
+                SizedBox(width: GfIconSize.lg, child: prefix),
                 const SizedBox(width: GfSpace.md),
               ],
               Expanded(

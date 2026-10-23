@@ -46,7 +46,8 @@ class CourseReviewShareCard extends StatelessWidget {
   final String offeringLabel;
 
   /// 次要文字色：iconMuted 在淡彩主题底上不足 4.5:1，统一用降透明度的正文色。
-  static Color mutedOf(GfColors colors) => colors.textSecondary;
+  static Color mutedOf(GfColors colors) =>
+      colors.baseContent.withValues(alpha: 0.66);
 
   @override
   Widget build(BuildContext context) {

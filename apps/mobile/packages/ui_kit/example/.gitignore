@@ -43,3 +43,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local preview runners are generated with flutter create.
+/ios/
+/android/
+/macos/
+/windows/
+/linux/
+/web/

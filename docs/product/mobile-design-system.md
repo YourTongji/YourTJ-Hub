@@ -6,11 +6,33 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-13
+> Last verified: 2026-10-23
 
 This standard applies the native reading direction in [0037](../decisions/0037-adaptive-mobile-reading-window.md)
 to the Flutter app. [Mobile experience](mobile-experience.md) records implemented behavior. Rules marked
 `Planned` below are acceptance requirements, not a claim that every screen already conforms.
+
+## Mobile component roles
+
+`Current`: `ui_kit` owns a mobile geometry and emphasis layer in `gf_design.dart`, above the unchanged
+Web/mobile palette mirror. A 4dp spacing grid uses 16dp page gutters and 24dp between groups. Radius
+roles are 6/10/14/20/28dp, with capsules for buttons, chips, search and segmented choices. UI body text
+uses 16/24; the 12 named typography roles cover display titles through metadata. Rich reading retains
+its separate reading-size preference. Compact/regular/large controls paint at 32/40/48dp, fields use
+52dp, and interactive controls retain at least 44dp targets independently of their painted size.
+
+`Current`: primary/secondary/placeholder/disabled text, neutral fill, grouped canvas, grouped card and
+raised surface are derived from the active palette. Light floating surfaces use soft elevations; dark
+surfaces use brighter fills and separators. Semantic labels derive a foreground with at least 4.5:1
+contrast on supported neutral surfaces; export cards retain their own theme-specific contrast rules.
+Destructive actions use the error role. `GfListSection` provides inset groups and aligned separators;
+custom settings leading widgets share the 24dp icon column. Source rationale is recorded in
+[0106](../decisions/0106-mobile-component-geometry-and-color-roles.md).
+
+`Current`: the standalone `ui_kit/example` gallery previews real components and synthetic screens in
+both themes, without a forum account. It supplements production-page workflow checks; it does not
+replace them. Acceptance captures remain outside Git under the existing
+[visual verification policy](../development/testing.md).
 
 ## Content and visual hierarchy
 
@@ -98,8 +120,8 @@ Light and Dark, and an already open choice sheet updates with the selected theme
 
 ## Transient surfaces and input
 
-`Current`: repository-owned Flutter components define filled 16-pixel form fields, capsule search/chat,
-pill buttons, 24-pixel dialogs and consistent outline symbols. Native text selection, autofill,
+`Current`: repository-owned Flutter components define filled 14-pixel form fields, capsule search/chat,
+pill buttons, 28-pixel dialogs and consistent outline symbols. Native text selection, autofill,
 input purposes and focus remain intact. Search, short reply and long-form writing use distinct
 surfaces with shared colors and state treatment; the component model is recorded in
 [0039](../decisions/0039-native-gf-component-foundation.md).
@@ -111,7 +133,7 @@ introductory guidance, retain focus, and keep the primary action reachable. Impl
 lives in [mobile experience](mobile-experience.md#publishing).
 
 `Current`: profile and password editing use pages and preserve input on failed saves. Shared short
-choice sheets use a drag handle, 24-pixel top corners, one safe-area boundary and a 640-pixel width
+choice sheets use a drag handle, 28-pixel top corners, one safe-area boundary and a 640-pixel width
 limit. Menus, choices and confirmations use Material presentation on every platform; see
 [0100](../decisions/0100-material-interaction-surfaces-on-ios.md).
 `Partial`: legacy forms still use bounded scrollable sheets; profile, password and course

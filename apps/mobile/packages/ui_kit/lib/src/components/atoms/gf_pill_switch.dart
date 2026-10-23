@@ -81,7 +81,9 @@ class _GfPillItem<T> extends StatelessWidget {
           onPressed: onPressed,
           style: ButtonStyle(
             animationDuration: GfMotion.duration(context, GfMotion.selection),
-            minimumSize: const WidgetStatePropertyAll(Size(44, 34)),
+            minimumSize: const WidgetStatePropertyAll(
+              Size(GfControl.touch, GfControl.touch),
+            ),
             padding: const WidgetStatePropertyAll(
               EdgeInsets.symmetric(horizontal: GfSpace.md, vertical: 6),
             ),

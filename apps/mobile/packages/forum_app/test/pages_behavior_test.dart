@@ -4410,7 +4410,7 @@ void main() {
         matching: find.byWidgetPredicate(
           (widget) =>
               widget is Container &&
-              widget.constraints?.maxHeight == 4 &&
+              widget.constraints?.maxHeight == 5 &&
               (widget.constraints?.maxWidth == 32 ||
                   widget.constraints?.maxWidth == 36),
         ),

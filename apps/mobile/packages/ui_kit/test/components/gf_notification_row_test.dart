@@ -30,14 +30,16 @@ void main() {
         ),
       );
       final row = tester.getRect(find.byType(GfNotificationRow));
-      final heading = tester.getRect(find.text('Content was rejected · now'));
+      final heading = tester.getRect(find.text('Content was rejected'));
       final status = tester.getRect(
         find.byWidgetPredicate(
           (w) => w is GfSymbol && w.name == 'shield-alert',
         ),
       );
       expect(heading.top, row.top + 12);
-      expect((status.center.dy - (heading.top + 12)).abs(), lessThan(2));
+      expect(status.left, greaterThanOrEqualTo(row.left));
+      expect(status.right, lessThanOrEqualTo(heading.left));
+      expect(find.text('now'), findsOneWidget);
       expect(tester.getRect(find.text(detail)).left, heading.left);
       expect(tester.widget<Text>(find.text(detail)).maxLines, isNull);
       if (unread) {

@@ -71,7 +71,7 @@ iOS 继续使用 Cupertino 原生转场与返回手势。
 调用方不再叠加 `viewInsets`。`enableDrag: false` 可保护未保存的编辑。
 `showGfMenu` / `GfPopupMenuButton` / `showGfActionSheet`、`GfDropdownButton(FormField)`、`GfRadioListTile`
 在所有平台都使用 Material 呈现（见 MADR 0100）；`useRootNavigator` 选择根导航器或最近的导航器。
-`showGfAlertDialog` / `showGfModal` 用原生 `Dialog` 约束键盘上方的可用区域，使用24px圆角、原生焦点和单层滚动内容；
+`showGfAlertDialog` / `showGfModal` 用原生 `Dialog` 约束键盘上方的可用区域，使用 28dp 圆角、原生焦点和单层滚动内容；
 `GfDialogAction` 显式标记破坏性动作。
 回归测试包含刘海、底部手势区、长列表和键盘；应用层补充小屏双倍字号表单测试。
 
@@ -104,3 +104,16 @@ icons use `GfSymbol` and retain at least 44px independent targets. Component-spe
 is owned here and does not change the Web/mobile token mirror.
 
 `GfGlassSurface` / `GfGlassIconButton` 为封面上的操作提供局部毛玻璃圆形底板、细描边和至少 44px 点击区域，沿用原有按钮语义。`GfUserCardHeader` 将封面、重叠头像和操作带放在同一绘制层，可用于折叠导航；`GfUserCard(showHeader: false)` 只展示后续资料。公开页与编辑页使用同一封面尺寸计算。
+
+## Mobile roles and gallery
+
+`Current`: `GfSpace`, `GfRadius`, `GfControl`, `GfIconSize`, `GfElevation` and `GfColorRoles`
+are the mobile component layer above the unchanged `tokens.json` palette mirror. Use role names for
+new controls rather than copying sizes or opacity constants. `GfRadii.standard` remains the Web token
+mirror for consumers that require that geometry. The UI typography ramp is independent of rich reading.
+
+`Current`: [the component gallery](example/README.md) runs as a separate preview with synthetic data.
+It includes foundation, input, overlay, content and sample-screen compositions in light and dark themes.
+For forms, use `GfListSection` on the grouped canvas; give icon rows its `iconRowIndent` separator inset.
+Interactive targets remain at least 44dp even when a control paints smaller. Production-page navigation,
+account boundaries and recovery still require the owning forum tests and simulator checks.

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 
 import 'gf_colors.dart';
 
@@ -184,17 +185,23 @@ extension GfColorRoles on GfColors {
       ? fill
       : tone(value).withValues(alpha: isDark ? 0.18 : 0.1);
 
-  /// Readable foreground on [toneSoft]. Light-theme warm tones are deepened
-  /// toward the text colour so small labels keep their contrast.
+  /// Small status labels keep 4.5:1 contrast on the neutral surfaces that
+  /// host them. Derive the foreground without altering shared palette tokens.
   Color toneOnSoft(GfTone value) {
     if (value == GfTone.neutral) return textSecondary;
-    final Color base = tone(value);
-    if (isDark) return base;
-    return switch (value) {
-      GfTone.warning => Color.lerp(base, baseContent, 0.34)!,
-      GfTone.success => Color.lerp(base, baseContent, 0.16)!,
-      _ => base,
-    };
+    final base = tone(value);
+    final surfaces = [base100, base200, base300, surfaceRaised];
+    for (var step = 0; step <= 20; step++) {
+      final foreground = Color.lerp(base, baseContent, step / 20)!;
+      final readable = surfaces.every((surface) {
+        final background = Color.alphaBlend(toneSoft(value), surface);
+        final a = foreground.computeLuminance(),
+            b = background.computeLuminance();
+        return (math.max(a, b) + .05) / (math.min(a, b) + .05) >= 4.55;
+      });
+      if (readable) return foreground;
+    }
+    return baseContent;
   }
 
   /// Shadow for a raised surface; dark mode keeps surfaces flat.
