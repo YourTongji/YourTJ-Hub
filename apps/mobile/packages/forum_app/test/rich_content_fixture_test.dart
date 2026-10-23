@@ -259,6 +259,29 @@ void _expectOnlyRichContentScrolls({required bool html}) {
   }
 }
 
+/// Every [TextSpan] the server-HTML renderer produced, so style assertions can
+/// look at the link token instead of its wrapper.
+List<TextSpan> _htmlTextSpans(WidgetTester tester) {
+  final spans = <TextSpan>[];
+  void walk(InlineSpan node) {
+    if (node is! TextSpan) return;
+    spans.add(node);
+    for (final InlineSpan child in node.children ?? const <InlineSpan>[]) {
+      walk(child);
+    }
+  }
+
+  for (final RichText rich in tester.widgetList<RichText>(
+    find.descendant(
+      of: find.byType(GfHtmlContent),
+      matching: find.byType(RichText),
+    ),
+  )) {
+    walk(rich.text);
+  }
+  return spans;
+}
+
 void main() {
   testWidgets('Markdown uses Twemoji in prose and keeps code emoji as text', (
     tester,
@@ -849,6 +872,24 @@ void main() {
     expect(copied, contains('\uE000'));
     expect(copied, contains('❤️'));
     expect(copied, contains('🇺🇸'));
+    await _dispose(tester);
+  });
+
+  testWidgets('server HTML links use the theme colour without an underline', (
+    tester,
+  ) async {
+    await _pumpHtml(tester, '<p>正文 <a href="https://example.com">外部链接</a></p>');
+    final linkSpans = _htmlTextSpans(
+      tester,
+    ).where((TextSpan span) => (span.text ?? '').contains('外部链接')).toList();
+    expect(linkSpans, isNotEmpty);
+    for (final TextSpan span in linkSpans) {
+      expect(span.style?.color, GfColors.light.primary);
+      expect(
+        span.style?.decoration?.contains(TextDecoration.underline) ?? false,
+        isFalse,
+      );
+    }
     await _dispose(tester);
   });
 }

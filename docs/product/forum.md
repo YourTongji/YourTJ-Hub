@@ -171,6 +171,15 @@ Web 通知链接优先 `/p/post/{topicId}/{postNo}`，无楼层号时保留历�
 
 ## Links, Markdown and stickers
 
+`Current`：Web 与 Flutter 的帖子、回复、课评与 Wiki 正文的链接都不使用下划线、统一用主题色。
+Flutter 的课评与 Wiki 正文走服务端 HTML 渲染，该路径同样无下划线。
+
+`Current`（Web）：服务端 `markdown2html` 对绝对 HTTP(S) 链接（含同站绝对 URL）加
+`target="_blank"`，正文据此在链接前渲染小外链图标，按下链接时降低不透明度；纯图片链接不加该图标。
+
+`Planned`：Flutter 正文链接的外链图标与按下高亮。内联富文本把图标做成字符会随选区复制进剪贴板，
+做成控件又会丢掉选择复制文本与链接内的 Emoji 图片，因此当前只有主题色与跳转／外链确认。
+
 `Current`：Web／Flutter 将独占段落的 HTTP(S) URL 渲染为最多五张预览卡片，普通链接、代码、表格和
 图片地址不转换。站内元数据本地读取；第三方请求经过有界 SSRF 防护。校园网域名仅从配置生成卡片，
 不访问私网；失败保留原链接。外链确认显示域名与完整 URL，已识别的风险不继承会话信任，
