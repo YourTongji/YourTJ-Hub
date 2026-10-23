@@ -695,6 +695,17 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
                         detail.offerings ?? const <CourseOfferingPayload>[],
                     activeOfferingId: _activeOfferingId,
                     onFocusOffering: _focusOffering,
+                    onPlan: (offering) => context.push(
+                      Uri(
+                        path: '/schedule',
+                        queryParameters: {
+                          'course': detail.primaryCode,
+                          'name': detail.name,
+                          'term': offering.termCode,
+                          'class': offering.classCode!,
+                        },
+                      ).toString(),
+                    ),
                     copy: copy,
                   ),
                   const GfDivider(),
@@ -995,7 +1006,7 @@ class _CourseHeader extends StatelessWidget {
               if (credit.isNotEmpty)
                 _metaChip(
                   context,
-                  symbol: 'graduation-cap',
+                  symbol: 'book-open',
                   label: '$credit ${copy.creditUnit}',
                   emphasized: credit,
                 ),
@@ -2527,12 +2538,14 @@ class _OfferingsSection extends StatefulWidget {
     required this.offerings,
     required this.activeOfferingId,
     required this.onFocusOffering,
+    required this.onPlan,
     required this.copy,
   });
 
   final List<CourseOfferingPayload> offerings;
   final int? activeOfferingId;
   final ValueChanged<int> onFocusOffering;
+  final ValueChanged<CourseOfferingPayload> onPlan;
   final CourseCopy copy;
 
   @override
@@ -2593,6 +2606,7 @@ class _OfferingsSectionState extends State<_OfferingsSection> {
               },
               activeOfferingId: widget.activeOfferingId,
               onFocusOffering: widget.onFocusOffering,
+              onPlan: widget.onPlan,
             ),
       ],
     );
@@ -2607,6 +2621,7 @@ class _OfferingTermGroup extends StatelessWidget {
     required this.onToggleCollapsed,
     required this.activeOfferingId,
     required this.onFocusOffering,
+    required this.onPlan,
   });
 
   final String termCode;
@@ -2615,6 +2630,7 @@ class _OfferingTermGroup extends StatelessWidget {
   final VoidCallback onToggleCollapsed;
   final int? activeOfferingId;
   final ValueChanged<int> onFocusOffering;
+  final ValueChanged<CourseOfferingPayload> onPlan;
 
   @override
   Widget build(BuildContext context) {
@@ -2665,6 +2681,7 @@ class _OfferingTermGroup extends StatelessWidget {
               offering: offering,
               active: activeOfferingId == offering.id,
               onTap: () => onFocusOffering(offering.id),
+              onPlan: () => onPlan(offering),
             ),
       ],
     );
@@ -2676,11 +2693,13 @@ class _OfferingRow extends StatelessWidget {
     required this.offering,
     required this.active,
     required this.onTap,
+    required this.onPlan,
   });
 
   final CourseOfferingPayload offering;
   final bool active;
   final VoidCallback onTap;
+  final VoidCallback onPlan;
 
   @override
   Widget build(BuildContext context) {
@@ -2749,6 +2768,12 @@ class _OfferingRow extends StatelessWidget {
                 ],
               ],
             ),
+            if ((offering.classCode?.trim() ?? '').isNotEmpty)
+              TextButton.icon(
+                icon: const GfSymbol('calendar-days', size: 18),
+                label: GfText(AppLocalizations.of(context).courseAddToPlanner),
+                onPressed: onPlan,
+              ),
             if (meta.isNotEmpty) ...<Widget>[
               const SizedBox(height: 2),
               GfText(

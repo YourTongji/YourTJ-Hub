@@ -333,7 +333,7 @@
   "homeFeedSwitchToCard": "カード表示に切り替え",
   "profileStreamManage": "管理",
   "topicNewTopic": "新規トピック",
-  "scheduleTitle": "時間割プランナー",
+  "scheduleTitle": "履修プランナー",
   "scheduleTabTimetable": "プランのプレビュー",
   "scheduleTabPick": "授業を選ぶ",
   "scheduleTerm": "学期",
@@ -580,7 +580,7 @@
   "authEmailDomain": "メールドメイン",
   "authAgreePolicies": "公開されている規約を読み、同意します",
   "authPasswordMismatch": "2つのパスワードが一致しません",
-  "schedulerWebTitle": "Webで時間割プランナーの全機能を使う",
+  "schedulerWebTitle": "Webで履修プランナーの全機能を使う",
   "schedulerWebAction": "f.yourtj.deを開く",
   "schedulerPlanDisclaimer": "これは履修計画です。正式な履修登録は大学の手続きに従ってください。",
   "campusExploreCourses": "学生の評価から次の授業を見つける",
@@ -840,9 +840,9 @@
   "campusOfficialTitle": "マイキャンパス・公式認証",
   "campusOfficialSubtitle": "同済アカウントを連携して、時間割・成績・大学のお知らせを確認",
   "campusToday": "今日",
-  "campusTimetable": "時間割",
+  "campusTimetable": "学校の時間割",
   "campusAcademics": "学業記録",
-  "campusMessages": "大学のお知らせ",
+  "campusMessages": "学校のお知らせ",
   "campusCalendars": "学年暦",
   "campusConnection": "連携",
   "campusExplore": "キャンパスを探索",
@@ -1443,5 +1443,10 @@
     }
   },
   "contentMineTitle": "自分のコンテンツ",
-  "settingsManageBadges": "バッジを管理"
+  "settingsManageBadges": "バッジを管理",
+  "campusSettings": "キャンパス設定",
+  "scheduleStatusHelp": "プランの状態とヘルプ",
+  "courseAddToPlanner": "履修プランナーに追加",
+  "coursePlannerSelectTerm": "同じ学期と専攻を選択してからクラスを確認してください。既存プランは自動変更されません。",
+  "coursePlannerUnavailable": "この学期のクラスは利用できません。講義詳細から別の開講記録を選択してください。"
 }

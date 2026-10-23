@@ -17,7 +17,7 @@ import 'package:forum_app/src/pages/settings/schedule_widget_settings_page.dart'
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'package:forum_app/src/widgets/status_views.dart';
-import 'campus_native_test.dart' show CampusPkRepository;
+import 'campus_native_test.dart' show CampusPkRepository, CampusTestCourses;
 
 import 'package:forum_app/src/offline/campus_snapshot_store.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
@@ -57,6 +57,7 @@ Widget testApp(
     campusRepositoryProvider.overrideWithValue(repo),
     scheduleWidgetBridgeProvider.overrideWithValue(bridge),
     pkRepositoryProvider.overrideWithValue(CampusPkRepository()),
+    courseRepositoryProvider.overrideWithValue(CampusTestCourses()),
     currentUserProvider.overrideWith(
       (ref) async => const CurrentUser(id: 7, username: 'demo'),
     ),

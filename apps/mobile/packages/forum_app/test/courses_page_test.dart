@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:go_router/go_router.dart' hide Block;
 import 'dart:ui' show Tristate;
 
 import 'package:dio/dio.dart';
@@ -2701,6 +2702,57 @@ void main() {
       course.waitReport!.complete();
       await tester.pumpAndSettle();
       expect(find.byType(GfDropdownButtonFormField<String>), findsNothing);
+    });
+
+    testWidgets('offering opens planner with course class and term context', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final course = FakeCourseRepository(
+        _client(),
+        detailPayload: _detailPayload(),
+      );
+      final container = _container(courseRepo: course);
+      final router = GoRouter(
+        initialLocation: '/courses/42',
+        routes: [
+          GoRoute(
+            path: '/courses/:id',
+            builder: (_, _) => const CourseDetailPage(courseId: 42),
+          ),
+          GoRoute(
+            path: '/schedule',
+            builder: (_, _) => const Text('planner target'),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            routerConfig: router,
+            theme: gfThemeData(Brightness.light),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('zh'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('添加到选课排课').first);
+      await tester.tap(find.text('添加到选课排课').first);
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/schedule');
+      expect(router.state.uri.queryParameters, {
+        'course': '100001',
+        'name': '高等数学(A)上',
+        'term': '2025-2026-1',
+        'class': '10000101',
+      });
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('展示评分分布、开课班级、相关课程与沿革', (tester) async {

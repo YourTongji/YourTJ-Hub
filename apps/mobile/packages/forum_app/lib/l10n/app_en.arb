@@ -603,7 +603,7 @@
   "homeFeedSwitchToCard": "Switch to cards",
   "profileStreamManage": "Manage",
   "topicNewTopic": "New topic",
-  "scheduleTitle": "Scheduler",
+  "scheduleTitle": "Course planner",
   "scheduleTabTimetable": "Plan preview",
   "scheduleTabPick": "Pick courses",
   "scheduleTerm": "Term",
@@ -954,7 +954,7 @@
   "authEmailDomain": "Email domain",
   "authAgreePolicies": "I have read and agree to the published policies",
   "authPasswordMismatch": "The passwords do not match",
-  "schedulerWebTitle": "Explore the full scheduler on the Web",
+  "schedulerWebTitle": "Explore the full course planner on the Web",
   "schedulerWebAction": "Open f.yourtj.de",
   "schedulerPlanDisclaimer": "This is a course plan. Final enrolment is determined by the university.",
   "campusExploreCourses": "Find your next course through student reviews",
@@ -1315,9 +1315,9 @@
   "campusOfficialTitle": "My campus · official identity",
   "campusOfficialSubtitle": "Connect Tongji for your timetable, grades and campus notices",
   "campusToday": "Today",
-  "campusTimetable": "My timetable",
+  "campusTimetable": "School timetable",
   "campusAcademics": "Academic records",
-  "campusMessages": "Campus notices",
+  "campusMessages": "School notices",
   "campusCalendars": "Calendars",
   "campusConnection": "Connection",
   "campusExplore": "Explore campus",
@@ -2101,5 +2101,10 @@
     }
   },
   "contentMineTitle": "My content",
-  "settingsManageBadges": "Manage badges"
+  "settingsManageBadges": "Manage badges",
+  "campusSettings": "Campus settings",
+  "scheduleStatusHelp": "Plan status and help",
+  "courseAddToPlanner": "Add to course planner",
+  "coursePlannerSelectTerm": "Select the same term and your major before confirming the class. Existing plans stay unchanged.",
+  "coursePlannerUnavailable": "This class is unavailable for the term. Choose another offering from course details."
 }

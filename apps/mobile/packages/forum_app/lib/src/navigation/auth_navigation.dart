@@ -56,6 +56,7 @@ String? _parseAuthReturnTo(String? raw) {
     '/campus',
     '/campus/explore',
     '/campus/official',
+    '/campus/settings',
     '/notifications',
     '/messages',
     '/chat',

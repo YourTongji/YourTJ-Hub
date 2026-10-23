@@ -333,7 +333,7 @@
   "homeFeedSwitchToCard": "Als Karten anzeigen",
   "profileStreamManage": "Verwalten",
   "topicNewTopic": "Neues Thema",
-  "scheduleTitle": "Stundenplaner",
+  "scheduleTitle": "Kursplaner",
   "scheduleTabTimetable": "Planvorschau",
   "scheduleTabPick": "Kurse auswählen",
   "scheduleTerm": "Semester",
@@ -580,7 +580,7 @@
   "authEmailDomain": "E-Mail-Domain",
   "authAgreePolicies": "Ich habe die veröffentlichten Richtlinien gelesen und stimme ihnen zu",
   "authPasswordMismatch": "Die beiden Passwörter stimmen nicht überein",
-  "schedulerWebTitle": "Vollständigen Stundenplaner im Web nutzen",
+  "schedulerWebTitle": "Vollständigen Kursplaner im Web nutzen",
   "schedulerWebAction": "f.yourtj.de öffnen",
   "schedulerPlanDisclaimer": "Dies ist ein Kursplan. Die endgültige Einschreibung erfolgt über die Universität.",
   "campusExploreCourses": "Finde deinen nächsten Kurs anhand studentischer Bewertungen",
@@ -840,9 +840,9 @@
   "campusOfficialTitle": "Mein Campus · offizielle Identität",
   "campusOfficialSubtitle": "Tongji verbinden: Stundenplan, Noten und Mitteilungen",
   "campusToday": "Heute",
-  "campusTimetable": "Mein Stundenplan",
+  "campusTimetable": "Schulstundenplan",
   "campusAcademics": "Studienleistungen",
-  "campusMessages": "Campus-Mitteilungen",
+  "campusMessages": "Hochschulmitteilungen",
   "campusCalendars": "Semesterkalender",
   "campusConnection": "Verbindung",
   "campusExplore": "Campus entdecken",
@@ -1443,5 +1443,10 @@
     }
   },
   "contentMineTitle": "Meine Inhalte",
-  "settingsManageBadges": "Abzeichen verwalten"
+  "settingsManageBadges": "Abzeichen verwalten",
+  "campusSettings": "Campus-Einstellungen",
+  "scheduleStatusHelp": "Planstatus und Hilfe",
+  "courseAddToPlanner": "Zum Kursplaner hinzufügen",
+  "coursePlannerSelectTerm": "Vor der Bestätigung dasselbe Semester und dein Fach wählen. Bestehende Pläne bleiben unverändert.",
+  "coursePlannerUnavailable": "Dieser Kurs ist im Semester nicht verfügbar. Wähle ein anderes Angebot in den Kursdetails."
 }

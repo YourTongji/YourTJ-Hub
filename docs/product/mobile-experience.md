@@ -872,8 +872,10 @@ change. The header keeps a small outer margin for its primary action.
   on the academic tab. The timetable shares the planner renderer without its editing or storage.
   The Campus bottom destination opens this page directly. Course reviews, the scheduler and Wiki
   have visible shortcuts at the top of its home view, also available to guests, unbound users and
-  when school services fail. Pushed tools return to the Campus destination. Explore campus retains
-  public course previews. See [campus semantics](campus.md) for binding, privacy and provider limits.
+  when school services fail. Pushed tools return to the Campus destination. Today and the guest
+  landing view include public course previews. The five school-content sections are Today, School
+  timetable, Academic records, School notices and Calendars. A header gear opens Campus settings
+  for identity management and offline-data clearing; `/campus/explore` redirects to `/campus`. See [campus semantics](campus.md) for binding, privacy and provider limits.
 - `Current`: while the app stays in the foreground, Campus remembers its selected section,
   independent academic/notice search text and scroll positions, and selected timetable week when
   switching sections, bottom destinations or returning from a pushed page. Scroll restoration waits
@@ -927,7 +929,15 @@ change. The header keeps a small outer margin for its primary action.
   non-blocking. Completed term/grade/major selection collapses into an editable summary; course,
   credit, hour and conflict counts wrap in a compact row. A small Web action opens
   the full [Web scheduler](https://f.yourtj.de/schedule) in the external browser without transferring
-  the native credential. Plans are not official enrollment results.
+  the native credential. Plans are not official enrollment results. Help, storage recovery and sync
+  controls share one expandable status section; sync conflicts and blocked/adoption states remain
+  visible in its summary. The custom-event action uses a plus symbol.
+- `Current`: course offering rows open the Course planner with course, class and term context.
+  The user selects the matching term and major before opening the exact class for confirmation.
+  Navigation never changes existing plans; mismatched terms and unavailable classes explain how to
+  recover. The planner’s course detail links to the catalog identity resolved by the review-brief API,
+  with offering focus when available, even if the course has no reviews. Account or term changes
+  invalidate an open handoff sheet. The graduation-cap symbol is reserved for the Campus destination.
 - `Current`: scheduler course search keeps the field, text and focus while results load or fail.
   Committed input searches after a 350 ms pause; active input-method composition waits until commit,
   and keyboard submission searches immediately. Clearing resets results without dismissing the
