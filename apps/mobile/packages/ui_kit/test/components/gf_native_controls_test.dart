@@ -140,7 +140,7 @@ void main() {
         );
         expect(
           (tile.decoration as BoxDecoration).color,
-          GfColors.forBrightness(brightness).base200,
+          GfColors.forBrightness(brightness).fill,
         );
         await tester.pumpWidget(
           gfApp(

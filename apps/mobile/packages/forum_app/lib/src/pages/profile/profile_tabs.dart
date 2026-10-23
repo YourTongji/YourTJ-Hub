@@ -517,7 +517,9 @@ class _ProfileTabsState extends State<ProfileTabs>
                               button: true,
                               label: _describe(widget.tabs[i]),
                               child: InkWell(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(
+                                  GfRadius.sm,
+                                ),
                                 onTap: () => _selectTab(i),
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(

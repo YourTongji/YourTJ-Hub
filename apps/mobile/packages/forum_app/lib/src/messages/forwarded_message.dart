@@ -28,7 +28,7 @@ class ForwardedMessageCard extends ConsumerWidget {
     return Semantics(
       button: true,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(GfRadius.md),
         onTap: () {
           final epoch = ref.read(offlineCacheEpochProvider);
           Navigator.of(context, rootNavigator: true).push(

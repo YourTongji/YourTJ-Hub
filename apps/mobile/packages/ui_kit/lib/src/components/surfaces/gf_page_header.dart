@@ -31,12 +31,17 @@ class GfPageHeader extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(
+        GfSpace.gutter,
+        GfSpace.lg,
+        GfSpace.gutter,
+        GfSpace.md,
+      ),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: colors.line.withValues(alpha: 0.7),
-            width: 1,
+            color: colors.separator,
+            width: gfHairline(context),
           ),
         ),
       ),
@@ -51,24 +56,19 @@ class GfPageHeader extends StatelessWidget {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: colors.baseContent,
-                  ),
+                  style: GfTheme.typographyOf(context).title1,
                 ),
               ),
               if (badge != null) ...<Widget>[const SizedBox(width: 8), badge!],
             ],
           ),
           if (description != null) ...<Widget>[
-            const SizedBox(height: 4),
+            const SizedBox(height: GfSpace.xs),
             GfText(
               description!,
-              style: TextStyle(
-                fontSize: 14,
-                color: colors.baseContent.withValues(alpha: 0.55),
-              ),
+              style: GfTheme.typographyOf(
+                context,
+              ).small.copyWith(color: colors.textSecondary),
             ),
           ],
           if (actions != null) ...<Widget>[
@@ -103,40 +103,36 @@ class GfSectionHeader extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(
+        horizontal: GfSpace.gutter,
+        vertical: GfSpace.md,
+      ),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.line, width: 1)),
+        border: Border(
+          bottom: BorderSide(
+            color: colors.separator,
+            width: gfHairline(context),
+          ),
+        ),
       ),
       child: Row(
         children: <Widget>[
           if (symbol != null) ...<Widget>[
-            GfSymbol(
-              symbol!,
-              size: 16,
-              color: colors.baseContent.withValues(alpha: 0.55),
-            ),
+            GfSymbol(symbol!, size: 18, color: colors.textSecondary),
             const SizedBox(width: 8),
           ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                GfText(
-                  title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: colors.baseContent,
-                  ),
-                ),
+                GfText(title, style: GfTheme.typographyOf(context).heading),
                 if (description != null) ...<Widget>[
                   const SizedBox(height: 2),
                   GfText(
                     description!,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colors.baseContent.withValues(alpha: 0.55),
-                    ),
+                    style: GfTheme.typographyOf(
+                      context,
+                    ).caption.copyWith(color: colors.textSecondary),
                   ),
                 ],
               ],

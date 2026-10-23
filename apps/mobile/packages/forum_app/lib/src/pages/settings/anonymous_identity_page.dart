@@ -147,7 +147,7 @@ class _AnonymousIdentityContentState
               s.batches.last;
     // Midnight invalidates yesterday's preview as well as its request key.
     final selected = choice?.batchId == batch?.id ? choice : null;
-    final muted = colors.baseContent.withValues(alpha: .65);
+    final muted = colors.textSecondary;
     return PopScope(
       canPop: !busy,
       child: LayoutBuilder(
@@ -241,7 +241,7 @@ class _AnonymousIdentityContentState
                             Material(
                               key: const ValueKey('anonymous-persona-card'),
                               color: colors.base200.withValues(alpha: .6),
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: BorderRadius.circular(GfRadius.lg),
                               clipBehavior: Clip.antiAlias,
                               child: Column(
                                 children: [
@@ -563,7 +563,7 @@ class _NameStage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(GfRadius.lg),
         gradient: LinearGradient(
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
@@ -581,9 +581,7 @@ class _NameStage extends StatelessWidget {
         children: [
           GfText(
             caption,
-            style: type.caption.copyWith(
-              color: colors.baseContent.withValues(alpha: .7),
-            ),
+            style: type.caption.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: 8),
           Semantics(
@@ -616,7 +614,7 @@ class _NameStage extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: type.title3.copyWith(
                             color: name == null
-                                ? colors.baseContent.withValues(alpha: .6)
+                                ? colors.textSecondary
                                 : colors.baseContent,
                           ),
                         ),
@@ -695,14 +693,14 @@ class _NameOption extends StatelessWidget {
               )
             : colors.base100,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(GfRadius.md),
           side: BorderSide(
             color: selected ? colors.primary : colors.line,
             width: selected ? 1.5 : 1,
           ),
         ),
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(GfRadius.md),
           onTap: onTap,
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 52),
@@ -825,9 +823,7 @@ class _HistoryMenu extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
             child: GfText(
               title,
-              style: type.caption.copyWith(
-                color: colors.baseContent.withValues(alpha: .65),
-              ),
+              style: type.caption.copyWith(color: colors.textSecondary),
             ),
           ),
           ConstrainedBox(
@@ -844,7 +840,7 @@ class _HistoryMenu extends StatelessWidget {
                   selected: active,
                   button: true,
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(GfRadius.md),
                     onTap: () => onSelected(batch.id),
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(minHeight: 48),
@@ -864,9 +860,7 @@ class _HistoryMenu extends StatelessWidget {
                                   fontWeight: FontWeight.w600,
                                   color: active
                                       ? colors.primary
-                                      : colors.baseContent.withValues(
-                                          alpha: .65,
-                                        ),
+                                      : colors.textSecondary,
                                 ),
                               ),
                             ),
@@ -874,9 +868,7 @@ class _HistoryMenu extends StatelessWidget {
                               child: GfText(
                                 batch.words.join(' · '),
                                 style: type.body.copyWith(
-                                  color: colors.baseContent.withValues(
-                                    alpha: .85,
-                                  ),
+                                  color: colors.textPrimary,
                                 ),
                               ),
                             ),

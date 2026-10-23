@@ -323,7 +323,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
     super.build(context);
     final AppLocalizations l10n = AppLocalizations.of(context);
     final GfColors colors = GfTheme.colorsOf(context);
-    final Color muted = colors.baseContent.withValues(alpha: 0.45);
+    final Color muted = colors.textSecondary;
     final List<TopicPayload> topics = widget.topics;
     final bool single = topics.length == 1;
     final bool expanded = _expanded && !single;
@@ -340,7 +340,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
           height: 22,
           decoration: BoxDecoration(
             color: colors.error.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(GfRadius.xs),
           ),
           alignment: Alignment.center,
           child: Semantics(
@@ -350,22 +350,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
         ),
         if (showBadge) ...<Widget>[
           const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-            decoration: BoxDecoration(
-              color: colors.error.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: GfText(
-              l10n.topicPinned,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: colors.error,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ),
+          GfBadge(label: l10n.topicPinned, variant: GfBadgeVariant.error),
         ],
       ],
     );
@@ -379,7 +364,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
         onTap: single
             ? () => _openTopic(context, topics.first, widget.onReturn)
             : () => setState(() => _expanded = !_expanded),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(GfRadius.md),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           child: Row(
@@ -492,7 +477,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
       margin: EdgeInsets.fromLTRB(16, widget.topMargin, 16, 6),
       decoration: BoxDecoration(
         color: colors.base200,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(GfRadius.md),
         border: Border.all(color: colors.line),
       ),
       child: Material(

@@ -100,7 +100,7 @@ void main() {
           surface.padding ?? EdgeInsets.zero,
           plain
               ? EdgeInsets.zero
-              : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              : const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         );
         await tester.pump(const Duration(milliseconds: 400));
         await tester.pumpAndSettle();

@@ -22,7 +22,7 @@ class GfSelectTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    final foreground = selected ? colors.base100 : colors.baseContent;
+    final foreground = selected ? colors.primary : colors.textPrimary;
     return MergeSemantics(
       child: Semantics(
         selected: selected,
@@ -32,12 +32,15 @@ class GfSelectTag extends StatelessWidget {
             onPressed: onChanged == null ? null : () => onChanged!(!selected),
             style: ButtonStyle(
               backgroundColor: WidgetStatePropertyAll(
-                selected ? colors.baseContent : colors.base200,
+                selected ? colors.primarySoft : colors.fill,
               ),
               foregroundColor: WidgetStatePropertyAll(foreground),
-              minimumSize: const WidgetStatePropertyAll(Size(44, 32)),
+              overlayColor: WidgetStatePropertyAll(colors.pressed),
+              minimumSize: const WidgetStatePropertyAll(
+                Size(44, GfControl.compact),
+              ),
               padding: const WidgetStatePropertyAll(
-                EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               ),
               tapTargetSize: MaterialTapTargetSize.padded,
               visualDensity: VisualDensity.standard,
@@ -45,8 +48,8 @@ class GfSelectTag extends StatelessWidget {
               textStyle: const WidgetStatePropertyAll(
                 TextStyle(
                   fontSize: 14,
-                  height: 1.25,
-                  fontWeight: FontWeight.w600,
+                  height: 20 / 14,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
@@ -55,10 +58,10 @@ class GfSelectTag extends StatelessWidget {
               children: [
                 if (symbol != null || selected) ...[
                   if (symbol != null)
-                    GfSymbol(symbol!, size: 16, color: foreground)
+                    GfSymbol(symbol!, size: GfIconSize.sm, color: foreground)
                   else
-                    GfSymbol('check', size: 16, color: foreground),
-                  const SizedBox(width: 6),
+                    GfSymbol('check', size: GfIconSize.sm, color: foreground),
+                  const SizedBox(width: GfSpace.xs + 2),
                 ],
                 Flexible(child: GfText(label, textAlign: TextAlign.center)),
               ],

@@ -58,88 +58,124 @@ class GfNotificationRow extends StatelessWidget {
       GfNotificationTone.primary => colors.primary,
       GfNotificationTone.like => const Color(0xFFF91880),
     };
+    final Color background = unread
+        ? Color.alphaBlend(
+            colors.primary.withValues(alpha: colors.isDark ? 0.08 : 0.04),
+            colors.canvas,
+          )
+        : colors.canvas;
+    final typography = GfTheme.typographyOf(context);
+    final Widget toneMark = Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: toneColor.withValues(alpha: colors.isDark ? 0.18 : 0.1),
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: GfSymbol(symbol, size: GfIconSize.md, color: toneColor),
+    );
+    final Widget leading = avatarUrl == null
+        ? SizedBox(
+            width: 44,
+            child: Align(alignment: Alignment.topLeft, child: toneMark),
+          )
+        : Semantics(
+            label: actorName,
+            button: (onAvatarTap ?? onActorTap) != null,
+            child: InkWell(
+              onTap: onAvatarTap ?? onActorTap,
+              customBorder: const CircleBorder(),
+              child: SizedBox.square(
+                dimension: 44,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    GfAvatar(
+                      frameColors: avatarFrameColors,
+                      frameAssetUrl: avatarFrameAssetUrl,
+                      frameScale: avatarFrameScale,
+                      src: avatarUrl!,
+                      size: 40,
+                    ),
+                    // Event type rides on the actor as a small tone badge.
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: toneColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: background, width: 2),
+                        ),
+                        alignment: Alignment.center,
+                        child: GfSymbol(symbol, size: 11, color: tone == GfNotificationTone.warning ? colors.warningContent : Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+
     return Material(
-      color: unread
-          ? Color.alphaBlend(
-              colors.primary.withValues(alpha: .04),
-              colors.base100,
-            )
-          : colors.base100,
+      color: background,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(
+            horizontal: GfSpace.gutter,
+            vertical: GfSpace.md,
+          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                width: 28,
-                height: 24,
-                child: GfSymbol(symbol, size: 24, color: toneColor),
-              ),
-              const SizedBox(width: 12),
+              leading,
+              const SizedBox(width: GfSpace.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (avatarUrl != null)
-                      Semantics(
-                        label: actorName,
-                        button: (onAvatarTap ?? onActorTap) != null,
-                        child: InkWell(
-                          onTap: onAvatarTap ?? onActorTap,
-                          customBorder: const CircleBorder(),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 4,
-                              horizontal: 4,
-                            ),
-                            child: GfAvatar(
-                              frameColors: avatarFrameColors,
-                              frameAssetUrl: avatarFrameAssetUrl,
-                              frameScale: avatarFrameScale,
-                              src: avatarUrl!,
-                              size: 36,
-                            ),
-                          ),
-                        ),
-                      ),
-                    if (avatarUrl != null) const SizedBox(height: 4),
-                    _ActorHeading(
-                      title: title,
-                      actorName: actorName,
-                      time: time,
-                      nicknameColors: nicknameColors,
-                      onActorTap: onActorTap,
-                    ),
+                    _ActorHeading(title: title, actorName: actorName,
+                      nicknameColors: nicknameColors, onActorTap: onActorTap),
                     if (subtitle.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(top: 5),
+                        padding: const EdgeInsets.only(top: GfSpace.xs),
                         child: GfText(
                           subtitle,
                           maxLines: subtitleMaxLines,
                           overflow: subtitleMaxLines == null
                               ? TextOverflow.visible
                               : TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 15,
-                            height: 1.4,
-                            color: colors.baseContent.withValues(alpha: .65),
+                          style: typography.small.copyWith(
+                            color: colors.textSecondary,
                           ),
                         ),
                       ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: GfSpace.xs),
+                      child: GfText(
+                        time,
+                        style: typography.caption.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
               if (unread)
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 9,
+                  padding: const EdgeInsets.only(
+                    left: GfSpace.sm,
+                    right: GfSpace.xs,
+                    top: 7,
                   ),
                   child: Container(
-                    width: 7,
-                    height: 7,
+                    width: 8,
+                    height: 8,
                     decoration: BoxDecoration(
                       color: colors.primary,
                       shape: BoxShape.circle,
@@ -156,8 +192,8 @@ class GfNotificationRow extends StatelessWidget {
                   ),
                   icon: GfSymbol(
                     'circle-check',
-                    size: 18,
-                    color: colors.iconMuted,
+                    size: GfIconSize.md,
+                    color: colors.textSecondary,
                   ),
                 ),
             ],
@@ -168,70 +204,66 @@ class GfNotificationRow extends StatelessWidget {
   }
 }
 
-/// Own the text recognizer so rebuilds and recycled notification rows dispose it.
 class _ActorHeading extends StatefulWidget {
-  const _ActorHeading({
-    required this.title,
-    required this.actorName,
-    required this.time,
-    required this.nicknameColors,
-    this.onActorTap,
-  });
-  final String title, actorName, time;
+  const _ActorHeading({required this.title, required this.actorName, required this.nicknameColors, this.onActorTap});
+  final String title, actorName;
   final List<Color> nicknameColors;
   final VoidCallback? onActorTap;
   @override
   State<_ActorHeading> createState() => _ActorHeadingState();
 }
-
 class _ActorHeadingState extends State<_ActorHeading> {
   final _actorTap = TapGestureRecognizer();
   @override
-  void dispose() {
-    _actorTap.dispose();
-    super.dispose();
-  }
-
+  void dispose() { _actorTap.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    final title = widget.title,
-        actorName = widget.actorName,
-        time = widget.time;
+    final typography = GfTheme.typographyOf(context);
+    final title = widget.title, actorName = widget.actorName;
     final nicknameColors = widget.nicknameColors;
     final actorStart = actorName.isEmpty ? -1 : title.indexOf(actorName);
     return GfText.rich(
-      TextSpan(
-        children: [
-          if (actorStart < 0)
-            TextSpan(text: title)
-          else ...[
-            TextSpan(text: title.substring(0, actorStart)),
-            TextSpan(
-              text: actorName,
-              recognizer: _actorTap..onTap = widget.onActorTap,
-              style: TextStyle(
-                foreground: nicknameColors.length < 2
-                    ? null
-                    : (Paint()
-                        ..shader = LinearGradient(colors: nicknameColors)
-                            .createShader(
-                              Rect.fromLTWH(0, 0, actorName.length * 8.0, 20),
-                            )),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            TextSpan(text: title.substring(actorStart + actorName.length)),
-          ],
-          TextSpan(
-            text: ' · $time',
-            style: TextStyle(color: colors.iconMuted, fontSize: 13),
-          ),
-        ],
-      ),
-      maxLines: 3,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(fontSize: 15, height: 1.4, color: colors.baseContent),
-    );
+                      TextSpan(
+                        children: [
+                          if (actorStart < 0)
+                            TextSpan(text: title)
+                          else ...[
+                            TextSpan(text: title.substring(0, actorStart)),
+                            TextSpan(
+                              text: actorName,
+                              recognizer: _actorTap..onTap = widget.onActorTap,
+                              style: TextStyle(
+                                foreground: nicknameColors.length < 2
+                                    ? null
+                                    : (Paint()
+                                        ..shader =
+                                            LinearGradient(
+                                              colors: nicknameColors,
+                                            ).createShader(
+                                              Rect.fromLTWH(
+                                                0,
+                                                0,
+                                                actorName.length * 8.0,
+                                                20,
+                                              ),
+                                            )),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            TextSpan(
+                              text: title.substring(
+                                actorStart + actorName.length,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: typography.small.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    );
   }
 }

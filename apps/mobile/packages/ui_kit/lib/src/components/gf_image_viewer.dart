@@ -28,7 +28,9 @@ Future<bool> showGfImageSaveSheet(
         showDragHandle: true,
         backgroundColor: colors.base100,
         shape: RoundedRectangleBorder(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(GfRadius.xl),
+          ),
           side: BorderSide(color: colors.line, width: borders.width),
         ),
         builder: (BuildContext sheetContext) => SafeArea(
@@ -37,7 +39,7 @@ Future<bool> showGfImageSaveSheet(
             child: ListTile(
               minVerticalPadding: 14,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(GfRadius.lg),
               ),
               leading: GfSymbol('download', color: colors.primary),
               title: GfText(saveImageLabel),
@@ -339,7 +341,9 @@ class _GfImageViewerState extends State<GfImageViewer>
                                                 width: selected ? 2 : 1,
                                               ),
                                               borderRadius:
-                                                  BorderRadius.circular(8),
+                                                  BorderRadius.circular(
+                                                    GfRadius.sm,
+                                                  ),
                                             ),
                                             child: Padding(
                                               padding: EdgeInsets.all(
@@ -347,7 +351,9 @@ class _GfImageViewerState extends State<GfImageViewer>
                                               ),
                                               child: ClipRRect(
                                                 borderRadius:
-                                                    BorderRadius.circular(5),
+                                                    BorderRadius.circular(
+                                                      GfRadius.xs,
+                                                    ),
                                                 child: ColorFiltered(
                                                   colorFilter: ColorFilter.mode(
                                                     Colors.black.withValues(

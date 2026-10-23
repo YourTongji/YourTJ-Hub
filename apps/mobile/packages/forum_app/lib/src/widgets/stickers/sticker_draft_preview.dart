@@ -29,7 +29,7 @@ class StickerDraftPreview extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: colors.base200,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(GfRadius.lg),
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 96),

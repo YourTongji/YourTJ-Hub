@@ -877,7 +877,7 @@ class _CollapsedConfigRow extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
-                    color: colors.baseContent.withValues(alpha: 0.75),
+                    color: colors.textSecondary,
                   ),
                 ),
               ),
@@ -1106,7 +1106,7 @@ class _ConfigSelector extends StatelessWidget {
     final bool hasValue = value.isNotEmpty;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(GfRadius.xs),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         child: Row(
@@ -1233,7 +1233,7 @@ class _DataOutdatedBanner extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
-                    color: colors.baseContent.withValues(alpha: 0.8),
+                    color: colors.textSecondary,
                   ),
                 ),
               ),
@@ -1928,10 +1928,7 @@ class _CourseRow extends StatelessWidget {
                     ].join(' · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colors.baseContent.withValues(alpha: 0.55),
-                    ),
+                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
                   ),
                 ],
               ),
@@ -2049,10 +2046,7 @@ class _SearchRow extends StatelessWidget {
               ].join(' · '),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.baseContent.withValues(alpha: 0.55),
-              ),
+              style: TextStyle(fontSize: 12, color: colors.textSecondary),
             ),
           ],
         ),
@@ -2214,7 +2208,7 @@ class _ClassRow extends StatelessWidget {
                           ),
                           decoration: BoxDecoration(
                             color: colors.primary.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(GfRadius.xs),
                           ),
                           child: GfText(
                             l10n.scheduleSelected,
@@ -2237,7 +2231,7 @@ class _ClassRow extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: colors.error.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(GfRadius.xs),
                         border: Border.all(
                           color: colors.error.withValues(alpha: 0.25),
                         ),
@@ -2297,7 +2291,7 @@ class _ClassRow extends StatelessWidget {
                       height: 1.3,
                       color: hasConflict
                           ? colors.error.withValues(alpha: 0.85)
-                          : colors.baseContent.withValues(alpha: 0.55),
+                          : colors.textSecondary,
                     ),
                   ),
                   if (teachers.isNotEmpty)
@@ -2307,7 +2301,7 @@ class _ClassRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 11,
-                        color: colors.baseContent.withValues(alpha: 0.55),
+                        color: colors.textSecondary,
                       ),
                     ),
                 ],
@@ -2526,10 +2520,7 @@ class _CellCourseRow extends StatelessWidget {
                     '${course.courseCode} · ${course.faculty}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colors.baseContent.withValues(alpha: 0.55),
-                    ),
+                    style: TextStyle(fontSize: 11, color: colors.textSecondary),
                   ),
                 ],
               ),
@@ -2579,7 +2570,7 @@ class _CourseDetailSheet extends ConsumerWidget {
                         course.code,
                         style: TextStyle(
                           fontSize: 12,
-                          color: colors.baseContent.withValues(alpha: 0.55),
+                          color: colors.textSecondary,
                         ),
                       ),
                     ],
@@ -2600,10 +2591,7 @@ class _CourseDetailSheet extends ConsumerWidget {
                 if (teacher.isNotEmpty) teacher,
                 if (room.isNotEmpty) room,
               ].join(' · '),
-              style: TextStyle(
-                fontSize: 13,
-                color: colors.baseContent.withValues(alpha: 0.7),
-              ),
+              style: TextStyle(fontSize: 13, color: colors.textSecondary),
             ),
             const SizedBox(height: 6),
             if ((course.arrangementText ?? '').isNotEmpty)
@@ -2612,7 +2600,7 @@ class _CourseDetailSheet extends ConsumerWidget {
                 style: TextStyle(
                   fontSize: 12,
                   height: 1.4,
-                  color: colors.baseContent.withValues(alpha: 0.55),
+                  color: colors.textSecondary,
                 ),
               ),
             const SizedBox(height: 12),
@@ -2714,7 +2702,7 @@ class _ReviewBriefPanelState extends ConsumerState<_ReviewBriefPanel> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: colors.base200,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(GfRadius.sm),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2723,7 +2711,7 @@ class _ReviewBriefPanelState extends ConsumerState<_ReviewBriefPanel> {
             text,
             style: TextStyle(
               fontSize: 12,
-              color: colors.baseContent.withValues(alpha: 0.65),
+              color: colors.textSecondary,
             ),
           ),
           if (brief != null && brief.courseId > 0)
@@ -2835,10 +2823,7 @@ class _CustomEventSheetState extends ConsumerState<_CustomEventSheet> {
                   const SizedBox(width: 8),
                   GfText(
                     _weeksTextPreview(),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colors.baseContent.withValues(alpha: 0.5),
-                    ),
+                    style: TextStyle(fontSize: 11, color: colors.textSecondary),
                   ),
                 ],
               ),
@@ -2900,7 +2885,7 @@ class _CustomEventSheetState extends ConsumerState<_CustomEventSheet> {
   TextStyle _groupLabelStyle(GfColors colors) => TextStyle(
     fontSize: 12,
     fontWeight: FontWeight.w600,
-    color: colors.baseContent.withValues(alpha: 0.7),
+    color: colors.textSecondary,
   );
 
   String _weeksTextPreview() {
@@ -2928,12 +2913,12 @@ class _ChoiceChip extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(GfRadius.sm),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: selected ? colors.primary : colors.base100,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(GfRadius.sm),
           border: Border.all(color: selected ? colors.primary : colors.line),
         ),
         child: GfText(

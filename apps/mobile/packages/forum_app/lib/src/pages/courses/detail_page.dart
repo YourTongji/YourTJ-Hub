@@ -829,9 +829,9 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
                   if (_reviewTotal > 0) ...<Widget>[
                     GfText(
                       '$_reviewTotal',
-                      style: GfTheme.typographyOf(context).small.copyWith(
-                        color: colors.baseContent.withValues(alpha: 0.45),
-                      ),
+                      style: GfTheme.typographyOf(
+                        context,
+                      ).small.copyWith(color: colors.textSecondary),
                     ),
                   ],
                 ],
@@ -987,9 +987,7 @@ class _CourseHeader extends StatelessWidget {
             const SizedBox(height: 6),
             GfText(
               '${copy.legacyNamesLabel}${legacyNames.join('、')}',
-              style: type.caption.copyWith(
-                color: colors.baseContent.withValues(alpha: 0.45),
-              ),
+              style: type.caption.copyWith(color: colors.textSecondary),
             ),
           ],
           const SizedBox(height: 10),
@@ -1021,9 +1019,7 @@ class _CourseHeader extends StatelessWidget {
               children: <Widget>[
                 GfText(
                   copy.aliasesLabel,
-                  style: type.caption.copyWith(
-                    color: colors.baseContent.withValues(alpha: 0.45),
-                  ),
+                  style: type.caption.copyWith(color: colors.textSecondary),
                 ),
                 for (final String alias in aliases)
                   Container(
@@ -1033,13 +1029,11 @@ class _CourseHeader extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: colors.base200.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: BorderRadius.circular(GfRadius.full),
                     ),
                     child: GfText(
                       alias,
-                      style: type.meta.copyWith(
-                        color: colors.baseContent.withValues(alpha: 0.7),
-                      ),
+                      style: type.meta.copyWith(color: colors.textSecondary),
                     ),
                   ),
               ],
@@ -1080,7 +1074,7 @@ class _CourseHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: colors.base100,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(GfRadius.full),
         border: Border.all(color: colors.line),
       ),
       child: Row(
@@ -1096,7 +1090,7 @@ class _CourseHeader extends StatelessWidget {
             child: GfText(
               label,
               style: GfTheme.typographyOf(context).caption.copyWith(
-                color: colors.baseContent.withValues(alpha: 0.7),
+                color: colors.textSecondary,
                 fontWeight: emphasized != null ? FontWeight.w600 : null,
               ),
             ),
@@ -1129,7 +1123,7 @@ class _OfferingFocusBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: colors.info.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(GfRadius.sm),
         border: Border.all(color: colors.primary.withValues(alpha: 0.25)),
       ),
       child: Row(
@@ -1141,9 +1135,9 @@ class _OfferingFocusBanner extends StatelessWidget {
               '${copy.offeringFocusLabel} · $label',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: GfTheme.typographyOf(context).caption.copyWith(
-                color: colors.baseContent.withValues(alpha: 0.75),
-              ),
+              style: GfTheme.typographyOf(
+                context,
+              ).caption.copyWith(color: colors.textSecondary),
             ),
           ),
           InkWell(
@@ -1215,9 +1209,7 @@ class _RatingSection extends StatelessWidget {
               if (reviewCount > 0)
                 GfText(
                   AppLocalizations.of(context).coursesRatingCount(reviewCount),
-                  style: type.caption.copyWith(
-                    color: colors.baseContent.withValues(alpha: 0.45),
-                  ),
+                  style: type.caption.copyWith(color: colors.textSecondary),
                 ),
             ],
           ),
@@ -1227,9 +1219,7 @@ class _RatingSection extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: GfText(
                 copy.noRatingQuiet,
-                style: type.small.copyWith(
-                  color: colors.baseContent.withValues(alpha: 0.5),
-                ),
+                style: type.small.copyWith(color: colors.textSecondary),
               ),
             )
           else
@@ -1480,7 +1470,7 @@ class _DistributionRow extends StatelessWidget {
               height: 6,
               decoration: BoxDecoration(
                 color: colors.base300.withValues(alpha: 0.45),
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(GfRadius.full),
               ),
               child: FractionallySizedBox(
                 alignment: Alignment.centerLeft,
@@ -1488,7 +1478,7 @@ class _DistributionRow extends StatelessWidget {
                 child: Container(
                   decoration: BoxDecoration(
                     color: colors.warning.withValues(alpha: _opacity[5 - star]),
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(GfRadius.full),
                   ),
                 ),
               ),
@@ -1795,9 +1785,7 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
         padding: inset,
         child: GfText(
           copy.summaryInsufficient,
-          style: type.caption.copyWith(
-            color: colors.baseContent.withValues(alpha: 0.6),
-          ),
+          style: type.caption.copyWith(color: colors.textSecondary),
         ),
       );
     }
@@ -1809,9 +1797,7 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
             Expanded(
               child: GfText(
                 copy.summaryLoadFailed,
-                style: type.caption.copyWith(
-                  color: colors.baseContent.withValues(alpha: 0.6),
-                ),
+                style: type.caption.copyWith(color: colors.textSecondary),
               ),
             ),
             TextButton(
@@ -1934,7 +1920,7 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
               fontWeight: FontWeight.w400,
               color: _refreshNotice != null
                   ? colors.error
-                  : colors.baseContent.withValues(alpha: 0.55),
+                  : colors.textSecondary,
             ),
           ),
         ),
@@ -2020,7 +2006,7 @@ class _KeywordTag extends StatelessWidget {
         style: type.caption.copyWith(
           height: 1.4,
           fontWeight: FontWeight.w500,
-          color: colors.baseContent.withValues(alpha: 0.8),
+          color: colors.textSecondary,
         ),
       ),
     );
@@ -2072,9 +2058,7 @@ class _SummaryPoint extends StatelessWidget {
             Expanded(
               child: GfText(
                 text,
-                style: type.small.copyWith(
-                  color: colors.baseContent.withValues(alpha: 0.85),
-                ),
+                style: type.small.copyWith(color: colors.textPrimary),
               ),
             ),
           ],
@@ -2124,7 +2108,7 @@ class _SummaryQuote extends StatelessWidget {
                   copy.summarySentiment(item.sentiment),
                   style: type.meta.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: colors.baseContent.withValues(alpha: 0.65),
+                    color: colors.textSecondary,
                   ),
                 ),
               ),
@@ -2133,9 +2117,7 @@ class _SummaryQuote extends StatelessWidget {
           const SizedBox(height: 6),
           GfText(
             item.excerpt,
-            style: type.caption.copyWith(
-              color: colors.baseContent.withValues(alpha: 0.85),
-            ),
+            style: type.caption.copyWith(color: colors.textPrimary),
           ),
         ],
       ),
@@ -2472,7 +2454,7 @@ class _ReviewActionBar extends StatelessWidget {
           style: TextButton.styleFrom(
             minimumSize: const Size(44, 44),
             padding: EdgeInsets.zero,
-            foregroundColor: tint ?? colors.baseContent.withValues(alpha: 0.7),
+            foregroundColor: tint ?? colors.textSecondary,
             backgroundColor: Colors.transparent,
             shape: const StadiumBorder(),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -2485,7 +2467,7 @@ class _ReviewActionBar extends StatelessWidget {
                 color: active
                     ? (tint ?? colors.primary).withValues(alpha: 0.1)
                     : colors.base100,
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(GfRadius.full),
                 border: Border.all(
                   color: active
                       ? (tint ?? colors.primary).withValues(alpha: 0.4)
@@ -2513,8 +2495,7 @@ class _ReviewActionBar extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 13,
                         height: 1.2,
-                        color:
-                            tint ?? colors.baseContent.withValues(alpha: 0.7),
+                        color: tint ?? colors.textSecondary,
                         fontFeatures: labelWidth == null
                             ? null
                             : const <FontFeature>[FontFeature.tabularFigures()],
@@ -2585,9 +2566,7 @@ class _OfferingsSectionState extends State<_OfferingsSection> {
             padding: const EdgeInsets.all(16),
             child: GfText(
               widget.copy.offeringsEmpty,
-              style: type.small.copyWith(
-                color: colors.baseContent.withValues(alpha: 0.55),
-              ),
+              style: type.small.copyWith(color: colors.textSecondary),
             ),
           )
         else
@@ -2652,7 +2631,7 @@ class _OfferingTermGroup extends StatelessWidget {
                 GfSymbol(
                   collapsed ? 'chevron-right' : 'chevron-down',
                   size: 18,
-                  color: colors.baseContent.withValues(alpha: 0.45),
+                  color: colors.textSecondary,
                 ),
                 const SizedBox(width: 4),
                 Flexible(
@@ -2660,7 +2639,7 @@ class _OfferingTermGroup extends StatelessWidget {
                     termName,
                     style: type.small.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: colors.baseContent.withValues(alpha: 0.75),
+                      color: colors.textSecondary,
                     ),
                   ),
                 ),
@@ -2725,7 +2704,7 @@ class _OfferingRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: active ? colors.info.withValues(alpha: 0.08) : null,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(GfRadius.sm),
           border: active
               ? Border.all(color: colors.primary.withValues(alpha: 0.35))
               : null,
@@ -2742,7 +2721,7 @@ class _OfferingRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: type.small.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: colors.baseContent.withValues(alpha: 0.85),
+                      color: colors.textPrimary,
                     ),
                   ),
                 ),
@@ -2760,9 +2739,7 @@ class _OfferingRow extends StatelessWidget {
                     const SizedBox(width: 2),
                     GfText(
                       '($reviewCount)',
-                      style: type.caption.copyWith(
-                        color: colors.baseContent.withValues(alpha: 0.45),
-                      ),
+                      style: type.caption.copyWith(color: colors.textSecondary),
                     ),
                   ],
                 ],
@@ -2780,9 +2757,7 @@ class _OfferingRow extends StatelessWidget {
                 meta.join(' · '),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: type.caption.copyWith(
-                  color: colors.baseContent.withValues(alpha: 0.55),
-                ),
+                style: type.caption.copyWith(color: colors.textSecondary),
               ),
             ],
           ],
@@ -2832,9 +2807,7 @@ class _RelatedSection extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: GfText(
               AppLocalizations.of(context).commonLoadFailed,
-              style: type.small.copyWith(
-                color: colors.baseContent.withValues(alpha: 0.55),
-              ),
+              style: type.small.copyWith(color: colors.textSecondary),
             ),
           ),
           data: (CourseRelatedResult result) {
@@ -2863,9 +2836,7 @@ class _RelatedSection extends StatelessWidget {
                     padding: const EdgeInsets.all(16),
                     child: GfText(
                       copy.relatedEmpty,
-                      style: type.small.copyWith(
-                        color: colors.baseContent.withValues(alpha: 0.5),
-                      ),
+                      style: type.small.copyWith(color: colors.textSecondary),
                     ),
                   ),
                 if (lineage.isNotEmpty) ...<Widget>[
@@ -2875,7 +2846,7 @@ class _RelatedSection extends StatelessWidget {
                       l10n.courseDetailLineage,
                       style: type.small.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: colors.baseContent.withValues(alpha: 0.75),
+                        color: colors.textSecondary,
                       ),
                     ),
                   ),
@@ -2919,7 +2890,7 @@ class _RelatedGroup extends StatelessWidget {
           child: GfText(
             title,
             style: type.caption.copyWith(
-              color: colors.baseContent.withValues(alpha: 0.7),
+              color: colors.textSecondary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -2953,7 +2924,7 @@ class _RelatedGroup extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: type.meta.copyWith(
-                            color: colors.baseContent.withValues(alpha: 0.5),
+                            color: colors.textSecondary,
                           ),
                         ),
                       ],
@@ -3029,9 +3000,7 @@ class _LineageRow extends StatelessWidget {
                 text,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: type.small.copyWith(
-                  color: colors.baseContent.withValues(alpha: 0.65),
-                ),
+                style: type.small.copyWith(color: colors.textSecondary),
               ),
       );
     }

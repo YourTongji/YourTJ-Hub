@@ -310,7 +310,7 @@ void main() {
 
     final Color target = GfTheme.colorsOf(
       tester.element(find.text('校园')),
-    ).primary.withValues(alpha: 0.09);
+    ).primarySoft;
     const Color unselected = Colors.transparent;
 
     await tester.tap(find.text('校园'));
@@ -395,7 +395,7 @@ void main() {
 
     final Color target = GfTheme.colorsOf(
       tester.element(find.text('首页')),
-    ).primary.withValues(alpha: 0.09);
+    ).primarySoft;
     const Color unselected = Colors.transparent;
 
     await tester.tap(find.text('校园'));

@@ -795,7 +795,7 @@ class _ElsewhereTile extends StatelessWidget {
       button: true,
       child: Material(
         color: tileTone.withValues(alpha: tintAlpha),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(GfRadius.lg),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -1342,10 +1342,9 @@ class _PartialFailure extends StatelessWidget {
               Expanded(
                 child: GfText(
                   '${l10n.searchUnavailable}: ${scopes.map((scope) => _scopeLabel(scope, l10n)).join(', ')}',
-                  style: GfTheme.typographyOf(context).caption.copyWith(
-                    fontSize: 14,
-                    color: colors.baseContent.withValues(alpha: 0.8),
-                  ),
+                  style: GfTheme.typographyOf(
+                    context,
+                  ).caption.copyWith(fontSize: 14, color: colors.textSecondary),
                 ),
               ),
             ],
@@ -1417,7 +1416,7 @@ class _UserRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: type.caption.copyWith(
                         fontSize: 14,
-                        color: colors.baseContent.withValues(alpha: 0.8),
+                        color: colors.textSecondary,
                       ),
                     ),
                   ],
@@ -1500,7 +1499,7 @@ class _CategoryRow extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: tone.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(GfRadius.md),
               ),
               child: GfText(
                 category.icon.isEmpty ? '#' : category.icon,

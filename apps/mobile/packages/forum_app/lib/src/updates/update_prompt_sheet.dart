@@ -72,7 +72,7 @@ class _UpdatePromptSheetState extends State<UpdatePromptSheet> {
     final l10n = AppLocalizations.of(context);
     final colors = GfTheme.colorsOf(context);
     final type = GfTheme.typographyOf(context);
-    final secondary = colors.baseContent.withValues(alpha: 0.6);
+    final secondary = colors.textSecondary;
     final statusText = widget.working
         ? (widget.receivedBytes == 0
               ? l10n.updatePreparing
@@ -129,7 +129,9 @@ class _UpdatePromptSheetState extends State<UpdatePromptSheet> {
                                 height: 48,
                                 decoration: BoxDecoration(
                                   color: colors.base300,
-                                  borderRadius: BorderRadius.circular(14),
+                                  borderRadius: BorderRadius.circular(
+                                    GfRadius.md,
+                                  ),
                                 ),
                                 alignment: Alignment.center,
                                 child: const GfLogo(size: 30),

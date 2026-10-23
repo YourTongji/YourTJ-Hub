@@ -39,7 +39,7 @@ class CampusShortcuts extends StatelessWidget {
                     child: Material(
                       color: colors.base200,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(GfRadius.lg),
                         side: BorderSide(
                           color: colors.line.withValues(alpha: 0.55),
                         ),

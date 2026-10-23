@@ -52,8 +52,9 @@ class _GfSearchFieldState extends State<GfSearchField> {
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(28),
+    final typography = GfTheme.typographyOf(context);
+    const border = OutlineInputBorder(
+      borderRadius: BorderRadius.all(Radius.circular(GfRadius.full)),
       borderSide: BorderSide.none,
     );
     return ValueListenableBuilder<TextEditingValue>(
@@ -70,42 +71,53 @@ class _GfSearchFieldState extends State<GfSearchField> {
         textAlignVertical: TextAlignVertical.center,
         onChanged: widget.onChanged,
         onSubmitted: widget.onSubmitted,
-        style: TextStyle(fontSize: 16, color: colors.baseContent),
+        style: typography.body.copyWith(color: colors.textPrimary),
         cursorColor: colors.primary,
         decoration: InputDecoration(
           hintText: widget.hintText,
           counterText: '',
-          hintStyle: TextStyle(fontSize: 16, color: colors.iconMuted),
+          hintStyle: typography.body.copyWith(color: colors.textPlaceholder),
           filled: true,
-          fillColor: colors.base300,
+          fillColor: colors.fill,
           isDense: true,
-          constraints: const BoxConstraints(minHeight: 48),
+          constraints: const BoxConstraints(minHeight: GfControl.touch),
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
+            horizontal: GfSpace.lg,
+            vertical: 10,
           ),
           border: border,
           enabledBorder: border,
-          focusedBorder: border.copyWith(
-            borderSide: BorderSide(color: colors.primary),
-          ),
+          focusedBorder: border,
           prefixIcon: Padding(
-            padding: const EdgeInsets.only(left: 16, right: 10),
-            child: GfSymbol('search', size: 20, color: colors.iconMuted),
+            padding: const EdgeInsets.only(left: 14, right: GfSpace.sm),
+            child: GfSymbol(
+              'search',
+              size: GfIconSize.md - 2,
+              color: colors.textSecondary,
+            ),
           ),
           prefixIconConstraints: const BoxConstraints(
-            minWidth: 46,
-            minHeight: 48,
+            minWidth: 40,
+            minHeight: GfControl.touch,
           ),
           suffixIconConstraints: const BoxConstraints(
-            minWidth: 44,
-            minHeight: 44,
+            minWidth: GfControl.touch,
+            minHeight: GfControl.touch,
           ),
           suffixIcon: value.text.isEmpty
               ? null
               : IconButton(
                   tooltip: widget.clearLabel,
-                  icon: GfSymbol('x', size: 18, color: colors.iconMuted),
+                  icon: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: colors.textPlaceholder,
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: GfSymbol('x', size: 12, color: colors.canvas),
+                  ),
                   onPressed: () {
                     _controller.clear();
                     _focus.requestFocus();

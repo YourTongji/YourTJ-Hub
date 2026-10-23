@@ -295,12 +295,7 @@ class _GfTopicCardState extends State<GfTopicCard> {
                             widget.title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.baseContent,
-                              fontSize: 17,
-                              height: 1.35,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: GfTheme.typographyOf(context).title3,
                           ),
                         )
                       else
@@ -451,7 +446,7 @@ class _GfTopicCardState extends State<GfTopicCard> {
             label: widget.authorName,
             child: InkWell(
               onTap: widget.onAvatarTap ?? widget.onAuthorTap,
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(GfRadius.xl),
               child: SizedBox(
                 width: 44,
                 height: 44,
@@ -602,9 +597,7 @@ class _FeedReasonState extends State<_FeedReason>
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: ShapeDecoration(color: fill, shape: pill),
       textStyle: TextStyle(
-        color: newReplies
-            ? colors.primary
-            : colors.baseContent.withValues(alpha: 0.72),
+        color: newReplies ? colors.primary : colors.textSecondary,
         fontSize: 12,
         height: 1.35,
         fontWeight: FontWeight.w500,
@@ -836,8 +829,9 @@ class _AuthorMeta extends StatelessWidget {
       ),
     );
     final dateStyle = DefaultTextStyle.of(context).style.copyWith(
-      color: colors.baseContent.withValues(alpha: 0.55),
+      color: colors.textSecondary,
       fontSize: 13,
+      height: 18 / 13,
     );
     final markers = <Widget>[
       for (final category in categories)
@@ -851,20 +845,24 @@ class _AuthorMeta extends StatelessWidget {
       if (hot)
         Container(
           height: 20,
-          padding: const EdgeInsets.symmetric(horizontal: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
           decoration: BoxDecoration(
-            color: colors.warning.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(999),
+            color: colors.toneSoft(GfTone.warning),
+            borderRadius: BorderRadius.circular(GfRadius.xs),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              GfSymbol('sparkles', size: 12, color: colors.warning),
+              GfSymbol(
+                'sparkles',
+                size: 12,
+                color: colors.toneOnSoft(GfTone.warning),
+              ),
               const SizedBox(width: 3),
               GfText(
                 'hot',
                 style: TextStyle(
-                  color: colors.warning,
+                  color: colors.toneOnSoft(GfTone.warning),
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
@@ -927,11 +925,9 @@ class _AuthorMeta extends StatelessWidget {
                             colors: nicknameColors,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.baseContent,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: GfTheme.typographyOf(
+                              context,
+                            ).bodyStrong.copyWith(height: 20 / 16),
                           ),
                         ),
                       ),
@@ -1008,7 +1004,7 @@ class _TopicImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(GfRadius.md),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final logicalWidth = width != null && width!.isFinite
@@ -1142,13 +1138,14 @@ class _Metric extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          GfSymbol(icon, size: 18, color: color ?? colors.iconMuted),
-          const SizedBox(width: 5),
+          GfSymbol(icon, size: 18, color: color ?? colors.textSecondary),
+          const SizedBox(width: GfSpace.xs),
           GfText(
             value,
             style: TextStyle(
-              color: color ?? colors.baseContent.withValues(alpha: 0.55),
+              color: color ?? colors.textSecondary,
               fontSize: 13,
+              height: 18 / 13,
             ),
           ),
         ],
@@ -1164,7 +1161,7 @@ class _ImageCount extends StatelessWidget {
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
       color: Colors.black.withValues(alpha: 0.65),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(GfRadius.lg),
     ),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

@@ -302,7 +302,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                         label: strings.displayLabel(item),
                         hint: strings.pickerHint,
                         child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(GfRadius.md),
                           onLongPress: () => _actions(item),
                           onTap: () {
                             widget.onInsert(item.token);

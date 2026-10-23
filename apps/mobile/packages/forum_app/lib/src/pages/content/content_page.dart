@@ -595,7 +595,7 @@ class _ReviewSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final type = GfTheme.typographyOf(context);
-    final muted = GfTheme.colorsOf(context).baseContent.withValues(alpha: 0.6);
+    final muted = GfTheme.colorsOf(context).textSecondary;
     final appeal = item.appeal;
     final (
       String? appealLabel,

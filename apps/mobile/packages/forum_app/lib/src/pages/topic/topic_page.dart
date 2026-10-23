@@ -2317,7 +2317,7 @@ class _TopicHeader extends StatelessWidget {
                         wornBadge: topic.author.wornBadge,
                       )
                     : null,
-                borderRadius: BorderRadius.circular(40),
+                borderRadius: BorderRadius.circular(GfRadius.full),
                 child: GfAvatar(
                   frameColors: topic.author.publicUid != null
                       ? const <Color>[]
@@ -2508,9 +2508,7 @@ class _CommentSortCapsule extends StatelessWidget {
             child: GfText(
               label,
               style: TextStyle(
-                color: selected
-                    ? colors.primary
-                    : colors.baseContent.withValues(alpha: 0.55),
+                color: selected ? colors.primary : colors.textSecondary,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -2625,7 +2623,7 @@ class _PostCard extends StatelessWidget {
                         wornBadge: post.author.wornBadge,
                       )
                     : null,
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(GfRadius.xl),
                 child: GfAvatar(
                   frameColors: post.isAnonymous
                       ? const <Color>[]
@@ -2809,10 +2807,9 @@ class _ReplyQuoteState extends State<_ReplyQuote> {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final String preview = widget.contentPreview ?? '';
     final bool hasPreview = !widget.unavailable && preview.isNotEmpty;
-    final style = GfTheme.typographyOf(context).small.copyWith(
-      color: colors.baseContent.withValues(alpha: 0.75),
-      height: 1.45,
-    );
+    final style = GfTheme.typographyOf(
+      context,
+    ).small.copyWith(color: colors.textSecondary, height: 1.45);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

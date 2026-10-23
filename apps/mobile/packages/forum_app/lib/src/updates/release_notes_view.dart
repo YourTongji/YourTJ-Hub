@@ -32,7 +32,7 @@ class ReleaseNotesView extends StatelessWidget {
         DecoratedBox(
           decoration: BoxDecoration(
             color: colors.base300,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(GfRadius.lg),
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
@@ -63,9 +63,7 @@ class ReleaseNotesView extends StatelessWidget {
           if (groups.isNotEmpty) const SizedBox(height: 16),
           GfText(
             l10n.releaseNotesIncomplete,
-            style: type.caption.copyWith(
-              color: colors.baseContent.withValues(alpha: 0.6),
-            ),
+            style: type.caption.copyWith(color: colors.textSecondary),
           ),
         ],
       ],
@@ -87,7 +85,7 @@ class _NoteGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final type = GfTheme.typographyOf(context);
-    final muted = GfTheme.colorsOf(context).baseContent.withValues(alpha: 0.6);
+    final muted = GfTheme.colorsOf(context).textSecondary;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -150,9 +148,7 @@ class _NoteItem extends StatelessWidget {
               note.summary,
               style: type.small.copyWith(
                 height: 1.45,
-                color: hasTitle
-                    ? colors.baseContent.withValues(alpha: 0.72)
-                    : colors.baseContent,
+                color: hasTitle ? colors.textSecondary : colors.baseContent,
               ),
             ),
         ],

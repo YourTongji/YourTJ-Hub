@@ -1426,7 +1426,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         : l10n.profileLastActive(timeAgo(user.lastActiveTime, l10n: l10n));
     final metaStyle = GfTheme.typographyOf(
       context,
-    ).caption.copyWith(color: colors.baseContent.withValues(alpha: .55));
+    ).caption.copyWith(color: colors.textSecondary);
     return GfUserCard(
       showHeader: false,
       coverUrl: resolveApiAssetUrl(user.profileCoverUrl),
