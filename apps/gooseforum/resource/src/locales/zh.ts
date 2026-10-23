@@ -91,7 +91,8 @@ export default {
       framePalette: "边框配色",
       framePaletteHint: "选择 1–2 个颜色作为纯色边框的渐变色。",
       colorInvalid: "请设置 1–2 个有效的 #RRGGBB 颜色。",
-      contrastInvalid: "昵称配色在主题背景上的对比度须达到 4.5:1，请调整颜色。",
+      contrastLowest: "最低对比度：浅色 {light}:1，深色 {dark}:1",
+      contrastInvalid: "昵称配色在主题背景上的最低对比度为 {ratio}:1，建议不低于 {minimum}:1，请调整颜色。",
       addColor: "添加渐变色",
       removeColor: "移除渐变色",
       assetInvalid: "请输入 /static/decorations/ 下的 PNG 或 WebP 路径。",
@@ -104,7 +105,6 @@ export default {
       orderHint: "0–100000 的整数，数值越小越靠前。",
       preview: "实时预览",
       framePreviewHint: "两种主题分别展示配置效果。",
-      nicknamePreviewHint: "两种主题分别展示昵称渐变效果。",
       disabledHint: "此样式已停用。预览仍展示设计，用户端不显示；已有资格和选择会保留。",
       fixErrors: "请修正表单中标记的字段后再保存。",
       cancel: "取消",
@@ -3606,6 +3606,9 @@ export default {
     auth: {
       required: '请先登录',
       signupDisabled: '目前已关闭注册功能',
+      mail: {
+        notConfigured: '邮件服务未配置，无法发送验证邮件，请联系管理员',
+      },
       emailDomain: {
         invalid: '邮箱格式不正确',
         notAllowed: '该邮箱域名不在允许的注册白名单中',

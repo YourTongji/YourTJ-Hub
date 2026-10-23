@@ -100,7 +100,7 @@ is a retry condition. No token, message body or notification preview is logged b
 | --- | --- | --- |
 | `/assets/*`（Vite 构建，文件名含内容哈希） | `public, max-age=31536000, immutable`（`AssetsCache`） | 字节变更必然换 URL，二次访问零重验证 |
 | `/static/*`（内嵌静态文件） | `public, max-age=18144000`（`BrowserCache`） | 长公共缓存 |
-| `/file/img/*`（用户/版面图片，成功路径） | `public, max-age=18144000`（`SetLongPublic`） | 文件名内容寻址 |
+| `/file/img/*`（用户/版面图片） | `no-store`；受限预览与拒绝响应为 `private, no-store` | 每次请求重新校验引用权限，原图与变体一致 |
 | `/sw.js` | `no-cache` | Service Worker 更新必须及时可见 |
 | `/manifest.webmanifest` | `public, max-age=3600` | PWA manifest 短缓存 |
 | `/`（SSR HTML）与 `/api/*` | 路由自控（多为 `no-store`/无缓存头） | 登录态与动态内容，禁止代理层长缓存 |
@@ -295,9 +295,10 @@ Dev 同步成功后，`snapshots/dev-prev` 仅保留最近 5 个时间戳组的�
   manual `init-server.sh` re-run. `pgdsn.sh` is a runtime dependency (`source`d by
   `backup-db.sh` / `sync-db-from-main.sh`); keep it in the scp/install list whenever deploying
   script updates.
-  Dev uploads also include `rotate-agent-epoch.py`, `snapshot-db.sh`, `feed-privacy.py`
-  and `feed-raw-tables.json`: copied Agent credentials are disabled, feed observations are
-  scrubbed, and previous-dev snapshots remain usable without preinstalled helpers. The trusted
+  Both deploys install `feed-privacy.py` and `feed-raw-tables.json` — `backup-db.sh` hard-depends
+  on that pair to scrub feed observations. Dev additionally uploads `snapshot-db.sh`, and both
+  upload `rotate-agent-epoch.py`, so copied Agent credentials are disabled and previous-dev
+  snapshots remain usable without preinstalled helpers. The trusted
   `main` checkout must contain this complete script bundle before the dev workflow uses it.
   Changes to `deploy-dev.yml` select backend/frontend checks and a dev deployment, so workflow
   repairs are exercised after merge even when application source is unchanged.
@@ -388,11 +389,45 @@ make build     # cd apps/gooseforum/resource && pnpm build → cd apps/gooseforu
   explicitly, so a release step can apply them before traffic-bearing instances start. It exits with
   a non-zero code on a hard migration failure (with an actionable `lastFailed` message), and exits 0
   with a "deferred / will retry on next run" message for deferred or lock-held states.
+- **Search index steps have their own watermark** (`migrationSearchIndex`, issue #1284): the two
+  steps tracked by that watermark (v13 aggregate indexes, v20 topic index) keep retrying until
+  Meilisearch is available, but they no longer block the database-only versions behind them — an
+  instance without Meilisearch still reaches the current data-migration version. Such an instance logs
+  `app migration search index steps deferred` and returns "deferred" from `migrate`. After configuring
+  Meilisearch, one `./yourtj-hub rebuild-search-index` clears that state: every command except `serve`
+  runs the versioned data migrations first, so the index steps run (and advance the watermark) before
+  the command body. Restarting the instance retries the steps the same way; only `serve` skips the
+  index steps on a newer binary — an older rolled-back binary short-circuits at its own migration
+  version and needs `rebuild-search-index` instead.
 - **`[db] migration = "off"`**: the operator owns schema. `serve` opens the startup gate immediately
   (readiness is not gated on migration) and the `migrate` command reports migrations are disabled and
   exits 0.
 - Rollback: `deploy.sh` tags the previous image `ghcr.io/yourtongji/yourtj-hub:prev` and re-points
   the instance on health-check failure; forward-compatible migrations mean an older binary can still start.
+
+### Upgrade note: new indexes on the large tables (`posts` / `topics`)
+
+`AutoMigrate` creates indexes with plain `CREATE INDEX`, which on PostgreSQL takes a
+`SHARE` lock and blocks writes to the table until it finishes. The `posts`/`topics` entities carry
+several such indexes on the two largest tables — among them `posts.latest_revision_id`
+(`idx_posts_latest_revision_id`), `posts.persona_uid` (`idx_posts_persona_uid`),
+`posts.first_public_at` (`idx_posts_first_public_at`), `idx_posts_topic_public`,
+`idx_posts_visibility_retention`, `idx_topics_first_public` and `idx_topics_rank`/`idx_topics_daily` —
+so any build that introduces one of them spends write throughput on the index build itself.
+For a large instance:
+
+- Run the build during a low-traffic window. The startup gate already serves `503` while migrations
+  run, but a long-running transaction on `posts`/`topics` also delays the index build and therefore
+  keeps the gate closed — check `pg_stat_activity` before deploying.
+- To avoid the blocking build entirely, pre-create the new indexes with `CREATE INDEX CONCURRENTLY`
+  on the target database before deploying; `AutoMigrate` then finds them and does nothing. Use the
+  GORM-generated names: the bare `index` tags on those three columns produce `idx_<table>_<column>`
+  (`idx_posts_latest_revision_id`, `idx_posts_persona_uid`, `idx_posts_first_public_at`), so an index
+  created under a hand-picked name is not found and both builds run.
+- Which indexes a build creates depends on the deployed `posts`/`topics` entities, so the list above is
+  not exhaustive. Check the actual diff against the deployed SHA before upgrading —
+  `git diff <deployed-sha>..HEAD -- apps/gooseforum/app/models/forum/{posts,topics}` — and check the
+  deploy duration on dev first.
 
 ### Upgrade note: `app.signingKey` is now mandatory and fail-closed
 
@@ -636,8 +671,10 @@ cleanup and the unsafe downgrade boundary are owned by
 - AI 通过静默公开；转人工及人工通过分别通知作者并链接内容，转人工后不再接受延迟的自动结果；拒绝产生一次站内通知，链接 `/settings?tab=content`（App 转至内容管理）。推送和发布副作用
   经 `content-published` 任务投递。SSE `content.changed` 通知作者重读，连接恢复的 hello 同样触发重读。
   已公开内容改稿期间旧版保留，拒绝改稿不会撤掉旧版。草稿保存不送审，发布草稿不能绕过审核。
-- schema 先自动迁移，数据迁移的目标版本为 33：v31 将活跃的旧 pending 内容分批纳入版本和任务队列，v32 回填 Bot 徽章，
-  v33 为活跃的旧被拒内容建立可申诉的不可变版本；每步成功后才推进迁移版本。
+- schema 先自动迁移，数据迁移的目标版本为 36：v31 将活跃的旧 pending 内容分批纳入版本和任务队列，v32 回填 Bot 徽章，
+  v33 为活跃的旧被拒内容建立可申诉的不可变版本，v34 按可见首帖正文回填为空的话题摘要（#1366），v35 初始化 XP 规则，
+  v36 按首帖正文重算全部存量话题摘要（修复摘要曾露出的 Markdown 转义与贴纸 token）；
+  每步成功后才推进迁移版本。
   中途失败可重启重试；已有版本记录不会重复送审。旧实现已覆盖的公开正文无法可靠还原，不从历史猜测。
 - 任何模型故障、拒答、无效 JSON、未配置、超出每分钟护栏、图片数超限或标题超过 300 字／可见正文超过
   4000 字（超出部分未送审，证据状态 `text_truncated`）都转人工审核，审核队列负担会

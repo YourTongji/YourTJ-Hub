@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
+	"log/slog"
 	"maps"
 	"path/filepath"
 	"strings"
@@ -78,11 +79,22 @@ func resourceAsset(path string) string {
 }
 
 func loadManifest() map[string]manifestItem {
-	content, err := fs.ReadFile(resource.GetTemplateFS(), "static/dist/.vite/manifest.json")
+	const manifestPath = "static/dist/.vite/manifest.json"
+	content, err := fs.ReadFile(resource.GetTemplateFS(), manifestPath)
 	if err != nil {
+		// 包初始化时只执行一次：dist 缺失会让页面 200 但引用不存在的源文件路径
+		// （/assets/src/site/main.ts → 404），过去完全无日志（issue #1284 B8）。
+		slog.Error("forum assets: vite manifest missing, pages will reference unbundled source paths",
+			"path", manifestPath, "err", err,
+			"fix", "cd apps/gooseforum/resource && pnpm build")
 		return map[string]manifestItem{}
 	}
-	return jsonopt.Decode[map[string]manifestItem](content)
+	items := jsonopt.Decode[map[string]manifestItem](content)
+	if len(items) == 0 {
+		slog.Error("forum assets: vite manifest is empty, pages will reference unbundled source paths",
+			"path", manifestPath, "fix", "cd apps/gooseforum/resource && pnpm build")
+	}
+	return items
 }
 
 func collectCSS(entry string, visited map[string]bool) []string {

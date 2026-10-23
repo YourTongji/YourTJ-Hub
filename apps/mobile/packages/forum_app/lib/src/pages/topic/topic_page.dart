@@ -442,6 +442,23 @@ class _TopicPageState extends ConsumerState<TopicPage>
     });
   }
 
+  /// 点赞/收藏原地替换该楼层(issue #1316):不重载评论窗口。
+  void _patchPost(PostPayload patch) {
+    if (!mounted) return;
+    final int index = _posts.indexWhere(
+      (PostPayload post) => post.id == patch.id,
+    );
+    if (index < 0) return;
+    // 只合并互动字段:点赞在途时窗口可能已重载,按钮的旧快照不能回退正文。
+    setState(
+      () => _posts[index] = _posts[index].copyWith(
+        isLiked: patch.isLiked,
+        isBookmarked: patch.isBookmarked,
+        likeCount: patch.likeCount,
+      ),
+    );
+  }
+
   Future<void> _load({bool silent = false, int? postNo}) async {
     if (silent && _cacheCleared) return;
     final generation = ++_windowGeneration;
@@ -1752,7 +1769,17 @@ class _TopicPageState extends ConsumerState<TopicPage>
                     builder: (context, scrollController) {
                       _listScrollController = scrollController;
                       return AppRefreshIndicator(
-                        onRefresh: () => _load(silent: true),
+                        // 正序从已加载的最早一楼重建窗口:_currentFloor 会被
+                        // 尾窗改写成最后一楼,拿它作锚点只能取到锚点之后的
+                        // 楼层。倒序仍取最新尾窗;锚点 ≤1 落回默认首窗。
+                        onRefresh: () => _load(
+                          silent: true,
+                          postNo: _sort == CommentSort.asc && _posts.isNotEmpty
+                              ? _posts
+                                    .map((PostPayload post) => post.postNo)
+                                    .reduce(math.min)
+                              : null,
+                        ),
                         child: CustomScrollView(
                           keyboardDismissBehavior:
                               ScrollViewKeyboardDismissBehavior.onDrag,
@@ -1861,6 +1888,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                                     _openComposer(replyTo: post)
                                               : null,
                                           onReport: () => _reportPost(post),
+                                          onPostPatched: _patchPost,
                                           onChanged: () => _load(
                                             silent: true,
                                             postNo: _currentFloor,
@@ -2576,6 +2604,7 @@ class _PostCard extends StatelessWidget {
     required this.quoteTarget,
     required this.onReply,
     required this.onReport,
+    required this.onPostPatched,
     required this.onChanged,
   });
 
@@ -2591,6 +2620,7 @@ class _PostCard extends StatelessWidget {
   final ReplyTargetPayload? quoteTarget;
   final VoidCallback? onReply;
   final VoidCallback onReport;
+  final ValueChanged<PostPayload> onPostPatched;
   final Future<void> Function() onChanged;
 
   @override
@@ -2736,6 +2766,7 @@ class _PostCard extends StatelessWidget {
                 topicTitle: topicTitle,
                 topicAvailable: topicAvailable,
                 onChanged: onChanged,
+                onPostPatched: onPostPatched,
                 onReply: onReply,
                 onReport: onReport,
               ),

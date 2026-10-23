@@ -93,6 +93,96 @@ func EscapeMarkdownImageURL(url string) string {
 	return strings.NewReplacer("(", "%28", ")", "%29", "<", "%3C", ">", "%3E", " ", "%20", "\\", "%5C", "\n", "%0A", "\r", "%0D", "\t", "%09").Replace(url)
 }
 
+// StickerTokenSegment 是一段纯文本：Name 非空表示一个贴纸 token，否则 Text 是原样文字。
+type StickerTokenSegment struct {
+	Name string
+	Text string
+}
+
+// StripStickerTokens 与 SplitStickerTokens 服务于已经是纯文本的摘要/预览：
+// 没有 Markdown 结构可判定位置，一律按 token 处理；Markdown 源用
+// stickerRanges（代码、链接目标里的 token 保持字面量）。
+
+// stripNonProseStickerTokens 从 Markdown 源里删掉“非正文位置”的贴纸 token
+// （行内代码/代码块/链接/图片/autolink/原始 HTML/数学公式，以及被反斜杠转义
+// 的写法）。这些位置按渲染规则保持字面量，摘要若保留它们，预览端会把 token
+// 当图片展开，出现「帖内是原文、列表是图片」的矛盾。判定与
+// RenderWithStickerTokens 共用 stickerRanges。
+func stripNonProseStickerTokens(markdown string) string {
+	if !strings.Contains(markdown, "[:sticker:") {
+		return markdown
+	}
+	prose := make(map[int]bool, 4)
+	for _, token := range stickerRanges(markdown) {
+		prose[token.start] = true
+	}
+	matches := stickerTokenRe.FindAllStringIndex(markdown, -1)
+	if len(matches) == 0 {
+		return markdown
+	}
+	var builder strings.Builder
+	cursor := 0
+	for _, match := range matches {
+		if prose[match[0]] {
+			continue
+		}
+		start := match[0]
+		// 转义的 token 连同前面的反斜杠一起删掉，避免摘要留下孤立的 `\`。
+		if start > 0 && markdown[start-1] == '\\' {
+			slashes := 0
+			for i := start - 1; i >= 0 && markdown[i] == '\\'; i-- {
+				slashes++
+			}
+			if slashes%2 != 0 {
+				start--
+			}
+		}
+		if start < cursor {
+			continue
+		}
+		builder.WriteString(markdown[cursor:start])
+		// 用空格占位而不是整体删除：行内代码里 `[:sticker:x:]` 被删空后反引号
+		// 会退化成字面量 ``，留一个空格能让代码段继续成立。
+		builder.WriteByte(' ')
+		cursor = match[1]
+	}
+	if cursor == 0 {
+		return markdown
+	}
+	builder.WriteString(markdown[cursor:])
+	return builder.String()
+}
+
+// StripStickerTokens removes sticker tokens from plain text.
+func StripStickerTokens(text string) string {
+	if !strings.Contains(text, "[:sticker:") {
+		return text
+	}
+	return strings.Join(strings.Fields(stickerTokenRe.ReplaceAllString(text, " ")), " ")
+}
+
+// SplitStickerTokens splits plain text into literal text and sticker token names,
+// so an image-capable surface can escape text and render resolvable tokens.
+func SplitStickerTokens(text string) []StickerTokenSegment {
+	matches := stickerTokenRe.FindAllStringSubmatchIndex(text, -1)
+	if len(matches) == 0 {
+		return []StickerTokenSegment{{Text: text}}
+	}
+	segments := make([]StickerTokenSegment, 0, len(matches)*2+1)
+	cursor := 0
+	for _, match := range matches {
+		if match[0] > cursor {
+			segments = append(segments, StickerTokenSegment{Text: text[cursor:match[0]]})
+		}
+		segments = append(segments, StickerTokenSegment{Name: text[match[2]:match[3]]})
+		cursor = match[1]
+	}
+	if cursor < len(text) {
+		segments = append(segments, StickerTokenSegment{Text: text[cursor:]})
+	}
+	return segments
+}
+
 func ExpandStickerTokens(markdown string, resolve func(string) (string, bool)) string {
 	return expandStickerTokens(markdown, resolve, func(name, url string) string {
 		return "![sticker:" + name + "](" + EscapeMarkdownImageURL(url) + ")"

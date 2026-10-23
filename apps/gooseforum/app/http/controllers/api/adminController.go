@@ -23,6 +23,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/llmprovider"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/randopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
@@ -1956,6 +1957,14 @@ func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsRe
 		if channel == "" {
 			return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 		}
+		// 地址非空时按通知目标策略校验（URL + DNS，issue #1280）：本机、链路本地、
+		// 保留地址和解析不出的域名不允许保存；留空表示沿用已存密文，不做 DNS 校验。
+		// 失败只回固定消息码，不回显解析到的地址。
+		if plainURL := strings.TrimSpace(ep.URL); plainURL != "" {
+			if err := httpnotifyservice.ValidateEndpointTarget(betterRequestContext(req), plainURL); err != nil {
+				return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+			}
+		}
 		key := ep.Id
 		if key == "" {
 			key = ep.URL
@@ -2381,12 +2390,13 @@ func notifyReviewResult(authorID uint64, approved bool, topicID uint64, title st
 	}
 }
 
-// reviewSubjectTitle 通知里的内容标题：无标题瞬间回落摘要（截断）。
+// reviewSubjectTitle 通知里的内容标题：无标题瞬间回落摘要（截断）。通知是纯文本，
+// 摘要里的贴纸 token 在这里无法展开，先去 token 再截断以免只切出半个 token。
 func reviewSubjectTitle(title, excerpt string) string {
 	if strings.TrimSpace(title) != "" {
 		return title
 	}
-	runes := []rune(strings.TrimSpace(excerpt))
+	runes := []rune(markdown2html.StripStickerTokens(strings.TrimSpace(excerpt)))
 	if len(runes) > 40 {
 		return string(runes[:40]) + "…"
 	}

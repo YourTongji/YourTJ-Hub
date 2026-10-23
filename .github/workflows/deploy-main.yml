@@ -80,7 +80,7 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "deploy/scripts/deploy.sh,deploy/scripts/backup-db.sh,deploy/scripts/pgdsn.sh,deploy/scripts/apply-config.sh,deploy/scripts/rotate-agent-epoch.py"
+          source: "deploy/scripts/deploy.sh,deploy/scripts/backup-db.sh,deploy/scripts/pgdsn.sh,deploy/scripts/apply-config.sh,deploy/scripts/rotate-agent-epoch.py,deploy/scripts/feed-privacy.py,deploy/scripts/feed-raw-tables.json"
           target: "/tmp/yourtj-deploy-${{ github.run_id }}"
           strip_components: 2
       - name: Upload rendered main config to prod host
@@ -123,21 +123,26 @@ jobs:
             install -m 0755 "$RUN_DIR/pgdsn.sh" /opt/yourtj/scripts/pgdsn.sh
             install -m 0755 "$RUN_DIR/apply-config.sh" /opt/yourtj/scripts/apply-config.sh
             install -m 0755 "$RUN_DIR/rotate-agent-epoch.py" /opt/yourtj/scripts/rotate-agent-epoch.py
-            # 0.5 更新 compose(仅 main 部署更新共享 compose, 生产为权威):
+            # backup-db.sh 第 1 步调用 feed-privacy.py 取脱敏 flag(数据源 feed-raw-tables.json),
+            # 一并下发, 否则生产备份在 set -e 下阻断部署(issue #1284)。
+            install -m 0755 "$RUN_DIR/feed-privacy.py" /opt/yourtj/scripts/feed-privacy.py
+            install -m 0644 "$RUN_DIR/feed-raw-tables.json" /opt/yourtj/scripts/feed-raw-tables.json
+            # 1. 部署前一致性备份(保留最近 7 份)。必须先于下面的 compose 替换:
+            #    备份失败在 set -e 下中止部署, 此时磁盘上仍是上一版的 compose。
+            /opt/yourtj/scripts/backup-db.sh main
+            # 2. 更新 compose(仅 main 部署更新共享 compose, 生产为权威):
             #   - 先备份现有 compose, 部署失败时由 deploy.sh 恢复(PR review #4)
             if [ -f /opt/yourtj/docker-compose.yaml ]; then
               cp -f /opt/yourtj/docker-compose.yaml /opt/yourtj/docker-compose.yaml.prev
               echo "main: backed up existing compose to docker-compose.yaml.prev"
             fi
             install -m 0644 "$RUN_DIR/docker-compose.yaml" /opt/yourtj/docker-compose.yaml
-            # 1. 部署前一致性备份(保留最近 7 份)
-            /opt/yourtj/scripts/backup-db.sh main
-            # 2. 拉取 GHCR 镜像 + 部署 + 健康检查(失败自动回滚), main 对外端口 5234
+            # 3. 拉取 GHCR 镜像 + 部署 + 健康检查(失败自动回滚), main 对外端口 5234
             #    生产保留更多回滚候选, 镜像保留最近 5 个(含当前) + prev
             #    CONFIG_FILE 携带渲染 config: 与镜像同一回滚事务原子替换
             EXPECTED_BINARY_SHA256="${{ inputs.binary }}" IMAGE_KEEP_N=5 CONFIG_FILE="$RUN_DIR/config-main.toml" \
               /opt/yourtj/scripts/deploy.sh main ${{ inputs.image }} 5234
-            # 3. 部署成功后清理备份(失败时 deploy.sh 已恢复 compose)
+            # 4. 部署成功后清理备份(失败时 deploy.sh 已恢复 compose)
             rm -f /opt/yourtj/docker-compose.yaml.prev
-            # 4. 清理本 run 上传的临时文件(含明文渲染 config)
+            # 5. 清理本 run 上传的临时文件(含明文渲染 config)
             rm -rf "$RUN_DIR"

@@ -169,16 +169,60 @@ func GetPostingSettingsConfig(defaultValue PostingContent) PostingContent {
 	return config
 }
 
-const AppMigrationVersion uint32 = 33
+const AppMigrationVersion uint32 = 36
+
+// SearchIndexMigrationVersion 是搜索索引数据迁移（v13 聚合索引、v20 话题索引
+// 补 topicType）的目标水位。它与主水位分开存放：Meilisearch 是可选依赖，索引
+// 步骤不可用时必须重试，但不能阻塞不依赖外部服务的版本块（issue #1284 A2）。
+const SearchIndexMigrationVersion uint32 = 20
 
 func GetMigrationVersion() uint32 {
-	configEntity := GetByPageType(Migration)
-	return cast.ToUint32(configEntity.Config)
+	return getVersionConfig(Migration)
 }
 
 func SyncMigrationVersion(version uint32) error {
-	configEntity := GetByPageType(Migration)
-	configEntity.PageType = Migration
+	return syncVersionConfig(Migration, version)
+}
+
+// GetSearchIndexMigrationVersion 读取搜索索引迁移水位。该键在 issue #1284 修复
+// 中才引入，缺失时按主水位推断一次并落库：主水位已越过索引步骤说明当年已完成，
+// 不能重跑全量重建；否则（例如卡在 v12 的无 Meilisearch 实例）必须从 0 重试。
+// 立即落库保证推断只发生一次——修复后主水位会推进到 33，再次推断会把待重试
+// 的索引步骤误标为已完成。
+func GetSearchIndexMigrationVersion(mainVersion uint32) uint32 {
+	configEntity := GetByPageType(MigrationSearchIndex)
+	if configEntity.Id != 0 {
+		return cast.ToUint32(configEntity.Config)
+	}
+	inferred := uint32(0)
+	switch {
+	case mainVersion >= SearchIndexMigrationVersion:
+		inferred = SearchIndexMigrationVersion
+	case mainVersion >= 13:
+		inferred = 13
+	}
+	if err := syncVersionConfig(MigrationSearchIndex, inferred); err != nil {
+		// 播种失败时必须按「待重试」继续，否则本次推断值仍会当成已完成，把待办的
+		// Meilisearch 重建标记为已做完（issue #1284）。
+		slog.Error("pageConfig: seed search index migration version failed; index steps stay pending",
+			"inferredVersion", inferred, "err", err)
+		return 0
+	}
+	return inferred
+}
+
+func SyncSearchIndexMigrationVersion(version uint32) error {
+	return syncVersionConfig(MigrationSearchIndex, version)
+}
+
+func getVersionConfig(pageType string) uint32 {
+	configEntity := GetByPageType(pageType)
+	return cast.ToUint32(configEntity.Config)
+}
+
+func syncVersionConfig(pageType string, version uint32) error {
+	configEntity := GetByPageType(pageType)
+	configEntity.PageType = pageType
 	configEntity.Config = cast.ToString(version)
 	if configEntity.Id == 0 {
 		result := builder().Create(&configEntity)

@@ -11,6 +11,7 @@ import '../format.dart';
 import 'status_views.dart';
 import '../asset_url.dart';
 import '../images/image_save.dart';
+import 'sticker_message_span.dart';
 
 enum GfTopicFeedMode { list, card }
 
@@ -34,6 +35,7 @@ class GfTopicList extends StatelessWidget {
     this.loadMoreError,
     this.hiddenCategoryId,
     this.onCategorySelected,
+    this.stickerLibrary,
   });
 
   final bool loading;
@@ -55,6 +57,11 @@ class GfTopicList extends StatelessWidget {
   final String? loadMoreError;
   final int? hiddenCategoryId;
   final ValueChanged<int>? onCategorySelected;
+
+  /// Page-level sticker resolution for feed excerpts. Rows only receive the
+  /// resolved name→url map, so scrolling never triggers a lookup per item;
+  /// null keeps excerpts plain.
+  final StickerLibrary? stickerLibrary;
 
   @override
   Widget build(BuildContext context) {
@@ -88,24 +95,26 @@ class GfTopicList extends StatelessWidget {
     final pinned = collapsePinned
         ? topics.where((topic) => topic.pinWeight > 0).toList()
         : <TopicPayload>[];
-    Widget card(TopicPayload topic) => buildTopicFeedCard(
-      context,
-      topic,
-      hiddenCategoryId: hiddenCategoryId,
-      onCategorySelected: onCategorySelected,
-      onReturn: onReturnFromTopic,
-      onFirstMediaFrame: onFirstMediaFrame,
-      onLike: onLikeTopic == null || topic.liked == null
-          ? null
-          : (target) => onLikeTopic!(topic, target),
-      onBookmark: onBookmarkTopic == null || topic.bookmarked == null
-          ? null
-          : (target) => onBookmarkTopic!(topic, target),
-    );
+    Widget card(TopicPayload topic, Map<String, String> stickerUrlByName) =>
+        buildTopicFeedCard(
+          context,
+          topic,
+          stickerUrlByName: stickerUrlByName,
+          hiddenCategoryId: hiddenCategoryId,
+          onCategorySelected: onCategorySelected,
+          onReturn: onReturnFromTopic,
+          onFirstMediaFrame: onFirstMediaFrame,
+          onLike: onLikeTopic == null || topic.liked == null
+              ? null
+              : (target) => onLikeTopic!(topic, target),
+          onBookmark: onBookmarkTopic == null || topic.bookmarked == null
+              ? null
+              : (target) => onBookmarkTopic!(topic, target),
+        );
     final visibleTopics = pinned.isEmpty
         ? topics
         : topics.where((topic) => topic.pinWeight <= 0).toList();
-    return ListView.separated(
+    Widget feed(Map<String, String> stickerUrlByName) => ListView.separated(
       controller: controller,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: padding,
@@ -124,6 +133,7 @@ class GfTopicList extends StatelessWidget {
           if (index == 0) {
             return _PinnedTopicStrip(
               key: const ValueKey('pinned-topic-strip'),
+              stickerUrlByName: stickerUrlByName,
               topics: pinned,
               // Under a header (the announcement strip) keep one 6-pixel gap.
               topMargin: header == null ? 6 : 0,
@@ -143,10 +153,11 @@ class GfTopicList extends StatelessWidget {
         }
         final TopicPayload topic = visibleTopics[index];
         return feedMode == GfTopicFeedMode.card
-            ? card(topic)
+            ? card(topic, stickerUrlByName)
             : _topicRow(
                 context,
                 topic,
+                stickerUrlByName: stickerUrlByName,
                 isLast: index == visibleTopics.length - 1,
                 onCategorySelected: onCategorySelected,
                 hiddenCategoryId: hiddenCategoryId,
@@ -154,7 +165,103 @@ class GfTopicList extends StatelessWidget {
               );
       },
     );
+    final StickerLibrary? library = stickerLibrary;
+    return library == null
+        ? feed(const <String, String>{})
+        : TopicStickerExcerpts(
+            library: library,
+            topics: topics,
+            builder: feed,
+          );
   }
+}
+
+/// 卡片摘要（17px 文本，行高约 24px）里的贴纸图片尺寸：允许到两倍行距。
+/// 列表行是小字视图，改用 [名字] 文本。
+const double _cardStickerSize = 48;
+
+/// One resolution for the whole page: the visible topics' descriptions are
+/// sent together, rows only read the resolved map. Unknown or disabled tokens
+/// vanish from the excerpt instead of surfacing as markup.
+class TopicStickerExcerpts extends StatefulWidget {
+  const TopicStickerExcerpts({
+    super.key,
+    required this.library,
+    required this.topics,
+    required this.builder,
+  });
+
+  final StickerLibrary library;
+  final List<TopicPayload> topics;
+  final Widget Function(Map<String, String> urlByName) builder;
+
+  @override
+  State<TopicStickerExcerpts> createState() => TopicStickerExcerptsState();
+}
+
+class TopicStickerExcerptsState extends State<TopicStickerExcerpts> {
+  String? _requested;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.library.addListener(_catalogChanged);
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(TopicStickerExcerpts oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.library != widget.library) {
+      oldWidget.library.removeListener(_catalogChanged);
+      widget.library.addListener(_catalogChanged);
+    }
+    _resolve();
+  }
+
+  @override
+  void dispose() {
+    widget.library.removeListener(_catalogChanged);
+    super.dispose();
+  }
+
+  void _catalogChanged() => setState(() {});
+
+  void _resolve() {
+    final String sources = [
+      for (final TopicPayload topic in widget.topics)
+        '${topic.title}\n${topic.description}',
+    ].join('\n');
+    if (sources == _requested) return;
+    _requested = sources;
+    // A failed lookup leaves the excerpt readable without its stickers.
+    widget.library.resolveContent(sources).catchError((Object _) {});
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      widget.builder(widget.library.urlByName);
+}
+
+/// Feed excerpt text plus its resolved span. Tokens always travel through the
+/// span, so resolved ones render as images and unresolved ones disappear.
+(String, InlineSpan?) _feedExcerpt(
+  String text,
+  Map<String, String> urlByName,
+  double stickerSize,
+) {
+  if (!containsStickerToken(text)) return (text, null);
+  return (
+    '',
+    buildStickerMessageSpan(
+      text,
+      urlByName,
+      stickerSize: stickerSize,
+      collectible: false,
+      deferLongPress: true,
+      dropUnknownStickers: true,
+    ),
+  );
 }
 
 /// Collapsed pins, in card and list feeds alike, fold into one line beside
@@ -166,10 +273,12 @@ class _PinnedTopicStrip extends StatefulWidget {
     super.key,
     required this.topics,
     required this.topMargin,
+    this.stickerUrlByName = const <String, String>{},
     this.onReturn,
   });
 
   final List<TopicPayload> topics;
+  final Map<String, String> stickerUrlByName;
   final double topMargin;
   final VoidCallback? onReturn;
 
@@ -184,6 +293,25 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
   // Retain the disclosure when its lazy list item leaves the viewport.
   @override
   bool get wantKeepAlive => true;
+
+  // 标题是纯文本（不经过 Markdown 管线），与列表行/SSR 对齐：有标题原样展示；
+  // 无标题瞬间的置顶标题其实是摘要，可能带 [:sticker:name:]，按小字视图规则换成 [名字]/省略。
+  Widget pinnedTitle(BuildContext context, TopicPayload topic, GfColors colors,
+      {double fontSize = 12.5}) {
+    final TextStyle style = TextStyle(
+      fontSize: fontSize,
+      fontWeight: FontWeight.w500,
+      color: colors.baseContent.withValues(alpha: 0.88),
+    );
+    final String title = topic.title.trim().isNotEmpty
+        ? topic.title
+        : _stickerLabelOrNoTitle(
+            context,
+            topicDisplayTitle(context, topic),
+            widget.stickerUrlByName,
+          );
+    return GfText(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -264,16 +392,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
                           style: TextStyle(fontSize: 11, color: muted),
                         ),
                       )
-                    : GfText(
-                        topicDisplayTitle(topics.first),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: colors.baseContent.withValues(alpha: 0.82),
-                        ),
-                      ),
+                    : pinnedTitle(context, topics.first, colors, fontSize: 12),
               ),
               if (!single) ...<Widget>[
                 if (!expanded) ...<Widget>[
@@ -334,18 +453,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
                 ),
               ),
               const SizedBox(width: 9),
-              Expanded(
-                child: GfText(
-                  topicDisplayTitle(topic),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
-                    color: colors.baseContent.withValues(alpha: 0.88),
-                  ),
-                ),
-              ),
+              Expanded(child: pinnedTitle(context, topic, colors)),
               if (topic.unseen == true) ...<Widget>[
                 const SizedBox(width: 6),
                 Container(
@@ -416,22 +524,47 @@ Future<void> _openTopic(
   onReturn?.call();
 }
 
-/// 无标题瞬间与 Web TopicRow/SSR 一致：标题为空时摘要在标题位展示（不再重复一行），
-/// 摘要也为空时使用同族颜文字，保证列表行始终有可识别文案。
-String topicDisplayTitle(TopicPayload topic) => topic.title.isNotEmpty
+/// 无标题时展示摘要；无文本时复用本地化的无标题文案。
+String topicDisplayTitle(BuildContext context, TopicPayload topic) =>
+    topic.title.trim().isNotEmpty
     ? topic.title
-    : (topic.description.trim().isNotEmpty ? topic.description : '(｀・ω・´)');
+    : (topic.description.trim().isNotEmpty
+          ? topic.description
+          : AppLocalizations.of(context).topicNoTitle);
+
+/// 小字视图的贴纸文案：token 全被省略而剥空时回退本地化"无标题"占位，
+/// 与 Web 列表行的稳定颜文字回退同族，保证任何列表行都有可识别文案。
+String _stickerLabelOrNoTitle(
+  BuildContext context,
+  String text,
+  Map<String, String> urlByName,
+) {
+  final String label = stickerLabelText(text, urlByName);
+  return label.isEmpty ? AppLocalizations.of(context).topicNoTitle : label;
+}
 
 /// 把后端话题 payload 映射为 [GfTopicRow](对齐 web TopicRow.vue 语义)。
 Widget _topicRow(
   BuildContext context,
   TopicPayload topic, {
   required bool isLast,
+  required Map<String, String> stickerUrlByName,
   int? hiddenCategoryId,
   ValueChanged<int>? onCategorySelected,
   VoidCallback? onReturn,
 }) {
   final AppLocalizations l10n = AppLocalizations.of(context);
+  final String displayTitle = topic.processStatus == 2
+      ? "${l10n.contentReviewPending} · ${topicDisplayTitle(context, topic)}"
+      : topicDisplayTitle(context, topic);
+  // 标题是纯文本（不经过 Markdown 管线），与 Web/SSR 对齐：有标题原样展示，
+  // 不做贴纸转换；无标题瞬间把摘要放在标题位，才按小字视图规则换成 [名字]/省略。
+  final String title = topic.title.trim().isNotEmpty
+      ? displayTitle
+      : _stickerLabelOrNoTitle(context, displayTitle, stickerUrlByName);
+  final String description = topic.title.trim().isEmpty
+      ? ''
+      : stickerLabelText(topic.description, stickerUrlByName);
   final List<GfTopicCategory> categories = <GfTopicCategory>[
     for (final CategoryBriefPayload cat in topic.categories)
       if (cat.id != hiddenCategoryId)
@@ -453,10 +586,8 @@ Widget _topicRow(
     topic: topic,
     child: GfTopicRow(
       feedContext: _feedContext(l10n, topic),
-      title: topic.processStatus == 2
-          ? "${l10n.contentReviewPending} · ${topicDisplayTitle(topic)}"
-          : topicDisplayTitle(topic),
-      description: topic.title.isEmpty ? '' : topic.description,
+      title: title,
+      description: description,
       categories: categories,
       participantAvatarUrls: participantAvatarUrls,
       participantFrameScales: [
@@ -515,9 +646,23 @@ Widget buildTopicFeedCard(
   Future<bool> Function(bool target)? onBookmark,
   int? hiddenCategoryId,
   ValueChanged<int>? onCategorySelected,
+  Map<String, String> stickerUrlByName = const <String, String>{},
 }) {
   final AppLocalizations l10n = AppLocalizations.of(context);
   final String nickname = topic.author.nickname?.trim() ?? '';
+  // 无标题瞬间（#1366 空卡片修复）：标题槽位回退到摘要、描述槽位置空，避免两处重复。
+  // 摘要里的贴纸 token 按 [名字] 纯文本呈现——卡片标题槽没有 span 渲染路径。
+  final bool untitled = topic.title.trim().isEmpty;
+  final (String description, InlineSpan? descriptionSpan) = untitled
+      ? ('', null)
+      : _feedExcerpt(topic.description, stickerUrlByName, _cardStickerSize);
+  final String cardTitle = untitled
+      ? _stickerLabelOrNoTitle(
+          context,
+          topicDisplayTitle(context, topic),
+          stickerUrlByName,
+        )
+      : topic.title;
   final List<String> images = <String>[
     for (final String image in topic.images ?? const <String>[])
       resolveApiAssetUrl(image),
@@ -545,9 +690,10 @@ Widget buildTopicFeedCard(
       ),
       key: ValueKey<int>(topic.id),
       title: topic.processStatus == 2
-          ? "${l10n.contentReviewPending} · ${topic.title}"
-          : topic.title,
-      description: topic.description,
+          ? "${l10n.contentReviewPending} · $cardTitle"
+          : cardTitle,
+      description: description,
+      descriptionSpan: descriptionSpan,
       authorName: topic.author.publicUid != null
           ? '${topic.author.nickname ?? topic.author.username} · ${l10n.anonymousTag}'
           : privateDisplayName(

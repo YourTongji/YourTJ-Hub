@@ -290,7 +290,9 @@ complete operation coverage and the precondition for such a gate is met.
 - Post revisions: `post_revisions` retains immutable body/rendered HTML, content type and first-post
   title/categories/gallery snapshots. Review status, reason, actor and time are mutable results.
   `posts.latest_revision_id` selects the latest submission; `published_revision_id` records the approved
-  version. Normal public rows remain unchanged while a new candidate is pending or rejected. The
+  version. After a direct owner edit `latest_revision_id` becomes 0 while `published_revision_id` keeps
+  the last approved snapshot, so a zero `latest_revision_id` means the row itself is the public
+  projection. Normal public rows remain unchanged while a new candidate is pending or rejected. The
   owner overlay is built on copies and never enters a shared public cache. Legacy public rows get a
   baseline from the current row on their next moderated edit; existing active pending rows are adopted
   by data migration 31, in bounded batches, idempotently. A legacy overwritten public version is not
@@ -627,8 +629,19 @@ the current cursor appears on refresh. This is a live filtered feed, not a froze
 to bookmark entries. These are hand-written page contracts in Go, TypeScript and Dart; no new
 `/api` operation or schema migration is involved. Authors are fetched once per batch, content
 visibility requires an active published topic and a matching, active, normal, undeleted first post,
-resolved in one batch. Anonymous reply bookmarks omit author identity. Reply
-excerpts are plain Markdown previews. Missing fields on older servers remain valid. Bookmark
+resolved in one batch. Anonymous reply bookmarks omit author identity. Reply excerpts are
+plain-text previews: in prose, Markdown escapes and HTML entities resolve to the final characters
+and sticker tokens are dropped; tokens inside code spans, code blocks, link targets and math keep
+their literal source, matching rendering. Topic list descriptions (`description`/`excerpt`) are
+image-capable: prose sticker tokens stay in the stored excerpt so cards and hover previews render
+resolvable names as images, while small-text surfaces (list rows, pinned strip, crawler/no-JS SSR
+list) show them as `[name]` text. Unknown and disabled names are omitted in previews, while
+personal `u_*` names render in Web/App client previews (the resolve API keys on the enabled state,
+matching the in-topic rendering) and are omitted only in crawler SSR pages, where public
+indexable HTML must not hotlink personal storage assets. Truncation never splits a token; the
+text-only projections of the same value (meta/OG descriptions,
+RSS, share cards, llms export, notification text) strip the tokens. Missing fields on
+older servers remain valid. Bookmark
 ordering and cursor semantics are unchanged; activity reply URLs include the post number when known.
 
 `Current`: profile topics use the same batched current-viewer interaction hydration as the home
@@ -781,3 +794,11 @@ items include the `originalReviewReason`. Failures use specific `content.appeal.
 set `notifications.templates.appeal{Submitted,Approved,Rejected,Stale}` template keys.
 Audit records follow [governance retention](../decisions/0021-deletion-final-state-data-retention.md);
 product limits and tradeoffs live in [0098](../decisions/0098-moderation-appeals.md).
+
+## Topic summary projection
+
+`Current`: Markdown summaries retain every nonempty readable text block, including one-character
+paragraphs and headings. Images and code blocks do not supply summary text. The existing 200-rune
+limit remains. Versioned data migration v34 repairs empty persisted summaries of public forum topics
+from the effective public first post, without reading pending revision candidates or changing
+publication/update timestamps. Existing nonempty summaries and nonpublic topics are preserved.

@@ -46,6 +46,45 @@ export function parseStickerSegments(content: string, urlByName: Map<string, str
   return segments
 }
 
+/** 纯文本场景（title/aria-label 等属性）用的 token 剥离。 */
+export function stripStickerTokens(content: string): string {
+  return content.replace(STICKER_TOKEN_RE, '')
+}
+
+/**
+ * 列表/卡片预览的渲染段：未知或停用 token 直接丢弃，不暴露原文
+ * （issue #1304）。文本段剔除残留 token，无内容的段不保留。
+ */
+export function renderableStickerSegments(content: string, urlByName: Map<string, string>): MessageSegment[] {
+  const segments: MessageSegment[] = []
+  for (const segment of parseStickerSegments(content, urlByName)) {
+    if (segment.type === 'sticker') {
+      segments.push(segment)
+      continue
+    }
+    const text = stripStickerTokens(segment.text)
+    if (text) segments.push({ type: 'text', text })
+  }
+  return segments
+}
+
+/**
+ * 小字视图（列表行、置顶条）的纯文本贴纸文案：可解析的贴纸显示 [名字]，
+ * 未知/停用/个人贴纸省略。卡片与预览仍用 renderableStickerSegments 渲染图片。
+ */
+export function stickerLabelText(content: string, urlByName: Map<string, string>): string {
+  const parts = renderableStickerSegments(content, urlByName).map((segment) =>
+    segment.type === 'sticker' ? `[${segment.name}]` : segment.text,
+  )
+  return parts.join('').replace(/\s+/g, ' ').trim()
+}
+
+/** 预览是否还有可见内容：全部 token 都未解析时不应留下空行。 */
+export function hasRenderableStickerText(content: string, urlByName: Map<string, string>): boolean {
+  return renderableStickerSegments(content, urlByName)
+    .some((segment) => segment.type === 'sticker' || segment.text.trim() !== '')
+}
+
 /**
  * 会话列表预览用的可读标签：不暴露随机 token 名；未知/停用 token
  * 同样显示统一文案（预览层不做启停区分）。

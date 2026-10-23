@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-05
+> Last verified: 2026-10-23
 
 Implementation status: **Current** for the configured integration. Live run results are recorded in
 Actions; a green preflight proves App access and planning, while an executed review proves model access.
@@ -21,14 +21,18 @@ human approval. Runtime protocol tests and the deterministic Core smoke also run
 
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/9803b502d172426d898bcd34a0abff17284b853a)
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/32af3fbc705ea34f8e4229d38035513ce165d511)
 and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days. New
 reservations carry a unique lease ID. Execution and publication check receipt ownership before model
 work or side effects; repeated settlement cannot downgrade terminal work.
 
-Manual runs use the selected workflow commit. Issue/PR events load the current default branch (`dev`),
+Manual runs use the selected workflow commit. Manual preflights and runs with `publish=false`
+use a per-run concurrency group so read-only verification can proceed alongside an automatic batch.
+They do not admit receipt reservations or run the publisher. Publishing manual runs and automatic
+events retain the shared `oryn-sweep` group; release-note smoke has its own per-run group. See
+[the concurrency decision](../decisions/0105-oryn-read-only-probes.md). Issue/PR events load the current default branch (`dev`),
 never the contributor's PR head as executable workflow or operator policy. The model sees target source
 as evidence. The default model is `opencode-go/deepseek-v4.1-flash`; repository variables override that profile.
 The configured deployment uses `oryn/glm-5.3-flash` with its configured base URL. Reasoning is `max`;
@@ -87,8 +91,11 @@ required wherever existing repository CI selects them. Oryn cannot repair its ow
 [Release / Prepare](../../.github/workflows/release-prepare.yml) uses the runtime's dedicated
 Release Notes schema through the isolated Core runner. Evidence and output are channel-specific;
 no repository tools, signing credentials, target token or publication authority enter the model
-child. The host validates evidence references and renders files for final human review. See
-[release operations](releases.md). `release_notes_smoke=true` on the Oryn manual workflow replays
+child. Notes expose only `oryn_submit_report` from the first turn. The host validates evidence
+references and renders files for final human review. If submission fails, the runtime can retain an
+unvalidated best-effort draft beside the requested output as `oryn-output.json.partial.json` in the
+workflow artifacts. That sidecar is for manual recovery; it is not accepted output or a publishable
+candidate. See [release operations](releases.md). `release_notes_smoke=true` on the Oryn manual workflow replays
 a historical source range through the live provider and saves drafts without changing any release,
 Apple metadata or production instance. Its baseline is an explicit source replay, not a claim about
 historical Apple availability.
@@ -187,11 +194,22 @@ Preflight and deterministic runtime fixtures do not establish live provider acce
 
 ## Failure diagnostics and request budgets
 
-Each invocation reserves twenty percent of its existing deadline for reporting. Valid initial JSON
-needs no correction; otherwise at most two report attempts expose only the schema-validated submission
-tool. At the evidence cutoff, Oryn cancels gathering and reports incomplete coverage as needs_human,
-retaining triage evidence while disabling action proposals. Report acceptance requires a completed
-Core response. Model requests remain bounded by the active phase and task deadlines.
+Repository reviews reserve twenty percent of their existing deadline for reporting. At the evidence
+cutoff, Oryn cancels gathering and reports incomplete coverage as needs_human, retaining triage evidence
+while disabling action proposals. Release-note tasks use their full deadline for submission because
+they receive collected evidence and have no repository tools.
+
+Model requests omit JSON assistant-message mode so it does not compete with tool calling.
+Only `oryn_submit_report` can accept a final result. Its provider-facing parameters describe the host's
+result schema; raw arguments still reach the host validator for correction feedback. The host returns field paths, error codes and
+bounded feedback so the model can correct a rejected submission in the same turn. If a turn ends
+without acceptance, the host continues the same ephemeral session with that feedback, at most twice
+within the three-turn budget. A failed turn cannot claim the same wake twice. Report continuations
+expose only the submission tool. The first accepted result is retained, duplicate submissions return
+that result, and remaining model work is cancelled without requiring a final text reply. Explicit
+cancellation and source/authority checks still apply. Model requests remain bounded by the active
+phase and task deadlines. Deduplicated `harness_submission_rejected` events expose bounded field paths
+and codes in live logs without retaining submitted values.
 First-byte and idle limits remain at most 120 and
 60 seconds; the total task deadline and authorized cancellation still apply. Remove an existing
 `ORYN_REQUEST_TIMEOUT_SECONDS=300` override to use this default, or set a shorter explicit wall limit.
@@ -199,8 +217,9 @@ First-byte and idle limits remain at most 120 and
 Failed executions retain a bounded, redacted `diagnostic` in `failure.json` and an `oryn_failure` log
 event. These include the failure stage, elapsed time, budgets, Core status, available provider errors
 and progress counts. Report format failures include per-attempt byte/part counts, SHA-256, structural syntax state and sanitized schema paths/codes. No raw
-prompts, reasoning, provider bodies or headers are retained. A bare abort without further Core evidence
-remains an unknown cause. See [the diagnostics decision](../decisions/0020-oryn-failure-diagnostics.md).
+prompts, reasoning, provider bodies, submitted values or headers are retained. Unvalidated release-note
+sidecars are separate artifacts; each new CLI attempt removes stale output and sidecars. A bare abort
+without further Core evidence remains an unknown cause. See [the diagnostics decision](../decisions/0020-oryn-failure-diagnostics.md).
 
 Each publisher downloads the immutable artifact ID from its producing execution job. Result names
 include the Actions attempt; a full rerun replaces the plan artifact. Missing result IDs fail before

@@ -87,16 +87,25 @@ Map<String, dynamic> anchoredPageJson({
 }
 
 class _NotificationPageRepository extends PageRepository {
-  _NotificationPageRepository(super.client, this.page);
+  _NotificationPageRepository(
+    super.client,
+    this.page, [
+    this.pageByPath = const <String, Map<String, dynamic>>{},
+  ]);
 
   final Map<String, dynamic> page;
+
+  /// 跳楼/刷新后按请求路径返回不同窗口。
+  final Map<String, Map<String, dynamic>> pageByPath;
+  final List<String> paths = <String>[];
 
   @override
   Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (!path.startsWith('/p/post/')) {
       throw UnimplementedError('unexpected page path: $path');
     }
-    return parsePayload(page);
+    paths.add(path);
+    return parsePayload(pageByPath[path] ?? page);
   }
 }
 
@@ -245,6 +254,14 @@ class _CreatedReplyPostRepository extends PostRepository {
 
   int get postId => 9000 + postNo;
 
+  final List<int> likes = <int>[];
+
+  @override
+  Future<bool> likePost({required int postId, required int action}) async {
+    likes.add(action);
+    return true;
+  }
+
   @override
   Future<CreatePostResult> createPost({
     required int topicId,
@@ -290,10 +307,14 @@ void main() {
 
   late TopicWindowServer server;
   late ProviderContainer container;
+  late _NotificationPageRepository pageRepo;
+  late _CreatedReplyPostRepository postRepo;
 
   Future<void> pumpTopic(
     WidgetTester tester, {
     required Map<String, dynamic> page,
+    Map<String, Map<String, dynamic>> pageByPath =
+        const <String, Map<String, dynamic>>{},
     int floors = 15,
     int? postNo,
     bool pendingReply = false,
@@ -315,11 +336,11 @@ void main() {
       overrides: <Override>[
         apiClientProvider.overrideWithValue(client),
         pageRepositoryProvider.overrideWithValue(
-          _NotificationPageRepository(client, page),
+          pageRepo = _NotificationPageRepository(client, page, pageByPath),
         ),
         topicRepositoryProvider.overrideWithValue(server),
         postRepositoryProvider.overrideWithValue(
-          _CreatedReplyPostRepository(
+          postRepo = _CreatedReplyPostRepository(
             client,
             requireCaptcha: requireReplyCaptcha,
             captchaAction: replyCaptchaAction,
@@ -548,6 +569,214 @@ void main() {
           .length,
       tailRequests + 1,
     );
+    await disposePage(tester);
+  });
+
+  // slider 跳楼 + 加载更早回复后点赞:只原地替换该楼,不重载评论窗口。
+  testWidgets('滑条跳楼加载更早回复后点赞不折叠已加载楼层', (tester) async {
+    tester.view.physicalSize = const Size(1080, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> firstPage = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 1; floor <= 20; floor++) floorPost(floor),
+      ],
+      hasBefore: false,
+      hasAfter: true,
+    );
+    final Map<String, dynamic> anchored = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 8; floor <= 15; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: true,
+    );
+    await pumpTopic(
+      tester,
+      page: firstPage,
+      pageByPath: <String, Map<String, dynamic>>{'/p/post/100/8': anchored},
+      floors: 40,
+    );
+
+    // 真实控件:打开楼层 rail 并拖动滑条到第 8 楼。
+    tester
+        .widget<GfFloatingControls>(find.byType(GfFloatingControls))
+        .onFloorTap!();
+    await tester.pumpAndSettle();
+    tester.widget<Slider>(find.byType(Slider)).onChanged!(8);
+    tester.widget<Slider>(find.byType(Slider)).onChangeEnd!(8);
+    await tester.pumpAndSettle();
+    expect(pageRepo.paths.last, '/p/post/100/8');
+    expect(find.text('8楼内容'), findsOneWidget);
+
+    // 加载更早回复:[1..7] 并入已加载窗口。
+    final AppLocalizations l10n = l10nOf(tester);
+    await tester.tap(find.text(l10n.topicEarlierReplies));
+    await tester.pumpAndSettle();
+    expect(find.text('7楼内容'), findsOneWidget);
+    expect(find.text('8楼内容'), findsOneWidget);
+
+    // 给第 8 楼点赞:不得再请求整窗。
+    final int windowRequests = pageRepo.paths.length;
+    final PostActions target = tester
+        .widgetList<PostActions>(find.byType(PostActions))
+        .firstWhere((PostActions action) => action.post.postNo == 8);
+    await tester.tap(
+      find.descendant(
+        of: find.byWidget(target),
+        matching: find.byTooltip(l10n.topicLike),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(pageRepo.paths, hasLength(windowRequests));
+    expect(postRepo.likes, <int>[1]);
+    for (final int floor in <int>[2, 7, 8, 10, 15]) {
+      expect(find.text('$floor楼内容'), findsOneWidget);
+    }
+    final PostActions liked = tester
+        .widgetList<PostActions>(find.byType(PostActions))
+        .firstWhere((PostActions action) => action.post.postNo == 8);
+    expect(liked.post.isLiked, isTrue);
+    expect(liked.post.likeCount, 1);
+    await disposePage(tester);
+  });
+
+  testWidgets('滑条跳楼后静默刷新保留锚定窗口', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> firstPage = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 1; floor <= 20; floor++) floorPost(floor),
+      ],
+      hasBefore: false,
+      hasAfter: true,
+    );
+    final Map<String, dynamic> anchored = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 8; floor <= 15; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: true,
+    );
+    await pumpTopic(
+      tester,
+      page: firstPage,
+      pageByPath: <String, Map<String, dynamic>>{'/p/post/100/8': anchored},
+      floors: 40,
+    );
+    tester
+        .widget<GfFloatingControls>(find.byType(GfFloatingControls))
+        .onFloorTap!();
+    await tester.pumpAndSettle();
+    tester.widget<Slider>(find.byType(Slider)).onChanged!(8);
+    tester.widget<Slider>(find.byType(Slider)).onChangeEnd!(8);
+    await tester.pumpAndSettle();
+    expect(pageRepo.paths.last, '/p/post/100/8');
+
+    final int requests = pageRepo.paths.length;
+    await tester
+        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .onRefresh();
+    await tester.pumpAndSettle();
+
+    expect(pageRepo.paths, hasLength(requests + 1));
+    expect(pageRepo.paths.last, '/p/post/100/8');
+    expect(find.text('8楼内容'), findsOneWidget);
+    expect(find.text('15楼内容'), findsOneWidget);
+    await disposePage(tester);
+  });
+
+  // 倒序⇒正序不重载:刷新若用被尾窗改写的 _currentFloor,服务端锚点窗口
+  // 只向前取,列表塌成最后一楼。
+  testWidgets('倒序切回正序后下拉刷新不塌缩为最后一楼', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> firstPage = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 1; floor <= 20; floor++) floorPost(floor),
+      ],
+      hasBefore: false,
+      hasAfter: true,
+    );
+    // 第 40 楼是话题最后一楼:真实锚点窗口只有它自己,没有前置楼层。
+    final Map<String, dynamic> tailAnchor = anchoredPageJson(
+      posts: <PostPayload>[floorPost(40)],
+      hasBefore: true,
+      hasAfter: false,
+    );
+    await pumpTopic(
+      tester,
+      page: firstPage,
+      pageByPath: <String, Map<String, dynamic>>{'/p/post/100/40': tailAnchor},
+      floors: 40,
+    );
+
+    await tester.tap(find.text('倒序'));
+    await tester.pumpAndSettle();
+    expect(find.text('40楼内容'), findsOneWidget);
+    await tester.tap(find.text('正序'));
+    await tester.pumpAndSettle();
+
+    await tester
+        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .onRefresh();
+    await tester.pumpAndSettle();
+
+    // 已加载的最早一楼是主帖(1 楼):刷新落回默认首窗,而不是塌成最后一楼。
+    expect(pageRepo.paths.last, '/p/post/100');
+    expect(find.text('40楼内容'), findsNothing);
+    expect(find.text('2楼内容'), findsOneWidget);
+    await disposePage(tester);
+  });
+
+  // 跳楼后加载更早回复再刷新:已合并的更早楼层不能被锚点窗口丢掉。
+  testWidgets('跳楼加载更早回复后下拉刷新保留更早楼层', (tester) async {
+    tester.view.physicalSize = const Size(1080, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> firstPage = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 1; floor <= 20; floor++) floorPost(floor),
+      ],
+      hasBefore: false,
+      hasAfter: true,
+    );
+    final Map<String, dynamic> anchored = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 8; floor <= 15; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: true,
+    );
+    await pumpTopic(
+      tester,
+      page: firstPage,
+      pageByPath: <String, Map<String, dynamic>>{'/p/post/100/8': anchored},
+      floors: 40,
+    );
+    tester
+        .widget<GfFloatingControls>(find.byType(GfFloatingControls))
+        .onFloorTap!();
+    await tester.pumpAndSettle();
+    tester.widget<Slider>(find.byType(Slider)).onChanged!(8);
+    tester.widget<Slider>(find.byType(Slider)).onChangeEnd!(8);
+    await tester.pumpAndSettle();
+    expect(pageRepo.paths.last, '/p/post/100/8');
+    await tester.tap(find.text(l10nOf(tester).topicEarlierReplies));
+    await tester.pumpAndSettle();
+    expect(find.text('2楼内容'), findsOneWidget);
+
+    await tester
+        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .onRefresh();
+    await tester.pumpAndSettle();
+
+    expect(pageRepo.paths.last, '/p/post/100');
+    expect(find.text('2楼内容'), findsOneWidget);
+    expect(find.text('8楼内容'), findsOneWidget);
     await disposePage(tester);
   });
 

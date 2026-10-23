@@ -218,7 +218,12 @@ func writeTopicWithMaintenance(req component.BetterRequest[WriteTopicReq], agent
 
 	// 图集数量上限：与快捷发布选择器/契约描述一致（服务端单一事实源）。
 	// 超限按参数错误拒绝，防止单请求撑爆 image_urls 列与 usage 行。
-	if len(req.Params.Images) > fileusageservice.MaxGalleryImagesPerTopicWrite {
+	// 上限按站内候选计（先于归属过滤的粗筛）：能解析出 /file/img/ 文件名的才算
+	// 候选，是否真实存在/是否本人/是否就绪由下面的归属过滤判断；外链这类解析
+	// 不出文件名的 URL 既不计入上限也不会落库，计入会让正常正文发不出去
+	// （issue #1315）。
+	gallery := fileusageservice.GalleryImageURLs(req.Params.Images)
+	if len(gallery) > fileusageservice.MaxGalleryImagesPerTopicWrite {
 		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	}
 
@@ -367,7 +372,7 @@ func writeTopicWithMaintenance(req component.BetterRequest[WriteTopicReq], agent
 		// 显式图集仅接受当前用户自己已上传且就绪的文件：非本人条目在此丢弃，
 		// 避免把他人文件登记成 ACTIVE 内容引用（否则删除/隐私清除后文件仍会
 		// 因活引用被 GC 跳过并持续公网可读，见 fileusageservice.FilterOwnedImageURLs）。
-		topic.ImageUrls = fileusageservice.FilterOwnedImageURLs(req.UserId, req.Params.Images)
+		topic.ImageUrls = fileusageservice.FilterOwnedImageURLs(req.UserId, gallery)
 		if topic.FirstImageURL == "" && len(topic.ImageUrls) > 0 {
 			topic.FirstImageURL = topic.ImageUrls[0]
 		}

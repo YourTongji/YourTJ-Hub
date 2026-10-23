@@ -33,6 +33,10 @@ const String twemojiVersion = twemojiAssetVersion;
 final Set<int> _twemojiFirstCodepoints = twemojiAssetBySequence.keys
     .map((sequence) => sequence.runes.first)
     .toSet();
+final List<List<int>> _twemojiExcludedSequenceCodepoints =
+    twemojiExcludedSequences
+        .map((sequence) => sequence.runes.toList(growable: false))
+        .toList(growable: false);
 
 bool _mightContainTwemoji(String text) {
   var offset = 0;
@@ -296,6 +300,27 @@ List<TwemojiSegment> parseTwemojiText(String text) {
   }
 
   while (index < codepoints.length) {
+    var matchedExcludedSequence = false;
+    for (final sequence in _twemojiExcludedSequenceCodepoints) {
+      if (index + sequence.length > codepoints.length) continue;
+      var matches = true;
+      for (var offset = 0; offset < sequence.length; offset++) {
+        if (codepoints[index + offset] != sequence[offset]) {
+          matches = false;
+          break;
+        }
+      }
+      if (!matches) continue;
+
+      for (var offset = 0; offset < sequence.length; offset++) {
+        plain.writeCharCode(codepoints[index + offset]);
+      }
+      index += sequence.length;
+      matchedExcludedSequence = true;
+      break;
+    }
+    if (matchedExcludedSequence) continue;
+
     var candidate = '';
     var hasJoiner = false;
     var bestEnd = -1;
@@ -308,7 +333,13 @@ List<TwemojiSegment> parseTwemojiText(String text) {
       candidate += String.fromCharCode(codepoints[end]);
       hasJoiner = hasJoiner || codepoints[end] == 0x200d;
       final key = hasJoiner ? candidate : candidate.replaceAll('\uFE0F', '');
-      final asset = twemojiAssetBySequence[key];
+      final isBareDefaultTextEmoji =
+          end == index &&
+          twemojiDefaultTextPresentationCodepoints.contains(
+            codepoints[index],
+          ) &&
+          !candidate.contains('\uFE0F');
+      final asset = isBareDefaultTextEmoji ? null : twemojiAssetBySequence[key];
       if (asset != null) {
         bestEnd = end + 1;
         bestAsset = asset;

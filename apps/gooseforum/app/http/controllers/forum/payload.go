@@ -1908,7 +1908,8 @@ func userPayloadWithWornBadge(userID uint64, userMap map[uint64]*users.EntityCom
 func buildTopicMeta(c *gin.Context, topic TopicDetailPayload, postStream ...[]PostPayload) PageMeta {
 	baseURL := component.GetBaseUri(c)
 	canonical := baseURL + topic.URL
-	description := topic.Description
+	// meta/OG/Twitter/JSON-LD 是纯文本落点：贴纸 token 在此只表现为文字，一律去掉。
+	description := markdown2html.StripStickerTokens(topic.Description)
 	if description == "" {
 		description = i18n.T(requestLang(c), "meta.topicDesc", "title", topic.Title, "site", siteTitle())
 	}
@@ -2020,7 +2021,7 @@ func buildTopicJSONLDComments(posts []PostPayload, canonical string) []vo.Commen
 }
 
 func topicPlainText(lang string, topic TopicDetailPayload) string {
-	text := truncateSEOText(topic.Description, 1000)
+	text := truncateSEOText(markdown2html.StripStickerTokens(topic.Description), 1000)
 	if text != "" {
 		return text
 	}

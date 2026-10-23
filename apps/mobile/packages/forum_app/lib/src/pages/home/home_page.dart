@@ -1168,7 +1168,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                                   ),
                                 const SizedBox(height: 4),
                                 GfText(
-                                  topicDisplayTitle(topic),
+                                  topicDisplayTitle(context, topic),
                                   maxLines: 3,
                                   overflow: TextOverflow.ellipsis,
                                   style: GfTheme.typographyOf(
@@ -1267,6 +1267,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           topics: feed.topics,
           hiddenCategoryId: feed.category?.id,
           onCategorySelected: _filterCategory,
+          stickerLibrary: ref.watch(stickerLibraryProvider),
           feedMode: _feedMode,
           collapsePinned: feed.category == null && feed.sort != 'following',
           onFirstMediaFrame: recordFirstHomeMediaFrame,

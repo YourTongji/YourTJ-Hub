@@ -18,6 +18,23 @@ final _stickerMathPattern = RegExp(
   r'|\\begin\{(equation\*?|align\*?|aligned|gather\*?|split|cases|matrix|pmatrix|bmatrix|vmatrix|Vmatrix)\}[\s\S]+?\\end\{\1\}',
 );
 
+/// 小字视图（列表行、置顶条）的纯文本贴纸文案：可解析的贴纸显示 `[名字]`，
+/// 未知/停用/个人贴纸省略；卡片与预览仍由 `buildStickerMessageSpan` 渲染图片。
+String stickerLabelText(String content, Map<String, String> urlByName) {
+  if (!containsStickerToken(content)) return content;
+  final buffer = StringBuffer();
+  var cursor = 0;
+  for (final match in stickerTokenPattern.allMatches(content)) {
+    buffer.write(content.substring(cursor, match.start));
+    cursor = match.end;
+    if (urlByName[match.group(1)] case final String url when url.isNotEmpty) {
+      buffer.write('[${match.group(1)}]');
+    }
+  }
+  buffer.write(content.substring(cursor));
+  return buffer.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
 /// 内容是否可能包含表情包 token（各渲染入口的快路径判断）。
 bool containsStickerToken(String content) => content.contains('[:sticker:');
 
