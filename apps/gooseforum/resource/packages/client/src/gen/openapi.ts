@@ -19995,7 +19995,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Follow state after the action (`isFollowing`, plus `isMutualFollowing` when the target follows the viewer too), or a legacy business failure envelope. */
+            /** @description Follow state after the action as `{isFollowing, isMutualFollowing}` (both booleans; `isMutualFollowing` is `false` for one-way follows and after unfollow), or a legacy business failure envelope. */
             200: {
                 headers: {
                     [name: string]: unknown;

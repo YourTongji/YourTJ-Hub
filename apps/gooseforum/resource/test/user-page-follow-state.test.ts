@@ -31,10 +31,10 @@ function connection(overrides: Partial<UserConnectionPayload> & Pick<UserConnect
   }
 }
 
-const mutualEntry = connection({ id: 7, username: 'mutual_peer', isFollowing: true, isMutualFollowing: true })
-const oneWayEntry = connection({ id: 8, username: 'oneway_peer', isFollowing: true, isMutualFollowing: false })
-
 function mutualProfile(): UserProfileProps {
+  // 条目必须每次新建：连接行取关会原地改写 connection 对象，共享常量会被后续用例污染。
+  const mutualEntry = connection({ id: 7, username: 'mutual_peer', isFollowing: true, isMutualFollowing: true })
+  const oneWayEntry = connection({ id: 8, username: 'oneway_peer', isFollowing: true, isMutualFollowing: false })
   return {
     ...memberProfile,
     isOwnProfile: false,
@@ -107,5 +107,18 @@ describe('UserPage 互关状态（issue #1320）', () => {
     expect(followUser).toHaveBeenCalledWith(1024, true)
     expect(pageFollowButton().text()).toBe(t('user.follow'))
     expect(pageFollowButton().get('svg').attributes('class')).toContain('user-plus')
+  })
+
+  test('互关的连接行取关后回落为关注并撤销互关图标', async () => {
+    vi.mocked(followUser).mockResolvedValue({ isFollowing: false, isMutualFollowing: false })
+    mountPage()
+
+    await connectionRow('mutual_peer').get('button').trigger('click')
+    await flushPromises()
+
+    expect(followUser).toHaveBeenCalledWith(7, true)
+    const button = connectionRow('mutual_peer').get('button')
+    expect(button.text()).toBe(t('user.follow'))
+    expect(button.get('svg').attributes('class')).toContain('user-plus')
   })
 })

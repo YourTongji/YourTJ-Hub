@@ -210,28 +210,36 @@ async function show(event: Event) {
 async function toggleFollow() {
   const userCard = card.value
   if (!userCard || userCard.isSelf || followLoading.value) return
+  // 快照目标：飞行期间卡片可能被关闭并切到另一个用户（show() 会重置共享 ref），
+  // 响应只能落到发起请求的那张卡与其缓存条目上，不能覆盖新卡的按钮态。
+  const targetId = userCard.userId
   followLoading.value = true
   followError.value = ''
   try {
-    const result = await followUser(userCard.userId, isFollowing.value)
-    isFollowing.value = result.isFollowing
-    isMutualFollowing.value = result.isMutualFollowing
+    const result = await followUser(targetId, isFollowing.value)
+    if (card.value?.userId === targetId) {
+      isFollowing.value = result.isFollowing
+      isMutualFollowing.value = result.isMutualFollowing
+    }
     userCard.isFollowing = result.isFollowing
     userCard.isMutualFollowing = result.isMutualFollowing
-    broadcastFollowChange(userCard.userId, result.isFollowing, result.isMutualFollowing)
+    broadcastFollowChange(targetId, result.isFollowing, result.isMutualFollowing)
   } catch (e) {
-    // 只有关注操作本身的失败才算「关注失败」，保持原状态并内联提示
-    followError.value = e instanceof Error ? e.message : t('api.followFailed')
+    // 只有关注操作本身的失败才算「关注失败」，保持原状态并内联提示；
+    // 卡已切到别的用户时静默丢弃，错误只属于发起请求的那张卡。
+    if (card.value?.userId === targetId) {
+      followError.value = e instanceof Error ? e.message : t('api.followFailed')
+    }
     followLoading.value = false
     return
   }
   // 回源拿权威结果与粉丝数；失败只代表资料未刷新，不算关注失败（PR #600 review 1），
   // 计数等字段由 SWR/TTL 下次重验兜底。loading 保持到回源结束，避免飞行期间再次点击发出反向 action
-  const seqAtRequest = getFollowChangeSeq(userCard.userId)
+  const seqAtRequest = getFollowChangeSeq(targetId)
   try {
-    const fresh = await getUserCard(userCard.userId)
-    adoptFreshCard(userCard.userId, fresh, seqAtRequest)
-    if (card.value?.userId === userCard.userId) {
+    const fresh = await getUserCard(targetId)
+    adoptFreshCard(targetId, fresh, seqAtRequest)
+    if (card.value?.userId === targetId) {
       card.value = fresh
       isFollowing.value = fresh.isFollowing
       isMutualFollowing.value = fresh.isMutualFollowing

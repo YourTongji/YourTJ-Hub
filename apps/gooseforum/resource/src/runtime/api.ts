@@ -804,10 +804,7 @@ export async function getUserCard(userId: number): Promise<UserCardPayload> {
   return result
 }
 
-export interface FollowUserResult {
-  isFollowing: boolean
-  isMutualFollowing: boolean
-}
+export type FollowUserResult = components['schemas']['FollowUserResult']
 
 export async function followUser(userId: number, isFollowing: boolean): Promise<FollowUserResult> {
   const response = await feedFetch('/api/forum/follow-user', {
