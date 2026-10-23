@@ -12,9 +12,11 @@ import zh from '../src/locales/zh'
 vi.mock('@/runtime/api', () => ({
   likeTopic: vi.fn(),
   bookmarkTopic: vi.fn(),
+  resolveForumStickers: vi.fn(),
 }))
 
-import { bookmarkTopic, likeTopic } from '@/runtime/api'
+import { bookmarkTopic, likeTopic, resolveForumStickers } from '@/runtime/api'
+import { resetResolvedStickerCache } from '@/site/composables/useResolvedStickers'
 
 const i18n = createI18n({
   legacy: false,
@@ -62,6 +64,8 @@ describe('TopicCardActions 卡片快捷互动（issue #380）', () => {
   beforeEach(() => {
     vi.mocked(likeTopic).mockReset()
     vi.mocked(bookmarkTopic).mockReset()
+    // 贴纸解析缓存是模块级共享的：用例之间从干净状态开始。
+    resetResolvedStickerCache()
     // @ts-expect-error 测试替换 window.location
     delete window.location
     window.location = {
@@ -269,6 +273,71 @@ describe('TopicCardActions 卡片快捷互动（issue #380）', () => {
       global: { plugins: [i18n] },
     })
     expect(view.findComponent(TopicFeedMeta).props('showStats')).toBe(true)
+  })
+
+  it('卡片摘要把已解析表情渲染为 h-6 图片，未知 token 丢弃且属性不含 token', async () => {
+    vi.mocked(resolveForumStickers).mockResolvedValue([{ name: 'cat', url: '/file/img/cat.png' }])
+    const view = mount(TopicList, {
+      props: {
+        topics: [
+          baseTopic({ id: 42, title: '', url: '/p/42', description: '[:sticker:cat:] 新发现' }),
+          baseTopic({ id: 43, title: '', url: '/p/43', description: '未知 [:sticker:gone:] 保留' }),
+        ],
+        feedMode: 'card',
+      },
+      global: { plugins: [i18n] },
+    })
+    await flushPromises()
+
+    // 整份列表只解析一次，而不是每行一次。
+    expect(vi.mocked(resolveForumStickers)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(resolveForumStickers).mock.calls[0]![0]).toEqual(['cat', 'gone'])
+    const image = view.get('img[src="/file/img/cat.png"]')
+    // alt 与 aria/title 同一口径：[名字] 纯文本，屏幕阅读器不读 token 语法。
+    expect(image.attributes('alt')).toBe('[cat]')
+    // 卡片允许两倍行距：贴纸图片按 h-12/w-12 渲染。
+    expect(image.classes()).toEqual(expect.arrayContaining(['h-12', 'w-12']))
+    expect(view.text()).not.toContain('[:sticker:')
+    for (const link of view.findAll('a[aria-label]')) {
+      expect(link.attributes('aria-label')).not.toContain('[:sticker:')
+    }
+    expect(view.findAll('a[aria-label]')[1]!.attributes('aria-label')).toContain('保留')
+  })
+
+  it('同页两个列表实例共享一次贴纸解析', async () => {
+    vi.mocked(resolveForumStickers).mockResolvedValue([
+      { name: 'shared_cat', url: '/file/img/shared_cat.png' },
+    ])
+    const first = mount(TopicList, {
+      props: { topics: [baseTopic({ id: 51, description: '[:sticker:shared_cat:] 一' })], feedMode: 'card' },
+      global: { plugins: [i18n] },
+    })
+    const second = mount(TopicList, {
+      props: { topics: [baseTopic({ id: 52, description: '[:sticker:shared_cat:] 二' })], feedMode: 'card' },
+      global: { plugins: [i18n] },
+    })
+    await flushPromises()
+
+    // 共享缓存：第二个实例在 60s TTL 内复用结果，不再发请求。
+    expect(vi.mocked(resolveForumStickers)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(resolveForumStickers).mock.calls[0]![0]).toEqual(['shared_cat'])
+    first.unmount()
+    second.unmount()
+  })
+
+  it('置顶行标题属性使用剥离 token 的纯文本', () => {
+    const view = mount(TopicList, {
+      props: {
+        topics: [baseTopic({ id: 7, title: '', url: '/p/7', description: '置顶 [:sticker:cat:]', pinWeight: 3 })],
+        home: true,
+        showPinned: true,
+      },
+      global: { plugins: [i18n], stubs: { TopicRow: true } },
+    })
+
+    const pinnedLink = view.get('section a')
+    expect(pinnedLink.attributes('title')).toContain('置顶')
+    expect(pinnedLink.attributes('title')).not.toContain('[:sticker:')
   })
 
   it('表格视图不渲染快捷互动条', () => {

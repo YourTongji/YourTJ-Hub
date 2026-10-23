@@ -19,7 +19,7 @@
                 {{range .Categories}}<a href="{{.URL}}" rel="tag">{{.Name}}</a> {{end}}
             </p>
             {{end}}
-            {{if and .Title .Description}}<p class="gf-crawler-topic-excerpt">{{.Description}}</p>{{end}}
+            {{if .Title}}{{with topicListDescription .Description}}<p class="gf-crawler-topic-excerpt">{{.}}</p>{{end}}{{end}}
             </article>
         </div>
         <div class="gf-crawler-topic-number"><span class="gf-crawler-visually-hidden">{{ t $.Lang "replies" }}: </span>{{.ReplyCount}}</div>

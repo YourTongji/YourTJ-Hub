@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/localcache"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/cacheconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -199,7 +200,7 @@ func buildRSSXML(host string) (string, error) {
 		// 无标题瞬间：依次回退到摘要、话题链接，避免 RSS 出现空 <title>。
 		itemTitle := strings.TrimSpace(item.Title)
 		if itemTitle == "" {
-			itemTitle = strings.TrimSpace(item.Excerpt)
+			itemTitle = strings.TrimSpace(markdown2html.StripStickerTokens(item.Excerpt))
 		}
 		if itemTitle == "" {
 			itemTitle = itemURL
@@ -208,7 +209,7 @@ func buildRSSXML(host string) (string, error) {
 		feed.Items = append(feed.Items, &feeds.Item{
 			Title:       itemTitle,
 			Link:        &feeds.Link{Href: itemURL},
-			Description: item.Excerpt,
+			Description: markdown2html.StripStickerTokens(item.Excerpt),
 			Content:     postservice.EnsureRenderedHTML(firstPost),
 			Id:          itemURL,
 			Created:     item.CreatedAt,

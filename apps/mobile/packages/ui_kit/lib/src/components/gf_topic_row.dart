@@ -79,6 +79,7 @@ class GfTopicRow extends StatelessWidget {
     this.contentType,
     this.contentTypeLabel,
     this.feedContext,
+    this.descriptionSpan,
   });
 
   final String title;
@@ -109,12 +110,29 @@ class GfTopicRow extends StatelessWidget {
   /// Personalized-feed reason, shown as a quiet lead-in above the title.
   final GfTopicContext? feedContext;
 
+  /// Prebuilt rich excerpt (page-level sticker resolution). When present it
+  /// owns the text and [description] stays empty; the row ignores taps inside
+  /// it so the item's own ink target stays the only one.
+  final InlineSpan? descriptionSpan;
+
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
     final enlargedText =
         MediaQuery.textScalerOf(context).scale(_titleFontSize) >
         _titleFontSize * _enlargedTextScaleCeiling;
+    final bool hasTitle = title.isNotEmpty;
+    final TextStyle titleStyle = TextStyle(
+      color: colors.baseContent,
+      fontSize: _titleFontSize,
+      fontWeight: FontWeight.w500,
+      height: 1.5,
+    );
+    final TextStyle descriptionStyle = TextStyle(
+      color: colors.baseContent.withValues(alpha: 0.55),
+      fontSize: 13,
+      height: 1.4,
+    );
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -153,7 +171,7 @@ class GfTopicRow extends StatelessWidget {
                         ],
                       ),
                     ),
-                  if (title.isNotEmpty || pinned || contentType != null || hot)
+                  if (hasTitle || pinned || contentType != null || hot)
                     Row(
                       children: [
                         if (pinned) ...[
@@ -172,12 +190,7 @@ class GfTopicRow extends StatelessWidget {
                             title,
                             maxLines: enlargedText ? 2 : 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.baseContent,
-                              fontSize: _titleFontSize,
-                              fontWeight: FontWeight.w500,
-                              height: 1.5,
-                            ),
+                            style: titleStyle,
                           ),
                         ),
                         if (unseen) ...[
@@ -210,19 +223,27 @@ class GfTopicRow extends StatelessWidget {
                         ],
                       ],
                     ),
-                  if (description.isNotEmpty)
+                  if (description.isNotEmpty || descriptionSpan != null)
                     Padding(
-                      padding: EdgeInsets.only(top: title.isEmpty ? 0 : 2),
-                      child: GfText(
-                        description,
-                        maxLines: enlargedText ? 2 : 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: colors.baseContent.withValues(alpha: 0.55),
-                          fontSize: 13,
-                          height: 1.4,
-                        ),
-                      ),
+                      padding: EdgeInsets.only(top: hasTitle ? 2 : 0),
+                      // Sticker spans carry their own tappable image; the row
+                      // owns taps and long presses, so the excerpt must not
+                      // compete for them.
+                      child: descriptionSpan == null
+                          ? GfText(
+                              description,
+                              maxLines: enlargedText ? 2 : 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: descriptionStyle,
+                            )
+                          : IgnorePointer(
+                              child: GfText.rich(
+                                descriptionSpan!,
+                                maxLines: enlargedText ? 2 : 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: descriptionStyle,
+                              ),
+                            ),
                     ),
                   Padding(
                     padding: const EdgeInsets.only(top: 2),

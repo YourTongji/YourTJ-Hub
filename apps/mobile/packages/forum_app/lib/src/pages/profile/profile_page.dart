@@ -1251,6 +1251,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                     _ProfileBody(
                                       key: ValueKey(key),
                                       props: streamProps,
+                                      stickerLibrary: ref.watch(stickerLibraryProvider),
                                       selectedKey: key,
                                       onFollow: _toggleConnection,
                                       onReturn: _syncReturnedInteractions,
@@ -1586,6 +1587,7 @@ class _ProfileBody extends StatelessWidget {
   const _ProfileBody({
     super.key,
     required this.props,
+    this.stickerLibrary,
     required this.selectedKey,
     required this.onFollow,
     required this.onReturn,
@@ -1594,6 +1596,7 @@ class _ProfileBody extends StatelessWidget {
   });
 
   final UserProfileProps props;
+  final StickerLibrary? stickerLibrary;
   final String selectedKey;
   final ValueChanged<UserConnectionPayload> onFollow;
   final VoidCallback onReturn;
@@ -1842,7 +1845,7 @@ class _ProfileBody extends StatelessWidget {
     if (props.topics.isEmpty) {
       return _empty('file-text', l10n.profileEmptyTopics);
     }
-    return SliverList.builder(
+    SliverList build(Map<String, String> stickerUrlByName) => SliverList.builder(
       itemCount: props.topics.length,
       itemBuilder: (BuildContext context, int index) {
         final topic = props.topics[index];
@@ -1856,6 +1859,7 @@ class _ProfileBody extends StatelessWidget {
         return buildTopicFeedCard(
           context,
           topic,
+          stickerUrlByName: stickerUrlByName,
           onReturn: onReturn,
           onLike: known
               ? (target) => onInteraction(key, state, false, target)
@@ -1866,6 +1870,15 @@ class _ProfileBody extends StatelessWidget {
         );
       },
     );
+
+    final StickerLibrary? library = stickerLibrary;
+    return library == null
+        ? build(const <String, String>{})
+        : TopicStickerExcerpts(
+            library: library,
+            topics: props.topics,
+            builder: build,
+          );
   }
 
   Widget _likeRows(BuildContext context, AppLocalizations l10n) {

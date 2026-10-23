@@ -494,6 +494,17 @@ func runVersionedDataMigrations() error {
 		}
 		currentVersion = 35
 	}
+	if currentVersion < 36 {
+		result := datamigration.BackfillTopicExcerpt(dbconnect.Connect())
+		if result.Failed > 0 {
+			return dataMigrationError("topic excerpt", 36, result.Failed, result.LastFailed)
+		}
+		if err := pageConfig.SyncMigrationVersion(36); err != nil {
+			return err
+		}
+		slog.Info("app migration topic excerpt backfilled", "updated", result.Updated, "skipped", result.Skipped)
+		currentVersion = 36
+	}
 	slog.Info("app migration end", "version", currentVersion, "searchIndexVersion", searchIndexVersion)
 	if searchIndexVersion < pageConfig.SearchIndexMigrationVersion {
 		// 数据迁移已跑完，但索引步骤仍在等 Meilisearch（索引是可重建投影）。

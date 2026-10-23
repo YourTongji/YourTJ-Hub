@@ -59,9 +59,10 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   site statistics,
   the sticker library (`GET /api/forum/stickers` public enabled list + `/api/admin/`
   `stickers`/`sticker-save`/`sticker-delete`/`sticker-import` admin CRUD and zip pack
-  import; token `[:sticker:name:]` expanded server-side at render for posts/replies and
-  client-side in chat bubbles (web segmented renderer) and mobile (markdown pre-expansion +
-  inline image spans) via the public list API, MADR 0030),
+  import; token `[:sticker:name:]` expanded server-side at render for posts/replies, rendered as
+  images in cards/hover previews and as `[name]` text in small-text surfaces (list rows, pinned
+  strip, crawler/no-JS SSR list), and expanded client-side in chat bubbles (web segmented
+  renderer) and mobile (shared plain-text span helper) via the public list API, MADR 0030),
   with lint/bundle, generated TypeScript types, fixtures, and route-level HTTP tests;
   paths are split per domain under `paths/`. Route coverage (issue #277) is complete:
   `route-coverage.json` knownUncovered is empty — every non-excluded `/api` route has a

@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useResolvedStickers } from '@/site/composables/useResolvedStickers'
+import { resetResolvedStickerCache, useResolvedStickers } from '@/site/composables/useResolvedStickers'
 
 const { resolve } = vi.hoisted(() => ({ resolve: vi.fn() }))
 vi.mock('@/runtime/api', () => ({ resolveForumStickers: resolve }))
 
 describe('shared personal sticker resolution', () => {
-  beforeEach(() => { resolve.mockReset() })
+  beforeEach(() => {
+    resolve.mockReset()
+    // 解析缓存是模块级共享的：每个用例从干净状态开始。
+    resetResolvedStickerCache()
+  })
   afterEach(() => { vi.restoreAllMocks() })
 
   it('resolves explicit personal tokens and deduplicates repeated content', async () => {

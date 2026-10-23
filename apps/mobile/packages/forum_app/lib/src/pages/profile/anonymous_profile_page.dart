@@ -258,12 +258,18 @@ class _AnonymousProfilePageState extends ConsumerState<AnonymousProfilePage> {
                       ),
                     ),
                     if (tab == 0 && topics.isNotEmpty)
-                      SliverList.builder(
-                        itemCount: topics.length,
-                        itemBuilder: (context, index) => buildTopicFeedCard(
-                          context,
-                          topics[index],
-                          onReturn: load,
+                      TopicStickerExcerpts(
+                        library: ref.watch(stickerLibraryProvider),
+                        topics: topics,
+                        builder: (Map<String, String> stickerUrlByName) =>
+                            SliverList.builder(
+                          itemCount: topics.length,
+                          itemBuilder: (context, index) => buildTopicFeedCard(
+                            context,
+                            topics[index],
+                            stickerUrlByName: stickerUrlByName,
+                            onReturn: load,
+                          ),
                         ),
                       )
                     else if (tab == 1 && replies.isNotEmpty)
