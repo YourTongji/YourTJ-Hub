@@ -718,7 +718,7 @@ String _scopeSymbol(String scope) => switch (scope) {
   'users' => 'users-round',
   'categories' => 'folder',
   'courses' => 'book-open',
-  'wiki' => 'library-big',
+  'wiki' => 'book-open',
   _ => 'layout-grid',
 };
 

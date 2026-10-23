@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -272,6 +273,26 @@ void main() {
       .widget<TabBar>(find.byKey(const ValueKey('gf-tab-bar')))
       .controller!
       .index;
+
+  testWidgets('search navigation glyphs exist in the bundled asset set', (
+    tester,
+  ) async {
+    final repo = await pumpSearch(tester);
+    repo.calls.first.result.complete(_result(repo.calls.first));
+    await tester.pumpAndSettle();
+    final names = tester
+        .widgetList<GfSymbol>(find.byType(GfSymbol, skipOffstage: false))
+        .map((symbol) => symbol.name)
+        .toSet();
+    await tester.runAsync(() async {
+      for (final name in names) {
+        final data = await rootBundle.load(
+          'packages/ui_kit/assets/icons/$name.svg',
+        );
+        expect(data.lengthInBytes, greaterThan(0), reason: name);
+      }
+    });
+  });
 
   testWidgets('forum unavailable is disclosed while Wiki results remain usable', (
     tester,
