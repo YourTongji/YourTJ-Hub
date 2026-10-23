@@ -432,6 +432,41 @@ void main() {
     },
   );
 
+  testWidgets('avatar and name may open different author targets', (
+    tester,
+  ) async {
+    var avatarTaps = 0;
+    var nameTaps = 0;
+    var cardTaps = 0;
+    Widget card({VoidCallback? onAvatarTap}) => gfApp(
+      SizedBox(
+        width: 390,
+        child: GfTopicCard(
+          title: 'Campus',
+          description: '',
+          authorName: 'Student',
+          authorAvatarUrl: '',
+          activityText: 'now',
+          categories: const [],
+          imageUrls: const [],
+          replyCount: 0,
+          viewCount: 0,
+          onAuthorTap: () => nameTaps++,
+          onAvatarTap: onAvatarTap,
+          onTap: () => cardTaps++,
+        ),
+      ),
+    );
+    await tester.pumpWidget(card(onAvatarTap: () => avatarTaps++));
+    await tester.tap(find.byType(GfAvatar));
+    await tester.tap(find.text('Student'));
+    expect((avatarTaps, nameTaps, cardTaps), (1, 1, 0));
+    // Without a dedicated avatar target the avatar keeps the author target.
+    await tester.pumpWidget(card());
+    await tester.tap(find.byType(GfAvatar));
+    expect((avatarTaps, nameTaps, cardTaps), (1, 2, 0));
+  });
+
   testWidgets('author name and image support keyboard activation', (
     tester,
   ) async {

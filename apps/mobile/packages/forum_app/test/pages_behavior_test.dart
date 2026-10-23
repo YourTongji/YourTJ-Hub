@@ -34,6 +34,7 @@ import 'package:forum_app/src/pages/profile/profile_page.dart';
 import 'package:forum_app/src/pages/search/search_page.dart';
 import 'package:forum_app/src/pages/settings/settings_page.dart';
 import 'package:forum_app/src/pages/topic/topic_page.dart';
+import 'package:forum_app/src/pages/topic/topic_actions.dart';
 import 'package:forum_app/src/pages/topic/mention_panel.dart';
 import 'package:forum_app/src/pages/topic/mention_search.dart';
 import 'package:forum_app/src/pages/topic/mention_session.dart';
@@ -3282,6 +3283,36 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
     router.dispose();
+  });
+
+  testWidgets('topic and reply reports sit in their own ⋯ menus (#1372 F1)', (
+    tester,
+  ) async {
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: MemTokenStorage(),
+      baseUrl: 'http://fake.local',
+    );
+    final container = await makeContainer(
+      pageRepo: CountingPageRepository(client),
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+    await tester.pumpAndSettle();
+    // No always-visible flag beside the title or on a floor.
+    expect(find.byTooltip('举报帖子'), findsNothing);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(TopicActions),
+        matching: find.byTooltip('更多功能'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('举报帖子'), findsOneWidget);
+    expect(find.text('生成分享图片'), findsOneWidget);
+    expect(find.text('分享'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
   });
 
   for (final removed in [false, true]) {

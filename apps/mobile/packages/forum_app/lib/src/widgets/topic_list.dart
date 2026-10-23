@@ -1,4 +1,7 @@
 import 'user_decoration.dart';
+import 'user_profile_preview.dart';
+import '../providers.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'feed_visibility.dart';
 import '../private_notes.dart';
 import 'package:flutter/material.dart';
@@ -16,7 +19,7 @@ import 'sticker_message_span.dart';
 enum GfTopicFeedMode { list, card }
 
 /// 话题列表(无限分页),行复用 ui_kit [GfTopicRow]。
-class GfTopicList extends StatelessWidget {
+class GfTopicList extends ConsumerWidget {
   const GfTopicList({
     super.key,
     required this.loading,
@@ -64,7 +67,9 @@ class GfTopicList extends StatelessWidget {
   final StickerLibrary? stickerLibrary;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final removed = ref.watch(removedTopicsProvider);
+    final topics = this.topics.where((topic) => !removed.contains(topic.id)).toList();
     if (loading && topics.isEmpty) return const GfLoading();
     if (topics.isEmpty) {
       return CustomScrollView(
@@ -671,7 +676,9 @@ Widget buildTopicFeedCard(
     images.add(resolveApiAssetUrl(topic.firstImageUrl!));
   }
 
-  return FeedVisibility(
+  return Consumer(builder: (context, ref, _) {
+    if (ref.watch(removedTopicsProvider).contains(topic.id)) { return const SizedBox.shrink(); }
+    return FeedVisibility(
     topic: topic,
     child: GfTopicCard(
       feedContext: _feedContext(l10n, topic),
@@ -703,6 +710,13 @@ Widget buildTopicFeedCard(
               nickname,
             ),
       authorAvatarUrl: resolveApiAssetUrl(topic.author.avatarUrl),
+      onAvatarTap: topic.author.publicUid != null
+          ? () => context.push('/a/${topic.author.publicUid}')
+          : topic.author.id > 0
+          ? () => showUserProfilePreview(context, userId: topic.author.id,
+              username: topic.author.username, nickname: topic.author.nickname,
+              avatarUrl: topic.author.avatarUrl)
+          : null,
       onAuthorTap: topic.author.publicUid != null
           ? () => context.push('/a/${topic.author.publicUid}')
           : topic.author.id > 0
@@ -769,6 +783,7 @@ Widget buildTopicFeedCard(
       },
     ),
   );
+  });
 }
 
 /// For You reasons borrow the mark of the element that justifies them. Every

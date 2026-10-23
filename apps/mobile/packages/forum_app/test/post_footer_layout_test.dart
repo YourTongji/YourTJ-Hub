@@ -76,9 +76,9 @@ void main() {
           of: actions,
           matching: find.byType(GfSymbol),
         );
-        expect(glyphs, findsNWidgets(5));
+        expect(glyphs, findsNWidgets(4));
         final centers = [
-          for (var index = 0; index < 5; index++)
+          for (var index = 0; index < 4; index++)
             tester.getCenter(glyphs.at(index)),
         ];
         expect(centers.first.dx - bounds.left, 22);

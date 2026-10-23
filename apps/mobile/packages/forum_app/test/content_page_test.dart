@@ -306,6 +306,67 @@ void main() {
     },
   );
 
+  testWidgets(
+    'deleted topic leaves owned content and cannot return in a stale response',
+    (tester) async {
+      final repo = _Content(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemoryTokenStorage(),
+          baseUrl: 'https://example.test',
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [contentRepositoryProvider.overrideWithValue(repo)],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ContentPage(),
+          ),
+        ),
+      );
+      await tester.pump();
+      container.read(removedTopicsProvider.notifier).add(100);
+      repo.pending.complete(
+        const UserContentPage(
+          items: [
+            UserContentItem(
+              id: 100,
+              contentType: 'topic',
+              title: 'deleted topic',
+              excerpt: '',
+              createdAt: '',
+            ),
+            UserContentItem(
+              id: 101,
+              contentType: 'topic',
+              title: 'kept topic',
+              excerpt: '',
+              createdAt: '',
+            ),
+          ],
+          hasMore: false,
+          nextCursorId: 0,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('deleted topic'), findsNothing);
+      expect(find.text('kept topic'), findsOneWidget);
+      container.read(removedTopicsProvider.notifier).add(101);
+      await tester.pumpAndSettle();
+      expect(find.text('kept topic'), findsNothing);
+      expect(find.byType(GfEmpty), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('untitled moment uses its excerpt as the primary content line', (
     tester,
   ) async {

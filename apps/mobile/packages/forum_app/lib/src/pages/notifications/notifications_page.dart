@@ -1,4 +1,5 @@
 import '../../widgets/user_decoration.dart';
+import '../../widgets/user_profile_preview.dart';
 import 'package:dio/dio.dart';
 
 import '../../private_notes.dart';
@@ -641,6 +642,19 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                     avatarUrl: hasActor
                                         ? resolveApiAssetUrl(
                                             n.actor.avatarUrl ?? '',
+                                          )
+                                        : null,
+                                    onAvatarTap: n.actor.publicUid != null
+                                        ? () => context.push(
+                                            '/a/${n.actor.publicUid}',
+                                          )
+                                        : n.actor.id > 0
+                                        ? () => showUserProfilePreview(
+                                            context,
+                                            userId: n.actor.id,
+                                            username: n.actor.username,
+                                            nickname: n.actor.nickname,
+                                            avatarUrl: n.actor.avatarUrl ?? '',
                                           )
                                         : null,
                                     onActorTap: n.actor.publicUid != null

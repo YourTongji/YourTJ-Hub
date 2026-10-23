@@ -2,56 +2,37 @@ import 'dart:ui' as ui;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
+import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
+import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/topic_list.dart';
+import 'package:forum_app/src/widgets/user_profile_preview.dart';
 import 'fixtures/page_fixtures.dart';
+import 'pages_smoke_test.dart' show MemoryTokenStorage;
 
-const StickerItemPayload _smile = StickerItemPayload(
-  name: 'smile',
-  url: '/file/img/stickers/smile.png',
-);
-
-class _MemoryTokenStorage implements TokenStorage {
+class _Users extends UserRepository {
+  _Users()
+    : super(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemoryTokenStorage(),
+          baseUrl: 'https://example.test',
+        ),
+      );
+  final cards = <int>[];
   @override
-  Future<String?> read() async => null;
-  @override
-  Future<void> write(String token) async {}
-  @override
-  Future<void> clear() async {}
-}
-
-/// 记录每次查询：一页列表只能解析一次，行不自己发请求。
-class _StickerCatalog extends StickerRepository {
-  _StickerCatalog(this.items)
-    : super(GfApiClient(dio: Dio(), tokenStorage: _MemoryTokenStorage()));
-
-  final List<StickerItemPayload> items;
-  int listCalls = 0;
-  final List<String> resolvedNames = <String>[];
-
-  @override
-  Future<List<StickerItemPayload>> list() async {
-    listCalls++;
-    return items;
-  }
-
-  @override
-  Future<List<StickerItemPayload>> resolve(List<String> names) async {
-    resolvedNames.addAll(names);
-    return const <StickerItemPayload>[];
+  Future<UserCardPayload> getUserCard(int userId) async {
+    cards.add(userId);
+    throw StateError('offline');
   }
 }
-
-/// 富文本的纯文本镜像（Text.rich 不暴露 data）。
-Iterable<String> _richTexts(WidgetTester tester) => tester
-    .widgetList<RichText>(find.byType(RichText))
-    .map((RichText rich) => rich.text.toPlainText());
 
 void main() {
   testWidgets('author, image and body have distinct navigation targets', (
@@ -88,12 +69,19 @@ void main() {
       ],
     );
     addTearDown(router.dispose);
+    final users = _Users();
     await tester.pumpWidget(
-      MaterialApp.router(
-        routerConfig: router,
-        locale: const Locale('zh'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
+      ProviderScope(
+        overrides: [
+          userRepositoryProvider.overrideWithValue(users),
+          currentUserProvider.overrideWith((_) async => null),
+        ],
+        child: MaterialApp.router(
+          routerConfig: router,
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -102,11 +90,15 @@ void main() {
     expect(find.text('profile 1'), findsOneWidget);
     router.pop();
     await tester.pumpAndSettle();
+    // Avatar opens the profile preview card in place, matching topic detail.
     await tester.tap(find.byType(GfAvatar).first);
     await tester.pumpAndSettle();
-    expect(find.text('profile 1'), findsOneWidget);
-    router.pop();
+    expect(find.byType(UserProfilePreview), findsOneWidget);
+    expect(users.cards, [1]);
+    expect(router.state.uri.path, '/');
+    Navigator.of(tester.element(find.byType(UserProfilePreview))).pop();
     await tester.pumpAndSettle();
+    expect(find.byType(UserProfilePreview), findsNothing);
     await tester.tap(
       find.byWidgetPredicate(
         (w) =>
@@ -141,28 +133,30 @@ void main() {
     bool? bookmarkTarget;
 
     await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('zh'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: StatefulBuilder(
-            builder: (context, setState) => GfTopicList(
-              loading: false,
-              topics: [topic],
-              feedMode: GfTopicFeedMode.card,
-              hasMore: false,
-              onLoadMore: () {},
-              onLikeTopic: (_, target) async {
-                likeTarget = target;
-                setState(() => topic = topic.copyWith(liked: target));
-                return true;
-              },
-              onBookmarkTopic: (_, target) async {
-                bookmarkTarget = target;
-                setState(() => topic = topic.copyWith(bookmarked: target));
-                return true;
-              },
+      ProviderScope(
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => GfTopicList(
+                loading: false,
+                topics: [topic],
+                feedMode: GfTopicFeedMode.card,
+                hasMore: false,
+                onLoadMore: () {},
+                onLikeTopic: (_, target) async {
+                  likeTarget = target;
+                  setState(() => topic = topic.copyWith(liked: target));
+                  return true;
+                },
+                onBookmarkTopic: (_, target) async {
+                  bookmarkTarget = target;
+                  setState(() => topic = topic.copyWith(bookmarked: target));
+                  return true;
+                },
+              ),
             ),
           ),
         ),
@@ -222,22 +216,24 @@ void main() {
     var calls = 0;
 
     await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('zh'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: StatefulBuilder(
-            builder: (context, setState) => GfTopicList(
-              loading: false,
-              topics: [topic],
-              feedMode: GfTopicFeedMode.card,
-              hasMore: false,
-              onLoadMore: () {},
-              onLikeTopic: (_, target) async {
-                calls++;
-                return false;
-              },
+      ProviderScope(
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => GfTopicList(
+                loading: false,
+                topics: [topic],
+                feedMode: GfTopicFeedMode.card,
+                hasMore: false,
+                onLoadMore: () {},
+                onLikeTopic: (_, target) async {
+                  calls++;
+                  return false;
+                },
+              ),
             ),
           ),
         ),
@@ -268,26 +264,28 @@ void main() {
     final controller = ScrollController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('zh'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        theme: gfThemeData(Brightness.light),
-        home: Scaffold(
-          body: GfTopicList(
-            collapsePinned: true,
-            loading: false,
-            controller: controller,
-            header: const Text('Announcement'),
-            topics: [
-              topic.copyWith(id: 1, title: 'Pinned one', pinWeight: 1),
-              topic.copyWith(id: 2, title: 'Pinned two', pinWeight: 2),
-              topic.copyWith(id: 3, title: 'Regular topic', pinWeight: 0),
-              for (var i = 4; i <= 30; i++)
-                topic.copyWith(id: i, title: 'Topic $i', pinWeight: 0),
-            ],
-            hasMore: false,
-            onLoadMore: () => loads++,
+      ProviderScope(
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: gfThemeData(Brightness.light),
+          home: Scaffold(
+            body: GfTopicList(
+              collapsePinned: true,
+              loading: false,
+              controller: controller,
+              header: const Text('Announcement'),
+              topics: [
+                topic.copyWith(id: 1, title: 'Pinned one', pinWeight: 1),
+                topic.copyWith(id: 2, title: 'Pinned two', pinWeight: 2),
+                topic.copyWith(id: 3, title: 'Regular topic', pinWeight: 0),
+                for (var i = 4; i <= 30; i++)
+                  topic.copyWith(id: i, title: 'Topic $i', pinWeight: 0),
+              ],
+              hasMore: false,
+              onLoadMore: () => loads++,
+            ),
           ),
         ),
       ),
@@ -307,7 +305,10 @@ void main() {
     expect(find.text('Pinned two'), findsOneWidget);
     // Pinned titles stay in the strip; no pinned rows join the list.
     expect(
-      find.ancestor(of: find.text('Pinned two'), matching: find.byType(GfTopicRow)),
+      find.ancestor(
+        of: find.text('Pinned two'),
+        matching: find.byType(GfTopicRow),
+      ),
       findsNothing,
     );
     expect(
@@ -330,20 +331,22 @@ void main() {
     final topic = home.topics.first;
     for (final mode in GfTopicFeedMode.values) {
       await tester.pumpWidget(
-        MaterialApp(
-          locale: const Locale('zh'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: GfTopicList(
-              feedMode: mode,
-              loading: false,
-              topics: [
-                topic.copyWith(id: 1, title: 'First regular', pinWeight: 0),
-                topic.copyWith(id: 2, title: 'Then pinned', pinWeight: 1),
-              ],
-              hasMore: false,
-              onLoadMore: () {},
+        ProviderScope(
+          child: MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: GfTopicList(
+                feedMode: mode,
+                loading: false,
+                topics: [
+                  topic.copyWith(id: 1, title: 'First regular', pinWeight: 0),
+                  topic.copyWith(id: 2, title: 'Then pinned', pinWeight: 1),
+                ],
+                hasMore: false,
+                onLoadMore: () {},
+              ),
             ),
           ),
         ),
@@ -389,12 +392,14 @@ void main() {
     );
     addTearDown(router.dispose);
     await tester.pumpWidget(
-      MaterialApp.router(
-        routerConfig: router,
-        locale: const Locale('zh'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        theme: gfThemeData(Brightness.light),
+      ProviderScope(
+        child: MaterialApp.router(
+          routerConfig: router,
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: gfThemeData(Brightness.light),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -435,17 +440,19 @@ void main() {
       'de': 'Ohne Titel',
     }.entries) {
       await tester.pumpWidget(
-        MaterialApp(
-          locale: Locale(entry.key),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: GfTopicList(
-              loading: false,
-              topics: [topic],
-              feedMode: GfTopicFeedMode.card,
-              hasMore: false,
-              onLoadMore: () {},
+        ProviderScope(
+          child: MaterialApp(
+            locale: Locale(entry.key),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: GfTopicList(
+                loading: false,
+                topics: [topic],
+                feedMode: GfTopicFeedMode.card,
+                hasMore: false,
+                onLoadMore: () {},
+              ),
             ),
           ),
         ),
@@ -520,30 +527,32 @@ void main() {
     final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
     final topic = home.topics.first;
     await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('de'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: MediaQuery(
-          data: const MediaQueryData(
-            size: Size(320, 640),
-            textScaler: TextScaler.linear(2),
-          ),
-          child: Scaffold(
-            body: GfTopicList(
-              collapsePinned: true,
-              feedMode: GfTopicFeedMode.card,
-              loading: false,
-              topics: [
-                for (var i = 1; i <= 5; i++)
-                  topic.copyWith(
-                    id: i,
-                    title: 'Ein sehr langer angehefteter Beitragstitel $i',
-                    pinWeight: i,
-                  ),
-              ],
-              hasMore: false,
-              onLoadMore: () {},
+      ProviderScope(
+        child: MaterialApp(
+          locale: const Locale('de'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 640),
+              textScaler: TextScaler.linear(2),
+            ),
+            child: Scaffold(
+              body: GfTopicList(
+                collapsePinned: true,
+                feedMode: GfTopicFeedMode.card,
+                loading: false,
+                topics: [
+                  for (var i = 1; i <= 5; i++)
+                    topic.copyWith(
+                      id: i,
+                      title: 'Ein sehr langer angehefteter Beitragstitel $i',
+                      pinWeight: i,
+                    ),
+                ],
+                hasMore: false,
+                onLoadMore: () {},
+              ),
             ),
           ),
         ),
@@ -575,23 +584,25 @@ void main() {
     for (final locale in AppLocalizations.supportedLocales) {
       final l10n = await AppLocalizations.delegate.load(locale);
       await tester.pumpWidget(
-        MaterialApp(
-          key: ValueKey(locale),
-          locale: locale,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: MediaQuery(
-            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
-            child: Scaffold(
-              body: GfTopicList(
-                collapsePinned: true,
-                loading: false,
-                topics: [
-                  topic.copyWith(id: 1, title: 'Pinned one', pinWeight: 1),
-                  topic.copyWith(id: 2, title: 'Pinned two', pinWeight: 2),
-                ],
-                hasMore: false,
-                onLoadMore: () {},
+        ProviderScope(
+          child: MaterialApp(
+            key: ValueKey(locale),
+            locale: locale,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: MediaQuery(
+              data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+              child: Scaffold(
+                body: GfTopicList(
+                  collapsePinned: true,
+                  loading: false,
+                  topics: [
+                    topic.copyWith(id: 1, title: 'Pinned one', pinWeight: 1),
+                    topic.copyWith(id: 2, title: 'Pinned two', pinWeight: 2),
+                  ],
+                  hasMore: false,
+                  onLoadMore: () {},
+                ),
               ),
             ),
           ),
@@ -603,13 +614,21 @@ void main() {
         RegExp(RegExp.escape(l10n.homePinnedTopics(2))),
       );
       expect(
-        tester.getSemantics(label).getSemanticsData().flagsCollection.isExpanded,
+        tester
+            .getSemantics(label)
+            .getSemanticsData()
+            .flagsCollection
+            .isExpanded,
         ui.Tristate.isFalse,
       );
       await tester.tap(line);
       await tester.pumpAndSettle();
       expect(
-        tester.getSemantics(label).getSemanticsData().flagsCollection.isExpanded,
+        tester
+            .getSemantics(label)
+            .getSemanticsData()
+            .flagsCollection
+            .isExpanded,
         ui.Tristate.isTrue,
       );
       expect(find.text('Pinned two'), findsOneWidget);
@@ -622,16 +641,18 @@ void main() {
   // issue #895：无标题瞬间的列表行要与 Web TopicRow/SSR 一致，始终有可识别的行标题。
   Future<void> pumpList(WidgetTester tester, TopicPayload topic) async {
     await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('zh'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: GfTopicList(
-            loading: false,
-            topics: [topic],
-            hasMore: false,
-            onLoadMore: () {},
+      ProviderScope(
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: GfTopicList(
+              loading: false,
+              topics: [topic],
+              hasMore: false,
+              onLoadMore: () {},
+            ),
           ),
         ),
       ),
@@ -711,17 +732,19 @@ void main() {
     );
     Future<void> pump(String? reason) async {
       await tester.pumpWidget(
-        MaterialApp(
-          locale: const Locale('zh'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: GfTopicList(
-              loading: false,
-              topics: [home.topics.first.copyWith(feedReason: reason)],
-              feedMode: GfTopicFeedMode.card,
-              hasMore: false,
-              onLoadMore: () {},
+        ProviderScope(
+          child: MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: GfTopicList(
+                loading: false,
+                topics: [home.topics.first.copyWith(feedReason: reason)],
+                feedMode: GfTopicFeedMode.card,
+                hasMore: false,
+                onLoadMore: () {},
+              ),
             ),
           ),
         ),
@@ -765,17 +788,19 @@ void main() {
       ],
     );
     await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('zh'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: GfTopicList(
-            loading: false,
-            topics: [topic],
-            feedMode: GfTopicFeedMode.list,
-            hasMore: false,
-            onLoadMore: () {},
+      ProviderScope(
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: GfTopicList(
+              loading: false,
+              topics: [topic],
+              feedMode: GfTopicFeedMode.list,
+              hasMore: false,
+              onLoadMore: () {},
+            ),
           ),
         ),
       ),
@@ -792,6 +817,139 @@ void main() {
     expect(avatar.frameColors, isEmpty);
   });
 
+  testWidgets('anonymous authors keep their existing card targets', (
+    tester,
+  ) async {
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    final persona = home.topics.first.copyWith(
+      author: home.topics.first.author.copyWith(publicUid: 'p-7'),
+    );
+    final legacy = home.topics.first.copyWith(
+      id: 101,
+      title: 'legacy anonymous',
+      author: const UserBriefPayload(id: 0, username: 'ghost', avatarUrl: ''),
+    );
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => Scaffold(
+            body: GfTopicList(
+              loading: false,
+              topics: [persona, legacy],
+              feedMode: GfTopicFeedMode.card,
+              hasMore: false,
+              onLoadMore: () {},
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/a/:uid',
+          builder: (_, state) =>
+              Scaffold(body: Text('persona ${state.pathParameters['uid']}')),
+        ),
+        GoRoute(
+          path: '/p/:id',
+          builder: (_, state) =>
+              Scaffold(body: Text('topic ${state.pathParameters['id']}')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          routerConfig: router,
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final cards = find.byType(GfTopicCard);
+    // A persona's avatar and name both open its independent profile.
+    await tester.tap(
+      find.descendant(of: cards.first, matching: find.byType(GfAvatar)),
+    );
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/a/p-7');
+    router.pop();
+    await tester.pumpAndSettle();
+    // A legacy anonymous avatar opens nothing, so the tap reaches the card.
+    await tester.tap(
+      find.descendant(of: cards.last, matching: find.byType(GfAvatar)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(UserProfilePreview), findsNothing);
+    expect(router.state.uri.path, '/p/101');
+  });
+
+  for (final mode in GfTopicFeedMode.values) {
+    testWidgets('a topic deleted this session leaves the ${mode.name} feed', (
+      tester,
+    ) async {
+      final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+      final kept = home.topics.first.copyWith(id: 101, title: 'kept topic');
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: GfTopicList(
+                loading: false,
+                topics: [home.topics.first, kept],
+                feedMode: mode,
+                hasMore: false,
+                onLoadMore: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('移动端测试话题'), findsOneWidget);
+      container.read(removedTopicsProvider.notifier).add(100);
+      await tester.pumpAndSettle();
+      expect(find.text('移动端测试话题'), findsNothing);
+      expect(find.text('kept topic'), findsOneWidget);
+    });
+  }
+
+  testWidgets('feed cards outside GfTopicList drop a deleted topic too', (
+    tester,
+  ) async {
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ListView(
+                children: [buildTopicFeedCard(context, home.topics.first)],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(GfTopicCard), findsOneWidget);
+    container.read(removedTopicsProvider.notifier).add(100);
+    await tester.pumpAndSettle();
+    expect(find.byType(GfTopicCard), findsNothing);
+  });
   // issue #1304：列表行与卡片把摘要里的 `[:sticker:name:]` 渲染为图片，
   // 未识别/停用的 token 直接省略而不再以原文出现（MADR 0030 共享解析）。
   group('feed excerpts render stickers', () {
@@ -804,7 +962,7 @@ void main() {
       final library = StickerLibrary(catalog ?? _StickerCatalog([_smile]));
       addTearDown(library.dispose);
       await tester.pumpWidget(
-        MaterialApp(
+        ProviderScope(child: MaterialApp(
           locale: const Locale('zh'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -818,7 +976,7 @@ void main() {
               onLoadMore: () {},
             ),
           ),
-        ),
+        )),
       );
       await tester.pumpAndSettle();
       return library;
@@ -839,7 +997,7 @@ void main() {
         .first
         .copyWith(id: 7, title: '', description: '置顶 [:sticker:smile:]');
     await tester.pumpWidget(
-      MaterialApp(
+      ProviderScope(child: MaterialApp(
         locale: const Locale('zh'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
@@ -854,7 +1012,7 @@ void main() {
             onLoadMore: () {},
           ),
         ),
-      ),
+      )),
     );
     await tester.pumpAndSettle();
     // 置顶条是小字视图：贴纸显示 [名字]，不发图片。
@@ -1023,7 +1181,7 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        MaterialApp(
+        ProviderScope(child: MaterialApp(
           locale: const Locale('zh'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -1035,7 +1193,7 @@ void main() {
               onLoadMore: () {},
             ),
           ),
-        ),
+        )),
       );
       await tester.pumpAndSettle();
 

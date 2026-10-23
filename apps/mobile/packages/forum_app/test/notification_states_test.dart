@@ -6,10 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
+import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/pages/notifications/notifications_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
 import 'package:forum_app/src/widgets/status_views.dart';
+import 'package:forum_app/src/widgets/user_profile_preview.dart';
+import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'fixtures/page_fixtures.dart';
@@ -30,6 +33,16 @@ class _Pages extends PageRepository {
   @override
   Future<PagePayload> fetch(String path, {CancelToken? cancelToken}) async =>
       parsePayload(homePayloadJson());
+}
+
+class _Users extends UserRepository {
+  _Users() : super(_client());
+  final cards = <int>[];
+  @override
+  Future<UserCardPayload> getUserCard(int userId) async {
+    cards.add(userId);
+    throw StateError('offline');
+  }
 }
 
 class _Notifications extends NotificationRepository {
@@ -295,6 +308,109 @@ void main() {
       tester.widget<GfNotificationRow>(find.byType(GfNotificationRow)).title,
       contains('existing'),
     );
+  });
+
+  testWidgets('actor avatar previews the profile; the name opens it (D-4)', (
+    tester,
+  ) async {
+    final repo = _Notifications();
+    final users = _Users();
+    final container = ProviderContainer(
+      overrides: [
+        notificationRepositoryProvider.overrideWithValue(repo),
+        tokenStorageProvider.overrideWithValue(_Tokens()),
+        pageRepositoryProvider.overrideWithValue(_Pages()),
+        userRepositoryProvider.overrideWithValue(users),
+        currentUserProvider.overrideWith((_) async => null),
+      ],
+    );
+    addTearDown(container.dispose);
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const NotificationsPage()),
+        GoRoute(
+          path: '/u/:id',
+          builder: (_, state) =>
+              Scaffold(body: Text('profile ${state.pathParameters['id']}')),
+        ),
+        GoRoute(
+          path: '/a/:uid',
+          builder: (_, state) =>
+              Scaffold(body: Text('persona ${state.pathParameters['uid']}')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          routerConfig: router,
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+        ),
+      ),
+    );
+    await tester.pump();
+    final member = _page('ignored').items.single.copyWith(
+      eventType: 'comment',
+      actor: const NotificationActorPayload(
+        id: 77,
+        username: 'Alice',
+        avatarUrl: '',
+      ),
+      payload: const NotificationInnerPayload(
+        actorId: 77,
+        templateKey: 'notifications.templates.like',
+      ),
+    );
+    final persona = member.copyWith(
+      id: 2,
+      actor: const NotificationActorPayload(
+        id: 0,
+        publicUid: 'p-9',
+        username: 'Maple',
+        avatarUrl: '',
+      ),
+      payload: const NotificationInnerPayload(
+        actorId: 0,
+        templateKey: 'notifications.templates.like',
+      ),
+    );
+    repo.requests.first.$3.complete(
+      NotificationListResponse(
+        items: [member, persona],
+        nextCursor: 0,
+        hasNext: false,
+        unreadCount: 2,
+      ),
+    );
+    await tester.pumpAndSettle();
+    final rows = find.byType(GfNotificationRow);
+    await tester.tap(
+      find.descendant(of: rows.first, matching: find.byType(GfAvatar)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(UserProfilePreview), findsOneWidget);
+    expect(users.cards, [77]);
+    expect(router.state.uri.path, '/');
+    Navigator.of(tester.element(find.byType(UserProfilePreview))).pop();
+    await tester.pumpAndSettle();
+    await tester.tapOnText(find.textRange.ofSubstring('Alice'));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/u/77');
+    router.pop();
+    await tester.pumpAndSettle();
+    // Personas keep opening their independent profile from the avatar.
+    await tester.tap(
+      find.descendant(of: rows.last, matching: find.byType(GfAvatar)),
+    );
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/a/p-9');
+    expect(find.byType(UserProfilePreview), findsNothing);
+    // Profile targets never acknowledge the notification.
+    expect(repo.markOne, isEmpty);
   });
 
   testWidgets(

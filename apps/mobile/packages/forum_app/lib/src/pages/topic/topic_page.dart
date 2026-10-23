@@ -1521,10 +1521,6 @@ class _TopicPageState extends ConsumerState<TopicPage>
     await _reportTarget(targetType: 'post', targetId: post.id);
   }
 
-  Future<void> _reportTopic(TopicDetailPayload topic) async {
-    await _reportTarget(targetType: 'topic', targetId: topic.id);
-  }
-
   Future<void> _reportTarget({
     required String targetType,
     required int targetId,
@@ -1736,7 +1732,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
           if (!_fromCache && _page.valueOrNull != null)
             TopicActions(
               props: _page.valueOrNull!,
-              firstPostId: _mainPost(_posts)?.id,
+              firstPost: _mainPost(_posts),
               onChanged: () => _load(silent: true, postNo: _currentFloor),
             ),
         ],
@@ -1799,11 +1795,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                 titleKey: _titleKey,
                                 topic: props.topic,
                                 mainPost: mainPost,
-                                canReportTopic:
-                                    _topicAvailable &&
-                                    !props.permissions.isOwnTopic,
                                 isOwnTopic: props.permissions.isOwnTopic,
-                                onReportTopic: () => _reportTopic(props.topic),
                               ),
                             ),
                             const SliverToBoxAdapter(child: GfDivider()),
@@ -2274,17 +2266,13 @@ class _TopicHeader extends StatelessWidget {
     required this.titleKey,
     required this.topic,
     required this.mainPost,
-    required this.canReportTopic,
     required this.isOwnTopic,
-    required this.onReportTopic,
   });
 
   final Key titleKey;
   final TopicDetailPayload topic;
   final PostPayload? mainPost;
-  final bool canReportTopic;
   final bool isOwnTopic;
-  final VoidCallback onReportTopic;
 
   @override
   Widget build(BuildContext context) {
@@ -2383,16 +2371,6 @@ class _TopicHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              if (canReportTopic) ...<Widget>[
-                const SizedBox(width: 4),
-                GfIconButton(
-                  symbol: 'flag',
-                  size: 44,
-                  iconSize: 20,
-                  tooltip: l10n.topicReport,
-                  onPressed: onReportTopic,
-                ),
-              ],
             ],
           ),
           if (topic.categories.isNotEmpty) ...<Widget>[

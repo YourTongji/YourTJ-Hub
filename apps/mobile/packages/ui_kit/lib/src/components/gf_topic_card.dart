@@ -64,6 +64,7 @@ class GfTopicCard extends StatefulWidget {
     this.likeCount = 0,
     this.onTap,
     this.onAuthorTap,
+    this.onAvatarTap,
     this.imageSemanticLabelBuilder,
     this.onSaveImage,
     this.saveImageLabel = 'Save image',
@@ -106,6 +107,7 @@ class GfTopicCard extends StatefulWidget {
   final int likeCount;
   final VoidCallback? onTap;
   final VoidCallback? onAuthorTap;
+  final VoidCallback? onAvatarTap;
   final String Function(int index, int count)? imageSemanticLabelBuilder;
   final Future<void> Function(String imageUrl)? onSaveImage;
   final String saveImageLabel;
@@ -445,10 +447,10 @@ class _GfTopicCardState extends State<GfTopicCard> {
         Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Semantics(
-            button: widget.onAuthorTap != null,
+            button: (widget.onAvatarTap ?? widget.onAuthorTap) != null,
             label: widget.authorName,
             child: InkWell(
-              onTap: widget.onAuthorTap,
+              onTap: widget.onAvatarTap ?? widget.onAuthorTap,
               borderRadius: BorderRadius.circular(24),
               child: SizedBox(
                 width: 44,
