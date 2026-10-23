@@ -141,14 +141,21 @@ func Save(entity *EntityComplete) error {
 // overwrite a concurrent password change or token-version increment.
 func UpdateFields(userID uint64, fields map[string]any) error {
 	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&EntityComplete{}).Where("id = ?", userID).Updates(fields).Error; err != nil {
-			return err
-		}
-		if _, changes := fields["is_frozen"]; changes {
-			return feed.MarkActorTx(tx, userID)
-		}
-		return nil
+		return UpdateFieldsTx(tx, userID, fields)
 	})
+}
+
+// UpdateFieldsTx is UpdateFields inside the caller's transaction, so a profile
+// edit and its side records commit or roll back together. The caller invalidates
+// the user caches after commit.
+func UpdateFieldsTx(tx *gorm.DB, userID uint64, fields map[string]any) error {
+	if err := tx.Model(&EntityComplete{}).Where("id = ?", userID).Updates(fields).Error; err != nil {
+		return err
+	}
+	if _, changes := fields["is_frozen"]; changes {
+		return feed.MarkActorTx(tx, userID)
+	}
+	return nil
 }
 
 func UpdateWornBadgeCode(userID uint64, badgeCode string) error {

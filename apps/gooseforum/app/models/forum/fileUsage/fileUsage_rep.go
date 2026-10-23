@@ -15,15 +15,27 @@ func Create(entity *Entity) error {
 // CreateIfAbsent inserts the usage row unless an identical row already exists
 // (unique index on target_type/target_id/usage_type/file_name).
 func CreateIfAbsent(entity *Entity) error {
-	return builder().Clauses(clause.OnConflict{DoNothing: true}).Create(entity).Error
+	_, err := CreateIfAbsentTx(builder(), entity)
+	return err
 }
 
-func ReplaceTargetUsages(targetType string, targetId uint64, usageTypes []string, usages []Entity) error {
+// CreateIfAbsentTx is CreateIfAbsent on the caller's transaction, so content and
+// its file reference commit atomically. It returns the inserted row count (0 when
+// an identical row already existed).
+func CreateIfAbsentTx(tx *gorm.DB, entity *Entity) (int64, error) {
+	result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(entity)
+	return result.RowsAffected, result.Error
+}
+
+// ReplaceTargetUsagesTx replaces one target's usage rows of the given types inside
+// the caller's transaction, so a reference replacement and its content write commit
+// or roll back together: a failure between the delete and the insert must not leave
+// live content with no reference (orphan cleanup would then delete its bytes).
+func ReplaceTargetUsagesTx(tx *gorm.DB, targetType string, targetId uint64, usageTypes []string, usages []Entity) error {
 	if len(usageTypes) == 0 {
 		return nil
 	}
-	db := builder()
-	if err := db.
+	if err := tx.
 		Where(queryopt.Eq("target_type", targetType)).
 		Where(queryopt.Eq("target_id", targetId)).
 		Where(queryopt.In("usage_type", usageTypes)).
@@ -33,7 +45,18 @@ func ReplaceTargetUsages(targetType string, targetId uint64, usageTypes []string
 	if len(usages) == 0 {
 		return nil
 	}
-	return db.Create(&usages).Error
+	return tx.Create(&usages).Error
+}
+
+// ListTargetUsagesTx returns a target's usage rows of one type inside the caller's
+// transaction.
+func ListTargetUsagesTx(tx *gorm.DB, targetType string, targetId uint64, usageType string) (rows []Entity, err error) {
+	err = tx.Table(tableName).
+		Where(queryopt.Eq("target_type", targetType)).
+		Where(queryopt.Eq("target_id", targetId)).
+		Where(queryopt.Eq("usage_type", usageType)).
+		Find(&rows).Error
+	return rows, err
 }
 
 // DeleteTargetUsages removes one usage type's rows for a target (e.g. a
@@ -110,13 +133,46 @@ func MarkTargetPurged(targetType string, targetId uint64) error {
 // This lets public file serving distinguish legacy untracked uploads from a
 // tracked file whose content references have all been revoked. upload_owner
 // rows are ownership-audit records (not content references) and are excluded.
+// It swallows query errors; callers that delete bytes must use
+// HasAnyReferencesErr so a failed lookup never reads as "no references".
 func HasAnyReferences(fileName string) bool {
+	referenced, _ := HasAnyReferencesErr(fileName)
+	return referenced
+}
+
+// HasAnyReferencesErr is HasAnyReferences with error reporting.
+func HasAnyReferencesErr(fileName string) (bool, error) {
 	var count int64
-	builder().
+	err := builder().
 		Where(queryopt.Eq("file_name", fileName)).
 		Where(queryopt.Ne("usage_type", UsageUploadOwner)).
-		Count(&count)
-	return count > 0
+		Count(&count).Error
+	return count > 0, err
+}
+
+// ListUnreferencedUploadOwners returns file names that carry an upload_owner
+// row and no other usage row, oldest ownership row first (issue #1365): uploaded
+// but never referenced by any content, i.e. reclaimable orphan candidates.
+func ListUnreferencedUploadOwners(limit int) (names []string, err error) {
+	err = builder().
+		Where(queryopt.Eq("usage_type", UsageUploadOwner)).
+		Where("NOT EXISTS (SELECT 1 FROM "+tableName+" AS ref WHERE ref.file_name = "+tableName+".file_name AND ref.usage_type <> ?)", UsageUploadOwner).
+		Order(queryopt.Asc("created_at")).
+		Limit(limit).
+		Pluck("file_name", &names).Error
+	return names, err
+}
+
+// DeleteUploadOwnerRows removes the ownership rows of the given files (reclaimed
+// uploads, or stale rows whose file row is already gone).
+func DeleteUploadOwnerRows(fileNames []string) error {
+	if len(fileNames) == 0 {
+		return nil
+	}
+	return builder().
+		Where(queryopt.Eq("usage_type", UsageUploadOwner)).
+		Where(queryopt.In("file_name", fileNames)).
+		Delete(&Entity{}).Error
 }
 
 // ListExpiredRecovering 返回超过恢复窗口仍未决的附件引用，供清理任务执行。

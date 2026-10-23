@@ -44,14 +44,17 @@ func GetFileByFileName(c *gin.Context) {
 		c.Status(http.StatusServiceUnavailable)
 		return
 	}
+	// 只有已登记 usage、又不构成公开授权的文件才判权。完全没有 usage 行的历史文件
+	// （迁移前的帖子图片等）没有 upload_owner 行，保持公开可读；头像、官方贴纸、装扮／
+	// 徽章资源有各自的公开引用，个人贴纸在审核通过前是 PENDING（同样不公开）。
 	if access.Tracked && !access.Public {
 		c.Header("Cache-Control", "private, no-store")
 		privatePreview := false
 		if access.Pending {
 			privatePreview = canPreviewPendingFile(c, referenceName)
 		} else if !access.Content && access.UploadOwnerID != 0 {
-			userID, _, _, valid := authsessionservice.ValidateToken(jwtopt.GetGinAccessToken(c))
-			privatePreview = valid && userID == access.UploadOwnerID
+			// 已上传但从未被任何内容引用（issue #1365）：只对上传者本人可见。
+			privatePreview = previewUserID(c) == access.UploadOwnerID
 		}
 		if !privatePreview {
 			c.JSON(http.StatusNotFound, gin.H{"error": "File not found", "messageCode": component.MessagePageNotFound})
@@ -89,11 +92,20 @@ func GetFileByFileName(c *gin.Context) {
 	c.Data(http.StatusOK, contentType, entity.Data)
 }
 
-// canPreviewPendingFile 待审图片的授权预览：仅在文件已处于待审状态时才解析会话
-// （不刷新令牌、不记活跃），普通公开图片读取路径不受影响。
-func canPreviewPendingFile(c *gin.Context, referenceName string) bool {
+// previewUserID 解析授权预览的会话用户，匿名或无效令牌返回 0。只在私有读取
+// 分支调用（不刷新令牌、不记活跃），普通公开图片读取路径不受影响。
+func previewUserID(c *gin.Context) uint64 {
 	userID, _, _, ok := authsessionservice.ValidateToken(jwtopt.GetGinAccessToken(c))
-	if !ok || userID == 0 {
+	if !ok {
+		return 0
+	}
+	return userID
+}
+
+// canPreviewPendingFile 待审图片的授权预览：仅在有权限的会话下放行。
+func canPreviewPendingFile(c *gin.Context, referenceName string) bool {
+	userID := previewUserID(c)
+	if userID == 0 {
 		return false
 	}
 	if owner := filedata.GetByName(referenceName); owner.Id != 0 && owner.UserId == userID {

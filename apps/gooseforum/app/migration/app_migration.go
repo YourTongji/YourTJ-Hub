@@ -505,6 +505,20 @@ func runVersionedDataMigrations() error {
 		slog.Info("app migration topic excerpt backfilled", "updated", result.Updated, "skipped", result.Skipped)
 		currentVersion = 36
 	}
+	if currentVersion < 37 {
+		// 历史私信媒体/个人封面补登附件引用（issue #1365）：这些内容只存 URL，没有引用
+		// 时既对读者不可见，又会被孤儿回收任务当成未引用的上传删除。必须在清理任务
+		// 把它们当成孤儿之前跑完。
+		result := datamigration.BackfillFileUsagesChatCover()
+		if result.Failed > 0 {
+			return dataMigrationError("chat media and cover file usages", 37, result.Failed, result.LastFailed)
+		}
+		if err := pageConfig.SyncMigrationVersion(37); err != nil {
+			return err
+		}
+		slog.Info("app migration chat media and cover file usages backfilled", "processed", result.Processed, "inserted", result.Inserted)
+		currentVersion = 37
+	}
 	slog.Info("app migration end", "version", currentVersion, "searchIndexVersion", searchIndexVersion)
 	if searchIndexVersion < pageConfig.SearchIndexMigrationVersion {
 		// 数据迁移已跑完，但索引步骤仍在等 Meilisearch（索引是可重建投影）。

@@ -7,6 +7,7 @@ import (
 	"path"
 	"strings"
 
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
@@ -127,6 +128,80 @@ func ReplaceAvatar(userId uint64, fileNames []string) {
 	replace(fileUsage.TargetUser, userId, []string{fileUsage.UsageAvatar}, userId, namesToUsages(fileNames, fileUsage.UsageAvatar), false)
 }
 
+// CoverRef 是封面 URL 解析后的结果：对象名 + 归属判定。解析必须在事务外完成，事务里
+// 只允许通过 tx 读写 file_usages/users。
+type CoverRef struct {
+	Name  string
+	Owned bool
+}
+
+// ResolveCover 解析封面 URL 并判定归属（issue #1365）。它读取存储配置缓存与文件库，必须
+// 在任何事务之外调用：这些读会借第二条连接，在事务内执行会与持连接的外层事务互锁（SQLite
+// 单连接测试直接死锁，生产是连接池/锁序风险）。查询失败返回错误，不能把「读不到归属」
+// 当成「没有归属」——那会静默吊销封面引用。
+func ResolveCover(userId uint64, coverURL string, ownerIDs ...uint64) (CoverRef, error) {
+	name := FileNameFromURL(coverURL)
+	if name == "" || len(name) > 512 {
+		return CoverRef{}, nil
+	}
+	owned, err := coveredByOwner(userId, ownerIDs, name)
+	if err != nil {
+		return CoverRef{}, err
+	}
+	return CoverRef{Name: name, Owned: owned}, nil
+}
+
+// ReplaceCoverTx 用 ResolveCover 的结果替换封面的 ACTIVE 引用，必须与写入
+// users.profile_cover_url 同一事务（否则 URL 可能落库而引用没写成）。空引用清空旧行
+// （换下的旧封面随即可回收）；封面未变化时保留现有引用、不做归属校验（代管管理员 A
+// 上传的封面，B 再保存其他字段时不能被吊销）。
+func ReplaceCoverTx(tx *gorm.DB, userId uint64, ref CoverRef) error {
+	if ref.Name == "" {
+		return replaceTx(tx, fileUsage.TargetUser, userId, []string{fileUsage.UsageCover}, userId, nil, false)
+	}
+	existing, err := fileUsage.ListTargetUsagesTx(tx, fileUsage.TargetUser, userId, fileUsage.UsageCover)
+	if err != nil {
+		return err
+	}
+	if len(existing) == 1 && existing[0].FileName == ref.Name && existing[0].Status == fileUsage.UsageStatusActive {
+		return nil
+	}
+	var usages []Usage
+	if ref.Owned {
+		usages = []Usage{{FileName: ref.Name, UsageType: fileUsage.UsageCover}}
+	}
+	return replaceTx(tx, fileUsage.TargetUser, userId, []string{fileUsage.UsageCover}, userId, usages, false)
+}
+
+// coveredByOwner 校验封面文件属于目标用户本人或代管操作者。查询失败必须返回错误：
+// 读不到归属就把引用当成不存在，会让封面被静默吊销。
+func coveredByOwner(userId uint64, ownerIDs []uint64, name string) (bool, error) {
+	owned, err := ownedReadyFile(userId, name)
+	if err != nil || owned {
+		return owned, err
+	}
+	for _, ownerID := range ownerIDs {
+		if ownerID == 0 || ownerID == userId {
+			continue
+		}
+		if owned, err := ownedReadyFile(ownerID, name); err != nil || owned {
+			return owned, err
+		}
+	}
+	return false, nil
+}
+
+// ownedReadyFile 校验对象名对应本人上传的 ready 文件：只有这样的文件才能成为内容引用，
+// 否则可以借引用固定、或让回收链动到别人的文件（口径同 FilterOwnedImageURLs）。只读元数据，
+// 不拉 content BLOB。
+func ownedReadyFile(userID uint64, name string) (bool, error) {
+	file, err := filedata.GetFileMetadataByName(name)
+	if err != nil || file == nil {
+		return false, err
+	}
+	return file.StorageStatus == filedata.StorageStatusReady && file.UserId == userID, nil
+}
+
 func AddAdminUpload(userId uint64, fileName string) {
 	name := fileNameFromURL(fileName)
 	if name == "" {
@@ -195,7 +270,18 @@ func namesToUsages(values []string, usageType string) []Usage {
 	return usages
 }
 
+// replace 在独立事务里替换引用；错误只记日志（内容写入侧不因附件登记失败而失败）。
 func replace(targetType string, targetId uint64, usageTypes []string, userId uint64, usages []Usage, pending bool) {
+	err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		return replaceTx(tx, targetType, targetId, usageTypes, userId, usages, pending)
+	})
+	if err != nil {
+		slog.Error("replace file usages failed", "targetType", targetType, "targetId", targetId, "err", err)
+	}
+}
+
+// replaceTx 与 replace 相同，但在调用方事务里执行（失败随事务回滚）。
+func replaceTx(tx *gorm.DB, targetType string, targetId uint64, usageTypes []string, userId uint64, usages []Usage, pending bool) error {
 	status := fileUsage.UsageStatusActive
 	if pending {
 		status = fileUsage.UsageStatusPending
@@ -214,9 +300,7 @@ func replace(targetType string, targetId uint64, usageTypes []string, userId uin
 			Status:     status,
 		})
 	}
-	if err := fileUsage.ReplaceTargetUsages(targetType, targetId, usageTypes, rows); err != nil {
-		slog.Error("replace file usages failed", "targetType", targetType, "targetId", targetId, "err", err)
-	}
+	return fileUsage.ReplaceTargetUsagesTx(tx, targetType, targetId, usageTypes, rows)
 }
 
 func fileNameFromURL(value string) string {

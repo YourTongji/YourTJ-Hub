@@ -53,8 +53,14 @@ This policy governs the application read route. A public bucket or `publicUrlPre
 it needs its own access controls. Referer filtering is not an authorization mechanism and is not
 implemented by this route.
 
-`Partial`: unreferenced uploads are private, but automatic orphan-file expiry/deletion is not
-implemented. This policy does not delete stored bytes or change legacy-file retention.
+`Current`: ready uploads that never enter a content reference stay uploader-only and are removed by a
+daily job after `OrphanUploadTTL` (7 days) together with their ownership row and image variants; the
+job re-checks references immediately before deleting and keeps the file on a lookup error. Chat image/
+voice messages and profile covers register their own `ACTIVE` references, so they are publicly readable
+and never reclaimed (chat media has no recall path; re-saving an unchanged cover keeps its reference),
+and historical ones get those references once from app data migration v37 before the job can see them;
+files without any usage row keep legacy public reads. Only uploads that never
+completed are subject to the 2-hour rule below.
 
 ### 内网 Endpoint（可选）
 
@@ -148,8 +154,11 @@ VPC 内解析（解析结果形如 `100.100.2.136` / `100.100.2.138` 等 100.100
 先下载图片来探测比例。
 
 **未完成上传的清理**：超过 2 小时仍未 complete 的待发布对象由服务端清理任务移除
-（abort 失败可忽略，清理任务兜底）。`upload_owner` 归属记录是审计用途，不参与附件
-生命周期（内容删除后的可见性/物理清理以内容引用为准）。
+（abort 失败可忽略，清理任务兜底）。`upload_owner` 归属记录仍是审计用途，内容删除后的
+可见性与物理清理仍以内容引用为准；但它另外决定孤儿上传的两个行为：
+上传后从未进入任何内容引用的文件只对上传者本人可读（`Cache-Control: private, no-store`），
+并在上传 7 天后由每日清理任务连同归属记录一并删除（`OrphanUploadTTL`）；没有
+`upload_owner` 行的历史数据保持公开可读，避免老帖图片 404（[决策 0106](../decisions/0106-unreferenced-upload-read-and-reclamation.md)）。
 
 ## Bucket CORS
 

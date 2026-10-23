@@ -169,7 +169,7 @@ func GetPostingSettingsConfig(defaultValue PostingContent) PostingContent {
 	return config
 }
 
-const AppMigrationVersion uint32 = 36
+const AppMigrationVersion uint32 = 37
 
 // SearchIndexMigrationVersion 是搜索索引数据迁移（v13 聚合索引、v20 话题索引
 // 补 topicType）的目标水位。它与主水位分开存放：Meilisearch 是可选依赖，索引

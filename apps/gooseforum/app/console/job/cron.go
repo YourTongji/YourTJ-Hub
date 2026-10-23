@@ -181,6 +181,17 @@ func registerJobs() {
 		}
 	}))
 	slog.Info("reg decoration asset cleanup", "entryID", entryID, "err", err)
+	entryID, err = scheduler.AddFunc("19 3 * * *", upCmd(func() {
+		// 回收超过 7 天仍未被内容引用的上传（issue #1365）：这类文件只对上传者可见，
+		// 长期无人引用就是孤儿，删除对象与 upload_owner 行。
+		removed, cleanupErr := fileusageservice.CleanupOrphanUploads(context.Background(), time.Now().Add(-fileusageservice.OrphanUploadTTL), 200)
+		if cleanupErr != nil {
+			slog.Error("cleanup orphan uploads failed", "removed", removed, "err", cleanupErr)
+		} else if removed > 0 {
+			slog.Info("cleanup orphan uploads", "removed", removed)
+		}
+	}))
+	slog.Info("reg orphan upload cleanup", "entryID", entryID, "spec", "19 3 * * *", "err", err)
 	// wiki GitHub 同步：默认每日 03:00（可配 [wiki.git].schedule 覆盖）；
 	// 未配置 [wiki.git].repo 时 Sync 直接报错跳过（幂等，配置后重启即生效）。
 	wikiSpec := preferences.GetString("wiki.git.schedule", "0 3 * * *")
