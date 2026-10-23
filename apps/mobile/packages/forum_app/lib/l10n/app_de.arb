@@ -15,7 +15,7 @@
   "navHome": "Startseite",
   "navSearch": "Suchen",
   "navPublish": "Veröffentlichen",
-  "navMessages": "Nachrichten",
+  "navMessages": "Direktnachrichten",
   "navProfile": "Mein Profil",
   "commonCancel": "Abbrechen",
   "commonSave": "Speichern",
@@ -169,7 +169,7 @@
   "profileEmptyFollowing": "Folgt noch niemandem",
   "profileEmptyFollowers": "Noch keine Follower",
   "profileNotLoggedIn": "Nicht angemeldet",
-  "messagesTitle": "Nachrichten",
+  "messagesTitle": "Direktnachrichten",
   "messagesEmpty": "Noch keine Unterhaltungen",
   "messagesEmptyDescription": "Beginne eine Unterhaltung mit jemandem aus der Community.",
   "messagesSearchConversations": "Unterhaltungen suchen",
@@ -201,7 +201,7 @@
   "categoryTitle": "Kategorie",
   "settingsTitle": "Einstellungen",
   "settingsTabProfile": "Profil",
-  "settingsTabAccount": "Konto, Sicherheit und Datenschutz",
+  "settingsTabAccount": "Konto und Sicherheit",
   "settingsTabPrivacy": "Datenschutz",
   "settingsTabBinding": "Verknüpfungen",
   "settingsTabSecurity": "Sicherheit",
@@ -233,7 +233,7 @@
   "settingsBadgeUpdated": "Abzeichen aktualisiert",
   "settingsBadgeFailed": "Abzeichen konnte nicht aktualisiert werden: {error}",
   "settingsOAuth": "Verknüpfte Konten",
-  "settingsOAuthSub": "Anmeldung über GitHub und Google",
+  "settingsOAuthSub": "GitHub-, Google- und Apple-Anmeldungen",
   "settingsOAuthManage": "Kontoverknüpfungen verwalten",
   "settingsOAuthBindings": "Kontoverknüpfungen",
   "settingsBound": "Verknüpft",
@@ -260,7 +260,7 @@
   "settingsDarkMode": "Dunkler Modus",
   "settingsDarkCurrent": "Aktuell: dunkel",
   "settingsLightCurrent": "Aktuell: hell",
-  "settingsAbout": "Info",
+  "settingsAbout": "Über die Community",
   "settingsAboutVersion": "v0.1.0 · Campusforum der Tongji-Universität",
   "settingsEditProfile": "Profil bearbeiten",
   "settingsSignature": "Signatur",
@@ -489,7 +489,7 @@
   "publishImageOnlyTitle": "Ein Moment zum Teilen",
   "publishTypeLocked": "Beim Bearbeiten bleibt der ursprüngliche Typ erhalten",
   "profileMore": "Weitere Optionen",
-  "profileContent": "Inhalte verwalten",
+  "profileContent": "Meine Inhalte",
   "profileTrash": "Papierkorb",
   "profileSecurity": "Konto, Sicherheit und Datenschutz",
   "profileAdmin": "Administration",
@@ -1413,5 +1413,35 @@
   "previewStale": "Diese Vorschau ist nicht mehr der aktuelle Kandidat. Prüfe den Release-Status für die aktuelle Testversion oder die Rückkehr zur Produktivversion.",
   "previewStatusUnknown": "Der Vorschau-Status kann nicht geprüft werden. Frage vor dem Testen die verantwortliche Person.",
   "previewStatusLink": "Vorschau-Status",
-  "searchFilterInCatalog": "Im Kurskatalog filtern"
+  "searchFilterInCatalog": "Im Kurskatalog filtern",
+  "profileEditAddCover": "Titelbild hinzufügen",
+  "profileEditAddSocialLinks": "Soziale Links hinzufügen",
+  "profileEditAddWebsite": "Website hinzufügen",
+  "profileEditBasics": "Grundinformationen",
+  "profileEditBioHint": "Erzähle etwas über dich",
+  "profileEditChangeAvatar": "Profilbild ändern",
+  "profileEditChangeCover": "Titelbild ändern",
+  "profileEditDisplay": "Darstellung",
+  "profileEditDone": "Fertig",
+  "profileEditFromPhotos": "Aus Fotos auswählen",
+  "profileEditLinks": "Links",
+  "profileEditNicknameHint": "Dein Anzeigename",
+  "profileEditSignatureHint": "Kurze Signatur hinzufügen",
+  "profileEditSocialHint": "Benutzername oder HTTPS-Link",
+  "profileEditTakePhoto": "Foto aufnehmen",
+  "profileEditWebsiteUrl": "Website-URL",
+  "profileLanguageHint": "Sprache deines öffentlichen Profils, unabhängig von der App-Sprache.",
+  "profileEditBadgeSummary": "Getragen: {name} · {count} angezeigt",
+  "@profileEditBadgeSummary": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "contentMineTitle": "Meine Inhalte",
+  "settingsManageBadges": "Abzeichen verwalten"
 }

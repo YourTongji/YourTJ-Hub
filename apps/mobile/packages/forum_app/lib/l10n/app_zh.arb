@@ -15,7 +15,7 @@
   "navHome": "首页",
   "navSearch": "搜索",
   "navPublish": "发布",
-  "navMessages": "消息",
+  "navMessages": "私信",
   "navProfile": "我的",
   "commonCancel": "取消",
   "commonSave": "保存",
@@ -260,7 +260,7 @@
   "profileEmptyFollowing": "暂无关注",
   "profileEmptyFollowers": "暂无粉丝",
   "profileNotLoggedIn": "未登录",
-  "messagesTitle": "消息",
+  "messagesTitle": "私信",
   "messagesEmpty": "还没有私信会话",
   "messagesEmptyDescription": "从社区里找一个人开始聊聊。",
   "messagesSearchConversations": "搜索会话",
@@ -306,7 +306,7 @@
   "categoryTitle": "分类",
   "settingsTitle": "设置",
   "settingsTabProfile": "资料",
-  "settingsTabAccount": "账户、安全与隐私",
+  "settingsTabAccount": "账号与安全",
   "settingsTabPrivacy": "隐私",
   "settingsTabBinding": "绑定",
   "settingsTabSecurity": "安全",
@@ -373,7 +373,7 @@
     }
   },
   "settingsOAuth": "外部账号关联",
-  "settingsOAuthSub": "GitHub 与 Google 登录关联",
+  "settingsOAuthSub": "GitHub、Google 与 Apple 登录关联",
   "settingsOAuthManage": "OAuth 绑定管理",
   "settingsOAuthBindings": "OAuth 绑定管理",
   "settingsBound": "已绑定",
@@ -428,7 +428,7 @@
   "settingsDarkMode": "深色模式",
   "settingsDarkCurrent": "当前:深色",
   "settingsLightCurrent": "当前:浅色",
-  "settingsAbout": "关于",
+  "settingsAbout": "关于社区",
   "settingsAboutVersion": "版本 0.1.0 · 同济大学校园论坛",
   "settingsEditProfile": "编辑资料",
   "settingsSignature": "签名",
@@ -779,7 +779,7 @@
   "publishImageOnlyTitle": "分享此刻",
   "publishTypeLocked": "编辑已有帖子时保留原类型",
   "profileMore": "更多功能",
-  "profileContent": "内容管理",
+  "profileContent": "我的内容",
   "profileTrash": "回收站",
   "profileSecurity": "账户、安全与隐私",
   "profileAdmin": "管理工作台",
@@ -1762,5 +1762,35 @@
   "previewStale": "此预发版本已不是当前候选。请查看发布状态，获取当前测试版本或返回正式版。",
   "previewStatusUnknown": "暂时无法确认此预发版本的状态，测试前请与发布负责人核对。",
   "previewStatusLink": "预发状态",
-  "searchFilterInCatalog": "在课程目录中筛选"
+  "searchFilterInCatalog": "在课程目录中筛选",
+  "profileEditAddCover": "添加封面",
+  "profileEditAddSocialLinks": "添加社交链接",
+  "profileEditAddWebsite": "添加个人网站",
+  "profileEditBasics": "基本信息",
+  "profileEditBioHint": "介绍一下自己",
+  "profileEditChangeAvatar": "更换头像",
+  "profileEditChangeCover": "更换封面",
+  "profileEditDisplay": "展示",
+  "profileEditDone": "完成",
+  "profileEditFromPhotos": "从相册选择",
+  "profileEditLinks": "链接",
+  "profileEditNicknameHint": "填写昵称",
+  "profileEditSignatureHint": "添加一句签名",
+  "profileEditSocialHint": "用户名或 HTTPS 链接",
+  "profileEditTakePhoto": "拍照",
+  "profileEditWebsiteUrl": "网站地址",
+  "profileLanguageHint": "公开主页使用的语言，与 App 语言分开设置。",
+  "profileEditBadgeSummary": "佩戴：{name} · 展示 {count} 枚",
+  "@profileEditBadgeSummary": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "contentMineTitle": "我的内容",
+  "settingsManageBadges": "管理徽章"
 }

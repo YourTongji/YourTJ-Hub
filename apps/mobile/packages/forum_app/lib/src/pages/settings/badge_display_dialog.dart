@@ -15,10 +15,19 @@ class BadgeDisplayDialog extends StatefulWidget {
     required this.badges,
     required this.selected,
     required this.onSave,
+    this.wearableBadges = const [],
+    this.wornBadgeCode = '',
+    this.onWear,
+    this.onClose,
   });
   final List<UserBadgePayload> badges;
   final List<UserBadgePayload> selected;
   final Future<void> Function(List<String>) onSave;
+  final List<UserBadgePayload> wearableBadges;
+  final String wornBadgeCode;
+  final Future<void> Function(String)? onWear;
+  final ValueChanged<bool>? onClose;
+
   @override
   State<BadgeDisplayDialog> createState() => _BadgeDisplayDialogState();
 }
@@ -31,6 +40,10 @@ class _BadgeDisplayDialogState extends State<BadgeDisplayDialog> {
       .take(5)
       .toList();
   late final List<String> _codes = List.of(_initial);
+  late String _worn = widget.wornBadgeCode;
+  late String _savedWorn = widget.wornBadgeCode;
+  bool _wearAcknowledged = false;
+  bool get _dirty => _worn != _savedWorn || !listEquals(_initial, _codes);
   bool _saving = false, _allowPop = false, _closing = false;
   String? _error;
   void _move(int from, int to) {
@@ -47,15 +60,20 @@ class _BadgeDisplayDialogState extends State<BadgeDisplayDialog> {
   void _pop(bool saved) {
     setState(() => _allowPop = true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) Navigator.pop(context, saved);
+      if (mounted) {
+        if (widget.onClose != null) {
+          widget.onClose!(saved);
+        } else {
+          Navigator.pop(context, saved);
+        }
+      }
     });
   }
 
   Future<void> _close() async {
     if (_saving || _closing) return;
     _closing = true;
-    final leave =
-        listEquals(_initial, _codes) || await confirmDiscardEdit(context);
+    final leave = !_dirty || await confirmDiscardEdit(context);
     _closing = false;
     if (mounted && leave) _pop(false);
   }
@@ -67,7 +85,17 @@ class _BadgeDisplayDialogState extends State<BadgeDisplayDialog> {
       _error = null;
     });
     try {
-      await widget.onSave(List.of(_codes));
+      if (_worn != _savedWorn && widget.onWear != null) {
+        await widget.onWear!(_worn);
+        if (!mounted) return;
+        setState(() {
+          _savedWorn = _worn;
+          _wearAcknowledged = true;
+        });
+      }
+      if (widget.onWear == null || !listEquals(_initial, _codes)) {
+        await widget.onSave(List.of(_codes));
+      }
       if (mounted) _pop(true);
     } catch (error) {
       if (mounted) {
@@ -91,13 +119,13 @@ class _BadgeDisplayDialogState extends State<BadgeDisplayDialog> {
       ...widget.badges.where((b) => !_codes.contains(b.code)),
     ];
     return PopScope(
-      canPop: _allowPop || (!_saving && listEquals(_initial, _codes)),
+      canPop: _allowPop || (!_saving && !_dirty),
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _close();
       },
       child: Scaffold(
         appBar: GfAppBar(
-          title: GfText(l.badgeDisplayTitle),
+          title: GfText(l.settingsBadge),
           leading: IconButton(
             tooltip: l.commonBack,
             onPressed: _saving ? null : _close,
@@ -129,6 +157,41 @@ class _BadgeDisplayDialogState extends State<BadgeDisplayDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (widget.onWear != null) ...[
+                        GfText(
+                          l.settingsBadgePick,
+                          style: GfTheme.typographyOf(context).title3,
+                        ),
+                        RadioGroup<String>(
+                          groupValue: _worn,
+                          onChanged: (value) {
+                            if (!_saving && value != null) {
+                              setState(() => _worn = value);
+                            }
+                          },
+                          child: Column(
+                            children: [
+                              GfRadioListTile<String>(
+                                value: '',
+                                title: GfText(l.settingsBadgeNone),
+                              ),
+                              for (final badge in widget.wearableBadges)
+                                GfRadioListTile<String>(
+                                  value: badge.code,
+                                  title: GfText(badge.name),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                      GfText(
+                        l.badgeDisplayTitle,
+                        style: GfTheme.typographyOf(context).title3,
+                      ),
+                      const SizedBox(height: 8),
+                      if (_wearAcknowledged && _error != null)
+                        GfText(l.settingsProfilePartialSave(l.settingsBadge)),
                       GfText(
                         l.badgeDisplaySelectedCount(_codes.length),
                         style: GfTheme.typographyOf(context).title3,

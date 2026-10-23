@@ -151,7 +151,7 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   at 2×, and windows under 360 logical pixels tighten them one more step), inline code and code blocks are one step
   smaller, tables inherit the body size, and course reviews use the same profile at a compact
   ~15.5-pixel baseline. The first post supports text selection.
-- `Current`: Settings → Appearance → Text size opens a live preview page with two layered sliders
+- `Current`: Settings → Text size opens a live preview page with two layered sliders
   in 10% steps. App text (90%–130%) scales every text in the app, rich content included; reading
   text (80%–140%) then adjusts only rich content bodies — posts, Wiki and course reviews — on top of
   it. The preview is a small app screen built from the real components: tab bar, feed row, a post
@@ -400,7 +400,7 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
 - `Current`: profiles use a 3:1 cover (112–200 logical pixels tall), an overlapping avatar,
   trailing edit/follow/message actions, distinct name and handle, readable bio and inline statistics.
   Following and follower counts open the corresponding lists. Extra account tools, including course
-  reviews, remain in the profile menu. Profile and connection headers identify the viewed person.
+  reviews, are reached through the account drawer. Profile and connection headers identify the viewed person.
   Connection rows show a 48-pixel avatar, name, handle and up to three bio lines, with a pill follow
   action. Narrow layouts and enlarged text move the action below the bio. Follow actions serialize
   per person, update immediately and roll back on failure; late reads cannot overwrite local actions.
@@ -1199,8 +1199,26 @@ or production push delivery behavior. The shared business and privacy rules are 
 
 ## Profile and privacy
 
-- `Current`: account settings (Account, security & privacy, also on the Settings index) →
-  Privacy → Profile visibility lists the five profile sections with
+- `Current`: Settings separates Account & security (username, email, password, OAuth, two-factor,
+  passkeys, sessions and destructive account closure), Privacy (profile visibility, blocks and anonymous
+  identity) and Notifications. Appearance, text size, widgets, language and data/storage remain device
+  settings available to guests. Appearance has no duplicate text-size/widget entries. The sticker library
+  is available from the drawer and sticker panel. About uses the same community name in every entry.
+  Theme choices consistently order System, Light, Dark; sign-out is visually secondary to account closure.
+- `Current`: old `/settings/profile` links, including `?edit=1`, open the editor directly;
+  `/settings/binding` and `/settings/security` open Account & security. `/settings/privacy` retains
+  its data/storage meaning, also available at `/settings/data`; `/settings/privacy-controls` opens the
+  privacy group. `/settings/account` and `/settings/notifications` remain valid. The wide directory uses
+  these same groups. The icon-only shell labels its speech-bubble destination Direct messages in
+  tooltips and screen readers. Content management is consistently called My content.
+- `Current`: `/settings/badges` combines worn-badge choice and ordered profile display in one editor;
+  the own profile's badge stream links to it. Choices remain local until Save. Wear and display use
+  independent APIs; an acknowledged wear is retained after a display failure, and retry resumes display.
+  A wear-only save leaves automatic profile display selection untouched. Display inclusion, ordering
+  and the five-badge limit retain their existing rules.
+
+
+- `Current`: Settings → Privacy → Profile visibility lists the five profile sections with
   their saved audience, then a fixed, non-tappable bookmarks row reading "only you" with a lock
   in the chevron slot. Tapping a row opens a bottom-sheet picker limited to that section's
   audiences; a row changes only after the server confirms, failures keep the saved value with an
@@ -1255,7 +1273,7 @@ or production push delivery behavior. The shared business and privacy rules are 
 - `Current`: avatar and cover uploads open a native drag/pinch crop preview with an accessible
   zoom slider and reset action. Avatars export at 300×300; covers at 1600×320 with the central
   mobile area marked. Camera orientation is normalized before cropping. Failed uploads retain
-  the selection for retry; covers can also be removed with confirmation.
+  the selection for retry; cover removal stays a draft until Save.
 - `Current`: OAuth connections show native account identity and provider availability. Binding
   opens the existing site settings in the system browser, where the user signs into the matching
   account; returning refreshes the native binding list. Unbinding remains native, including an
@@ -1263,15 +1281,19 @@ or production push delivery behavior. The shared business and privacy rules are 
   transfer the native session and may require a separate Web login.
 - `Current`: account settings support username changes and the twelve built-in avatars. Server
   validation remains visible in the username form so rejected names can be corrected and retried.
-- `Current`: profile editing presents the cover and overlapping avatar in the same crop and
-  proportions as the public profile, with directly editable name, bio, signature and links below.
-  Camera controls open the image picker/cropper; selected images and cover removal remain local
+- `Current`: the public profile's Edit profile action, drawer avatar and Settings account card open
+  the same editor. Its framed avatar is centered first, followed by a separate 5:1 cover card;
+  the card grows to keep its action readable with enlarged text. Basic information, links and display
+  options use grouped rows. Username opens its existing editor. Website name/URL and social links
+  share a subpage with field-local validation; Done returns their draft to the main editor.
+  Avatar choices include photos, camera on iOS/Android and twelve presets. The camera mark is beside
+  the avatar; cover actions use a labelled menu with destructive removal. Selected images, presets and cover removal remain local
   drafts until Save. Cancel/back offers Keep editing or Discard when anything has changed.
   The existing independent APIs save text, cover and avatar in order. A partial failure identifies
   completed steps, retains remaining drafts and resumes without repeating acknowledged writes;
   leaving after partial success refreshes the saved profile. The public profile opens the editor
   directly in one route and returns there on cancel or save; opening from settings returns to settings. An account
-  change closes active profile/crop editors and rejects old-session callbacks. The avatar picker
+  change closes active profile/crop/link editors and rejects old-session callbacks. The avatar picker
   retains twelve presets.
 - `Current`: profile editing includes nickname, bio, signature, website name/URL, profile language
   and the six Web social providers. Saving preserves unedited fields and unknown social providers;
@@ -1282,17 +1304,18 @@ or production push delivery behavior. The shared business and privacy rules are 
   administrator identity has a localized role label. Returning
   from settings refreshes profile identity and media immediately.
 
-- `Current`: public profile covers extend behind the status bar and navigation. Back, overflow
-  and notifications use circular frosted controls with 44-pixel targets. Scrolling reveals an opaque
+- `Current`: public profile covers extend behind the status bar and navigation. Back and the peer
+  overflow menu use circular frosted controls with 44-pixel targets. Scrolling reveals an opaque
   title bar with the name and topic count left-aligned beside the back control, and keeps content
   tabs below it; a status-area scrim protects white system indicators during collapse. The application supplies a theme-aware status-bar fallback, so returning from
   an immersive cover to a plain feed restores legible system indicators. Cover, avatar and profile actions share one header layer so the avatar stays
   fully visible. The compact action band keeps the display name eight pixels below the avatar
   ring. Other users' profiles show the same top-right overflow control; its menu offers block or
-  unblock for that profile, while the own profile keeps its existing account actions. Account ID,
+  unblock for that profile. Own-profile management destinations live in the account drawer, and the
+  own profile has no duplicate overflow menu or notification bell. Account ID,
   bio and statistics use tighter related-content spacing. The band grows for
-  wrapped actions and larger text. Pull-to-refresh starts below the safe area and toolbar. The editor crop preview
-  uses the same available width and system inset as the public cover.
+  wrapped actions and larger text. Pull-to-refresh starts below the safe area and toolbar. The native
+  cropper marks the public profile's visible area independently of the editor's cover thumbnail.
 
 - `Current`: the profile's role and display badges use icon-only circular medallions with a fine rim,
   subtle highlight and inset face. Names remain available to screen readers and hover/long-press
