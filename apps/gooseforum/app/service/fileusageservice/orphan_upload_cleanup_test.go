@@ -2,6 +2,7 @@ package fileusageservice
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -64,6 +65,15 @@ func TestCleanupOrphanUploadsRemovesExpiredOrphan(t *testing.T) {
 	cleanupTestUsageRows(t)
 	const name = "2026/09/orphan-expired.webp"
 	seedOrphanCandidate(t, 9_800_300_001, name, time.Now().Add(-8*24*time.Hour))
+	// 图片变体是独立 file_data 行，回收原图时必须一并删除。
+	variantName := name + "-small.webp"
+	if _, err := filedata.SaveFile(9_800_300_001, variantName, "image/webp", []byte("variant")); err != nil {
+		t.Fatalf("seed variant: %v", err)
+	}
+	if err := fileDB.Connect().Model(&filedata.Entity{}).Where("name = ?", variantName).UpdateColumn("parent_name", name).Error; err != nil {
+		t.Fatalf("link variant: %v", err)
+	}
+	t.Cleanup(func() { fileDB.Connect().Where("name = ?", variantName).Delete(&filedata.Entity{}) })
 
 	removed, err := CleanupOrphanUploads(context.Background(), time.Now().Add(-OrphanUploadTTL), 200)
 	if err != nil {
@@ -74,6 +84,9 @@ func TestCleanupOrphanUploadsRemovesExpiredOrphan(t *testing.T) {
 	}
 	if filedata.GetByName(name).Id != 0 {
 		t.Fatal("expired orphan file_data row survived cleanup")
+	}
+	if filedata.GetByName(variantName).Id != 0 {
+		t.Fatal("expired orphan image variant survived cleanup")
 	}
 	if count := orphanUsageCount(t, name); count != 0 {
 		t.Fatalf("expired orphan kept %d usage rows", count)
@@ -149,6 +162,14 @@ func TestPruneOrphanUploadKeepsFileReferencedAfterSelection(t *testing.T) {
 	cleanupTestUsageRows(t)
 	const name = "2026/09/orphan-raced.webp"
 	seedOrphanCandidate(t, 9_800_300_005, name, time.Now().Add(-8*24*time.Hour))
+	// 先确认它确实被选进候选窗口，再插入引用，才能覆盖「选择之后、删除之前」的复核。
+	candidates, err := fileUsage.ListUnreferencedUploadOwners(200)
+	if err != nil {
+		t.Fatalf("ListUnreferencedUploadOwners() error = %v", err)
+	}
+	if !slices.Contains(candidates, name) {
+		t.Fatalf("orphan %s was not selected as a candidate: %v", name, candidates)
+	}
 	if err := fileUsage.Create(&fileUsage.Entity{
 		FileName: name, TargetType: fileUsage.TargetTopic, TargetId: 9_800_300_006,
 		UsageType: fileUsage.UsageInlineImage, UserId: 9_800_300_005, Status: fileUsage.UsageStatusPending,
@@ -195,5 +216,33 @@ func TestCleanupOrphanUploadsPrunesStaleOwnerRowsToReachOrphan(t *testing.T) {
 		if count := orphanUsageCount(t, stale); count != 0 {
 			t.Fatalf("stale owner rows for %s = %d, want 0", stale, count)
 		}
+	}
+}
+
+// TestPruneOrphanUploadKeepsFileWhenLookupFails 是 P1 失败关闭回归：复核查询出错时必须
+// 保留文件，不能把错误当成「没有引用」后删掉不可逆的字节。
+func TestPruneOrphanUploadKeepsFileWhenLookupFails(t *testing.T) {
+	cleanupTestUsageRows(t)
+	const name = "2026/09/orphan-lookup-fails.webp"
+	seedOrphanCandidate(t, 9_800_300_009, name, time.Now().Add(-8*24*time.Hour))
+	conn := db.Connect()
+	if err := conn.Migrator().RenameTable("file_usages", "hotfix_file_usages_unavailable"); err != nil {
+		t.Fatalf("hide file_usages: %v", err)
+	}
+	defer func() {
+		if err := conn.Migrator().RenameTable("hotfix_file_usages_unavailable", "file_usages"); err != nil {
+			t.Fatalf("restore file_usages: %v", err)
+		}
+	}()
+
+	pruned, err := pruneOrphanUpload(name)
+	if err == nil {
+		t.Fatal("pruneOrphanUpload() error = nil, want the failed reference lookup")
+	}
+	if pruned {
+		t.Fatal("pruneOrphanUpload() reported a reclaim despite the lookup failure")
+	}
+	if filedata.GetByName(name).Id == 0 {
+		t.Fatal("file was deleted after a failed reference lookup")
 	}
 }

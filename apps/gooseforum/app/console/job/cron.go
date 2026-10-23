@@ -185,8 +185,10 @@ func registerJobs() {
 		// 回收超过 7 天仍未被内容引用的上传（issue #1365）：这类文件只对上传者可见，
 		// 长期无人引用就是孤儿，删除对象与 upload_owner 行。
 		removed, cleanupErr := fileusageservice.CleanupOrphanUploads(context.Background(), time.Now().Add(-fileusageservice.OrphanUploadTTL), 200)
-		if cleanupErr != nil || removed > 0 {
-			slog.Info("cleanup orphan uploads", "removed", removed, "err", cleanupErr)
+		if cleanupErr != nil {
+			slog.Error("cleanup orphan uploads failed", "removed", removed, "err", cleanupErr)
+		} else if removed > 0 {
+			slog.Info("cleanup orphan uploads", "removed", removed)
 		}
 	}))
 	slog.Info("reg orphan upload cleanup", "entryID", entryID, "spec", "19 3 * * *", "err", err)

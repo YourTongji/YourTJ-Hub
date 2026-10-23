@@ -369,6 +369,15 @@ func Update(userID uint64, p UpdateParams) (*AgentView, error) {
 		}
 		userUpdates["nickname"] = normalized
 	}
+	// 封面引用在事务外解析（存储配置缓存 + 文件库读）；事务里只用 tx 写引用行。
+	var coverRef fileusageservice.CoverRef
+	if p.ProfileCoverUrl != nil {
+		ref, err := fileusageservice.ResolveCover(userID, strings.TrimSpace(*p.ProfileCoverUrl), p.ActorID)
+		if err != nil {
+			return nil, err
+		}
+		coverRef = ref
+	}
 
 	if err := db.Connect().Transaction(func(tx *gorm.DB) error {
 		if err := users.LockInteractionUserIDs(tx, []uint64{userID, p.ActorID}); err != nil {
@@ -428,6 +437,13 @@ func Update(userID uint64, p UpdateParams) (*AgentView, error) {
 				if count == 0 {
 					return gorm.ErrRecordNotFound
 				}
+			}
+		}
+		if p.ProfileCoverUrl != nil {
+			// 封面只有 URL、靠内容引用保护：必须与 profile_cover_url 同一事务写引用，否则会被
+			// 孤儿清理删掉（issue #1365）。
+			if err := fileusageservice.ReplaceCoverTx(tx, userID, coverRef); err != nil {
+				return err
 			}
 		}
 		return nil

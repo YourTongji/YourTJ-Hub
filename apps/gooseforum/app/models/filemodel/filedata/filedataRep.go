@@ -13,6 +13,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type FileResource struct {
@@ -53,6 +54,24 @@ func create(entity *Entity) int64 {
 func GetByName(name string) (entity Entity) {
 	builder().Where(queryopt.Eq(fieldName, name)).First(&entity)
 	return
+}
+
+// GetFileMetadataByName returns a row's ownership metadata without loading the
+// content BLOB. A missing name reports (nil, nil), so callers can tell "absent"
+// apart from a real query failure.
+func GetFileMetadataByName(name string) (*Entity, error) {
+	var entity Entity
+	err := builder().
+		Select("id", "name", "storage_status", "user_id").
+		Where(queryopt.Eq(fieldName, name)).
+		Take(&entity).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &entity, nil
 }
 
 func SaveFile(userId uint64, name string, fileType string, data []byte) (*Entity, error) {

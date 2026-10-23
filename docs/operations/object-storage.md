@@ -53,8 +53,14 @@ This policy governs the application read route. A public bucket or `publicUrlPre
 it needs its own access controls. Referer filtering is not an authorization mechanism and is not
 implemented by this route.
 
-`Partial`: unreferenced uploads are private, but automatic orphan-file expiry/deletion is not
-implemented. This policy does not delete stored bytes or change legacy-file retention.
+`Current`: ready uploads that never enter a content reference stay uploader-only and are removed by a
+daily job after `OrphanUploadTTL` (7 days) together with their ownership row and image variants; the
+job re-checks references immediately before deleting and keeps the file on a lookup error. Chat image/
+voice messages and profile covers register their own `ACTIVE` references, so they are publicly readable
+and never reclaimed (chat media has no recall path; re-saving an unchanged cover keeps its reference),
+and historical ones get those references once from app data migration v37 before the job can see them;
+files without any usage row keep legacy public reads. Only uploads that never
+completed are subject to the 2-hour rule below.
 
 ### 内网 Endpoint（可选）
 

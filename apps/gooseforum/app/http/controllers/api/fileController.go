@@ -45,8 +45,8 @@ func GetFileByFileName(c *gin.Context) {
 		return
 	}
 	// 只有已登记 usage、又不构成公开授权的文件才判权。完全没有 usage 行的历史文件
-	// （迁移前的帖子图片等）没有 upload_owner 行，保持公开可读；头像、贴纸、装扮／
-	// 徽章资源有各自的 ACTIVE 引用，同样公开。
+	// （迁移前的帖子图片等）没有 upload_owner 行，保持公开可读；头像、官方贴纸、装扮／
+	// 徽章资源有各自的公开引用，个人贴纸在审核通过前是 PENDING（同样不公开）。
 	if access.Tracked && !access.Public {
 		c.Header("Cache-Control", "private, no-store")
 		privatePreview := false

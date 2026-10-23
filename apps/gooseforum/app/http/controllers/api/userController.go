@@ -15,6 +15,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/captchaOpt"
+	dbconnect "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
@@ -38,6 +39,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func GetCaptcha(req component.BetterRequest[component.Null]) component.Response {
@@ -348,11 +350,24 @@ func EditUserProfileCover(req component.BetterRequest[EditUserProfileCoverReq]) 
 		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
 	}
 
-	userEntity.ProfileCoverUrl = strings.TrimSpace(req.Params.ProfileCoverUrl)
-	err = userservice.UpdateUserFields(userEntity.Id, map[string]any{"profile_cover_url": userEntity.ProfileCoverUrl})
+	coverURL := strings.TrimSpace(req.Params.ProfileCoverUrl)
+	// 解析封面（存储配置缓存 + 文件库读）必须在事务外完成：事务里只走 tx 读写 file_usages/users。
+	coverRef, err := fileusageservice.ResolveCover(userEntity.Id, coverURL)
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 	}
+	// 封面只有 URL、靠内容引用保护：URL 落库与 ACTIVE 引用必须同一事务，否则可能出现
+	// 「URL 存下来但引用没写成」——访客读不到、孤儿清理也会删掉它（issue #1365）。
+	if err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+		if err := userservice.UpdateUserFieldsTx(tx, userEntity.Id, map[string]any{"profile_cover_url": coverURL}); err != nil {
+			return err
+		}
+		return fileusageservice.ReplaceCoverTx(tx, userEntity.Id, coverRef)
+	}); err != nil {
+		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
+	}
+	userEntity.ProfileCoverUrl = coverURL
+	userservice.InvalidateUserFields(userEntity.Id)
 	return component.SuccessResponseCode("更新成功", component.MessageUserUpdateSuccess, nil)
 }
 

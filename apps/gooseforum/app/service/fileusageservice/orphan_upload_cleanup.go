@@ -104,9 +104,14 @@ func pruneStaleUploadOwners(candidates, existing []string) (int, error) {
 }
 
 // pruneOrphanUpload 复核引用后删除一个孤儿上传，复核发现有内容引用时保留并返回 false。
+// 复核查询失败时同样保留（删除不可逆，不能把错误读成「无引用」）。
 // shortcut: 复核与删除之间仍有竞态，TTL 边界上的并发发布会丢图，不做加锁。
 func pruneOrphanUpload(name string) (bool, error) {
-	if fileUsage.HasAnyReferences(name) {
+	referenced, err := fileUsage.HasAnyReferencesErr(name)
+	if err != nil {
+		return false, fmt.Errorf("check references for %q: %w", name, err)
+	}
+	if referenced {
 		return false, nil
 	}
 	if err := filedata.DeleteByName(name); err != nil {

@@ -10,7 +10,7 @@ Class: bug-fix
 `/file/img/*` authorizes a read from the content references recorded in `file_usages`. A user upload
 exists at a public URL before any post, reply or draft references it. Because files with no usage row
 at all were treated as pre-migration legacy files and served publicly, an upload that never entered
-content stayed readable forever, was cacheable, and was never reclaimed. Combined with an unrestricted
+content stayed readable forever and was never reclaimed. Combined with an unrestricted
 `Referer`, that made the image service a free image host that bypassed content moderation
 ([issue #1365](https://github.com/YourTongji/YourTJ-Hub/issues/1365)).
 
@@ -46,7 +46,23 @@ that is tracked but not publicly referenced:
   (`Cache-Control: private, no-store`), anonymous and other users get 404;
 - a file with no usage row at all keeps the previous public behavior, which is what keeps images inside
   pre-migration posts working; managed assets are untouched by this gate because their own `avatar`,
-  `sticker`, `decoration_asset` and `badge_asset` rows are ACTIVE.
+  `sticker`, `decoration_asset` and `badge_asset` rows are public while live (personal stickers are
+  `PENDING` until review approves them).
+
+Content that stores only a URL also registers its own `ACTIVE` reference instead of relying on the
+upload path: chat image/voice messages write `chat_message`/`chat_media` rows inside the send
+transaction, and a profile cover writes a `user`/`cover` row on every writer. Both are restricted to
+sender/user-owned `ready` files, mirroring the online ownership check, because an `ACTIVE` non-owner row
+is a permanent anonymous read grant and a permanent reclamation pin; forwarded chat copies keep no
+reference of their own and rely on the original message's, which is never deleted. Both were affected by the
+same defect — invisible to readers after the gate landed and reclaimable by the job — and both are now
+publicly readable and excluded from reclamation. A replaced cover drops its old row, so the previous
+file becomes reclaimable, while saving the same cover URL again keeps the existing reference (a
+co-manager editing another bot field must not revoke a cover somebody else uploaded). Chat media is
+publicly readable by its URL and has no revocation path: messages are never deleted, so the reference
+stays for the life of the file. Existing chat media and covers predate this decision, so app data
+migration v37 backfills their references from `messages.content` and `users.profile_cover_url` before
+the reclamation job can treat those files as orphans; the backfill is idempotent and re-runnable.
 
 A daily job removes ready uploads that still carry only their ownership row after
 `OrphanUploadTTL` (7 days), re-checking content references immediately before deleting bytes, image
@@ -56,10 +72,12 @@ otherwise a restored or reset file database could fill the candidate window with
 job would silently stop reclaiming anything.
 
 A `Referer` allowlist is not a control: it is forgeable and must exempt empty referrers, so it only
-sheds load and is not a substitute for this gate; this decision does not add one. Image responses
-currently send `Cache-Control: no-store` for every read (from the same hardening work), so no image is
-cached publicly; restoring a public cache lifetime for content-referenced images is a separate
-bandwidth trade-off that needs its own decision.
+sheds load and is not a substitute for this gate; this decision does not add one. With `publicUrlPrefix`
+configured, browsers read the object storage directly, so this read gate (and its cache headers) does
+not apply to those URLs and the bucket's own access controls govern them. Image responses currently
+send `Cache-Control: no-store` for every read (from the same hardening work), so no image is cached
+publicly; restoring a public cache lifetime for content-referenced images is a separate bandwidth
+trade-off that needs its own decision.
 
 ## Pros and Cons of the Options
 
