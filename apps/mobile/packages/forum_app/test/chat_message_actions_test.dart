@@ -12,6 +12,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/asset_url.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -1262,6 +1263,16 @@ void main() {
         tester,
         stickers: library,
         stickerCollection: collection,
+      );
+      // Decode the fixture in real async time before FakeAsync drives the
+      // draft/outbox frames. An indeterminate image loader cannot settle while
+      // the engine's decoder is waiting for wall-clock execution under load.
+      final context = tester.element(find.byType(TextField));
+      await tester.runAsync(
+        () => precacheImage(
+          GfMediaScope.imageProvider(context, resolveApiAssetUrl('/smile.png')),
+          context,
+        ),
       );
       await tester.enterText(find.byType(TextField), '[:sticker:smile:]');
       await tester.pumpAndSettle();
