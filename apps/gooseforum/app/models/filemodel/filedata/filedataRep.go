@@ -196,6 +196,36 @@ func ListPendingFilesBefore(ctx context.Context, before time.Time, limit int) ([
 	return entities, err
 }
 
+// ListReadyNamesCreatedBefore returns the subset of names that are ready rows
+// created before the cutoff, without loading content. Used by the orphan upload
+// cleanup to cross-check the (separate) file database.
+func ListReadyNamesCreatedBefore(ctx context.Context, names []string, before time.Time) ([]string, error) {
+	if len(names) == 0 {
+		return nil, nil
+	}
+	var found []string
+	err := builder().WithContext(ctx).
+		Where("name IN ?", names).
+		Where("storage_status = ? AND created_at < ?", StorageStatusReady, before).
+		Pluck("name", &found).Error
+	return found, err
+}
+
+// ListExistingNames returns the subset of names that still have a file_data row,
+// without loading the content column. Used by the orphan upload cleanup to drop
+// ownership rows whose bytes are gone (the file database can be restored or
+// reset independently of the main database).
+func ListExistingNames(ctx context.Context, names []string) ([]string, error) {
+	if len(names) == 0 {
+		return nil, nil
+	}
+	var found []string
+	err := builder().WithContext(ctx).
+		Where("name IN ?", names).
+		Pluck("name", &found).Error
+	return found, err
+}
+
 // QueryById returns rows with id greater than startId, ascending (migration cursor).
 func QueryById(startId uint64, limit int) (entities []*Entity) {
 	builder().Where(queryopt.Gt("id", startId)).Limit(limit).Order(queryopt.Asc("id")).Find(&entities)

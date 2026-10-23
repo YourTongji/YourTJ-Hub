@@ -119,6 +119,31 @@ func HasAnyReferences(fileName string) bool {
 	return count > 0
 }
 
+// ListUnreferencedUploadOwners returns file names that carry an upload_owner
+// row and no other usage row, oldest ownership row first (issue #1365): uploaded
+// but never referenced by any content, i.e. reclaimable orphan candidates.
+func ListUnreferencedUploadOwners(limit int) (names []string, err error) {
+	err = builder().
+		Where(queryopt.Eq("usage_type", UsageUploadOwner)).
+		Where("NOT EXISTS (SELECT 1 FROM "+tableName+" AS ref WHERE ref.file_name = "+tableName+".file_name AND ref.usage_type <> ?)", UsageUploadOwner).
+		Order(queryopt.Asc("created_at")).
+		Limit(limit).
+		Pluck("file_name", &names).Error
+	return names, err
+}
+
+// DeleteUploadOwnerRows removes the ownership rows of the given files (reclaimed
+// uploads, or stale rows whose file row is already gone).
+func DeleteUploadOwnerRows(fileNames []string) error {
+	if len(fileNames) == 0 {
+		return nil
+	}
+	return builder().
+		Where(queryopt.Eq("usage_type", UsageUploadOwner)).
+		Where(queryopt.In("file_name", fileNames)).
+		Delete(&Entity{}).Error
+}
+
 // ListExpiredRecovering 返回超过恢复窗口仍未决的附件引用，供清理任务执行。
 func ListExpiredRecovering(before time.Time, limit int) (entities []Entity) {
 	builder().

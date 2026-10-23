@@ -128,6 +128,16 @@ func TestMultipartUploadRemainsPrivateBeforePublication(t *testing.T) {
 	if res := getImage(router, result.URL, token); res.Code != http.StatusOK || res.Header().Get("Cache-Control") != "private, no-store" {
 		t.Fatalf("private multipart preview status=%d", res.Code)
 	}
+	// 代理上传必须登记归属行，否则孤儿清理既看不见也不回收它（issue #1365）。
+	var ownerRows int64
+	if err := conn.Model(&fileUsage.Entity{}).
+		Where("file_name = ? AND usage_type = ?", name, fileUsage.UsageUploadOwner).
+		Count(&ownerRows).Error; err != nil {
+		t.Fatal(err)
+	}
+	if ownerRows != 1 {
+		t.Fatalf("multipart upload wrote %d upload_owner rows, want 1", ownerRows)
+	}
 }
 
 func TestMultipartUploadRollsBackOnOwnershipFailure(t *testing.T) {
