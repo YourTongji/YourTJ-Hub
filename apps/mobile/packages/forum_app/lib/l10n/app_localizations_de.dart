@@ -1066,10 +1066,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get topicLaterReplies => 'Neuere Antworten laden';
 
   @override
-  String get topicFeedModeList => 'Liste';
+  String get homeFeedSwitchToList => 'Als Liste anzeigen';
 
   @override
-  String get topicFeedModeCard => 'Karten';
+  String get homeFeedSwitchToCard => 'Als Karten anzeigen';
+
+  @override
+  String get profileStreamManage => 'Verwalten';
 
   @override
   String get topicNewTopic => 'Neues Thema';
@@ -3229,9 +3232,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get notificationsUnreadEmptyDescription =>
       'Du hast alle Mitteilungen gelesen.';
-
-  @override
-  String get homeFeedOptions => 'Darstellung';
 
   @override
   String get homeAllCategories => 'Alle Kategorien';

@@ -1992,17 +1992,23 @@ abstract class AppLocalizations {
   /// **'Load newer replies'**
   String get topicLaterReplies;
 
-  /// No description provided for @topicFeedModeList.
+  /// No description provided for @homeFeedSwitchToList.
   ///
   /// In en, this message translates to:
-  /// **'List'**
-  String get topicFeedModeList;
+  /// **'Switch to list'**
+  String get homeFeedSwitchToList;
 
-  /// No description provided for @topicFeedModeCard.
+  /// No description provided for @homeFeedSwitchToCard.
   ///
   /// In en, this message translates to:
-  /// **'Cards'**
-  String get topicFeedModeCard;
+  /// **'Switch to cards'**
+  String get homeFeedSwitchToCard;
+
+  /// No description provided for @profileStreamManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage'**
+  String get profileStreamManage;
 
   /// No description provided for @topicNewTopic.
   ///
@@ -5801,12 +5807,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You have read all your notifications.'**
   String get notificationsUnreadEmptyDescription;
-
-  /// No description provided for @homeFeedOptions.
-  ///
-  /// In en, this message translates to:
-  /// **'Feed display'**
-  String get homeFeedOptions;
 
   /// No description provided for @homeAllCategories.
   ///

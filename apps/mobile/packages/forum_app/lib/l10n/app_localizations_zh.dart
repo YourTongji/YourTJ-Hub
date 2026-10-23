@@ -1037,10 +1037,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get topicLaterReplies => '加载更新回复';
 
   @override
-  String get topicFeedModeList => '列表';
+  String get homeFeedSwitchToList => '切换为列表';
 
   @override
-  String get topicFeedModeCard => '卡片';
+  String get homeFeedSwitchToCard => '切换为卡片';
+
+  @override
+  String get profileStreamManage => '管理';
 
   @override
   String get topicNewTopic => '新建话题';
@@ -3049,9 +3052,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get notificationsUnreadEmptyDescription => '所有通知都已查看。';
-
-  @override
-  String get homeFeedOptions => '显示方式';
 
   @override
   String get homeAllCategories => '全部分类';

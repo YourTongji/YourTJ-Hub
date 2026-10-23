@@ -274,7 +274,9 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   used in the publishing preview and opens the shared full-screen viewer from any image.
 - `Current`: Home displays categories in a horizontal row below the feed sorts. Category pills
   filter the existing stream in place, with a highlighted selection and an All categories action.
-  The display menu contains list/card preferences; unavailable categories take no space.
+  The toolbar's layout button switches between card and list in one tap; its glyph, tooltip and
+  screen-reader name state the layout it switches to, and the choice persists on the device.
+  Unavailable categories take no space.
 - `Current`: list mode uses a compact title/type row, optional excerpt, and a shared category/metadata
   band. Categories retain separate 44-pixel targets and a horizontal rail; long metadata moves the
   rail onto a new line rather than reducing text size. Dividers do not add a blank footer. Question,
@@ -579,7 +581,7 @@ validation; simulator/debug execution does not establish production frame-rate g
   32/40/44/48 pixels by size, within touch targets of at least 48 pixels. Both grow for wrapped or
   enlarged labels; disabled actions remain visibly muted. Category chips have a compact 24-pixel
   fill at normal text size and at least 44-pixel targets when interactive. Home keeps category
-  discovery directly above the stream and list/card preferences in the display menu. Home and notification tabs
+  discovery directly above the stream and the one-tap card/list toggle beside the feed sorts. Home and notification tabs
   grow with system text size, and the overlay's content inset uses the same measured height.
 - `Current`: empty and retry states share a soft icon surface, readable explanation and optional
   next action, with scrolling on short screens. Empty all-notifications link back to Home; empty unread notifications explain that everything is read and offer the All tab; empty drafts
@@ -1382,6 +1384,12 @@ or production push delivery behavior. The shared business and privacy rules are 
 - `Current`: content management and recycle bin provide topic/reply filters, cursor loading,
   multi-selection, restore and deletion. Restore/permanent-delete affordances follow the server's
   capabilities; confirmation/password requirements and partial batch failures remain authoritative.
+  `/my-content?type=topic|post` opens on that filter; other values open topics.
+- `Current`: the own profile's Posts stream shows a Manage action that opens content management on
+  the topic filter, where the same topics add multi-selection, deletion and review state; returning
+  reloads the stream. Other profiles show no such action. The profile has no reply-only stream, and
+  Activity mixes topics, replies, likes and follows, so it carries no Manage action; replies stay
+  reachable through the content-management filter.
 - `Current`: privacy settings link to content management and account closure. Closure offers
   anonymized-history and best-effort content-deletion modes, requires the current password and
   clears the native session on success. Retention and authorization rules match Web.
@@ -1622,8 +1630,8 @@ Category buttons use 12-pixel corners, a compact 36-pixel visual height and a mi
 target, growing with system text size. Labels remain on one line. The selected category uses a tinted
 background, outline and check mark; the All categories button clears the filter. A newly selected
 category scrolls into view, including selections made from a post badge. Selecting a button
-or a Home post badge filters the existing Home stream without pushing a route. The display menu
-contains the list/card choice, while categories remain directly available on Home.
+or a Home post badge filters the existing Home stream without pushing a route. The card/list toggle
+sits beside the sorts, while categories remain directly available on Home.
 Each category and its supported sort retain their own items, pagination and reading position; clearing
 the filter restores the previous global sort and position. Category feeds reuse the category payload
 and its latest/new ordering, while the unfiltered feed retains Following and other Home sorts.

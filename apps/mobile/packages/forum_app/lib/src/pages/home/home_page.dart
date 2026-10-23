@@ -1343,15 +1343,23 @@ class _HomeToolbar extends ConsumerWidget {
                   onSelected: (value) => onSelected(value as String),
                 ),
               ),
+              // Two layouts, so one tap switches; the glyph and label name the
+              // layout the tap switches to.
               IconButton(
-                tooltip: l10n.homeFeedOptions,
+                tooltip: feedMode == GfTopicFeedMode.card
+                    ? l10n.homeFeedSwitchToList
+                    : l10n.homeFeedSwitchToCard,
                 icon: GfSymbol(
                   feedMode == GfTopicFeedMode.card
-                      ? 'layout-grid'
-                      : 'list-square',
+                      ? 'list-square'
+                      : 'layout-grid',
                   size: 20,
                 ),
-                onPressed: () => _showOptions(context),
+                onPressed: () => onFeedModeSelected(
+                  feedMode == GfTopicFeedMode.card
+                      ? GfTopicFeedMode.list
+                      : GfTopicFeedMode.card,
+                ),
               ),
               const SizedBox(width: 4),
             ],
@@ -1365,61 +1373,6 @@ class _HomeToolbar extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  Future<void> _showOptions(BuildContext context) async {
-    final l10n = AppLocalizations.of(context);
-    final selected = await showGfBottomSheet<GfTopicFeedMode>(
-      context,
-      builder: (sheetContext) => SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
-              child: GfText(
-                l10n.homeFeedOptions,
-                style: GfTheme.typographyOf(context).title2,
-              ),
-            ),
-            for (final mode in GfTopicFeedMode.values)
-              ListTile(
-                // Same glyphs as the toolbar button, so the sheet previews it.
-                title: Row(
-                  children: [
-                    GfSymbol(
-                      mode == GfTopicFeedMode.card
-                          ? 'layout-grid'
-                          : 'list-square',
-                      size: 22,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: GfText(
-                        mode == GfTopicFeedMode.card
-                            ? l10n.topicFeedModeCard
-                            : l10n.topicFeedModeList,
-                      ),
-                    ),
-                  ],
-                ),
-                trailing: feedMode == mode
-                    ? const GfSymbol('check', size: 20)
-                    : null,
-                selected: feedMode == mode,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                onTap: () => Navigator.pop(sheetContext, mode),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (!context.mounted) return;
-    if (selected != null) onFeedModeSelected(selected);
   }
 
   /// Known feed labels follow the app locale; custom server tabs retain their label.

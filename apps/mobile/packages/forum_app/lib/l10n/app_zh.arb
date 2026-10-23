@@ -570,8 +570,9 @@
   "topicOpRepliesPending": "已加载楼层暂无楼主回复，可继续加载。",
   "topicOpRepliesEmpty": "楼主还没有回复",
   "topicLaterReplies": "加载更新回复",
-  "topicFeedModeList": "列表",
-  "topicFeedModeCard": "卡片",
+  "homeFeedSwitchToList": "切换为列表",
+  "homeFeedSwitchToCard": "切换为卡片",
+  "profileStreamManage": "管理",
   "topicNewTopic": "新建话题",
   "scheduleTitle": "排课器",
   "scheduleTabTimetable": "方案预览",
@@ -1437,7 +1438,6 @@
   "sortFollowing": "关注",
   "notificationsUnreadEmpty": "暂无未读通知",
   "notificationsUnreadEmptyDescription": "所有通知都已查看。",
-  "homeFeedOptions": "显示方式",
   "@badgeDisplaySelectedCount": {
     "placeholders": {
       "count": {

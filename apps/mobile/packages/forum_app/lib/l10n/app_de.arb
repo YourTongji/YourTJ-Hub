@@ -329,8 +329,9 @@
   "topicOpRepliesPending": "Im geladenen Bereich gibt es keine Antworten des Autors. Lade weitere Beiträge.",
   "topicOpRepliesEmpty": "Noch keine Antworten des Autors",
   "topicLaterReplies": "Neuere Antworten laden",
-  "topicFeedModeList": "Liste",
-  "topicFeedModeCard": "Karten",
+  "homeFeedSwitchToList": "Als Liste anzeigen",
+  "homeFeedSwitchToCard": "Als Karten anzeigen",
+  "profileStreamManage": "Verwalten",
   "topicNewTopic": "Neues Thema",
   "scheduleTitle": "Stundenplaner",
   "scheduleTabTimetable": "Planvorschau",
@@ -1088,7 +1089,6 @@
   "sortFollowing": "Gefolgt",
   "notificationsUnreadEmpty": "Alles gelesen",
   "notificationsUnreadEmptyDescription": "Du hast alle Mitteilungen gelesen.",
-  "homeFeedOptions": "Darstellung",
   "@badgeDisplaySelectedCount": {
     "placeholders": {
       "count": {

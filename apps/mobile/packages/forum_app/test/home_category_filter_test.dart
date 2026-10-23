@@ -237,29 +237,25 @@ ScrollPosition _position(WidgetTester tester) => tester
     .position;
 
 void main() {
-  testWidgets('feed display options lead each mode with its glyph', (
-    tester,
-  ) async {
+  testWidgets('feed toggle shows the destination layout glyph', (tester) async {
     await _mount(tester, _Pages());
-    await tester.tap(find.byTooltip('显示方式'));
-    await tester.pumpAndSettle();
     for (final (label, symbol) in [
-      ('卡片', 'layout-grid'),
-      ('列表', 'list-square'),
+      ('切换为列表', 'list-square'),
+      ('切换为卡片', 'layout-grid'),
     ]) {
-      final row = find
-          .ancestor(of: find.text(label), matching: find.byType(Row))
-          .first;
+      final button = find.byTooltip(label);
       expect(
         find.descendant(
-          of: row,
+          of: button,
           matching: find.byWidgetPredicate(
             (widget) => widget is GfSymbol && widget.name == symbol,
           ),
         ),
         findsOneWidget,
-        reason: '$label option needs its leading $symbol glyph',
       );
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsNothing);
     }
     expect(tester.takeException(), isNull);
   });

@@ -329,8 +329,9 @@
   "topicOpRepliesPending": "読み込み済みの範囲に投稿者の返信はありません。続きを読み込めます。",
   "topicOpRepliesEmpty": "投稿者の返信はまだありません",
   "topicLaterReplies": "新しい返信を読み込む",
-  "topicFeedModeList": "リスト",
-  "topicFeedModeCard": "カード",
+  "homeFeedSwitchToList": "リスト表示に切り替え",
+  "homeFeedSwitchToCard": "カード表示に切り替え",
+  "profileStreamManage": "管理",
   "topicNewTopic": "新規トピック",
   "scheduleTitle": "時間割プランナー",
   "scheduleTabTimetable": "プランのプレビュー",
@@ -1088,7 +1089,6 @@
   "sortFollowing": "フォロー中",
   "notificationsUnreadEmpty": "未読の通知はありません",
   "notificationsUnreadEmptyDescription": "すべての通知を確認しました。",
-  "homeFeedOptions": "表示方法",
   "@badgeDisplaySelectedCount": {
     "placeholders": {
       "count": {
