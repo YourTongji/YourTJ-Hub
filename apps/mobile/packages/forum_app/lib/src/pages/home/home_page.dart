@@ -1073,7 +1073,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           children: [
             Material(
               color: colors.base300,
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(GfRadius.xl),
               clipBehavior: Clip.antiAlias,
               child: Semantics(
                 button: true,
@@ -1410,7 +1410,7 @@ class _HomeToolbar extends ConsumerWidget {
                     : null,
                 selected: feedMode == mode,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(GfRadius.md),
                 ),
                 onTap: () => Navigator.pop(sheetContext, mode),
               ),
@@ -1574,7 +1574,7 @@ class _CategoryPill extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(GfRadius.md),
           child: Center(
             child: AnimatedContainer(
               duration: duration,
@@ -1585,7 +1585,7 @@ class _CategoryPill extends StatelessWidget {
                 color: selected
                     ? colors.primary.withValues(alpha: .10)
                     : colors.base200,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(GfRadius.md),
                 border: Border.all(
                   color: selected
                       ? colors.primary.withValues(alpha: .35)

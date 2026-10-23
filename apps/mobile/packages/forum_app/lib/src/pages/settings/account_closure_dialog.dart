@@ -33,7 +33,7 @@ class _AccountClosureDialogState extends State<AccountClosureDialog> {
               initialValue: _mode,
               isExpanded: true,
               itemHeight: null,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(GfRadius.lg),
               icon: const GfSymbol('chevron-down', size: 20),
               items: [
                 DropdownMenuItem(

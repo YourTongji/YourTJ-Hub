@@ -2191,7 +2191,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
               ? IconButton(
                   onPressed: _endSelection,
                   tooltip: l10n.commonCancel,
-                  icon: const Icon(Icons.close),
+                  icon: const GfSymbol('x'),
                 )
               : widget.onBack != null
               ? BackButton(onPressed: widget.onBack)
@@ -2246,7 +2246,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                           GfText(
                             l10n.messagesConversation,
                             style: TextStyle(
-                              color: colors.baseContent.withValues(alpha: 0.5),
+                              color: colors.textSecondary,
                               fontSize: 11,
                               fontWeight: FontWeight.w400,
                             ),
@@ -2431,7 +2431,9 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                                 alpha: 0.08,
                                               )
                                             : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(10),
+                                        borderRadius: BorderRadius.circular(
+                                          GfRadius.sm,
+                                        ),
                                       ),
                                       child: Column(
                                         children: <Widget>[
@@ -2579,7 +2581,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                               side: BorderSide(color: colors.line),
                               shape: const RoundedRectangleBorder(
                                 borderRadius: BorderRadius.horizontal(
-                                  left: Radius.circular(24),
+                                  left: Radius.circular(GfRadius.xl),
                                 ),
                               ),
                             ),
@@ -2615,7 +2617,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                       onPressed: _selectedMessages.isEmpty
                           ? null
                           : () => _forward(_selectedMessages.toList()),
-                      icon: const Icon(Icons.forward),
+                      icon: const GfSymbol('share-2', size: GfIconSize.md),
                       label: GfText(l10n.messageForward),
                     ),
                   ),
@@ -2896,7 +2898,7 @@ class _ReplyPreview extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(10, 6, 0, 6),
         decoration: BoxDecoration(
           color: colors.base200,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(GfRadius.md),
         ),
         child: Row(
           children: <Widget>[
@@ -2933,10 +2935,7 @@ class _ReplyPreview extends StatelessWidget {
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.baseContent.withValues(alpha: 0.7),
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 13),
                   ),
                 ],
               ),
@@ -3107,7 +3106,7 @@ class _NewChatEmptyState extends StatelessWidget {
               message,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: colors.baseContent.withValues(alpha: 0.55),
+                color: colors.textSecondary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -3182,7 +3181,7 @@ class _NewChatUserRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: colors.baseContent.withValues(alpha: 0.55),
+                        color: colors.textSecondary,
                         fontSize: 12,
                       ),
                     ),
@@ -3230,10 +3229,7 @@ class _ChatEmptyState extends StatelessWidget {
             GfText(
               description,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.baseContent.withValues(alpha: 0.55),
-                fontSize: 14,
-              ),
+              style: TextStyle(color: colors.textSecondary, fontSize: 14),
             ),
           ],
         ),
@@ -3260,12 +3256,12 @@ class _DatePill extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
             color: colors.base300,
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(GfRadius.full),
           ),
           child: GfText(
             label,
             style: TextStyle(
-              color: colors.baseContent.withValues(alpha: 0.55),
+              color: colors.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),

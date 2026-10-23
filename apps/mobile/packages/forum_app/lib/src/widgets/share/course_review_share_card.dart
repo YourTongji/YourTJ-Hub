@@ -46,8 +46,7 @@ class CourseReviewShareCard extends StatelessWidget {
   final String offeringLabel;
 
   /// 次要文字色：iconMuted 在淡彩主题底上不足 4.5:1，统一用降透明度的正文色。
-  static Color mutedOf(GfColors colors) =>
-      colors.baseContent.withValues(alpha: 0.66);
+  static Color mutedOf(GfColors colors) => colors.textSecondary;
 
   @override
   Widget build(BuildContext context) {
@@ -295,7 +294,7 @@ class CourseReviewShareCard extends StatelessWidget {
         color: theme.brightness == Brightness.dark
             ? colors.base300
             : colors.base200,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(GfRadius.md),
         border: Border.all(color: colors.line.withValues(alpha: 0.7)),
       ),
       child: IntrinsicHeight(
@@ -342,7 +341,7 @@ class CourseReviewShareCard extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               border: Border.all(color: colors.line),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(GfRadius.md),
             ),
             clipBehavior: Clip.antiAlias,
             child: ShareImageNetworkImage(

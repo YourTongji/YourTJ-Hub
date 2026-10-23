@@ -309,7 +309,7 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
     // Strengthen the hairline with the active foreground token so it survives
     // both ends of the cover-derived glass field.
     final actionBorder = Color.lerp(colors.line, colors.baseContent, .48)!;
-    final radii = BorderRadius.circular(24);
+    final radii = BorderRadius.circular(GfRadius.xl);
     final viewportHeight = MediaQuery.sizeOf(context).height;
     final availableHeight =
         viewportHeight - MediaQuery.paddingOf(context).vertical - 44;

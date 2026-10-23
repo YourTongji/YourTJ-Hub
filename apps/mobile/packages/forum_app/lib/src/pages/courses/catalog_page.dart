@@ -698,9 +698,7 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
     final bool reducedMotion = GfMotion.reducedOf(context);
     final Color unselectedFill = colors.base100;
     final Color selectedFill = colors.primary.withValues(alpha: 0.1);
-    final Color foreground = selected
-        ? colors.primary
-        : colors.baseContent.withValues(alpha: 0.75);
+    final Color foreground = selected ? colors.primary : colors.textSecondary;
     return Semantics(
       container: true,
       button: true,
@@ -766,7 +764,9 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
                               color: colors.primary,
-                              borderRadius: BorderRadius.circular(999),
+                              borderRadius: BorderRadius.circular(
+                                GfRadius.full,
+                              ),
                             ),
                             child: GfText(
                               '$count',
@@ -965,9 +965,7 @@ class _CourseRow extends StatelessWidget {
             GfText(
               '$teacher · ${course.department}',
               textHeightBehavior: tight,
-              style: type.small.copyWith(
-                color: colors.baseContent.withValues(alpha: 0.6),
-              ),
+              style: type.small.copyWith(color: colors.textSecondary),
             ),
             SizedBox(height: metricsGap),
             ConstrainedBox(
@@ -1001,9 +999,7 @@ class _CourseRow extends StatelessWidget {
                             GfText(
                               '($reviewCount)',
                               style: type.meta.copyWith(
-                                color: colors.baseContent.withValues(
-                                  alpha: 0.5,
-                                ),
+                                color: colors.textSecondary,
                               ),
                             ),
                           ],
@@ -1012,23 +1008,17 @@ class _CourseRow extends StatelessWidget {
                     ] else if (reviewCount > 0) ...<Widget>[
                       GfText(
                         l10n.coursesNoRating,
-                        style: type.meta.copyWith(
-                          color: colors.baseContent.withValues(alpha: 0.5),
-                        ),
+                        style: type.meta.copyWith(color: colors.textSecondary),
                       ),
                       GfText(
                         '($reviewCount)',
-                        style: type.meta.copyWith(
-                          color: colors.baseContent.withValues(alpha: 0.5),
-                        ),
+                        style: type.meta.copyWith(color: colors.textSecondary),
                       ),
                     ],
                     if (credit.isNotEmpty) ...<Widget>[
                       GfText(
                         '$credit ${copy.creditUnit}',
-                        style: type.meta.copyWith(
-                          color: colors.baseContent.withValues(alpha: 0.7),
-                        ),
+                        style: type.meta.copyWith(color: colors.textSecondary),
                       ),
                     ],
                     _catalogChip(context: context, label: course.primaryCode),
@@ -1083,10 +1073,7 @@ class _CourseRow extends StatelessWidget {
           GfText(
             label,
             style:
-                labelStyle ??
-                type.meta.copyWith(
-                  color: colors.baseContent.withValues(alpha: 0.7),
-                ),
+                labelStyle ?? type.meta.copyWith(color: colors.textSecondary),
           ),
           ...trailing,
         ],
@@ -1137,7 +1124,7 @@ class _CourseRow extends StatelessWidget {
               ? l10n.courseCopySummaryCollapse
               : '+${terms.length - 1}',
           style: type.meta.copyWith(
-            color: colors.baseContent.withValues(alpha: 0.6),
+            color: colors.textSecondary,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -1145,7 +1132,7 @@ class _CourseRow extends StatelessWidget {
         GfSymbol(
           termsExpanded ? 'chevron-up' : 'chevron-down',
           size: 12,
-          color: colors.baseContent.withValues(alpha: 0.6),
+          color: colors.textSecondary,
         ),
       ],
     );
@@ -1245,9 +1232,7 @@ class _InstructorPickerSheetState extends State<_InstructorPickerSheet> {
                 ? Center(
                     child: GfText(
                       copy.instructorEmptyHint,
-                      style: type.small.copyWith(
-                        color: colors.baseContent.withValues(alpha: 0.5),
-                      ),
+                      style: type.small.copyWith(color: colors.textSecondary),
                     ),
                   )
                 : ListView(
@@ -1263,7 +1248,9 @@ class _InstructorPickerSheetState extends State<_InstructorPickerSheet> {
                             ),
                             decoration: BoxDecoration(
                               color: colors.base200,
-                              borderRadius: BorderRadius.circular(999),
+                              borderRadius: BorderRadius.circular(
+                                GfRadius.full,
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,

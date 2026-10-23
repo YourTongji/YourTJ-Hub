@@ -1831,7 +1831,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     return Material(
       key: const Key('publish-settings'),
       color: colors.base200.withValues(alpha: .6),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(GfRadius.lg),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1891,7 +1891,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
         height: 28,
         decoration: BoxDecoration(
           color: color.withValues(alpha: .14),
-          borderRadius: BorderRadius.circular(9),
+          borderRadius: BorderRadius.circular(GfRadius.sm),
         ),
         alignment: Alignment.center,
         child: Container(
@@ -1920,7 +1920,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
             ),
             shape: WidgetStatePropertyAll(
               RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(GfRadius.lg),
                 side: BorderSide(color: colors.line.withValues(alpha: .6)),
               ),
             ),
@@ -1981,7 +1981,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                       minimumSize: Size(menuWidth - 12, 52),
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(GfRadius.md),
                       ),
                       backgroundColor: selected
                           ? colors.primary.withValues(alpha: .08)
@@ -2037,7 +2037,9 @@ class _PublishPageState extends ConsumerState<PublishPage>
                               ),
                               decoration: BoxDecoration(
                                 color: colors.base100,
-                                borderRadius: BorderRadius.circular(999),
+                                borderRadius: BorderRadius.circular(
+                                  GfRadius.full,
+                                ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -2054,9 +2056,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                                   GfText(
                                     category.name,
                                     style: type.small.copyWith(
-                                      color: colors.baseContent.withValues(
-                                        alpha: .85,
-                                      ),
+                                      color: colors.textPrimary,
                                     ),
                                   ),
                                 ],
@@ -2098,7 +2098,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     return Material(
       key: const Key('publish-image-order'),
       color: colors.base200.withValues(alpha: .6),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(GfRadius.lg),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2147,7 +2147,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
               proxyDecorator: (child, _, _) => Material(
                 color: Colors.transparent,
                 elevation: 6,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(GfRadius.sm),
                 child: child,
               ),
               onReorderItem: _reorderArticleImages,
@@ -2163,7 +2163,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                       fit: StackFit.expand,
                       children: [
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(GfRadius.sm),
                           child: ColoredBox(
                             color: colors.base200,
                             child: GfNetworkImage(
@@ -2193,7 +2193,9 @@ class _PublishPageState extends ConsumerState<PublishPage>
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
                                 color: Colors.black.withValues(alpha: .55),
-                                borderRadius: BorderRadius.circular(9),
+                                borderRadius: BorderRadius.circular(
+                                  GfRadius.sm,
+                                ),
                               ),
                               child: GfText(
                                 '${index + 1}',
@@ -2722,7 +2724,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
               proxyDecorator: (child, _, _) => Material(
                 color: Colors.transparent,
                 elevation: 6,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(GfRadius.md),
                 child: child,
               ),
               onReorderItem: (oldIndex, newIndex) => setState(() {
@@ -2739,7 +2741,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                     fit: StackFit.expand,
                     children: [
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(GfRadius.md),
                         child: ColoredBox(
                           color: colors.base200,
                           child: GfNetworkImage(
@@ -2946,7 +2948,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                       fit: StackFit.expand,
                       children: [
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(GfRadius.sm),
                           child: Image.file(
                             File(item.file.path),
                             fit: BoxFit.cover,
@@ -3040,7 +3042,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.base200,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(GfRadius.lg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3065,7 +3067,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                   SizedBox.square(
                     dimension: 48,
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(GfRadius.sm),
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
@@ -3271,7 +3273,7 @@ class _ComposerImageBuilder extends EmbedBuilder {
       childWhenDragging: Opacity(opacity: 0.35, child: image),
       feedback: Material(
         elevation: 8,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(GfRadius.md),
         clipBehavior: Clip.antiAlias,
         child: SizedBox.fromSize(size: _imageDragFeedback, child: thumbnail),
       ),

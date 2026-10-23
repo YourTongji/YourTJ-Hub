@@ -16,28 +16,39 @@ class GfSettingRow extends StatelessWidget {
     this.iconColor,
     this.leading,
     this.trailing,
+    this.value,
+    this.destructive = false,
     this.onTap,
   });
 
   final String title;
   final String? description;
 
-  /// Arbitrary subtitle widget; takes precedence over [description].
+  /// Replaces [description] with custom subtitle content.
   final Widget? subtitleWidget;
 
+  /// Neutral 22px ReIcon on the shared 24px column.
   final String? symbol;
   final Color? iconColor;
 
-  /// Arbitrary leading widget (e.g. [GfAvatar]); takes precedence over
-  /// [symbol].
+  /// Custom leading widget (avatar, tile); replaces [symbol].
   final Widget? leading;
 
+  /// Custom trailing widget; replaces [value] and the chevron.
   final Widget? trailing;
+
+  /// Current value shown before the chevron (language, cache size, ...).
+  final String? value;
+
+  /// Destructive rows (sign out, delete) use the error colour.
+  final bool destructive;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
+    final GfTypography typography = GfTheme.typographyOf(context);
+    final Color titleColor = destructive ? colors.error : colors.textPrimary;
 
     final prefix =
         leading ??
@@ -46,29 +57,57 @@ class GfSettingRow extends StatelessWidget {
             : GfSymbol(
                 symbol!,
                 size: 22,
-                color: iconColor ?? colors.baseContent,
+                color: iconColor ?? (destructive ? colors.error : titleColor),
               ));
-    final suffix =
+    final Widget? chevron = onTap == null || destructive
+        ? null
+        : GfSymbol(
+            'chevron-right',
+            size: GfIconSize.sm,
+            color: colors.textPlaceholder,
+          );
+    final Widget? suffix =
         trailing ??
-        (onTap == null
-            ? null
-            : GfSymbol('chevron-right', size: 18, color: colors.iconMuted));
+        (value == null
+            ? chevron
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: GfText(
+                      value!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: typography.body.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  if (chevron != null) ...[
+                    const SizedBox(width: GfSpace.xs),
+                    chevron,
+                  ],
+                ],
+              ));
     final subtitle =
         subtitleWidget ?? (description == null ? null : GfText(description!));
     return InkWell(
       onTap: onTap,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 56),
+        constraints: const BoxConstraints(minHeight: GfControl.row),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(
+            horizontal: GfSpace.lg,
+            vertical: GfSpace.md,
+          ),
           child: Row(
             children: [
               if (prefix != null) ...[
                 if (leading != null)
                   prefix
                 else
-                  SizedBox(width: 24, child: prefix),
-                const SizedBox(width: 14),
+                  SizedBox(width: GfIconSize.lg, child: prefix),
+                const SizedBox(width: GfSpace.md),
               ],
               Expanded(
                 child: Column(
@@ -77,19 +116,13 @@ class GfSettingRow extends StatelessWidget {
                     GfText(
                       title,
                       softWrap: true,
-                      style: TextStyle(
-                        fontSize: 16,
-                        height: 1.35,
-                        color: colors.baseContent,
-                      ),
+                      style: typography.body.copyWith(color: titleColor),
                     ),
                     if (subtitle != null) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: GfSpace.xxs),
                       DefaultTextStyle(
-                        style: TextStyle(
-                          fontSize: 13,
-                          height: 1.4,
-                          color: colors.iconMuted,
+                        style: typography.caption.copyWith(
+                          color: colors.textSecondary,
                         ),
                         child: subtitle,
                       ),
@@ -97,7 +130,18 @@ class GfSettingRow extends StatelessWidget {
                   ],
                 ),
               ),
-              if (suffix != null) ...[const SizedBox(width: 12), suffix],
+              if (suffix != null) ...[
+                const SizedBox(width: GfSpace.md),
+                if (value != null && trailing == null)
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.sizeOf(context).width * 0.45,
+                    ),
+                    child: suffix,
+                  )
+                else
+                  suffix,
+              ],
             ],
           ),
         ),
@@ -106,8 +150,7 @@ class GfSettingRow extends StatelessWidget {
   }
 }
 
-/// Settings switch row mirroring the same layout with a [Switch] trailing
-/// (web privacy/security toggles).
+/// Setting row with a trailing native switch; tapping the row toggles it.
 class GfSwitchRow extends StatelessWidget {
   const GfSwitchRow({
     super.key,
@@ -124,13 +167,13 @@ class GfSwitchRow extends StatelessWidget {
   final String title;
   final String? description;
 
-  /// Arbitrary subtitle widget; takes precedence over [description].
+  /// Replaces [description] with custom subtitle content.
   final Widget? subtitleWidget;
 
   final String? symbol;
   final Color? iconColor;
 
-  /// Arbitrary leading widget; takes precedence over [symbol].
+  /// Custom leading widget; replaces [symbol].
   final Widget? leading;
 
   final bool value;
@@ -146,7 +189,22 @@ class GfSwitchRow extends StatelessWidget {
       leading: leading,
       symbol: symbol,
       iconColor: iconColor,
-      trailing: Switch.adaptive(value: value, onChanged: onChanged),
+      // The whole row is the target: the switch paints at its native size
+      // but lays out at text height so switch rows match the 52px rhythm.
+      trailing: SizedBox(
+        width: 64,
+        height: 24,
+        child: OverflowBox(
+          maxHeight: 48,
+          alignment: Alignment.centerRight,
+          child: Switch.adaptive(
+            value: value,
+            onChanged: onChanged,
+            activeTrackColor: GfTheme.colorsOf(context).primary,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ),
     );
   }
 }

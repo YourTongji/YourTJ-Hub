@@ -57,53 +57,86 @@ class GfNotificationRow extends StatelessWidget {
       GfNotificationTone.like => const Color(0xFFF91880),
     };
     final actorStart = actorName.isEmpty ? -1 : title.indexOf(actorName);
+    final Color background = unread
+        ? Color.alphaBlend(
+            colors.primary.withValues(alpha: colors.isDark ? 0.08 : 0.04),
+            colors.canvas,
+          )
+        : colors.canvas;
+    final typography = GfTheme.typographyOf(context);
+    final Widget toneMark = Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: toneColor.withValues(alpha: colors.isDark ? 0.18 : 0.1),
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: GfSymbol(symbol, size: GfIconSize.md, color: toneColor),
+    );
+    final Widget leading = avatarUrl == null
+        ? SizedBox(
+            width: 44,
+            child: Align(alignment: Alignment.topLeft, child: toneMark),
+          )
+        : Semantics(
+            label: actorName,
+            button: onActorTap != null,
+            child: InkWell(
+              onTap: onActorTap,
+              customBorder: const CircleBorder(),
+              child: SizedBox.square(
+                dimension: 44,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    GfAvatar(
+                      frameColors: avatarFrameColors,
+                      frameAssetUrl: avatarFrameAssetUrl,
+                      frameScale: avatarFrameScale,
+                      src: avatarUrl!,
+                      size: 40,
+                    ),
+                    // Event type rides on the actor as a small tone badge.
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: toneColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: background, width: 2),
+                        ),
+                        alignment: Alignment.center,
+                        child: GfSymbol(symbol, size: 11, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+
     return Material(
-      color: unread
-          ? Color.alphaBlend(
-              colors.primary.withValues(alpha: .04),
-              colors.base100,
-            )
-          : colors.base100,
+      color: background,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(
+            horizontal: GfSpace.gutter,
+            vertical: GfSpace.md,
+          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                width: 28,
-                height: 24,
-                child: GfSymbol(symbol, size: 24, color: toneColor),
-              ),
-              const SizedBox(width: 12),
+              leading,
+              const SizedBox(width: GfSpace.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (avatarUrl != null)
-                      Semantics(
-                        label: actorName,
-                        button: onActorTap != null,
-                        child: InkWell(
-                          onTap: onActorTap,
-                          customBorder: const CircleBorder(),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 4,
-                              horizontal: 4,
-                            ),
-                            child: GfAvatar(
-                              frameColors: avatarFrameColors,
-                              frameAssetUrl: avatarFrameAssetUrl,
-                              frameScale: avatarFrameScale,
-                              src: avatarUrl!,
-                              size: 36,
-                            ),
-                          ),
-                        ),
-                      ),
-                    if (avatarUrl != null) const SizedBox(height: 4),
                     GfText.rich(
                       TextSpan(
                         children: [
@@ -137,51 +170,50 @@ class GfNotificationRow extends StatelessWidget {
                               ),
                             ),
                           ],
-                          TextSpan(
-                            text: ' · $time',
-                            style: TextStyle(
-                              color: colors.iconMuted,
-                              fontSize: 13,
-                            ),
-                          ),
                         ],
                       ),
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 15,
-                        height: 1.4,
-                        color: colors.baseContent,
+                      style: typography.small.copyWith(
+                        color: colors.textPrimary,
                       ),
                     ),
                     if (subtitle.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(top: 5),
+                        padding: const EdgeInsets.only(top: GfSpace.xs),
                         child: GfText(
                           subtitle,
                           maxLines: subtitleMaxLines,
                           overflow: subtitleMaxLines == null
                               ? TextOverflow.visible
                               : TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 15,
-                            height: 1.4,
-                            color: colors.baseContent.withValues(alpha: .65),
+                          style: typography.small.copyWith(
+                            color: colors.textSecondary,
                           ),
                         ),
                       ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: GfSpace.xs),
+                      child: GfText(
+                        time,
+                        style: typography.caption.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
               if (unread)
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 9,
+                  padding: const EdgeInsets.only(
+                    left: GfSpace.sm,
+                    right: GfSpace.xs,
+                    top: 7,
                   ),
                   child: Container(
-                    width: 7,
-                    height: 7,
+                    width: 8,
+                    height: 8,
                     decoration: BoxDecoration(
                       color: colors.primary,
                       shape: BoxShape.circle,
@@ -198,8 +230,8 @@ class GfNotificationRow extends StatelessWidget {
                   ),
                   icon: GfSymbol(
                     'circle-check',
-                    size: 18,
-                    color: colors.iconMuted,
+                    size: GfIconSize.md,
+                    color: colors.textSecondary,
                   ),
                 ),
             ],

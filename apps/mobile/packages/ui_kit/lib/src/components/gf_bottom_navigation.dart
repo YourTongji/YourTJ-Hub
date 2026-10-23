@@ -151,14 +151,14 @@ class GfBottomNavigation extends StatelessWidget {
     double barHeight,
   ) {
     final Widget bar = Material(
-      color: useGlass ? colors.base100.withValues(alpha: 0.94) : colors.base100,
+      color: useGlass ? colors.canvas.withValues(alpha: 0.92) : colors.canvas,
       child: SafeArea(
         top: false,
         child: Container(
           height: barHeight,
           decoration: BoxDecoration(
             // One physical pixel, like X: separation without a heavy rule.
-            border: Border(top: BorderSide(color: colors.line, width: 0)),
+            border: Border(top: BorderSide(color: colors.separator, width: 0)),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -225,10 +225,8 @@ class _Destination extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final Color foreground = selected ? colors.primary : colors.iconMuted;
-    final Color labelColor = selected
-        ? colors.primary
-        : colors.baseContent.withValues(alpha: 0.72);
+    final Color foreground = selected ? colors.primary : colors.textSecondary;
+    final Color labelColor = selected ? colors.primary : colors.textSecondary;
     final bool reducedMotion = GfMotion.reducedOf(context);
 
     return Expanded(
@@ -266,13 +264,13 @@ class _Destination extends StatelessWidget {
                           GfMotion.selection,
                         ),
                         curve: GfMotion.layoutCurve,
-                        width: 48,
-                        height: 36,
+                        width: 56,
+                        height: 32,
                         decoration: BoxDecoration(
                           color: selected
-                              ? colors.primary.withValues(alpha: 0.09)
+                              ? colors.primarySoft
                               : Colors.transparent,
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(GfRadius.full),
                         ),
                         child: Stack(
                           clipBehavior: Clip.none,
@@ -294,17 +292,17 @@ class _Destination extends StatelessWidget {
                             ),
                             if (item.badge)
                               Positioned(
-                                top: 3,
-                                right: 8,
+                                top: 2,
+                                right: 12,
                                 child: Container(
-                                  width: 7,
-                                  height: 7,
+                                  width: 10,
+                                  height: 10,
                                   decoration: BoxDecoration(
-                                    color: colors.primary,
+                                    color: colors.error,
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: colors.base100,
-                                      width: 1,
+                                      color: colors.canvas,
+                                      width: 2,
                                     ),
                                   ),
                                 ),

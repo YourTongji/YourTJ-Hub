@@ -76,7 +76,7 @@ class PublishTypeSwitcher extends StatelessWidget {
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: colors.base200,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(GfRadius.lg),
       ),
       child: Stack(
         children: [
@@ -96,7 +96,7 @@ class PublishTypeSwitcher extends StatelessWidget {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: colors.base100,
-                    borderRadius: BorderRadius.circular(13),
+                    borderRadius: BorderRadius.circular(GfRadius.md),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: .06),
@@ -119,7 +119,7 @@ class PublishTypeSwitcher extends StatelessWidget {
                     selected: item.value == value,
                     enabled: enabled,
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(13),
+                      borderRadius: BorderRadius.circular(GfRadius.md),
                       onTap: enabled && item.value != value
                           ? () => onChanged!(item.value)
                           : null,

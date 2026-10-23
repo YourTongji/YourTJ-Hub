@@ -52,13 +52,13 @@ Future<void> showComposeMenu(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Material(
                         color: GfTheme.colorsOf(context).base100,
-                        borderRadius: BorderRadius.circular(18),
+                        borderRadius: BorderRadius.circular(GfRadius.lg),
                         elevation: 2,
                         shadowColor: Colors.black.withValues(alpha: .15),
                         child: InkWell(
                           key: ValueKey('compose-${option.value}'),
                           autofocus: option == PublishType.moment,
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(GfRadius.lg),
                           onTap: () => Navigator.pop(context, option),
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),

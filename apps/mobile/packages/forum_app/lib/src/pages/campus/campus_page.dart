@@ -642,7 +642,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
                   LinearProgressIndicator(
                     value: (done / required).clamp(0, 1),
                     minHeight: 8,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(GfRadius.xs),
                   ),
                 ],
               ],
@@ -1035,7 +1035,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
                                   context,
                                 ).primary.withValues(alpha: .08)
                               : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(GfRadius.md),
                           clipBehavior: Clip.antiAlias,
                           child: GfSettingRow(
                             key: Key('campus-module-${entry.key}'),
@@ -1397,7 +1397,7 @@ class _CampusRefreshSkeletonState extends State<_CampusRefreshSkeleton>
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: colors.baseContent.withValues(alpha: .7),
+                color: colors.textSecondary,
               ),
             ),
             SizedBox(height: 2 * scale),

@@ -436,7 +436,7 @@ class AccountDrawer extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   InkWell(
-                    borderRadius: BorderRadius.circular(30),
+                    borderRadius: BorderRadius.circular(GfRadius.xl),
                     onTap: () => open(signedIn ? '/profile' : '/login'),
                     child: GfAvatar(
                       frameColors: decorationColors(
