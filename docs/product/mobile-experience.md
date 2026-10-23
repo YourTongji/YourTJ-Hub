@@ -1894,7 +1894,9 @@ acceptance; simulator compilation does not establish those results.
 
 ## Profile decoration settings
 
-`Current`: native settings expose administrator-granted avatar frames and nickname styles with
-preview, independent removal, save/retry and theme-aware readable presentation. The native identity
+`Current`: native settings use separate frame/name tabs with effect-bearing rows, a shared identity
+preview and one confirmation action. The selected preview and confirmed equipment have distinct
+states. Failed saves keep the selection and show a retryable error beside the confirmation action.
+The native identity
 surfaces consume the same effective payload as Web; persona/anonymous identities remain independent.
 See [profile decorations](profile-decorations.md) for ownership and qualification semantics.

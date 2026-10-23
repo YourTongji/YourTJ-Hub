@@ -124,6 +124,11 @@ their dimensions, with a 24-pixel minimum column for smaller marks;
 destructive rows use error text and omit navigation chevrons. Appearance offers System,
 Light and Dark, and an already open choice sheet updates with the selected theme.
 
+`Current`: the profile editor's single-line nickname input, label and trailing length counter share
+the row's vertical center. The counter updates by grapheme cluster without reserving a second line
+inside the input. Multiline fields keep their counters below their content. Decoration artwork bounds
+reserve the configured scale so frames cannot overlap a neighbouring name or row.
+
 ## Transient surfaces and input
 
 `Current`: repository-owned Flutter components define filled 14-pixel form fields, capsule search/chat,

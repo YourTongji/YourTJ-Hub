@@ -704,6 +704,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         enabled: !_busy,
         maxLength: maxLength,
         lines: lines,
+        inlineCounter: lines == 1,
         hint: hint,
       ),
     );
@@ -1179,8 +1180,8 @@ class _ProfileLinksPageState extends State<_ProfileLinksPage> {
   }
 }
 
-/// Borderless input for a labelled row. The length counter appears only
-/// while the field is focused, as in the publishing title.
+/// Borderless input for a labelled row. Single-line counters sit beside the
+/// input so their reserved space cannot push the editable text above its label.
 class _ProfileTextField extends StatelessWidget {
   const _ProfileTextField({
     required this.fieldKey,
@@ -1188,6 +1189,7 @@ class _ProfileTextField extends StatelessWidget {
     this.enabled = true,
     this.maxLength,
     this.lines = 1,
+    this.inlineCounter = false,
     this.hint,
     this.url = false,
     this.validator,
@@ -1198,6 +1200,7 @@ class _ProfileTextField extends StatelessWidget {
   final bool enabled;
   final int? maxLength;
   final int lines;
+  final bool inlineCounter;
   final String? hint;
   final bool url;
   final FormFieldValidator<String>? validator;
@@ -1205,20 +1208,21 @@ class _ProfileTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    return TextFormField(
+    final field = TextFormField(
       key: ValueKey('profile-$fieldKey'),
       controller: controller,
       enabled: enabled,
       minLines: 1,
       maxLines: lines,
+      textAlignVertical: inlineCounter ? TextAlignVertical.center : null,
       maxLength: maxLength,
       maxLengthEnforcement: MaxLengthEnforcement.enforced,
       buildCounter:
           (context, {required currentLength, required isFocused, maxLength}) =>
-              maxLength != null
+              maxLength != null && !inlineCounter
               ? GfText(
                   '$currentLength/$maxLength',
-                  style: TextStyle(fontSize: 12, color: colors.iconMuted),
+                  style: TextStyle(fontSize: 12, color: colors.textSecondary),
                 )
               : null,
       style: GfTheme.typographyOf(
@@ -1240,7 +1244,8 @@ class _ProfileTextField extends StatelessWidget {
         hintStyle: TextStyle(color: colors.iconMuted),
         filled: false,
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(vertical: 6),
+        constraints: inlineCounter ? const BoxConstraints(minHeight: 44) : null,
+        contentPadding: EdgeInsets.symmetric(vertical: inlineCounter ? 14 : 6),
         border: InputBorder.none,
         enabledBorder: InputBorder.none,
         disabledBorder: InputBorder.none,
@@ -1249,6 +1254,21 @@ class _ProfileTextField extends StatelessWidget {
         focusedErrorBorder: InputBorder.none,
         errorMaxLines: 3,
       ),
+    );
+    if (!inlineCounter || maxLength == null) return field;
+    return Row(
+      children: [
+        Expanded(child: field),
+        const SizedBox(width: 12),
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: controller,
+          builder: (context, value, _) => GfText(
+            '${value.text.characters.length}/$maxLength',
+            key: ValueKey('profile-$fieldKey-counter'),
+            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -388,6 +388,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           (_) => DecorationPage(
             avatarUrl: user.avatarUrl,
             name: user.nickname.isEmpty ? user.username : user.nickname,
+            username: user.username,
           ),
         );
         if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {

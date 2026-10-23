@@ -80,6 +80,34 @@ void main() {
   SettingsUserPayload user() => SettingsUserPayload.fromJson(
     (settingsPayloadJson()['props'] as Map)['user'] as Map<String, dynamic>,
   );
+  testWidgets('nickname text and counter share the label vertical center', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(393, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await openEditor(
+      tester,
+      ProfileEditPage(
+        user: user().copyWith(nickname: 'yzxoi'),
+        onSave: (_) async {},
+      ),
+    );
+    final field = find.byKey(const ValueKey('profile-nickname'));
+    await tester.ensureVisible(field);
+    await tester.pumpAndSettle();
+    final input = find.descendant(
+      of: field,
+      matching: find.byType(EditableText),
+    );
+    final labelY = tester.getCenter(find.text('Nickname')).dy;
+    expect(tester.getCenter(input).dy, closeTo(labelY, 1));
+    expect(tester.getCenter(find.text('5/64')).dy, closeTo(labelY, 1));
+    await tester.enterText(field, '昵称👨‍👩‍👧‍👦');
+    await tester.pump();
+    expect(find.text('3/64'), findsOneWidget);
+  });
   testWidgets(
     'valid long stored profile fields can be edited without truncation',
     (tester) async {

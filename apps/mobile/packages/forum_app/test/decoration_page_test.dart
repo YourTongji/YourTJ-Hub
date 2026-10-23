@@ -192,42 +192,34 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Not owned'), findsOneWidget);
-      final nameRow = find.ancestor(
-        of: find.text('Name'),
-        matching: find.byType(ListTile),
-      );
-      final equip = find.descendant(
-        of: nameRow,
-        matching: find.widgetWithText(TextButton, 'Equip'),
-      );
-      expect(tester.widget<TextButton>(equip).onPressed, isNull);
+      await tester.tap(find.text('Colorful names'));
+      await tester.pumpAndSettle();
       await tester.tap(
-        find.descendant(
-          of: nameRow,
-          matching: find.widgetWithText(TextButton, 'Preview'),
-        ),
+        find.byKey(const ValueKey('decoration-option-nicknameStyle-name')),
       );
-      await tester.pump();
-      expect(find.byType(ShaderMask), findsOneWidget);
+      await tester.pumpAndSettle();
+      final equip = find.byKey(const Key('decoration-apply'));
+      expect(tester.widget<GfButton>(equip).onPressed, isNull);
+      expect(find.byType(ShaderMask), findsWidgets);
       expect(repo.calls, isEmpty);
-      final frameRow = find.ancestor(
-        of: find.text('Frame'),
-        matching: find.byType(ListTile),
-      );
+      await tester.tap(find.text('Avatar frames'));
+      await tester.pumpAndSettle();
       await tester.tap(
-        find.descendant(
-          of: frameRow,
-          matching: find.widgetWithText(TextButton, 'Equip'),
-        ),
+        find.byKey(const ValueKey('decoration-option-avatarFrame-frame')),
       );
+      await tester.pumpAndSettle();
+      await tester.tap(equip);
       await tester.pumpAndSettle();
       expect(repo.calls.single, {'avatarFrame': 'frame', 'nicknameStyle': ''});
       expect(
         tester.widget<GfAvatar>(find.byType(GfAvatar).first).frameScale,
         1.4,
       );
-      await tester.tap(find.widgetWithText(TextButton, 'Equip').first);
+      await tester.tap(
+        find.byKey(const ValueKey('decoration-option-avatarFrame-')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(equip);
       await tester.pumpAndSettle();
       expect(repo.calls.last, {'avatarFrame': '', 'nicknameStyle': ''});
       container.read(offlineCacheEpochProvider.notifier).invalidate();
@@ -272,6 +264,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('Colorful names'));
+    await tester.pumpAndSettle();
     expect(find.bySemanticsLabel('🐦‍🔥'), findsOneWidget);
     expect(find.byType(GfText), findsWidgets);
   });
