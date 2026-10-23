@@ -225,6 +225,12 @@ canonical、prev/next 与 `og:`／`twitter:`／`article:` meta 视页面是否�
 私信列表预览与消息正文中的个人 token 均以本地化「动画表情」隐藏随机名。待审与已拒绝表情的图片
 字节在获批前不对公开读取放行。AI 视觉审核不送审动图（GIF）：动图得到一条证据不完整的转人工结论，
 上传保持待审，由站点管理员在审核队列人工处理；原生表情可单独放大预览，不混入附件图库。
+`Current`：Web 上所有共用该 Vditor 宿主的编辑器（发帖、回复、快捷发布、课程评价）里贴纸是一个整体：
+光标紧跟 token 按一次 Backspace、或在其起点按一次 Delete，即整块删除；粘贴／撤销／逐字输入留下的
+半截 token 同样整块删除，光标落在 token 内部时删除整段。IME 组合、非折叠选区与 Ctrl／Meta／Alt
+组合键保持浏览器默认（Shift 组合键不在排除范围内，Shift+Backspace／Shift+Delete 同样整段删除）。见
+[决策 0106](../decisions/0106-editor-sticker-token-atomic-delete.md)。
+`Planned`：Flutter 输入框的贴纸仍按字符删除，原子删除跟进中。
 `Planned`：Web 个人库管理界面。
 配额、历史素材保留和隐私规则见[移动端表情规范](mobile-experience.md#sticker-library)与
 [个人表情库决策](../decisions/0038-personal-sticker-library.md)及[先审后用决策](../decisions/0080-personal-sticker-pre-review.md)。
