@@ -1,6 +1,5 @@
 import '../../navigation/reading_window.dart';
 import 'decoration_page.dart';
-import '../../widgets/user_decoration.dart';
 import '../../user_blocks.dart';
 import 'dart:async';
 
@@ -22,11 +21,9 @@ import '../../local/writing_store.dart';
 import '../../messages/chat_drafts.dart';
 import '../../asset_url.dart';
 import '../../server_messages.dart';
-import '../../reading_preferences.dart';
 import '../../theme_mode.dart';
 import '../../app_locale.dart';
 import '../../widgets/language_picker.dart';
-import '../../widgets/user_badge.dart';
 import '../../site_theme.dart';
 import '../../push/push_service.dart';
 import '../../push/push_preferences_panel.dart';
@@ -38,8 +35,6 @@ import 'storage_settings_panel.dart';
 import 'profile_edit_dialog.dart';
 import 'password_edit_page.dart';
 import 'session_device_label.dart';
-import '../../widgets/stickers/sticker_library_page.dart';
-import '../../widgets/stickers/sticker_strings.dart';
 import 'text_size_settings_page.dart';
 import 'schedule_widget_settings_page.dart';
 import 'username_edit_dialog.dart';
@@ -54,19 +49,17 @@ enum _SettingsTab {
   profile,
   account,
   privacy,
-  binding,
-  security,
   appearance,
   textSize,
   widgets,
+  data,
   notifications;
 
   String label(AppLocalizations l10n) => switch (this) {
     _SettingsTab.profile => l10n.settingsProfileDisplay,
     _SettingsTab.account => l10n.settingsTabAccount,
-    _SettingsTab.privacy => l10n.settingsDataStorage,
-    _SettingsTab.binding => l10n.settingsTabBinding,
-    _SettingsTab.security => l10n.settingsTabSecurity,
+    _SettingsTab.privacy => l10n.settingsTabPrivacy,
+    _SettingsTab.data => l10n.settingsDataStorage,
     _SettingsTab.appearance => l10n.settingsAppearance,
     _SettingsTab.textSize => l10n.textSizeTitle,
     _SettingsTab.widgets => l10n.scheduleWidgetSettingsTitle,
@@ -105,11 +98,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   int _sessionsRequest = 0;
   AsyncValue<List<UserSessionPayload>> _sessions = const AsyncValue.loading();
   AsyncValue<SettingsUserPayload> _user = const AsyncValue.loading();
-  bool _uploadingAvatar = false;
   bool _accountClosing = false;
   bool _googleOAuthReady = false;
   bool _appleOAuthReady = false;
   bool _autoEditProfileActive = false;
+  bool _autoEditBadges = false;
   final GfScrollToTopController _scrollToTopController =
       GfScrollToTopController();
   _ProfileEditSession _autoEditSession = _ProfileEditSession();
@@ -137,9 +130,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    _autoEditProfileActive = widget.autoEditProfile;
+    _autoEditProfileActive =
+        widget.autoEditProfile || widget.initialSection == 'profile';
+    _autoEditBadges = widget.initialSection == 'badges';
     for (final section in _SettingsTab.values) {
-      if (section.name == widget.initialSection) _tab = section;
+      final incoming = switch (widget.initialSection) {
+        'security' || 'binding' => 'account',
+        'badges' => 'profile',
+        'privacy' => 'data',
+        'privacy-controls' => 'privacy',
+        _ => widget.initialSection,
+      };
+      if (section.name == incoming) _tab = section;
     }
     _loadSession();
   }
@@ -152,13 +154,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   bool get _needsUser =>
+      _tab == null ||
       _tab == _SettingsTab.profile ||
       _tab == _SettingsTab.account ||
-      _tab == _SettingsTab.binding;
+      _hasDirectory;
 
   bool get _devicePage =>
       _tab == _SettingsTab.appearance ||
-      _tab == _SettingsTab.privacy ||
+      _tab == _SettingsTab.data ||
       _tab == _SettingsTab.textSize ||
       _tab == _SettingsTab.widgets;
 
@@ -179,7 +182,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     setState(() => _signedIn = signedIn);
     if (!signedIn) return;
     if (_needsUser) unawaited(_loadUser());
-    if (_tab == _SettingsTab.security) unawaited(_loadSessions());
+    if (_tab == _SettingsTab.account) unawaited(_loadSessions());
   }
 
   /// 加载设置页账户数据(settings.index 数据通道 → 徽章等)。
@@ -228,7 +231,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Future<void> _refresh() async {
     await Future.wait<void>(<Future<void>>[
       if (_signedIn == true && _needsUser) _loadUser(silent: true),
-      if (_signedIn == true && _tab == _SettingsTab.security)
+      if (_signedIn == true && _tab == _SettingsTab.account)
         _loadSessions(silent: true),
     ]);
   }
@@ -246,88 +249,39 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     context.go(_signedIn == true ? '/profile' : '/');
   }
 
-  /// 徽章佩戴选择:底部弹出可佩戴徽章列表,点选调 wear-badge。
-  Future<void> _pickBadge(SettingsUserPayload user) async {
-    final AppLocalizations l10n = AppLocalizations.of(context);
-    final wearable = user.wearableBadges;
-    if (wearable.isEmpty) {
-      _snack(l10n.settingsBadgeNoOptions);
-      return;
-    }
-    final String? selected = await showGfBottomSheet<String>(
-      context,
-      builder: (ctx) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: GfText(
-                l10n.settingsBadgePick,
-                style: GfTheme.typographyOf(
-                  context,
-                ).heading.copyWith(fontWeight: FontWeight.w700),
-              ),
-            ),
-            for (final b in wearable)
-              GfSettingRow(
-                leading: GfBadgeMedallion(
-                  icon: UserBadgeArtwork.medallion(b, 40),
-                  color: userBadgeColor(b),
-                  size: 40,
-                ),
-                title: b.name,
-                subtitleWidget: GfText(
-                  b.description,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: b.code == user.wornBadgeCode
-                    ? const GfSymbol('check', size: 20)
-                    : null,
-                onTap: () => Navigator.pop(ctx, b.code),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (selected == null) return;
-    try {
-      await ref.read(userRepositoryProvider).wearBadge(selected);
-      if (mounted) {
-        showGfToast(context, l10n.settingsBadgeUpdated);
-      }
-      _loadUser(silent: true);
-    } catch (e) {
-      if (mounted) {
-        showGfToast(
-          context,
-          l10n.settingsBadgeFailed(resolveErrorMessage(l10n, e)),
-          error: true,
-        );
-      }
-    }
-  }
+  BadgeDisplayDialog _badgeEditor(SettingsUserPayload user, int epoch) =>
+      BadgeDisplayDialog(
+        badges: user.badges,
+        onClose: _closeAccountEditor,
+        wearableBadges: user.wearableBadges,
+        wornBadgeCode: user.wornBadgeCode,
+        onWear: (code) async {
+          if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
+            throw const UnauthorizedException();
+          }
+          await ref.read(userRepositoryProvider).wearBadge(code);
+        },
+        selected: user.displayBadges ?? user.badges.take(5).toList(),
+        onSave: (codes) async {
+          if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
+            throw const UnauthorizedException();
+          }
+          await ref.read(userRepositoryProvider).displayBadges(codes);
+          if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+            ref.invalidate(currentUserProvider);
+          }
+        },
+      );
 
   Future<void> _displayBadges(SettingsUserPayload user) async {
     final epoch = ref.read(offlineCacheEpochProvider);
-    final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => ReadingPageWindow(
-          child: BadgeDisplayDialog(
-            badges: user.badges,
-            selected: user.displayBadges ?? user.badges.take(5).toList(),
-            onSave: (codes) async {
-              if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
-                throw const UnauthorizedException();
-              }
-              await ref.read(userRepositoryProvider).displayBadges(codes);
-            },
-          ),
-        ),
-      ),
+    await _pushProfileEditRoute<bool>(
+      (_) => ReadingPageWindow(child: _badgeEditor(user, epoch)),
     );
-    if (saved == true && mounted) _loadUser(silent: true);
+    if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+      await _loadUser(silent: true);
+      ref.invalidate(currentUserProvider);
+    }
   }
 
   Future<void> _changePassword() async {
@@ -356,6 +310,25 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         context,
         AppLocalizations.of(context).settingsPasswordUpdated,
       );
+    }
+  }
+
+  void _closeAccountEditor(bool saved) {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop(saved);
+    } else {
+      final router = GoRouter.maybeOf(context);
+      if (router != null) {
+        router.go('/settings');
+      } else {
+        setState(() {
+          _tab = null;
+          _autoEditProfileActive = false;
+          _autoEditBadges = false;
+        });
+        if (_signedIn == true) unawaited(_loadUser(silent: true));
+      }
     }
   }
 
@@ -393,8 +366,35 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return ProfileEditPage(
       key: key,
       user: user,
-      onPickImage: (cover) =>
-          _pickProfileImageDraft(cover: cover, epoch: epoch),
+      onClose: _closeAccountEditor,
+      onPickImage: (cover, source) =>
+          _pickProfileImageDraft(cover: cover, epoch: epoch, source: source),
+      onSavePresetAvatar: (path) async {
+        requireCurrentSession();
+        await ref.read(userRepositoryProvider).savePresetAvatar(path);
+        requireCurrentSession();
+        session.changed = true;
+        ref.invalidate(currentUserProvider);
+      },
+      onEditUsername: _changeUsername,
+      onReloadUser: () async {
+        requireCurrentSession();
+        return _user.valueOrNull;
+      },
+      onPushLinks: (builder) =>
+          _pushProfileEditRoute<Map<String, String>>(builder),
+      onOpenDecorations: () async {
+        await _pushProfileEditRoute<void>(
+          (_) => DecorationPage(
+            avatarUrl: user.avatarUrl,
+            name: user.nickname.isEmpty ? user.username : user.nickname,
+          ),
+        );
+        if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+          await _loadUser(silent: true);
+        }
+      },
+      onOpenBadges: () => _displayBadges(user),
       onSave: (updated) async {
         requireCurrentSession();
         await ref
@@ -477,10 +477,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Future<Uint8List?> _pickProfileImageDraft({
     required bool cover,
     required int epoch,
+    required ProfileImageSource source,
   }) async {
     if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return null;
-    final source = await _selectProfileImageSource(cover: cover);
-    if (source == null ||
+    final picked = await _selectProfileImageSource(
+      cover: cover,
+      imageSource: source,
+    );
+    if (picked == null ||
         !mounted ||
         epoch != ref.read(offlineCacheEpochProvider)) {
       return null;
@@ -489,7 +493,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final l = AppLocalizations.of(context);
     await _pushProfileEditRoute<bool>(
       (_) => ProfileImageEditor(
-        source: source,
+        source: picked,
         cover: cover,
         coverPreviewAspectRatio: _profileCoverAspectRatio(),
         confirmLabel: l.commonConfirm,
@@ -509,16 +513,33 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Future<void> _changeUsername() async {
     final user = _user.value;
     if (user == null) return;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final repository = ref.read(userRepositoryProvider);
     final saved = await showDialog<bool>(
       context: context,
       animationStyle: GfMotion.dialogStyle(context),
       barrierDismissible: false,
-      builder: (_) => UsernameEditDialog(
-        username: user.username,
-        onSave: ref.read(userRepositoryProvider).saveUserName,
+      builder: (_) => _SettingsAccountDialog(
+        epoch: epoch,
+        child: UsernameEditDialog(
+          username: user.username,
+          onSave: (username) async {
+            if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
+              throw const UnauthorizedException();
+            }
+            await repository.saveUserName(username);
+            if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
+              throw const UnauthorizedException();
+            }
+          },
+        ),
       ),
     );
-    if (saved != true || !mounted) return;
+    if (saved != true ||
+        !mounted ||
+        epoch != ref.read(offlineCacheEpochProvider)) {
+      return;
+    }
     ref.invalidate(currentUserProvider);
     await _loadUser(silent: true);
     if (mounted) {
@@ -526,124 +547,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         context,
         AppLocalizations.of(context).settingsUsernameUpdated,
       );
-    }
-  }
-
-  Future<void> _chooseAvatar() async {
-    final l10n = AppLocalizations.of(context);
-    final preset = await showGfActionSheet<bool>(
-      context,
-      items: [
-        GfPopupMenuItem(
-          value: false,
-          child: Row(
-            children: [
-              GfSymbol('image', size: 22),
-              const SizedBox(width: 12),
-              Expanded(child: GfText(l10n.settingsAvatarUpload)),
-            ],
-          ),
-        ),
-        GfPopupMenuItem(
-          value: true,
-          child: Row(
-            children: [
-              GfSymbol('user-round', size: 22),
-              const SizedBox(width: 12),
-              Expanded(child: GfText(l10n.settingsPresetAvatar)),
-            ],
-          ),
-        ),
-      ],
-    );
-    if (!mounted || preset == null) return;
-    if (preset) {
-      await _pickPresetAvatar();
-    } else {
-      await _pickProfileImage();
-    }
-  }
-
-  Future<void> _pickPresetAvatar() async {
-    final l10n = AppLocalizations.of(context);
-    var selected = _user.value?.avatarUrl ?? '';
-    final choice = await showGfBottomSheet<String>(
-      context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                GfText(
-                  l10n.settingsPresetAvatar,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 16),
-                Flexible(
-                  child: GridView.builder(
-                    shrinkWrap: true,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 4,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                        ),
-                    itemCount: 12,
-                    itemBuilder: (context, index) {
-                      final path = '/static/pic/${index + 1}.webp';
-                      return Semantics(
-                        label: '${l10n.settingsPresetAvatar} ${index + 1}',
-                        selected: selected == path,
-                        button: true,
-                        child: InkWell(
-                          onTap: () => setSheetState(() => selected = path),
-                          borderRadius: BorderRadius.circular(16),
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: selected == path
-                                    ? GfTheme.colorsOf(context).primary
-                                    : Colors.transparent,
-                                width: 3,
-                              ),
-                            ),
-                            child: GfAvatar(
-                              src: resolveApiAssetUrl(path),
-                              size: 64,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 16),
-                GfButton(
-                  label: l10n.commonSave,
-                  onPressed: selected.startsWith('/static/pic/')
-                      ? () => Navigator.pop(context, selected)
-                      : null,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-    if (choice == null || !mounted) return;
-    try {
-      await ref.read(userRepositoryProvider).savePresetAvatar(choice);
-      ref.invalidate(currentUserProvider);
-      await _loadUser(silent: true);
-      if (mounted) showGfToast(context, l10n.settingsInfoSaved);
-    } catch (error) {
-      if (mounted) {
-        showGfToast(context, resolveErrorMessage(l10n, error), error: true);
-      }
     }
   }
 
@@ -891,11 +794,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<ProfileCropSource?> _selectProfileImageSource({
     required bool cover,
+    ProfileImageSource imageSource = ProfileImageSource.gallery,
   }) async {
     final l = AppLocalizations.of(context);
     final epoch = ref.read(offlineCacheEpochProvider);
     final picked = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
+      source: imageSource == ProfileImageSource.camera
+          ? ImageSource.camera
+          : ImageSource.gallery,
       maxWidth: 4096,
       maxHeight: 4096,
     );
@@ -921,96 +827,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return source;
   }
 
-  Future<void> _pickProfileImage({bool cover = false}) async {
-    if (_uploadingAvatar) return;
-    final l10n = AppLocalizations.of(context);
-    final epoch = ref.read(offlineCacheEpochProvider);
-    setState(() => _uploadingAvatar = true);
-    try {
-      final source = await _selectProfileImageSource(cover: cover);
-      if (source == null ||
-          !mounted ||
-          epoch != ref.read(offlineCacheEpochProvider)) {
-        return;
-      }
-      final saved = await _pushProfileEditRoute<bool>(
-        (_) => ProfileImageEditor(
-          source: source,
-          cover: cover,
-          coverPreviewAspectRatio: _profileCoverAspectRatio(),
-          onSave: (bytes) async {
-            if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
-              throw const UnauthorizedException();
-            }
-            final files = ref.read(fileRepositoryProvider);
-            if (cover) {
-              final url = await files.uploadImage(
-                bytes: bytes,
-                filename: 'cover.webp',
-              );
-              if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
-                throw const UnauthorizedException();
-              }
-              await ref.read(userRepositoryProvider).saveUserProfileCover(url);
-            } else {
-              await files.uploadAvatar(bytes: bytes, filename: 'avatar.webp');
-            }
-          },
-        ),
-      );
-      if (mounted && saved == true) {
-        ref.invalidate(currentUserProvider);
-        await _loadUser(silent: true);
-        if (mounted) _snack(l10n.settingsImageSaved);
-      }
-    } catch (error) {
-      if (mounted) {
-        _snack(
-          error is FormatException
-              ? l10n.settingsImageDecodeFailed
-              : resolveErrorMessage(l10n, error),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _uploadingAvatar = false);
-    }
-  }
-
-  Future<void> _removeCover() async {
-    final l10n = AppLocalizations.of(context);
-    final confirmed = await showGfAlertDialog<bool>(
-      context,
-      builder: (context) => GfAlertDialog(
-        title: GfText(l10n.settingsCoverRemove),
-        content: GfText(l10n.settingsCoverRemoveConfirm),
-        actions: [
-          GfDialogAction(
-            onPressed: () => Navigator.pop(context, false),
-            child: GfText(l10n.commonCancel),
-          ),
-          GfDialogAction(
-            destructive: true,
-            filled: true,
-            onPressed: () => Navigator.pop(context, true),
-            child: GfText(l10n.commonConfirm),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted || _uploadingAvatar) return;
-    setState(() => _uploadingAvatar = true);
-    try {
-      await ref.read(userRepositoryProvider).saveUserProfileCover('');
-      if (!mounted) return;
-      ref.invalidate(currentUserProvider);
-      if (mounted) await _loadUser(silent: true);
-    } catch (error) {
-      if (mounted) _snack(resolveErrorMessage(l10n, error));
-    } finally {
-      if (mounted) setState(() => _uploadingAvatar = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     ref.listen(offlineCacheEpochProvider, (previous, next) {
@@ -1024,12 +840,29 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _sessions = const AsyncValue.loading();
         _googleOAuthReady = false;
         _appleOAuthReady = false;
+        if (_autoEditProfileActive || _autoEditBadges) _tab = null;
         _autoEditProfileActive = false;
+        _autoEditBadges = false;
         _autoEditSession = _ProfileEditSession();
       });
       unawaited(_loadSession());
     });
     final l10n = AppLocalizations.of(context);
+    if (_autoEditBadges && _signedIn != false) {
+      final user = _user.valueOrNull;
+      if (user != null) {
+        return _badgeEditor(user, ref.read(offlineCacheEpochProvider));
+      }
+      return Scaffold(
+        appBar: GfAppBar(title: GfText(l10n.settingsBadge)),
+        body: _user.hasError
+            ? GfErrorRetry(
+                message: resolveErrorMessage(l10n, _user.error!),
+                onRetry: _loadUser,
+              )
+            : const GfSettingsSkeleton(),
+      );
+    }
     if (_autoEditProfileActive &&
         _tab == _SettingsTab.profile &&
         _signedIn != false) {
@@ -1150,7 +983,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       setState(() => _tab = section);
       if (_signedIn == true) {
         if (_needsUser && !_user.hasValue) unawaited(_loadUser());
-        if (section == _SettingsTab.security && !_sessions.hasValue) {
+        if (section == _SettingsTab.account && !_sessions.hasValue) {
           unawaited(_loadSessions());
         }
       }
@@ -1160,7 +993,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       MaterialPageRoute(
         builder: (_) => ReadingPageWindow(
           maxContentWidth: 1120,
-          child: SettingsPage(initialSection: section.name),
+          child: SettingsPage(
+            initialSection: section == _SettingsTab.privacy
+                ? 'privacy-controls'
+                : section.name,
+          ),
         ),
       ),
     );
@@ -1174,156 +1011,136 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _buildIndexList(l10n, controller),
   );
 
-  Widget _buildIndexList(AppLocalizations l10n, ScrollController controller) =>
-      ListView(
-        controller: controller,
-        padding: const EdgeInsets.all(16),
-        children: [
-          _settingsSection(
-            context,
-            title: l10n.settingsDevice,
-            child: Column(
-              children: [
-                _categoryRow(
-                  key: const ValueKey('settings-category-appearance'),
-                  section: _SettingsTab.appearance,
-                  symbol: 'palette',
-                  title: l10n.settingsAppearance,
-                  description: switch (ref.watch(themeModeProvider)) {
-                    ThemeMode.system => l10n.settingsLanguageSystem,
-                    ThemeMode.light => l10n.settingsThemeLight,
-                    ThemeMode.dark => l10n.settingsThemeDark,
-                  },
-                  onTap: () => _openSection(_SettingsTab.appearance),
-                ),
-                const GfDivider(),
-                _categoryRow(
-                  key: const ValueKey('settings-category-textSize'),
-                  section: _SettingsTab.textSize,
-                  symbol: 'type',
-                  title: l10n.textSizeTitle,
-                  onTap: () => _openSection(_SettingsTab.textSize),
-                ),
-                const GfDivider(),
-                _categoryRow(
-                  key: const ValueKey('settings-category-widgets'),
-                  section: _SettingsTab.widgets,
-                  symbol: 'calendar-days',
-                  title: l10n.scheduleWidgetSettingsTitle,
-                  onTap: () => _openSection(_SettingsTab.widgets),
-                ),
-                const GfDivider(),
-                _categoryRow(
-                  key: const ValueKey('settings-category-language'),
-                  symbol: 'languages',
-                  title: l10n.settingsAppLanguage,
-                  description:
-                      appLanguageNames[ref
-                          .watch(appLocaleProvider)
-                          ?.languageCode] ??
-                      l10n.settingsLanguageSystem,
-                  onTap: () => showAppLanguagePicker(context),
-                ),
-                const GfDivider(),
-                _categoryRow(
-                  key: const ValueKey('settings-category-privacy'),
-                  section: _SettingsTab.privacy,
-                  symbol: 'archive',
-                  title: l10n.settingsDataStorage,
-                  onTap: () => _openSection(_SettingsTab.privacy),
-                ),
-                const GfDivider(),
-                _categoryRow(
-                  symbol: 'info',
-                  title: l10n.settingsAbout,
-                  onTap: () => context.push('/about'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          _settingsSection(
-            context,
-            title: l10n.settingsYourAccount,
-            child: Column(
-              children: [
-                if (_signedIn == true)
-                  for (final section in const [
-                    _SettingsTab.profile,
-                    _SettingsTab.account,
-                    _SettingsTab.binding,
-                    _SettingsTab.notifications,
-                    _SettingsTab.security,
-                  ]) ...[
-                    if (section != _SettingsTab.profile) const GfDivider(),
-                    _categoryRow(
-                      key: ValueKey('settings-category-${section.name}'),
-                      section: section,
-                      symbol: switch (section) {
-                        _SettingsTab.profile => 'user-round',
-                        _SettingsTab.account => 'at-sign',
-                        _SettingsTab.privacy => 'folder',
-                        _SettingsTab.binding => 'link',
-                        _SettingsTab.notifications => 'bell',
-                        _ => 'shield-check',
-                      },
-                      title: section.label(l10n),
-                      onTap: () => _openSection(section),
-                    ),
-                    if (section == _SettingsTab.account) ...[
-                      const GfDivider(),
-                      GfSettingRow(
-                        symbol: 'eye-off',
-                        title: l10n.userBlocks,
-                        onTap: () => showBlockedUsers(context),
-                      ),
-                    ],
-                    if (section == _SettingsTab.profile) ...[
-                      const GfDivider(),
-                      GfSettingRow(
-                        symbol: 'smile',
-                        title: StickerStrings(context).title,
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => ReadingPageWindow(
-                              child: const StickerLibraryPage(),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ]
-                else if (_signedIn == false)
-                  _categoryRow(
-                    symbol: 'login4',
-                    title: l10n.authLoginTitle,
-                    onTap: () => context.push(
-                      authLoginLocation(
-                        returnTo: _tab != null
-                            ? '/settings/${_tab!.name}'
-                            : '/settings',
-                      ),
-                    ),
-                  )
-                else
-                  const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: LinearProgressIndicator(),
+  Widget _buildIndexList(
+    AppLocalizations l10n,
+    ScrollController controller,
+  ) => ListView(
+    controller: controller,
+    padding: const EdgeInsets.all(16),
+    children: [
+      if (_signedIn == true) ...[
+        _settingsSection(
+          context,
+          child: GfSettingRow(
+            key: const Key('settings-profile-card'),
+            symbol: 'user-round',
+            title:
+                _user.valueOrNull?.nickname ??
+                (_user.hasError ? l10n.commonRetry : l10n.settingsEditProfile),
+            description: _user.valueOrNull == null
+                ? (_user.hasError
+                      ? resolveErrorMessage(l10n, _user.error!)
+                      : l10n.commonLoading)
+                : '@${_user.valueOrNull!.username}',
+            trailing: _user.valueOrNull == null
+                ? null
+                : GfAvatar(
+                    src: resolveApiAssetUrl(_user.valueOrNull!.avatarUrl),
+                    size: 40,
                   ),
-              ],
-            ),
+            onTap: _user.valueOrNull == null
+                ? (_user.hasError ? () => _loadUser() : null)
+                : () => _editProfile(_user.valueOrNull!),
           ),
-          if (_signedIn == true) ...[
-            const SizedBox(height: 24),
-            GfButton(
-              label: l10n.settingsLogout,
-              variant: GfButtonVariant.danger,
-              expanded: true,
-              onPressed: _logout,
+        ),
+        const SizedBox(height: 20),
+        _settingsSection(
+          context,
+          title: l10n.settingsYourAccount,
+          child: Column(
+            children: [
+              for (final section in [
+                _SettingsTab.account,
+                _SettingsTab.privacy,
+                _SettingsTab.notifications,
+              ]) ...[
+                if (section != _SettingsTab.account) const GfDivider(),
+                _categoryRow(
+                  key: ValueKey('settings-category-${section.name}'),
+                  section: section,
+                  symbol: switch (section) {
+                    _SettingsTab.account => 'shield-check',
+                    _SettingsTab.privacy => 'eye',
+                    _ => 'bell',
+                  },
+                  title: section.label(l10n),
+                  onTap: () => _openSection(section),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+      ],
+      _settingsSection(
+        context,
+        title: l10n.settingsDevice,
+        child: Column(
+          children: [
+            for (final section in [
+              _SettingsTab.appearance,
+              _SettingsTab.textSize,
+              _SettingsTab.widgets,
+              _SettingsTab.data,
+            ]) ...[
+              if (section != _SettingsTab.appearance) const GfDivider(),
+              _categoryRow(
+                key: ValueKey('settings-category-${section.name}'),
+                section: section,
+                symbol: switch (section) {
+                  _SettingsTab.appearance => 'palette',
+                  _SettingsTab.textSize => 'type',
+                  _SettingsTab.widgets => 'calendar-days',
+                  _ => 'folder',
+                },
+                title: section.label(l10n),
+                onTap: () => _openSection(section),
+              ),
+            ],
+            const GfDivider(),
+            _categoryRow(
+              key: const Key('settings-category-language'),
+              symbol: 'languages',
+              title: l10n.settingsAppLanguage,
+              description:
+                  appLanguageNames[ref
+                      .watch(appLocaleProvider)
+                      ?.languageCode] ??
+                  l10n.settingsLanguageSystem,
+              onTap: () => showAppLanguagePicker(context),
+            ),
+            const GfDivider(),
+            _categoryRow(
+              key: const Key('settings-category-about'),
+              symbol: 'info',
+              title: l10n.siteInfoTitle,
+              onTap: () => context.push('/about'),
             ),
           ],
-        ],
-      );
+        ),
+      ),
+      if (_signedIn == false) ...[
+        const SizedBox(height: 20),
+        GfButton(
+          label: l10n.authLoginTitle,
+          onPressed: () => context.push(
+            authLoginLocation(
+              returnTo: _tab == null ? '/settings' : '/settings/${_tab!.name}',
+            ),
+          ),
+        ),
+      ],
+      if (_signedIn == true) ...[
+        const SizedBox(height: 24),
+        GfButton(
+          label: l10n.settingsLogout,
+          variant: GfButtonVariant.outline,
+          expanded: true,
+          onPressed: _logout,
+        ),
+      ],
+    ],
+  );
 
   Widget _categoryRow({
     Key? key,
@@ -1379,10 +1196,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         );
       }
     }
-    if (_needsUser && _user.isLoading && !_user.hasValue) {
+    if (_signedIn == true &&
+        _tab == _SettingsTab.profile &&
+        _user.isLoading &&
+        !_user.hasValue) {
       return const GfSettingsSkeleton();
     }
-    if (_needsUser && _user.hasError && !_user.hasValue) {
+    if (_signedIn == true &&
+        _tab == _SettingsTab.profile &&
+        _user.hasError &&
+        !_user.hasValue) {
       return GfErrorRetry(
         message: resolveErrorMessage(l10n, _user.error!),
         onRetry: _loadUser,
@@ -1394,11 +1217,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       key: ValueKey<_SettingsTab?>(_tab),
       builder: (_, ScrollController controller) {
         final content = switch (_tab!) {
-          _SettingsTab.profile => _buildProfileTab(l10n, controller),
+          _SettingsTab.profile => const GfSettingsSkeleton(),
           _SettingsTab.account => _buildAccountTab(l10n, controller),
           _SettingsTab.privacy => _buildPrivacyTab(l10n, controller),
-          _SettingsTab.binding => _buildBindingTab(l10n, controller),
-          _SettingsTab.security => _buildSecurityTab(l10n, controller),
+          _SettingsTab.data => StorageSettingsPanel(
+            controller: controller,
+            signedIn: _signedIn == true,
+          ),
           _SettingsTab.appearance => _buildAppearance(l10n, controller),
           _SettingsTab.textSize || _SettingsTab.widgets => throw StateError(
             'Device pages use their own scroll views',
@@ -1417,8 +1242,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Widget _buildAppearance(AppLocalizations l10n, ScrollController controller) {
     final mode = ref.watch(themeModeProvider);
     final siteTheme = ref.watch(siteThemeProvider);
-    final double readingScale = ref.watch(contentFontScaleProvider);
-    final double appScale = ref.watch(appFontScaleProvider);
     return ListView(
       controller: controller,
       padding: const EdgeInsets.all(16),
@@ -1448,35 +1271,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        _settingsSection(
-          context,
-          child: GfSettingRow(
-            key: const ValueKey('settings-text-size'),
-            symbol: 'type',
-            title: l10n.textSizeTitle,
-            description: l10n.textSizeSummary(
-              textSizeLabel(l10n, appScale),
-              textSizeLabel(l10n, readingScale),
-            ),
-            onTap: () => _openSection(_SettingsTab.textSize),
-          ),
-        ),
-        const SizedBox(height: 12),
-        _settingsSection(
-          context,
-          title: l10n.scheduleWidgetSettingsTitle,
-          child: GfSettingRow(
-            symbol: 'calendar-days',
-            title: l10n.scheduleWidgetSettingsTitle,
-            onTap: () => _openSection(_SettingsTab.widgets),
-          ),
-        ),
         if (siteTheme.available) ...[
           const SizedBox(height: 12),
           _settingsSection(
             context,
-            title: l10n.settingsFollowSiteTheme,
             child: SwitchListTile(
               title: GfText(l10n.settingsFollowSiteTheme),
               subtitle: GfText(l10n.settingsFollowSiteThemeDesc),
@@ -1490,117 +1288,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
-  Widget _buildProfileTab(AppLocalizations l10n, ScrollController controller) {
-    final user = _user.value;
-    return ListView(
-      controller: controller,
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(16),
-      children: [
-        _settingsSection(
-          context,
-          child: Column(
-            children: [
-              GfSettingRow(
-                symbol: 'user-round',
-                title: l10n.settingsEditProfile,
-                description: user == null
-                    ? l10n.commonLoading
-                    : [
-                        user.nickname.isEmpty ? user.username : user.nickname,
-                        user.bio,
-                      ].where((value) => value.isNotEmpty).join(' · '),
-                onTap: user == null ? null : () => _editProfile(user),
-              ),
-              const GfDivider(),
-              GfSettingRow(
-                symbol: 'sparkles',
-                title: DecorationStrings(context).title,
-                onTap: user == null
-                    ? null
-                    : () async {
-                        await Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => DecorationPage(
-                              avatarUrl: user.avatarUrl,
-                              name: user.nickname.isEmpty
-                                  ? user.username
-                                  : user.nickname,
-                            ),
-                          ),
-                        );
-                        if (mounted) await _loadUser(silent: true);
-                      },
-              ),
-              const GfDivider(),
-              GfSettingRow(
-                symbol: 'camera',
-                title: l10n.settingsAvatar,
-                description: _uploadingAvatar
-                    ? l10n.settingsAvatarUploading
-                    : null,
-                leading: user == null
-                    ? null
-                    : GfAvatar(
-                        frameColors: decorationColors(
-                          context,
-                          user.decoration?.avatarFrame,
-                        ),
-                        frameAssetUrl: decorationFrameAssetUrl(
-                          user.decoration?.avatarFrame,
-                        ),
-                        frameScale:
-                            user.decoration?.avatarFrame?.assetScale ?? 1.25,
-                        src: resolveApiAssetUrl(user.avatarUrl),
-                        size: 32,
-                      ),
-                onTap: _uploadingAvatar ? null : _chooseAvatar,
-              ),
-              const GfDivider(),
-              GfSettingRow(
-                symbol: 'image',
-                title: l10n.settingsCover,
-                description: user?.profileCoverUrl.isNotEmpty == true
-                    ? null
-                    : l10n.settingsNotSet,
-                onTap: _uploadingAvatar
-                    ? null
-                    : () => _pickProfileImage(cover: true),
-              ),
-              if (user?.profileCoverUrl.isNotEmpty == true) ...[
-                const GfDivider(),
-                GfSettingRow(
-                  symbol: 'image-off',
-                  title: l10n.settingsCoverRemove,
-                  onTap: _uploadingAvatar ? null : _removeCover,
-                ),
-              ],
-              const GfDivider(),
-              GfSettingRow(
-                symbol: 'award',
-                title: l10n.settingsBadge,
-                description: user?.wornBadge?.name ?? l10n.settingsBadgeNone,
-                onTap: user == null ? null : () => _pickBadge(user),
-              ),
-              const GfDivider(),
-              GfSettingRow(
-                symbol: 'award',
-                title: l10n.badgeDisplayTitle,
-                description: user == null
-                    ? l10n.commonLoading
-                    : l10n.badgeDisplaySelectedCount(
-                        (user.displayBadges ?? user.badges.take(5).toList())
-                            .length,
-                      ),
-                onTap: user == null ? null : () => _displayBadges(user),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   /// Account identity and security credentials.
   Widget _buildAccountTab(AppLocalizations l10n, ScrollController controller) {
     return ListView(
@@ -1608,199 +1295,71 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: <Widget>[
-        _settingsSection(
-          context,
-          child: Column(
-            children: [
-              GfSettingRow(
-                symbol: 'eye-off',
-                title: l10n.anonymousIdentity,
-                description: l10n.anonymousSettingsHint,
-                trailing: const GfSymbol('chevron-right', size: 18),
-                onTap: () => context.push('/settings/anonymous-identity'),
-              ),
-              const GfDivider(),
-              GfSettingRow(
-                symbol: 'at-sign',
-                title: l10n.authUsername,
-                description: _user.value?.username ?? '',
-                trailing: const GfSymbol('chevron-right', size: 18),
-                onTap: _user.value == null ? null : _changeUsername,
-              ),
-              const GfDivider(),
-              GfSettingRow(
-                symbol: 'mail',
-                title: l10n.settingsEmail,
-                // 两阶段换绑（issue #678）：暂存期内展示待确认的新邮箱与当前邮箱，
-                // 否则展示常规的「修改绑定邮箱」入口描述。
-                subtitleWidget: _user.when(
-                  data: (u) => GfText(
-                    u.pendingEmail.isNotEmpty
-                        ? '${u.email}\n${l10n.settingsEmailPending(u.pendingEmail)}'
-                        : u.email.isNotEmpty
-                        ? u.email
-                        : l10n.settingsEmailEdit,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  loading: () => GfText(l10n.commonLoading),
-                  error: (_, _) => GfText(l10n.settingsEmailEdit),
-                ),
-                trailing: const GfSymbol('chevron-right', size: 18),
-                onTap: _changeEmail,
-              ),
-              const GfDivider(),
-              GfSettingRow(
-                symbol: 'key-round',
-                title: l10n.settingsChangePassword,
-                description: l10n.settingsChangePasswordSub,
-                trailing: const GfSymbol('chevron-right', size: 18),
-                onTap: _changePassword,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        _settingsSection(
-          context,
-          title: l10n.settingsTabPrivacy,
-          child: GfSettingRow(
-            key: const ValueKey('settings-account-profile-privacy'),
-            symbol: 'eye',
-            title: l10n.profilePrivacyTitle,
-            description: l10n.profilePrivacyDescription,
-            trailing: const GfSymbol('chevron-right', size: 18),
-            onTap: () => context.push('/settings/profile-privacy'),
-          ),
-        ),
-        const SizedBox(height: 24),
-        TextButton(
-          onPressed: _accountClosing ? null : _closeAccount,
-          child: GfText(l10n.settingsCloseAccount),
-        ),
-      ],
-    );
-  }
-
-  /// Legacy privacy deep links now open data and local-storage tools.
-  Widget _buildPrivacyTab(AppLocalizations l10n, ScrollController controller) =>
-      StorageSettingsPanel(controller: controller, signedIn: _signedIn == true);
-
-  /// 绑定:OAuth 绑定(web binding tab)。
-  Widget _buildBindingTab(AppLocalizations l10n, ScrollController controller) {
-    return ListView(
-      controller: controller,
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(16),
-      children: <Widget>[
-        _settingsSection(
-          context,
-          title: l10n.settingsTabBinding,
-          child: Column(
-            children: [
-              GfSettingRow(
-                symbol: 'circle-user-round',
-                title: l10n.settingsOAuth,
-                description: l10n.settingsOAuthSub,
-                trailing: const GfSymbol('chevron-right', size: 18),
-                onTap: _manageOAuth,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNotifications(
-    AppLocalizations l10n,
-    ScrollController controller,
-  ) => ListView(
-    controller: controller,
-    padding: const EdgeInsets.all(16),
-    children: [
-      Consumer(
-        builder: (context, ref, _) {
-          final push = ref.watch(pushControllerProvider);
-          final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
-          final preferenceOn =
-              push == PushChannelStatus.enabled ||
-              push == PushChannelStatus.permissionDenied ||
-              push == PushChannelStatus.serverDisabled ||
-              push == PushChannelStatus.registrationFailed;
-          final delivery = switch (push) {
-            PushChannelStatus.enabled => l10n.settingsPushReady,
-            PushChannelStatus.disabled => l10n.settingsPushOff,
-            PushChannelStatus.unknown => l10n.commonLoading,
-            PushChannelStatus.unsupported => l10n.settingsPushUnsupported,
-            PushChannelStatus.serverDisabled => l10n.settingsPushServerDisabled,
-            PushChannelStatus.registrationFailed => l10n.settingsPushFailed,
-            PushChannelStatus.permissionDenied => l10n.settingsPushDenied,
-          };
-          return _settingsSection(
+        if (_user.hasError && !_user.hasValue)
+          _settingsSection(
             context,
-            title: l10n.settingsPush,
+            child: GfErrorRetry(
+              message: resolveErrorMessage(l10n, _user.error!),
+              onRetry: _loadUser,
+            ),
+          )
+        else if (_user.isLoading && !_user.hasValue)
+          const GfSettingsSkeleton()
+        else
+          _settingsSection(
+            context,
             child: Column(
               children: [
-                GfSwitchRow(
-                  symbol: 'bell',
-                  title: l10n.settingsPushPreference,
-                  description: isIOS
-                      ? l10n.settingsPushIOSConsent
-                      : l10n.settingsPushAndroidConsent,
-                  value: preferenceOn,
-                  onChanged: (value) async {
-                    final controller = ref.read(
-                      pushControllerProvider.notifier,
-                    );
-                    if (value) {
-                      await controller.enable();
-                    } else {
-                      await controller.disable();
-                    }
-                  },
+                GfSettingRow(
+                  symbol: 'at-sign',
+                  title: l10n.authUsername,
+                  description: _user.value?.username ?? '',
+                  trailing: const GfSymbol('chevron-right', size: 18),
+                  onTap: _user.value == null ? null : _changeUsername,
                 ),
                 const GfDivider(),
                 GfSettingRow(
-                  symbol: 'smartphone',
-                  title: l10n.settingsPushDelivery,
-                  description: delivery,
-                  onTap: push == PushChannelStatus.permissionDenied
-                      ? () => ref
-                            .read(pushControllerProvider.notifier)
-                            .openSystemSettings()
-                      : push == PushChannelStatus.serverDisabled ||
-                            push == PushChannelStatus.registrationFailed
-                      ? () => ref.read(pushControllerProvider.notifier).enable()
-                      : null,
-                ),
-                const PushPreferencesPanel(),
-                if (!isIOS) ...[
-                  const GfDivider(),
-                  GfSettingRow(
-                    symbol: 'info',
-                    title: l10n.settingsPushPrivacy,
-                    onTap: () => launchUrl(
-                      Uri.parse('https://www.jiguang.cn/license/privacy'),
-                      mode: LaunchMode.externalApplication,
+                  symbol: 'mail',
+                  title: l10n.settingsEmail,
+                  // 两阶段换绑（issue #678）：暂存期内展示待确认的新邮箱与当前邮箱，
+                  // 否则展示常规的「修改绑定邮箱」入口描述。
+                  subtitleWidget: _user.when(
+                    data: (u) => GfText(
+                      u.pendingEmail.isNotEmpty
+                          ? '${u.email}\n${l10n.settingsEmailPending(u.pendingEmail)}'
+                          : u.email.isNotEmpty
+                          ? u.email
+                          : l10n.settingsEmailEdit,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                    loading: () => GfText(l10n.commonLoading),
+                    error: (_, _) => GfText(l10n.settingsEmailEdit),
                   ),
-                ],
+                  trailing: const GfSymbol('chevron-right', size: 18),
+                  onTap: _changeEmail,
+                ),
+                const GfDivider(),
+                GfSettingRow(
+                  symbol: 'key-round',
+                  title: l10n.settingsChangePassword,
+                  description: l10n.settingsChangePasswordSub,
+                  trailing: const GfSymbol('chevron-right', size: 18),
+                  onTap: _changePassword,
+                ),
               ],
             ),
-          );
-        },
-      ),
-    ],
-  );
-
-  /// Account security: two-factor authentication, sessions and sign-out.
-  Widget _buildSecurityTab(AppLocalizations l10n, ScrollController controller) {
-    return ListView(
-      controller: controller,
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(16),
-      children: <Widget>[
+          ),
+        const SizedBox(height: 16),
+        _settingsSection(
+          context,
+          child: GfSettingRow(
+            symbol: 'link',
+            title: l10n.settingsOAuth,
+            description: l10n.settingsOAuthSub,
+            onTap: _manageOAuth,
+          ),
+        ),
         const ActivationEmailAction(),
         const SizedBox(height: 12),
         _settingsSection(
@@ -1892,10 +1451,138 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
         ),
         const SizedBox(height: 24),
+        _settingsSection(
+          context,
+          child: GfSettingRow(
+            key: const Key('settings-close-account'),
+            symbol: 'trash-2',
+            title: l10n.settingsCloseAccount,
+            destructive: true,
+            onTap: _accountClosing ? null : _closeAccount,
+          ),
+        ),
       ],
     );
   }
 
+  Widget _buildPrivacyTab(AppLocalizations l10n, ScrollController controller) =>
+      ListView(
+        controller: controller,
+        padding: const EdgeInsets.all(16),
+        children: [
+          _settingsSection(
+            context,
+            child: Column(
+              children: [
+                GfSettingRow(
+                  key: const ValueKey('settings-account-profile-privacy'),
+                  symbol: 'eye',
+                  title: l10n.profilePrivacyTitle,
+                  description: l10n.profilePrivacyDescription,
+                  onTap: () => context.push('/settings/profile-privacy'),
+                ),
+                const GfDivider(),
+                GfSettingRow(
+                  symbol: 'eye-off',
+                  title: l10n.userBlocks,
+                  onTap: () => showBlockedUsers(context),
+                ),
+                const GfDivider(),
+                GfSettingRow(
+                  symbol: 'circle-user-round',
+                  title: l10n.anonymousIdentity,
+                  description: l10n.anonymousSettingsHint,
+                  onTap: () => context.push('/settings/anonymous-identity'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+
+  Widget _buildNotifications(
+    AppLocalizations l10n,
+    ScrollController controller,
+  ) => ListView(
+    controller: controller,
+    padding: const EdgeInsets.all(16),
+    children: [
+      Consumer(
+        builder: (context, ref, _) {
+          final push = ref.watch(pushControllerProvider);
+          final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
+          final preferenceOn =
+              push == PushChannelStatus.enabled ||
+              push == PushChannelStatus.permissionDenied ||
+              push == PushChannelStatus.serverDisabled ||
+              push == PushChannelStatus.registrationFailed;
+          final delivery = switch (push) {
+            PushChannelStatus.enabled => l10n.settingsPushReady,
+            PushChannelStatus.disabled => l10n.settingsPushOff,
+            PushChannelStatus.unknown => l10n.commonLoading,
+            PushChannelStatus.unsupported => l10n.settingsPushUnsupported,
+            PushChannelStatus.serverDisabled => l10n.settingsPushServerDisabled,
+            PushChannelStatus.registrationFailed => l10n.settingsPushFailed,
+            PushChannelStatus.permissionDenied => l10n.settingsPushDenied,
+          };
+          return _settingsSection(
+            context,
+            title: l10n.settingsPush,
+            child: Column(
+              children: [
+                GfSwitchRow(
+                  symbol: 'bell',
+                  title: l10n.settingsPushPreference,
+                  description: isIOS
+                      ? l10n.settingsPushIOSConsent
+                      : l10n.settingsPushAndroidConsent,
+                  value: preferenceOn,
+                  onChanged: (value) async {
+                    final controller = ref.read(
+                      pushControllerProvider.notifier,
+                    );
+                    if (value) {
+                      await controller.enable();
+                    } else {
+                      await controller.disable();
+                    }
+                  },
+                ),
+                const GfDivider(),
+                GfSettingRow(
+                  symbol: 'smartphone',
+                  title: l10n.settingsPushDelivery,
+                  description: delivery,
+                  onTap: push == PushChannelStatus.permissionDenied
+                      ? () => ref
+                            .read(pushControllerProvider.notifier)
+                            .openSystemSettings()
+                      : push == PushChannelStatus.serverDisabled ||
+                            push == PushChannelStatus.registrationFailed
+                      ? () => ref.read(pushControllerProvider.notifier).enable()
+                      : null,
+                ),
+                const PushPreferencesPanel(),
+                if (!isIOS) ...[
+                  const GfDivider(),
+                  GfSettingRow(
+                    symbol: 'info',
+                    title: l10n.settingsPushPrivacy,
+                    onTap: () => launchUrl(
+                      Uri.parse('https://www.jiguang.cn/license/privacy'),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
+    ],
+  );
+
+  /// Account security: two-factor authentication, sessions and sign-out.
   /// 登出:确认 → 服务端失效 → 清 token → 清离线缓存 → 跳登录页。
   ///
   /// 离线缓存(drift)保存私信与已浏览话题,登出必须清空,否则同一设备

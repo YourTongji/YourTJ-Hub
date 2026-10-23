@@ -54,7 +54,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get navPublish => '发布';
 
   @override
-  String get navMessages => '消息';
+  String get navMessages => '私信';
 
   @override
   String get navProfile => '我的';
@@ -527,7 +527,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileNotLoggedIn => '未登录';
 
   @override
-  String get messagesTitle => '消息';
+  String get messagesTitle => '私信';
 
   @override
   String get messagesEmpty => '还没有私信会话';
@@ -631,7 +631,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsTabProfile => '资料';
 
   @override
-  String get settingsTabAccount => '账户、安全与隐私';
+  String get settingsTabAccount => '账号与安全';
 
   @override
   String get settingsTabPrivacy => '隐私';
@@ -738,7 +738,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsOAuth => '外部账号关联';
 
   @override
-  String get settingsOAuthSub => 'GitHub 与 Google 登录关联';
+  String get settingsOAuthSub => 'GitHub、Google 与 Apple 登录关联';
 
   @override
   String get settingsOAuthManage => 'OAuth 绑定管理';
@@ -827,7 +827,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsLightCurrent => '当前:浅色';
 
   @override
-  String get settingsAbout => '关于';
+  String get settingsAbout => '关于社区';
 
   @override
   String get settingsAboutVersion => '版本 0.1.0 · 同济大学校园论坛';
@@ -1492,7 +1492,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileMore => '更多功能';
 
   @override
-  String get profileContent => '内容管理';
+  String get profileContent => '我的内容';
 
   @override
   String get profileTrash => '回收站';
@@ -3971,4 +3971,66 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get previewStatusLink => '预发状态';
+
+  @override
+  String get profileEditAddCover => '添加封面';
+
+  @override
+  String get profileEditAddSocialLinks => '添加社交链接';
+
+  @override
+  String get profileEditAddWebsite => '添加个人网站';
+
+  @override
+  String get profileEditBasics => '基本信息';
+
+  @override
+  String get profileEditBioHint => '介绍一下自己';
+
+  @override
+  String get profileEditChangeAvatar => '更换头像';
+
+  @override
+  String get profileEditChangeCover => '更换封面';
+
+  @override
+  String get profileEditDisplay => '展示';
+
+  @override
+  String get profileEditDone => '完成';
+
+  @override
+  String get profileEditFromPhotos => '从相册选择';
+
+  @override
+  String get profileEditLinks => '链接';
+
+  @override
+  String get profileEditNicknameHint => '填写昵称';
+
+  @override
+  String get profileEditSignatureHint => '添加一句签名';
+
+  @override
+  String get profileEditSocialHint => '用户名或 HTTPS 链接';
+
+  @override
+  String get profileEditTakePhoto => '拍照';
+
+  @override
+  String get profileEditWebsiteUrl => '网站地址';
+
+  @override
+  String get profileLanguageHint => '公开主页使用的语言，与 App 语言分开设置。';
+
+  @override
+  String profileEditBadgeSummary(String name, int count) {
+    return '佩戴：$name · 展示 $count 枚';
+  }
+
+  @override
+  String get contentMineTitle => '我的内容';
+
+  @override
+  String get settingsManageBadges => '管理徽章';
 }

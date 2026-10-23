@@ -44,6 +44,7 @@ import 'pages/schedule/schedule_page.dart';
 import 'pages/search/search_page.dart';
 import 'pages/settings/profile_privacy_page.dart';
 import 'pages/settings/settings_page.dart';
+import 'widgets/stickers/sticker_library_page.dart';
 import 'pages/topic/topic_page.dart';
 import 'providers.dart';
 import 'current_user.dart';
@@ -620,6 +621,10 @@ final GoRouter appRouter = GoRouter(
       path: '/u/:userId',
       builder: (BuildContext context, GoRouterState state) =>
           ProfilePage(userId: int.parse(state.pathParameters['userId']!)),
+    ),
+    _readingPageRoute(
+      path: '/stickers',
+      builder: (_, _) => const StickerLibraryPage(),
     ),
     _readingPageRoute(
       path: '/settings',

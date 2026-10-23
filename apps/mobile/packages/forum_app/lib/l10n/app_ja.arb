@@ -15,7 +15,7 @@
   "navHome": "ホームへ",
   "navSearch": "検索",
   "navPublish": "投稿",
-  "navMessages": "メッセージ",
+  "navMessages": "ダイレクトメッセージ",
   "navProfile": "マイページ",
   "commonCancel": "キャンセル",
   "commonSave": "保存",
@@ -169,7 +169,7 @@
   "profileEmptyFollowing": "まだ誰もフォローしていません",
   "profileEmptyFollowers": "まだフォロワーはいません",
   "profileNotLoggedIn": "ログインしていません",
-  "messagesTitle": "メッセージ",
+  "messagesTitle": "ダイレクトメッセージ",
   "messagesEmpty": "まだ会話はありません",
   "messagesEmptyDescription": "コミュニティのメンバーと会話を始めましょう。",
   "messagesSearchConversations": "会話を検索",
@@ -201,7 +201,7 @@
   "categoryTitle": "カテゴリ",
   "settingsTitle": "設定",
   "settingsTabProfile": "プロフィール",
-  "settingsTabAccount": "アカウント・セキュリティ・プライバシー",
+  "settingsTabAccount": "アカウントとセキュリティ",
   "settingsTabPrivacy": "プライバシー",
   "settingsTabBinding": "連携",
   "settingsTabSecurity": "セキュリティ",
@@ -233,7 +233,7 @@
   "settingsBadgeUpdated": "バッジを更新しました",
   "settingsBadgeFailed": "バッジを更新できませんでした：{error}",
   "settingsOAuth": "外部アカウント連携",
-  "settingsOAuthSub": "GitHubとGoogleのログイン連携",
+  "settingsOAuthSub": "GitHub・Google・Apple のログイン連携",
   "settingsOAuthManage": "アカウント連携を管理",
   "settingsOAuthBindings": "アカウント連携",
   "settingsBound": "連携済み",
@@ -260,7 +260,7 @@
   "settingsDarkMode": "ダークモード",
   "settingsDarkCurrent": "現在：ダーク",
   "settingsLightCurrent": "現在：ライト",
-  "settingsAbout": "情報",
+  "settingsAbout": "コミュニティについて",
   "settingsAboutVersion": "v0.1.0 · 同済大学キャンパスフォーラム",
   "settingsEditProfile": "プロフィール編集",
   "settingsSignature": "署名",
@@ -488,7 +488,7 @@
   "publishImageOnlyTitle": "共有したい瞬間",
   "publishTypeLocked": "編集時は元の投稿形式が維持されます",
   "profileMore": "その他の操作",
-  "profileContent": "コンテンツ管理",
+  "profileContent": "自分のコンテンツ",
   "profileTrash": "ごみ箱",
   "profileSecurity": "アカウント・セキュリティ・プライバシー",
   "profileAdmin": "管理ワークスペース",
@@ -1412,5 +1412,35 @@
   "previewUpdateInstructions": "テスト版です。更新にはリリース記録の Android リンクまたは指定された TestFlight グループを使用してください。",
   "previewStale": "このプレビューは現在の候補ではありません。リリース状況から現在のテスト版または正式版をご確認ください。",
   "previewStatusUnknown": "プレビューの状態を確認できません。テスト前にリリース担当者へ確認してください。",
-  "previewStatusLink": "プレビュー状況"
+  "previewStatusLink": "プレビュー状況",
+  "profileEditAddCover": "カバーを追加",
+  "profileEditAddSocialLinks": "SNS リンクを追加",
+  "profileEditAddWebsite": "ウェブサイトを追加",
+  "profileEditBasics": "基本情報",
+  "profileEditBioHint": "自己紹介を入力",
+  "profileEditChangeAvatar": "アバターを変更",
+  "profileEditChangeCover": "カバーを変更",
+  "profileEditDisplay": "表示",
+  "profileEditDone": "完了",
+  "profileEditFromPhotos": "写真から選ぶ",
+  "profileEditLinks": "リンク",
+  "profileEditNicknameHint": "表示名を入力",
+  "profileEditSignatureHint": "ひとことを追加",
+  "profileEditSocialHint": "ユーザー名または HTTPS リンク",
+  "profileEditTakePhoto": "写真を撮る",
+  "profileEditWebsiteUrl": "サイト URL",
+  "profileLanguageHint": "公開プロフィールの言語です。アプリの言語とは別に設定します。",
+  "profileEditBadgeSummary": "着用：{name} · {count} 個を表示",
+  "@profileEditBadgeSummary": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "contentMineTitle": "自分のコンテンツ",
+  "settingsManageBadges": "バッジを管理"
 }

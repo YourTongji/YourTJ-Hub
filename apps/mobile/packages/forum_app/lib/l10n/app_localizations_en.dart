@@ -60,7 +60,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navPublish => 'Publish';
 
   @override
-  String get navMessages => 'Messages';
+  String get navMessages => 'Direct messages';
 
   @override
   String get navProfile => 'Me';
@@ -543,7 +543,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileNotLoggedIn => 'Not signed in';
 
   @override
-  String get messagesTitle => 'Messages';
+  String get messagesTitle => 'Direct messages';
 
   @override
   String get messagesEmpty => 'No conversations yet';
@@ -648,7 +648,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsTabProfile => 'Profile';
 
   @override
-  String get settingsTabAccount => 'Account, security & privacy';
+  String get settingsTabAccount => 'Account & security';
 
   @override
   String get settingsTabPrivacy => 'Privacy';
@@ -755,7 +755,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsOAuth => 'External account connections';
 
   @override
-  String get settingsOAuthSub => 'GitHub and Google login connections';
+  String get settingsOAuthSub => 'GitHub, Google and Apple login connections';
 
   @override
   String get settingsOAuthManage => 'Manage OAuth bindings';
@@ -844,7 +844,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsLightCurrent => 'Current: light';
 
   @override
-  String get settingsAbout => 'About';
+  String get settingsAbout => 'About the community';
 
   @override
   String get settingsAboutVersion => 'v0.1.0 · Tongji campus forum';
@@ -1520,7 +1520,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileMore => 'More options';
 
   @override
-  String get profileContent => 'Manage content';
+  String get profileContent => 'My content';
 
   @override
   String get profileTrash => 'Recycle bin';
@@ -4174,4 +4174,67 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get previewStatusLink => 'Preview status';
+
+  @override
+  String get profileEditAddCover => 'Add a cover';
+
+  @override
+  String get profileEditAddSocialLinks => 'Add social links';
+
+  @override
+  String get profileEditAddWebsite => 'Add a website';
+
+  @override
+  String get profileEditBasics => 'Basic information';
+
+  @override
+  String get profileEditBioHint => 'Tell people a little about yourself';
+
+  @override
+  String get profileEditChangeAvatar => 'Change avatar';
+
+  @override
+  String get profileEditChangeCover => 'Change cover';
+
+  @override
+  String get profileEditDisplay => 'Display';
+
+  @override
+  String get profileEditDone => 'Done';
+
+  @override
+  String get profileEditFromPhotos => 'Choose from photos';
+
+  @override
+  String get profileEditLinks => 'Links';
+
+  @override
+  String get profileEditNicknameHint => 'Your display name';
+
+  @override
+  String get profileEditSignatureHint => 'Add a short signature';
+
+  @override
+  String get profileEditSocialHint => 'Username or HTTPS link';
+
+  @override
+  String get profileEditTakePhoto => 'Take a photo';
+
+  @override
+  String get profileEditWebsiteUrl => 'Website URL';
+
+  @override
+  String get profileLanguageHint =>
+      'Language of your public profile, separate from the app language.';
+
+  @override
+  String profileEditBadgeSummary(String name, int count) {
+    return 'Wearing: $name · $count displayed';
+  }
+
+  @override
+  String get contentMineTitle => 'My content';
+
+  @override
+  String get settingsManageBadges => 'Manage badges';
 }

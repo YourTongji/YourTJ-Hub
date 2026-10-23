@@ -47,6 +47,9 @@ String? _parseAuthReturnTo(String? raw) {
     'security',
     'appearance',
     'notifications',
+    'data',
+    'privacy-controls',
+    'badges',
   };
   const staticPaths = {
     '/',
@@ -72,6 +75,7 @@ String? _parseAuthReturnTo(String? raw) {
     '/terms',
     '/privacy',
     '/drafts',
+    '/stickers',
     '/schedule',
     '/courses',
     '/wiki',
