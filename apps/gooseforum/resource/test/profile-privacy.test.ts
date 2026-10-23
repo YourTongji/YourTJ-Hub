@@ -141,7 +141,7 @@ describe('UserPage visibility', () => {
       visibility: { ...memberProfile.visibility, profileLikes: { visible: false, reason: 'followers' } },
     })
     const shown = { ...hidden, likes: [like], user: { ...hidden.user, isFollowing: true }, visibility: { ...hidden.visibility, profileLikes: { visible: true } } }
-    vi.mocked(followUser).mockResolvedValue(undefined as never)
+    vi.mocked(followUser).mockResolvedValue({ isFollowing: true, isMutualFollowing: false })
     vi.mocked(fetchPage).mockResolvedValueOnce({ props: shown } as never)
     wrapper = mount(UserPage, { props: { layout, props: hidden }, global })
     expect(wrapper.find('[data-test="profile-section-hidden"]').exists()).toBe(true)
@@ -161,7 +161,7 @@ describe('UserPage visibility', () => {
 
   test('following does not re-read the page when nothing is hidden for followers', async () => {
     const open = profile({ section: 'activity', activityTab: 'likes', canFollow: true, user: { ...memberProfile.user, isSelf: false, isFollowing: false } })
-    vi.mocked(followUser).mockResolvedValue(undefined as never)
+    vi.mocked(followUser).mockResolvedValue({ isFollowing: true, isMutualFollowing: false })
     wrapper = mount(UserPage, { props: { layout, props: open }, global })
     await wrapper.findAll('button').find(b => /关注/.test(b.text()))!.trigger('click')
     await flushPromises()
