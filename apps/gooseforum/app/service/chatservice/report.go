@@ -6,6 +6,7 @@ import (
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/reports"
@@ -55,7 +56,9 @@ func ReportMessage(reporterID, messageID uint64, reason, note string) (reports.E
 			EvidenceSnapshot: reports.EvidenceSnapshotData{
 				TargetType: reports.TargetChatMessage, TargetID: messageID,
 				AuthorID: message.SenderId, Title: "Private message",
-				Excerpt: boundedReportText(messages.DisplayContent(message.Content, message.MsgType), 4000), CreatedAt: time.Now(),
+				// 审核列表是纯文本落点：先剥贴纸 token 再截断，存量私信正文含 token
+				// 时不会漏出未解析的 token 或半个 token。
+				Excerpt: boundedReportText(markdown2html.StripStickerTokens(messages.DisplayContent(message.Content, message.MsgType)), 4000), CreatedAt: time.Now(),
 			},
 		})
 		return err

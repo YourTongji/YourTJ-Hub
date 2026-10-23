@@ -13,6 +13,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/transform"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/contentDeleteEvent"
@@ -800,8 +801,10 @@ func trimReportNote(note string) string {
 	return string(runes)
 }
 
+// moderationExcerpt is a text-only projection: sticker tokens have no image
+// surface here, so strip them before truncating instead of cutting one in half.
 func moderationExcerpt(content string) string {
-	runes := []rune(strings.TrimSpace(content))
+	runes := []rune(strings.TrimSpace(markdown2html.StripStickerTokens(content)))
 	if len(runes) > 120 {
 		runes = runes[:120]
 	}
@@ -835,7 +838,8 @@ func buildReportLogSnapshot(record reports.Entity, resolution string) moderation
 			} else {
 				// 目标不可见（已删/治理删除/PURGED）：审计摘要取举报时刻快照，
 				// 不回显保留正文（MADR-0021 取证纪律，与举报列表同源 review）。
-				snapshot.Excerpt = record.EvidenceSnapshot.Excerpt
+				// 存量快照写入时未剥贴纸 token，读回显按纯文本投影补上。
+				snapshot.Excerpt = markdown2html.StripStickerTokens(record.EvidenceSnapshot.Excerpt)
 			}
 		}
 	case reports.TargetPost:
@@ -851,7 +855,7 @@ func buildReportLogSnapshot(record reports.Entity, resolution string) moderation
 			if topic.Id > 0 && topic.VisibilityStatus == topics.VisibilityActive && post.VisibilityStatus == posts.VisibilityActive {
 				snapshot.Excerpt = moderationExcerpt(post.Content)
 			} else {
-				snapshot.Excerpt = record.EvidenceSnapshot.Excerpt
+				snapshot.Excerpt = markdown2html.StripStickerTokens(record.EvidenceSnapshot.Excerpt)
 			}
 		}
 	case reports.TargetCourseReview:
@@ -1024,7 +1028,7 @@ func moderationLogSubject(record moderationLog.Entity, params map[string]any, to
 		if topic := topicMap[record.SubjectId]; topic != nil {
 			subject.Title = topic.Title
 			subject.URL = urlconfig.PostDetail(topic.Id)
-			subject.Excerpt = topic.Excerpt
+			subject.Excerpt = markdown2html.StripStickerTokens(topic.Excerpt)
 		} else if subject.ID > 0 {
 			subject.URL = urlconfig.PostDetail(subject.ID)
 		}
@@ -1042,7 +1046,7 @@ func moderationLogSubject(record moderationLog.Entity, params map[string]any, to
 		title := fmt.Sprint(params["title"])
 		topicID := uint64FromParam(params["topicId"])
 		postNo := uint64FromParam(params["postNo"])
-		excerpt := fmt.Sprint(params["excerpt"])
+		excerpt := markdown2html.StripStickerTokens(fmt.Sprint(params["excerpt"]))
 		if (title == "" || title == "<nil>") && topicID > 0 {
 			if topic := topicMap[topicID]; topic != nil {
 				title = topic.Title
@@ -1065,7 +1069,7 @@ func moderationLogSubject(record moderationLog.Entity, params map[string]any, to
 		if postNo > 0 {
 			title = postLogTitle(title, postNo)
 		}
-		subject := ModerationLogSubject{Type: record.SubjectType, ID: record.SubjectId, Title: title, Excerpt: fmt.Sprint(params["excerpt"])}
+		subject := ModerationLogSubject{Type: record.SubjectType, ID: record.SubjectId, Title: title, Excerpt: markdown2html.StripStickerTokens(fmt.Sprint(params["excerpt"]))}
 		if targetURL := fmt.Sprint(params["targetUrl"]); targetURL != "" && targetURL != "<nil>" {
 			subject.URL = targetURL
 		}
@@ -1241,7 +1245,7 @@ func buildModerationReportItem(userID uint64, categoryID uint64, record reports.
 		}
 		item := ModerationReportItem{
 			ID: record.Id, TargetType: record.TargetType, TargetID: record.TargetId,
-			Title: fmt.Sprintf("#%d", record.TargetId), Excerpt: record.EvidenceSnapshot.Excerpt,
+			Title: fmt.Sprintf("#%d", record.TargetId), Excerpt: markdown2html.StripStickerTokens(record.EvidenceSnapshot.Excerpt),
 			Reason: record.Reason, Note: record.Note, Status: record.Status, Resolution: record.Resolution,
 			Reporter: userPayload(record.ReporterId, batchMaps.UserMap), Handler: userPayload(record.HandlerId, batchMaps.UserMap),
 			Categories: []TopicCategoryPayload{}, CreatedAt: record.CreatedAt.Format(time.RFC3339),
@@ -1288,7 +1292,7 @@ func buildModerationReportItem(userID uint64, categoryID uint64, record reports.
 			// 目标已删：用举报时刻快照渲染，标注删除态，审核仍可继续（R6）。
 			item.TargetDeleted = true
 			item.Title = record.EvidenceSnapshot.Title
-			item.Excerpt = record.EvidenceSnapshot.Excerpt
+			item.Excerpt = markdown2html.StripStickerTokens(record.EvidenceSnapshot.Excerpt)
 			item.TargetURL = record.EvidenceSnapshot.TargetURL
 		} else {
 			item.Title = topic.Title
@@ -1301,7 +1305,7 @@ func buildModerationReportItem(userID uint64, categoryID uint64, record reports.
 			// 目标回复已删：用快照渲染（R6）。
 			item.TargetDeleted = true
 			item.Title = record.EvidenceSnapshot.Title
-			item.Excerpt = record.EvidenceSnapshot.Excerpt
+			item.Excerpt = markdown2html.StripStickerTokens(record.EvidenceSnapshot.Excerpt)
 			item.TargetURL = record.EvidenceSnapshot.TargetURL
 		} else {
 			if topicID == 0 {
@@ -1319,7 +1323,7 @@ func buildModerationReportItem(userID uint64, categoryID uint64, record reports.
 				if item.Title == "" {
 					item.Title = record.EvidenceSnapshot.Title
 				}
-				item.Excerpt = record.EvidenceSnapshot.Excerpt
+				item.Excerpt = markdown2html.StripStickerTokens(record.EvidenceSnapshot.Excerpt)
 				item.TargetURL = record.EvidenceSnapshot.TargetURL
 			} else {
 				item.Excerpt = moderationExcerpt(post.Content)
