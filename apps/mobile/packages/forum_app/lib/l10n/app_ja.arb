@@ -507,7 +507,7 @@
   "commonConfirm": "確認",
   "adminUnavailable": "管理画面を利用できません。権限、セッション、接続を確認して再試行してください。",
   "adminDownloadFailed": "エクスポートをダウンロードできませんでした。再試行してください。",
-  "publishGalleryTooMany": "画像は最大9枚です。一部を削除するか、記事エディターを使用してください。",
+  "publishGalleryTooMany": "画像は最大9枚です。枚数を減らしてもう一度お試しください。",
   "profileActivity": "アクティビティ",
   "profileBookmarks": "ブックマーク",
   "profileModeration": "モデレーション",

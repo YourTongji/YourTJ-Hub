@@ -1602,7 +1602,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get publishGalleryTooMany =>
-      'Bis zu 9 Bilder sind möglich. Entferne Bilder oder verwende den Artikeleditor.';
+      'Bis zu 9 Bilder sind möglich. Verwende weniger Bilder und versuche es erneut.';
 
   @override
   String get profileActivity => 'Aktivität';

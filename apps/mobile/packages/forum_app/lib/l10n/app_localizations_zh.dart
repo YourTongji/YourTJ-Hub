@@ -1549,7 +1549,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get adminDownloadFailed => '导出下载失败，请稍后重试。';
 
   @override
-  String get publishGalleryTooMany => '内容最多支持 9 张图片，请先减少图片或继续使用文章编辑器。';
+  String get publishGalleryTooMany => '最多支持 9 张图片，请减少图片后再试。';
 
   @override
   String get profileActivity => '动态';

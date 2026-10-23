@@ -797,7 +797,7 @@
   "commonConfirm": "确认",
   "adminUnavailable": "管理后台暂不可用。请确认账号有管理权限、登录未过期，并检查网络后重试。",
   "adminDownloadFailed": "导出下载失败，请稍后重试。",
-  "publishGalleryTooMany": "内容最多支持 9 张图片，请先减少图片或继续使用文章编辑器。",
+  "publishGalleryTooMany": "最多支持 9 张图片，请减少图片后再试。",
   "profileActivity": "动态",
   "profileBookmarks": "收藏",
   "profileModeration": "审核工作台",

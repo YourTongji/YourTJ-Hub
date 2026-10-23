@@ -733,61 +733,6 @@ class _PublishPageState extends ConsumerState<PublishPage>
     }
   }
 
-  void _changeContentType(int? value) {
-    if (_uploading || value == null || value == _contentType) return;
-    var markdown = _markdownFromEditor();
-    final photos = <String>[];
-    if (_contentType == 3 && value != 3) {
-      for (final operation in _quill.document.toDelta().toJson()) {
-        final insert = operation['insert'];
-        if (insert is Map && insert['image'] is String) {
-          photos.add(insert['image'] as String);
-        }
-      }
-      if (photos.length > 9) {
-        showGfToast(
-          context,
-          AppLocalizations.of(context).publishGalleryTooMany,
-          error: true,
-        );
-        return;
-      }
-      markdown = _quill.document.toPlainText().replaceAll('\uFFFC', '').trim();
-    } else if (value == 3 && _images.isNotEmpty) {
-      markdown =
-          '$markdown\n\n${_images.map((url) => '![image]($url)').join('\n\n')}';
-    }
-    try {
-      if (value == 3) _replaceEditorDocument(markdown);
-    } catch (error) {
-      showGfToast(
-        context,
-        resolveErrorMessage(AppLocalizations.of(context), error),
-        error: true,
-      );
-      return;
-    }
-    setState(() {
-      if (_contentType == 3 || value == 3) {
-        _images
-          ..clear()
-          ..addAll(photos);
-      }
-      _stickerOpen = false;
-      _stickerSelection = null;
-      _quill.skipRequestKeyboard = false;
-      _contentType = value;
-      // Short types hold a single category; keep the first pick.
-      if (_categoryIds.length > _categoryLimit) {
-        _categoryIds.removeRange(_categoryLimit, _categoryIds.length);
-      }
-      _simple.text = markdown;
-      _previewMarkdown = _markdownFromEditor();
-      _markDirty();
-      _allowPop = false;
-    });
-  }
-
   void _toggleFormat(Attribute attribute) {
     final current = _quill.getSelectionStyle().attributes[attribute.key];
     _quill.formatSelection(
@@ -1353,18 +1298,16 @@ class _PublishPageState extends ConsumerState<PublishPage>
             size: 44,
             onPressed: _goBack,
           ),
-          // The type switcher lives above the fields; the bar names the step
-          // only when that switcher is out of view.
-          title: _showTypeSwitcher(context)
-              ? const SizedBox.shrink()
-              : GfText(
-                  _mode == _ComposeMode.preview
-                      ? l10n.composePreview
-                      : PublishType.fromValue(_contentType).label(l10n),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GfTheme.typographyOf(context).bodyStrong,
-                ),
+          // The type is chosen before the page opens (compose menu, edit or
+          // restored draft); the bar names it while writing.
+          title: GfText(
+            _mode == _ComposeMode.preview
+                ? l10n.composePreview
+                : PublishType.fromValue(_contentType).label(l10n),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GfTheme.typographyOf(context).bodyStrong,
+          ),
           actions: <Widget>[
             if (MediaQuery.viewInsetsOf(context).bottom > 0)
               GfIconButton(
@@ -1431,13 +1374,6 @@ class _PublishPageState extends ConsumerState<PublishPage>
       child: page,
     );
   }
-
-  bool _showTypeSwitcher(BuildContext context) =>
-      _mode == _ComposeMode.edit &&
-      _currentTopicId == 0 &&
-      !_loading &&
-      !_stickerOpen &&
-      MediaQuery.viewInsetsOf(context).bottom == 0;
 
   Widget _buildSubmitAction(AppLocalizations l10n) {
     final editing = _mode == _ComposeMode.edit;
@@ -1562,15 +1498,6 @@ class _PublishPageState extends ConsumerState<PublishPage>
                         icon: const GfSymbol('refresh-cw', size: 22),
                         label: GfText(l10n.commonRetry),
                       ),
-                    if (_showTypeSwitcher(this.context)) ...[
-                      PublishTypeSwitcher(
-                        value: _contentType,
-                        onChanged: _submitting || _uploading
-                            ? null
-                            : _changeContentType,
-                      ),
-                      const SizedBox(height: 20),
-                    ],
                     // Moments lead with their photos; questions attach them
                     // after the body (below).
                     if (_mode == _ComposeMode.edit &&

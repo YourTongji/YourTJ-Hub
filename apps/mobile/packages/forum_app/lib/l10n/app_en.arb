@@ -867,7 +867,7 @@
   "commonConfirm": "Confirm",
   "adminUnavailable": "The admin console is unavailable. Check your permissions, session and connection, then retry.",
   "adminDownloadFailed": "Could not download the export. Please try again.",
-  "publishGalleryTooMany": "Content supports up to 9 images. Remove some images or continue with the article editor.",
+  "publishGalleryTooMany": "Up to 9 images are supported. Use fewer images and try again.",
   "profileActivity": "Activity",
   "profileBookmarks": "Bookmarks",
   "profileModeration": "Moderation workspace",
