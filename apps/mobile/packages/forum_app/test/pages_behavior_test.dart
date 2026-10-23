@@ -48,6 +48,13 @@ import 'package:forum_app/src/widgets/skeletons.dart';
 import 'fixtures/page_fixtures.dart';
 
 /// 内存 TokenStorage(与 pages_smoke_test 同款)。
+class _EmptyWikiSearch extends WikiRepository {
+  _EmptyWikiSearch(super.client);
+  @override
+  Future<WikiSearchResult> search(String query, {int? limit, CancelToken? cancelToken}) async =>
+    WikiSearchResult(query: query, items: const [], total: 0, searchUnavailable: false);
+}
+
 class _RootScrollController extends GfScrollToTopController {
   int calls = 0;
   @override
@@ -1746,6 +1753,7 @@ void main() {
               : CurrentUser(id: currentUserId, username: 'alice'),
         ),
         pageRepositoryProvider.overrideWithValue(pageRepo),
+        wikiRepositoryProvider.overrideWithValue(_EmptyWikiSearch(client)),
         topicRepositoryProvider.overrideWithValue(
           topicRepo ?? PagingTopicRepository(client),
         ),
@@ -2672,11 +2680,9 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('在课程中搜索“$query”'));
       await tester.pumpAndSettle();
-      expect(router.state.uri.queryParameters['q'], query);
-      router.pop();
-      await tester.pumpAndSettle();
-      // The unsent text is kept; clearing it returns to recent searches.
-      expect(find.text('搜索“$query”'), findsOneWidget);
+      expect(router.state.uri.path, '/');
+      expect(tester.widget<GfTabBar>(find.byType(GfTabBar)).selected, 'courses');
+      expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, query);
       await tester.tap(find.byTooltip('清空搜索'));
       await tester.pumpAndSettle();
       expect(find.text('最近搜索'), findsOneWidget);
@@ -5521,6 +5527,7 @@ void main() {
         overrides: [
           tokenStorageProvider.overrideWithValue(storage),
           pageRepositoryProvider.overrideWithValue(pageRepo),
+        wikiRepositoryProvider.overrideWithValue(_EmptyWikiSearch(client)),
           topicRepositoryProvider.overrideWithValue(
             PagingTopicRepository(client),
           ),
@@ -6599,6 +6606,7 @@ void main() {
         overrides: [
           tokenStorageProvider.overrideWithValue(realStorage),
           pageRepositoryProvider.overrideWithValue(pageRepo),
+        wikiRepositoryProvider.overrideWithValue(_EmptyWikiSearch(client)),
           topicRepositoryProvider.overrideWithValue(
             PagingTopicRepository(client),
           ),

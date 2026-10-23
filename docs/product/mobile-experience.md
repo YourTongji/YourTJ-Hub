@@ -607,11 +607,11 @@ validation; simulator/debug execution does not establish production frame-rate g
 
 - `Current`: search uses one filled capsule field across messages, new conversations, the course
   catalog, global search, Wiki and scheduler. Search fields provide a localized clear action and keyboard
-  submission where applicable. Clearing global search resets results, scope and pagination, and
+  submission where applicable. Clearing global search resets results and pagination to its entry scope, and
   invalidates pending requests; account and publishing forms retain their separate form styling.
 - `Current`: global search opens with its field focused beside a back action when entered from
   inside the app; a deep link to search opens without one. The empty field shows
-  two equal tiles that carry the current input to the native course catalog and Wiki search, followed
+  two equal tiles that select Courses or Wiki in the same search page, followed
   by recent searches. Recent searches keep up to ten distinct queries per site and account (with a
   separate guest list), in device preferences only; users can remove one or clear all. Storage
   failure does not block searching. Before the first submission, typing offers explicit rows to
@@ -625,10 +625,15 @@ validation; simulator/debug execution does not establish production frame-rate g
   type and shows displayed rows separately from matching totals; in the all view, See all switches
   to that type when more matches exist. Unqueried scopes are not labelled as zero, and the all-scope
   view does not treat the topic total as an aggregate total. Empty results name the submitted keyword
-  in every type; the all and topics views also offer course and Wiki search, and a results-bearing
-  all view keeps a compact course/Wiki row above its groups. Category marks keep at least 3:1
+  in every type. The six scopes are All, Topics, Users, Categories, Courses and Wiki.
+  All concurrently requests the forum aggregate (including courses) and Wiki, displays up to three
+  course and Wiki matches, and keeps a failed source scoped to its own group. Courses uses the existing
+  aggregate endpoint; Wiki requests up to twenty matches from its existing endpoint. Legacy
+  `/wiki/search?q=…` links redirect to `/search?scope=wiki&q=…`; Wiki and course-catalog search entries
+  open this shared surface. The course results link to individual courses and to the catalog with
+  the submitted keyword for department/term/campus filtering. Category marks keep at least 3:1
   contrast against the tinted wash they sit on, shifting the tone toward the text color.
-  Users, topics and categories build one row at a time near the viewport. Only topics paginate;
+  Users, topics, categories, courses and Wiki build one row at a time near the viewport. Only topics paginate;
   appending a page retains the other groups, and a failed page keeps the current rows with a retry.
 - `Current`: topic view/reply metrics remain below the body; reply, like, bookmark and watch actions
   share one bottom dock. The AppBar shows a generic topic label until the body title scrolls out of

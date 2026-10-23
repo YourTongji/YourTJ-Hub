@@ -17,6 +17,8 @@ class GfSearchField extends StatefulWidget {
     this.onChanged,
     this.onSubmitted,
     this.onClear,
+    this.readOnly = false,
+    this.onTap,
   });
 
   final String hintText;
@@ -27,6 +29,8 @@ class GfSearchField extends StatefulWidget {
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final VoidCallback? onClear;
+  final bool readOnly;
+  final VoidCallback? onTap;
 
   @override
   State<GfSearchField> createState() => _GfSearchFieldState();
@@ -56,6 +60,8 @@ class _GfSearchFieldState extends State<GfSearchField> {
       valueListenable: _controller,
       builder: (context, value, _) => TextField(
         controller: _controller,
+        readOnly: widget.readOnly,
+        onTap: widget.onTap,
         maxLength: widget.maxLength,
         focusNode: _focus,
         autofocus: widget.autofocus,

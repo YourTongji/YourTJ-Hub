@@ -1412,5 +1412,6 @@
   "previewUpdateInstructions": "テスト版です。更新にはリリース記録の Android リンクまたは指定された TestFlight グループを使用してください。",
   "previewStale": "このプレビューは現在の候補ではありません。リリース状況から現在のテスト版または正式版をご確認ください。",
   "previewStatusUnknown": "プレビューの状態を確認できません。テスト前にリリース担当者へ確認してください。",
-  "previewStatusLink": "プレビュー状況"
+  "previewStatusLink": "プレビュー状況",
+  "searchFilterInCatalog": "講義一覧で絞り込む"
 }

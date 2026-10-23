@@ -7499,6 +7499,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Preview status'**
   String get previewStatusLink;
+
+  /// No description provided for @searchFilterInCatalog.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter in the course catalog'**
+  String get searchFilterInCatalog;
 }
 
 class _AppLocalizationsDelegate

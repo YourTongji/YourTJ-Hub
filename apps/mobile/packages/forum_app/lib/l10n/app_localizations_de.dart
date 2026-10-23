@@ -4218,4 +4218,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get previewStatusLink => 'Vorschau-Status';
+
+  @override
+  String get searchFilterInCatalog => 'Im Kurskatalog filtern';
 }

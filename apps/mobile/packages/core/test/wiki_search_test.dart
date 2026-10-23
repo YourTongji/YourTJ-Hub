@@ -56,4 +56,28 @@ void main() {
       );
     },
   );
+
+  test('Wiki search forwards the page limit only when given', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.test'));
+    addTearDown(dio.close);
+    final queries = <Map<String, dynamic>>[];
+    dio.httpClientAdapter = MockAdapter((request) async {
+      queries.add(request.queryParameters);
+      return ResponseData(200, {
+        'query': '保研',
+        'total': 0,
+        'items': [],
+        'searchUnavailable': false,
+      });
+    });
+    final repository = WikiRepository(
+      GfApiClient(dio: dio, tokenStorage: _Tokens()),
+    );
+    await repository.search('保研', limit: 3);
+    await repository.search('保研');
+    expect(queries, [
+      {'q': '保研', 'limit': 3},
+      {'q': '保研'},
+    ]);
+  });
 }

@@ -39,7 +39,6 @@ import 'pages/settings/anonymous_identity_page.dart';
 import 'pages/publish/publish_page.dart';
 import 'pages/wiki/wiki_home_page.dart';
 import 'pages/wiki/wiki_page.dart';
-import 'pages/wiki/wiki_search_page.dart';
 import 'pages/schedule/schedule_page.dart';
 import 'pages/search/search_page.dart';
 import 'pages/settings/profile_privacy_page.dart';
@@ -569,7 +568,10 @@ final GoRouter appRouter = GoRouter(
     _readingPageRoute(
       path: '/search',
       maxContentWidth: 1120,
-      builder: (_, _) => const SearchPage(),
+      builder: (_, state) => SearchPage(
+        initialScope: state.uri.queryParameters['scope'] ?? 'all',
+        initialQuery: state.uri.queryParameters['q'] ?? '',
+      ),
     ),
     _readingPageRoute(
       path: '/publish',
@@ -733,8 +735,15 @@ final GoRouter appRouter = GoRouter(
     ),
     _readingPageRoute(
       path: '/wiki/search',
-      builder: (_, state) =>
-          WikiSearchPage(initialQuery: state.uri.queryParameters['q'] ?? ''),
+      redirect: (_, state) => Uri(
+        path: '/search',
+        queryParameters: {
+          'scope': 'wiki',
+          if (state.uri.queryParameters['q']?.isNotEmpty ?? false)
+            'q': state.uri.queryParameters['q']!,
+        },
+      ).toString(),
+      builder: (_, _) => const SizedBox.shrink(),
     ),
     _readingPageRoute(
       path: '/wiki',

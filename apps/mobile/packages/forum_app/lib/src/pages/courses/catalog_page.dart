@@ -43,12 +43,10 @@ class _CourseCatalogContent extends ConsumerStatefulWidget {
 }
 
 class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
-  static const Duration _searchDebounce = Duration(milliseconds: 300);
   static const int _pageSize = 20;
 
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  Timer? _debounce;
 
   AsyncValue<CourseListResultPayload> _page = const AsyncValue.loading();
   bool _canManageCourses = false;
@@ -91,8 +89,16 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
   }
 
   @override
+  void didUpdateWidget(covariant _CourseCatalogContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialQuery != widget.initialQuery) {
+      _searchController.text = widget.initialQuery;
+      _load();
+    }
+  }
+
+  @override
   void dispose() {
-    _debounce?.cancel();
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -115,32 +121,7 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
     onlyWithReviews: _onlyWithReviews,
   );
 
-  void _scheduleSearch(String _) {
-    _debounce?.cancel();
-    if (!_activeSession) return;
-    // Invalidate immediately, including the debounce interval: an older request
-    // must not replace results while the user is already entering a new query.
-    setState(() {
-      _generation++;
-      _page = const AsyncValue.loading();
-      _loadingMore = false;
-      _hasNext = false;
-      _refreshing = false;
-      _refreshError = null;
-    });
-    _debounce = Timer(_searchDebounce, () {
-      if (!mounted) return;
-      _load();
-    });
-  }
-
-  void _clearDebounceAndSearch() {
-    _debounce?.cancel();
-    _load();
-  }
-
   void _clearSearch() {
-    _debounce?.cancel();
     _searchController.clear();
     _load();
   }
@@ -209,7 +190,6 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
   }
 
   Future<void> _load({bool refresh = false}) async {
-    _debounce?.cancel();
     if (!_activeSession) return;
     final generation = ++_generation;
     final epoch = ref.read(offlineCacheEpochProvider);
@@ -482,8 +462,17 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
                         controller: _searchController,
                         hintText: l10n.coursesSearchHint,
                         clearLabel: l10n.courseCopyClearSearch,
-                        onChanged: _scheduleSearch,
-                        onSubmitted: (_) => _clearDebounceAndSearch(),
+                        readOnly: true,
+                        onTap: () => context.push(
+                          Uri(
+                            path: '/search',
+                            queryParameters: {
+                              'scope': 'courses',
+                              if (_searchController.text.isNotEmpty)
+                                'q': _searchController.text,
+                            },
+                          ).toString(),
+                        ),
                         onClear: _clearSearch,
                       ),
                     ),
