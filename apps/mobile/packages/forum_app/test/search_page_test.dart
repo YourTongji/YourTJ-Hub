@@ -11,6 +11,8 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/pages/search/search_page.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/router.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -54,6 +56,65 @@ class _SearchRepository extends TopicRepository {
   }
 }
 
+class _WikiCall {
+  _WikiCall(this.query, this.limit);
+  final String query;
+  final int? limit;
+  final result = Completer<WikiSearchResult>();
+}
+
+class _WikiRepository extends WikiRepository {
+  _WikiRepository({this.hold = false, this.items = 0})
+    : super(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: _Tokens(),
+          baseUrl: 'http://fake.local',
+        ),
+      );
+
+  /// Unheld calls answer at once, so forum-only tests keep their old shape.
+  final bool hold;
+  final int items;
+  final calls = <_WikiCall>[];
+  @override
+  Future<WikiSearchResult> search(
+    String query, {
+    int? limit,
+    CancelToken? cancelToken,
+  }) {
+    final call = _WikiCall(query, limit);
+    calls.add(call);
+    if (!hold) call.result.complete(_wiki(call, items: items));
+    return call.result.future;
+  }
+}
+
+WikiSearchResult _wiki(
+  _WikiCall call, {
+  int items = 0,
+  int? total,
+  bool unavailable = false,
+}) => WikiSearchResult(
+  query: call.query,
+  items: List.generate(
+    items,
+    (i) => WikiSearchItem(
+      path: '指南/页面$i',
+      title: '${call.query} wiki $i',
+      heading: 'Heading $i',
+      snippet: '<mark>${call.query}</mark> snippet $i',
+      anchors: ['s-$i'],
+      namespace: '指南',
+      titleHit: false,
+      score: 0.5,
+      hitType: 'body',
+    ),
+  ),
+  total: total ?? items,
+  searchUnavailable: unavailable,
+);
+
 TopicPayload _topic(int id) => TopicPayload(
   id: id,
   title: 'Topic $id',
@@ -75,6 +136,7 @@ SearchPageProps _result(
   int topics = 0,
   int users = 0,
   int categories = 0,
+  int courses = 0,
   int totalPages = 1,
   List<String>? failedScopes,
   bool unavailable = false,
@@ -103,11 +165,21 @@ SearchPageProps _result(
       desc: 'Category description',
     ),
   ),
-  courses: const [],
+  courses: List.generate(
+    courses,
+    (i) => CourseSearchPayload(
+      id: i + 1,
+      primaryCode: 'CS10$i',
+      name: 'Course $i',
+      department: 'Software',
+      creditX10: 30,
+      teacherName: 'Teacher $i',
+    ),
+  ),
   total: topics * totalPages,
   usersTotal: users,
   categoriesTotal: categories,
-  coursesTotal: 0,
+  coursesTotal: courses,
   totalPages: totalPages,
   pagination: PaginationPayload(
     page: call.page,
@@ -125,12 +197,14 @@ void main() {
   Future<_SearchRepository> pumpSearch(
     WidgetTester tester, {
     Locale locale = const Locale('en'),
+    _WikiRepository? wiki,
   }) async {
     final repository = _SearchRepository();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           topicRepositoryProvider.overrideWithValue(repository),
+          wikiRepositoryProvider.overrideWithValue(wiki ?? _WikiRepository()),
           writingScopeProvider.overrideWith((ref) async => 'test:guest'),
         ],
         child: MaterialApp(
@@ -148,6 +222,275 @@ void main() {
     await tester.pump();
     return repository;
   }
+
+  /// The production `/search` and `/wiki/search` routes, with destination
+  /// stubs for the pages a result opens.
+  Future<GoRouter> pumpRouted(
+    WidgetTester tester, {
+    required String location,
+    required _SearchRepository repository,
+    required _WikiRepository wiki,
+  }) async {
+    GoRoute production(String path) => appRouter.configuration.routes
+        .whereType<GoRoute>()
+        .singleWhere((route) => route.path == path);
+    final router = GoRouter(
+      initialLocation: location,
+      routes: [
+        production('/search'),
+        production('/wiki/search'),
+        for (final path in ['/courses', '/courses/:id', '/wiki/:path(.*)'])
+          GoRoute(
+            path: path,
+            builder: (_, state) =>
+                Scaffold(body: Text('destination:${state.uri}')),
+          ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          topicRepositoryProvider.overrideWithValue(repository),
+          wikiRepositoryProvider.overrideWithValue(wiki),
+          writingScopeProvider.overrideWith((ref) async => 'test:guest'),
+        ],
+        child: MaterialApp.router(
+          routerConfig: router,
+          theme: gfThemeData(Brightness.light),
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+        ),
+      ),
+    );
+    await tester.pump();
+    return router;
+  }
+
+  int selectedTab(WidgetTester tester) => tester
+      .widget<TabBar>(find.byKey(const ValueKey('gf-tab-bar')))
+      .controller!
+      .index;
+
+  testWidgets('all caps course and Wiki groups and See all opens each type', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final wiki = _WikiRepository(hold: true);
+    final repo = await pumpSearch(tester, wiki: wiki);
+    // Both sources start together for the same submitted query.
+    expect(repo.calls.single.scope, '');
+    expect(wiki.calls.single.query, 'original');
+    expect(wiki.calls.single.limit, 3);
+    repo.calls.first.result.complete(
+      _result(repo.calls.first, topics: 1, courses: 5),
+    );
+    await tester.pump();
+    wiki.calls.first.result.complete(
+      _wiki(wiki.calls.first, items: 3, total: 8),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Course 2'), findsOneWidget);
+    expect(find.text('Course 3'), findsNothing);
+    expect(find.text('original wiki 2'), findsOneWidget);
+    expect(find.text('Topic 1'), findsOneWidget);
+    expect(find.text('3 shown · 5 matches'), findsOneWidget);
+    expect(find.text('3 shown · 8 matches'), findsOneWidget);
+    // Course and Wiki search no longer leave the page.
+    expect(find.text('Search courses'), findsNothing);
+    expect(find.text('Search Wiki'), findsNothing);
+
+    await tester.tap(find.text('See all').last);
+    await tester.pump();
+    expect(repo.calls, hasLength(1), reason: 'Wiki needs no forum request');
+    expect(wiki.calls.last.limit, 20);
+    wiki.calls.last.result.complete(_wiki(wiki.calls.last, items: 8));
+    await tester.pumpAndSettle();
+    expect(selectedTab(tester), 5);
+    expect(find.text('original wiki 7'), findsOneWidget);
+    expect(find.text('See all'), findsNothing);
+
+    await tester.tap(find.text('Courses'));
+    await tester.pump();
+    expect(repo.calls.last.scope, 'courses');
+    expect(repo.calls.last.query, 'original');
+    expect(wiki.calls, hasLength(2), reason: 'courses come from the forum');
+    repo.calls.last.result.complete(
+      _result(repo.calls.last, courses: 5).copyWith(coursesTotal: 40),
+    );
+    await tester.pumpAndSettle();
+    expect(selectedTab(tester), 4);
+    expect(find.text('Course 4'), findsOneWidget);
+    expect(find.text('5 shown · 40 matches'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('course and Wiki results open their pages and the catalog', (
+    tester,
+  ) async {
+    final repo = _SearchRepository();
+    final wiki = _WikiRepository(hold: true);
+    final router = await pumpRouted(
+      tester,
+      location: '/search?scope=courses&q=calculus',
+      repository: repo,
+      wiki: wiki,
+    );
+    expect(repo.calls.single.scope, 'courses');
+    expect(repo.calls.single.query, 'calculus');
+    expect(wiki.calls, isEmpty);
+    repo.calls.single.result.complete(
+      _result(repo.calls.single, courses: 2).copyWith(coursesTotal: 40),
+    );
+    await tester.pumpAndSettle();
+    expect(selectedTab(tester), 4);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'calculus',
+    );
+    await tester.tap(find.text('Course 1'));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.toString(), '/courses/2');
+    router.pop();
+    await tester.pumpAndSettle();
+    // The catalog keeps department, term and campus filters for the keyword.
+    await tester.tap(find.text('Filter in the course catalog'));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.toString(), '/courses?q=calculus');
+    router.pop();
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Wiki'));
+    await tester.tap(find.text('Wiki'));
+    await tester.pump();
+    wiki.calls.single.result.complete(_wiki(wiki.calls.single, items: 1));
+    await tester.pumpAndSettle();
+    expect(find.text('calculus snippet 0'), findsOneWidget);
+    await tester.tap(find.text('calculus wiki 0'));
+    await tester.pumpAndSettle();
+    expect(Uri.decodeComponent(router.state.uri.path), '/wiki/指南/页面0');
+    expect(router.state.uri.fragment, 's-0');
+  });
+
+  testWidgets('the legacy Wiki search link opens Wiki-scoped global search', (
+    tester,
+  ) async {
+    final repo = _SearchRepository();
+    final wiki = _WikiRepository(hold: true);
+    final router = await pumpRouted(
+      tester,
+      location: '/wiki/search?q=%E9%80%89%E8%AF%BE',
+      repository: repo,
+      wiki: wiki,
+    );
+    expect(router.state.uri.path, '/search');
+    expect(router.state.uri.queryParameters, {'scope': 'wiki', 'q': '选课'});
+    expect(repo.calls, isEmpty);
+    expect(wiki.calls.single.query, '选课');
+    expect(wiki.calls.single.limit, 20);
+    wiki.calls.single.result.complete(_wiki(wiki.calls.single, items: 1));
+    await tester.pumpAndSettle();
+    expect(selectedTab(tester), 5);
+    expect(find.text('选课 wiki 0'), findsOneWidget);
+
+    router.go('/wiki/search');
+    await tester.pumpAndSettle();
+    expect(router.state.uri.toString(), '/search?scope=wiki');
+    expect(wiki.calls, hasLength(1), reason: 'no query, nothing to search');
+    expect(find.text('Search Wiki'), findsWidgets);
+  });
+
+  testWidgets('a Wiki failure degrades only the Wiki group', (tester) async {
+    final wiki = _WikiRepository(hold: true);
+    final repo = await pumpSearch(tester, wiki: wiki);
+    repo.calls.first.result.complete(_result(repo.calls.first, topics: 1));
+    wiki.calls.first.result.completeError(StateError('offline'));
+    await tester.pumpAndSettle();
+    expect(find.text('Search unavailable: Wiki'), findsOneWidget);
+    expect(find.text('Topic 1'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Wiki'));
+    await tester.tap(find.text('Wiki'));
+    await tester.pump();
+    wiki.calls.last.result.complete(_wiki(wiki.calls.last, unavailable: true));
+    await tester.pumpAndSettle();
+    expect(find.text('Search unavailable'), findsOneWidget);
+    await tester.tap(find.text('Retry'));
+    await tester.pump();
+    expect(wiki.calls, hasLength(3));
+    wiki.calls.last.result.completeError(StateError('offline'));
+    await tester.pumpAndSettle();
+    expect(find.text('Retry'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a late Wiki response cannot land in a newer search', (
+    tester,
+  ) async {
+    final wiki = _WikiRepository(hold: true);
+    final repo = await pumpSearch(tester, wiki: wiki);
+    final stale = wiki.calls.single;
+    repo.calls.first.result.complete(_result(repo.calls.first, topics: 1));
+    await tester.enterText(find.byType(TextField), 'next');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pump();
+    expect(wiki.calls.last.query, 'next');
+    repo.calls.last.result.complete(_result(repo.calls.last, topics: 1));
+    wiki.calls.last.result.complete(_wiki(wiki.calls.last, items: 1));
+    await tester.pumpAndSettle();
+    stale.result.complete(_wiki(stale, items: 2));
+    await tester.pumpAndSettle();
+    expect(find.text('next wiki 0'), findsOneWidget);
+    expect(find.text('original wiki 0'), findsNothing);
+    expect(find.text('original wiki 1'), findsNothing);
+  });
+
+  testWidgets('course and Wiki shortcuts choose a type instead of leaving', (
+    tester,
+  ) async {
+    final repo = _SearchRepository();
+    final wiki = _WikiRepository(hold: true);
+    final router = await pumpRouted(
+      tester,
+      location: '/search',
+      repository: repo,
+      wiki: wiki,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Search Wiki'));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/search');
+    expect(repo.calls, isEmpty);
+    expect(wiki.calls, isEmpty);
+    await tester.enterText(find.byType(TextField), 'dorm');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pump();
+    expect(repo.calls, isEmpty);
+    expect(wiki.calls.single.limit, 20);
+    wiki.calls.single.result.complete(_wiki(wiki.calls.single));
+    await tester.pumpAndSettle();
+    expect(selectedTab(tester), 5);
+
+    // Clearing returns to the type the page was opened with.
+    await tester.tap(find.byTooltip('Clear search'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'lab');
+    await tester.pump();
+    // Typed text offers each type as an explicit, in-place search.
+    await tester.tap(find.text('Search courses for “lab”'));
+    await tester.pump();
+    expect(router.state.uri.path, '/search');
+    expect(repo.calls.single.scope, 'courses');
+    expect(repo.calls.single.query, 'lab');
+    repo.calls.single.result.complete(_result(repo.calls.single, courses: 1));
+    await tester.pumpAndSettle();
+    expect(selectedTab(tester), 4);
+    expect(find.text('Course 0'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'tablet search keeps scope navigation and submitted query on resize',
@@ -311,7 +654,8 @@ void main() {
     repo.calls.first.result.complete(_result(repo.calls.first));
     await tester.pumpAndSettle();
     expect(find.text('No results for “original”'), findsOneWidget);
-    expect(find.text('Search courses'), findsOneWidget);
+    // All already covers courses and the Wiki; nothing points elsewhere.
+    expect(find.text('Search courses'), findsNothing);
     await tester.enterText(find.byType(TextField), 'unsent');
     for (final label in ['Users', 'Categories']) {
       await tester.tap(find.text(label));
@@ -320,7 +664,6 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('No results for “original”'), findsOneWidget);
       expect(find.text('No results for “unsent”'), findsNothing);
-      // People and category filters do not suggest course or Wiki search.
       expect(find.text('Search courses'), findsNothing);
     }
   });
@@ -344,6 +687,7 @@ void main() {
         ProviderScope(
           overrides: [
             topicRepositoryProvider.overrideWithValue(repo),
+            wikiRepositoryProvider.overrideWithValue(_WikiRepository()),
             writingScopeProvider.overrideWith((ref) async => 'test:guest'),
           ],
           child: MaterialApp(
@@ -758,11 +1102,35 @@ void main() {
         tester.platformDispatcher.textScaleFactorTestValue = 2;
         addTearDown(tester.view.reset);
         addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-        final repo = await pumpSearch(tester, locale: Locale(language));
+        final repo = await pumpSearch(
+          tester,
+          locale: Locale(language),
+          wiki: _WikiRepository(items: 1),
+        );
         repo.calls.first.result.complete(
-          _result(repo.calls.first, users: 1, topics: 1, categories: 1),
+          _result(
+            repo.calls.first,
+            users: 1,
+            topics: 1,
+            categories: 1,
+            courses: 1,
+          ),
         );
         await tester.pumpAndSettle();
+        final scrollable = find
+            .descendant(
+              of: find.byType(ListView),
+              matching: find.byType(Scrollable),
+            )
+            .first;
+        for (final row in ['Course 0', 'original wiki 0']) {
+          await tester.scrollUntilVisible(
+            find.text(row),
+            200,
+            scrollable: scrollable,
+          );
+          expect(tester.takeException(), isNull);
+        }
         await tester.scrollUntilVisible(
           find.text('Category 0'),
           200,

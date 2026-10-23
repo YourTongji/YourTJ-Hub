@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'package:html/parser.dart' show parseFragment;
+import '../wiki/wiki_page.dart' show encodeWikiPath;
 
 import '../../widgets/user_decoration.dart';
 import '../../private_notes.dart';
@@ -25,11 +27,16 @@ import '../../widgets/skeletons.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/topic_list.dart';
 
-/// 聚合搜索页：已提交查询与输入中的关键词分离，各类型结果逐项构建。
-/// 空输入展示课程/Wiki 入口与最近搜索；首次提交前输入时给出明确的搜索去向；
-/// 提交后以类型标签切换范围。
+/// A shared submitted query across forum, course and Wiki search scopes.
+/// Wiki uses its existing endpoint; failures remain local to their result group.
 class SearchPage extends ConsumerStatefulWidget {
-  const SearchPage({super.key});
+  const SearchPage({
+    super.key,
+    this.initialScope = 'all',
+    this.initialQuery = '',
+  });
+  final String initialScope;
+  final String initialQuery;
 
   @override
   ConsumerState<SearchPage> createState() => _SearchPageState();
@@ -39,6 +46,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   final TextEditingController _query = TextEditingController();
   AsyncValue<SearchPageProps>? _result;
   String _scope = 'all';
+  WikiSearchResult? _wikiResult;
   String _submittedQuery = '';
   int _page = 1;
   bool _loadingMore = false;
@@ -122,15 +130,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
   }
 
-  void _searchElsewhere(String path) {
-    final query = _query.text.trim();
-    _remember(query);
-    context.push(
-      Uri(
-        path: path,
-        queryParameters: query.isEmpty ? null : {'q': query},
-      ).toString(),
-    );
+  void _chooseType(String scope) {
+    setState(() => _scope = scope);
+    if (_query.text.trim().isNotEmpty) _search();
   }
 
   final GfScrollToTopController _scrollToTopController =
@@ -139,7 +141,36 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   @override
   void initState() {
     super.initState();
+    _scope = _scopes.contains(widget.initialScope)
+        ? widget.initialScope
+        : 'all';
+    _query.text = widget.initialQuery;
     _loadHistory();
+    if (_query.text.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _search();
+        }
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant SearchPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialScope == widget.initialScope &&
+        oldWidget.initialQuery == widget.initialQuery) {
+      return;
+    }
+    _clearSearch();
+    _query.text = widget.initialQuery;
+    if (_query.text.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _search();
+        }
+      });
+    }
   }
 
   @override
@@ -159,11 +190,90 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     setState(() {
       _result = null;
       _submittedQuery = '';
-      _scope = 'all';
+      _wikiResult = null;
+      _scope = _scopes.contains(widget.initialScope)
+          ? widget.initialScope
+          : 'all';
       _page = 1;
       _loadingMore = false;
       _loadMoreError = null;
     });
+  }
+
+  Future<(SearchPageProps, WikiSearchResult?)> _fetch(
+    String query,
+    CancelToken cancel,
+  ) async {
+    final scope = _scope;
+    SearchPageProps? forum;
+    WikiSearchResult? wiki;
+    Object? forumError;
+    bool wikiFailed = false;
+    final forumRequest = () async {
+      if (scope == 'wiki') return;
+      try {
+        forum = await ref
+            .read(topicRepositoryProvider)
+            .search(
+              query: query,
+              scope: scope == 'all' ? '' : scope,
+              page: 1,
+              cancelToken: cancel,
+            );
+      } catch (error) {
+        forumError = error;
+      }
+    }();
+    final wikiRequest = () async {
+      if (scope != 'all' && scope != 'wiki') return;
+      try {
+        wiki = await ref
+            .read(wikiRepositoryProvider)
+            .search(query, limit: scope == 'all' ? 3 : 20, cancelToken: cancel);
+        wikiFailed = wiki!.searchUnavailable;
+      } catch (error) {
+        if (scope == 'wiki') rethrow;
+        wikiFailed = true;
+      }
+    }();
+    await Future.wait([forumRequest, wikiRequest]);
+    if (forumError != null &&
+        (scope != 'all' || wiki == null || wikiFailed || wiki!.items.isEmpty)) {
+      throw forumError!;
+    }
+    var props =
+        forum ??
+        SearchPageProps(
+          query: query,
+          scope: scope,
+          topics: const [],
+          users: const [],
+          categories: const [],
+          courses: const [],
+          total: 0,
+          usersTotal: 0,
+          categoriesTotal: 0,
+          coursesTotal: 0,
+          totalPages: 1,
+          pagination: const PaginationPayload(
+            page: 1,
+            hasNext: false,
+            nextPage: 1,
+            nextUrl: '',
+          ),
+        );
+    props = props.copyWith(
+      failedScopes: [
+        ...?props.failedScopes,
+        if (forumError != null) ...['topics', 'users', 'categories', 'courses'],
+        if (wikiFailed && scope == 'all') 'wiki',
+      ],
+      searchUnavailable: scope == 'wiki'
+          ? wikiFailed
+          : props.searchUnavailable == true &&
+                (wiki == null || wiki!.items.isEmpty),
+    );
+    return (props, wiki);
   }
 
   Future<void> _search({String? query}) async {
@@ -184,18 +294,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _loadMoreError = null;
     });
     try {
-      final SearchPageProps props = await ref
-          .read(topicRepositoryProvider)
-          .search(
-            query: q,
-            scope: _scope == 'all' ? '' : _scope,
-            page: 1,
-            cancelToken: cancel,
-          );
+      final (props, wiki) = await _fetch(q, cancel);
       if (mounted &&
           generation == _generation &&
           epoch == ref.read(offlineCacheEpochProvider)) {
-        setState(() => _result = AsyncValue.data(props));
+        setState(() {
+          _result = AsyncValue.data(props);
+          _wikiResult = wiki;
+        });
       }
     } catch (e, st) {
       if (mounted &&
@@ -293,20 +399,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final cancel = _searchCancel = CancelToken();
     setState(() => _loadingMore = false);
     try {
-      final SearchPageProps props = await ref
-          .read(topicRepositoryProvider)
-          .search(
-            query: q,
-            scope: _scope == 'all' ? '' : _scope,
-            page: 1,
-            cancelToken: cancel,
-          );
+      final (props, wiki) = await _fetch(q, cancel);
       if (mounted &&
           generation == _generation &&
           epoch == ref.read(offlineCacheEpochProvider)) {
         setState(() {
           _page = 1;
           _result = AsyncValue.data(props);
+          _wikiResult = wiki;
           _loadMoreError = null;
         });
       }
@@ -340,7 +440,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         _recent = [];
         _result = null;
         _submittedQuery = '';
-        _scope = 'all';
+        _wikiResult = null;
+        _scope = _scopes.contains(widget.initialScope)
+            ? widget.initialScope
+            : 'all';
         _page = 1;
         _loadingMore = false;
         _loadMoreError = null;
@@ -522,8 +625,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           if (typed.isEmpty) {
             return _Discovery(
               recent: _recent,
-              onCourses: () => _searchElsewhere('/courses'),
-              onWiki: () => _searchElsewhere('/wiki/search'),
+              onCourses: () => _chooseType('courses'),
+              onWiki: () => _chooseType('wiki'),
               onRecent: _searchRecent,
               onForget: _forget,
               onClearRecent: _clearHistory,
@@ -538,8 +641,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   query,
             ],
             onSearch: () => _search(query: typed),
-            onCourses: () => _searchElsewhere('/courses'),
-            onWiki: () => _searchElsewhere('/wiki/search'),
+            onCourses: () => _chooseType('courses'),
+            onWiki: () => _chooseType('wiki'),
             onRecent: _searchRecent,
           );
         },
@@ -568,6 +671,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           controller: _scrollToTopController,
           builder: (_, ScrollController controller) => _SearchResults(
             props: props,
+            wiki: _wikiResult,
             scope: _scope,
             loadingMore: _loadingMore,
             loadMoreError: _loadMoreError,
@@ -575,8 +679,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             onLoadMore: _loadMore,
             onRefresh: _refresh,
             onSeeAll: _setScope,
-            onCourses: () => _searchElsewhere('/courses'),
-            onWiki: () => _searchElsewhere('/wiki/search'),
+            onCourses: () => _chooseType('courses'),
+            onWiki: () => _chooseType('wiki'),
             controller: controller,
           ),
         );
@@ -593,12 +697,21 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 }
 
-const List<String> _scopes = <String>['all', 'topics', 'users', 'categories'];
+const List<String> _scopes = <String>[
+  'all',
+  'topics',
+  'users',
+  'categories',
+  'courses',
+  'wiki',
+];
 
 String _scopeSymbol(String scope) => switch (scope) {
   'topics' => 'file-text',
   'users' => 'users-round',
   'categories' => 'folder',
+  'courses' => 'book-open',
+  'wiki' => 'library-big',
   _ => 'layout-grid',
 };
 
@@ -607,23 +720,17 @@ String _scopeLabel(String scope, AppLocalizations l10n) => switch (scope) {
   'users' => l10n.searchUsers,
   'categories' => l10n.searchCategories,
   'courses' => l10n.coursesTitle,
+  'wiki' => l10n.wikiTitle,
   'all' => l10n.searchAll,
   _ => scope,
 };
 
-/// Course and Wiki search live on their own native pages; these tiles carry
-/// the current input there. Equal halves keep the row balanced, and each tile
-/// uses a faint wash of its destination's tone.
+/// In-place scope shortcuts for the discovery and empty states.
 class _ElsewhereShortcuts extends StatelessWidget {
-  const _ElsewhereShortcuts({
-    required this.onCourses,
-    required this.onWiki,
-    this.compact = false,
-  });
+  const _ElsewhereShortcuts({required this.onCourses, required this.onWiki});
 
   final VoidCallback onCourses;
   final VoidCallback onWiki;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -635,10 +742,9 @@ class _ElsewhereShortcuts extends StatelessWidget {
         children: <Widget>[
           Expanded(
             child: _ElsewhereTile(
-              symbol: 'graduation-cap',
+              symbol: 'book-open',
               tone: colors.primary,
               label: l10n.searchCourses,
-              compact: compact,
               onTap: onCourses,
             ),
           ),
@@ -648,7 +754,6 @@ class _ElsewhereShortcuts extends StatelessWidget {
               symbol: 'book-open',
               tone: colors.warning,
               label: l10n.searchWiki,
-              compact: compact,
               onTap: onWiki,
             ),
           ),
@@ -663,14 +768,13 @@ class _ElsewhereTile extends StatelessWidget {
     required this.symbol,
     required this.tone,
     required this.label,
-    required this.compact,
     required this.onTap,
   });
 
   final String symbol;
   final Color tone;
   final String label;
-  final bool compact;
+
   final VoidCallback onTap;
 
   @override
@@ -695,7 +799,7 @@ class _ElsewhereTile extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: compact ? 48 : 56),
+            constraints: BoxConstraints(minHeight: 56),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
@@ -848,7 +952,7 @@ class _Suggestions extends StatelessWidget {
           onTap: onSearch,
         ),
         _SuggestionRow(
-          symbol: 'graduation-cap',
+          symbol: 'book-open',
           label: l10n.searchCoursesFor(query),
           onTap: onCourses,
         ),
@@ -945,6 +1049,7 @@ class _SuggestionRow extends StatelessWidget {
 class _SearchResults extends StatelessWidget {
   const _SearchResults({
     required this.props,
+    this.wiki,
     required this.scope,
     required this.loadingMore,
     this.loadMoreError,
@@ -958,6 +1063,7 @@ class _SearchResults extends StatelessWidget {
   });
 
   final SearchPageProps props;
+  final WikiSearchResult? wiki;
   final String scope;
   final bool loadingMore;
   final String? loadMoreError;
@@ -979,8 +1085,18 @@ class _SearchResults extends StatelessWidget {
     final bool showCategories =
         (scope == 'all' || scope == 'categories') &&
         props.categories.isNotEmpty;
-    final bool hasResults = showUsers || showTopics || showCategories;
-    final bool showElsewhere = scope == 'all' && hasResults;
+    final courseItems = scope == 'all'
+        ? props.courses.take(3).toList()
+        : props.courses;
+    final wikiItems = scope == 'all'
+        ? (wiki?.items ?? []).take(3).toList()
+        : (wiki?.items ?? []);
+    final showCourses =
+        (scope == 'all' || scope == 'courses') && courseItems.isNotEmpty;
+    final showWiki =
+        (scope == 'all' || scope == 'wiki') && wikiItems.isNotEmpty;
+    final bool hasResults =
+        showUsers || showTopics || showCategories || showCourses || showWiki;
 
     final failed = props.failedScopes ?? const <String>[];
     final sections = <({String scope, int length, int total})>[
@@ -994,11 +1110,19 @@ class _SearchResults extends StatelessWidget {
           length: props.categories.length,
           total: props.categoriesTotal,
         ),
+      if (showCourses)
+        (
+          scope: 'courses',
+          length: courseItems.length,
+          total: props.coursesTotal,
+        ),
+      if (showWiki)
+        (scope: 'wiki', length: wikiItems.length, total: wiki!.total),
     ];
     final showFooter = showTopics && props.totalPages > 1;
     final itemCount =
         (failed.isEmpty ? 0 : 1) +
-        (showElsewhere ? 1 : 0) +
+        (scope == 'courses' && hasResults ? 1 : 0) +
         (hasResults
             ? sections.fold<int>(
                     0,
@@ -1018,38 +1142,20 @@ class _SearchResults extends StatelessWidget {
         // Name the submitted keyword, not unsent input. Course and Wiki are
         // useful next steps for content searches, not for a people or
         // category filter.
-        final bool contentScope = scope == 'all' || scope == 'topics';
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 32),
           child: GfEmpty(
             symbol: 'search',
             message: l10n.searchNoResults(props.query),
-            description: contentScope ? l10n.searchNoResultsHint : null,
-            action: contentScope
-                ? _ElsewhereShortcuts(onCourses: onCourses, onWiki: onWiki)
-                : null,
           ),
         );
-      }
-      if (showElsewhere) {
-        if (index == 0) {
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: _ElsewhereShortcuts(
-              onCourses: onCourses,
-              onWiki: onWiki,
-              compact: true,
-            ),
-          );
-        }
-        index--;
       }
       for (final (position, section) in sections.indexed) {
         if (index == 0) {
           return _SectionHeader(
             title: _scopeLabel(section.scope, l10n),
             count: l10n.searchResultCount(section.length, section.total),
-            first: position == 0 && !showElsewhere,
+            first: position == 0,
             onSeeAll: scope == 'all' && section.total > section.length
                 ? () => onSeeAll(section.scope)
                 : null,
@@ -1066,6 +1172,8 @@ class _SearchResults extends StatelessWidget {
               key: ValueKey('search-topic-${props.topics[index].id}'),
               topic: props.topics[index],
             ),
+            'courses' => _CourseRow(course: courseItems[index]),
+            'wiki' => _WikiRow(item: wikiItems[index]),
             _ => _CategoryRow(
               key: ValueKey('search-category-${props.categories[index].id}'),
               category: props.categories[index],
@@ -1085,6 +1193,18 @@ class _SearchResults extends StatelessWidget {
           }
           index--;
         }
+      }
+      if (scope == 'courses' && index == 0) {
+        return ListTile(
+          title: GfText(l10n.searchFilterInCatalog),
+          trailing: const GfSymbol('chevron-right'),
+          onTap: () => context.push(
+            Uri(
+              path: '/courses',
+              queryParameters: {'q': props.query},
+            ).toString(),
+          ),
+        );
       }
       throw RangeError.index(index, sections);
     }
@@ -1401,4 +1521,45 @@ class _CategoryRow extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CourseRow extends StatelessWidget {
+  const _CourseRow({required this.course});
+  final CourseSearchPayload course;
+  @override
+  Widget build(BuildContext context) => ListTile(
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    leading: const GfSymbol('book-open'),
+    title: GfText(course.name),
+    subtitle: GfText(
+      [
+        course.primaryCode,
+        course.teacherName ?? '',
+        course.department,
+      ].where((s) => s.isNotEmpty).join(' · '),
+    ),
+    onTap: () => context.push('/courses/${course.id}'),
+  );
+}
+
+class _WikiRow extends StatelessWidget {
+  const _WikiRow({required this.item});
+  final WikiSearchItem item;
+  @override
+  Widget build(BuildContext context) => ListTile(
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    title: GfText(item.title),
+    subtitle: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GfText(
+          [item.namespace, item.heading].where((s) => s.isNotEmpty).join(' · '),
+        ),
+        GfText(parseFragment(item.snippet).text ?? ''),
+      ],
+    ),
+    onTap: () => context.push(
+      '/wiki/${encodeWikiPath(item.path)}${item.anchors.isEmpty ? '' : '#${Uri.encodeComponent(item.anchors.first)}'}',
+    ),
+  );
 }

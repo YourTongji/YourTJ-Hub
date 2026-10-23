@@ -4174,4 +4174,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get previewStatusLink => 'Preview status';
+
+  @override
+  String get searchFilterInCatalog => 'Filter in the course catalog';
 }

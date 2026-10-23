@@ -3971,4 +3971,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get previewStatusLink => '预发状态';
+
+  @override
+  String get searchFilterInCatalog => '在课程目录中筛选';
 }

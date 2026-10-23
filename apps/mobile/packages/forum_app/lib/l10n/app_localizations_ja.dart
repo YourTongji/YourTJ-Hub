@@ -4021,4 +4021,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get previewStatusLink => 'プレビュー状況';
+
+  @override
+  String get searchFilterInCatalog => '講義一覧で絞り込む';
 }

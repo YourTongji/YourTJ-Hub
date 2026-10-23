@@ -129,19 +129,14 @@ void main() {
         final l10n = AppLocalizations.of(
           tester.element(find.byType(SearchPage)),
         );
-        // Search keeps course and Wiki search one tap away, including at 200%
-        // text on a small phone.
-        for (final (label, path) in [
-          (l10n.searchCourses, '/courses'),
-          (l10n.searchWiki, '/wiki/search'),
-        ]) {
-          final action = find.text(label);
+        // Course and Wiki search stay one tap away inside global search,
+        // including at 200% text on a small phone.
+        for (final label in [l10n.searchCourses, l10n.searchWiki]) {
+          final action = find.text(label).last;
           await tester.ensureVisible(action);
           await tester.tap(action);
           await tester.pumpAndSettle();
-          expect(router.state.uri.path, path);
-          router.pop();
-          await tester.pumpAndSettle();
+          expect(router.state.uri.path, '/search');
           expect(tester.takeException(), isNull);
         }
         router.go('/campus');

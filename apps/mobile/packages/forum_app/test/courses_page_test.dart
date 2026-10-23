@@ -658,13 +658,12 @@ void main() {
     );
     await tester.binding.setSurfaceSize(const Size(1100, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(_app(container, const CourseCatalogPage()));
+    await tester.pumpWidget(
+      _app(container, const CourseCatalogPage(initialQuery: '高等数学')),
+    );
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('course-filter-sidebar')), findsOneWidget);
     final field = tester.widget<TextField>(find.byType(TextField)).controller!;
-    await tester.enterText(find.byType(TextField), '高等数学');
-    await tester.pump(const Duration(milliseconds: 310));
-    await tester.pumpAndSettle();
     final calls = repository.listCalls.length;
     final list = tester.widget<CustomScrollView>(find.byType(CustomScrollView));
     await tester.binding.setSurfaceSize(const Size(500, 800));
@@ -684,7 +683,11 @@ void main() {
     expect(repository.listCalls.length, calls);
     expect(find.byKey(const Key('course-filter-sidebar')), findsOneWidget);
     await tester.pumpWidget(
-      _app(container, const CourseCatalogPage(), textScale: 2),
+      _app(
+        container,
+        const CourseCatalogPage(initialQuery: '高等数学'),
+        textScale: 2,
+      ),
     );
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('course-filter-sidebar')), findsNothing);

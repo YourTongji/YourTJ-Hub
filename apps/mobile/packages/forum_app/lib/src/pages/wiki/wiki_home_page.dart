@@ -99,7 +99,7 @@ class _WikiHomePageState extends ConsumerState<WikiHomePage> {
                       ),
                       const SizedBox(height: 16),
                       InkWell(
-                        onTap: () => context.push('/wiki/search'),
+                        onTap: () => context.push('/search?scope=wiki'),
                         child: Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
