@@ -231,8 +231,10 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
 - `Current`: Home cards retain both images for two-image topics. A portrait single image sits beside
   the text; a landscape image appears below the text with aspect-preserving fit. Portrait galleries
   show up to three columns; two landscape images share a row; larger landscape galleries overlap
-  up to three previews with a total count. Tapping the author avatar or name opens the native
-  profile; tapping text opens the topic. Tapping a preview opens the shared lightbox at that image
+  up to three previews with a total count. Tapping a member avatar opens the same profile preview
+  used in topic details; the author name opens the full profile. Persona avatars and names open
+  their independent anonymous profile, while legacy anonymous avatars disclose no identity.
+  Tapping text opens the topic. Tapping a preview opens the shared lightbox at that image
   with every topic image available, including images beyond the feed preview limit. Author
   targets and previews support keyboard activation; previews announce their localized image
   position, and both author targets have at least 44-by-44 logical-pixel touch areas.
@@ -390,6 +392,14 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
 - `Current`: reply edits preserve unsaved text on failed saves and confirm before discarding.
   Server-required reply captchas can be refreshed without losing the draft. Session changes
   invalidate pending edits and destructive confirmations; share failures remain visible in-app.
+- `Current`: the topic AppBar overflow holds sharing, opening-post share images and revision history,
+  reporting for other authors, and permitted edit/delete/moderation actions. Reply reporting lives
+  in the reply overflow beside its own share/history actions. No separate report flag competes
+  with either menu. Missing opening-post windows omit image/history actions. A successful topic
+  deletion pops to its source, or goes Home when opened as a root deep link. Session-scoped
+  deletion markers remove stale topic entries from feeds, profile streams and content management
+  without resetting their controllers, and prevent late reads from restoring them. Failed deletion
+  leaves the page and lists unchanged; account/site changes clear those markers.
 
 - `Current`: embedded reply Markdown adds no device safe-area spacing. Dates and reply actions
   share a compact footer, wrapping on narrow screens or large text. Reply references use Web's
@@ -409,7 +419,8 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
 - `Current`: notification entries use a small event glyph (pink heart for likes), the actor's
   avatar, a bold actor name within the localized action, inline time and a muted three-line preview.
   Avatar URLs are resolved in a server batch; likes without a stored preview use the visible reply excerpt.
-  Actor avatars open the profile independently of the notification's read action. Unread dots,
+  Member avatars open a profile preview, while actor names open the full profile; persona targets
+  retain their anonymous profile. These actions are independent of the notification's read action. Unread dots,
   acknowledged-read updates and failure retries remain available.
 - `Current`: notification headings resolve the same template keys and event types as Web in the
   selected language, with actor names and topic/content previews. Legacy literal headings take precedence when no template key is present; content previews take

@@ -275,8 +275,26 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Share'), findsNothing);
       expect(find.text('Generate share image'), findsNothing);
+      expect(find.text('Report post'), findsNothing);
     });
   }
+
+  testWidgets('own replies offer no report entry', (tester) async {
+    await pump(
+      tester,
+      repo(),
+      PostActions(
+        post: post(),
+        onChanged: () async {},
+        onReply: null,
+        onReport: () => fail('own reply reported'),
+      ),
+    );
+    expect(find.byTooltip('Report post'), findsNothing);
+    await tester.tap(find.byType(GfPopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    expect(find.text('Report post'), findsNothing);
+  });
 
   testWidgets(
     'share actions are absent when the containing topic is unavailable',
@@ -422,9 +440,9 @@ void main() {
         of: actions,
         matching: find.byType(GfSymbol),
       );
-      expect(glyphs, findsNWidgets(5));
+      expect(glyphs, findsNWidgets(4));
       final centers = [
-        for (var index = 0; index < 5; index++)
+        for (var index = 0; index < 4; index++)
           tester.getCenter(glyphs.at(index)),
       ];
       expect(centers.first.dx - bounds.left, 22);
@@ -487,17 +505,10 @@ void main() {
       'bookmark',
       'corner-down-left',
       'ellipsis',
-      'flag',
     ]);
     expect(symbols.every((symbol) => symbol.size == 20), isTrue);
     final targets = <String, Rect>{};
-    for (final tooltip in [
-      'Like',
-      'Bookmark',
-      'Reply',
-      'More options',
-      'Report post',
-    ]) {
+    for (final tooltip in ['Like', 'Bookmark', 'Reply', 'More options']) {
       // Material 3 places an IconButton's Tooltip around its 40px surface,
       // inside the padded touch target. Measure the button, not that surface.
       final control = tooltip == 'Like'
@@ -514,17 +525,20 @@ void main() {
       expect(target.right, lessThanOrEqualTo(tester.getRect(actions).right));
     }
     // The outer margin must activate the action, not merely reserve layout.
-    for (final label in ['Like', 'Bookmark', 'Reply', 'Report post']) {
+    for (final label in ['Like', 'Bookmark', 'Reply']) {
       await tester.tapAt(targets[label]!.topLeft + const Offset(2, 2));
       await tester.pumpAndSettle();
     }
     expect(repository.likes, [1]);
     expect(repository.bookmarks, [1]);
     expect(replies, 1);
-    expect(reports, 1);
     await tester.tapAt(targets['More options']!.topLeft + const Offset(2, 2));
     await tester.pumpAndSettle();
     expect(find.text('Revision history'), findsOneWidget);
+    // Reporting a reply is a floor action, so it lives in the floor menu.
+    await tester.tap(find.text('Report post'));
+    await tester.pumpAndSettle();
+    expect(reports, 1);
     expect(tester.takeException(), isNull);
   });
   testWidgets(

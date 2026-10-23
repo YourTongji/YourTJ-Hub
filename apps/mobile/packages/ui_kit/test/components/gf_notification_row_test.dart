@@ -50,4 +50,40 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('avatar, actor name and row open separate targets', (
+    tester,
+  ) async {
+    var avatar = 0, actor = 0, opens = 0;
+    Widget row({VoidCallback? onAvatarTap}) => gfApp(
+      SizedBox(
+        width: 320,
+        child: GfNotificationRow(
+          symbol: 'heart-filled',
+          tone: GfNotificationTone.like,
+          title: 'Alice liked your reply',
+          subtitle: '',
+          time: 'now',
+          unread: false,
+          actorName: 'Alice',
+          avatarUrl: '',
+          onAvatarTap: onAvatarTap,
+          onActorTap: () => actor++,
+          onTap: () => opens++,
+        ),
+      ),
+    );
+    await tester.pumpWidget(row(onAvatarTap: () => avatar++));
+    await tester.tap(find.byType(GfAvatar));
+    expect((avatar, actor, opens), (1, 0, 0));
+    await tester.tapOnText(find.textRange.ofSubstring('Alice'));
+    expect((avatar, actor, opens), (1, 1, 0));
+    await tester.tapOnText(find.textRange.ofSubstring('your reply'));
+    expect((avatar, actor, opens), (1, 1, 1));
+    // Without a dedicated avatar target the avatar keeps the actor target.
+    await tester.pumpWidget(row());
+    await tester.tap(find.byType(GfAvatar));
+    expect((avatar, actor, opens), (1, 2, 1));
+    expect(tester.takeException(), isNull);
+  });
 }

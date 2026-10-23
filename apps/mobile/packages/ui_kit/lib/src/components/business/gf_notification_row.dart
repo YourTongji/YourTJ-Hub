@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import '../../twemoji/twemoji_text.dart';
 import '../../theme/gf_theme.dart';
 import '../atoms/gf_avatar.dart';
@@ -24,6 +25,7 @@ class GfNotificationRow extends StatelessWidget {
     this.nicknameColors = const [],
     this.avatarUrl,
     this.onActorTap,
+    this.onAvatarTap,
     this.onTap,
     this.onMarkRead,
     this.markReadLabel = 'Mark as read',
@@ -38,7 +40,7 @@ class GfNotificationRow extends StatelessWidget {
   final String actorName;
   final String? avatarUrl;
   final bool unread;
-  final VoidCallback? onTap, onMarkRead, onActorTap;
+  final VoidCallback? onTap, onMarkRead, onActorTap, onAvatarTap;
   final String markReadLabel;
 
   /// Null shows complete guidance rather than truncating a content preview.
@@ -56,7 +58,6 @@ class GfNotificationRow extends StatelessWidget {
       GfNotificationTone.primary => colors.primary,
       GfNotificationTone.like => const Color(0xFFF91880),
     };
-    final actorStart = actorName.isEmpty ? -1 : title.indexOf(actorName);
     return Material(
       color: unread
           ? Color.alphaBlend(
@@ -84,9 +85,9 @@ class GfNotificationRow extends StatelessWidget {
                     if (avatarUrl != null)
                       Semantics(
                         label: actorName,
-                        button: onActorTap != null,
+                        button: (onAvatarTap ?? onActorTap) != null,
                         child: InkWell(
-                          onTap: onActorTap,
+                          onTap: onAvatarTap ?? onActorTap,
                           customBorder: const CircleBorder(),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
@@ -104,55 +105,12 @@ class GfNotificationRow extends StatelessWidget {
                         ),
                       ),
                     if (avatarUrl != null) const SizedBox(height: 4),
-                    GfText.rich(
-                      TextSpan(
-                        children: [
-                          if (actorStart < 0)
-                            TextSpan(text: title)
-                          else ...[
-                            TextSpan(text: title.substring(0, actorStart)),
-                            TextSpan(
-                              text: actorName,
-                              style: TextStyle(
-                                foreground: nicknameColors.length < 2
-                                    ? null
-                                    : (Paint()
-                                        ..shader =
-                                            LinearGradient(
-                                              colors: nicknameColors,
-                                            ).createShader(
-                                              Rect.fromLTWH(
-                                                0,
-                                                0,
-                                                actorName.length * 8.0,
-                                                20,
-                                              ),
-                                            )),
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            TextSpan(
-                              text: title.substring(
-                                actorStart + actorName.length,
-                              ),
-                            ),
-                          ],
-                          TextSpan(
-                            text: ' · $time',
-                            style: TextStyle(
-                              color: colors.iconMuted,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 15,
-                        height: 1.4,
-                        color: colors.baseContent,
-                      ),
+                    _ActorHeading(
+                      title: title,
+                      actorName: actorName,
+                      time: time,
+                      nicknameColors: nicknameColors,
+                      onActorTap: onActorTap,
                     ),
                     if (subtitle.isNotEmpty)
                       Padding(
@@ -206,6 +164,74 @@ class GfNotificationRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Own the text recognizer so rebuilds and recycled notification rows dispose it.
+class _ActorHeading extends StatefulWidget {
+  const _ActorHeading({
+    required this.title,
+    required this.actorName,
+    required this.time,
+    required this.nicknameColors,
+    this.onActorTap,
+  });
+  final String title, actorName, time;
+  final List<Color> nicknameColors;
+  final VoidCallback? onActorTap;
+  @override
+  State<_ActorHeading> createState() => _ActorHeadingState();
+}
+
+class _ActorHeadingState extends State<_ActorHeading> {
+  final _actorTap = TapGestureRecognizer();
+  @override
+  void dispose() {
+    _actorTap.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = GfTheme.colorsOf(context);
+    final title = widget.title,
+        actorName = widget.actorName,
+        time = widget.time;
+    final nicknameColors = widget.nicknameColors;
+    final actorStart = actorName.isEmpty ? -1 : title.indexOf(actorName);
+    return GfText.rich(
+      TextSpan(
+        children: [
+          if (actorStart < 0)
+            TextSpan(text: title)
+          else ...[
+            TextSpan(text: title.substring(0, actorStart)),
+            TextSpan(
+              text: actorName,
+              recognizer: _actorTap..onTap = widget.onActorTap,
+              style: TextStyle(
+                foreground: nicknameColors.length < 2
+                    ? null
+                    : (Paint()
+                        ..shader = LinearGradient(colors: nicknameColors)
+                            .createShader(
+                              Rect.fromLTWH(0, 0, actorName.length * 8.0, 20),
+                            )),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            TextSpan(text: title.substring(actorStart + actorName.length)),
+          ],
+          TextSpan(
+            text: ' · $time',
+            style: TextStyle(color: colors.iconMuted, fontSize: 13),
+          ),
+        ],
+      ),
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontSize: 15, height: 1.4, color: colors.baseContent),
     );
   }
 }

@@ -39,6 +39,15 @@ class _ContentPageState extends ConsumerState<ContentPage> {
     _load();
   }
 
+  void _removeTopics(Set<int> removed) {
+    if (widget.deleted) return;
+    _items.removeWhere((item) {
+      if (!removed.contains(item.topicId ?? item.id)) return false;
+      _selected.remove(item.id);
+      return true;
+    });
+  }
+
   Future<void> _load({bool more = false}) async {
     if (more && (_loading || !_hasMore)) return;
     final generation = ++_generation;
@@ -67,6 +76,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
         }
         final ids = _items.map((item) => item.id).toSet();
         _items.addAll(page.items.where((item) => ids.add(item.id)));
+        _removeTopics(ref.read(removedTopicsProvider));
         _cursor = page.nextCursorId;
         _hasMore = page.hasMore;
       });
@@ -313,6 +323,9 @@ class _ContentPageState extends ConsumerState<ContentPage> {
       },
     );
     final l10n = AppLocalizations.of(context);
+    ref.listen(removedTopicsProvider, (_, removed) {
+      setState(() => _removeTopics(removed));
+    });
     ref.listen(offlineCacheEpochProvider, (_, next) {
       setState(() {
         _generation++;
