@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:core/core.dart';
+import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -98,12 +99,15 @@ void main() {
   late _Courses courses;
   late ProviderContainer container;
   late _Pages pages;
+  late ValueNotifier<String> catalogQuery;
   Future<void> pumpCatalog(
     WidgetTester tester, {
     bool optionsFail = false,
     Locale locale = const Locale('zh'),
     double textScale = 1,
   }) async {
+    catalogQuery = ValueNotifier('');
+    addTearDown(catalogQuery.dispose);
     final client = GfApiClient(
       dio: Dio(),
       tokenStorage: MemoryTokenStorage(),
@@ -126,7 +130,10 @@ void main() {
           locale: locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const CourseCatalogPage(),
+          home: ValueListenableBuilder<String>(
+            valueListenable: catalogQuery,
+            builder: (_, query, _) => CourseCatalogPage(initialQuery: query),
+          ),
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(
               context,
@@ -139,11 +146,60 @@ void main() {
     await tester.pump();
   }
 
+  testWidgets('catalog query entry opens course-scoped global search', (
+    tester,
+  ) async {
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: MemoryTokenStorage(),
+      baseUrl: 'http://fake.local',
+    );
+    final courses = _Courses(client);
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => const CourseCatalogPage(initialQuery: '数学'),
+        ),
+        GoRoute(
+          path: '/search',
+          builder: (_, state) =>
+              Scaffold(body: Text('destination:${state.uri}')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          courseRepositoryProvider.overrideWithValue(courses),
+          pageRepositoryProvider.overrideWithValue(_Pages(client)),
+        ],
+        child: MaterialApp.router(
+          routerConfig: router,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
+        ),
+      ),
+    );
+    await tester.pump();
+    courses.requests.first.result.complete(_result('数学课程'));
+    await tester.pumpAndSettle();
+    final field = find.byType(TextField).first;
+    expect(tester.widget<TextField>(field).readOnly, isTrue);
+    await tester.tap(field);
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/search');
+    expect(router.state.uri.queryParameters, {'scope': 'courses', 'q': '数学'});
+  });
+
   testWidgets('late initial response cannot replace a newer keyword result', (
     tester,
   ) async {
     await pumpCatalog(tester);
-    await tester.enterText(find.byType(TextField).first, '物理');
+    catalogQuery.value = '物理';
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 310));
     expect(courses.requests, hasLength(2));
     courses.requests[1].result.complete(_result('新搜索物理'));
@@ -161,15 +217,16 @@ void main() {
   }
 
   testWidgets(
-    'typing invalidates the old request during the debounce interval',
+    'a route keyword update invalidates the old request immediately',
     (tester) async {
       await pumpCatalog(tester);
-      await tester.enterText(find.byType(TextField).first, '新查询');
+      catalogQuery.value = '新查询';
+      await tester.pump();
       courses.requests.first.result.complete(_result('不应回来的旧结果'));
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('不应回来的旧结果'), findsNothing);
-      expect(courses.requests, hasLength(1));
-      await tester.pump(const Duration(milliseconds: 210));
+      expect(courses.requests, hasLength(2));
+      await tester.pump();
       courses.requests.last.result.complete(_result('正确的新结果'));
       await tester.pumpAndSettle();
       expect(find.text('正确的新结果'), findsOneWidget);
@@ -184,7 +241,8 @@ void main() {
       await deliverFirst(tester, more: true);
       expect(courses.requests, hasLength(2));
       expect(courses.requests.last.page, 2);
-      await tester.enterText(find.byType(TextField).first, '物理');
+      catalogQuery.value = '物理';
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 310));
       expect(courses.requests.last.keyword, '物理');
       courses.requests.last.result.complete(_result('新的物理课程', id: 3));
@@ -378,20 +436,25 @@ void main() {
     },
   );
 
-  testWidgets('session invalidation cancels a queued keyword request', (
-    tester,
-  ) async {
-    await pumpCatalog(tester);
-    await deliverFirst(tester);
-    await tester.enterText(find.byType(TextField).first, '旧账号的搜索');
-    container.read(offlineCacheEpochProvider.notifier).invalidate();
-    await tester.pump(const Duration(milliseconds: 310));
-    expect(courses.requests, hasLength(2));
-    expect(courses.requests.last.keyword, isEmpty);
-    courses.requests.last.result.complete(_result('新会话课程'));
-    await tester.pumpAndSettle();
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
+  testWidgets(
+    'session invalidation fences results and retains the route keyword',
+    (tester) async {
+      await pumpCatalog(tester);
+      await deliverFirst(tester);
+      catalogQuery.value = '旧账号的搜索';
+      await tester.pump();
+      container.read(offlineCacheEpochProvider.notifier).invalidate();
+      await tester.pump(const Duration(milliseconds: 310));
+      expect(courses.requests, hasLength(3));
+      expect(courses.requests.last.keyword, '旧账号的搜索');
+      courses.requests[1].result.complete(_result('旧账号课程'));
+      await tester.pump();
+      expect(find.text('旧账号课程'), findsNothing);
+      courses.requests.last.result.complete(_result('新会话课程'));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   testWidgets('filter sheet handles narrow width, large text and keyboard', (
     tester,

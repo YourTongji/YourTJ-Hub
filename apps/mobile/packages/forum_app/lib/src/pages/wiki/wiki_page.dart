@@ -352,7 +352,7 @@ class _WikiPageState extends ConsumerState<WikiPage> {
                           child: TextButton.icon(
                             icon: const GfSymbol('search', size: 18),
                             label: GfText(l10n.commonSearch),
-                            onPressed: () => context.push('/wiki/search'),
+                            onPressed: () => context.push('/search?scope=wiki'),
                           ),
                         ),
                       ],

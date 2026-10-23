@@ -1412,5 +1412,6 @@
   "previewUpdateInstructions": "Dies ist ein Testbuild. Updates gibt es über den Android-Link im Release-Issue oder die zugewiesene TestFlight-Gruppe.",
   "previewStale": "Diese Vorschau ist nicht mehr der aktuelle Kandidat. Prüfe den Release-Status für die aktuelle Testversion oder die Rückkehr zur Produktivversion.",
   "previewStatusUnknown": "Der Vorschau-Status kann nicht geprüft werden. Frage vor dem Testen die verantwortliche Person.",
-  "previewStatusLink": "Vorschau-Status"
+  "previewStatusLink": "Vorschau-Status",
+  "searchFilterInCatalog": "Im Kurskatalog filtern"
 }

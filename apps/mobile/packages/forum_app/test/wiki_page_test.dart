@@ -168,6 +168,10 @@ Future<GoRouter> _pumpApp(
       GoRoute(path: '/', builder: (_, _) => const WikiHomePage()),
       GoRoute(path: '/wiki', builder: (_, _) => const WikiHomePage()),
       GoRoute(
+        path: '/search',
+        builder: (_, state) => Scaffold(body: Text('search:${state.uri}')),
+      ),
+      GoRoute(
         // 与生产 router.dart 对齐:参数名 wikiPath、锚点经 state.uri.fragment
         // 解码后传入(URI fragment 保留 percent-encoded 态)。
         path: '/wiki/:wikiPath(.*)',
@@ -534,6 +538,36 @@ void main() {
     expect(pages.fetchedPaths, <String>['/wiki/guide/content']);
     expect(find.text('内容规范'), findsOneWidget);
     expect(router.state.uri.path, '/wiki/guide/content');
+  });
+
+  testWidgets('Wiki search entries open global search scoped to the Wiki', (
+    tester,
+  ) async {
+    final _FakePageRepository pages = _FakePageRepository(
+      _client(),
+      payloads: <String, PagePayload>{
+        '/wiki/guide/content': _detailPayload(
+          path: 'guide/content',
+          title: '内容规范',
+        ),
+      },
+    );
+    final GoRouter router = await _pumpApp(
+      tester,
+      pages: pages,
+      wiki: _FakeWikiRepository(_client(), data: _homeData()),
+    );
+    await tester.tap(find.text('搜索校园知识'));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.toString(), '/search?scope=wiki');
+    router.pop();
+    await tester.pumpAndSettle();
+
+    router.push('/wiki/guide/content');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '搜索'));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.toString(), '/search?scope=wiki');
   });
 
   testWidgets('wiki 详情渲染标题、HTML 正文与 meta 脚注', (tester) async {
