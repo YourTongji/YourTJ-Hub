@@ -2842,7 +2842,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get scheduleWidgetPrivacyDescription =>
-      'ウィジェットには、この端末に保存された時間割の授業名、時刻、教員、場所が表示されます。時間割を更新するとホーム画面にも反映されます。';
+      'ウィジェットには、この端末に保存された時間割の授業名、時刻、教員、場所に加え、自分で作成した予定の名前と場所も表示されます（メモは含まれません）。同意すると、時間割の更新時にホーム画面にも反映されます。';
 
   @override
   String get scheduleWidgetRefresh => 'オフライン時間割から更新';
@@ -4021,4 +4021,259 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get previewStatusLink => 'プレビュー状況';
+
+  @override
+  String get timetableOptions => '時間割の設定';
+
+  @override
+  String get timetableWeekPicker => '週を選択';
+
+  @override
+  String timetableDateRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String timetableUpdatedAt(String time) {
+    return '$time に更新';
+  }
+
+  @override
+  String get timetableShowingSnapshot => '保存済みのデータを表示中';
+
+  @override
+  String get timetablePartlyUpdated => '一部のみ更新';
+
+  @override
+  String get timetableMayBeOutdated => '最新でない可能性';
+
+  @override
+  String get timetableFocusDay => 'この日にフォーカス';
+
+  @override
+  String get timetableUnfocusDay => '週全体を表示';
+
+  @override
+  String get timetableAddBlockHere => 'ここにブロックを追加';
+
+  @override
+  String get timetableOtherWeek => '他の週';
+
+  @override
+  String get timetableBlock => 'カスタムブロック';
+
+  @override
+  String get timetableInProgress => '授業中';
+
+  @override
+  String get timetableEmptyWeek => '今週は授業がありません。空いているマスをタップすると予定を追加できます。';
+
+  @override
+  String get timetableDayFree => '予定はありません。空いているマスをタップするとブロックを追加できます。';
+
+  @override
+  String get timetableGestureTip =>
+      '曜日をタップするとその日にフォーカスします。空いているマスをタップするとブロックを追加でき、長押ししてドラッグすると複数コマを選べます。';
+
+  @override
+  String get timetableDisplay => '表示';
+
+  @override
+  String get timetableAlwaysShowWeekend => '週末を常に表示';
+
+  @override
+  String get timetableAlwaysShowWeekendHint => 'オフのときは、予定のない週末を折りたたみます。';
+
+  @override
+  String get timetableShowOtherWeeks => '他の週の授業を表示';
+
+  @override
+  String get timetableShowOtherWeeksHint => '空いているマスに薄く表示します。';
+
+  @override
+  String get timetableShowSectionTimes => '授業時間を表示';
+
+  @override
+  String get timetableFocusToday => '開いたときに今日にフォーカス';
+
+  @override
+  String get timetableMemos => 'ブロックとメモ';
+
+  @override
+  String get timetableNoMemos => 'ブロックやメモはまだありません。サークル活動や自習、リマインダーを追加できます。';
+
+  @override
+  String get timetableAddBlock => 'ブロックを追加';
+
+  @override
+  String get timetableEditBlock => 'ブロックを編集';
+
+  @override
+  String get timetableBlockTitle => 'タイトル';
+
+  @override
+  String get timetableBlockTitleHint => 'サークルの集まり';
+
+  @override
+  String get timetableBlockPlace => '場所';
+
+  @override
+  String get timetableBlockPlaceHint => '図書館3階';
+
+  @override
+  String get timetableBlockNote => 'メモ';
+
+  @override
+  String get timetableBlockDays => '曜日';
+
+  @override
+  String get timetableBlockStart => '開始コマ';
+
+  @override
+  String get timetableBlockEnd => '終了コマ';
+
+  @override
+  String timetableWeeksOnly(int week) {
+    return '第$week週のみ';
+  }
+
+  @override
+  String get timetableWeeksEvery => '毎週';
+
+  @override
+  String get timetableWeeksOdd => '奇数週';
+
+  @override
+  String get timetableWeeksEven => '偶数週';
+
+  @override
+  String get timetableBlockColor => '色';
+
+  @override
+  String timetableColorN(int number) {
+    return '色 $number';
+  }
+
+  @override
+  String get timetableSaveBlock => '保存';
+
+  @override
+  String get timetableDeleteBlock => 'ブロックを削除';
+
+  @override
+  String get timetableDeleteNote => 'メモを削除';
+
+  @override
+  String timetableCredits(String credits) {
+    return '$credits 単位';
+  }
+
+  @override
+  String get timetableCourseNote => '毎週のメモ';
+
+  @override
+  String get timetableCourseNoteHint => '電卓を持参';
+
+  @override
+  String timetableWeekNote(int week) {
+    return '第$week週のメモ';
+  }
+
+  @override
+  String get timetableWeekNoteHint => '小テスト、課題提出';
+
+  @override
+  String get timetableNotesLocal => 'メモはこの端末にのみ保存されます。';
+
+  @override
+  String get timetableNotesSaved => 'この端末に保存しました。';
+
+  @override
+  String get timetableNotesUnsaved => 'この端末に保存できません。メモを編集すると再試行します。';
+
+  @override
+  String get timetableWidgets => 'ホーム画面ウィジェット';
+
+  @override
+  String get timetableWidgetNext => '次の授業';
+
+  @override
+  String get timetableWidgetNextHint => '次の授業と時間・教室';
+
+  @override
+  String get timetableWidgetToday => '今日の授業';
+
+  @override
+  String get timetableWidgetTodayHint => '今日の授業を一覧表示';
+
+  @override
+  String get timetableWidgetTimeline => '授業タイムライン';
+
+  @override
+  String get timetableWidgetTimelineHint => '今日の授業を時間軸で表示';
+
+  @override
+  String get timetableWidgetAdd => '追加';
+
+  @override
+  String timetableWidgetAddNamed(String name) {
+    return '「$name」ウィジェットを追加';
+  }
+
+  @override
+  String get timetableWidgetRequested => 'システムのダイアログで確認すると、ウィジェットが配置されます。';
+
+  @override
+  String get timetableWidgetManual =>
+      'ウィジェットを追加するには、ホーム画面の空いている場所を長押しし、「ウィジェット」を開いて YourTJ を選びます。';
+
+  @override
+  String get timetableWidgetIosSteps =>
+      'ウィジェットを追加するには、ホーム画面の空いている場所を長押しして＋をタップし、YourTJ を検索してサイズを選びます。';
+
+  @override
+  String get timetableCalendarSection => '授業カレンダー';
+
+  @override
+  String get timetableMore => 'その他';
+
+  @override
+  String get timetableMemosNone => 'ブロックやメモはまだありません';
+
+  @override
+  String timetableMemoSummary(int blocks, int notes) {
+    return 'ブロック $blocks 件 · メモ $notes 件';
+  }
+
+  @override
+  String get timetableMemosIntro => 'ブロックとメモはこの端末にだけ保存されます。授業をタップするとメモを書けます。';
+
+  @override
+  String get timetableBlocksHeading => 'ブロック';
+
+  @override
+  String get timetableNotesHeading => '授業メモ';
+
+  @override
+  String get timetableWidgetsHint => '次の授業や今日の授業をホーム画面に置けます。';
+
+  @override
+  String get timetableExportHint => '.ics ファイルとして保存し、カレンダーアプリに取り込めます。';
+
+  @override
+  String get timetableBlockWhen => '日時';
+
+  @override
+  String get timetableAddNote => 'メモを追加';
+
+  @override
+  String timetableWeeksRange(String range) {
+    return '第$range週';
+  }
+
+  @override
+  String get timetableListSeparator => '、';
+
+  @override
+  String get timetableConfirmDelete => 'もう一度タップで削除';
 }

@@ -25,7 +25,7 @@ class _ConnectionController extends CampusController {
   }
 
   @override
-  Future<void> refresh({bool reuseCache = false}) async {
+  Future<void> refresh({bool reuseCache = false, bool preview = false}) async {
     state = CampusViewState(status: await repository.status(), loading: false);
   }
 }

@@ -13,12 +13,12 @@ import 'package:forum_app/src/pages/campus/campus_data_views.dart';
 import 'package:forum_app/src/pages/campus/campus_private_surface.dart';
 import 'package:forum_app/src/pages/campus/campus_message_page.dart';
 import 'package:forum_app/src/pages/campus/campus_state.dart';
+import 'package:forum_app/src/pages/campus/timetable/timetable_grid.dart';
 import 'package:forum_app/src/pages/campus/campus_memory_cache.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/widgets/account_drawer.dart';
 import 'package:forum_app/src/widgets/campus_shortcuts.dart';
-import 'package:forum_app/src/widgets/schedule_time_grid.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'fixtures/campus_fixtures.dart';
 import 'fixtures/page_fixtures.dart';
@@ -351,10 +351,19 @@ void main() {
         await tester.ensureVisible(find.text(l.campusTimetable));
         await tester.tap(find.text(l.campusTimetable));
         await tester.pumpAndSettle();
-        final grid = tester.widget<ScheduleTimeGrid>(
-          find.byType(ScheduleTimeGrid),
+        // The whole week stays inside the screen: no horizontal scroller.
+        final grid = find.byType(TimetableGrid);
+        expect(grid, findsOneWidget);
+        expect(tester.getSize(grid).width, lessThanOrEqualTo(320));
+        expect(
+          find.descendant(
+            of: grid,
+            matching: find.byWidgetPredicate(
+              (w) => w is Scrollable && w.axisDirection == AxisDirection.right,
+            ),
+          ),
+          findsNothing,
         );
-        expect(grid.onTapEmptyCell, isNull);
         expect(tester.takeException(), isNull);
         await tester.ensureVisible(find.text(l.campusAcademics).first);
         await tester.tap(find.text(l.campusAcademics).first);

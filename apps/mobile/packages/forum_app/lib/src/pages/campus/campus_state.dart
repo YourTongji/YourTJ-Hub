@@ -79,6 +79,10 @@ class CampusController extends StateNotifier<CampusViewState> {
   CampusSnapshot? _snapshot;
   bool _withholdDataUntilFresh = false;
 
+  /// A widget entry is showing the device snapshot while its refresh runs;
+  /// teaching-day expiry waits for the fresh reads instead of blanking it.
+  bool _previewing = false;
+
   // Unrelated snapshot reads may continue after this section has a fresh
   // result or error. They still finish together before the snapshot is saved.
   bool get withholdDataUntilFresh =>
@@ -108,6 +112,7 @@ class CampusController extends StateNotifier<CampusViewState> {
 
   void _cancelReads() {
     ++_generation;
+    _previewing = false;
     _cancel.cancel();
     _cancel = CancelToken();
     _loading.clear();
@@ -141,9 +146,13 @@ class CampusController extends StateNotifier<CampusViewState> {
     );
   }
 
-  Future<void> refresh({bool reuseCache = false}) async {
+  /// [preview] shows this identity's device snapshot before verification,
+  /// as a cold start does, even when background resume forces fresh reads.
+  Future<void> refresh({bool reuseCache = false, bool preview = false}) async {
     if (_refreshing || state.busy) return;
     if (cache.refreshRequired) reuseCache = false;
+    final readSnapshot =
+        (reuseCache || preview) && persistentStore != null && scope != null;
     _cancelReads();
     final generation = _generation;
     final cacheFence = cache.generation;
@@ -162,11 +171,15 @@ class CampusController extends StateNotifier<CampusViewState> {
     try {
       CampusSnapshot? persisted;
       var widgetCleared = false;
-      if (reuseCache && persistentStore != null && scope != null) {
+      if (readSnapshot) {
         persisted = await persistentStore!.read(scope!);
         if (!mounted || generation != _generation) return;
         _snapshot = persisted;
         if (persisted != null && previous.data.isEmpty) {
+          if (preview) {
+            _previewing = true;
+            _withholdDataUntilFresh = false;
+          }
           state = CampusViewState(
             snapshot: _snapshot,
             fetching: Set.of(_loading),
@@ -206,18 +219,22 @@ class CampusController extends StateNotifier<CampusViewState> {
       final data = sameIdentity
           ? Map<String, CampusDataset>.of(previous.data)
           : <String, CampusDataset>{};
-      if (reuseCache && binding != null) {
+      if ((reuseCache || _previewing) && binding != null) {
         if (persisted?.bindingRevision == binding.revision) {
           data.addAll(persisted!.data);
           for (final key in persisted.data.keys) {
             _receivedAt[key] = persisted.committedAt;
           }
         }
-        for (final entry in restored.entries) {
-          data[entry.key] = entry.value.data;
-          _receivedAt[entry.key] = entry.value.receivedAt;
+        if (reuseCache) {
+          for (final entry in restored.entries) {
+            data[entry.key] = entry.value.data;
+            _receivedAt[entry.key] = entry.value.receivedAt;
+          }
         }
       }
+      // A verified different identity never keeps the previewed snapshot.
+      if (data.isEmpty) _previewing = false;
       state = CampusViewState(
         snapshot: _snapshot,
         fetching: Set.of(_loading),
@@ -284,6 +301,7 @@ class CampusController extends StateNotifier<CampusViewState> {
       }
     } finally {
       if (mounted && generation == _generation) {
+        _previewing = false;
         _withholdDataUntilFresh = false;
         state = CampusViewState(
           snapshot: _snapshot,
@@ -301,6 +319,7 @@ class CampusController extends StateNotifier<CampusViewState> {
   }
 
   void _expireTeachingDate() {
+    if (_previewing) return;
     final expired = _receivedAt.entries
         .where(
           (e) =>
@@ -343,6 +362,16 @@ class CampusController extends StateNotifier<CampusViewState> {
       return; // Initial provider refresh already verifies status.
     }
     await refresh(reuseCache: true);
+  }
+
+  /// Home-screen widget entry: the device snapshot stays on screen while the
+  /// usual verified refresh replaces it, instead of a waiting skeleton. A
+  /// resume refresh still waiting with nothing to show restarts as preview.
+  Future<void> enterFromWidget(String value) async {
+    tab = value;
+    if (_refreshing && state.data.isNotEmpty) return;
+    _refreshing = false;
+    await refresh(reuseCache: true, preview: true);
   }
 
   /// Called by the visible page clock. No background polling.

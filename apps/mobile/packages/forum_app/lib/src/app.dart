@@ -151,6 +151,7 @@ class _AppBusinessHosts extends ConsumerWidget {
     ref.listen(scheduleWidgetLinkProvider, (_, next) {
       final uri = next.valueOrNull;
       if (uri?.scheme == 'yourtj' && uri?.host == 'campus') {
+        ref.read(scheduleWidgetEntryProvider.notifier).state++;
         appRouter.go('/campus');
       }
     });

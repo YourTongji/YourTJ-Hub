@@ -2971,7 +2971,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get scheduleWidgetPrivacyDescription =>
-      'Widgets zeigen Kursnamen, Zeiten, Lehrkräfte und Orte aus dem auf diesem Gerät gespeicherten Stundenplan. Nach einer Aktualisierung erscheint der neue Stand auf dem Startbildschirm.';
+      'Widgets zeigen Kursnamen, Zeiten, Lehrkräfte und Orte aus dem auf diesem Gerät gespeicherten Stundenplan sowie Titel und Orte selbst erstellter Blöcke (Notizen bleiben verborgen). Wenn du zustimmst, wird der Startbildschirm beim Aktualisieren des Stundenplans ebenfalls aktualisiert.';
 
   @override
   String get scheduleWidgetRefresh => 'Aus Offline-Stundenplan aktualisieren';
@@ -4218,4 +4218,282 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get previewStatusLink => 'Vorschau-Status';
+
+  @override
+  String get timetableOptions => 'Stundenplan-Optionen';
+
+  @override
+  String get timetableWeekPicker => 'Woche wählen';
+
+  @override
+  String timetableDateRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String timetableUpdatedAt(String time) {
+    return 'Aktualisiert $time';
+  }
+
+  @override
+  String get timetableShowingSnapshot => 'Gespeicherte Kopie';
+
+  @override
+  String get timetablePartlyUpdated => 'Teilweise aktualisiert';
+
+  @override
+  String get timetableMayBeOutdated => 'Evtl. veraltet';
+
+  @override
+  String get timetableFocusDay => 'Diesen Tag hervorheben';
+
+  @override
+  String get timetableUnfocusDay => 'Ganze Woche anzeigen';
+
+  @override
+  String get timetableAddBlockHere => 'Hier einen Block hinzufügen';
+
+  @override
+  String get timetableOtherWeek => 'Andere Woche';
+
+  @override
+  String get timetableBlock => 'Eigener Block';
+
+  @override
+  String get timetableInProgress => 'Läuft gerade';
+
+  @override
+  String get timetableEmptyWeek =>
+      'Diese Woche keine Kurse. Tippe auf eine leere Zelle, um einen Block hinzuzufügen.';
+
+  @override
+  String get timetableDayFree =>
+      'Nichts geplant. Tippe auf eine leere Zelle, um einen Block hinzuzufügen.';
+
+  @override
+  String get timetableGestureTip =>
+      'Tippe auf einen Wochentag, um ihn hervorzuheben. Tippe auf eine leere Zelle, um einen Block hinzuzufügen, oder halte gedrückt und ziehe über mehrere Stunden.';
+
+  @override
+  String get timetableDisplay => 'Anzeige';
+
+  @override
+  String get timetableAlwaysShowWeekend => 'Wochenenden immer anzeigen';
+
+  @override
+  String get timetableAlwaysShowWeekendHint =>
+      'Wenn aus, werden Wochenenden ohne Termine ausgeblendet.';
+
+  @override
+  String get timetableShowOtherWeeks => 'Kurse anderer Wochen anzeigen';
+
+  @override
+  String get timetableShowOtherWeeksHint =>
+      'Sie erscheinen blass in freien Zellen.';
+
+  @override
+  String get timetableShowSectionTimes => 'Unterrichtszeiten anzeigen';
+
+  @override
+  String get timetableFocusToday => 'Beim Öffnen heute hervorheben';
+
+  @override
+  String get timetableMemos => 'Blöcke und Notizen';
+
+  @override
+  String get timetableNoMemos =>
+      'Noch keine Blöcke oder Notizen. Füge Blöcke für Treffen, Lernzeit oder Erinnerungen hinzu.';
+
+  @override
+  String get timetableAddBlock => 'Block hinzufügen';
+
+  @override
+  String get timetableEditBlock => 'Block bearbeiten';
+
+  @override
+  String get timetableBlockTitle => 'Titel';
+
+  @override
+  String get timetableBlockTitleHint => 'Vereinstreffen';
+
+  @override
+  String get timetableBlockPlace => 'Ort';
+
+  @override
+  String get timetableBlockPlaceHint => 'Bibliothek, 3. OG';
+
+  @override
+  String get timetableBlockNote => 'Notiz';
+
+  @override
+  String get timetableBlockDays => 'Tage';
+
+  @override
+  String get timetableBlockStart => 'Erste Stunde';
+
+  @override
+  String get timetableBlockEnd => 'Letzte Stunde';
+
+  @override
+  String timetableWeeksOnly(int week) {
+    return 'Nur Woche $week';
+  }
+
+  @override
+  String get timetableWeeksEvery => 'Jede Woche';
+
+  @override
+  String get timetableWeeksOdd => 'Ungerade Wochen';
+
+  @override
+  String get timetableWeeksEven => 'Gerade Wochen';
+
+  @override
+  String get timetableBlockColor => 'Farbe';
+
+  @override
+  String timetableColorN(int number) {
+    return 'Farbe $number';
+  }
+
+  @override
+  String get timetableSaveBlock => 'Speichern';
+
+  @override
+  String get timetableDeleteBlock => 'Block löschen';
+
+  @override
+  String get timetableDeleteNote => 'Notiz löschen';
+
+  @override
+  String timetableCredits(String credits) {
+    return '$credits Credits';
+  }
+
+  @override
+  String get timetableCourseNote => 'Notiz für jede Woche';
+
+  @override
+  String get timetableCourseNoteHint => 'Taschenrechner mitbringen';
+
+  @override
+  String timetableWeekNote(int week) {
+    return 'Notiz für Woche $week';
+  }
+
+  @override
+  String get timetableWeekNoteHint => 'Test, Abgabe';
+
+  @override
+  String get timetableNotesLocal => 'Notizen bleiben auf diesem Gerät.';
+
+  @override
+  String get timetableNotesSaved => 'Auf diesem Gerät gespeichert.';
+
+  @override
+  String get timetableNotesUnsaved =>
+      'Speichern auf diesem Gerät nicht möglich. Bearbeite die Notiz, um es erneut zu versuchen.';
+
+  @override
+  String get timetableWidgets => 'Homescreen-Widgets';
+
+  @override
+  String get timetableWidgetNext => 'Nächster Kurs';
+
+  @override
+  String get timetableWidgetNextHint => 'Der nächste Kurs mit Zeit und Raum';
+
+  @override
+  String get timetableWidgetToday => 'Kurse heute';
+
+  @override
+  String get timetableWidgetTodayHint => 'Alle heutigen Kurse in einer Liste';
+
+  @override
+  String get timetableWidgetTimeline => 'Kurs-Zeitleiste';
+
+  @override
+  String get timetableWidgetTimelineHint =>
+      'Heutige Kurse auf einer Zeitleiste';
+
+  @override
+  String get timetableWidgetAdd => 'Hinzufügen';
+
+  @override
+  String timetableWidgetAddNamed(String name) {
+    return 'Widget „$name“ hinzufügen';
+  }
+
+  @override
+  String get timetableWidgetRequested =>
+      'Bestätige im Systemdialog, um das Widget abzulegen.';
+
+  @override
+  String get timetableWidgetManual =>
+      'Um ein Widget hinzuzufügen, halte eine leere Stelle des Startbildschirms gedrückt, öffne „Widgets“ und wähle YourTJ.';
+
+  @override
+  String get timetableWidgetIosSteps =>
+      'Um ein Widget hinzuzufügen, halte eine leere Stelle des Home-Bildschirms gedrückt, tippe auf +, suche nach YourTJ und wähle eine Größe.';
+
+  @override
+  String get timetableCalendarSection => 'Kurskalender';
+
+  @override
+  String get timetableMore => 'Mehr';
+
+  @override
+  String get timetableMemosNone => 'Noch keine Blöcke oder Notizen';
+
+  @override
+  String timetableMemoSummary(int blocks, int notes) {
+    String _temp0 = intl.Intl.pluralLogic(
+      blocks,
+      locale: localeName,
+      other: '$blocks Blöcke',
+      one: '1 Block',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      notes,
+      locale: localeName,
+      other: '$notes Notizen',
+      one: '1 Notiz',
+    );
+    return '$_temp0 · $_temp1';
+  }
+
+  @override
+  String get timetableMemosIntro =>
+      'Blöcke und Notizen bleiben auf diesem Gerät. Tippe auf einen Kurs, um eine Notiz hinzuzufügen.';
+
+  @override
+  String get timetableBlocksHeading => 'Blöcke';
+
+  @override
+  String get timetableNotesHeading => 'Kursnotizen';
+
+  @override
+  String get timetableWidgetsHint =>
+      'Lege den nächsten Kurs oder die heutigen Kurse auf den Startbildschirm.';
+
+  @override
+  String get timetableExportHint =>
+      'Als .ics-Datei für deine Kalender-App speichern.';
+
+  @override
+  String get timetableBlockWhen => 'Wann';
+
+  @override
+  String get timetableAddNote => 'Notiz hinzufügen';
+
+  @override
+  String timetableWeeksRange(String range) {
+    return 'Wochen $range';
+  }
+
+  @override
+  String get timetableListSeparator => ', ';
+
+  @override
+  String get timetableConfirmDelete => 'Zum Löschen erneut tippen';
 }
