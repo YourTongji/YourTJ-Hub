@@ -697,6 +697,8 @@ export interface UserCardPayload {
   collectionCount: number
   isOnline: boolean
   isFollowing: boolean
+  // viewer 视角：当前登录者与对方互相关注（issue #1320）
+  isMutualFollowing: boolean
   isSelf: boolean
   displayBadges?: UserBadgePayload[]
   badges: UserBadgePayload[]
@@ -819,6 +821,8 @@ export interface UserConnectionPayload {
   bio: string
   url: string
   isFollowing: boolean
+  // viewer 视角：当前登录者与对方互相关注（issue #1320）
+  isMutualFollowing: boolean
   isSelf: boolean
 }
 

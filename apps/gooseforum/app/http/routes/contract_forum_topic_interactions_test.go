@@ -255,7 +255,33 @@ func TestFollowUserHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("follow user status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "result-true.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "follow-user-success.json"))
+	})
+
+	t.Run("mutual follow reports both directions across transitions", func(t *testing.T) {
+		conn, router := setupForumInteractionContractTest(t)
+		userBase := contractTestID()
+		follower := createHTTPContractUser(t, conn, userBase)
+		target := createHTTPContractUser(t, conn, userBase+1)
+		followBody := func(id uint64, action int) string {
+			return fmt.Sprintf(`{"id":%d,"action":%d}`, id, action)
+		}
+
+		// 单向关注：follower → target，只有一方向。
+		recorder := serveJSON(router, "/api/forum/follow-user", followBody(target.Id, 1), contractSessionToken(t, follower))
+		assertFollowUserResult(t, recorder, true, false)
+
+		// target 回关后进入互关。
+		recorder = serveJSON(router, "/api/forum/follow-user", followBody(follower.Id, 1), contractSessionToken(t, target))
+		assertFollowUserResult(t, recorder, true, true)
+
+		// 幂等重复：状态与响应形状不变。
+		recorder = serveJSON(router, "/api/forum/follow-user", followBody(follower.Id, 1), contractSessionToken(t, target))
+		assertFollowUserResult(t, recorder, true, true)
+
+		// 单向取消后不再是互关。
+		recorder = serveJSON(router, "/api/forum/follow-user", followBody(follower.Id, 2), contractSessionToken(t, target))
+		assertFollowUserResult(t, recorder, false, false)
 	})
 
 	t.Run("self follow returns a dedicated business failure", func(t *testing.T) {
@@ -285,7 +311,7 @@ func TestFollowUserHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("self unfollow status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "result-true.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "follow-user-unfollowed.json"))
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {

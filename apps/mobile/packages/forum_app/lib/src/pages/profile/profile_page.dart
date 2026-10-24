@@ -222,7 +222,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       if (followRead != null && props.user.userId == uid) {
         ref
             .read(userFollowStateProvider(uid))
-            .acceptServerValue(props.user.isFollowing, followRead);
+            .acceptServerValue(
+              props.user.isFollowing,
+              followRead,
+              mutual: props.user.isMutualFollowing,
+            );
       }
       if (relationshipRead != null) {
         final connections = key == 'following'
@@ -233,7 +237,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           if (isFollowing != null) {
             ref
                 .read(userFollowStateProvider(connection.id).notifier)
-                .acceptServerValue(isFollowing, relationshipRead);
+                .acceptServerValue(
+                  isFollowing,
+                  relationshipRead,
+                  mutual: connection.isMutualFollowing,
+                );
           }
         }
       }
@@ -888,9 +896,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             builder: (context, ref, _) {
               final follow = ref.watch(userFollowStateProvider(user.userId));
               final following = follow.following ?? user.isFollowing;
+              final mutual =
+                  following &&
+                  (follow.mutualFollowing ?? user.isMutualFollowing);
               return GfFollowButton(
                 following: following,
-                label: following ? l10n.profileFollowing : l10n.profileFollow,
+                label: following
+                    ? (mutual
+                          ? l10n.profileMutualFollowing
+                          : l10n.profileFollowing)
+                    : l10n.profileFollow,
+                symbol: mutual ? 'user-round-check' : null,
                 busy: follow.busy,
                 onPressed: () => _toggleFollow(user),
               );
@@ -1038,19 +1054,35 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       );
     }
     if (props.canFollow) {
-      buttons.add(
-        measure(
-          l10n.profileFollowing,
-          textStyle: labelStyle.copyWith(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          minimumSize: const Size(96, 44),
-          themeStyle: OutlinedButtonTheme.of(context).style,
-          extraWidth: 24,
-        ),
-      );
+      final followSize =
+          [
+                l10n.profileFollow,
+                l10n.profileFollowing,
+                l10n.profileMutualFollowing,
+              ]
+              .map(
+                (label) => measure(
+                  label,
+                  textStyle: labelStyle.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  minimumSize: const Size(96, 44),
+                  themeStyle: OutlinedButtonTheme.of(context).style,
+                  extraWidth: 24,
+                ),
+              )
+              .reduce(
+                (current, candidate) => Size(
+                  math.max(current.width, candidate.width),
+                  math.max(current.height, candidate.height),
+                ),
+              );
+      buttons.add(followSize);
     }
     if (props.canMessage && props.messageUrl.trim().isNotEmpty) {
       buttons.add(const Size(48, 48));
@@ -1938,6 +1970,9 @@ class _ProfileBody extends StatelessWidget {
           final UserConnectionPayload user = users[index];
           final follow = ref.watch(userFollowStateProvider(user.id));
           final isFollowing = follow.following ?? (user.isFollowing ?? false);
+          final mutual =
+              isFollowing &&
+              (follow.mutualFollowing ?? (user.isMutualFollowing ?? false));
           return GfConnectionRow(
             avatarUrl: resolveApiAssetUrl(user.avatarUrl),
             avatarFrameColors: decorationColors(
@@ -1965,8 +2000,13 @@ class _ProfileBody extends StatelessWidget {
                 : GfFollowButton(
                     following: isFollowing,
                     label: isFollowing
-                        ? AppLocalizations.of(context).profileFollowing
+                        ? (mutual
+                              ? AppLocalizations.of(
+                                  context,
+                                ).profileMutualFollowing
+                              : AppLocalizations.of(context).profileFollowing)
                         : AppLocalizations.of(context).profileFollow,
+                    symbol: mutual ? 'user-round-check' : null,
                     busy: follow.busy,
                     onPressed: () => onFollow(user),
                   ),

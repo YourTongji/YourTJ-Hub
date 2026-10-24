@@ -2017,8 +2017,9 @@ export interface paths {
         put?: never;
         /**
          * Follow or unfollow a user
-         * @description Set-semantics and idempotent: repeating the same transition returns true without
-         *     double counting. JSON binding is lenient: a malformed body binds to zero values
+         * @description Set-semantics and idempotent: repeating the same transition returns the same result object
+         *     (`{isFollowing, isMutualFollowing}`) without double counting.
+         *     JSON binding is lenient: a malformed body binds to zero values
          *     and the request then fails as `user.notFound` (HTTP 200) rather than a 400.
          *     Following yourself (id equals the authenticated user with action 1) is rejected
          *     before any follow row, counter, or notification is touched (issue #594); the
@@ -2601,8 +2602,10 @@ export interface paths {
         /**
          * Read the compact public profile card of a user
          * @description Public read endpoint with no rate limit and optional authentication. Anonymous
-         *     requests return false for the viewer-specific flags isSelf and isFollowing;
-         *     authenticated requests resolve them for the current viewer. Query binding is
+         *     requests return false for the viewer-specific flags isSelf, isFollowing and
+         *     isMutualFollowing; authenticated requests resolve them for the current viewer.
+         *     isMutualFollowing is true only when the viewer follows the user and the user follows
+         *     back, and stays false on the viewer's own card. Query binding is
          *     strict: a missing or non-numeric userId fails with HTTP 400 and
          *     `common.request.parseFailed`. An unknown user id fails with `user.notFound`
          *     (HTTP 200); a closed (soft-deleted) account instead returns a successful
@@ -9803,6 +9806,16 @@ export interface components {
              */
             action: 1 | 2;
         };
+        FollowUserResult: {
+            /** @description Follow state after the action was applied (true after follow, false after unfollow). */
+            isFollowing: boolean;
+            /** @description True only when the action left both the viewer following the target and the target following the viewer; false after unfollow and for one-way follows. */
+            isMutualFollowing: boolean;
+        };
+        FollowUserSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["FollowUserResult"];
+        };
+        FollowUserResponse: components["schemas"]["FollowUserSuccess"] | components["schemas"]["ApiFailure"];
         CreateReportRequest: {
             /** @enum {string} */
             targetType: "topic" | "post" | "chat_message";
@@ -9877,10 +9890,12 @@ export interface components {
             followingCount: number;
             collectionCount: number;
             isOnline: boolean;
-            /** @description Viewer-specific; always false on this route because the route group mounts no JWT middleware. */
+            /** @description Viewer-specific; true only when the authenticated viewer follows this user. Always false for anonymous requests, on the viewer's own card and on the closed (soft-deleted) tombstone card. */
             isFollowing: boolean;
+            /** @description Viewer-specific; true only when the authenticated viewer follows this user and the user follows back. Always false for anonymous requests, on the viewer's own card and on the closed (soft-deleted) tombstone card. */
+            isMutualFollowing: boolean;
             externalInformation: components["schemas"]["ExternalInformation"];
-            /** @description Viewer-specific; always false on this route because the route group mounts no JWT middleware. */
+            /** @description Viewer-specific; true only when the authenticated viewer requests their own card. Always false for anonymous requests and on the closed (soft-deleted) tombstone card. */
             isSelf: boolean;
             /** @description Always an array (empty when the user holds no badges), never null. */
             badges: components["schemas"]["UserBadge"][];
@@ -19980,13 +19995,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Follow state applied, or a legacy business failure envelope. */
+            /** @description Follow state after the action as `{isFollowing, isMutualFollowing}` (both booleans; `isMutualFollowing` is `false` for one-way follows and after unfollow), or a legacy business failure envelope. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InteractionResponse"];
+                    "application/json": components["schemas"]["FollowUserResponse"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */

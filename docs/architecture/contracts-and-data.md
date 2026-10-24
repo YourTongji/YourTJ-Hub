@@ -650,6 +650,10 @@ resolve reply state, while topic publication/like activities resolve topic state
 unavailable targets omit personal state. These additions use the existing hand-written page
 contracts, with no API route or database schema change.
 
+`Current`: follow activities in the same timeline store no preview; `contentPreview` is resolved at
+read time from the followed user's `nickname`, falling back to `username`. `UserConnectionPayload.isMutualFollowing`
+is part of the same hand-written page contract and is a viewer-perspective flag: the server decides
+mutuality, so a one-way follow reports `false`.
 
 `Current`: notification `actor.avatarUrl` is populated from current public user presentation in
 one batch. The existing `content` field uses a visible reply's readable preview for likes with no

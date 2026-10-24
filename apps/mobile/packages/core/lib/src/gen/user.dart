@@ -32,6 +32,8 @@ abstract class UserCardPayload with _$UserCardPayload {
     required int collectionCount,
     required bool isOnline,
     required bool isFollowing,
+    // viewer 视角：当前登录者与对方双向关注（issue #1320）。旧后端缺键时按 false。
+    @Default(false) bool isMutualFollowing,
     required bool isSelf,
     @Default(false) bool isAccountClosed,
     // 容错：旧后端（< 2026-09-06 修复）对无徽章用户序列化 badges 为 null
@@ -123,6 +125,8 @@ abstract class UserConnectionPayload with _$UserConnectionPayload {
     required String bio,
     required String url,
     bool? isFollowing,
+    // viewer 视角：双向关注（issue #1320）。
+    bool? isMutualFollowing,
     @Default(false) bool isSelf,
   }) = _UserConnectionPayload;
 
