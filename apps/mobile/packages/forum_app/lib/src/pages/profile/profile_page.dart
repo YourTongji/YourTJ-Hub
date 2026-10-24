@@ -1054,19 +1054,35 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       );
     }
     if (props.canFollow) {
-      buttons.add(
-        measure(
-          l10n.profileFollowing,
-          textStyle: labelStyle.copyWith(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          minimumSize: const Size(96, 44),
-          themeStyle: OutlinedButtonTheme.of(context).style,
-          extraWidth: 24,
-        ),
-      );
+      final followSize =
+          [
+                l10n.profileFollow,
+                l10n.profileFollowing,
+                l10n.profileMutualFollowing,
+              ]
+              .map(
+                (label) => measure(
+                  label,
+                  textStyle: labelStyle.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  minimumSize: const Size(96, 44),
+                  themeStyle: OutlinedButtonTheme.of(context).style,
+                  extraWidth: 24,
+                ),
+              )
+              .reduce(
+                (current, candidate) => Size(
+                  math.max(current.width, candidate.width),
+                  math.max(current.height, candidate.height),
+                ),
+              );
+      buttons.add(followSize);
     }
     if (props.canMessage && props.messageUrl.trim().isNotEmpty) {
       buttons.add(const Size(48, 48));
