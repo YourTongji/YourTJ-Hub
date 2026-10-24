@@ -990,7 +990,7 @@
   "badgeDisplayDown": "下へ",
   "notificationsMarkRead": "既読にする",
   "scheduleWidgetSettingsTitle": "ホーム画面の時間割",
-  "scheduleWidgetPrivacyDescription": "ウィジェットには、この端末に保存された時間割の授業名、時刻、教員、場所が表示されます。時間割を更新するとホーム画面にも反映されます。",
+  "scheduleWidgetPrivacyDescription": "ウィジェットには、この端末に保存された時間割の授業名、時刻、教員、場所に加え、自分で作成した予定の名前と場所も表示されます（メモは含まれません）。同意すると、時間割の更新時にホーム画面にも反映されます。",
   "scheduleWidgetRefresh": "オフライン時間割から更新",
   "scheduleWidgetClear": "ホーム画面データを消去",
   "scheduleWidgetCleared": "ホーム画面の時間割データを消去しました",

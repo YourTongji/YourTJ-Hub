@@ -2842,7 +2842,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get scheduleWidgetPrivacyDescription =>
-      'ウィジェットには、この端末に保存された時間割の授業名、時刻、教員、場所が表示されます。時間割を更新するとホーム画面にも反映されます。';
+      'ウィジェットには、この端末に保存された時間割の授業名、時刻、教員、場所に加え、自分で作成した予定の名前と場所も表示されます（メモは含まれません）。同意すると、時間割の更新時にホーム画面にも反映されます。';
 
   @override
   String get scheduleWidgetRefresh => 'オフライン時間割から更新';

@@ -124,8 +124,8 @@ TimetableWeekLayout buildTimetableWeek({
   }
   for (final block in blocks) {
     if (!block.occursIn(week)) continue;
-    final end = block.end.clamp(block.start, rows);
     if (block.start > rows) continue;
+    final end = block.end.clamp(block.start, rows);
     for (final day in block.days) {
       byDay[day - 1].add(
         TimetableItem(

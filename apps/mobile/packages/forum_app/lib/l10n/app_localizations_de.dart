@@ -2971,7 +2971,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get scheduleWidgetPrivacyDescription =>
-      'Widgets zeigen Kursnamen, Zeiten, Lehrkräfte und Orte aus dem auf diesem Gerät gespeicherten Stundenplan. Nach einer Aktualisierung erscheint der neue Stand auf dem Startbildschirm.';
+      'Widgets zeigen Kursnamen, Zeiten, Lehrkräfte und Orte aus dem auf diesem Gerät gespeicherten Stundenplan sowie Titel und Orte selbst erstellter Blöcke (Notizen bleiben verborgen). Wenn du zustimmst, wird der Startbildschirm beim Aktualisieren des Stundenplans ebenfalls aktualisiert.';
 
   @override
   String get scheduleWidgetRefresh => 'Aus Offline-Stundenplan aktualisieren';

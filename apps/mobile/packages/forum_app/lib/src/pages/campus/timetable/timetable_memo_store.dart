@@ -248,12 +248,13 @@ class TimetableMemoState {
     List<TimetableBlock>? blocks,
     TimetablePrefs? prefs,
     Object? error,
+    bool clearError = false,
   }) => TimetableMemoState(
     loaded: loaded ?? this.loaded,
     notes: notes ?? this.notes,
     blocks: blocks ?? this.blocks,
     prefs: prefs ?? this.prefs,
-    error: error,
+    error: clearError ? null : error ?? this.error,
   );
 }
 
@@ -267,6 +268,7 @@ class TimetableMemoStore extends StateNotifier<TimetableMemoState> {
 
   final UserWorkDatabase _database;
   final int _generation;
+  bool _loadFailed = false;
 
   /// Null without a signed-in account: memos stay in memory only.
   final String? scope;
@@ -302,24 +304,28 @@ class TimetableMemoStore extends StateNotifier<TimetableMemoState> {
         prefs: TimetablePrefs.fromJson(prefs),
       );
     } catch (error) {
+      _loadFailed = true;
       if (mounted) state = state.copyWith(loaded: true, error: error);
     }
   }
 
   Future<void> _persist(String key, Object value) async {
     final target = scope;
-    if (target == null) return;
+    if (target == null || _loadFailed) return;
     try {
       await _database.writeBatch(target, kTimetableMemoDomain, {
         key: jsonEncode(value),
       }, generation: _generation);
-      if (mounted && state.error != null) state = state.copyWith();
+      if (mounted && state.error != null) {
+        state = state.copyWith(clearError: true);
+      }
     } catch (error) {
       if (mounted) state = state.copyWith(error: error);
     }
   }
 
   Future<void> setNote(String course, int? week, String text) {
+    if (_loadFailed) return Future<void>.value();
     final trimmed = text.trim();
     final notes = [
       for (final note in state.notes)
@@ -332,6 +338,7 @@ class TimetableMemoStore extends StateNotifier<TimetableMemoState> {
   }
 
   Future<void> saveBlock(TimetableBlock block) {
+    if (_loadFailed) return Future<void>.value();
     final blocks = [
       for (final item in state.blocks)
         if (item.id != block.id) item,
@@ -342,6 +349,7 @@ class TimetableMemoStore extends StateNotifier<TimetableMemoState> {
   }
 
   Future<void> deleteBlock(String id) {
+    if (_loadFailed) return Future<void>.value();
     final blocks = [
       for (final item in state.blocks)
         if (item.id != id) item,
@@ -351,6 +359,7 @@ class TimetableMemoStore extends StateNotifier<TimetableMemoState> {
   }
 
   Future<void> setPrefs(TimetablePrefs prefs) {
+    if (_loadFailed) return Future<void>.value();
     state = state.copyWith(prefs: prefs);
     return _persist('prefs', prefs.toJson());
   }

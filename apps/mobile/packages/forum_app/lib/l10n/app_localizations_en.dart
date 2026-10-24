@@ -2937,7 +2937,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get scheduleWidgetPrivacyDescription =>
-      'Widgets show course names, times, teachers and locations from the schedule saved on this device. Refreshing the schedule updates the home-screen view.';
+      'Widgets show course names, times, teachers and locations from the schedule saved on this device, plus the titles and locations of blocks you create (notes are excluded). If you agree, refreshing the schedule updates the home-screen view.';
 
   @override
   String get scheduleWidgetRefresh => 'Refresh from offline schedule';

@@ -2816,7 +2816,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get scheduleWidgetPrivacyDescription =>
-      '小组件展示课表中的课程名称、时间、教师和地点。内容来自本机保存的课表，刷新后同步到桌面。';
+      '小组件会展示本机课表中的课程名称、时间、教师和地点，也会展示你自建格子的名称和地点（不含备注）。同意后，刷新课表会将这些内容同步到桌面。';
 
   @override
   String get scheduleWidgetRefresh => '从离线课表刷新';

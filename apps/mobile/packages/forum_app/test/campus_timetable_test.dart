@@ -1,4 +1,5 @@
 import 'package:core/core.dart';
+import 'package:drift/native.dart';
 import 'package:flutter/gestures.dart' show kLongPressTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderParagraph;
@@ -14,6 +15,7 @@ import 'package:forum_app/src/pages/campus/timetable/timetable_layout.dart';
 import 'package:forum_app/src/pages/campus/timetable/timetable_memo_store.dart';
 import 'package:forum_app/src/storage/user_work_database.dart';
 import 'package:ui_kit/ui_kit.dart';
+
 import 'campus_native_test.dart' show campusTestApp;
 import 'fixtures/campus_fixtures.dart';
 import 'test_font_helpers.dart';
@@ -38,6 +40,34 @@ Future<void> _openTimetable(WidgetTester tester) async {
 
 Finder _cardOf(bool Function(TimetableItem) test) =>
     find.byWidgetPredicate((w) => w is TimetableSessionCard && test(w.item));
+
+class _ReadFailingUserWorkDatabase extends UserWorkDatabase {
+  _ReadFailingUserWorkDatabase(this.backing) : super(NativeDatabase.memory());
+
+  final UserWorkDatabase backing;
+
+  @override
+  int get generation => backing.generation;
+
+  @override
+  Future<Map<String, String>> readDomain(String scope, String domain) =>
+      Future.error(StateError('read failed'));
+
+  @override
+  Future<void> writeBatch(
+    String scope,
+    String domain,
+    Map<String, String?> entries, {
+    bool Function()? isCurrent,
+    int? generation,
+  }) => backing.writeBatch(
+    scope,
+    domain,
+    entries,
+    isCurrent: isCurrent,
+    generation: generation,
+  );
+}
 
 void main() {
   group('week layout', () {
@@ -124,6 +154,24 @@ void main() {
       expect(titles(2), ['自习', '自习']);
     });
 
+    test('ignores blocks beyond the visible section count', () {
+      final layout = buildTimetableWeek(
+        events: const [],
+        week: 1,
+        blocks: [
+          const TimetableBlock(
+            id: 'b',
+            title: '旧学期第十二节',
+            days: [1],
+            start: 12,
+            end: 12,
+          ),
+        ],
+        prefs: const TimetablePrefs(),
+      );
+      expect(layout.clusters.expand((day) => day), isEmpty);
+    });
+
     test('now position follows sections and snaps across breaks', () {
       final times = sectionTimesFor(11, null);
       expect(timetableNowPosition(times, 11, 7 * 60), isNull);
@@ -181,6 +229,42 @@ void main() {
     expect(other.state.notes, isEmpty);
     other.dispose();
   });
+
+  test(
+    'failed memo load prevents edits from replacing stored values',
+    () async {
+      final backing = UserWorkDatabase(NativeDatabase.memory());
+      const scope = 'memo-read-failure';
+      await backing.writeBatch(scope, kTimetableMemoDomain, {
+        'blocks': 'existing blocks',
+        'notes': 'existing notes',
+      });
+      final failing = _ReadFailingUserWorkDatabase(backing);
+      final store = TimetableMemoStore(database: failing, scope: scope);
+      await Future<void>.delayed(Duration.zero);
+      expect(store.state.error, isNotNull);
+      await store.saveBlock(
+        const TimetableBlock(
+          id: 'new',
+          title: 'new',
+          days: [1],
+          start: 1,
+          end: 1,
+        ),
+      );
+      await store.setNote('course', null, 'new');
+      await store.deleteBlock('old');
+      await store.setPrefs(const TimetablePrefs(showOtherWeeks: true));
+      expect(await backing.readDomain(scope, kTimetableMemoDomain), {
+        'blocks': 'existing blocks',
+        'notes': 'existing notes',
+      });
+      expect(store.state.error, isNotNull);
+      store.dispose();
+      await failing.close();
+      await backing.close();
+    },
+  );
 
   testWidgets('phone timetable fits one screen without scrolling', (
     tester,
