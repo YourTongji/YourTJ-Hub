@@ -83,6 +83,9 @@ Class: feature
 按文本处理，token 从文本中去掉；版主操作日志、举报列表与快捷处置预览回读举报证据快照时同样去掉。
 帖子/回复正文的服务端展开规则不变。
 
+`Current`：编辑器内容里的 token 仍是纯文本；Web 编辑器把 token 与未闭合片段当作原子块删除，见
+[决策 0106](0106-editor-sticker-token-atomic-delete.md)。
+
 ## Links
 
 - [MADR 0009：对象存储内网代理读](0009-image-egress-internal-proxy.md)

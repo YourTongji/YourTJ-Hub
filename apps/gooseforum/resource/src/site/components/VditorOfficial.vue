@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { textBeforeCaret, isInsideFencedCode, replaceMentionTokenInElement } from "@/runtime/mention-dom"
+import { deleteStickerAtCaret, stickerDeleteDirection } from "@/runtime/sticker-atomic"
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Vditor from 'vditor'
 import 'vditor/dist/index.css'
@@ -134,6 +135,22 @@ function handleCompositionStart() {
 
 function handleCompositionEnd() {
   linkPreviewHintController.compositionEnd(editor?.getValue() ?? props.modelValue)
+}
+
+/**
+ * 贴纸 token 原子删除（issue #1332）：token 是纯文本，默认 Backspace/Delete 会
+ * 逐字符拆开留下残缺原文。捕获阶段截获已命中并完成的按键，stopPropagation
+ * 让 Vditor 自己的 keydown 逻辑不再按删除后的光标位置二次处理（如在块首合并上一块）。
+ */
+function handleStickerKeydown(event: KeyboardEvent) {
+  const direction = stickerDeleteDirection(event)
+  if (!direction) return
+  const element = currentModeElement()
+  // 按键目标必须在编辑区内：listener 挂在 Vditor 根上，toolbar 与 popover 里的输入框也会冒泡到这里
+  if (!element || !(event.target instanceof Node) || !element.contains(event.target)) return
+  if (!deleteStickerAtCaret(element, direction)) return
+  event.preventDefault()
+  event.stopPropagation()
 }
 
 // 暴露给浏览器测试 fixture：等待提示协调器静默（无防抖挂起、无在途请求），
@@ -1490,6 +1507,7 @@ onMounted(async () => {
   root.value.insertAdjacentElement('afterend', linkPreviewHintElement)
   root.value.addEventListener('compositionstart', handleCompositionStart, true)
   root.value.addEventListener('compositionend', handleCompositionEnd, true)
+  root.value.addEventListener('keydown', handleStickerKeydown, true)
   linkPreviewHintController.schedule(props.modelValue)
   const language = languageAssets[currentLocale()]
 
@@ -1666,6 +1684,7 @@ onBeforeUnmount(() => {
   linkPreviewHintController.dispose()
   root.value?.removeEventListener('compositionstart', handleCompositionStart, true)
   root.value?.removeEventListener('compositionend', handleCompositionEnd, true)
+  root.value?.removeEventListener('keydown', handleStickerKeydown, true)
   linkPreviewHintElement?.remove()
   linkPreviewHintElement = null
   detachSensitiveModeRefresh()
