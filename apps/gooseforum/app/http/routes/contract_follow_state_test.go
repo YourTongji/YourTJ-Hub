@@ -213,6 +213,7 @@ func TestFollowActivityPreviewShowsFollowedName(t *testing.T) {
 	owner := createHTTPContractUser(t, conn, base)
 	target := createHTTPContractUser(t, conn, base+1)
 	nicknamed := createHTTPContractUser(t, conn, base+2)
+	closed := createHTTPContractUser(t, conn, base+3)
 	if err := conn.Model(&users.EntityComplete{}).Where("id = ?", nicknamed.Id).Update("nickname", "昵称用户").Error; err != nil {
 		t.Fatalf("set nickname: %v", err)
 	}
@@ -224,8 +225,21 @@ func TestFollowActivityPreviewShowsFollowedName(t *testing.T) {
 	if err := userActivities.Record(owner.Id, userActivities.ActionFollow, userActivities.SubjectUser, nicknamed.Id, ""); err != nil {
 		t.Fatalf("record follow activity: %v", err)
 	}
+	if err := userActivities.Record(owner.Id, userActivities.ActionFollow, userActivities.SubjectUser, closed.Id, ""); err != nil {
+		t.Fatalf("record closed-user follow activity: %v", err)
+	}
 	if err := userActivities.Record(owner.Id, userActivities.ActionSignUp, userActivities.SubjectUser, owner.Id, "joined"); err != nil {
 		t.Fatalf("record signup activity: %v", err)
+	}
+	if err := conn.Delete(&users.EntityComplete{}, "id = ?", closed.Id).Error; err != nil {
+		t.Fatalf("soft delete followed user: %v", err)
+	}
+	var closedRow users.EntityComplete
+	if err := conn.Unscoped().First(&closedRow, "id = ?", closed.Id).Error; err != nil {
+		t.Fatalf("reload soft-deleted followed user: %v", err)
+	}
+	if !closedRow.DeletedAt.Valid {
+		t.Fatal("followed user is not soft deleted")
 	}
 
 	props := requestFollowStateProps(t, router, followStatePath(owner.Id, "activity"), contractSessionToken(t, owner))
@@ -246,6 +260,9 @@ func TestFollowActivityPreviewShowsFollowedName(t *testing.T) {
 	}
 	if got := previews[nicknamed.Id]; got != "昵称用户" {
 		t.Fatalf("follow preview = %q, want nickname 昵称用户", got)
+	}
+	if got := previews[closed.Id]; got != "" {
+		t.Fatalf("closed-user follow preview = %q, want empty", got)
 	}
 	if signupPreview == nil || *signupPreview != "" {
 		t.Fatalf("signup preview = %v, want an empty preview", signupPreview)
