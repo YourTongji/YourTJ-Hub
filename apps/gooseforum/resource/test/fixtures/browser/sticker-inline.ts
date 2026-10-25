@@ -7,6 +7,8 @@ import { twemojiVuePlugin } from '../../../src/runtime/twemoji'
 import '../../../src/styles/resource.css'
 
 document.documentElement.dataset.theme = new URLSearchParams(location.search).get('theme') ?? 'gf-light'
+// The assertions read Chinese copy; do not follow the runner's browser language.
+i18n.global.locale.value = 'zh'
 
 const contentHtml = `
   <p id="plain">正文没有贴纸的一行文字 Plain text line</p>
