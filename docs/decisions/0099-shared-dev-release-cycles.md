@@ -66,8 +66,11 @@ unlocking another cycle without broadening authority to default-branch code or e
 Build numbers use automatically reserved annotated tags shared by preview and formal preparation;
 operators track source and QA rather than calculate hashes. Existing automatic binary checks stay.
 
-Preview apps retain the existing application IDs and require an internal TestFlight QA group.
-They replace installed apps, isolate dev storage and stable updates, and identify their environment.
+Android dev previews use their own application ID (`tj.yourtj.forum_app.dev`), name and badged
+icon, so developers install them beside the stable app on real devices. Production configuration
+rehearsals and iOS previews retain the existing application IDs and replace installed apps; iOS
+previews require an internal TestFlight QA group. All previews isolate dev storage and stable
+updates and identify their environment.
 An informational public status projection warns installed previews when the selected source is no
 longer current and links testers to the current candidate or production entry. Missing or stale
 status remains unverified. The notice follows source identity, permits rebuilding, and supplies no
@@ -87,6 +90,10 @@ another channel's hotfix still starts from that channel's actual distributed bas
   arriving after QA. It leaves the original regression and accountability problem unresolved.
 - Internal TestFlight groups avoid changing the public beta review account/queue, but testers need
   App Store Connect membership. Supporting external dev testers needs a separately reviewed design.
+- A separate Android dev application ID lets one device keep stable and dev installs, but the dev
+  app has no OEM push registration (dev push is already disabled) and shares the OAuth callback
+  scheme, so a sign-in return may show an app chooser. Rehearsals keep the production ID because
+  they verify the production package, signing and push configuration.
 - Completing each formal request bounds the freeze to work controlled by the team. It requires fresh
   QA for a later platform and keeps Apple-review follow-up separate from cycle completion. Waiting
   for all platforms to become public would keep integration tied to external review latency.

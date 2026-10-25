@@ -1,5 +1,6 @@
 import unittest
-from build_environment import dart_defines
+from pathlib import Path
+from build_environment import android_package, dart_defines
 from publish_preview_ios import check_groups
 
 
@@ -13,6 +14,17 @@ class BuildEnvironmentTests(unittest.TestCase):
         self.assertIn('--dart-define=YOURTJ_API_BASE_URL=https://f.yourtj.de', production)
         for environment, source, preview in [('dev', 'a'*40, False), ('other', 'a'*40, True), ('dev', 'main', True)]:
             with self.assertRaises(ValueError): dart_defines(environment, source, preview)
+
+    def test_dev_android_identity_is_separate_from_production(self):
+        self.assertEqual(android_package('production'), 'tj.yourtj.forum_app')
+        self.assertEqual(android_package('dev'), 'tj.yourtj.forum_app.dev')
+        with self.assertRaises(ValueError): android_package('other')
+        # Gradle derives the same identity from the YOURTJ_ENVIRONMENT define.
+        gradle = (Path(__file__).resolve().parents[2] /
+                  'apps/mobile/packages/forum_app/android/app/build.gradle.kts').read_text()
+        self.assertIn('dartDefines["YOURTJ_ENVIRONMENT"] == "dev"', gradle)
+        for environment in ('dev', 'production'):
+            self.assertIn(f'"{android_package(environment)}"', gradle)
 
     def test_external_group_without_internal_auto_access_flag_does_not_block(self):
         # Actual ASC group response: external groups omit the internal-only flag.
