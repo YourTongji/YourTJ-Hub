@@ -37,7 +37,7 @@
     "@vue/test-utils": "^2.4.11",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
-    "happy-dom": "^20.11.2",
+    "happy-dom": "^21.0.4",
     "miniflare": "5.20261001.0-alpha",
     "openapi-typescript": "^7.13.0",
     "playwright": "1.62.1",
