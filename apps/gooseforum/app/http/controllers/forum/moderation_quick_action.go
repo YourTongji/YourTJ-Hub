@@ -8,6 +8,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -90,7 +91,7 @@ func reportQuickActionPreview(report reports.Entity) ReportQuickActionPreview {
 	preview := ReportQuickActionPreview{
 		Report:    report,
 		Title:     report.EvidenceSnapshot.Title,
-		Excerpt:   report.EvidenceSnapshot.Excerpt,
+		Excerpt:   markdown2html.StripStickerTokens(report.EvidenceSnapshot.Excerpt),
 		TargetURL: report.EvidenceSnapshot.TargetURL,
 	}
 	switch report.TargetType {

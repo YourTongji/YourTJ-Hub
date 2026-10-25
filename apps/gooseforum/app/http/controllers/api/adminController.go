@@ -510,11 +510,13 @@ func TopicsList(req component.BetterRequest[TopicsListReq]) component.Response {
 				nickname = ""
 				userAvatarUrl = ""
 			}
+			// Description 只服务列表展示（line-clamp 摘要）；编辑器回填走 TopicSource，
+			// 不能共用剥除，否则会静默丢掉正文里的 token。
 			return TopicInfoAdminVo{
 				TopicAdminBaseVo: TopicAdminBaseVo{
 					Id:            t.Id,
 					Title:         t.Title,
-					Description:   t.Excerpt,
+					Description:   markdown2html.StripStickerTokens(t.Excerpt),
 					CategoryId:    t.CategoryIds,
 					UserId:        t.UserId,
 					TopicStatus:   t.Status,
@@ -2501,7 +2503,7 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 				username = u.Username
 				nickname = u.Nickname
 			}
-			excerpt := t.Excerpt
+			excerpt := markdown2html.StripStickerTokens(t.Excerpt)
 			if excerpt == "" {
 				excerpt = t.Title
 			}
@@ -2563,9 +2565,10 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 			if t, ok := topicMap[p.TopicId]; ok {
 				title = t.Title
 			}
-			excerpt := p.Content
-			if len(excerpt) > 120 {
-				excerpt = excerpt[:120]
+			excerpt := markdown2html.StripStickerTokens(p.Content)
+			// 按 rune 截断，否则多字节汉字会被切成半个（对齐 moderationExcerpt）。
+			if runes := []rune(excerpt); len(runes) > 120 {
+				excerpt = string(runes[:120])
 			}
 			items = append(items, ReviewQueueItem{
 				Id: p.Id, Title: title, Excerpt: excerpt, RevisionId: revision.Id, Content: p.Content, ReviewReason: revision.ReviewReason,
