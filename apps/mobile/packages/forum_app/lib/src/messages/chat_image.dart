@@ -129,7 +129,7 @@ class ChatImage extends ConsumerWidget {
           );
         },
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(GfRadius.sm),
           child: GfNetworkImage(
             resolved,
             width: 240,

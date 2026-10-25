@@ -271,7 +271,7 @@ class _TimeCell extends StatelessWidget {
               fontSize: 12,
               height: 1.1,
               fontWeight: FontWeight.w700,
-              color: colors.baseContent.withValues(alpha: 0.7),
+              color: colors.textSecondary,
             ),
           ),
           if (time != null)
@@ -281,7 +281,7 @@ class _TimeCell extends StatelessWidget {
               style: TextStyle(
                 fontSize: 9.5,
                 height: 1.1,
-                color: colors.baseContent.withValues(alpha: 0.75),
+                color: colors.textSecondary,
               ),
             ),
         ],
@@ -508,7 +508,7 @@ class _CourseCard extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 1),
         decoration: BoxDecoration(
           color: fill,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(GfRadius.sm),
           border: Border.all(
             color: custom ? colors.line : accent.withValues(alpha: .22),
           ),
@@ -568,7 +568,7 @@ class _CourseCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 10,
                         height: 1.15,
-                        color: colors.baseContent.withValues(alpha: .8),
+                        color: colors.textSecondary,
                       ),
                     ),
                   if (weeksText.isNotEmpty || conflicted)
@@ -582,7 +582,7 @@ class _CourseCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 9.5,
                               height: 1.15,
-                              color: colors.baseContent.withValues(alpha: .8),
+                              color: colors.textSecondary,
                             ),
                           ),
                         ),

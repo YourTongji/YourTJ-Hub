@@ -84,7 +84,7 @@ Class: feature
 帖子/回复正文的服务端展开规则不变。
 
 `Current`：编辑器内容里的 token 仍是纯文本；Web 编辑器把 token 与未闭合片段当作原子块删除，见
-[决策 0106](0106-editor-sticker-token-atomic-delete.md)。
+[决策 0107](0107-editor-sticker-token-atomic-delete.md)。
 
 ## Links
 

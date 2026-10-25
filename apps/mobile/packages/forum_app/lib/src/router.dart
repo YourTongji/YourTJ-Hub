@@ -22,7 +22,7 @@ import 'widgets/account_drawer.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/admin/admin_page.dart';
 import 'pages/campus/campus_page.dart';
-import 'pages/campus/campus_explore_page.dart';
+import 'pages/campus/campus_settings_page.dart';
 import 'pages/content/content_page.dart';
 import 'pages/category/category_page.dart';
 import 'pages/courses/catalog_page.dart';
@@ -39,11 +39,11 @@ import 'pages/settings/anonymous_identity_page.dart';
 import 'pages/publish/publish_page.dart';
 import 'pages/wiki/wiki_home_page.dart';
 import 'pages/wiki/wiki_page.dart';
-import 'pages/wiki/wiki_search_page.dart';
 import 'pages/schedule/schedule_page.dart';
 import 'pages/search/search_page.dart';
 import 'pages/settings/profile_privacy_page.dart';
 import 'pages/settings/settings_page.dart';
+import 'widgets/stickers/sticker_library_page.dart';
 import 'pages/topic/topic_page.dart';
 import 'providers.dart';
 import 'current_user.dart';
@@ -569,7 +569,10 @@ final GoRouter appRouter = GoRouter(
     _readingPageRoute(
       path: '/search',
       maxContentWidth: 1120,
-      builder: (_, _) => const SearchPage(),
+      builder: (_, state) => SearchPage(
+        initialScope: state.uri.queryParameters['scope'] ?? 'all',
+        initialQuery: state.uri.queryParameters['q'] ?? '',
+      ),
     ),
     _readingPageRoute(
       path: '/publish',
@@ -622,6 +625,10 @@ final GoRouter appRouter = GoRouter(
           ProfilePage(userId: int.parse(state.pathParameters['userId']!)),
     ),
     _readingPageRoute(
+      path: '/stickers',
+      builder: (_, _) => const StickerLibraryPage(),
+    ),
+    _readingPageRoute(
       path: '/settings',
       maxContentWidth: 1120,
       builder: (_, _) => const SettingsPage(),
@@ -645,6 +652,8 @@ final GoRouter appRouter = GoRouter(
       path: '/settings/:section',
       maxContentWidth: 1120,
       builder: (_, state) => SettingsPage(
+        // The same route matches every section; each location owns its editor state.
+        key: ValueKey(state.uri.toString()),
         initialSection: state.pathParameters['section'],
         autoEditProfile: state.uri.queryParameters['edit'] == '1',
       ),
@@ -656,7 +665,8 @@ final GoRouter appRouter = GoRouter(
     _readingPageRoute(
       path: '/my-content',
       maxContentWidth: 1120,
-      builder: (_, _) => const ContentPage(),
+      builder: (_, state) =>
+          ContentPage(initialType: state.uri.queryParameters['type']),
     ),
     _readingPageRoute(
       path: '/recycle-bin',
@@ -698,10 +708,11 @@ final GoRouter appRouter = GoRouter(
       builder: (_, _) => const AdminPage(target: MobileWebTarget.courseReviews),
     ),
     GoRoute(path: '/campus/official', redirect: (_, _) => '/campus'),
+    GoRoute(path: '/campus/explore', redirect: (_, _) => '/campus'),
     _readingPageRoute(
-      path: '/campus/explore',
-      maxContentWidth: 1120,
-      builder: (_, _) => const CampusExplorePage(),
+      path: '/campus/settings',
+      maxContentWidth: 720,
+      builder: (_, _) => const CampusSettingsPage(),
     ),
     GoRoute(path: '/admin', builder: (_, _) => const AdminPage()),
     GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
@@ -710,7 +721,15 @@ final GoRouter appRouter = GoRouter(
       maxContentWidth: 1120,
       builder: (_, _) => const DraftsPage(),
     ),
-    GoRoute(path: '/schedule', builder: (_, _) => const SchedulePage()),
+    GoRoute(
+      path: '/schedule',
+      builder: (_, state) => SchedulePage(
+        courseCode: state.uri.queryParameters['course'],
+        classCode: state.uri.queryParameters['class'],
+        termCode: state.uri.queryParameters['term'],
+        courseName: state.uri.queryParameters['name'],
+      ),
+    ),
     _readingPageRoute(
       path: '/courses',
       maxContentWidth: 1120,
@@ -732,8 +751,15 @@ final GoRouter appRouter = GoRouter(
     ),
     _readingPageRoute(
       path: '/wiki/search',
-      builder: (_, state) =>
-          WikiSearchPage(initialQuery: state.uri.queryParameters['q'] ?? ''),
+      redirect: (_, state) => Uri(
+        path: '/search',
+        queryParameters: {
+          'scope': 'wiki',
+          if (state.uri.queryParameters['q']?.isNotEmpty ?? false)
+            'q': state.uri.queryParameters['q']!,
+        },
+      ).toString(),
+      builder: (_, _) => const SizedBox.shrink(),
     ),
     _readingPageRoute(
       path: '/wiki',

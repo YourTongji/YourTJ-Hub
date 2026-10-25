@@ -144,7 +144,7 @@ class GfFloatingControls extends StatelessWidget {
                   width: floorExtent,
                   child: InkWell(
                     onTap: onFloorTap,
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(GfRadius.full),
                     child: Container(
                       height: 36,
                       padding: _floorPadding,
@@ -198,7 +198,7 @@ class _ReplyControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = GfTheme.colorsOf(context).baseContent.withValues(alpha: .75);
+    final color = GfTheme.colorsOf(context).textSecondary;
     final style = TextStyle(
       fontSize: 14,
       fontWeight: FontWeight.w600,
@@ -216,7 +216,7 @@ class _ReplyControl extends StatelessWidget {
             button: true,
             child: InkWell(
               onTap: onTap,
-              borderRadius: BorderRadius.circular(999),
+              borderRadius: BorderRadius.circular(GfRadius.full),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: _hPadding),
                 child: SizedBox(
@@ -302,7 +302,7 @@ class _RoundAction extends StatelessWidget {
                             strokeWidth: 2,
                             color: action.active
                                 ? action.activeColor
-                                : colors.baseContent.withValues(alpha: 0.75),
+                                : colors.textSecondary,
                           ),
                         )
                       : visual,

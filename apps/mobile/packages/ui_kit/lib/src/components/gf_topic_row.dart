@@ -137,7 +137,7 @@ class GfTopicRow extends StatelessWidget {
       onTap: onTap,
       child: Container(
         constraints: BoxConstraints(minHeight: home ? 88 : 44),
-        color: colors.base100,
+        color: colors.canvas,
         child: Stack(
           children: [
             Padding(
@@ -159,9 +159,7 @@ class GfTopicRow extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: colors.baseContent.withValues(
-                                  alpha: 0.55,
-                                ),
+                                color: colors.textSecondary,
                                 fontSize: 12,
                                 height: 1.4,
                                 fontWeight: FontWeight.w500,
@@ -291,7 +289,7 @@ class GfTopicRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(GfRadius.xs),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -314,10 +312,7 @@ class GfTopicRow extends StatelessWidget {
 
   Widget _metadata(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    final style = TextStyle(
-      color: colors.baseContent.withValues(alpha: 0.55),
-      fontSize: 12,
-    );
+    final style = TextStyle(color: colors.textSecondary, fontSize: 12);
     final avatars = participantAvatarUrls.take(4).toList();
     final metrics = Wrap(
       spacing: 8,

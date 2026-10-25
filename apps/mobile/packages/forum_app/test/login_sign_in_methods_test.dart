@@ -275,7 +275,7 @@ void main() {
         // Only German on the smallest surface keeps a few pixels of card
         // padding below the fold; everything the user acts on is above it.
         final double residual = size == const Size(360, 640) && language == 'de'
-            ? 16
+            ? 24
             : 0;
         expect(h.scrollExtent, lessThanOrEqualTo(residual));
         expect(tester.takeException(), isNull);

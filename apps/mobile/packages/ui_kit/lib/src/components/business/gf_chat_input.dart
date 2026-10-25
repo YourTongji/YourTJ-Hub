@@ -254,8 +254,13 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: colors.base100,
-                  border: Border(top: BorderSide(color: colors.line)),
+                  color: colors.canvas,
+                  border: Border(
+                    top: BorderSide(
+                      color: colors.separator,
+                      width: gfHairline(context),
+                    ),
+                  ),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -278,10 +283,9 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
                             style: IconButton.styleFrom(
                               fixedSize: const Size.square(44),
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              backgroundColor: colors.base200,
-                              foregroundColor: colors.baseContent,
-                              disabledForegroundColor: colors.iconMuted
-                                  .withValues(alpha: .45),
+                              backgroundColor: colors.fill,
+                              foregroundColor: colors.textPrimary,
+                              disabledForegroundColor: colors.textDisabled,
                               shape: const CircleBorder(),
                               padding: EdgeInsets.zero,
                             ),
@@ -297,8 +301,8 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
                             ),
                             curve: GfMotion.enterCurve,
                             decoration: BoxDecoration(
-                              color: colors.base200,
-                              borderRadius: BorderRadius.circular(24),
+                              color: colors.fill,
+                              borderRadius: BorderRadius.circular(GfRadius.xl),
                               border: Border.all(
                                 color: _inputFocus.hasFocus
                                     ? colors.primary.withValues(alpha: .32)
@@ -381,9 +385,9 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
                                     tapTargetSize:
                                         MaterialTapTargetSize.shrinkWrap,
                                     padding: EdgeInsets.zero,
-                                    foregroundColor: colors.iconMuted,
-                                    disabledForegroundColor: colors.iconMuted
-                                        .withValues(alpha: .45),
+                                    foregroundColor: colors.textSecondary,
+                                    disabledForegroundColor:
+                                        colors.textDisabled,
                                     shape: const CircleBorder(),
                                   ),
                                 ),
@@ -404,9 +408,8 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
                             shape: const CircleBorder(),
                             backgroundColor: colors.primary,
                             foregroundColor: colors.primaryContent,
-                            disabledBackgroundColor: colors.base200,
-                            disabledForegroundColor: colors.iconMuted
-                                .withValues(alpha: .45),
+                            disabledBackgroundColor: colors.fill,
+                            disabledForegroundColor: colors.textDisabled,
                           ),
                         ),
                       ],

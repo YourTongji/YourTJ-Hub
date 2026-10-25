@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:core/core.dart';
@@ -31,27 +32,29 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
-      MaterialApp(
-        theme: ThemeData(fontFamily: 'Roboto'),
-        locale: const Locale('zh'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(textScaler: TextScaler.linear(scale)),
-          child: child!,
-        ),
-        home: Scaffold(
-          body: GfTopicList(
-            loading: false,
-            topics: topics,
-            controller: controller,
-            feedMode: GfTopicFeedMode.card,
-            hasMore: false,
-            onLoadMore: () {},
-            onLikeTopic: like,
-            onBookmarkTopic: bookmark,
+      ProviderScope(
+        child: MaterialApp(
+          theme: ThemeData(fontFamily: 'Roboto'),
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(scale)),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: GfTopicList(
+              loading: false,
+              topics: topics,
+              controller: controller,
+              feedMode: GfTopicFeedMode.card,
+              hasMore: false,
+              onLoadMore: () {},
+              onLikeTopic: like,
+              onBookmarkTopic: bookmark,
+            ),
           ),
         ),
       ),

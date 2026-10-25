@@ -38,6 +38,7 @@ export 'src/components/surfaces/gf_menu_surface.dart';
 export 'src/components/surfaces/gf_modal.dart';
 export 'src/components/surfaces/gf_page_header.dart';
 export 'src/components/surfaces/gf_toast.dart';
+export 'src/components/surfaces/gf_list_section.dart';
 export 'src/components/gf_panel.dart';
 export 'src/components/gf_tab_bar.dart';
 export 'src/components/gf_topic_card.dart';

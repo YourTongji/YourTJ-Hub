@@ -475,7 +475,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
           onTap: _submitting ? null : () => setState(() => _rating = star),
           child: InkWell(
             excludeFromSemantics: true,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(GfRadius.xl),
             onTap: _submitting ? null : () => setState(() => _rating = star),
             child: SizedBox(
               width: 48,
@@ -531,7 +531,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: type.small.copyWith(
-              color: colors.baseContent.withValues(alpha: 0.8),
+              color: colors.textSecondary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -563,9 +563,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
                   copy.anonymousHint,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: type.meta.copyWith(
-                    color: colors.baseContent.withValues(alpha: 0.55),
-                  ),
+                  style: type.meta.copyWith(color: colors.textSecondary),
                 ),
               ],
             ],
@@ -622,14 +620,14 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
         : _offeringSummary(offering);
     return InkWell(
       key: const Key('course-review-offering'),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(GfRadius.lg),
       onTap: readOnly || _submitting ? null : _pickOffering,
       child: Container(
         // 紧凑内边距：与星级共行时 chip 必须窄到单行放得下（390dp/100%）。
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: colors.base200,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(GfRadius.lg),
           border: Border.all(color: colors.line.withValues(alpha: 0.6)),
         ),
         child: Row(
@@ -900,7 +898,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
   String _templateIcon(String id) => switch (id) {
     'comprehensive' => 'book-open',
     'quick' => 'star',
-    'teacher-focused' => 'graduation-cap',
+    'teacher-focused' => 'book-open',
     'exam-focused' => 'shield-check',
     'workload' => 'clock',
     _ => 'file-text',
@@ -1031,7 +1029,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: colors.base200,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(GfRadius.lg),
           border: Border.all(
             color: selected
                 ? colors.primary.withValues(alpha: 0.4)
@@ -1071,9 +1069,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
                     const SizedBox(height: 1),
                     GfText(
                       detailLine,
-                      style: type.meta.copyWith(
-                        color: colors.baseContent.withValues(alpha: 0.55),
-                      ),
+                      style: type.meta.copyWith(color: colors.textSecondary),
                     ),
                   ],
                 ],

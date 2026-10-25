@@ -4,6 +4,7 @@ import '../../theme/gf_theme.dart';
 import '../../twemoji/twemoji_text.dart';
 import '../gf_motion.dart';
 import '../gf_symbol.dart';
+import 'gf_segmented.dart';
 
 class GfPillOption<T> {
   const GfPillOption({
@@ -36,10 +37,10 @@ class GfPillSwitch<T> extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
 
     return Container(
-      padding: const EdgeInsets.all(2),
+      padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: colors.base200,
-        borderRadius: BorderRadius.circular(999),
+        color: colors.fill,
+        borderRadius: BorderRadius.circular(GfRadius.full),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -72,7 +73,7 @@ class _GfPillItem<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final foreground = selected ? colors.baseContent : colors.iconMuted;
+    final foreground = selected ? colors.textPrimary : colors.textSecondary;
     return MergeSemantics(
       child: Semantics(
         selected: selected,
@@ -80,26 +81,44 @@ class _GfPillItem<T> extends StatelessWidget {
           onPressed: onPressed,
           style: ButtonStyle(
             animationDuration: GfMotion.duration(context, GfMotion.selection),
-            minimumSize: const WidgetStatePropertyAll(Size(44, 44)),
-            padding: const WidgetStatePropertyAll(
-              EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            minimumSize: const WidgetStatePropertyAll(
+              Size(GfControl.touch, GfControl.touch),
             ),
+            padding: const WidgetStatePropertyAll(
+              EdgeInsets.symmetric(horizontal: GfSpace.md, vertical: 6),
+            ),
+            overlayColor: WidgetStatePropertyAll(colors.pressed),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             visualDensity: VisualDensity.standard,
-            backgroundColor: WidgetStatePropertyAll(
-              selected ? colors.base100 : Colors.transparent,
+            backgroundBuilder: (context, states, child) => AnimatedContainer(
+              duration: GfMotion.duration(context, GfMotion.selection),
+              curve: GfMotion.enterCurve,
+              decoration: BoxDecoration(
+                color: selected
+                    ? gfSegmentThumbColor(colors)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(GfRadius.full),
+                boxShadow: selected
+                    ? colors.elevation(GfElevation.low)
+                    : const <BoxShadow>[],
+              ),
+              child: child,
             ),
             foregroundColor: WidgetStatePropertyAll(foreground),
             elevation: const WidgetStatePropertyAll(0),
             shape: const WidgetStatePropertyAll(StadiumBorder()),
             textStyle: const WidgetStatePropertyAll(
-              TextStyle(fontSize: 13, height: 1.3, fontWeight: FontWeight.w600),
+              TextStyle(
+                fontSize: 13,
+                height: 18 / 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              GfSymbol(option.symbol, size: 16, color: foreground),
+              GfSymbol(option.symbol, size: GfIconSize.sm, color: foreground),
               const SizedBox(width: 6),
               Flexible(
                 child: GfText(option.label, textAlign: TextAlign.center),

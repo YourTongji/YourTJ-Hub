@@ -77,7 +77,7 @@ Widget mediaImageFailure(
           message,
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: colors.baseContent.withValues(alpha: 0.75),
+            color: colors.textSecondary,
             fontSize: 13,
             height: 1.35,
           ),

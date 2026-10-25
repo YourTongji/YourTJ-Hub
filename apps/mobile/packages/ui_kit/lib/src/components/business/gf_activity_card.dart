@@ -26,7 +26,7 @@ class GfActivityCard extends StatelessWidget {
       child: Material(
         color: colors.base100,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(GfRadius.md),
           side: BorderSide(color: colors.line),
         ),
         clipBehavior: Clip.antiAlias,

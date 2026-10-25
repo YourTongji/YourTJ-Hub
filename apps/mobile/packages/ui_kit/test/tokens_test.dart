@@ -175,35 +175,35 @@ void main() {
         final GfTypography t = gfThemeData(
           brightness,
         ).extension<GfTypography>()!;
-        expect(t.display.fontSize, 24);
-        expect(t.title1.fontSize, 24);
-        expect(t.title2.fontSize, 18);
+        expect(t.display.fontSize, 28);
+        expect(t.title1.fontSize, 22);
+        expect(t.title2.fontSize, 20);
         expect(t.title3.fontSize, 17);
         expect(t.heading.fontSize, 16);
-        expect(t.body.fontSize, 17);
+        expect(t.body.fontSize, 16);
         expect(t.bodyStrong.fontSize, 16);
         expect(t.small.fontSize, 15);
         expect(t.caption.fontSize, 13);
         expect(t.meta.fontSize, 12);
-        expect(t.label.fontSize, 10);
+        expect(t.label.fontSize, 11);
       }
     });
 
-    test('weights match the web conventions', () {
+    test('weights follow the mobile role hierarchy', () {
       final GfTypography t = GfTypography.standard(GfColors.light.baseContent);
       expect(t.display.fontWeight, FontWeight.w700);
       expect(t.title1.fontWeight, FontWeight.w700);
-      expect(t.title2.fontWeight, FontWeight.w700);
-      expect(t.title3.fontWeight, FontWeight.w700);
-      expect(t.heading.fontWeight, FontWeight.w700);
+      expect(t.title2.fontWeight, FontWeight.w600);
+      expect(t.title3.fontWeight, FontWeight.w600);
+      expect(t.heading.fontWeight, FontWeight.w600);
       expect(t.body.fontWeight, FontWeight.w400);
       expect(t.bodyStrong.fontWeight, FontWeight.w600);
-      expect(t.label.fontWeight, FontWeight.w700);
+      expect(t.label.fontWeight, FontWeight.w600);
     });
 
-    test('body uses the compact mobile 17px reading scale', () {
+    test('body uses the mobile 16/24 UI scale', () {
       final GfTypography t = GfTypography.standard(GfColors.light.baseContent);
-      expect(t.body.height, 1.4);
+      expect(t.body.height, 24 / 16);
       expect(
         t.display.fontFeatures,
         contains(const FontFeature.tabularFigures()),

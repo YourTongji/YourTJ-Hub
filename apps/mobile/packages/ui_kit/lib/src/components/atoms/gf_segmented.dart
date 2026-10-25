@@ -30,10 +30,10 @@ class GfSegmented<T> extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
 
     return Container(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: colors.base300,
-        borderRadius: BorderRadius.circular(18),
+        color: colors.fill,
+        borderRadius: BorderRadius.circular(GfRadius.full),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -73,35 +73,46 @@ class _SegmentedItem<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
 
+    final GfTypography typography = GfTheme.typographyOf(context);
+    final Duration duration = GfMotion.duration(context, GfMotion.selection);
+
     return MergeSemantics(
       child: Semantics(
         selected: selected,
         button: true,
-        child: Material(
-          animationDuration: GfMotion.duration(context, GfMotion.selection),
-          animateColor: true,
-          color: selected ? colors.base100 : Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: duration,
+          curve: GfMotion.enterCurve,
+          decoration: BoxDecoration(
+            color: selected ? gfSegmentThumbColor(colors) : Colors.transparent,
+            borderRadius: BorderRadius.circular(GfRadius.full),
+            boxShadow: selected
+                ? colors.elevation(GfElevation.low)
+                : const <BoxShadow>[],
           ),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 48),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Align(
-                alignment: Alignment.center,
-                widthFactor: 1,
-                child: GfText(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: selected
-                        ? colors.baseContent
-                        : colors.baseContent.withValues(alpha: 0.55),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: onTap,
+              customBorder: const StadiumBorder(),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 48),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: GfSpace.md,
+                  vertical: GfSpace.sm,
+                ),
+                child: Align(
+                  alignment: Alignment.center,
+                  widthFactor: 1,
+                  child: AnimatedDefaultTextStyle(
+                    duration: duration,
+                    style: typography.subhead.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: selected
+                          ? colors.textPrimary
+                          : colors.textSecondary,
+                    ),
+                    child: GfText(label, textAlign: TextAlign.center),
                   ),
                 ),
               ),
@@ -112,3 +123,8 @@ class _SegmentedItem<T> extends StatelessWidget {
     );
   }
 }
+
+/// Selected thumb colour shared by [GfSegmented] and `GfPillSwitch`.
+Color gfSegmentThumbColor(GfColors colors) => colors.isDark
+    ? Color.alphaBlend(const Color(0x29FFFFFF), colors.base100)
+    : colors.base100;

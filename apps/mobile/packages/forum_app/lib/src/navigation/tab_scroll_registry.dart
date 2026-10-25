@@ -15,7 +15,7 @@ extension GfShellDestinationPresentation on GfShellDestination {
   String get symbol => switch (this) {
     GfShellDestination.home => 'house',
     GfShellDestination.campus => 'graduation-cap',
-    GfShellDestination.messages => 'mail',
+    GfShellDestination.messages => 'message-circle',
     GfShellDestination.notifications => 'bell',
   };
 

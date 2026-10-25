@@ -1,0 +1,20 @@
+name: ui_kit_gallery
+description: "Gf component gallery: every ui_kit component and sample screens in light and dark."
+publish_to: 'none'
+resolution: workspace
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ui_kit:
+    path: ..
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

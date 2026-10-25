@@ -31,19 +31,22 @@ class GfFloatingSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
     final GfBorders borders = GfTheme.bordersOf(context);
-    final GfShadows shadows = GfTheme.shadowsOf(context);
 
-    final double corner = radius ?? radii.box;
+    final double corner = radius ?? GfRadius.lg;
 
     Widget surface = Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: colors.base100,
+        color: blur
+            ? colors.surfaceRaised.withValues(alpha: 0.92)
+            : colors.surfaceRaised,
         borderRadius: BorderRadius.circular(corner),
-        border: Border.all(color: colors.line, width: borders.width),
-        boxShadow: shadows.floating,
+        border: Border.all(
+          color: colors.separator.withValues(alpha: colors.isDark ? 1 : 0.6),
+          width: borders.width / 2,
+        ),
+        boxShadow: colors.elevation(GfElevation.mid),
       ),
       child: child,
     );

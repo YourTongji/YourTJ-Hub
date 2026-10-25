@@ -21,6 +21,8 @@ import '../../widgets/logo_motion_loader.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/campus_shortcuts.dart';
 import 'campus_connection.dart';
+import 'campus_course_picks.dart';
+import 'campus_settings_page.dart';
 import 'campus_data_views.dart';
 import 'campus_helpers.dart';
 import 'campus_lifecycle.dart';
@@ -84,19 +86,14 @@ class _CampusAccount extends ConsumerWidget {
     Widget publicSurface(Widget content) => RootSurface(
       title: l.campusTitle,
       showComposeAction: false,
-      actions: [
-        IconButton(
-          tooltip: l.campusExplore,
-          icon: const GfSymbol('graduation-cap'),
-          onPressed: () => context.push('/campus/explore'),
-        ),
-      ],
       body: (top, bottom) => ListView(
         padding: EdgeInsets.fromLTRB(20, top + 24, 20, bottom + 16),
         children: [
           const CampusShortcuts(),
           const SizedBox(height: 24),
           content,
+          const SizedBox(height: 24),
+          const CampusCoursePicks(),
         ],
       ),
     );
@@ -612,6 +609,8 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
             );
           },
         ),
+        const SizedBox(height: 24),
+        const CampusCoursePicks(),
       ],
     );
   }
@@ -642,7 +641,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
                   LinearProgressIndicator(
                     value: (done / required).clamp(0, 1),
                     minHeight: 8,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(GfRadius.xs),
                   ),
                 ],
               ],
@@ -744,7 +743,6 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
       'academics': l.campusAcademics,
       'messages': l.campusMessages,
       'calendars': l.campusCalendars,
-      'connection': l.campusConnection,
     };
     final tabKeys = labels.keys.toList(growable: false);
     final layoutScale = (MediaQuery.textScalerOf(context).scale(16) / 16).clamp(
@@ -754,7 +752,6 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
     final hasDirectory = MediaQuery.sizeOf(context).width >= 900 * layoutScale;
     bool isPending(String tab) {
       if (!privateVisible ||
-          tab == 'connection' ||
           (state.status != null && state.status?.binding == null)) {
         return false;
       }
@@ -802,8 +799,8 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
           onRetry: () => ref.read(campusControllerProvider.notifier).refresh(),
         );
       }
-      if (state.status?.binding == null || tab == 'connection') {
-        return const CampusConnection();
+      if (state.status?.binding == null) {
+        return const CampusConnection(compact: true);
       }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -975,6 +972,10 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
                       const SizedBox(height: 24),
                     ],
                     contentFor(tab),
+                    if (tab == 'today' && state.status?.binding == null) ...[
+                      const SizedBox(height: 24),
+                      const CampusCoursePicks(),
+                    ],
                   ],
                 ),
               ),
@@ -998,9 +999,11 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
       showComposeAction: false,
       actions: [
         IconButton(
-          tooltip: l.campusExplore,
-          icon: const GfSymbol('graduation-cap'),
-          onPressed: () => context.push('/campus/explore'),
+          tooltip: l.campusSettings,
+          icon: const GfSymbol('settings'),
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const CampusSettingsPage()),
+          ),
         ),
       ],
       toolbarHeight: hasDirectory ? 0 : GfTabBar.heightFor(context),
@@ -1035,14 +1038,14 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
                                   context,
                                 ).primary.withValues(alpha: .08)
                               : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(GfRadius.md),
                           clipBehavior: Clip.antiAlias,
                           child: GfSettingRow(
                             key: Key('campus-module-${entry.key}'),
                             symbol: switch (entry.key) {
                               'today' => 'sun',
                               'timetable' => 'calendar-days',
-                              'academics' => 'graduation-cap',
+                              'academics' => 'book-open',
                               'messages' => 'bell',
                               'calendars' => 'calendar-days',
                               _ => 'link',
@@ -1397,7 +1400,7 @@ class _CampusRefreshSkeletonState extends State<_CampusRefreshSkeleton>
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: colors.baseContent.withValues(alpha: .7),
+                color: colors.textSecondary,
               ),
             ),
             SizedBox(height: 2 * scale),

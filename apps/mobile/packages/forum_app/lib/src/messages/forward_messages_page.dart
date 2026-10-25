@@ -182,7 +182,10 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
                                   setState(() => _query = value),
                               decoration: InputDecoration(
                                 hintText: l10n.messageForwardSearch,
-                                prefixIcon: const Icon(Icons.search),
+                                prefixIcon: const GfSymbol(
+                                  'search',
+                                  size: GfIconSize.md,
+                                ),
                               ),
                             ),
                           ] else
@@ -241,7 +244,13 @@ class _ForwardMessagesPageState extends ConsumerState<ForwardMessagesPage> {
                                   trailing:
                                       recipient.state ==
                                           ForwardDeliveryState.sent
-                                      ? const Icon(Icons.check_circle_outline)
+                                      ? GfSymbol(
+                                          'circle-check',
+                                          size: GfIconSize.md,
+                                          color: GfTheme.colorsOf(
+                                            context,
+                                          ).success,
+                                        )
                                       : recipient.state ==
                                             ForwardDeliveryState.sending
                                       ? const SizedBox(

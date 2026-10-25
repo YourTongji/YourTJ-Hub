@@ -13,7 +13,6 @@ import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/images/image_upload.dart';
 import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/pages/publish/publish_page.dart';
-import 'package:forum_app/src/pages/publish/publish_type.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
 import 'package:image_picker/image_picker.dart';
@@ -302,12 +301,6 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(files.names, ['first.jpg']);
-      expect(
-        tester
-            .widget<PublishTypeSwitcher>(find.byType(PublishTypeSwitcher))
-            .onChanged,
-        isNull,
-      );
       expect(
         tester
             .widget<PopScope>(

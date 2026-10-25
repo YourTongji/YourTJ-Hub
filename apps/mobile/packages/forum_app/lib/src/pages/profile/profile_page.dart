@@ -1,5 +1,4 @@
 import '../../widgets/user_decoration.dart';
-import '../settings/anonymous_identity_page.dart';
 import 'profile_header_sliver.dart';
 import 'profile_tabs.dart';
 import 'profile_edit_button.dart';
@@ -102,9 +101,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   final _interactions =
       <_ContentKey, ({int revision, PostReturnState state})>{};
   bool _loginRequired = false;
-  bool _canAccessAdmin = false;
-  bool _canModerate = false;
-  bool _canManageCourses = false;
 
   bool get _isShellProfile => widget.userId == null;
 
@@ -142,9 +138,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _interactionRevision++;
     _profileGeneration++;
     _headerProps = null;
-    _canAccessAdmin = false;
-    _canModerate = false;
-    _canManageCourses = false;
   }
 
   void _cancelStreamRead(_ProfileStreamState state) {
@@ -310,9 +303,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         // Keep the visible identity stable while tabs load.
         if (key == _stream && nextUrl == null && !streamChange) {
           _headerProps = loaded;
-          _canAccessAdmin = payload.layout.viewer.canAccessAdmin;
-          _canModerate = payload.layout.viewer.isModerator;
-          _canManageCourses = payload.layout.viewer.canManageCourses;
         }
       });
     } catch (error) {
@@ -720,26 +710,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (!isOwnProfile && ref.watch(currentUserProvider).valueOrNull == null) {
       return const <Widget>[];
     }
-    return <Widget>[
-      _profileMenu(
-        context,
-        l10n,
-        glass: glass,
-        profileUser: isOwnProfile ? null : props!.user,
-      ),
-      if (isOwnProfile)
-        if (glass)
-          GfGlassIconButton(
-            symbol: 'bell',
-            tooltip: l10n.notificationsTitle,
-            onPressed: () => context.go('/notifications'),
-          )
-        else
-          GfIconButton(
-            symbol: 'bell',
-            tooltip: l10n.notificationsTitle,
-            onPressed: () => context.go('/notifications'),
-          ),
+    if (isOwnProfile) return const <Widget>[];
+    return [
+      _profileMenu(context, l10n, glass: glass, profileUser: props!.user),
     ];
   }
 
@@ -749,9 +722,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     required bool glass,
     required UserCardPayload? profileUser,
   }) {
-    final persona = profileUser == null
-        ? ref.watch(anonymousIdentityProvider).valueOrNull?.persona
-        : null;
     final blocks = profileUser == null ? null : ref.watch(userBlocksProvider);
     final profileUserId = profileUser?.userId;
     final isBlocked =
@@ -780,57 +750,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 ),
               ),
             ]
-          : [
-              GfPopupMenuItem(
-                value: persona?.profileUrl ?? '/settings/anonymous-identity',
-                child: GfText(l10n.anonymousIdentity),
-              ),
-              GfPopupMenuItem(
-                value: '/drafts',
-                child: GfText(l10n.draftsTitle),
-              ),
-              GfPopupMenuItem(
-                value: '/my-course-reviews',
-                child: GfText(l10n.myCourseReviewsTitle),
-              ),
-              GfPopupMenuItem(
-                value: '/my-content',
-                child: GfText(l10n.profileContent),
-              ),
-              GfPopupMenuItem(
-                value: '/recycle-bin',
-                child: GfText(l10n.profileTrash),
-              ),
-              if (_canModerate)
-                GfPopupMenuItem(
-                  value: '/moderation',
-                  child: GfText(l10n.profileModeration),
-                ),
-              if (_canAccessAdmin)
-                GfPopupMenuItem(
-                  value: '/admin',
-                  child: GfText(l10n.profileAdmin),
-                ),
-              if (_canManageCourses) ...[
-                GfPopupMenuItem(
-                  value: '/moderation/courses',
-                  child: GfText(l10n.coursesManagement),
-                ),
-                GfPopupMenuItem(
-                  value: '/moderation/course-reviews',
-                  child: GfText(l10n.coursesReviewModeration),
-                ),
-              ],
-              const PopupMenuDivider(),
-              GfPopupMenuItem(
-                value: '/settings/account',
-                child: GfText(l10n.profileSecurity),
-              ),
-              GfPopupMenuItem(
-                value: '/settings',
-                child: GfText(l10n.settingsTitle),
-              ),
-            ],
+          : const [],
     );
     return glass ? GfGlassSurface(child: menu) : menu;
   }
@@ -1260,6 +1180,41 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                           context,
                                         ),
                                   ),
+                                  if ((props.isOwnProfile ||
+                                          props.user.isSelf) &&
+                                      profileStreamContentType(key) != null)
+                                    SliverToBoxAdapter(
+                                      child: ProfileStreamManageBar(
+                                        contentType: profileStreamContentType(
+                                          key,
+                                        )!,
+                                        onReturn: () => _load(streamKey: key),
+                                      ),
+                                    ),
+                                  if (key == 'badges' &&
+                                      (props.isOwnProfile || props.user.isSelf))
+                                    SliverToBoxAdapter(
+                                      child: Align(
+                                        alignment:
+                                            AlignmentDirectional.centerEnd,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                          ),
+                                          child: GfButton(
+                                            key: const Key(
+                                              'profile-manage-badges',
+                                            ),
+                                            label: l10n.settingsManageBadges,
+                                            variant: GfButtonVariant.ghost,
+                                            size: GfButtonSize.small,
+                                            onPressed: () => _openProfileTool(
+                                              '/settings/badges',
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                   if (stream.error == null &&
                                       streamProps == null)
                                     _ProfileStreamSkeleton(
@@ -1283,7 +1238,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                     _ProfileBody(
                                       key: ValueKey(key),
                                       props: streamProps,
-                                      stickerLibrary: ref.watch(stickerLibraryProvider),
+                                      stickerLibrary: ref.watch(
+                                        stickerLibraryProvider,
+                                      ),
                                       selectedKey: key,
                                       onFollow: _toggleConnection,
                                       onReturn: _syncReturnedInteractions,
@@ -1503,7 +1460,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         : l10n.profileLastActive(timeAgo(user.lastActiveTime, l10n: l10n));
     final metaStyle = GfTheme.typographyOf(
       context,
-    ).caption.copyWith(color: colors.baseContent.withValues(alpha: .55));
+    ).caption.copyWith(color: colors.textSecondary);
     return GfUserCard(
       showHeader: false,
       coverUrl: resolveApiAssetUrl(user.profileCoverUrl),
@@ -1651,18 +1608,25 @@ class _ProfileBody extends StatelessWidget {
         ),
       );
     }
-    return _streamRows(context, l10n);
+    return Consumer(
+      builder: (context, ref, _) =>
+          _streamRows(context, l10n, ref.watch(removedTopicsProvider)),
+    );
   }
 
-  Widget _streamRows(BuildContext context, AppLocalizations l10n) {
+  Widget _streamRows(
+    BuildContext context,
+    AppLocalizations l10n,
+    Set<int> removed,
+  ) {
     return switch (selectedKey) {
       'badges' =>
         props.badges.isEmpty
             ? _empty('award', l10n.profileNoBadges)
             : _badgeGallery(context),
-      'topics' => _topicRows(context, l10n),
-      'likes' => _likeRows(context, l10n),
-      'bookmarks' => _bookmarkRows(context, l10n),
+      'topics' => _topicRows(context, l10n, removed),
+      'likes' => _likeRows(context, l10n, removed),
+      'bookmarks' => _bookmarkRows(context, l10n, removed),
       'following' => _connectionRows(
         context,
         props.following,
@@ -1673,7 +1637,7 @@ class _ProfileBody extends StatelessWidget {
         props.followers,
         l10n.profileEmptyFollowers,
       ),
-      _ => _activityRows(context, l10n),
+      _ => _activityRows(context, l10n, removed),
     };
   }
 
@@ -1732,14 +1696,28 @@ class _ProfileBody extends StatelessWidget {
     );
   }
 
-  Widget _activityRows(BuildContext context, AppLocalizations l10n) {
-    if (props.activities.isEmpty) {
+  Widget _activityRows(
+    BuildContext context,
+    AppLocalizations l10n,
+    Set<int> removed,
+  ) {
+    bool visible(UserActivityPayload item) {
+      if (_activityKey(item)?.$1 == true) return true;
+      final parts =
+          Uri.tryParse(_activityRoute(item) ?? '')?.pathSegments ??
+          const <String>[];
+      return parts.firstOrNull != 'p' ||
+          !removed.contains(int.tryParse(parts.elementAtOrNull(1) ?? ''));
+    }
+
+    final activities = props.activities.where(visible).toList();
+    if (activities.isEmpty) {
       return _empty('sparkles', l10n.profileEmptyActivity);
     }
     return SliverList.builder(
-      itemCount: props.activities.length,
+      itemCount: activities.length,
       itemBuilder: (BuildContext context, int index) {
-        final UserActivityPayload activity = props.activities[index];
+        final UserActivityPayload activity = activities[index];
         final String? route = _activityRoute(activity);
         final action = switch (activity.action) {
           1 => 'signup',
@@ -1873,35 +1851,43 @@ class _ProfileBody extends StatelessWidget {
     );
   }
 
-  Widget _topicRows(BuildContext context, AppLocalizations l10n) {
-    if (props.topics.isEmpty) {
+  Widget _topicRows(
+    BuildContext context,
+    AppLocalizations l10n,
+    Set<int> removed,
+  ) {
+    final topics = props.topics
+        .where((item) => !removed.contains(item.id))
+        .toList();
+    if (topics.isEmpty) {
       return _empty('file-text', l10n.profileEmptyTopics);
     }
-    SliverList build(Map<String, String> stickerUrlByName) => SliverList.builder(
-      itemCount: props.topics.length,
-      itemBuilder: (BuildContext context, int index) {
-        final topic = props.topics[index];
-        final key = (false, topic.id);
-        final known = topic.liked != null && topic.bookmarked != null;
-        final state = (
-          liked: topic.liked ?? false,
-          bookmarked: topic.bookmarked ?? false,
-          likeCount: topic.likeCount,
+    SliverList build(Map<String, String> stickerUrlByName) =>
+        SliverList.builder(
+          itemCount: topics.length,
+          itemBuilder: (BuildContext context, int index) {
+            final topic = topics[index];
+            final key = (false, topic.id);
+            final known = topic.liked != null && topic.bookmarked != null;
+            final state = (
+              liked: topic.liked ?? false,
+              bookmarked: topic.bookmarked ?? false,
+              likeCount: topic.likeCount,
+            );
+            return buildTopicFeedCard(
+              context,
+              topic,
+              stickerUrlByName: stickerUrlByName,
+              onReturn: onReturn,
+              onLike: known
+                  ? (target) => onInteraction(key, state, false, target)
+                  : null,
+              onBookmark: known
+                  ? (target) => onInteraction(key, state, true, target)
+                  : null,
+            );
+          },
         );
-        return buildTopicFeedCard(
-          context,
-          topic,
-          stickerUrlByName: stickerUrlByName,
-          onReturn: onReturn,
-          onLike: known
-              ? (target) => onInteraction(key, state, false, target)
-              : null,
-          onBookmark: known
-              ? (target) => onInteraction(key, state, true, target)
-              : null,
-        );
-      },
-    );
 
     final StickerLibrary? library = stickerLibrary;
     return library == null
@@ -1913,14 +1899,21 @@ class _ProfileBody extends StatelessWidget {
           );
   }
 
-  Widget _likeRows(BuildContext context, AppLocalizations l10n) {
-    if (props.likes.isEmpty) {
+  Widget _likeRows(
+    BuildContext context,
+    AppLocalizations l10n,
+    Set<int> removed,
+  ) {
+    final likes = props.likes
+        .where((item) => !removed.contains(item.topicId))
+        .toList();
+    if (likes.isEmpty) {
       return _empty('heart', l10n.profileEmptyLikes);
     }
     return SliverList.builder(
-      itemCount: props.likes.length,
+      itemCount: likes.length,
       itemBuilder: (BuildContext context, int index) {
-        final UserLikePayload like = props.likes[index];
+        final UserLikePayload like = likes[index];
         return _contentRow(
           context,
           author: like.author,
@@ -1934,14 +1927,25 @@ class _ProfileBody extends StatelessWidget {
     );
   }
 
-  Widget _bookmarkRows(BuildContext context, AppLocalizations l10n) {
-    if (props.bookmarks.isEmpty) {
+  Widget _bookmarkRows(
+    BuildContext context,
+    AppLocalizations l10n,
+    Set<int> removed,
+  ) {
+    final bookmarks = props.bookmarks
+        .where(
+          (item) =>
+              (item.type.toLowerCase() == 'post' && item.postNo != 1) ||
+              !removed.contains(item.topicId),
+        )
+        .toList();
+    if (bookmarks.isEmpty) {
       return _empty('bookmark', l10n.profileEmptyBookmarks);
     }
     return SliverList.builder(
-      itemCount: props.bookmarks.length,
+      itemCount: bookmarks.length,
       itemBuilder: (BuildContext context, int index) {
-        final UserBookmarkPayload bookmark = props.bookmarks[index];
+        final UserBookmarkPayload bookmark = bookmarks[index];
         return _contentRow(
           context,
           author: bookmark.author,

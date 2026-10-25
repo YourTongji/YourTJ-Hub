@@ -61,7 +61,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get navPublish => 'Veröffentlichen';
 
   @override
-  String get navMessages => 'Nachrichten';
+  String get navMessages => 'Direktnachrichten';
 
   @override
   String get navProfile => 'Mein Profil';
@@ -551,7 +551,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get profileNotLoggedIn => 'Nicht angemeldet';
 
   @override
-  String get messagesTitle => 'Nachrichten';
+  String get messagesTitle => 'Direktnachrichten';
 
   @override
   String get messagesEmpty => 'Noch keine Unterhaltungen';
@@ -656,7 +656,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsTabProfile => 'Profil';
 
   @override
-  String get settingsTabAccount => 'Konto, Sicherheit und Datenschutz';
+  String get settingsTabAccount => 'Konto und Sicherheit';
 
   @override
   String get settingsTabPrivacy => 'Datenschutz';
@@ -764,7 +764,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsOAuth => 'Verknüpfte Konten';
 
   @override
-  String get settingsOAuthSub => 'Anmeldung über GitHub und Google';
+  String get settingsOAuthSub => 'GitHub-, Google- und Apple-Anmeldungen';
 
   @override
   String get settingsOAuthManage => 'Kontoverknüpfungen verwalten';
@@ -853,7 +853,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsLightCurrent => 'Aktuell: hell';
 
   @override
-  String get settingsAbout => 'Info';
+  String get settingsAbout => 'Über die Community';
 
   @override
   String get settingsAboutVersion =>
@@ -1069,16 +1069,19 @@ class AppLocalizationsDe extends AppLocalizations {
   String get topicLaterReplies => 'Neuere Antworten laden';
 
   @override
-  String get topicFeedModeList => 'Liste';
+  String get homeFeedSwitchToList => 'Als Liste anzeigen';
 
   @override
-  String get topicFeedModeCard => 'Karten';
+  String get homeFeedSwitchToCard => 'Als Karten anzeigen';
+
+  @override
+  String get profileStreamManage => 'Verwalten';
 
   @override
   String get topicNewTopic => 'Neues Thema';
 
   @override
-  String get scheduleTitle => 'Stundenplaner';
+  String get scheduleTitle => 'Kursplaner';
 
   @override
   String get scheduleTabTimetable => 'Planvorschau';
@@ -1542,7 +1545,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get profileMore => 'Weitere Optionen';
 
   @override
-  String get profileContent => 'Inhalte verwalten';
+  String get profileContent => 'Meine Inhalte';
 
   @override
   String get profileTrash => 'Papierkorb';
@@ -1605,7 +1608,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get publishGalleryTooMany =>
-      'Bis zu 9 Bilder sind möglich. Entferne Bilder oder verwende den Artikeleditor.';
+      'Bis zu 9 Bilder sind möglich. Verwende weniger Bilder und versuche es erneut.';
 
   @override
   String get profileActivity => 'Aktivität';
@@ -1836,7 +1839,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die beiden Passwörter stimmen nicht überein';
 
   @override
-  String get schedulerWebTitle => 'Vollständigen Stundenplaner im Web nutzen';
+  String get schedulerWebTitle => 'Vollständigen Kursplaner im Web nutzen';
 
   @override
   String get schedulerWebAction => 'f.yourtj.de öffnen';
@@ -2592,13 +2595,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get campusToday => 'Heute';
 
   @override
-  String get campusTimetable => 'Mein Stundenplan';
+  String get campusTimetable => 'Schulstundenplan';
 
   @override
   String get campusAcademics => 'Studienleistungen';
 
   @override
-  String get campusMessages => 'Campus-Mitteilungen';
+  String get campusMessages => 'Hochschulmitteilungen';
 
   @override
   String get campusCalendars => 'Semesterkalender';
@@ -3232,9 +3235,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get notificationsUnreadEmptyDescription =>
       'Du hast alle Mitteilungen gelesen.';
-
-  @override
-  String get homeFeedOptions => 'Darstellung';
 
   @override
   String get homeAllCategories => 'Alle Kategorien';
@@ -4221,4 +4221,87 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get previewStatusLink => 'Vorschau-Status';
+
+  @override
+  String get searchFilterInCatalog => 'Im Kurskatalog filtern';
+
+  @override
+  String get profileEditAddCover => 'Titelbild hinzufügen';
+
+  @override
+  String get profileEditAddSocialLinks => 'Soziale Links hinzufügen';
+
+  @override
+  String get profileEditAddWebsite => 'Website hinzufügen';
+
+  @override
+  String get profileEditBasics => 'Grundinformationen';
+
+  @override
+  String get profileEditBioHint => 'Erzähle etwas über dich';
+
+  @override
+  String get profileEditChangeAvatar => 'Profilbild ändern';
+
+  @override
+  String get profileEditChangeCover => 'Titelbild ändern';
+
+  @override
+  String get profileEditDisplay => 'Darstellung';
+
+  @override
+  String get profileEditDone => 'Fertig';
+
+  @override
+  String get profileEditFromPhotos => 'Aus Fotos auswählen';
+
+  @override
+  String get profileEditLinks => 'Links';
+
+  @override
+  String get profileEditNicknameHint => 'Dein Anzeigename';
+
+  @override
+  String get profileEditSignatureHint => 'Kurze Signatur hinzufügen';
+
+  @override
+  String get profileEditSocialHint => 'Benutzername oder HTTPS-Link';
+
+  @override
+  String get profileEditTakePhoto => 'Foto aufnehmen';
+
+  @override
+  String get profileEditWebsiteUrl => 'Website-URL';
+
+  @override
+  String get profileLanguageHint =>
+      'Sprache deines öffentlichen Profils, unabhängig von der App-Sprache.';
+
+  @override
+  String profileEditBadgeSummary(String name, int count) {
+    return 'Getragen: $name · $count angezeigt';
+  }
+
+  @override
+  String get contentMineTitle => 'Meine Inhalte';
+
+  @override
+  String get settingsManageBadges => 'Abzeichen verwalten';
+
+  @override
+  String get campusSettings => 'Campus-Einstellungen';
+
+  @override
+  String get scheduleStatusHelp => 'Planstatus und Hilfe';
+
+  @override
+  String get courseAddToPlanner => 'Zum Kursplaner hinzufügen';
+
+  @override
+  String get coursePlannerSelectTerm =>
+      'Vor der Bestätigung dasselbe Semester und dein Fach wählen. Bestehende Pläne bleiben unverändert.';
+
+  @override
+  String get coursePlannerUnavailable =>
+      'Dieser Kurs ist im Semester nicht verfügbar. Wähle ein anderes Angebot in den Kursdetails.';
 }

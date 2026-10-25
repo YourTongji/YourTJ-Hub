@@ -54,7 +54,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get navPublish => '发布';
 
   @override
-  String get navMessages => '消息';
+  String get navMessages => '私信';
 
   @override
   String get navProfile => '我的';
@@ -530,7 +530,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileNotLoggedIn => '未登录';
 
   @override
-  String get messagesTitle => '消息';
+  String get messagesTitle => '私信';
 
   @override
   String get messagesEmpty => '还没有私信会话';
@@ -634,7 +634,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsTabProfile => '资料';
 
   @override
-  String get settingsTabAccount => '账户、安全与隐私';
+  String get settingsTabAccount => '账号与安全';
 
   @override
   String get settingsTabPrivacy => '隐私';
@@ -741,7 +741,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsOAuth => '外部账号关联';
 
   @override
-  String get settingsOAuthSub => 'GitHub 与 Google 登录关联';
+  String get settingsOAuthSub => 'GitHub、Google 与 Apple 登录关联';
 
   @override
   String get settingsOAuthManage => 'OAuth 绑定管理';
@@ -830,7 +830,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsLightCurrent => '当前:浅色';
 
   @override
-  String get settingsAbout => '关于';
+  String get settingsAbout => '关于社区';
 
   @override
   String get settingsAboutVersion => '版本 0.1.0 · 同济大学校园论坛';
@@ -1040,16 +1040,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get topicLaterReplies => '加载更新回复';
 
   @override
-  String get topicFeedModeList => '列表';
+  String get homeFeedSwitchToList => '切换为列表';
 
   @override
-  String get topicFeedModeCard => '卡片';
+  String get homeFeedSwitchToCard => '切换为卡片';
+
+  @override
+  String get profileStreamManage => '管理';
 
   @override
   String get topicNewTopic => '新建话题';
 
   @override
-  String get scheduleTitle => '排课器';
+  String get scheduleTitle => '选课排课';
 
   @override
   String get scheduleTabTimetable => '方案预览';
@@ -1495,7 +1498,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileMore => '更多功能';
 
   @override
-  String get profileContent => '内容管理';
+  String get profileContent => '我的内容';
 
   @override
   String get profileTrash => '回收站';
@@ -1552,7 +1555,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get adminDownloadFailed => '导出下载失败，请稍后重试。';
 
   @override
-  String get publishGalleryTooMany => '内容最多支持 9 张图片，请先减少图片或继续使用文章编辑器。';
+  String get publishGalleryTooMany => '最多支持 9 张图片，请减少图片后再试。';
 
   @override
   String get profileActivity => '动态';
@@ -1774,7 +1777,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authPasswordMismatch => '两次输入的密码不一致';
 
   @override
-  String get schedulerWebTitle => '完整版排课器，请到网页端体验';
+  String get schedulerWebTitle => '在网页端体验完整选课排课';
 
   @override
   String get schedulerWebAction => '前往 f.yourtj.de';
@@ -2470,13 +2473,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get campusToday => '今天';
 
   @override
-  String get campusTimetable => '我的课表';
+  String get campusTimetable => '学校课表';
 
   @override
   String get campusAcademics => '学业记录';
 
   @override
-  String get campusMessages => '校园消息';
+  String get campusMessages => '学校通知';
 
   @override
   String get campusCalendars => '校历';
@@ -3052,9 +3055,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get notificationsUnreadEmptyDescription => '所有通知都已查看。';
-
-  @override
-  String get homeFeedOptions => '显示方式';
 
   @override
   String get homeAllCategories => '全部分类';
@@ -3974,4 +3974,84 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get previewStatusLink => '预发状态';
+
+  @override
+  String get searchFilterInCatalog => '在课程目录中筛选';
+
+  @override
+  String get profileEditAddCover => '添加封面';
+
+  @override
+  String get profileEditAddSocialLinks => '添加社交链接';
+
+  @override
+  String get profileEditAddWebsite => '添加个人网站';
+
+  @override
+  String get profileEditBasics => '基本信息';
+
+  @override
+  String get profileEditBioHint => '介绍一下自己';
+
+  @override
+  String get profileEditChangeAvatar => '更换头像';
+
+  @override
+  String get profileEditChangeCover => '更换封面';
+
+  @override
+  String get profileEditDisplay => '展示';
+
+  @override
+  String get profileEditDone => '完成';
+
+  @override
+  String get profileEditFromPhotos => '从相册选择';
+
+  @override
+  String get profileEditLinks => '链接';
+
+  @override
+  String get profileEditNicknameHint => '填写昵称';
+
+  @override
+  String get profileEditSignatureHint => '添加一句签名';
+
+  @override
+  String get profileEditSocialHint => '用户名或 HTTPS 链接';
+
+  @override
+  String get profileEditTakePhoto => '拍照';
+
+  @override
+  String get profileEditWebsiteUrl => '网站地址';
+
+  @override
+  String get profileLanguageHint => '公开主页使用的语言，与 App 语言分开设置。';
+
+  @override
+  String profileEditBadgeSummary(String name, int count) {
+    return '佩戴：$name · 展示 $count 枚';
+  }
+
+  @override
+  String get contentMineTitle => '我的内容';
+
+  @override
+  String get settingsManageBadges => '管理徽章';
+
+  @override
+  String get campusSettings => '校园设置';
+
+  @override
+  String get scheduleStatusHelp => '方案状态与帮助';
+
+  @override
+  String get courseAddToPlanner => '添加到选课排课';
+
+  @override
+  String get coursePlannerSelectTerm => '请先选择相同学期和专业，再确认教学班；现有方案不会自动更改。';
+
+  @override
+  String get coursePlannerUnavailable => '这个学期的教学班不可用，请返回课程详情选择其他开课记录。';
 }

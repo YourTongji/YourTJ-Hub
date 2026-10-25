@@ -79,7 +79,7 @@ class _SiteInfoWorkspaceState extends State<_SiteInfoWorkspace> {
         color: wide && selected
             ? GfTheme.colorsOf(context).primary.withValues(alpha: .08)
             : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(GfRadius.md),
         clipBehavior: Clip.antiAlias,
         child: GfSettingRow(
           key: key,

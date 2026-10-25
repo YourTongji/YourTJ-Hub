@@ -82,7 +82,7 @@ class CampusChart extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: max <= 0 ? 0 : (p.value / max).clamp(0, 1),
                     minHeight: 8,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(GfRadius.xs),
                     color: colors.primary,
                     backgroundColor: colors.base200,
                   ),
