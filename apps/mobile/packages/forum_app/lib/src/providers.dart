@@ -319,6 +319,8 @@ class UserFollowState extends ChangeNotifier {
 
   final TopicRepository _repository;
   bool? following;
+  // 双向关注态（issue #1320）：服务端返回后同步给所有展示面。
+  bool? mutualFollowing;
   bool busy = false;
   int _mutation = 0;
   int _lastAcceptedRead = 0;
@@ -327,7 +329,7 @@ class UserFollowState extends ChangeNotifier {
 
   UserFollowRead beginRead() => nextUserFollowReadOrder();
 
-  void acceptServerValue(bool value, UserFollowRead read) {
+  void acceptServerValue(bool value, UserFollowRead read, {bool? mutual}) {
     if (_disposed ||
         busy ||
         read <= _lastMutationRead ||
@@ -336,21 +338,34 @@ class UserFollowState extends ChangeNotifier {
     }
     _lastAcceptedRead = read;
     following = value;
+    if (mutual != null) mutualFollowing = value && mutual;
     notifyListeners();
   }
 
   Future<void> toggle({required int userId, required bool fallback}) async {
     if (_disposed || busy) return;
     final previous = following ?? fallback;
+    final previousMutual = mutualFollowing ?? false;
     final mutation = ++_mutation;
     _lastMutationRead = nextUserFollowReadOrder();
     following = !previous;
+    mutualFollowing = false;
     busy = true;
     notifyListeners();
     try {
-      await _repository.followUser(userId: userId, isFollowing: previous);
+      final applied = await _repository.followUser(
+        userId: userId,
+        isFollowing: previous,
+      );
+      if (!_disposed && mutation == _mutation) {
+        following = applied.isFollowing;
+        mutualFollowing = applied.isFollowing && applied.isMutualFollowing;
+      }
     } catch (_) {
-      if (!_disposed && mutation == _mutation) following = previous;
+      if (!_disposed && mutation == _mutation) {
+        following = previous;
+        mutualFollowing = previousMutual;
+      }
       rethrow;
     } finally {
       if (!_disposed && mutation == _mutation) {

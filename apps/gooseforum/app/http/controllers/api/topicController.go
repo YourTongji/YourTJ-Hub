@@ -1495,6 +1495,19 @@ type FollowUserReq struct {
 	Action int    `json:"action" validate:"min=1,max=2"` // 1 关注，2 取消
 }
 
+// FollowUserResult 反映动作执行后的真实关注状态；幂等重复调用返回同一形状。
+type FollowUserResult struct {
+	IsFollowing       bool `json:"isFollowing"`
+	IsMutualFollowing bool `json:"isMutualFollowing"`
+}
+
+// followUserResult 从库中读取执行后的状态，保存失败时不会谎报已关注。
+func followUserResult(userID, targetID uint64) component.Response {
+	following := userFollow.IsFollowing(userID, targetID)
+	mutual := following && userFollow.MutualFollowingMap(userID, []uint64{targetID})[targetID]
+	return component.SuccessResponse(FollowUserResult{IsFollowing: following, IsMutualFollowing: mutual})
+}
+
 func FollowUser(req component.BetterRequest[FollowUserReq]) component.Response {
 	// 不能关注自己（issue #594）：在触碰关注关系、统计与通知前直接拒绝。
 	// 仅拦截 action=1（关注）；action=2（取消）保持幂等成功，便于存量自关注行自愈。
@@ -1518,7 +1531,7 @@ func FollowUser(req component.BetterRequest[FollowUserReq]) component.Response {
 	}
 
 	if userFollowEntity.Status == targetStatus {
-		return component.SuccessResponse(true)
+		return followUserResult(req.UserId, req.Params.Id)
 	}
 	userFollowEntity.Status = targetStatus
 	if userFollow.SaveOrCreateById(&userFollowEntity) > 0 {
@@ -1542,5 +1555,5 @@ func FollowUser(req component.BetterRequest[FollowUserReq]) component.Response {
 			userservice.InvalidateUserPublicProfileCache(req.Params.Id)
 		}
 	}
-	return component.SuccessResponse(true)
+	return followUserResult(req.UserId, req.Params.Id)
 }

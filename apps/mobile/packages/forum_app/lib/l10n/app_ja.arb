@@ -153,6 +153,7 @@
   "profileTitle": "プロフィール",
   "profileFollow": "フォロー",
   "profileFollowing": "フォロー中",
+  "profileMutualFollowing": "相互フォロー",
   "profileTopics": "トピック",
   "profilePosts": "投稿",
   "profileReplies": "返信",

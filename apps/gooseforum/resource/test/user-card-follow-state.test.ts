@@ -14,7 +14,7 @@ vi.mock('@/runtime/api', () => ({
 }))
 
 import UserCard from '../src/site/components/UserCard.vue'
-import { broadcastFollowChange, getKnownFollowState, resetFollowState } from '../src/runtime/follow-state'
+import { broadcastFollowChange, getKnownFollowState, getKnownMutualFollowState, resetFollowState } from '../src/runtime/follow-state'
 import type { UserCardPayload } from '@gooseforum/client'
 
 const t = (key: string) => i18n.global.t(key)
@@ -42,6 +42,7 @@ function makeCard(overrides: Partial<UserCardPayload> = {}): UserCardPayload {
     collectionCount: 0,
     isOnline: false,
     isFollowing: false,
+    isMutualFollowing: false,
     isSelf: false,
     badges: [],
     wornBadge: null,
@@ -64,7 +65,7 @@ function showCard(userId = 42) {
 
 function followButton(): HTMLButtonElement | null {
   const buttons = Array.from(document.body.querySelectorAll('button'))
-  return buttons.find((b) => [t('userCard.follow'), t('userCard.following')].includes(b.textContent?.trim() || '')) ?? null
+  return buttons.find((b) => [t('userCard.follow'), t('userCard.following'), t('userCard.mutualFollowing')].includes(b.textContent?.trim() || '')) ?? null
 }
 
 function followerStatValue(): string {
@@ -102,7 +103,7 @@ describe('UserCard 关注状态（issue #593）', () => {
   test('toggle 成功后回源刷新：按钮态以服务端为准，粉丝数更新并写回缓存', async () => {
     getUserCardMock.mockResolvedValueOnce(makeCard())
     getUserCardMock.mockResolvedValueOnce(makeCard({ isFollowing: true, followerCount: 11 }))
-    followUserMock.mockResolvedValueOnce(true)
+    followUserMock.mockResolvedValueOnce({ isFollowing: true, isMutualFollowing: false })
     await mountCard()
     showCard()
     await flushAll()
@@ -159,6 +160,18 @@ describe('UserCard 关注状态（issue #593）', () => {
     expect(getUserCardMock).toHaveBeenCalledTimes(1)
   })
 
+  test('goose:follow-changed 广播同时纠正打开中的互关位（issue #1320）', async () => {
+    getUserCardMock.mockResolvedValueOnce(makeCard({ isFollowing: true, isMutualFollowing: false }))
+    await mountCard()
+    showCard()
+    await flushAll()
+    expect(followButton()?.textContent?.trim()).toBe(t('userCard.following'))
+
+    broadcastFollowChange(42, true, true)
+    await flushAll()
+    expect(followButton()?.textContent?.trim()).toBe(t('userCard.mutualFollowing'))
+  })
+
   test('缓存命中后超过 TTL 触发 stale-while-revalidate，旧态被服务端纠正', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     getUserCardMock.mockResolvedValueOnce(makeCard({ isFollowing: false, followerCount: 10 }))
@@ -181,7 +194,7 @@ describe('UserCard 关注状态（issue #593）', () => {
 
   test('toggle 成功但回源失败：不算关注失败，保持已关注（PR #600 review 1）', async () => {
     getUserCardMock.mockResolvedValueOnce(makeCard({ isFollowing: false }))
-    followUserMock.mockResolvedValueOnce(true)
+    followUserMock.mockResolvedValueOnce({ isFollowing: true, isMutualFollowing: false })
     getUserCardMock.mockRejectedValueOnce(new Error('network down'))
     await mountCard()
     showCard()
@@ -222,5 +235,98 @@ describe('UserCard 关注状态（issue #593）', () => {
 
     expect(getKnownFollowState(42)).toBe(true)
     expect(followButton()?.textContent?.trim()).toBe(t('userCard.following'))
+  })
+
+  test('互关时卡片按钮显示已互关并切换图标（issue #1320）', async () => {
+    getUserCardMock.mockResolvedValueOnce(makeCard({ isFollowing: true, isMutualFollowing: true }))
+    await mountCard()
+    showCard()
+    await flushAll()
+
+    const button = followButton()
+    expect(button?.textContent?.trim()).toBe(t('userCard.mutualFollowing'))
+    expect(button?.querySelector('svg')?.getAttribute('class')).toContain('user-round-check')
+    expect(getKnownMutualFollowState(42)).toBe(true)
+  })
+
+  test('关注响应带回互关标志时立即切换文案，不等回源', async () => {
+    getUserCardMock.mockResolvedValueOnce(makeCard({ isFollowing: false }))
+    getUserCardMock.mockRejectedValueOnce(new Error('network down'))
+    followUserMock.mockResolvedValueOnce({ isFollowing: true, isMutualFollowing: true })
+    await mountCard()
+    showCard()
+    await flushAll()
+
+    followButton()!.click()
+    await flushAll()
+
+    expect(followButton()?.textContent?.trim()).toBe(t('userCard.mutualFollowing'))
+    expect(getKnownFollowState(42)).toBe(true)
+    expect(getKnownMutualFollowState(42)).toBe(true)
+  })
+
+  test('关注响应互关位为 false 时只显示已关注', async () => {
+    getUserCardMock.mockResolvedValueOnce(makeCard({ isFollowing: false }))
+    getUserCardMock.mockRejectedValueOnce(new Error('network down'))
+    followUserMock.mockResolvedValueOnce({ isFollowing: true, isMutualFollowing: false })
+    await mountCard()
+    showCard()
+    await flushAll()
+
+    followButton()!.click()
+    await flushAll()
+
+    expect(followButton()?.textContent?.trim()).toBe(t('userCard.following'))
+    expect(getKnownMutualFollowState(42)).toBe(false)
+  })
+
+  test('关注飞行期间切到另一个用户：响应只落到原用户，不覆盖新卡按钮态', async () => {
+    getUserCardMock.mockResolvedValueOnce(makeCard({ isFollowing: false }))
+    let resolveFollow!: (v: { isFollowing: boolean; isMutualFollowing: boolean }) => void
+    followUserMock.mockImplementationOnce(() => new Promise((r) => { resolveFollow = r }))
+    await mountCard()
+    showCard()
+    await flushAll()
+
+    followButton()!.click()
+    await flushAll()
+
+    // 飞行期间卡片被关闭并打开另一个用户（show() 把共享 ref 重置为新用户的态）
+    getUserCardMock.mockResolvedValueOnce(makeCard({ userId: 43, username: 'bob', nickname: 'Bob' }))
+    getUserCardMock.mockResolvedValueOnce(makeCard({ isFollowing: true, isMutualFollowing: true }))
+    window.dispatchEvent(new CustomEvent('goose:page'))
+    showCard(43)
+    await flushAll()
+
+    resolveFollow({ isFollowing: true, isMutualFollowing: true })
+    await flushAll()
+
+    // 当前展示的是 43，共享 ref 不得被 42 的响应写成「已互关」
+    expect(followButton()?.textContent?.trim()).toBe(t('userCard.follow'))
+    expect(getKnownFollowState(42)).toBe(true)
+  })
+
+  test('关注飞行期间切到另一个用户后 A 失败：错误不落到新卡的卡片', async () => {
+    getUserCardMock.mockResolvedValueOnce(makeCard({ isFollowing: false }))
+    let rejectFollow!: (e: Error) => void
+    followUserMock.mockImplementationOnce(() => new Promise((_, reject) => { rejectFollow = reject }))
+    await mountCard()
+    showCard()
+    await flushAll()
+
+    followButton()!.click()
+    await flushAll()
+
+    getUserCardMock.mockResolvedValueOnce(makeCard({ userId: 43, username: 'bob', nickname: 'Bob' }))
+    window.dispatchEvent(new CustomEvent('goose:page'))
+    showCard(43)
+    await flushAll()
+
+    rejectFollow(new Error(t('api.followFailed')))
+    await flushAll()
+
+    // B 的卡片不可出现 A 的关注失败提示
+    expect(document.body.querySelector('[role="alert"]')).toBeNull()
+    expect(document.body.textContent).not.toContain(t('api.followFailed'))
   })
 })

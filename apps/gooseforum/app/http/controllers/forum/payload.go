@@ -563,7 +563,9 @@ type UserConnectionPayload struct {
 	Bio         string                     `json:"bio"`
 	URL         string                     `json:"url"`
 	IsFollowing bool                       `json:"isFollowing"`
-	IsSelf      bool                       `json:"isSelf"`
+	// IsMutualFollowing 为 viewer 视角：双向关注（viewer 关注该用户且对方也关注 viewer）。
+	IsMutualFollowing bool `json:"isMutualFollowing"`
+	IsSelf            bool `json:"isSelf"`
 }
 
 type CategoryPageProps struct {
@@ -2096,7 +2098,9 @@ const (
 
 func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section string, activityTab string) UserProfileProps {
 	currentUserID := component.LoginUserId(c)
-	isFollowing := userFollow.IsFollowing(currentUserID, user.Id)
+	// 本人卡片不算「已关注」：存量自关注行（#594 carve-out）也能自愈，
+	// 与 UserCard 契约「own card 恒 false」一致。
+	isFollowing := currentUserID > 0 && currentUserID != user.Id && userFollow.IsFollowing(currentUserID, user.Id)
 	userCard, ok := userservice.GetUserCard(user.Id)
 	if !ok {
 		userCard = &vo.UserCard{}
@@ -2112,6 +2116,8 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 	// Go nil 切片会序列化为 JSON null，移动端非空镜像解析失败（2026-09-06 生产回归）。
 	userCard.Badges = []badgeservice.UserBadge{}
 	userCard.IsFollowing = isFollowing
+	// 互关以「已关注」为前提，直接短路，不依赖 MutualFollowingMap 的过滤。
+	userCard.IsMutualFollowing = isFollowing && userFollow.MutualFollowingMap(currentUserID, []uint64{user.Id})[user.Id]
 	userCard.IsSelf = currentUserID == user.Id
 	// Resolve visibility before any section query so hidden sections never
 	// load rows, counts or cursors (issue #1124).
@@ -2687,14 +2693,18 @@ func buildPostAnchorURL(topicID, postNo, postID uint64) string {
 func buildUserActivities(activities []*userActivities.Entity, viewerID uint64) []UserActivityPayload {
 	res := make([]UserActivityPayload, 0, len(activities))
 	replyByID := userActivityReplyMap(activities)
+	followNames := activityFollowNames(activities)
 	for _, activity := range activities {
 		if activity == nil {
 			continue
 		}
 		contentPreview := activity.ContentPreview
 		switch userActivities.ActionType(activity.Action) {
-		case userActivities.ActionSignUp, userActivities.ActionFollow:
+		case userActivities.ActionSignUp:
 			contentPreview = ""
+		case userActivities.ActionFollow:
+			// 预览取被关注者展示名，不信任写入时的占位文本（issue #1292）。
+			contentPreview = followNames[activity.SubjectId]
 		}
 		res = append(res, UserActivityPayload{
 			ID:             activity.Id,
@@ -2765,6 +2775,38 @@ func fillActivityInteractions(rows []UserActivityPayload, replies map[uint64]*po
 		row.Bookmarked = &bookmarked
 		row.LikeCount = &count
 	}
+}
+
+// activityFollowNames 批量解析关注动态的被关注者展示名：nickname 去空白后非空
+// 则用 nickname，否则 username；用户不存在（或已注销）时缺省，预览保持空字符串。
+func activityFollowNames(activities []*userActivities.Entity) map[uint64]string {
+	ids := make([]uint64, 0)
+	seen := make(map[uint64]struct{})
+	for _, activity := range activities {
+		if activity == nil ||
+			userActivities.ActionType(activity.Action) != userActivities.ActionFollow ||
+			activity.SubjectType != userActivities.SubjectUser ||
+			activity.SubjectId == 0 {
+			continue
+		}
+		if _, ok := seen[activity.SubjectId]; ok {
+			continue
+		}
+		seen[activity.SubjectId] = struct{}{}
+		ids = append(ids, activity.SubjectId)
+	}
+	names := make(map[uint64]string, len(ids))
+	for id, user := range users.GetMapByIds(ids) {
+		if user == nil {
+			continue
+		}
+		name := strings.TrimSpace(user.Nickname)
+		if name == "" {
+			name = user.Username
+		}
+		names[id] = name
+	}
+	return names
 }
 
 func userActivityReplyMap(activities []*userActivities.Entity) map[uint64]*posts.Entity {
@@ -2851,21 +2893,27 @@ func buildUserConnectionsForViewer(list []*users.EntityComplete, currentUserID u
 		}
 	}
 	decorations := decorationservice.EffectiveBatch(context.Background(), ids)
+	// 一次批量查询填充互关态，避免逐行查库。
+	mutual := userFollow.MutualFollowingMap(currentUserID, ids)
 	res := make([]UserConnectionPayload, 0, len(list))
 	for _, user := range list {
 		if user == nil || user.Id == 0 {
 			continue
 		}
+		isSelf := currentUserID > 0 && currentUserID == user.Id
+		// 本人条目不可关注自己：存量自关注行（status=1）也不能得出「与自己互关」。
+		isFollowing := !isSelf && userFollow.IsFollowing(currentUserID, user.Id)
 		res = append(res, UserConnectionPayload{
-			Decoration:  decorations[user.Id],
-			ID:          user.Id,
-			Username:    user.Username,
-			Nickname:    user.Nickname,
-			AvatarURL:   user.GetWebAvatarUrl(),
-			Bio:         user.Bio,
-			URL:         "/u/" + strconv.FormatUint(user.Id, 10),
-			IsFollowing: userFollow.IsFollowing(currentUserID, user.Id),
-			IsSelf:      currentUserID > 0 && currentUserID == user.Id,
+			Decoration:        decorations[user.Id],
+			ID:                user.Id,
+			Username:          user.Username,
+			Nickname:          user.Nickname,
+			AvatarURL:         user.GetWebAvatarUrl(),
+			Bio:               user.Bio,
+			URL:               "/u/" + strconv.FormatUint(user.Id, 10),
+			IsFollowing:       isFollowing,
+			IsMutualFollowing: isFollowing && mutual[user.Id],
+			IsSelf:            isSelf,
 		})
 	}
 	return res
