@@ -500,6 +500,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get profileFollowing => 'Folgt';
 
   @override
+  String get profileMutualFollowing => 'Gegenseitig';
+
+  @override
   String get profileTopics => 'Themen';
 
   @override

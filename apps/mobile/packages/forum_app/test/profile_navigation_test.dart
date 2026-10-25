@@ -114,9 +114,14 @@ class _FollowActions extends TopicRepository {
   final pending = Completer<bool>();
   int calls = 0;
   @override
-  Future<bool> followUser({required int userId, required bool isFollowing}) {
+  Future<({bool isFollowing, bool isMutualFollowing})> followUser({
+    required int userId,
+    required bool isFollowing,
+  }) async {
     calls++;
-    return pending.future;
+    await pending.future;
+    // 入参是操作前状态：假仓库执行后翻转，与服务端返回的 applied 状态一致。
+    return (isFollowing: !isFollowing, isMutualFollowing: false);
   }
 }
 
@@ -231,6 +236,7 @@ Future<ProviderContainer> _pump(
   double scale = 1,
   bool disableAnimations = false,
   CurrentUser? currentUser,
+  Locale locale = const Locale('zh'),
 }) async {
   final container = ProviderContainer(
     overrides: [
@@ -252,13 +258,13 @@ Future<ProviderContainer> _pump(
           ),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          locale: const Locale('zh'),
+          locale: locale,
         )
       : MaterialApp.router(
           routerConfig: router,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          locale: const Locale('zh'),
+          locale: locale,
         );
   await tester.pumpWidget(
     UncontrolledProviderScope(container: container, child: app),
@@ -728,9 +734,13 @@ void main() {
     },
   );
 
-  for (final following in [false, true]) {
+  for (final (following, mutual, locale) in [
+    (false, false, const Locale('zh')),
+    (true, false, const Locale('zh')),
+    (true, true, const Locale('de')),
+  ]) {
     testWidgets(
-      'peer profile keeps wrapped actions above identity at 320px and 2x text (following=$following)',
+      'peer profile keeps wrapped actions above identity at 320px and 2x text (following=$following, mutual=$mutual, locale=$locale)',
       (tester) async {
         tester.view.physicalSize = const Size(320, 1000);
         tester.view.devicePixelRatio = 1;
@@ -741,12 +751,15 @@ void main() {
             props.addAll(
               peerProfilePayloadJson()['props'] as Map<String, dynamic>,
             );
-            (props['user'] as Map<String, dynamic>)['isFollowing'] = following;
+            (props['user'] as Map<String, dynamic>)
+              ..['isFollowing'] = following
+              ..['isMutualFollowing'] = mutual;
           };
         await _pump(
           tester,
           repo,
           scale: 2,
+          locale: locale,
           currentUser: const CurrentUser(id: 1, username: 'alice'),
           home: Theme(
             data: gfThemeData(Brightness.light),

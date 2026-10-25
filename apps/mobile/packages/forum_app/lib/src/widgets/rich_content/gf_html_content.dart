@@ -212,7 +212,11 @@ CustomStylesBuilder gfHtmlContentStyles({
     case 'li':
       return <String, String>{'margin-bottom': '${profile.listSpacing}px'};
     case 'a':
-      return <String, String>{'color': gfCssColor(colors.primary)};
+      // 与 Markdown 路径一致：主题色、无下划线（渲染器默认给 a[href] 加下划线）。
+      return <String, String>{
+        'color': gfCssColor(colors.primary),
+        'text-decoration': 'none',
+      };
     case 'hr':
       return <String, String>{
         'border': '0',

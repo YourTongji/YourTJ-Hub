@@ -978,6 +978,12 @@ abstract class AppLocalizations {
   /// **'Following'**
   String get profileFollowing;
 
+  /// No description provided for @profileMutualFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'Mutual'**
+  String get profileMutualFollowing;
+
   /// No description provided for @profileTopics.
   ///
   /// In en, this message translates to:

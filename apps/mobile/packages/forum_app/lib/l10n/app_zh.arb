@@ -244,6 +244,7 @@
   "profileTitle": "个人主页",
   "profileFollow": "关注",
   "profileFollowing": "已关注",
+  "profileMutualFollowing": "已互关",
   "profileTopics": "主题",
   "profilePosts": "内容",
   "profileReplies": "回复",

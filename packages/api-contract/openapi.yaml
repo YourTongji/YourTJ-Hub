@@ -1075,6 +1075,12 @@ components:
       $ref: ./components/schemas.yaml#/PostRevisionsResponse
     FollowUserRequest:
       $ref: ./components/schemas.yaml#/FollowUserRequest
+    FollowUserResult:
+      $ref: ./components/schemas.yaml#/FollowUserResult
+    FollowUserSuccess:
+      $ref: ./components/schemas.yaml#/FollowUserSuccess
+    FollowUserResponse:
+      $ref: ./components/schemas.yaml#/FollowUserResponse
     CreateReportRequest:
       $ref: ./components/schemas.yaml#/CreateReportRequest
     CaptchaResult:

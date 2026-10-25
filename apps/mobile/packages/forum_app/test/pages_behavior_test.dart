@@ -740,13 +740,15 @@ class RecordingFollowTopicRepository extends TopicRepository {
   final List<bool> currentStates = <bool>[];
 
   @override
-  Future<bool> followUser({
+  Future<({bool isFollowing, bool isMutualFollowing})> followUser({
     required int userId,
     required bool isFollowing,
   }) async {
     userIds.add(userId);
     currentStates.add(isFollowing);
-    return pending == null ? true : await pending!.future;
+    if (pending != null) await pending!.future;
+    // 入参是操作前状态：假仓库执行后翻转，与服务端返回的 applied 状态一致。
+    return (isFollowing: !isFollowing, isMutualFollowing: false);
   }
 }
 
@@ -894,6 +896,16 @@ Map<String, dynamic> followableProfilePayloadJson() {
     ..['canFollow'] = true
     ..['canMessage'] = false
     ..['settingsUrl'] = '';
+  return json;
+}
+
+Map<String, dynamic> mutualFollowProfilePayloadJson() {
+  final Map<String, dynamic> json = followableProfilePayloadJson();
+  final Map<String, dynamic> props = json['props'] as Map<String, dynamic>;
+  final Map<String, dynamic> user = props['user'] as Map<String, dynamic>;
+  user
+    ..['isFollowing'] = true
+    ..['isMutualFollowing'] = true;
   return json;
 }
 
@@ -6030,6 +6042,34 @@ void main() {
       await tester.tap(find.text('Bob'));
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/u/2');
+    });
+
+    testWidgets('互关时关注按钮显示已互关并可取消 (issue #1320)', (tester) async {
+      final GfApiClient client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final RecordingFollowTopicRepository topicRepo =
+          RecordingFollowTopicRepository(client);
+      final ProviderContainer container = await makeContainer(
+        pageRepo: RedesignPageRepository(
+          client,
+          profilePayload: mutualFollowProfilePayloadJson(),
+        ),
+        topicRepo: topicRepo,
+      );
+
+      await tester.pumpWidget(app(container, const ProfilePage(userId: 2)));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(GfFollowButton, '已互关'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(GfFollowButton, '已互关'));
+      await tester.pumpAndSettle();
+
+      expect(topicRepo.currentStates, <bool>[true]);
+      expect(find.widgetWithText(GfFollowButton, '关注'), findsOneWidget);
     });
 
     testWidgets('关注按钮按操作前状态映射关注与取消关注', (tester) async {

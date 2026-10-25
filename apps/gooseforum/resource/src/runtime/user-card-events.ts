@@ -9,6 +9,8 @@ export interface UserCardTarget {
   avatarUrl: string
   wornBadge?: UserBadgePayload | null
   isFollowing?: boolean
+  // 调用点已知的双向关注状态（issue #1320），缺失时以回源卡片为准。
+  isMutualFollowing?: boolean
 }
 
 export interface UserCardShowDetail {

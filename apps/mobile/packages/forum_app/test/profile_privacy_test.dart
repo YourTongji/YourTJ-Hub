@@ -53,12 +53,12 @@ class _Follows extends TopicRepository {
   final calls = <bool>[];
 
   @override
-  Future<bool> followUser({
+  Future<({bool isFollowing, bool isMutualFollowing})> followUser({
     required int userId,
     required bool isFollowing,
   }) async {
     calls.add(isFollowing);
-    return true;
+    return (isFollowing: !isFollowing, isMutualFollowing: false);
   }
 }
 

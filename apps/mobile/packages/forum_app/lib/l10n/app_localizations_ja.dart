@@ -481,6 +481,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get profileFollowing => 'フォロー中';
 
   @override
+  String get profileMutualFollowing => '相互フォロー';
+
+  @override
   String get profileTopics => 'トピック';
 
   @override

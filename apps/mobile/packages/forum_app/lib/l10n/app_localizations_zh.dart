@@ -479,6 +479,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileFollowing => '已关注';
 
   @override
+  String get profileMutualFollowing => '已互关';
+
+  @override
   String get profileTopics => '主题';
 
   @override

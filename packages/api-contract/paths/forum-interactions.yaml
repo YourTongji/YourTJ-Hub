@@ -4,8 +4,9 @@ followUser:
     summary: Follow or unfollow a user
     operationId: followUser
     description: |
-      Set-semantics and idempotent: repeating the same transition returns true without
-      double counting. JSON binding is lenient: a malformed body binds to zero values
+      Set-semantics and idempotent: repeating the same transition returns the same result object
+      (`{isFollowing, isMutualFollowing}`) without double counting.
+      JSON binding is lenient: a malformed body binds to zero values
       and the request then fails as `user.notFound` (HTTP 200) rather than a 400.
       Following yourself (id equals the authenticated user with action 1) is rejected
       before any follow row, counter, or notification is touched (issue #594); the
@@ -23,14 +24,19 @@ followUser:
             $ref: ../components/schemas.yaml#/FollowUserRequest
     responses:
       '200':
-        description: Follow state applied, or a legacy business failure envelope.
+        description: >-
+          Follow state after the action as `{isFollowing, isMutualFollowing}` (both booleans;
+          `isMutualFollowing` is `false` for one-way follows and after unfollow), or a legacy
+          business failure envelope.
         content:
           application/json:
             schema:
-              $ref: ../components/schemas.yaml#/InteractionResponse
+              $ref: ../components/schemas.yaml#/FollowUserResponse
             examples:
               success:
-                externalValue: ../fixtures/result-true.json
+                externalValue: ../fixtures/follow-user-success.json
+              unfollowed:
+                externalValue: ../fixtures/follow-user-unfollowed.json
               userNotFound:
                 externalValue: ../fixtures/admin-save-user-badges-user-not-found.json
               selfFollow:

@@ -9,6 +9,11 @@ const twemojiPublicPath = fileURLToPath(
   new URL('../../../mobile/packages/ui_kit/assets/twemoji-public', import.meta.url),
 )
 const repositoryRoot = resolve(resourceRoot, '../../..')
+// Vite 以 /@fs/ 前缀判定文件系统请求：Windows 下 resolve() 得到 C:\repo\... 无前导斜杠，缺分隔符会拼成 /assets/@fsC:/... 而 404（issue #1370）
+const fsUrl = (origin: string, filePath: string) => {
+  const posix = filePath.replace(/\\/g, '/')
+  return `${origin}/assets/@fs${posix.startsWith('/') ? '' : '/'}${posix}`
+}
 
 /**
  * 页面级 CSP（app/http/middleware/securityHeaders.go buildPageCSP）为 script-src 'self'：
@@ -42,6 +47,13 @@ describe('vite 配置约束', () => {
     expect(server?.fs?.allow).not.toContain(repositoryRoot)
   })
 
+  test('@fs 请求路径补足前导斜杠，兼容 Windows 盘符与 POSIX 绝对路径', () => {
+    expect(fsUrl('http://h', 'C:\\repo\\src\\site\\main.ts')).toBe(
+      'http://h/assets/@fs/C:/repo/src/site/main.ts',
+    )
+    expect(fsUrl('http://h', '/repo/src/site/main.ts')).toBe('http://h/assets/@fs/repo/src/site/main.ts')
+  })
+
   test('开发服务器提供前端与 Twemoji 资源并拒绝仓库外部文件', async () => {
     const vite = await createServer({
       ...config,
@@ -66,12 +78,12 @@ describe('vite 配置约束', () => {
       const origin = `http://127.0.0.1:${address.port}`
 
       const appModulePath = resolve(resourceRoot, 'src/site/main.ts')
-      const appModule = await fetch(`${origin}/assets/@fs${appModulePath}?raw`)
+      const appModule = await fetch(`${fsUrl(origin, appModulePath)}?raw`)
       expect(appModule.status).toBe(200)
       expect(await appModule.text()).toContain('createApp')
 
       const sharedClientPath = resolve(resourceRoot, 'packages/client/src/index.ts')
-      const sharedClient = await fetch(`${origin}/assets/@fs${sharedClientPath}?raw`)
+      const sharedClient = await fetch(`${fsUrl(origin, sharedClientPath)}?raw`)
       expect(sharedClient.status).toBe(200)
 
       const twemoji = await fetch(`${origin}/assets/twemoji/72x72/1f600.png`)
@@ -82,7 +94,7 @@ describe('vite 配置约束', () => {
       expect(excludedFlag.status).toBe(404)
 
       const privateFile = resolve(repositoryRoot, 'docs/README.md')
-      const denied = await fetch(`${origin}/assets/@fs${privateFile}`)
+      const denied = await fetch(fsUrl(origin, privateFile))
       expect(denied.status).toBe(403)
     } finally {
       await vite.close()
