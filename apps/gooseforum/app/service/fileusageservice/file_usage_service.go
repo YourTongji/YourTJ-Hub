@@ -7,6 +7,7 @@ import (
 	"path"
 	"strings"
 
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
@@ -40,11 +41,11 @@ const MaxGalleryImagesPerTopicWrite = 9
 const MaxImageURLLength = 2048
 
 // GalleryImageURLs returns the in-site gallery candidates among urls: trimmed,
-// within MaxImageURLLength, and resolvable to a file name (see fileNameFromURL),
+// within MaxImageURLLength, and resolvable to a file name (see FileNameFromURL),
 // deduplicated by that name. Existence, readiness and ownership are not checked
 // here (FilterOwnedImageURLs does that), so MaxGalleryImagesPerTopicWrite counts
-// candidates — a coarse pre-filter costing no DB lookup per unbounded input URL.
-// URLs whose path carries no /file/img/ name (e.g. external image hosts)
+// candidates — a coarse pre-filter using cached storage settings, without file lookups.
+// Accepts /file/img/ and the configured publicUrlPrefix; unrelated image hosts
 // neither count nor persist.
 func GalleryImageURLs(urls []string) []string {
 	kept := make([]string, 0, len(urls))
@@ -54,7 +55,7 @@ func GalleryImageURLs(urls []string) []string {
 		if value == "" || len(value) > MaxImageURLLength {
 			continue
 		}
-		name := fileNameFromURL(value)
+		name := FileNameFromURL(value)
 		if name == "" || seen[name] {
 			continue
 		}
@@ -73,7 +74,7 @@ func FilterOwnedImageURLs(userID uint64, urls []string) []string {
 	candidates := GalleryImageURLs(urls)
 	kept := make([]string, 0, len(candidates))
 	for _, value := range candidates {
-		name := fileNameFromURL(value)
+		name := FileNameFromURL(value)
 		// file_usages.file_name is varchar(512); longer names cannot be referenced.
 		if len(name) > 512 {
 			continue
@@ -106,6 +107,36 @@ func RegisterPostInlineImagesOwned(postID uint64, userID uint64, content string,
 	replace(fileUsage.TargetPost, postID, []string{fileUsage.UsageInlineImage}, userID, ownedUsages(userID, markdown2html.ExtractImageURLs(content)), pending)
 }
 
+// ResolveOwnedInlineImages runs before the content transaction: URL resolution
+// may read storage settings. Query failures and reclaimed owned uploads reject
+// the write instead of silently dropping its attachment references.
+func ResolveOwnedInlineImages(userID uint64, content string, gallery []string) ([]Usage, error) {
+	urls := append(markdown2html.ExtractImageURLs(content), gallery...)
+	var usages []Usage
+	for _, value := range GalleryImageURLs(urls) {
+		name := FileNameFromURL(value)
+		if len(name) > 512 {
+			continue
+		}
+		owned, err := ownedReadyFile(userID, name)
+		if err != nil {
+			return nil, err
+		}
+		if owned {
+			usages = append(usages, Usage{FileName: name, UsageType: fileUsage.UsageInlineImage})
+		}
+	}
+	return usages, nil
+}
+
+func RegisterTopicInlineImagesTx(tx *gorm.DB, topicID, userID uint64, usages []Usage, pending bool) error {
+	return replaceTx(tx, fileUsage.TargetTopic, topicID, []string{fileUsage.UsageInlineImage}, userID, usages, pending)
+}
+
+func RegisterPostInlineImagesTx(tx *gorm.DB, postID, userID uint64, usages []Usage, pending bool) error {
+	return replaceTx(tx, fileUsage.TargetPost, postID, []string{fileUsage.UsageInlineImage}, userID, usages, pending)
+}
+
 // ownedUsages converts owned, ready image URLs into inline_image usage rows,
 // deduplicating by resolved file name.
 func ownedUsages(userID uint64, urls []string) []Usage {
@@ -113,7 +144,7 @@ func ownedUsages(userID uint64, urls []string) []Usage {
 	usages := make([]Usage, 0, len(kept))
 	seen := make(map[string]bool, len(kept))
 	for _, value := range kept {
-		name := fileNameFromURL(value)
+		name := FileNameFromURL(value)
 		if name == "" || seen[name] {
 			continue
 		}
@@ -125,6 +156,89 @@ func ownedUsages(userID uint64, urls []string) []Usage {
 
 func ReplaceAvatar(userId uint64, fileNames []string) {
 	replace(fileUsage.TargetUser, userId, []string{fileUsage.UsageAvatar}, userId, namesToUsages(fileNames, fileUsage.UsageAvatar), false)
+}
+
+// ReplaceAvatarTx atomically replaces avatar references with their owning user update.
+// fileNames must already be resolved before opening the content transaction.
+func ReplaceAvatarTx(tx *gorm.DB, userID uint64, fileNames []string) error {
+	return replaceTx(tx, fileUsage.TargetUser, userID, []string{fileUsage.UsageAvatar}, userID, namesToUsages(fileNames, fileUsage.UsageAvatar), false)
+}
+
+// CoverRef 是封面 URL 解析后的结果：对象名 + 归属判定。解析必须在事务外完成，事务里
+// 只允许通过 tx 读写 file_usages/users。
+type CoverRef struct {
+	Name  string
+	Owned bool
+}
+
+// ResolveCover 解析封面 URL 并判定归属（issue #1365）。它读取存储配置缓存与文件库，必须
+// 在任何事务之外调用：这些读会借第二条连接，在事务内执行会与持连接的外层事务互锁（SQLite
+// 单连接测试直接死锁，生产是连接池/锁序风险）。查询失败返回错误，不能把「读不到归属」
+// 当成「没有归属」——那会静默吊销封面引用。
+func ResolveCover(userId uint64, coverURL string, ownerIDs ...uint64) (CoverRef, error) {
+	name := FileNameFromURL(coverURL)
+	if name == "" || len(name) > 512 {
+		return CoverRef{}, nil
+	}
+	owned, err := coveredByOwner(userId, ownerIDs, name)
+	if err != nil {
+		return CoverRef{}, err
+	}
+	return CoverRef{Name: name, Owned: owned}, nil
+}
+
+// ReplaceCoverTx 用 ResolveCover 的结果替换封面的 ACTIVE 引用，必须与写入
+// users.profile_cover_url 同一事务（否则 URL 可能落库而引用没写成）。空引用清空旧行
+// （换下的旧封面随即可回收）；封面未变化时保留现有引用、不做归属校验（代管管理员 A
+// 上传的封面，B 再保存其他字段时不能被吊销）。
+func ReplaceCoverTx(tx *gorm.DB, userId uint64, ref CoverRef) error {
+	if ref.Name == "" {
+		return replaceTx(tx, fileUsage.TargetUser, userId, []string{fileUsage.UsageCover}, userId, nil, false)
+	}
+	existing, err := fileUsage.ListTargetUsagesTx(tx, fileUsage.TargetUser, userId, fileUsage.UsageCover)
+	if err != nil {
+		return err
+	}
+	if len(existing) == 1 && existing[0].FileName == ref.Name && existing[0].Status == fileUsage.UsageStatusActive {
+		return nil
+	}
+	var usages []Usage
+	if ref.Owned {
+		usages = []Usage{{FileName: ref.Name, UsageType: fileUsage.UsageCover}}
+	}
+	return replaceTx(tx, fileUsage.TargetUser, userId, []string{fileUsage.UsageCover}, userId, usages, false)
+}
+
+// coveredByOwner 校验封面文件属于目标用户本人或代管操作者。查询失败必须返回错误：
+// 读不到归属就把引用当成不存在，会让封面被静默吊销。
+func coveredByOwner(userId uint64, ownerIDs []uint64, name string) (bool, error) {
+	owned, err := ownedReadyFile(userId, name)
+	if err != nil || owned {
+		return owned, err
+	}
+	for _, ownerID := range ownerIDs {
+		if ownerID == 0 || ownerID == userId {
+			continue
+		}
+		if owned, err := ownedReadyFile(ownerID, name); err != nil || owned {
+			return owned, err
+		}
+	}
+	return false, nil
+}
+
+// ownedReadyFile 校验对象名对应本人上传的 ready 文件：只有这样的文件才能成为内容引用，
+// 否则可以借引用固定、或让回收链动到别人的文件（口径同 FilterOwnedImageURLs）。只读元数据，
+// 不拉 content BLOB。
+func ownedReadyFile(userID uint64, name string) (bool, error) {
+	if err := fileUsage.CheckOwnedUploadAvailable(userID, name); err != nil {
+		return false, err
+	}
+	file, err := filedata.GetFileMetadataByName(name)
+	if err != nil || file == nil {
+		return false, err
+	}
+	return file.StorageStatus == filedata.StorageStatusReady && file.UserId == userID, nil
 }
 
 func AddAdminUpload(userId uint64, fileName string) {
@@ -195,7 +309,18 @@ func namesToUsages(values []string, usageType string) []Usage {
 	return usages
 }
 
+// replace 在独立事务里替换引用；错误只记日志（内容写入侧不因附件登记失败而失败）。
 func replace(targetType string, targetId uint64, usageTypes []string, userId uint64, usages []Usage, pending bool) {
+	err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		return replaceTx(tx, targetType, targetId, usageTypes, userId, usages, pending)
+	})
+	if err != nil {
+		slog.Error("replace file usages failed", "targetType", targetType, "targetId", targetId, "err", err)
+	}
+}
+
+// replaceTx 与 replace 相同，但在调用方事务里执行（失败随事务回滚）。
+func replaceTx(tx *gorm.DB, targetType string, targetId uint64, usageTypes []string, userId uint64, usages []Usage, pending bool) error {
 	status := fileUsage.UsageStatusActive
 	if pending {
 		status = fileUsage.UsageStatusPending
@@ -214,9 +339,7 @@ func replace(targetType string, targetId uint64, usageTypes []string, userId uin
 			Status:     status,
 		})
 	}
-	if err := fileUsage.ReplaceTargetUsages(targetType, targetId, usageTypes, rows); err != nil {
-		slog.Error("replace file usages failed", "targetType", targetType, "targetId", targetId, "err", err)
-	}
+	return fileUsage.ReplaceTargetUsagesTx(tx, targetType, targetId, usageTypes, rows)
 }
 
 func fileNameFromURL(value string) string {
@@ -288,9 +411,15 @@ func SetStickerUsageTx(tx *gorm.DB, stickerID, userID uint64, fileName, status s
 
 // RegisterRevisionImagesTx retains private candidate images without replacing
 // the currently public topic/post references. A save failure rolls back all refs.
-func RegisterRevisionImagesTx(tx *gorm.DB, revisionID, userID uint64, content string, gallery []string) error {
-	urls := append(markdown2html.ExtractImageURLs(content), gallery...)
-	for _, usage := range ownedUsages(userID, urls) {
+func RegisterRevisionImagesTx(tx *gorm.DB, revisionID, userID uint64, usages []Usage) error {
+	names := make([]string, 0, len(usages))
+	for _, usage := range usages {
+		names = append(names, usage.FileName)
+	}
+	if err := fileUsage.GuardUploadReferencesTx(tx, names); err != nil {
+		return err
+	}
+	for _, usage := range usages {
 		if err := tx.Create(&fileUsage.Entity{FileName: usage.FileName, TargetType: fileUsage.TargetPostRevision, TargetId: revisionID, UsageType: usage.UsageType, UserId: userID, Status: fileUsage.UsageStatusPending}).Error; err != nil {
 			return err
 		}
@@ -318,6 +447,14 @@ func PublishRevisionImagesTx(tx *gorm.DB, revisionID, topicID, postID uint64, fi
 	if err := tx.Where("target_type = ? AND target_id = ?", fileUsage.TargetPostRevision, revisionID).Find(&refs).Error; err != nil {
 		return err
 	}
+	names := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		names = append(names, ref.FileName)
+	}
+	if err := fileUsage.GuardUploadReferencesTx(tx, names); err != nil {
+		return err
+	}
+
 	for _, ref := range refs {
 		ref.Id, ref.TargetType, ref.TargetId, ref.Status = 0, target, id, fileUsage.UsageStatusActive
 		if err := tx.Create(&ref).Error; err != nil {

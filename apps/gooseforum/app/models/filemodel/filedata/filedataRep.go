@@ -13,6 +13,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type FileResource struct {
@@ -53,6 +54,24 @@ func create(entity *Entity) int64 {
 func GetByName(name string) (entity Entity) {
 	builder().Where(queryopt.Eq(fieldName, name)).First(&entity)
 	return
+}
+
+// GetFileMetadataByName returns a row's ownership metadata without loading the
+// content BLOB. A missing name reports (nil, nil), so callers can tell "absent"
+// apart from a real query failure.
+func GetFileMetadataByName(name string) (*Entity, error) {
+	var entity Entity
+	err := builder().
+		Select("id", "name", "storage_status", "user_id").
+		Where(queryopt.Eq(fieldName, name)).
+		Take(&entity).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &entity, nil
 }
 
 func SaveFile(userId uint64, name string, fileType string, data []byte) (*Entity, error) {
@@ -194,6 +213,36 @@ func ListPendingFilesBefore(ctx context.Context, before time.Time, limit int) ([
 		Where("storage_status = ? AND created_at < ?", StorageStatusPending, before).
 		Order("id ASC").Limit(limit).Find(&entities).Error
 	return entities, err
+}
+
+// ListReadyNamesCreatedBefore returns the subset of names that are ready rows
+// created before the cutoff, without loading content. Used by the orphan upload
+// cleanup to cross-check the (separate) file database.
+func ListReadyNamesCreatedBefore(ctx context.Context, names []string, before time.Time) ([]string, error) {
+	if len(names) == 0 {
+		return nil, nil
+	}
+	var found []string
+	err := builder().WithContext(ctx).
+		Where("name IN ?", names).
+		Where("storage_status = ? AND created_at < ?", StorageStatusReady, before).
+		Pluck("name", &found).Error
+	return found, err
+}
+
+// ListExistingNames returns the subset of names that still have a file_data row,
+// without loading the content column. Used by the orphan upload cleanup to drop
+// ownership rows whose bytes are gone (the file database can be restored or
+// reset independently of the main database).
+func ListExistingNames(ctx context.Context, names []string) ([]string, error) {
+	if len(names) == 0 {
+		return nil, nil
+	}
+	var found []string
+	err := builder().WithContext(ctx).
+		Where("name IN ?", names).
+		Pluck("name", &found).Error
+	return found, err
 }
 
 // QueryById returns rows with id greater than startId, ascending (migration cursor).

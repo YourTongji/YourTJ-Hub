@@ -14,6 +14,7 @@ const (
 	TargetSticker         = "sticker"
 	TargetDecorationAsset = "decoration_asset"
 	TargetBadgeAsset      = "badge_asset"
+	TargetChatMessage     = "chat_message"
 )
 
 const (
@@ -23,6 +24,8 @@ const (
 	UsageUploadOwner     = "upload_owner"
 	UsageSticker         = "sticker"
 	UsageDecorationAsset = "decoration_asset"
+	UsageChatMedia       = "chat_media"
+	UsageCover           = "cover"
 )
 
 // 附件生命周期状态（Issue #94）：删除时转 RECOVERING，恢复时回 ACTIVE，永久删除置 PURGED。

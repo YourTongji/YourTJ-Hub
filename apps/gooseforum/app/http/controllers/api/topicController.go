@@ -364,6 +364,10 @@ func writeTopicWithMaintenance(req component.BetterRequest[WriteTopicReq], agent
 	}
 	topic.CategoryIds = req.Params.CategoryId
 	topic.Status = req.Params.TopicStatus
+	images, err := fileusageservice.ResolveOwnedInlineImages(req.UserId, req.Params.Content, gallery)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
 	topic.Title = req.Params.Title
 	topic.Excerpt = markdown2html.ExtractDescription(req.Params.Content, 200)
 	topic.FirstImageURL = markdown2html.ExtractFirstImageURL(req.Params.Content)
@@ -546,6 +550,10 @@ func writeTopicWithMaintenance(req component.BetterRequest[WriteTopicReq], agent
 		if err := topicCategoryIndex.ReplaceTopicCategoriesTx(tx, topic.Id, req.Params.CategoryId); err != nil {
 			return err
 		}
+		if err := fileusageservice.RegisterTopicInlineImagesTx(tx, topic.Id, req.UserId, images,
+			topic.ProcessStatus == topics.ProcessStatusPending || topic.Status == 0); err != nil {
+			return err
+		}
 		if err := searchservice.EnqueueTopicSearchTask(tx, topic.Id); err != nil {
 			return err
 		}
@@ -571,10 +579,6 @@ func writeTopicWithMaintenance(req component.BetterRequest[WriteTopicReq], agent
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 
-	// PENDING keeps both drafts and review candidates private. File reads also
-	// check the submitted content/version before granting moderator preview.
-	fileusageservice.RegisterTopicInlineImagesOwned(topic.Id, req.UserId, firstPost.Content, topic.ImageUrls,
-		topic.ProcessStatus == topics.ProcessStatusPending || topic.Status == 0)
 	finishAIModeration(aiCheck, topic.Id)
 	categoryIDs := append(append([]uint64(nil), oldCategoryIds...), topic.CategoryIds...)
 	hotdataserve.InvalidateTopicListCacheForCategories(categoryIDs...)
@@ -874,6 +878,13 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	if pendingReview {
 		postEntity.ProcessStatus = posts.ProcessStatusPending
 	}
+	images, resolveErr := fileusageservice.ResolveOwnedInlineImages(req.UserId, postEntity.Content, nil)
+	if resolveErr != nil {
+		return component.FailResponseCode(component.MessageCommentCreateFailed, nil)
+	}
+	registerImages := func(tx *gorm.DB) error {
+		return fileusageservice.RegisterPostInlineImagesTx(tx, postEntity.Id, req.UserId, images, pendingReview)
+	}
 
 	if agent {
 		var reservation *agentwriteservice.Reservation
@@ -884,6 +895,11 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 			return beginErr
 		}
 		after := func(tx *gorm.DB) error {
+			if !pendingReview {
+				if err := registerImages(tx); err != nil {
+					return err
+				}
+			}
 			return agentwriteservice.FinishTx(betterRequestContext(req), tx, req.UserId, reservation, postEntity.TopicId, postEntity.Id)
 		}
 		if pendingReview {
@@ -897,7 +913,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	} else if pendingReview {
 		err = publicationservice.Submit(betterRequestContext(req), &topicEntity, postEntity)
 	} else {
-		err = postservice.CreateTopicPost(postEntity, topicEntity)
+		err = postservice.CreateTopicPostWithHooks(postEntity, topicEntity, nil, registerImages)
 	}
 	if err != nil {
 		if errors.Is(err, topicpolicyservice.ErrAgentRepliesDisabled) {
@@ -916,7 +932,6 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		slog.Warn("mark created post visited failed", "userId", req.UserId, "topicId", topicEntity.Id, "postId", postEntity.Id, "error", err)
 	}
 	if !pendingReview {
-		fileusageservice.RegisterPostInlineImagesOwned(postEntity.Id, req.UserId, postEntity.Content, false)
 		finishAIModeration(aiCheck, postEntity.Id)
 	}
 	if !pendingReview {
@@ -1106,6 +1121,17 @@ func updatePostWithMaintenance(req component.BetterRequest[UpdatePostReq], maint
 		topicEntity.ProcessStatus = topics.ProcessStatusNormal
 	}
 
+	images, imageErr := fileusageservice.ResolveOwnedInlineImages(req.UserId, postEntity.Content, nil)
+	if imageErr != nil {
+		return component.FailResponseCode(component.MessagePostUpdateFailed, nil)
+	}
+	var topicImages []fileusageservice.Usage
+	if isFirstPost {
+		topicImages, imageErr = fileusageservice.ResolveOwnedInlineImages(req.UserId, postEntity.Content, topicEntity.ImageUrls)
+		if imageErr != nil {
+			return component.FailResponseCode(component.MessagePostUpdateFailed, nil)
+		}
+	}
 	now := time.Now()
 	if err := db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
 		if maintenance != nil {
@@ -1151,6 +1177,16 @@ func updatePostWithMaintenance(req component.BetterRequest[UpdatePostReq], maint
 		if err := agenteventservice.CapturePublicTx(tx, &postEntity, plan); err != nil {
 			return err
 		}
+		if isFirstPost {
+			if err := fileusageservice.RegisterTopicInlineImagesTx(tx, topicEntity.Id, req.UserId, topicImages,
+				topicEntity.ProcessStatus == topics.ProcessStatusPending || topicEntity.Status == 0); err != nil {
+				return err
+			}
+		}
+		if err := fileusageservice.RegisterPostInlineImagesTx(tx, postEntity.Id, req.UserId, images,
+			postEntity.ProcessStatus == posts.ProcessStatusPending || topicEntity.Status == 0); err != nil {
+			return err
+		}
 		if maintenance != nil {
 			return maintenance.AuditTx(tx)
 		}
@@ -1167,11 +1203,7 @@ func updatePostWithMaintenance(req component.BetterRequest[UpdatePostReq], maint
 	postEntity.LastEditorId = maintenanceEditor(req.UserId, maintenance)
 	postEntity.LastEditedAt = &now
 
-	fileusageservice.RegisterPostInlineImagesOwned(postEntity.Id, req.UserId, postEntity.Content,
-		postEntity.ProcessStatus == posts.ProcessStatusPending || topicEntity.Status == 0)
 	if isFirstPost {
-		fileusageservice.RegisterTopicInlineImagesOwned(topicEntity.Id, req.UserId, postEntity.Content, topicEntity.ImageUrls,
-			topicEntity.ProcessStatus == topics.ProcessStatusPending || topicEntity.Status == 0)
 		finishAIModeration(aiCheck, topicEntity.Id)
 	} else {
 		finishAIModeration(aiCheck, postEntity.Id)

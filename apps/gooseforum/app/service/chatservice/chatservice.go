@@ -15,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pushpolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
@@ -57,16 +58,26 @@ func sendMessage(conn *gorm.DB, senderId, peerId uint64, content string, msgType
 	return sendMessageWithReply(conn, senderId, peerId, content, msgType, 0, clientKeys...)
 }
 
+// sendMessageWithReply 解析消息的媒体引用（必须在事务外：存储配置/文件库读会借第二条
+// 连接，事务内会与持连接的外层事务互锁），再把结果交给事务内的写入路径。
 func sendMessageWithReply(conn *gorm.DB, senderId, peerId uint64, content string, msgType int8, replyToMessageID uint64, clientKeys ...string) (uint64, error) {
-	return sendMessageWithEffectsAndReply(conn, senderId, peerId, content, msgType, true, replyToMessageID, clientKeys...)
+	mediaNames, err := fileusageservice.OwnedChatMediaNames(senderId, content, msgType)
+	if err != nil {
+		return 0, err
+	}
+	return sendMessageWithEffectsAndReply(conn, senderId, peerId, content, msgType, true, replyToMessageID, mediaNames, clientKeys...)
 }
 
-// Forward batches defer invalidation until their outer transaction commits.
-func sendMessageWithEffects(conn *gorm.DB, senderId, peerId uint64, content string, msgType int8, publish bool, clientKeys ...string) (uint64, error) {
-	return sendMessageWithEffectsAndReply(conn, senderId, peerId, content, msgType, publish, 0, clientKeys...)
+// Forward batches defer invalidation until their outer transaction commits (publish is
+// always false here). Forwarded copies keep no media reference of their own: they are
+// re-sent by the forwarder who does not own the file, so they rely on the source message's
+// reference. Resolving media here would also read storage config and the file database on
+// a second connection while this runs inside the forward transaction.
+func sendMessageWithEffects(conn *gorm.DB, senderId, peerId uint64, content string, msgType int8, clientKeys ...string) (uint64, error) {
+	return sendMessageWithEffectsAndReply(conn, senderId, peerId, content, msgType, false, 0, nil, clientKeys...)
 }
 
-func sendMessageWithEffectsAndReply(conn *gorm.DB, senderId, peerId uint64, content string, msgType int8, publish bool, replyToMessageID uint64, clientKeys ...string) (uint64, error) {
+func sendMessageWithEffectsAndReply(conn *gorm.DB, senderId, peerId uint64, content string, msgType int8, publish bool, replyToMessageID uint64, mediaNames []string, clientKeys ...string) (uint64, error) {
 	var key *string
 	if len(clientKeys) > 0 && clientKeys[0] != "" {
 		if !clientMessageKey.MatchString(clientKeys[0]) {
@@ -180,6 +191,10 @@ func sendMessageWithEffectsAndReply(conn *gorm.DB, senderId, peerId uint64, cont
 				return err
 			}
 			newMessageID = message.Id
+			// 图片/语音只有 URL，没有内容引用就会被读门禁拦住、被孤儿清理删掉（issue #1365）。
+			if err := fileusageservice.RegisterChatMediaTx(tx, message.Id, senderId, mediaNames); err != nil {
+				return err
+			}
 			// Each channel gets its own savepoint so an enqueue failure in one
 			// channel rolls back only that channel's outbox row; the other channel
 			// still gets its best-effort send and the message still commits.

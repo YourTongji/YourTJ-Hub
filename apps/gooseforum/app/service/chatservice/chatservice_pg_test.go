@@ -377,7 +377,7 @@ func TestChatPushOutboxFailureIsolationOnPostgreSQL(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = conn.Callback().Create().Remove(callback) })
-	convID, err := sendMessageWithEffects(conn, 1, 2, "message survives native push failure", 1, false, "failed-native-outbox")
+	convID, err := sendMessageWithEffects(conn, 1, 2, "message survives native push failure", 1, "failed-native-outbox")
 	if err != nil {
 		t.Fatalf("native push failure aborted message transaction: %v", err)
 	}
@@ -403,7 +403,7 @@ func TestChatPushOutboxFailureIsolationOnPostgreSQL(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		id, err := sendMessageWithEffects(conn, 1, 2, "successful outbox", 1, false, "successful-outbox")
+		id, err := sendMessageWithEffects(conn, 1, 2, "successful outbox", 1, "successful-outbox")
 		if err != nil || id != convID {
 			t.Fatalf("success/replay: conversation=%d err=%v", id, err)
 		}
