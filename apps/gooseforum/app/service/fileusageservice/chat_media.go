@@ -31,6 +31,9 @@ func OwnedChatMediaNames(senderID uint64, content string, msgType int8) ([]strin
 // （issue #1365）：messages.content 只存 URL，没有内容引用时收件人读不到（#1366 的读门禁）
 // 且文件会在 TTL 后被孤儿清理删掉。幂等：CreateIfAbsent 让整个发送事务可以安全重试。
 func RegisterChatMediaTx(tx *gorm.DB, messageID, senderID uint64, names []string) error {
+	if err := fileUsage.GuardUploadReferencesTx(tx, names); err != nil {
+		return err
+	}
 	for _, name := range names {
 		if _, err := fileUsage.CreateIfAbsentTx(tx, &fileUsage.Entity{
 			FileName:   name,

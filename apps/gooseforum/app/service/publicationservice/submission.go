@@ -49,6 +49,14 @@ func SubmitWithHooks(ctx context.Context, topic *topics.Entity, post *posts.Enti
 
 // SubmitWithEditorHooks preserves authorship while attributing an authorized maintenance revision.
 func SubmitWithEditorHooks(ctx context.Context, topic *topics.Entity, post *posts.Entity, editorID uint64, before, after func(*gorm.DB) error) error {
+	var gallery []string
+	if topic.Id == 0 || post.PostNo == 1 {
+		gallery = topic.ImageUrls
+	}
+	images, err := fileusageservice.ResolveOwnedInlineImages(post.UserId, post.Content, gallery)
+	if err != nil {
+		return err
+	}
 	return db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if before != nil {
 			if err := before(tx); err != nil {
@@ -165,7 +173,7 @@ func SubmitWithEditorHooks(ctx context.Context, topic *topics.Entity, post *post
 		if err := tx.Model(&posts.Entity{}).Where("id = ?", post.Id).Updates(changes).Error; err != nil {
 			return err
 		}
-		if err := fileusageservice.RegisterRevisionImagesTx(tx, revision.Id, post.UserId, post.Content, revision.ImageUrls); err != nil {
+		if err := fileusageservice.RegisterRevisionImagesTx(tx, revision.Id, post.UserId, images); err != nil {
 			return err
 		}
 		payload, err := json.Marshal(Task{RevisionId: revision.Id})

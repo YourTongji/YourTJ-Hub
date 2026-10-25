@@ -35,6 +35,13 @@ func ReplaceTargetUsagesTx(tx *gorm.DB, targetType string, targetId uint64, usag
 	if len(usageTypes) == 0 {
 		return nil
 	}
+	names := make([]string, 0, len(usages))
+	for _, usage := range usages {
+		names = append(names, usage.FileName)
+	}
+	if err := GuardUploadReferencesTx(tx, names); err != nil {
+		return err
+	}
 	if err := tx.
 		Where(queryopt.Eq("target_type", targetType)).
 		Where(queryopt.Eq("target_id", targetId)).
@@ -156,23 +163,12 @@ func HasAnyReferencesErr(fileName string) (bool, error) {
 func ListUnreferencedUploadOwners(limit int) (names []string, err error) {
 	err = builder().
 		Where(queryopt.Eq("usage_type", UsageUploadOwner)).
+		Where(queryopt.Ne("status", UsageStatusPurged)).
 		Where("NOT EXISTS (SELECT 1 FROM "+tableName+" AS ref WHERE ref.file_name = "+tableName+".file_name AND ref.usage_type <> ?)", UsageUploadOwner).
 		Order(queryopt.Asc("created_at")).
 		Limit(limit).
 		Pluck("file_name", &names).Error
 	return names, err
-}
-
-// DeleteUploadOwnerRows removes the ownership rows of the given files (reclaimed
-// uploads, or stale rows whose file row is already gone).
-func DeleteUploadOwnerRows(fileNames []string) error {
-	if len(fileNames) == 0 {
-		return nil
-	}
-	return builder().
-		Where(queryopt.Eq("usage_type", UsageUploadOwner)).
-		Where(queryopt.In("file_name", fileNames)).
-		Delete(&Entity{}).Error
 }
 
 // ListExpiredRecovering 返回超过恢复窗口仍未决的附件引用，供清理任务执行。

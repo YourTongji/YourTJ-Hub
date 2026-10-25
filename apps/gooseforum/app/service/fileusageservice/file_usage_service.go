@@ -107,6 +107,36 @@ func RegisterPostInlineImagesOwned(postID uint64, userID uint64, content string,
 	replace(fileUsage.TargetPost, postID, []string{fileUsage.UsageInlineImage}, userID, ownedUsages(userID, markdown2html.ExtractImageURLs(content)), pending)
 }
 
+// ResolveOwnedInlineImages runs before the content transaction: URL resolution
+// may read storage settings. Query failures and reclaimed owned uploads reject
+// the write instead of silently dropping its attachment references.
+func ResolveOwnedInlineImages(userID uint64, content string, gallery []string) ([]Usage, error) {
+	urls := append(markdown2html.ExtractImageURLs(content), gallery...)
+	var usages []Usage
+	for _, value := range GalleryImageURLs(urls) {
+		name := fileNameFromURL(value)
+		if len(name) > 512 {
+			continue
+		}
+		owned, err := ownedReadyFile(userID, name)
+		if err != nil {
+			return nil, err
+		}
+		if owned {
+			usages = append(usages, Usage{FileName: name, UsageType: fileUsage.UsageInlineImage})
+		}
+	}
+	return usages, nil
+}
+
+func RegisterTopicInlineImagesTx(tx *gorm.DB, topicID, userID uint64, usages []Usage, pending bool) error {
+	return replaceTx(tx, fileUsage.TargetTopic, topicID, []string{fileUsage.UsageInlineImage}, userID, usages, pending)
+}
+
+func RegisterPostInlineImagesTx(tx *gorm.DB, postID, userID uint64, usages []Usage, pending bool) error {
+	return replaceTx(tx, fileUsage.TargetPost, postID, []string{fileUsage.UsageInlineImage}, userID, usages, pending)
+}
+
 // ownedUsages converts owned, ready image URLs into inline_image usage rows,
 // deduplicating by resolved file name.
 func ownedUsages(userID uint64, urls []string) []Usage {
@@ -126,6 +156,12 @@ func ownedUsages(userID uint64, urls []string) []Usage {
 
 func ReplaceAvatar(userId uint64, fileNames []string) {
 	replace(fileUsage.TargetUser, userId, []string{fileUsage.UsageAvatar}, userId, namesToUsages(fileNames, fileUsage.UsageAvatar), false)
+}
+
+// ReplaceAvatarTx atomically replaces avatar references with their owning user update.
+// fileNames must already be resolved before opening the content transaction.
+func ReplaceAvatarTx(tx *gorm.DB, userID uint64, fileNames []string) error {
+	return replaceTx(tx, fileUsage.TargetUser, userID, []string{fileUsage.UsageAvatar}, userID, namesToUsages(fileNames, fileUsage.UsageAvatar), false)
 }
 
 // CoverRef 是封面 URL 解析后的结果：对象名 + 归属判定。解析必须在事务外完成，事务里
@@ -195,6 +231,9 @@ func coveredByOwner(userId uint64, ownerIDs []uint64, name string) (bool, error)
 // 否则可以借引用固定、或让回收链动到别人的文件（口径同 FilterOwnedImageURLs）。只读元数据，
 // 不拉 content BLOB。
 func ownedReadyFile(userID uint64, name string) (bool, error) {
+	if err := fileUsage.CheckOwnedUploadAvailable(userID, name); err != nil {
+		return false, err
+	}
 	file, err := filedata.GetFileMetadataByName(name)
 	if err != nil || file == nil {
 		return false, err
@@ -372,9 +411,15 @@ func SetStickerUsageTx(tx *gorm.DB, stickerID, userID uint64, fileName, status s
 
 // RegisterRevisionImagesTx retains private candidate images without replacing
 // the currently public topic/post references. A save failure rolls back all refs.
-func RegisterRevisionImagesTx(tx *gorm.DB, revisionID, userID uint64, content string, gallery []string) error {
-	urls := append(markdown2html.ExtractImageURLs(content), gallery...)
-	for _, usage := range ownedUsages(userID, urls) {
+func RegisterRevisionImagesTx(tx *gorm.DB, revisionID, userID uint64, usages []Usage) error {
+	names := make([]string, 0, len(usages))
+	for _, usage := range usages {
+		names = append(names, usage.FileName)
+	}
+	if err := fileUsage.GuardUploadReferencesTx(tx, names); err != nil {
+		return err
+	}
+	for _, usage := range usages {
 		if err := tx.Create(&fileUsage.Entity{FileName: usage.FileName, TargetType: fileUsage.TargetPostRevision, TargetId: revisionID, UsageType: usage.UsageType, UserId: userID, Status: fileUsage.UsageStatusPending}).Error; err != nil {
 			return err
 		}
@@ -402,6 +447,14 @@ func PublishRevisionImagesTx(tx *gorm.DB, revisionID, topicID, postID uint64, fi
 	if err := tx.Where("target_type = ? AND target_id = ?", fileUsage.TargetPostRevision, revisionID).Find(&refs).Error; err != nil {
 		return err
 	}
+	names := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		names = append(names, ref.FileName)
+	}
+	if err := fileUsage.GuardUploadReferencesTx(tx, names); err != nil {
+		return err
+	}
+
 	for _, ref := range refs {
 		ref.Id, ref.TargetType, ref.TargetId, ref.Status = 0, target, id, fileUsage.UsageStatusActive
 		if err := tx.Create(&ref).Error; err != nil {

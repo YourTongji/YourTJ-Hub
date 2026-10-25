@@ -19,7 +19,7 @@
 内容引用的文件只对上传者本人可见，7 天后由清理任务回收；没有归属记录的历史图片保持公开。
 私信图片／语音与个人主页封面各自登记内容引用，因此对读者公开且不会被回收；引用只来自发送者／
 用户本人上传的 ready 文件（机器人封面另允许站点管理员代传），转发的图片副本沿用原消息的引用
-（[决策 0106](../decisions/0106-unreferenced-upload-read-and-reclamation.md)）。
+（[决策 0108](../decisions/0108-unreferenced-upload-read-and-reclamation.md)）。
 标题按 Unicode 码点计数；正文和回复按渲染后的可见文字（Unicode 码点）计数，Markdown 标记、
 链接目标与裸链接/邮箱地址（其渲染文字同样不计）、图片语法、`[:sticker:name:]` 贴纸 token（含
 未解析的名字）与零宽格式字符都不计入，纯图片或纯链接内容达不到下限；源文本另受 4 倍

@@ -2,6 +2,7 @@ package fileusageservice
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -10,9 +11,66 @@ import (
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"gorm.io/gorm"
 )
 
 const filedataEntityTable = "file_data"
+
+// Interleave a real reference insert after the last main-DB check but before
+// the first file-DB deletion. Either publication or reclamation may win; a
+// successfully admitted reference must never point at deleted bytes.
+func TestPruneOrphanUploadFencesReferenceAtDeletion(t *testing.T) {
+	cleanupTestUsageRows(t)
+	const name = "2026/09/orphan-publish-at-delete.webp"
+	seedOrphanCandidate(t, 9800300901, name, time.Now().Add(-8*24*time.Hour))
+	var publicationErr error
+	attempted := false
+	callbacks := fileDB.Connect().Callback().Delete()
+	const hook = "test:publish_before_orphan_delete"
+	if err := callbacks.Before("gorm:delete").Register(hook, func(tx *gorm.DB) {
+		if attempted {
+			return
+		}
+		attempted = true
+		publicationErr = fileUsage.Create(&fileUsage.Entity{
+			FileName: name, TargetType: fileUsage.TargetTopic, TargetId: 9800300902,
+			UsageType: fileUsage.UsageInlineImage, UserId: 9800300901,
+		})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = callbacks.Remove(hook) })
+	_, err := pruneOrphanUpload(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !attempted {
+		t.Fatal("publication interleaving was not reached")
+	}
+	if publicationErr == nil && filedata.GetByName(name).Id == 0 {
+		t.Fatal("accepted a content reference but permanently deleted its image")
+	}
+}
+
+func TestReclaimedUploadRejectsPreparedCover(t *testing.T) {
+	cleanupTestUsageRows(t)
+	const name = "2026/09/orphan-prepared-cover.webp"
+	const owner = 9800300903
+	seedOrphanCandidate(t, owner, name, time.Now().Add(-8*24*time.Hour))
+	ref, err := ResolveCover(owner, "/file/img/"+name)
+	if err != nil || !ref.Owned {
+		t.Fatalf("resolve: %#v %v", ref, err)
+	}
+	if _, err := pruneOrphanUpload(name); err != nil {
+		t.Fatal(err)
+	}
+	err = db.Connect().Transaction(func(tx *gorm.DB) error {
+		return ReplaceCoverTx(tx, owner, ref)
+	})
+	if err == nil {
+		t.Fatal("committed a stale cover reference after reclamation")
+	}
+}
 
 // seedOrphanCandidate 造一个「已上传、带归属行、创建时间可回溯」的文件。
 func seedOrphanCandidate(t *testing.T, userID uint64, name string, createdAt time.Time) {
@@ -88,8 +146,11 @@ func TestCleanupOrphanUploadsRemovesExpiredOrphan(t *testing.T) {
 	if filedata.GetByName(variantName).Id != 0 {
 		t.Fatal("expired orphan image variant survived cleanup")
 	}
-	if count := orphanUsageCount(t, name); count != 0 {
-		t.Fatalf("expired orphan kept %d usage rows", count)
+	if count := orphanUsageCount(t, name); count != 1 {
+		t.Fatalf("expired orphan kept %d rows, want one ownership tombstone", count)
+	}
+	if err := fileUsage.CheckOwnedUploadAvailable(9_800_300_001, name); !errors.Is(err, fileUsage.ErrUploadReclaimed) {
+		t.Fatalf("reclaimed attachment can be reused: %v", err)
 	}
 }
 
@@ -213,9 +274,42 @@ func TestCleanupOrphanUploadsPrunesStaleOwnerRowsToReachOrphan(t *testing.T) {
 		t.Fatal("expired orphan behind stale owner rows was not reclaimed")
 	}
 	for _, stale := range staleNames {
-		if count := orphanUsageCount(t, stale); count != 0 {
-			t.Fatalf("stale owner rows for %s = %d, want 0", stale, count)
+		if count := orphanUsageCount(t, stale); count != 1 {
+			t.Fatalf("stale owner rows for %s = %d, want one tombstone", stale, count)
 		}
+	}
+}
+
+func TestOrphanDeleteFailureKeepsClaimForRetry(t *testing.T) {
+	cleanupTestUsageRows(t)
+	const name = "2026/09/orphan-delete-retry.webp"
+	seedOrphanCandidate(t, 9800300910, name, time.Now().Add(-8*24*time.Hour))
+	callbacks := fileDB.Connect().Callback().Delete()
+	const hook = "test:orphan_storage_failure"
+	if err := callbacks.Before("gorm:delete").Register(hook, func(tx *gorm.DB) {
+		_ = tx.AddError(errors.New("storage unavailable"))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = callbacks.Remove(hook) })
+	if _, err := pruneOrphanUpload(name); err == nil {
+		t.Fatal("delete error was ignored")
+	}
+	if filedata.GetByName(name).Id == 0 {
+		t.Fatal("failed deletion removed bytes")
+	}
+	if err := fileUsage.CheckOwnedUploadAvailable(9800300910, name); !errors.Is(err, fileUsage.ErrUploadReclaimed) {
+		t.Fatalf("failed deletion reopened admission: %v", err)
+	}
+	if err := callbacks.Remove(hook); err != nil {
+		t.Fatal(err)
+	}
+	removed, err := CleanupOrphanUploads(context.Background(), time.Now().Add(-OrphanUploadTTL), 200)
+	if err != nil || removed != 1 {
+		t.Fatalf("retry: removed=%d err=%v", removed, err)
+	}
+	if filedata.GetByName(name).Id != 0 {
+		t.Fatal("retry did not remove bytes")
 	}
 }
 

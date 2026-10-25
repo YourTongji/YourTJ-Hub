@@ -64,12 +64,20 @@ stays for the life of the file. Existing chat media and covers predate this deci
 migration v37 backfills their references from `messages.content` and `users.profile_cover_url` before
 the reclamation job can treat those files as orphans; the backfill is idempotent and re-runnable.
 
-A daily job removes ready uploads that still carry only their ownership row after
-`OrphanUploadTTL` (7 days), re-checking content references immediately before deleting bytes, image
-variants and the ownership row. `file_usages` lives in the main database while `file_data` lives in the
-separate file database, so the job first drops ownership rows whose file row no longer exists;
-otherwise a restored or reset file database could fill the candidate window with stale rows and the
-job would silently stop reclaiming anything.
+A daily job reclaims ready uploads that still carry only their ownership row after
+`OrphanUploadTTL` (7 days). Reference creation and reclamation serialize on that ownership row in the
+main database. The job locks the row, re-checks all non-owner references and commits `RECLAIMING` before
+deleting bytes or image variants from the separate file database/object store. A publisher that gets
+the lock first keeps the file alive; one that arrives after the claim is rejected and its content
+transaction rolls back. Topic/reply writes and attachment references commit together, including
+moderation candidates. Resolving a URL before the claim does not bypass this check.
+
+Successful deletion marks the ownership row `PURGED` and retains it as a tombstone. It denies late
+references and prevents a reclaimed upload from falling back to legacy public access. Storage errors
+leave the row `RECLAIMING` for retry; database errors preserve the bytes. Ownership rows whose file
+metadata is already missing are also claimed and marked `PURGED`, so they do not fill the bounded
+candidate window forever. This keeps a small main-database record for each reclaimed upload instead of
+retaining its bytes. An expired attachment must be uploaded again before the editor can save it.
 
 A `Referer` allowlist is not a control: it is forgeable and must exempt empty referrers, so it only
 sheds load and is not a substitute for this gate; this decision does not add one. With `publicUrlPrefix`
@@ -86,8 +94,9 @@ trade-off that needs its own decision.
   serves every copy that already left the origin. It reduces load at best.
 - **Ownership-row gate and TTL reclamation.** Uses a row the upload path already writes, needs no
   deployment change, cannot be forged, and keeps migrated images readable. It gives up the bandwidth
-  savings a referer check would provide, and a publish racing the TTL boundary can lose its image
-  (accepted and marked in code); an upload abandoned in an editor older than the TTL is gone.
+  savings a referer check would provide and retains small tombstones. A publish racing reclamation
+  either pins the file or fails atomically; an upload abandoned in an editor older than the TTL must
+  be uploaded again.
 - **Fail every unreferenced file closed.** The strictest rule, but it breaks images inside
   pre-migration posts, which carry no usage row at all, without any data to tell them apart.
 

@@ -36,11 +36,11 @@ func CleanupOrphanUploads(ctx context.Context, before time.Time, limit int) (int
 	// 每条返回路径都要留痕：窗口只剩残行时 removed 为 0，cron 侧不会打日志。
 	defer func() {
 		if stalePruned > 0 {
-			slog.Info("prune stale upload owner rows", "count", stalePruned)
+			slog.Info("retire stale upload owner rows", "count", stalePruned)
 		}
 	}()
 	// 候选窗口可能被「归属行还在、文件行已不存在」的陈旧审计行占满（文件库按快照
-	// 重置或回滚后常见）：先批量删掉它们并回填窗口，否则真正的过期孤儿永远排不进
+	// 重置或回滚后常见）：先将它们标记为 PURGED 并回填窗口，否则真正的过期孤儿永远排不进
 	// limit，任务会静默地一直回收不到任何文件。
 	for round := 0; round < maxStalePruneRounds; round++ {
 		var err error
@@ -60,7 +60,7 @@ func CleanupOrphanUploads(ctx context.Context, before time.Time, limit int) (int
 		}
 		pruned, pruneErr := pruneStaleUploadOwners(candidates, existing)
 		stalePruned += pruned
-		// 一条都没删掉时不再回填窗口，避免同一批候选原地重试。
+		// 一条都没退役时不再回填窗口，避免同一批候选原地重试。
 		if pruneErr != nil || pruned == 0 {
 			cleanupErr = errors.Join(cleanupErr, pruneErr)
 			break
@@ -84,8 +84,8 @@ func CleanupOrphanUploads(ctx context.Context, before time.Time, limit int) (int
 	return removed, cleanupErr
 }
 
-// pruneStaleUploadOwners 批量删除文件行已不存在的归属行：字节已不在，只留审计残行；
-// 返回删除的条数（一条语句，limit ≤ 500 不会碰到 SQLite 的参数上限）。
+// pruneStaleUploadOwners 将文件行已不存在的归属记录标记为 PURGED，
+// 保留墓碑以拒绝已预解析附件的迟到写入，并让后续候选进入清理窗口。
 func pruneStaleUploadOwners(candidates, existing []string) (int, error) {
 	present := make(map[string]bool, len(existing))
 	for _, name := range existing {
@@ -97,28 +97,39 @@ func pruneStaleUploadOwners(candidates, existing []string) (int, error) {
 			gone = append(gone, name)
 		}
 	}
-	if err := fileUsage.DeleteUploadOwnerRows(gone); err != nil {
-		return 0, fmt.Errorf("delete %d stale upload owner rows: %w", len(gone), err)
+	retired := 0
+	for _, name := range gone {
+		claimed, err := fileUsage.ClaimOrphanUpload(name)
+		if err != nil {
+			return retired, err
+		}
+		if !claimed {
+			continue
+		}
+		if err := fileUsage.FinishOrphanUpload(name); err != nil {
+			return retired, err
+		}
+		retired++
 	}
-	return len(gone), nil
+	return retired, nil
 }
 
-// pruneOrphanUpload 复核引用后删除一个孤儿上传，复核发现有内容引用时保留并返回 false。
-// 复核查询失败时同样保留（删除不可逆，不能把错误读成「无引用」）。
-// shortcut: 复核与删除之间仍有竞态，TTL 边界上的并发发布会丢图，不做加锁。
+// Claiming the ownership row and admitting references share a database lock.
+// Once RECLAIMING commits, late publishers fail before committing content;
+// storage failures keep that state for retry and completed deletes keep a tombstone.
 func pruneOrphanUpload(name string) (bool, error) {
-	referenced, err := fileUsage.HasAnyReferencesErr(name)
+	claimed, err := fileUsage.ClaimOrphanUpload(name)
 	if err != nil {
 		return false, fmt.Errorf("check references for %q: %w", name, err)
 	}
-	if referenced {
+	if !claimed {
 		return false, nil
 	}
 	if err := filedata.DeleteByName(name); err != nil {
 		return false, fmt.Errorf("delete orphan upload %q: %w", name, err)
 	}
-	if err := fileUsage.DeleteUploadOwnerRows([]string{name}); err != nil {
-		return false, fmt.Errorf("delete upload owner rows for %q: %w", name, err)
+	if err := fileUsage.FinishOrphanUpload(name); err != nil {
+		return false, fmt.Errorf("finish upload reclamation for %q: %w", name, err)
 	}
 	return true, nil
 }

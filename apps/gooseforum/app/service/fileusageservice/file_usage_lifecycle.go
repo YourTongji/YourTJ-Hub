@@ -150,7 +150,9 @@ func ResolveReadAccess(fileName string) (ReadAccess, error) {
 	access := ReadAccess{Tracked: len(refs) > 0}
 	for _, ref := range refs {
 		if ref.UsageType == fileUsage.UsageUploadOwner {
-			access.UploadOwnerID = ref.UserId
+			if ref.Status != fileUsage.UsageStatusReclaiming && ref.Status != fileUsage.UsageStatusPurged {
+				access.UploadOwnerID = ref.UserId
+			}
 			continue
 		}
 		access.Content = true

@@ -439,6 +439,13 @@ func Update(userID uint64, p UpdateParams) (*AgentView, error) {
 				}
 			}
 		}
+		if p.AvatarUrl != nil {
+			avatar, _ := userUpdates["avatar_url"].(string)
+			if err := fileusageservice.ReplaceAvatarTx(tx, userID, []string{avatar}); err != nil {
+				return err
+			}
+		}
+
 		if p.ProfileCoverUrl != nil {
 			// 封面只有 URL、靠内容引用保护：必须与 profile_cover_url 同一事务写引用，否则会被
 			// 孤儿清理删掉（issue #1365）。
@@ -457,9 +464,6 @@ func Update(userID uint64, p UpdateParams) (*AgentView, error) {
 	view, err := Get(userID)
 	if err != nil {
 		return nil, err
-	}
-	if p.AvatarUrl != nil {
-		fileusageservice.ReplaceAvatar(userID, []string{view.User.AvatarUrl})
 	}
 	if len(userUpdates) > 0 {
 		userservice.RefreshUserCaches(&view.User)
