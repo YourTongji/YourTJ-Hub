@@ -113,7 +113,7 @@ void main() {
       expect(find.byType(Wrap), findsOneWidget);
     });
 
-    testWidgets('indicator follows the native elastic tab animation', (
+    testWidgets('indicator follows the tab controller linearly', (
       tester,
     ) async {
       late StateSetter update;
@@ -145,13 +145,140 @@ void main() {
       expect(middle, lessThan(end));
       expect(
         tester.widget<TabBar>(tabBar).indicatorAnimation,
-        TabIndicatorAnimation.elastic,
+        TabIndicatorAnimation.linear,
       );
       expect(
         tester.widget<TabBar>(tabBar).indicator.toString(),
         contains('width: 28.0'),
       );
     });
+
+    for (final (direction, distribute, commit) in [
+      (TextDirection.ltr, false, true),
+      (TextDirection.rtl, false, true),
+      (TextDirection.ltr, true, true),
+      (TextDirection.ltr, false, false),
+    ]) {
+      testWidgets('a held swipe stretches the underline without drifting '
+          '(${direction.name}, distribute: $distribute, commit: $commit)', (
+        tester,
+      ) async {
+        final progress = ValueNotifier(
+          const GfTabSwipeProgress(originIndex: 0, offset: 0),
+        );
+        addTearDown(progress.dispose);
+        Object selected = 'latest';
+        late StateSetter update;
+        await tester.pumpWidget(
+          gfApp(
+            Directionality(
+              textDirection: direction,
+              child: GfTabSwipeProgressScope(
+                progress: progress,
+                child: StatefulBuilder(
+                  builder: (context, setState) {
+                    update = setState;
+                    return GfTabBar(
+                      tabs: tabs,
+                      selected: selected,
+                      distribute: distribute,
+                      onSelected: (_) {},
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+        final primary = GfTheme.colorsOf(
+          tester.element(find.byType(GfTabBar)),
+        ).primary;
+        final bar = find.byKey(const ValueKey('gf-tab-bar'));
+        // Visual sign of travel toward the next tab, and the painted
+        // underline as (trailing, leading) edges along that direction.
+        final s = direction == TextDirection.rtl ? -1.0 : 1.0;
+        (double, double) edges() {
+          late Rect painted;
+          expect(
+            tester.renderObject(bar),
+            paints..everything((method, arguments) {
+              if (method == #drawRRect &&
+                  (arguments[1] as Paint).color.toARGB32() ==
+                      primary.toARGB32()) {
+                painted = (arguments[0] as RRect).outerRect;
+              }
+              return true;
+            }),
+          );
+          final rect = painted.shift(tester.getTopLeft(bar));
+          return s > 0 ? (rect.left, rect.right) : (-rect.right, -rect.left);
+        }
+
+        double center(String label) =>
+            tester.getCenter(find.text(label)).dx * s;
+        final origin = center('最新');
+        final target = center('热门');
+        final (startTrail, startLead) = edges();
+        expect(startTrail, closeTo(origin - 14, .5));
+        expect(startLead, closeTo(origin + 14, .5));
+
+        // Held: the trailing edge stays on the origin tab while the leading
+        // edge follows the finger and never passes the next tab.
+        var lead = startLead;
+        for (final offset in [.2, .4, .6, .8, .95]) {
+          progress.value = GfTabSwipeProgress(
+            originIndex: 0,
+            offset: offset,
+            targetIndex: 1,
+          );
+          await tester.pump();
+          final (trail, next) = edges();
+          expect(trail, closeTo(startTrail, .5), reason: 'offset $offset');
+          expect(next, greaterThan(lead), reason: 'offset $offset');
+          expect(next, lessThanOrEqualTo(target + 14.5));
+          lead = next;
+        }
+
+        if (!commit) {
+          // Cancelled: the leading edge springs back while the trailing edge
+          // stays on the origin tab.
+          for (final offset in [.6, .3, .1, .02, 0.0]) {
+            progress.value = GfTabSwipeProgress(
+              originIndex: 0,
+              offset: offset,
+              targetIndex: offset == 0 ? null : 1,
+            );
+            await tester.pump(const Duration(milliseconds: 16));
+            final (trail, next) = edges();
+            expect(trail, closeTo(startTrail, .5), reason: 'back $offset');
+            expect(next, lessThanOrEqualTo(lead + .5));
+            lead = next;
+          }
+          await tester.pumpAndSettle();
+          expect(edges().$1, closeTo(startTrail, .5));
+          expect(edges().$2, closeTo(startLead, .5));
+          return;
+        }
+
+        // Released: the page commits and the trailing edge catches up; no
+        // edge moves backwards or overshoots the destination.
+        update(() => selected = 'hot');
+        var trail = startTrail;
+        for (var frame = 0; frame < 24; frame++) {
+          await tester.pump(const Duration(milliseconds: 16));
+          final (nextTrail, nextLead) = edges();
+          expect(nextTrail, greaterThanOrEqualTo(trail - .5));
+          expect(nextLead, greaterThanOrEqualTo(lead - .5));
+          expect(nextLead, lessThanOrEqualTo(target + 14.5));
+          (trail, lead) = (nextTrail, nextLead);
+        }
+        progress.value = const GfTabSwipeProgress(originIndex: 1, offset: 0);
+        await tester.pumpAndSettle();
+        final (endTrail, endLead) = edges();
+        expect(endTrail, closeTo(target - 14, .5));
+        expect(endLead, closeTo(target + 14, .5));
+      });
+    }
 
     testWidgets('distributed tabs share the width and fall back to scrolling', (
       tester,

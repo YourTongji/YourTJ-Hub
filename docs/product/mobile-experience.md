@@ -293,8 +293,10 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
 - `Current`: Home sort, Campus section and notification filter rails share a scrollable tab bar.
   The page-swipe recognizer feeds the shared tab controller's live drag offset, so the selected
   underline follows a held slow swipe: its edge facing the adjacent tab stretches first and the
-  trailing edge catches up, rather than both edges growing at once. After release,
-  the extended segment contracts with a logarithmic ease-out curve. Home, Campus and Notifications
+  trailing edge catches up, rather than both edges growing at once; the leading edge never passes the
+  adjacent tab. After release, the extended segment contracts with a logarithmic ease-out curve. A
+  committed Home sort stays selected while its feed loads, so the underline never returns to the
+  previous tab before moving on. Home, Campus and Notifications
   move both content panes with the same drag or tap transition while retaining each visited page's
   elements and scroll state. A pane drag reports the touch slop it travelled before winning the
   gesture arena, so the page stays under the finger; release settles with a spring that keeps the
