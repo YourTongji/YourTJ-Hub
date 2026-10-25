@@ -255,7 +255,6 @@
   "profileTitle": "Profile",
   "profileFollow": "Follow",
   "profileFollowing": "Following",
-  "profileMutualFollowing": "Mutual",
   "profileTopics": "Topics",
   "profilePosts": "Posts",
   "profileReplies": "Replies",
@@ -600,9 +599,6 @@
   "topicOpRepliesPending": "No author replies in the loaded window. Load more to continue.",
   "topicOpRepliesEmpty": "No replies from the author yet",
   "topicLaterReplies": "Load newer replies",
-  "homeFeedSwitchToList": "Switch to list",
-  "homeFeedSwitchToCard": "Switch to cards",
-  "profileStreamManage": "Manage",
   "topicNewTopic": "New topic",
   "scheduleTitle": "Course planner",
   "scheduleTabTimetable": "Plan preview",
@@ -1481,7 +1477,7 @@
   "badgeDisplayDown": "Move down",
   "notificationsMarkRead": "Mark as read",
   "scheduleWidgetSettingsTitle": "Home screen schedule",
-  "scheduleWidgetPrivacyDescription": "Widgets show course names, times, teachers and locations from the schedule saved on this device. Refreshing the schedule updates the home-screen view.",
+  "scheduleWidgetPrivacyDescription": "Widgets show course names, times, teachers and locations from the schedule saved on this device, plus the titles and locations of blocks you create (notes are excluded). If you agree, refreshing the schedule updates the home-screen view.",
   "scheduleWidgetRefresh": "Refresh from offline schedule",
   "scheduleWidgetClear": "Clear home screen data",
   "scheduleWidgetCleared": "Home screen schedule data cleared",
@@ -2072,6 +2068,157 @@
   "previewStale": "This preview is no longer the current candidate. Check the release status for the current build or return to production.",
   "previewStatusUnknown": "Cannot verify this preview’s status. Check with the release owner before testing.",
   "previewStatusLink": "Preview status",
+  "timetableOptions": "Timetable options",
+  "timetableWeekPicker": "Choose a week",
+  "timetableDateRange": "{start} – {end}",
+  "@timetableDateRange": {
+    "placeholders": {
+      "start": {
+        "type": "String"
+      },
+      "end": {
+        "type": "String"
+      }
+    }
+  },
+  "timetableUpdatedAt": "Updated {time}",
+  "@timetableUpdatedAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "timetableShowingSnapshot": "Showing saved copy",
+  "timetablePartlyUpdated": "Partly updated",
+  "timetableMayBeOutdated": "May be outdated",
+  "timetableFocusDay": "Focus this day",
+  "timetableUnfocusDay": "Show the whole week",
+  "timetableAddBlockHere": "Add a block here",
+  "timetableOtherWeek": "Other week",
+  "timetableBlock": "Your block",
+  "timetableInProgress": "In progress",
+  "timetableEmptyWeek": "No classes this week. Tap an empty cell to add a block.",
+  "timetableDayFree": "Nothing scheduled. Tap an empty cell to add a block.",
+  "timetableGestureTip": "Tap a weekday to focus it. Tap an empty cell to add a block, or long-press and drag to cover several sections.",
+  "timetableDisplay": "Display",
+  "timetableAlwaysShowWeekend": "Always show weekends",
+  "timetableAlwaysShowWeekendHint": "When off, weekends without classes fold away.",
+  "timetableShowOtherWeeks": "Show classes from other weeks",
+  "timetableShowOtherWeeksHint": "They appear faded in free cells.",
+  "timetableShowSectionTimes": "Show class times",
+  "timetableFocusToday": "Focus today when opened",
+  "timetableMemos": "Blocks and notes",
+  "timetableNoMemos": "No blocks or notes yet. Add blocks for club meetings, study time or reminders.",
+  "timetableAddBlock": "Add block",
+  "timetableEditBlock": "Edit block",
+  "timetableBlockTitle": "Title",
+  "timetableBlockTitleHint": "Club meeting",
+  "timetableBlockPlace": "Place",
+  "timetableBlockPlaceHint": "Library, 3rd floor",
+  "timetableBlockNote": "Note",
+  "timetableBlockDays": "Days",
+  "timetableBlockStart": "First section",
+  "timetableBlockEnd": "Last section",
+  "timetableWeeksOnly": "Week {week} only",
+  "@timetableWeeksOnly": {
+    "placeholders": {
+      "week": {
+        "type": "int"
+      }
+    }
+  },
+  "timetableWeeksEvery": "Every week",
+  "timetableWeeksOdd": "Odd weeks",
+  "timetableWeeksEven": "Even weeks",
+  "timetableBlockColor": "Color",
+  "timetableColorN": "Color {number}",
+  "@timetableColorN": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "timetableSaveBlock": "Save",
+  "timetableDeleteBlock": "Delete block",
+  "timetableDeleteNote": "Delete note",
+  "timetableCredits": "{credits} credits",
+  "@timetableCredits": {
+    "placeholders": {
+      "credits": {
+        "type": "String"
+      }
+    }
+  },
+  "timetableCourseNote": "Note for every week",
+  "timetableCourseNoteHint": "Bring a calculator",
+  "timetableWeekNote": "Note for week {week}",
+  "@timetableWeekNote": {
+    "placeholders": {
+      "week": {
+        "type": "int"
+      }
+    }
+  },
+  "timetableWeekNoteHint": "Quiz, homework due",
+  "timetableNotesLocal": "Notes stay on this device.",
+  "timetableNotesSaved": "Saved on this device.",
+  "timetableNotesUnsaved": "Unable to save on this device. Edit the note to try again.",
+  "timetableWidgets": "Home screen widgets",
+  "timetableWidgetNext": "Next class",
+  "timetableWidgetNextHint": "The upcoming class with its time and room",
+  "timetableWidgetToday": "Today’s classes",
+  "timetableWidgetTodayHint": "Every class today in one list",
+  "timetableWidgetTimeline": "Class timeline",
+  "timetableWidgetTimelineHint": "Today’s classes along a timeline",
+  "timetableWidgetAdd": "Add",
+  "timetableWidgetAddNamed": "Add {name} widget",
+  "@timetableWidgetAddNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "timetableWidgetRequested": "Confirm in the system dialog to place the widget.",
+  "timetableWidgetManual": "To add a widget, long-press an empty area of your home screen, open Widgets and choose YourTJ.",
+  "timetableWidgetIosSteps": "To add a widget, long-press an empty area of the Home Screen, tap +, then search for YourTJ and choose a size.",
+  "timetableCalendarSection": "Course calendar",
+  "timetableMore": "More",
+  "timetableMemosNone": "No blocks or notes yet",
+  "timetableMemoSummary": "{blocks, plural, =1{1 block} other{{blocks} blocks}} · {notes, plural, =1{1 note} other{{notes} notes}}",
+  "@timetableMemoSummary": {
+    "placeholders": {
+      "blocks": {
+        "type": "int"
+      },
+      "notes": {
+        "type": "int"
+      }
+    }
+  },
+  "timetableMemosIntro": "Blocks and notes stay on this device. Tap a class to add a note.",
+  "timetableBlocksHeading": "Blocks",
+  "timetableNotesHeading": "Class notes",
+  "timetableWidgetsHint": "Put your next class or today’s classes on the home screen.",
+  "timetableExportHint": "Save as an .ics file for your calendar app.",
+  "timetableBlockWhen": "When",
+  "timetableAddNote": "Add note",
+  "timetableWeeksRange": "Weeks {range}",
+  "@timetableWeeksRange": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  },
+  "timetableListSeparator": ", ",
+  "timetableConfirmDelete": "Tap again to delete",
+  "profileMutualFollowing": "Mutual",
+  "homeFeedSwitchToList": "Switch to list",
+  "homeFeedSwitchToCard": "Switch to cards",
+  "profileStreamManage": "Manage",
   "searchFilterInCatalog": "Filter in the course catalog",
   "profileEditAddCover": "Add a cover",
   "profileEditAddSocialLinks": "Add social links",

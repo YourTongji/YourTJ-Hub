@@ -279,6 +279,118 @@ void main() {
     );
   });
 
+  test(
+    'user blocks land on their weekday and week, never on holidays',
+    () async {
+      final data = snapshotData(DateTime.parse('2026-09-22T00:00:00Z'));
+      data['calendar'] = _withCalendarBounds(data['calendar']!);
+      final snapshot = await store.write(scope, 'binding-a', data.cast());
+      final base = _projectionWithRules(
+        snapshot,
+        scope,
+        const CampusCalendarRules(
+          holidays: [
+            CampusHoliday(
+              name: '校庆日',
+              startDate: '2026-09-24',
+              endDate: '2026-09-24',
+            ),
+          ],
+          moves: [],
+        ),
+      );
+      final week = base.week!;
+      final projection = base.withBlocks([
+        const ScheduleWidgetBlock(
+          id: 'club',
+          title: '社团例会',
+          place: '学活 201',
+          colorSlot: 3,
+          days: [2, 4],
+          start: 9,
+          end: 10,
+          weeks: [],
+        ),
+        ScheduleWidgetBlock(
+          id: 'lab',
+          title: '组会',
+          place: '',
+          colorSlot: 5,
+          days: const [1],
+          start: 3,
+          end: 4,
+          weeks: [week + 1],
+        ),
+      ]);
+      List<ScheduleWidgetCourse> on(ScheduleWidgetProjection p, String date) =>
+          p.days.firstWhere((day) => day.date == date).courses;
+      List<String> custom(ScheduleWidgetProjection p, String date) => [
+        for (final course in on(p, date))
+          if (course.custom) course.name,
+      ];
+
+      // Tuesday this week; Thursday is a holiday; Monday next is week + 1.
+      expect(custom(projection, '2026-09-22'), ['社团例会']);
+      expect(custom(projection, '2026-09-24'), isEmpty);
+      expect(custom(projection, '2026-09-28'), ['组会']);
+      final club = on(
+        projection,
+        '2026-09-22',
+      ).firstWhere((course) => course.custom);
+      expect((club.room, club.colorSlot, club.teacher), ('学活 201', 3, ''));
+      expect(club.startAt.isBefore(club.endAt), isTrue);
+
+      // Stored blocks survive the round trip and re-layout replaces, never
+      // duplicates; an empty list leaves only the school's courses.
+      final stored = ScheduleWidgetProjection.fromJson(
+        jsonDecode(projection.encode()) as Map<String, dynamic>,
+      );
+      expect(stored.blocks.map((block) => block.id), ['club', 'lab']);
+      expect(custom(stored, '2026-09-22'), ['社团例会']);
+      final again = stored.withBlocks(stored.blocks);
+      expect(
+        on(again, '2026-09-22').length,
+        on(projection, '2026-09-22').length,
+      );
+      final cleared = stored.withBlocks(const []);
+      for (final day in base.days) {
+        expect(on(cleared, day.date).length, day.courses.length);
+      }
+      expect(cleared.toJson().containsKey('blocks'), isFalse);
+    },
+  );
+
+  test('user blocks stay hidden on a server-adjusted moved-out day', () {
+    final projection =
+        ScheduleWidgetProjection(
+          identity: const ScheduleWidgetIdentity(
+            siteKey: 'site',
+            accountScope: 'account',
+            bindingRevision: 'binding',
+          ),
+          generatedAt: DateTime.utc(2026, 9, 22),
+          schoolDate: '2026-09-22',
+          semesterId: 'term',
+          week: 4,
+          sectionTimes: sectionTimesFor(11, null),
+          dayKind: 'moved',
+          adjustmentLabel: 'Moved to Saturday',
+          courses: const [],
+        ).withBlocks(const [
+          ScheduleWidgetBlock(
+            id: 'club',
+            title: 'Club',
+            place: '',
+            colorSlot: 1,
+            days: [2],
+            start: 1,
+            end: 2,
+            weeks: [],
+          ),
+        ]);
+    expect(projection.courses, isEmpty);
+  });
+
   test('v1 fallback and every optional text form sanitize safely', () async {
     final snapshot = await store.write(
       scope,

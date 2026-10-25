@@ -45,7 +45,8 @@ newer revision survives. Local write failures remain visible and retain the in-m
 Switching accounts hides another account's drafts without adopting them. Explicit account erasure
 removes its local work according to the account lifecycle. Ordinary cache clearing never deletes it.
 
-`Current`: ordinary drafts, bounded search history and local schedule snapshots use
+`Current`: ordinary drafts, bounded search history, local schedule snapshots and campus timetable
+memos (domain `campus-timetable`: course notes, user-drawn blocks and display preferences) use
 `user_work.sqlite`, with API origin and numeric account scope. Preference migration commits and
 verifies the new record before legacy cleanup. Tombstones remain authoritative if cleanup fails.
 Unassigned legacy plans remain recoverable through explicit ownership confirmation; a numeric account
@@ -171,7 +172,9 @@ refresh marker. On entry, a previous-day snapshot triggers the four allowlisted 
 section's datasets after binding verification. Same-day success survives process restart; failures keep
 the old marker so a later entry or manual refresh can retry. Batches crossing Shanghai midnight cannot
 commit yesterday's reads as today's successful update. The existing forced fresh reads after background
-resume remain independent of this daily trigger.
+resume remain independent of this daily trigger. A home-screen widget entry still forces them, but first
+shows the same identity's device snapshot, as a cold start does, and holds teaching-day expiry until the
+refresh ends; a verified binding change removes the snapshot at once.
 
 The coordinator deduplicates requests by site/account/binding/dataset, prevents overlapping
 automatic/manual refreshes and avoids requesting the same school calendar/timetable through both overview and

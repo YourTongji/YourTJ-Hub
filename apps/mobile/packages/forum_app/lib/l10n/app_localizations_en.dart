@@ -495,9 +495,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileFollowing => 'Following';
 
   @override
-  String get profileMutualFollowing => 'Mutual';
-
-  @override
   String get profileTopics => 'Topics';
 
   @override
@@ -1057,15 +1054,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get topicLaterReplies => 'Load newer replies';
-
-  @override
-  String get homeFeedSwitchToList => 'Switch to list';
-
-  @override
-  String get homeFeedSwitchToCard => 'Switch to cards';
-
-  @override
-  String get profileStreamManage => 'Manage';
 
   @override
   String get topicNewTopic => 'New topic';
@@ -2943,7 +2931,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get scheduleWidgetPrivacyDescription =>
-      'Widgets show course names, times, teachers and locations from the schedule saved on this device. Refreshing the schedule updates the home-screen view.';
+      'Widgets show course names, times, teachers and locations from the schedule saved on this device, plus the titles and locations of blocks you create (notes are excluded). If you agree, refreshing the schedule updates the home-screen view.';
 
   @override
   String get scheduleWidgetRefresh => 'Refresh from offline schedule';
@@ -4177,6 +4165,295 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get previewStatusLink => 'Preview status';
+
+  @override
+  String get timetableOptions => 'Timetable options';
+
+  @override
+  String get timetableWeekPicker => 'Choose a week';
+
+  @override
+  String timetableDateRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String timetableUpdatedAt(String time) {
+    return 'Updated $time';
+  }
+
+  @override
+  String get timetableShowingSnapshot => 'Showing saved copy';
+
+  @override
+  String get timetablePartlyUpdated => 'Partly updated';
+
+  @override
+  String get timetableMayBeOutdated => 'May be outdated';
+
+  @override
+  String get timetableFocusDay => 'Focus this day';
+
+  @override
+  String get timetableUnfocusDay => 'Show the whole week';
+
+  @override
+  String get timetableAddBlockHere => 'Add a block here';
+
+  @override
+  String get timetableOtherWeek => 'Other week';
+
+  @override
+  String get timetableBlock => 'Your block';
+
+  @override
+  String get timetableInProgress => 'In progress';
+
+  @override
+  String get timetableEmptyWeek =>
+      'No classes this week. Tap an empty cell to add a block.';
+
+  @override
+  String get timetableDayFree =>
+      'Nothing scheduled. Tap an empty cell to add a block.';
+
+  @override
+  String get timetableGestureTip =>
+      'Tap a weekday to focus it. Tap an empty cell to add a block, or long-press and drag to cover several sections.';
+
+  @override
+  String get timetableDisplay => 'Display';
+
+  @override
+  String get timetableAlwaysShowWeekend => 'Always show weekends';
+
+  @override
+  String get timetableAlwaysShowWeekendHint =>
+      'When off, weekends without classes fold away.';
+
+  @override
+  String get timetableShowOtherWeeks => 'Show classes from other weeks';
+
+  @override
+  String get timetableShowOtherWeeksHint => 'They appear faded in free cells.';
+
+  @override
+  String get timetableShowSectionTimes => 'Show class times';
+
+  @override
+  String get timetableFocusToday => 'Focus today when opened';
+
+  @override
+  String get timetableMemos => 'Blocks and notes';
+
+  @override
+  String get timetableNoMemos =>
+      'No blocks or notes yet. Add blocks for club meetings, study time or reminders.';
+
+  @override
+  String get timetableAddBlock => 'Add block';
+
+  @override
+  String get timetableEditBlock => 'Edit block';
+
+  @override
+  String get timetableBlockTitle => 'Title';
+
+  @override
+  String get timetableBlockTitleHint => 'Club meeting';
+
+  @override
+  String get timetableBlockPlace => 'Place';
+
+  @override
+  String get timetableBlockPlaceHint => 'Library, 3rd floor';
+
+  @override
+  String get timetableBlockNote => 'Note';
+
+  @override
+  String get timetableBlockDays => 'Days';
+
+  @override
+  String get timetableBlockStart => 'First section';
+
+  @override
+  String get timetableBlockEnd => 'Last section';
+
+  @override
+  String timetableWeeksOnly(int week) {
+    return 'Week $week only';
+  }
+
+  @override
+  String get timetableWeeksEvery => 'Every week';
+
+  @override
+  String get timetableWeeksOdd => 'Odd weeks';
+
+  @override
+  String get timetableWeeksEven => 'Even weeks';
+
+  @override
+  String get timetableBlockColor => 'Color';
+
+  @override
+  String timetableColorN(int number) {
+    return 'Color $number';
+  }
+
+  @override
+  String get timetableSaveBlock => 'Save';
+
+  @override
+  String get timetableDeleteBlock => 'Delete block';
+
+  @override
+  String get timetableDeleteNote => 'Delete note';
+
+  @override
+  String timetableCredits(String credits) {
+    return '$credits credits';
+  }
+
+  @override
+  String get timetableCourseNote => 'Note for every week';
+
+  @override
+  String get timetableCourseNoteHint => 'Bring a calculator';
+
+  @override
+  String timetableWeekNote(int week) {
+    return 'Note for week $week';
+  }
+
+  @override
+  String get timetableWeekNoteHint => 'Quiz, homework due';
+
+  @override
+  String get timetableNotesLocal => 'Notes stay on this device.';
+
+  @override
+  String get timetableNotesSaved => 'Saved on this device.';
+
+  @override
+  String get timetableNotesUnsaved =>
+      'Unable to save on this device. Edit the note to try again.';
+
+  @override
+  String get timetableWidgets => 'Home screen widgets';
+
+  @override
+  String get timetableWidgetNext => 'Next class';
+
+  @override
+  String get timetableWidgetNextHint =>
+      'The upcoming class with its time and room';
+
+  @override
+  String get timetableWidgetToday => 'Today’s classes';
+
+  @override
+  String get timetableWidgetTodayHint => 'Every class today in one list';
+
+  @override
+  String get timetableWidgetTimeline => 'Class timeline';
+
+  @override
+  String get timetableWidgetTimelineHint => 'Today’s classes along a timeline';
+
+  @override
+  String get timetableWidgetAdd => 'Add';
+
+  @override
+  String timetableWidgetAddNamed(String name) {
+    return 'Add $name widget';
+  }
+
+  @override
+  String get timetableWidgetRequested =>
+      'Confirm in the system dialog to place the widget.';
+
+  @override
+  String get timetableWidgetManual =>
+      'To add a widget, long-press an empty area of your home screen, open Widgets and choose YourTJ.';
+
+  @override
+  String get timetableWidgetIosSteps =>
+      'To add a widget, long-press an empty area of the Home Screen, tap +, then search for YourTJ and choose a size.';
+
+  @override
+  String get timetableCalendarSection => 'Course calendar';
+
+  @override
+  String get timetableMore => 'More';
+
+  @override
+  String get timetableMemosNone => 'No blocks or notes yet';
+
+  @override
+  String timetableMemoSummary(int blocks, int notes) {
+    String _temp0 = intl.Intl.pluralLogic(
+      blocks,
+      locale: localeName,
+      other: '$blocks blocks',
+      one: '1 block',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      notes,
+      locale: localeName,
+      other: '$notes notes',
+      one: '1 note',
+    );
+    return '$_temp0 · $_temp1';
+  }
+
+  @override
+  String get timetableMemosIntro =>
+      'Blocks and notes stay on this device. Tap a class to add a note.';
+
+  @override
+  String get timetableBlocksHeading => 'Blocks';
+
+  @override
+  String get timetableNotesHeading => 'Class notes';
+
+  @override
+  String get timetableWidgetsHint =>
+      'Put your next class or today’s classes on the home screen.';
+
+  @override
+  String get timetableExportHint =>
+      'Save as an .ics file for your calendar app.';
+
+  @override
+  String get timetableBlockWhen => 'When';
+
+  @override
+  String get timetableAddNote => 'Add note';
+
+  @override
+  String timetableWeeksRange(String range) {
+    return 'Weeks $range';
+  }
+
+  @override
+  String get timetableListSeparator => ', ';
+
+  @override
+  String get timetableConfirmDelete => 'Tap again to delete';
+
+  @override
+  String get profileMutualFollowing => 'Mutual';
+
+  @override
+  String get homeFeedSwitchToList => 'Switch to list';
+
+  @override
+  String get homeFeedSwitchToCard => 'Switch to cards';
+
+  @override
+  String get profileStreamManage => 'Manage';
 
   @override
   String get searchFilterInCatalog => 'Filter in the course catalog';

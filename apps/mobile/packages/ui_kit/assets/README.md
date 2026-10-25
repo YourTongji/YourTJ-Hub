@@ -55,6 +55,8 @@ to differently named ReIcon glyphs; other ReIcon assets use the same name:
 The `-filled` suffix selects the Filled weight of the same mapped icon.
 `gallery-duotone` layers the ReIcon Gallery Filled shape at low opacity behind
 the matching Outline strokes for the short-post image picker.
+`settings-duotone` applies the same layering to ReIcon Settings for the
+timetable options action on its tinted glass capsule.
 `keyboard-hide` places the ReIcon Keyboard Outline, scaled to 80%, above a
 small ReIcon Chevron Down stroke of matching weight: the platform hide-keyboard
 sign. The pair starts level with the plain keyboard and is optically centred, so

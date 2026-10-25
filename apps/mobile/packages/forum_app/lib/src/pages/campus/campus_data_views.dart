@@ -1,14 +1,12 @@
 import 'dart:math' as math;
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'campus_private_surface.dart';
-import 'campus_state.dart';
 import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../widgets/schedule_time_grid.dart';
-import 'campus_helpers.dart';
-import 'campus_calendar_export.dart';
+
+export 'timetable/campus_timetable.dart'
+    show CampusTimetableStatus, CampusWeekTimetable;
+export 'timetable/campus_timetable_sheets.dart' show CampusCourseDetails;
 
 class CampusMetrics extends StatelessWidget {
   const CampusMetrics({super.key, required this.data});
@@ -146,154 +144,6 @@ class CampusRecords extends StatelessWidget {
             ),
           ),
       ],
-    );
-  }
-}
-
-class CampusWeekTimetable extends StatefulWidget {
-  const CampusWeekTimetable({
-    super.key,
-    required this.data,
-    required this.week,
-    required this.maxWeek,
-    required this.times,
-    this.selectedWeek,
-    this.onWeekChanged,
-  });
-  final CampusDataset data;
-  final int week;
-  final int maxWeek;
-  final List<SectionTime> times;
-  final int? selectedWeek;
-  final ValueChanged<int>? onWeekChanged;
-  @override
-  State<CampusWeekTimetable> createState() => _CampusWeekTimetableState();
-}
-
-class _CampusWeekTimetableState extends State<CampusWeekTimetable> {
-  late int week = (widget.selectedWeek ?? widget.week).clamp(1, widget.maxWeek);
-
-  void _selectWeek(int value) {
-    setState(() => week = value.clamp(1, widget.maxWeek));
-    widget.onWeekChanged?.call(week);
-  }
-
-  @override
-  void didUpdateWidget(CampusWeekTimetable oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    week = (widget.selectedWeek ?? week).clamp(1, widget.maxWeek);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context);
-    final grid = campusGrid(widget.data.events, week);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        CampusCalendarExportButton(enabled: widget.data.events.isNotEmpty),
-        const SizedBox(height: 12),
-        Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          children: [
-            IconButton(
-              tooltip: MaterialLocalizations.of(context).previousPageTooltip,
-              onPressed: week > 1 ? () => _selectWeek(week - 1) : null,
-              icon: const GfSymbol('chevron-left'),
-            ),
-            GfText(
-              l.scheduleWeekN(week),
-              style: GfTheme.typographyOf(context).heading,
-            ),
-            IconButton(
-              tooltip: MaterialLocalizations.of(context).nextPageTooltip,
-              onPressed: week < widget.maxWeek
-                  ? () => _selectWeek(week + 1)
-                  : null,
-              icon: const GfSymbol('chevron-right'),
-            ),
-            TextButton(
-              onPressed: () => _selectWeek(widget.week),
-              child: GfText(l.scheduleCurrentWeek),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        ScheduleTimeGrid(
-          grid: grid,
-          times: sectionTimesFor(
-            grid.rowHeights.length,
-            widget.times.isEmpty ? null : widget.times,
-          ),
-          onTapCourse: (course) {
-            final index = int.tryParse(course.code.split(':')[1]);
-            final selectedWeek = week;
-            if (index == null) return;
-            showGfBottomSheet<void>(
-              context,
-              builder: (_) => CampusPrivateSurface(
-                builder: (_) =>
-                    CampusCourseDetails(week: selectedWeek, index: index),
-              ),
-            );
-          },
-        ),
-        if (campusCoursesForWeek(widget.data.events, week).isEmpty)
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: GfText(l.campusNoData),
-          ),
-      ],
-    );
-  }
-}
-
-/// The modal retains only a numeric selection, never a captured school record.
-/// Its content follows the same session/background boundary as the campus page.
-class CampusCourseDetails extends ConsumerWidget {
-  const CampusCourseDetails({
-    super.key,
-    required this.week,
-    required this.index,
-  });
-  final int week;
-  final int index;
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l = AppLocalizations.of(context);
-    final state = ref.watch(campusControllerProvider);
-    final events = campusCoursesForWeek(
-      state.data['timetable']?.events ?? [],
-      week,
-    );
-    final event = index >= 0 && index < events.length ? events[index] : null;
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (event == null)
-              GfText(l.campusNoData)
-            else ...[
-              GfText(event.name, style: GfTheme.typographyOf(context).title2),
-              const SizedBox(height: 12),
-              GfText(
-                [
-                  event.teacher,
-                  event.room,
-                  event.campus,
-                  l.schedulePeriodRange('${event.start}–${event.end}'),
-                  l.scheduleWeeksN(formatWeeksText(event.weeks)),
-                ].where((s) => s.isNotEmpty).join('\n'),
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 }

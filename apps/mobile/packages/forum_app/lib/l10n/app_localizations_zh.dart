@@ -479,9 +479,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileFollowing => '已关注';
 
   @override
-  String get profileMutualFollowing => '已互关';
-
-  @override
   String get profileTopics => '主题';
 
   @override
@@ -1038,15 +1035,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get topicLaterReplies => '加载更新回复';
-
-  @override
-  String get homeFeedSwitchToList => '切换为列表';
-
-  @override
-  String get homeFeedSwitchToCard => '切换为卡片';
-
-  @override
-  String get profileStreamManage => '管理';
 
   @override
   String get topicNewTopic => '新建话题';
@@ -2822,7 +2810,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get scheduleWidgetPrivacyDescription =>
-      '小组件展示课表中的课程名称、时间、教师和地点。内容来自本机保存的课表，刷新后同步到桌面。';
+      '小组件会展示本机课表中的课程名称、时间、教师和地点，也会展示你自建格子的名称和地点（不含备注）。同意后，刷新课表会将这些内容同步到桌面。';
 
   @override
   String get scheduleWidgetRefresh => '从离线课表刷新';
@@ -3974,6 +3962,271 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get previewStatusLink => '预发状态';
+
+  @override
+  String get timetableOptions => '课表设置';
+
+  @override
+  String get timetableWeekPicker => '选择周次';
+
+  @override
+  String timetableDateRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String timetableUpdatedAt(String time) {
+    return '更新于 $time';
+  }
+
+  @override
+  String get timetableShowingSnapshot => '正在显示本机快照';
+
+  @override
+  String get timetablePartlyUpdated => '部分数据未更新';
+
+  @override
+  String get timetableMayBeOutdated => '可能不是最新';
+
+  @override
+  String get timetableFocusDay => '聚焦这一天';
+
+  @override
+  String get timetableUnfocusDay => '恢复整周视图';
+
+  @override
+  String get timetableAddBlockHere => '在这里添加格子';
+
+  @override
+  String get timetableOtherWeek => '非本周';
+
+  @override
+  String get timetableBlock => '自定义格子';
+
+  @override
+  String get timetableInProgress => '正在上课';
+
+  @override
+  String get timetableEmptyWeek => '本周没有课。点空白格可以添加自己的安排。';
+
+  @override
+  String get timetableDayFree => '这天没有安排。点空白格可以添加格子。';
+
+  @override
+  String get timetableGestureTip => '点星期聚焦当天；点空白格添加格子，长按并拖动可一次选中多节。';
+
+  @override
+  String get timetableDisplay => '显示';
+
+  @override
+  String get timetableAlwaysShowWeekend => '始终显示周末';
+
+  @override
+  String get timetableAlwaysShowWeekendHint => '关闭时，没有安排的周末会自动收起。';
+
+  @override
+  String get timetableShowOtherWeeks => '显示非本周课程';
+
+  @override
+  String get timetableShowOtherWeeksHint => '在空闲格里以淡色显示。';
+
+  @override
+  String get timetableShowSectionTimes => '显示上课时间';
+
+  @override
+  String get timetableFocusToday => '打开时聚焦今天';
+
+  @override
+  String get timetableMemos => '格子与备注';
+
+  @override
+  String get timetableNoMemos => '还没有格子或备注。可以为社团活动、自习或提醒添加格子。';
+
+  @override
+  String get timetableAddBlock => '添加格子';
+
+  @override
+  String get timetableEditBlock => '编辑格子';
+
+  @override
+  String get timetableBlockTitle => '名称';
+
+  @override
+  String get timetableBlockTitleHint => '社团例会';
+
+  @override
+  String get timetableBlockPlace => '地点';
+
+  @override
+  String get timetableBlockPlaceHint => '图书馆三楼';
+
+  @override
+  String get timetableBlockNote => '备注';
+
+  @override
+  String get timetableBlockDays => '星期';
+
+  @override
+  String get timetableBlockStart => '开始节次';
+
+  @override
+  String get timetableBlockEnd => '结束节次';
+
+  @override
+  String timetableWeeksOnly(int week) {
+    return '仅第 $week 周';
+  }
+
+  @override
+  String get timetableWeeksEvery => '每周';
+
+  @override
+  String get timetableWeeksOdd => '单周';
+
+  @override
+  String get timetableWeeksEven => '双周';
+
+  @override
+  String get timetableBlockColor => '颜色';
+
+  @override
+  String timetableColorN(int number) {
+    return '颜色 $number';
+  }
+
+  @override
+  String get timetableSaveBlock => '保存';
+
+  @override
+  String get timetableDeleteBlock => '删除格子';
+
+  @override
+  String get timetableDeleteNote => '删除备注';
+
+  @override
+  String timetableCredits(String credits) {
+    return '$credits 学分';
+  }
+
+  @override
+  String get timetableCourseNote => '每周备注';
+
+  @override
+  String get timetableCourseNoteHint => '带计算器';
+
+  @override
+  String timetableWeekNote(int week) {
+    return '第 $week 周备注';
+  }
+
+  @override
+  String get timetableWeekNoteHint => '小测、交作业';
+
+  @override
+  String get timetableNotesLocal => '备注只保存在本设备。';
+
+  @override
+  String get timetableNotesSaved => '已保存在本设备。';
+
+  @override
+  String get timetableNotesUnsaved => '无法保存到本设备。修改备注即可重试。';
+
+  @override
+  String get timetableWidgets => '桌面小组件';
+
+  @override
+  String get timetableWidgetNext => '下一节课';
+
+  @override
+  String get timetableWidgetNextHint => '即将开始的课，含时间与教室';
+
+  @override
+  String get timetableWidgetToday => '今日课表';
+
+  @override
+  String get timetableWidgetTodayHint => '今天的全部课程一览';
+
+  @override
+  String get timetableWidgetTimeline => '课程时间线';
+
+  @override
+  String get timetableWidgetTimelineHint => '按时间轴排列今天的课';
+
+  @override
+  String get timetableWidgetAdd => '添加';
+
+  @override
+  String timetableWidgetAddNamed(String name) {
+    return '添加“$name”小组件';
+  }
+
+  @override
+  String get timetableWidgetRequested => '在系统弹窗中确认后，小组件会放到桌面。';
+
+  @override
+  String get timetableWidgetManual => '添加小组件：长按桌面空白处，打开“小组件”，选择 YourTJ。';
+
+  @override
+  String get timetableWidgetIosSteps =>
+      '添加小组件：长按主屏幕空白处，轻点左上角的 +，搜索 YourTJ 并选择尺寸。';
+
+  @override
+  String get timetableCalendarSection => '课程日历';
+
+  @override
+  String get timetableMore => '更多';
+
+  @override
+  String get timetableMemosNone => '还没有格子或备注';
+
+  @override
+  String timetableMemoSummary(int blocks, int notes) {
+    return '$blocks 个格子 · $notes 条备注';
+  }
+
+  @override
+  String get timetableMemosIntro => '格子和备注只保存在本设备。点课程可以写备注。';
+
+  @override
+  String get timetableBlocksHeading => '格子';
+
+  @override
+  String get timetableNotesHeading => '课程备注';
+
+  @override
+  String get timetableWidgetsHint => '把下一节课或今日课表放到桌面。';
+
+  @override
+  String get timetableExportHint => '保存为 .ics 文件，导入其他日历 App。';
+
+  @override
+  String get timetableBlockWhen => '时间';
+
+  @override
+  String get timetableAddNote => '添加备注';
+
+  @override
+  String timetableWeeksRange(String range) {
+    return '第 $range 周';
+  }
+
+  @override
+  String get timetableListSeparator => '、';
+
+  @override
+  String get timetableConfirmDelete => '再点一次删除';
+
+  @override
+  String get profileMutualFollowing => '已互关';
+
+  @override
+  String get homeFeedSwitchToList => '切换为列表';
+
+  @override
+  String get homeFeedSwitchToCard => '切换为卡片';
+
+  @override
+  String get profileStreamManage => '管理';
 
   @override
   String get searchFilterInCatalog => '在课程目录中筛选';
