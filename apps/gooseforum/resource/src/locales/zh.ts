@@ -1305,6 +1305,11 @@ export default {
     pickerTitle: '表情包',
     empty: '暂无可用表情包',
     previewAnimation: '动画表情',
+    custom: '自定义表情',
+    save: '收藏到我的表情',
+    saved: '已在我的表情',
+    signInToSave: '登录后收藏',
+    saveFailed: '收藏未完成，请重试',
   },
   common: {
     back: '返回',

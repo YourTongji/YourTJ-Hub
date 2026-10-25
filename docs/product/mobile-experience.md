@@ -1657,22 +1657,29 @@ servers that omit interaction fields retain read-only content previews.
   assets retain their history references. Site administrators review undecided personal uploads in
   the admin queue; forum moderators have no access to these images. [0038](../decisions/0038-personal-sticker-library.md)
   owns storage and privacy; [0079](../decisions/0080-personal-sticker-pre-review.md) owns pre-review.
-- `Current`: native post/reply bodies and private messages display image stickers in a 128 × 128
-  logical-pixel box, preserving aspect ratio and GIF animation. Consecutive stickers wrap within
-  the content width. Picker and draft-preview thumbnails remain 56 × 56, and personal-library
-  rows use 48 × 48, so the reading size does not crowd the input controls.
-- `Current`: tapping a native inline sticker or a library row opens that sticker alone in the shared
-  image viewer, with animated GIF playback, pinch/double-tap zoom and actual-size viewing. Stickers
-  remain excluded from surrounding attachment galleries. Picker taps still insert without sending;
-  a visible hint and each item’s long-press action expose a separate large preview on all three tabs.
-  Previewing does not insert a token or change recent use. Chat long presses still open the message
-  action menu, including when an image fails to load. Unknown or unavailable tokens retain a readable
-  fallback. Library state is isolated by site and account.
+- `Current`: native post/reply bodies, Markdown draft previews and feed-card excerpts place image
+  stickers inline at 2.5 × the surrounding font size, centred on the text line, so headings scale
+  their stickers and a sticker reads as part of the sentence rather than a separate image.
+  Private messages keep a 128 × 128 logical-pixel box, preserving aspect ratio and GIF animation.
+  Picker and chat draft-preview thumbnails remain 56 × 56, and personal-library rows use 48 × 48.
+- `Current`: tapping a native inline sticker opens a compact sticker card, not the photo viewer: an
+  enlarged 168 × 168 view, the sticker's name, and Save to my stickers, which reads In your stickers
+  once saved. Failures stay in the card for retry; read-only feed excerpts omit the action. Long
+  presses keep their existing collection/retry sheet. Library rows open that sticker alone in the
+  shared image viewer, with animated GIF playback, pinch/double-tap zoom and actual-size viewing.
+  Stickers remain excluded from surrounding attachment galleries. Picker taps still insert without
+  sending; a visible hint and each item’s long-press action expose a separate large preview on all
+  three tabs. Previewing does not insert a token or change recent use. Chat long presses still open
+  the message action menu, including when an image fails to load. Unknown or unavailable tokens
+  retain a readable fallback. Library state is isolated by site and account.
 - `Current`: disabled official stickers stay in personal management for ordering/removal and are
   unavailable for insertion; permanently deleted official stickers leave the collection. Older servers
   without personal-library endpoints show a compatibility message while official stickers remain usable.
-- `Current`: Web post and reply sticker images are excluded from lightbox clicks and gallery
-  collection; chat stickers are also non-interactive. Ordinary photos retain image preview, and
+- `Current`: Web post and reply sticker images render inline at 2.5em, centred on the text line,
+  without image borders or paragraph centring; feed-card previews use the same size. They are
+  excluded from lightbox clicks and gallery collection. Clicking one opens the same compact sticker
+  card (enlarged view, name, Save to my stickers); guests are sent to sign in. Chat stickers are
+  non-interactive. Ordinary photos retain image preview, and
   images explicitly linked to another page retain their link destination. Sticker recognition uses
   renderer-owned provenance; an ordinary image's author-supplied alt text does not change its behavior.
 - `Partial`: Web renders shared personal stickers, but personal-library management is a native App

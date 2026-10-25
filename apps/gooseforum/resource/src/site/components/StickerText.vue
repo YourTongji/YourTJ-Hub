@@ -8,11 +8,11 @@ import { renderableStickerSegments } from '@/site/utils/sticker-token'
 const props = withDefaults(defineProps<{
   content: string
   stickerUrls?: Map<string, string>
-  // 卡片最大允许两倍行距：leading-6（24px）→ h-12 w-12；更小的行用 h-5 w-5
+  // 默认与帖内正文一致（2.5em，居中于文字行）；调用方可覆盖尺寸类
   size?: string
 }>(), {
   stickerUrls: () => new Map<string, string>(),
-  size: 'h-5 w-5',
+  size: 'h-[2.5em] w-auto max-w-[5em] align-[-0.87em]',
 })
 
 const segments = computed(() => renderableStickerSegments(props.content, props.stickerUrls))
@@ -24,7 +24,7 @@ const segments = computed(() => renderableStickerSegments(props.content, props.s
       v-if="segment.type === 'sticker'"
       :src="segment.url"
       :alt="`[${segment.name}]`"
-      class="inline-block max-w-full object-contain align-middle"
+      class="inline-block object-contain"
       :class="size"
       loading="lazy"
     /><template v-else><TwemojiText :text="segment.text" /></template>

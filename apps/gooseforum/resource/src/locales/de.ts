@@ -1304,6 +1304,11 @@ export default {
     pickerTitle: 'Sticker',
     empty: 'Keine Sticker verfügbar',
     previewAnimation: 'Animierter Sticker',
+    custom: 'Eigener Sticker',
+    save: 'Zu meinen Stickern',
+    saved: 'In deinen Stickern',
+    signInToSave: 'Zum Speichern anmelden',
+    saveFailed: 'Speichern fehlgeschlagen. Bitte erneut versuchen.',
   },
   common: {
     back: 'Zurück',

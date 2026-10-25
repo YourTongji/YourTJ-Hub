@@ -480,6 +480,16 @@ export async function resolveForumStickers(names: string[]): Promise<StickerItem
   return Array.isArray(items) ? items : []
 }
 
+/** Save a shared sticker to the viewer's personal library; saving again is a no-op. */
+export async function saveMySticker(stickerName: string): Promise<StickerItem> {
+  const response = await feedFetch('/api/forum/my-sticker-save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ stickerName }),
+  })
+  return readApiResponse<StickerItem>(response, t('stickers.saveFailed'))
+}
+
 export async function likeTopic(id: number, action: 1 | 2, topic?: TopicPayload): Promise<boolean> {
   const response = await feedFetch('/api/forum/topics/like', {
     method: 'POST',

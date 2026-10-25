@@ -1110,14 +1110,19 @@ void main() {
       );
     });
 
-    testWidgets('card renders the same token larger', (tester) async {
+    testWidgets('card renders the token inline at the body sticker scale', (
+      tester,
+    ) async {
       await pumpFeed(
         tester,
         [topicWith('正文 [:sticker:smile:]')],
         mode: GfTopicFeedMode.card,
       );
 
-      expect(tester.getSize(find.byType(StickerImage)), const Size(48, 48));
+      expect(
+        tester.getSize(find.byType(StickerImage)).height,
+        moreOrLessEquals(17 * StickerImage.inlineScale),
+      );
       expect(
         _richTexts(tester).where((text) => text.contains('[:sticker:')),
         isEmpty,

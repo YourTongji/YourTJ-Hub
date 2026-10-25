@@ -120,10 +120,10 @@ const feedReason = (reason?: string | null) => { const key = feedReasonKey(reaso
         : 'mt-1.5 line-clamp-2 text-sm leading-6 text-base-content/55'"
     >
       <template v-if="!topic.title && topic.unseen">
-        <span class="min-w-0 flex-1 line-clamp-2"><StickerText :content="topic.description ?? ''" :sticker-urls="stickerUrls" size="h-12 w-12" /></span>
+        <span class="min-w-0 flex-1 line-clamp-2"><StickerText :content="topic.description ?? ''" :sticker-urls="stickerUrls" /></span>
         <span class="mt-2 inline-block h-2 w-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
       </template>
-      <template v-else><StickerText :content="topic.description ?? ''" :sticker-urls="stickerUrls" size="h-12 w-12" /></template>
+      <template v-else><StickerText :content="topic.description ?? ''" :sticker-urls="stickerUrls" /></template>
     </p>
 
     <slot name="media" />

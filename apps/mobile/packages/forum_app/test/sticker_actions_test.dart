@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_card.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_library_page.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
@@ -23,11 +24,30 @@ class _Repository extends StickerRepository {
     : super(GfApiClient(dio: Dio(), tokenStorage: MemTokenStorage()));
   List<StickerItemPayload> members = [_item];
   final removed = <String>[];
+  final saved = <String>[];
   bool failRemove = false;
+  bool failSave = false;
   @override
   Future<List<StickerItemPayload>> list() async => [_item];
   @override
   Future<List<StickerItemPayload>> mine() async => [...members];
+  @override
+  Future<StickerItemPayload> save({
+    String? stickerName,
+    String? fileName,
+    String? displayName,
+  }) async {
+    saved.add(stickerName!);
+    if (failSave) throw StateError('offline');
+    final item = StickerItemPayload(
+      name: stickerName,
+      url: 'https://example.test/$stickerName.gif',
+      isOfficial: false,
+    );
+    members.add(item);
+    return item;
+  }
+
   @override
   Future<void> remove(String name) async {
     removed.add(name);
@@ -66,10 +86,7 @@ void main() {
         child: MaterialApp(
           theme: gfThemeData(Brightness.light),
           home: Scaffold(
-            body: SizedBox(
-              height: 400,
-              child: StickerPicker(onInsert: (_) {}),
-            ),
+            body: SizedBox(height: 400, child: StickerPicker(onInsert: (_) {})),
           ),
         ),
       ),
@@ -306,10 +323,101 @@ void main() {
     expect(holds, 1);
     expect(find.byType(GfImageViewer), findsNothing);
     await tester.tap(find.byType(StickerImage));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(find.byType(GfImageViewer), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.byType(StickerCard), findsOneWidget);
+    expect(find.byType(GfImageViewer), findsNothing);
     expect(taps, 0);
+  });
+
+  group('sticker card', () {
+    Future<void> open(WidgetTester tester, String name) async {
+      await tester.tap(find.byType(StickerImage));
+      await tester.pumpAndSettle();
+      expect(find.byType(StickerCard), findsOneWidget);
+      // Opening never inserts or collects anything by itself.
+      expect(
+        tester.getSize(find.byType(GfNetworkImage).last),
+        const Size.square(StickerCard.stageSize),
+      );
+    }
+
+    Widget sticker(String name) => Scaffold(
+      body: Center(
+        child: StickerImage(name: name, url: 'https://example.test/$name.gif'),
+      ),
+    );
+
+    testWidgets('collects a shared sticker and confirms in place', (
+      tester,
+    ) async {
+      final repository = _Repository()..members = [];
+      final state = await _pump(tester, repository, child: sticker('dance'));
+      await state.library.load();
+      await open(tester, 'dance');
+      expect(find.text('Dance'), findsOneWidget);
+      expect(repository.saved, isEmpty);
+
+      await tester.tap(find.text('Save to my stickers'));
+      await tester.pumpAndSettle();
+      expect(repository.saved, ['dance']);
+      expect(find.text('In your stickers'), findsOneWidget);
+      expect(find.text('Save to my stickers'), findsNothing);
+
+      await tester.tapAt(const Offset(4, 4));
+      await tester.pumpAndSettle();
+      expect(find.byType(StickerCard), findsNothing);
+    });
+
+    testWidgets('shows a sticker already in your library as saved', (
+      tester,
+    ) async {
+      await _pump(tester, _Repository(), child: sticker('dance'));
+      await open(tester, 'dance');
+      expect(find.text('In your stickers'), findsOneWidget);
+    });
+
+    testWidgets('keeps the card open with a retryable error', (tester) async {
+      final repository = _Repository()
+        ..members = []
+        ..failSave = true;
+      await _pump(tester, repository, child: sticker('u_${'a' * 48}'));
+      await open(tester, 'u_${'a' * 48}');
+      expect(find.text('Custom sticker'), findsOneWidget);
+      await tester.tap(find.text('Save to my stickers'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Could not complete this action. Try again.'),
+        findsOneWidget,
+      );
+      repository.failSave = false;
+      await tester.tap(find.text('Save to my stickers'));
+      await tester.pumpAndSettle();
+      expect(find.text('In your stickers'), findsOneWidget);
+      expect(
+        find.text('Could not complete this action. Try again.'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('read-only excerpts open the card without collection', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        _Repository(),
+        child: const Scaffold(
+          body: Center(
+            child: StickerImage(
+              name: 'dance',
+              url: 'https://example.test/dance.gif',
+              collectible: false,
+            ),
+          ),
+        ),
+      );
+      await open(tester, 'dance');
+      expect(find.byType(GfButton), findsNothing);
+    });
   });
 
   testWidgets('account change invalidates a pending removal confirmation', (

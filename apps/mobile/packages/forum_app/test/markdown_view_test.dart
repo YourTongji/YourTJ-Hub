@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_card.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_draft_preview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -157,14 +158,26 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(tester.getSize(find.byType(StickerImage)), const Size(56, 56));
+      // Markdown drafts preview the published inline size; chat drafts keep
+      // their bounded thumbnail.
+      expect(
+        tester.getSize(find.byType(StickerImage)),
+        markdown
+            ? const Size.square(
+                GfRichContentTypography.readingBodySize *
+                    StickerImage.inlineScale,
+              )
+            : const Size(56, 56),
+      );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 600));
     });
   }
 
-  testWidgets('large stickers wrap within narrow quoted prose', (tester) async {
+  testWidgets('stickers sit on the text line at a multiple of its size', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(320, 700));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final library = StickerLibrary(_FakeStickerRepository());
@@ -175,6 +188,7 @@ void main() {
         child: _wrap(
           const GfMarkdownView(
             data:
+                '## 标题 [:sticker:smile:]\n\n'
                 '> 看看这些表情 [:sticker:smile:][:sticker:smile:][:sticker:smile:]',
           ),
         ),
@@ -182,14 +196,39 @@ void main() {
     );
     await tester.pumpAndSettle();
     final stickers = find.byType(StickerImage);
-    expect(stickers, findsNWidgets(3));
+    expect(stickers, findsNWidgets(4));
     final boxes = [
       for (final element in stickers.evaluate())
         tester.getRect(find.byWidget(element.widget)),
     ];
-    expect(boxes.last.top, greaterThan(boxes.first.top));
-    for (final box in boxes) {
-      expect(box.size, const Size(128, 128));
+    // Headings scale their sticker with the heading text.
+    expect(boxes.first.height, greaterThan(boxes[1].height));
+    final quoted = boxes.skip(1).toList();
+    final RenderParagraph paragraph = tester.renderObject<RenderParagraph>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is RichText && widget.text.toPlainText().contains('看看这些表情'),
+      ),
+    );
+    final TextBox glyph = paragraph
+        .getBoxesForSelection(
+          const TextSelection(baseOffset: 0, extentOffset: 2),
+        )
+        .first;
+    final double textCenter = paragraph
+        .localToGlobal(Offset(0, (glyph.top + glyph.bottom) / 2))
+        .dy;
+    for (final box in quoted) {
+      // Global rects carry rounding from the line offset.
+      expect(
+        box.height,
+        moreOrLessEquals(
+          GfRichContentTypography.readingBodySize * StickerImage.inlineScale,
+        ),
+      );
+      // One line with the text, centred on it.
+      expect(box.top, quoted.first.top);
+      expect((box.center.dy - textCenter).abs(), lessThan(2));
       expect(box.left, greaterThanOrEqualTo(0));
       expect(box.right, lessThanOrEqualTo(320));
     }
@@ -460,7 +499,8 @@ void main() {
   ) async {
     // 歌曲卡片列出艺术家，专辑名只作为描述行出现：歌曲不得被标成专辑
     // （issue #1201 AC-2）。
-    const String url = 'https://music.apple.com/cn/song/better-together/1440857786';
+    const String url =
+        'https://music.apple.com/cn/song/better-together/1440857786';
     final repository = _FakeLinkPreviewRepository(const <LinkPreviewPayload>[
       LinkPreviewPayload(
         requestedUrl: url,
@@ -648,45 +688,46 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
-  testWidgets('whitelisted targets still confirm when the label is mislabeled', (
-    tester,
-  ) async {
-    // 白名单只豁免 normalExternal（issue #1200）：帖子正文是最高流量面，
-    // 「标签与目标不符」的链接即使目标命中白名单也必须弹确认层。
-    LinkNavigation.applyTrustedDomains(const <String>['github.com']);
-    addTearDown(() => LinkNavigation.applyTrustedDomains(const <String>[]));
-    await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(
-          locale: Locale('en'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: GfMarkdownView(
-              data: '[https://bank.example](https://github.com/x)',
+  testWidgets(
+    'whitelisted targets still confirm when the label is mislabeled',
+    (tester) async {
+      // 白名单只豁免 normalExternal（issue #1200）：帖子正文是最高流量面，
+      // 「标签与目标不符」的链接即使目标命中白名单也必须弹确认层。
+      LinkNavigation.applyTrustedDomains(const <String>['github.com']);
+      addTearDown(() => LinkNavigation.applyTrustedDomains(const <String>[]));
+      await tester.pumpWidget(
+        const ProviderScope(
+          child: MaterialApp(
+            locale: Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: GfMarkdownView(
+                data: '[https://bank.example](https://github.com/x)',
+              ),
             ),
           ),
         ),
-      ),
-    );
-    final RichText link = tester.widget<RichText>(
-      find.byWidgetPredicate(
-        (Widget widget) =>
-            widget is RichText &&
-            widget.text.toPlainText().contains('bank.example'),
-      ),
-    );
-    _linkRecognizer(link.text)?.onTap?.call();
-    await tester.pumpAndSettle();
-    expect(find.text('Leaving YourTJ'), findsOneWidget);
-    // suspicious 不提供「本次浏览期间不再询问」。
-    expect(find.byType(CheckboxListTile), findsNothing);
-    await tester.ensureVisible(find.text('Cancel'));
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(milliseconds: 600));
-  });
+      );
+      final RichText link = tester.widget<RichText>(
+        find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is RichText &&
+              widget.text.toPlainText().contains('bank.example'),
+        ),
+      );
+      _linkRecognizer(link.text)?.onTap?.call();
+      await tester.pumpAndSettle();
+      expect(find.text('Leaving YourTJ'), findsOneWidget);
+      // suspicious 不提供「本次浏览期间不再询问」。
+      expect(find.byType(CheckboxListTile), findsNothing);
+      await tester.ensureVisible(find.text('Cancel'));
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    },
+  );
 
   testWidgets('userinfo links are rejected without opening the guard', (
     tester,
@@ -1063,18 +1104,22 @@ void main() {
     );
     expect(find.byType(Image), findsOneWidget);
     expect(find.byType(StickerImage), findsOneWidget);
-    expect(tester.getSize(find.byType(StickerImage)), const Size(128, 128));
+    expect(
+      tester.getSize(find.byType(StickerImage)),
+      const Size.square(
+        GfRichContentTypography.readingBodySize * StickerImage.inlineScale,
+      ),
+    );
     expect(
       tester.widget<StickerImage>(find.byType(StickerImage)).url,
       '/file/img/stickers/smile.png',
     );
+    // Stickers open their own card, never the photo viewer.
     await tester.tap(find.byType(StickerImage));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
-    expect(find.byType(GfImageViewer), findsOneWidget);
-    expect(tester.widget<GfImageViewer>(find.byType(GfImageViewer)).images, [
-      endsWith('/file/img/stickers/smile.png'),
-    ]);
+    expect(find.byType(StickerCard), findsOneWidget);
+    expect(find.byType(GfImageViewer), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
@@ -1353,7 +1398,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
-  testWidgets('inline and fenced code keep emoji as source text', (tester) async {
+  testWidgets('inline and fenced code keep emoji as source text', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const ProviderScope(
         child: MaterialApp(
