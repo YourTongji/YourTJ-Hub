@@ -70,6 +70,27 @@ final topicReturnStatesProvider = Provider<Map<int, TopicReturnState>>((ref) {
   return <int, TopicReturnState>{};
 });
 
+/// Successful topic deletions hide stale list responses in place. The session
+/// epoch drops tombstones on account/site changes; no private data is persisted.
+class RemovedTopics extends Notifier<Set<int>> {
+  @override
+  Set<int> build() {
+    ref.watch(offlineCacheEpochProvider);
+    return {};
+  }
+
+  void add(int id) => state = {...state, id};
+
+  /// A confirmed restore makes this topic eligible for the existing lists again.
+  void remove(int id) {
+    if (state.contains(id)) state = {...state}..remove(id);
+  }
+}
+
+final removedTopicsProvider = NotifierProvider<RemovedTopics, Set<int>>(
+  RemovedTopics.new,
+);
+
 /// Reply state handed back to profile activity without confusing post/topic IDs.
 typedef PostReturnState = ({bool liked, bool bookmarked, int likeCount});
 final postReturnStatesProvider = Provider<Map<int, PostReturnState>>((ref) {
@@ -323,6 +344,8 @@ class UserFollowState extends ChangeNotifier {
 
   final TopicRepository _repository;
   bool? following;
+  // 双向关注态（issue #1320）：服务端返回后同步给所有展示面。
+  bool? mutualFollowing;
   bool busy = false;
   int _mutation = 0;
   int _lastAcceptedRead = 0;
@@ -331,7 +354,7 @@ class UserFollowState extends ChangeNotifier {
 
   UserFollowRead beginRead() => nextUserFollowReadOrder();
 
-  void acceptServerValue(bool value, UserFollowRead read) {
+  void acceptServerValue(bool value, UserFollowRead read, {bool? mutual}) {
     if (_disposed ||
         busy ||
         read <= _lastMutationRead ||
@@ -340,21 +363,34 @@ class UserFollowState extends ChangeNotifier {
     }
     _lastAcceptedRead = read;
     following = value;
+    if (mutual != null) mutualFollowing = value && mutual;
     notifyListeners();
   }
 
   Future<void> toggle({required int userId, required bool fallback}) async {
     if (_disposed || busy) return;
     final previous = following ?? fallback;
+    final previousMutual = mutualFollowing ?? false;
     final mutation = ++_mutation;
     _lastMutationRead = nextUserFollowReadOrder();
     following = !previous;
+    mutualFollowing = false;
     busy = true;
     notifyListeners();
     try {
-      await _repository.followUser(userId: userId, isFollowing: previous);
+      final applied = await _repository.followUser(
+        userId: userId,
+        isFollowing: previous,
+      );
+      if (!_disposed && mutation == _mutation) {
+        following = applied.isFollowing;
+        mutualFollowing = applied.isFollowing && applied.isMutualFollowing;
+      }
     } catch (_) {
-      if (!_disposed && mutation == _mutation) following = previous;
+      if (!_disposed && mutation == _mutation) {
+        following = previous;
+        mutualFollowing = previousMutual;
+      }
       rethrow;
     } finally {
       if (!_disposed && mutation == _mutation) {

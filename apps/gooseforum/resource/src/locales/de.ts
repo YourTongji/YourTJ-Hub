@@ -2550,6 +2550,7 @@ export default {
     joinedAt: 'Beigetreten {date}',
     follow: 'Folgen',
     following: 'Folgt',
+    mutualFollowing: 'Gegenseitig',
     viewProfile: 'Profil anzeigen',
   },
   appeals: {
@@ -2784,6 +2785,7 @@ export default {
     coverSaved: 'Titelbild gespeichert',
     follow: 'Folgen',
     following: 'Folgt',
+    mutualFollowing: 'Gegenseitig',
     joinedAt: 'Beigetreten {date}',
     lastActive: 'Zuletzt aktiv {time}',
     emptyTopics: 'Keine veröffentlichten Themen.',

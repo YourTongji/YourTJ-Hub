@@ -34,6 +34,7 @@ import 'package:forum_app/src/pages/profile/profile_page.dart';
 import 'package:forum_app/src/pages/search/search_page.dart';
 import 'package:forum_app/src/pages/settings/settings_page.dart';
 import 'package:forum_app/src/pages/topic/topic_page.dart';
+import 'package:forum_app/src/pages/topic/topic_actions.dart';
 import 'package:forum_app/src/pages/topic/mention_panel.dart';
 import 'package:forum_app/src/pages/topic/mention_search.dart';
 import 'package:forum_app/src/pages/topic/mention_session.dart';
@@ -48,6 +49,13 @@ import 'package:forum_app/src/widgets/skeletons.dart';
 import 'fixtures/page_fixtures.dart';
 
 /// 内存 TokenStorage(与 pages_smoke_test 同款)。
+class _EmptyWikiSearch extends WikiRepository {
+  _EmptyWikiSearch(super.client);
+  @override
+  Future<WikiSearchResult> search(String query, {int? limit, CancelToken? cancelToken}) async =>
+    WikiSearchResult(query: query, items: const [], total: 0, searchUnavailable: false);
+}
+
 class _RootScrollController extends GfScrollToTopController {
   int calls = 0;
   @override
@@ -732,13 +740,15 @@ class RecordingFollowTopicRepository extends TopicRepository {
   final List<bool> currentStates = <bool>[];
 
   @override
-  Future<bool> followUser({
+  Future<({bool isFollowing, bool isMutualFollowing})> followUser({
     required int userId,
     required bool isFollowing,
   }) async {
     userIds.add(userId);
     currentStates.add(isFollowing);
-    return pending == null ? true : await pending!.future;
+    if (pending != null) await pending!.future;
+    // 入参是操作前状态：假仓库执行后翻转，与服务端返回的 applied 状态一致。
+    return (isFollowing: !isFollowing, isMutualFollowing: false);
   }
 }
 
@@ -886,6 +896,16 @@ Map<String, dynamic> followableProfilePayloadJson() {
     ..['canFollow'] = true
     ..['canMessage'] = false
     ..['settingsUrl'] = '';
+  return json;
+}
+
+Map<String, dynamic> mutualFollowProfilePayloadJson() {
+  final Map<String, dynamic> json = followableProfilePayloadJson();
+  final Map<String, dynamic> props = json['props'] as Map<String, dynamic>;
+  final Map<String, dynamic> user = props['user'] as Map<String, dynamic>;
+  user
+    ..['isFollowing'] = true
+    ..['isMutualFollowing'] = true;
   return json;
 }
 
@@ -1746,6 +1766,7 @@ void main() {
               : CurrentUser(id: currentUserId, username: 'alice'),
         ),
         pageRepositoryProvider.overrideWithValue(pageRepo),
+        wikiRepositoryProvider.overrideWithValue(_EmptyWikiSearch(client)),
         topicRepositoryProvider.overrideWithValue(
           topicRepo ?? PagingTopicRepository(client),
         ),
@@ -1807,6 +1828,11 @@ void main() {
             targetUsername: state.uri.queryParameters['username'] ?? '',
             targetAvatarUrl: state.uri.queryParameters['avatar'] ?? '',
           ),
+        ),
+        GoRoute(
+          path: '/settings/profile',
+          builder: (_, _) =>
+              const Scaffold(body: Center(child: Text('settings-page'))),
         ),
         GoRoute(
           path: '/settings',
@@ -2672,11 +2698,9 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('在课程中搜索“$query”'));
       await tester.pumpAndSettle();
-      expect(router.state.uri.queryParameters['q'], query);
-      router.pop();
-      await tester.pumpAndSettle();
-      // The unsent text is kept; clearing it returns to recent searches.
-      expect(find.text('搜索“$query”'), findsOneWidget);
+      expect(router.state.uri.path, '/');
+      expect(tester.widget<GfTabBar>(find.byType(GfTabBar)).selected, 'courses');
+      expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, query);
       await tester.tap(find.byTooltip('清空搜索'));
       await tester.pumpAndSettle();
       expect(find.text('最近搜索'), findsOneWidget);
@@ -2915,9 +2939,7 @@ void main() {
         await tester.pumpWidget(routerApp(container, router));
         await tester.pumpAndSettle();
         expect(find.text('Alice'), findsNWidgets(2));
-        await tester.tap(find.byTooltip('更多功能'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('设置').last);
+        await tester.tap(find.text('编辑资料'));
         await tester.pumpAndSettle();
         expect(find.text('settings-page'), findsOneWidget);
         repo.nickname = 'Updated profile';
@@ -2974,7 +2996,7 @@ void main() {
   });
 
   group('首页话题布局', () {
-    testWidgets('卡片和列表可通过阅读选项切换且记住选择', (tester) async {
+    testWidgets('卡片和列表一点即切换且记住选择', (tester) async {
       final pageRepo = CountingPageRepository(
         GfApiClient(
           dio: Dio(),
@@ -2990,16 +3012,29 @@ void main() {
       expect(find.byType(GfTopicRow), findsNothing);
       expect(find.text('新建话题'), findsNothing);
       expect(find.byType(GfLogo), findsOneWidget);
-      await tester.tap(find.byTooltip('显示方式'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('列表'));
+      // The button names the layout it switches to (issue #1372 H1).
+      final semantics = tester.ensureSemantics();
+      expect(
+        tester.getSemantics(find.byTooltip('切换为列表')),
+        isSemantics(tooltip: '切换为列表', isButton: true),
+      );
+      semantics.dispose();
+      await tester.tap(find.byTooltip('切换为列表'));
       await tester.pumpAndSettle();
 
+      expect(find.byType(BottomSheet), findsNothing);
       expect(find.byType(GfTopicCard), findsNothing);
       expect(find.byType(GfTopicRow), findsOneWidget);
       final SharedPreferences preferences =
           await SharedPreferences.getInstance();
       expect(preferences.getString('goose:home-feed-mode'), 'list');
+
+      await tester.tap(find.byTooltip('切换为卡片'));
+      await tester.pumpAndSettle();
+      expect(find.byType(GfTopicCard), findsOneWidget);
+      expect(find.byType(GfTopicRow), findsNothing);
+      expect(find.byTooltip('切换为列表'), findsOneWidget);
+      expect(preferences.getString('goose:home-feed-mode'), 'card');
     });
   });
 
@@ -3260,6 +3295,36 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
     router.dispose();
+  });
+
+  testWidgets('topic and reply reports sit in their own ⋯ menus (#1372 F1)', (
+    tester,
+  ) async {
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: MemTokenStorage(),
+      baseUrl: 'http://fake.local',
+    );
+    final container = await makeContainer(
+      pageRepo: CountingPageRepository(client),
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+    await tester.pumpAndSettle();
+    // No always-visible flag beside the title or on a floor.
+    expect(find.byTooltip('举报帖子'), findsNothing);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(TopicActions),
+        matching: find.byTooltip('更多功能'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('举报帖子'), findsOneWidget);
+    expect(find.text('生成分享图片'), findsOneWidget);
+    expect(find.text('分享'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
   });
 
   for (final removed in [false, true]) {
@@ -4066,7 +4131,16 @@ void main() {
       addTearDown(router.dispose);
       await tester.pumpWidget(routerApp(container, router));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('注销账号'));
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('settings-close-account')),
+        250,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const ValueKey('settings-detail')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       await tester.tap(find.text('注销账号'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'password');
@@ -4410,7 +4484,7 @@ void main() {
         matching: find.byWidgetPredicate(
           (widget) =>
               widget is Container &&
-              widget.constraints?.maxHeight == 4 &&
+              widget.constraints?.maxHeight == 5 &&
               (widget.constraints?.maxWidth == 32 ||
                   widget.constraints?.maxWidth == 36),
         ),
@@ -5226,7 +5300,7 @@ void main() {
       );
       pages.complete(settingsPayloadJson());
       await tester.pumpAndSettle();
-      await tester.tap(find.text('头像'));
+      await tester.tap(find.byKey(const Key('profile-edit-avatar')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('选择预设头像'));
       await tester.pumpAndSettle();
@@ -5236,7 +5310,10 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('保存'));
+      await tester.tap(find.byKey(const Key('profile-preset-confirm')));
+      await tester.pumpAndSettle();
+      expect(saved, isNull);
+      await tester.tap(find.byKey(const Key('profile-save')));
       await tester.pumpAndSettle();
       expect(saved, {'avatarUrl': '/static/pic/4.webp'});
       await tester.pump(const Duration(seconds: 4));
@@ -5289,8 +5366,6 @@ void main() {
       };
       pages.complete(payload);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('编辑资料'));
-      await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const Key('profile-nickname')),
         'Updated nickname',
@@ -5329,19 +5404,8 @@ void main() {
       pageRepo.complete(settingsPayloadJson());
       await tester.pumpAndSettle();
       expect(find.byType(GfSettingsSkeleton), findsNothing);
-      expect(
-        tester
-            .widget<Text>(find.byKey(const ValueKey('settings-detail-title')))
-            .data,
-        '个人资料与展示',
-      );
-      expect(
-        find.descendant(
-          of: find.byKey(const ValueKey('settings-detail')),
-          matching: find.text('编辑资料'),
-        ),
-        findsOneWidget,
-      );
+      expect(find.byKey(const Key('profile-save')), findsOneWidget);
+      expect(find.text('编辑资料'), findsOneWidget);
     });
 
     testWidgets('下拉刷新再次请求设置数据', (tester) async {
@@ -5356,7 +5420,7 @@ void main() {
         pageRepo: pageRepo,
       );
       await tester.pumpWidget(
-        app(container, const SettingsPage(initialSection: 'profile')),
+        app(container, const SettingsPage(initialSection: 'account')),
       );
       await tester.pumpAndSettle();
       final int callsBefore = pageRepo.fetchCalls;
@@ -5447,7 +5511,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 打开 Security 分类 查看会话列表。
-      await tester.tap(find.text('安全'));
+      await tester.tap(find.text('账号与安全'));
       await tester.pumpAndSettle();
 
       // 契约(Unix 毫秒)直接渲染,不得再乘 1000。
@@ -5473,7 +5537,7 @@ void main() {
       await tester.pumpWidget(app(container, const SettingsPage()));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('安全'));
+      await tester.tap(find.text('账号与安全'));
       await tester.pumpAndSettle();
 
       expect(find.textContaining('2038-01-19'), findsOneWidget);
@@ -5508,6 +5572,7 @@ void main() {
         overrides: [
           tokenStorageProvider.overrideWithValue(storage),
           pageRepositoryProvider.overrideWithValue(pageRepo),
+        wikiRepositoryProvider.overrideWithValue(_EmptyWikiSearch(client)),
           topicRepositoryProvider.overrideWithValue(
             PagingTopicRepository(client),
           ),
@@ -5559,7 +5624,7 @@ void main() {
       );
       // 宽屏安全详情不提供登出；持久目录保留该操作。
       await tester.tap(
-        find.descendant(of: directory, matching: find.text('安全')),
+        find.descendant(of: directory, matching: find.text('账号与安全')),
       );
       await tester.pumpAndSettle();
       expect(
@@ -5623,6 +5688,15 @@ void main() {
         overrides: [
           tokenStorageProvider.overrideWithValue(storage),
           userRepositoryProvider.overrideWithValue(userRepo),
+          pageRepositoryProvider.overrideWithValue(
+            CountingPageRepository(
+              GfApiClient(
+                dio: Dio(),
+                tokenStorage: MemTokenStorage(),
+                baseUrl: 'http://fake.local',
+              ),
+            ),
+          ),
           offlineTopicCacheProvider.overrideWithValue(topicCache),
           offlineChatCacheProvider.overrideWithValue(chatCache),
         ],
@@ -5658,7 +5732,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 打开 Security 分类 找"吊销全部会话"按钮。
-      await tester.tap(find.text('安全'));
+      await tester.tap(find.text('账号与安全'));
       await tester.pumpAndSettle();
       expect(find.text('吊销全部会话'), findsOneWidget);
 
@@ -5696,6 +5770,15 @@ void main() {
         overrides: [
           tokenStorageProvider.overrideWithValue(storage),
           userRepositoryProvider.overrideWithValue(userRepo),
+          pageRepositoryProvider.overrideWithValue(
+            CountingPageRepository(
+              GfApiClient(
+                dio: Dio(),
+                tokenStorage: MemTokenStorage(),
+                baseUrl: 'http://fake.local',
+              ),
+            ),
+          ),
           offlineTopicCacheProvider.overrideWithValue(topicCache),
           offlineChatCacheProvider.overrideWithValue(chatCache),
         ],
@@ -5730,7 +5813,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('安全'));
+      await tester.tap(find.text('账号与安全'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('吊销全部会话'));
       await tester.pumpAndSettle();
@@ -5959,6 +6042,34 @@ void main() {
       await tester.tap(find.text('Bob'));
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/u/2');
+    });
+
+    testWidgets('互关时关注按钮显示已互关并可取消 (issue #1320)', (tester) async {
+      final GfApiClient client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final RecordingFollowTopicRepository topicRepo =
+          RecordingFollowTopicRepository(client);
+      final ProviderContainer container = await makeContainer(
+        pageRepo: RedesignPageRepository(
+          client,
+          profilePayload: mutualFollowProfilePayloadJson(),
+        ),
+        topicRepo: topicRepo,
+      );
+
+      await tester.pumpWidget(app(container, const ProfilePage(userId: 2)));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(GfFollowButton, '已互关'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(GfFollowButton, '已互关'));
+      await tester.pumpAndSettle();
+
+      expect(topicRepo.currentStates, <bool>[true]);
+      expect(find.widgetWithText(GfFollowButton, '关注'), findsOneWidget);
     });
 
     testWidgets('关注按钮按操作前状态映射关注与取消关注', (tester) async {
@@ -6586,6 +6697,7 @@ void main() {
         overrides: [
           tokenStorageProvider.overrideWithValue(realStorage),
           pageRepositoryProvider.overrideWithValue(pageRepo),
+        wikiRepositoryProvider.overrideWithValue(_EmptyWikiSearch(client)),
           topicRepositoryProvider.overrideWithValue(
             PagingTopicRepository(client),
           ),

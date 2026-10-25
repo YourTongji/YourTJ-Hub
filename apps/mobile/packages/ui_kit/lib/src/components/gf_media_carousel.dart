@@ -164,13 +164,15 @@ class _GfMediaCarouselState extends State<GfMediaCarousel> {
                       child: ExcludeSemantics(
                         child: ClipRRect(
                           key: const Key('gf-media-carousel-counter-badge'),
-                          borderRadius: BorderRadius.circular(999),
+                          borderRadius: BorderRadius.circular(GfRadius.full),
                           child: BackdropFilter(
                             filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                             child: DecoratedBox(
                               decoration: BoxDecoration(
                                 color: Colors.black.withValues(alpha: 0.48),
-                                borderRadius: BorderRadius.circular(999),
+                                borderRadius: BorderRadius.circular(
+                                  GfRadius.full,
+                                ),
                                 border: Border.all(
                                   color: Colors.white.withValues(alpha: 0.18),
                                 ),
@@ -212,7 +214,9 @@ class _GfMediaCarouselState extends State<GfMediaCarousel> {
                           child: DecoratedBox(
                             decoration: BoxDecoration(
                               color: Colors.black.withValues(alpha: 0.3),
-                              borderRadius: BorderRadius.circular(999),
+                              borderRadius: BorderRadius.circular(
+                                GfRadius.full,
+                              ),
                             ),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
@@ -238,7 +242,9 @@ class _GfMediaCarouselState extends State<GfMediaCarousel> {
                                       color: Colors.white.withValues(
                                         alpha: pill == _index ? 1 : 0.5,
                                       ),
-                                      borderRadius: BorderRadius.circular(999),
+                                      borderRadius: BorderRadius.circular(
+                                        GfRadius.full,
+                                      ),
                                     ),
                                   ),
                                 ),

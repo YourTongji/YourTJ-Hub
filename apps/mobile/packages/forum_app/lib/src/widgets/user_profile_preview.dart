@@ -169,7 +169,11 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
       );
       ref
           .read(userFollowStateProvider(widget.userId))
-          .acceptServerValue(user.isFollowing, read);
+          .acceptServerValue(
+            user.isFollowing,
+            read,
+            mutual: user.isMutualFollowing,
+          );
       setState(() {
         _user = user;
         _error = null;
@@ -309,7 +313,7 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
     // Strengthen the hairline with the active foreground token so it survives
     // both ends of the cover-derived glass field.
     final actionBorder = Color.lerp(colors.line, colors.baseContent, .48)!;
-    final radii = BorderRadius.circular(24);
+    final radii = BorderRadius.circular(GfRadius.xl);
     final viewportHeight = MediaQuery.sizeOf(context).height;
     final availableHeight =
         viewportHeight - MediaQuery.paddingOf(context).vertical - 44;
@@ -463,18 +467,30 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                                                 MainAxisAlignment.end,
                                             children: [
                                               if (!user.isSelf) ...[
-                                                GfFollowButton(
-                                                  following:
-                                                      follow.following ??
-                                                      user.isFollowing,
-                                                  label:
-                                                      (follow.following ??
-                                                          user.isFollowing)
-                                                      ? l10n.profileFollowing
-                                                      : l10n.profileFollow,
-                                                  busy: follow.busy,
-                                                  onPressed: () =>
-                                                      _toggleFollow(user),
+                                                Builder(
+                                                  builder: (context) {
+                                                    final following =
+                                                        follow.following ??
+                                                        user.isFollowing;
+                                                    final mutual =
+                                                        following &&
+                                                        (follow.mutualFollowing ??
+                                                            user.isMutualFollowing);
+                                                    return GfFollowButton(
+                                                      following: following,
+                                                      label: following
+                                                          ? (mutual
+                                                                ? l10n.profileMutualFollowing
+                                                                : l10n.profileFollowing)
+                                                          : l10n.profileFollow,
+                                                      symbol: mutual
+                                                          ? 'user-round-check'
+                                                          : null,
+                                                      busy: follow.busy,
+                                                      onPressed: () =>
+                                                          _toggleFollow(user),
+                                                    );
+                                                  },
                                                 ),
                                                 const SizedBox(width: 6),
                                               ],

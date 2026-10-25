@@ -43,6 +43,35 @@ class UnavailableCampusRepository extends FakeCampusRepository {
       throw const ApiException(fallbackMessage: 'School unavailable');
 }
 
+class CampusTestCourses extends CourseRepository {
+  CampusTestCourses()
+    : super(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: CampusMemoryTokenStorage(),
+          baseUrl: 'https://forum.example',
+        ),
+      );
+  @override
+  Future<CourseListResultPayload> list({
+    String? keyword,
+    List<String> departments = const [],
+    List<String> terms = const [],
+    List<String> campuses = const [],
+    List<String> instructors = const [],
+    bool onlyWithReviews = false,
+    String sortBy = '',
+    int page = 1,
+    int size = 20,
+  }) async => const CourseListResultPayload(
+    list: [],
+    page: 1,
+    size: 3,
+    total: 0,
+    hasNext: false,
+  );
+}
+
 Widget campusTestApp(
   FakeCampusRepository repository, {
   Widget child = const CampusPage(),
@@ -52,6 +81,7 @@ Widget campusTestApp(
   bool signedIn = true,
   AppDatabase? database,
   UserWorkDatabase? workDatabase,
+  List<Override> overrides = const [],
 }) {
   final testDatabase = database ?? AppDatabase(NativeDatabase.memory());
   if (database == null) addTearDown(testDatabase.close);
@@ -59,6 +89,8 @@ Widget campusTestApp(
     overrides: [
       if (workDatabase != null)
         userWorkDatabaseProvider.overrideWithValue(workDatabase),
+      courseRepositoryProvider.overrideWithValue(CampusTestCourses()),
+      ...overrides,
       offlineDatabaseProvider.overrideWithValue(testDatabase),
       campusRepositoryProvider.overrideWithValue(repository),
       pkRepositoryProvider.overrideWithValue(CampusPkRepository()),
@@ -310,7 +342,7 @@ void main() {
               .getTopLeft(
                 find.descendant(
                   of: find.byType(ListView),
-                  matching: find.text('校园消息'),
+                  matching: find.text('学校通知'),
                 ),
               )
               .dy,

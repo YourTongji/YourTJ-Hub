@@ -114,9 +114,14 @@ class _FollowActions extends TopicRepository {
   final pending = Completer<bool>();
   int calls = 0;
   @override
-  Future<bool> followUser({required int userId, required bool isFollowing}) {
+  Future<({bool isFollowing, bool isMutualFollowing})> followUser({
+    required int userId,
+    required bool isFollowing,
+  }) async {
     calls++;
-    return pending.future;
+    await pending.future;
+    // 入参是操作前状态：假仓库执行后翻转，与服务端返回的 applied 状态一致。
+    return (isFollowing: !isFollowing, isMutualFollowing: false);
   }
 }
 
@@ -231,6 +236,7 @@ Future<ProviderContainer> _pump(
   double scale = 1,
   bool disableAnimations = false,
   CurrentUser? currentUser,
+  Locale locale = const Locale('zh'),
 }) async {
   final container = ProviderContainer(
     overrides: [
@@ -252,13 +258,13 @@ Future<ProviderContainer> _pump(
           ),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          locale: const Locale('zh'),
+          locale: locale,
         )
       : MaterialApp.router(
           routerConfig: router,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          locale: const Locale('zh'),
+          locale: locale,
         );
   await tester.pumpWidget(
     UncontrolledProviderScope(container: container, child: app),
@@ -288,6 +294,115 @@ void _select(WidgetTester tester, String label) {
 }
 
 void main() {
+  testWidgets(
+    'topic deletion retains reply activities in surviving discussions',
+    (tester) async {
+      final pages = _Profiles()
+        ..configure = (_, props) {
+          props['activities'] = [
+            {
+              'id': 1,
+              'action': 2,
+              'subjectType': 'Topic',
+              'subjectId': 100,
+              'contentPreview': 'Removed topic activity',
+              'url': '/p/100',
+              'label': 'Topic',
+              'createdAt': '2026-01-01T00:00:00Z',
+            },
+            {
+              'id': 2,
+              'action': 5,
+              'subjectType': 'Post',
+              'subjectId': 200,
+              'contentPreview': 'Retained reply activity',
+              'url': '/p/100?postNo=2',
+              'label': 'Reply',
+              'createdAt': '2026-01-01T00:00:00Z',
+            },
+          ];
+        };
+      final container = await _pump(tester, pages);
+      await tester.scrollUntilVisible(
+        find.text('Retained reply activity'),
+        250,
+        scrollable: find
+            .descendant(
+              of: find.byType(CustomScrollView).first,
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Retained reply activity'), findsOneWidget);
+      container.read(removedTopicsProvider.notifier).add(100);
+      await tester.pumpAndSettle();
+      expect(find.text('Removed topic activity'), findsNothing);
+      expect(find.text('Retained reply activity'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'topic deletion retains reply bookmarks but hides its topic and opening post',
+    (tester) async {
+      final pages = _Profiles()
+        ..configure = (_, props) {
+          props['bookmarks'] = [
+            {
+              'id': 1,
+              'type': 'topic',
+              'topicId': 100,
+              'title': 'Removed topic bookmark',
+              'url': '/p/100',
+              'bookmarkedAt': '2026-01-01T00:00:00Z',
+            },
+            {
+              'id': 2,
+              'type': 'post',
+              'topicId': 100,
+              'postId': 199,
+              'postNo': 1,
+              'title': 'Removed opening post bookmark',
+              'url': '/p/100?postNo=1',
+              'bookmarkedAt': '2026-01-01T00:00:00Z',
+            },
+            {
+              'id': 3,
+              'type': 'post',
+              'topicId': 100,
+              'postId': 200,
+              'postNo': 2,
+              'title': 'Retained reply bookmark',
+              'url': '/p/100?postNo=2',
+              'bookmarkedAt': '2026-01-01T00:00:00Z',
+            },
+          ];
+        };
+      final container = await _pump(
+        tester,
+        pages,
+        home: const ProfilePage(userId: 1, initialStream: 'bookmarks'),
+      );
+      await tester.scrollUntilVisible(
+        find.text('Retained reply bookmark'),
+        250,
+        scrollable: find
+            .descendant(
+              of: find.byType(CustomScrollView).first,
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      container.read(removedTopicsProvider.notifier).add(100);
+      await tester.pumpAndSettle();
+      expect(find.text('Removed topic bookmark'), findsNothing);
+      expect(find.text('Removed opening post bookmark'), findsNothing);
+      expect(find.text('Retained reply bookmark'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('other profile actions use the overflow menu for blocking', (
     tester,
   ) async {
@@ -479,7 +594,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.byType(GfGlassSurface), findsWidgets);
+    expect(find.byTooltip('通知'), findsNothing);
     expect(
       tester
           .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
@@ -591,7 +706,7 @@ void main() {
       await _pump(tester, _Profiles(), router: router);
       router.push('/profile');
       await tester.pumpAndSettle();
-      expect(find.byType(GfGlassSurface), findsWidgets);
+      expect(find.byTooltip('通知'), findsNothing);
       expect(
         find.descendant(of: find.byType(AppBar), matching: find.text('Alice')),
         findsNothing,
@@ -619,9 +734,13 @@ void main() {
     },
   );
 
-  for (final following in [false, true]) {
+  for (final (following, mutual, locale) in [
+    (false, false, const Locale('zh')),
+    (true, false, const Locale('zh')),
+    (true, true, const Locale('de')),
+  ]) {
     testWidgets(
-      'peer profile keeps wrapped actions above identity at 320px and 2x text (following=$following)',
+      'peer profile keeps wrapped actions above identity at 320px and 2x text (following=$following, mutual=$mutual, locale=$locale)',
       (tester) async {
         tester.view.physicalSize = const Size(320, 1000);
         tester.view.devicePixelRatio = 1;
@@ -632,12 +751,15 @@ void main() {
             props.addAll(
               peerProfilePayloadJson()['props'] as Map<String, dynamic>,
             );
-            (props['user'] as Map<String, dynamic>)['isFollowing'] = following;
+            (props['user'] as Map<String, dynamic>)
+              ..['isFollowing'] = following
+              ..['isMutualFollowing'] = mutual;
           };
         await _pump(
           tester,
           repo,
           scale: 2,
+          locale: locale,
           currentUser: const CurrentUser(id: 1, username: 'alice'),
           home: Theme(
             data: gfThemeData(Brightness.light),
@@ -1449,7 +1571,7 @@ void main() {
         cover,
       );
       expect(tester.getRect(find.byType(GfUserCard)), card);
-      expect(find.byType(GfGlassSurface), findsWidgets);
+      expect(find.byTooltip('通知'), findsNothing);
       expect(_tab('赞过'), findsOneWidget);
       expect(find.byType(GfSkeleton), findsWidgets);
       expect(find.byType(GfLoadingIndicator), findsNothing);
@@ -1481,7 +1603,7 @@ void main() {
 
   for (final loaded in [false, true]) {
     testWidgets(
-      'profile notification action returns to the existing shell branch (loaded=$loaded)',
+      'own profile returns to the shell without a duplicate notification action (loaded=$loaded)',
       (tester) async {
         final repo = _Profiles();
         final pending = Completer<PagePayload>();
@@ -1521,7 +1643,8 @@ void main() {
             await tester.pump(const Duration(milliseconds: 100));
           }
         }
-        await tester.tap(find.byTooltip('通知'));
+        expect(find.byTooltip('通知'), findsNothing);
+        router.pop();
         await tester.pumpAndSettle();
         expect(router.state.uri.path, '/notifications');
         expect(router.canPop(), isFalse);

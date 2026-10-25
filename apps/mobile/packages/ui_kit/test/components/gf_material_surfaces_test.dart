@@ -101,7 +101,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(CupertinoActionSheet), findsNothing);
       expect(find.widgetWithText(ListTile, 'Two'), findsOneWidget);
-      expect(find.byIcon(Icons.check), findsOneWidget);
+      expect(
+        find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'check'),
+        findsOneWidget,
+      );
       await tester.tap(find.text('Two'));
       await tester.pumpAndSettle();
       expect(await result, 'two');
@@ -143,7 +146,7 @@ void main() {
       expect(find.byType(CupertinoAlertDialog), findsNothing);
       expect(find.byType(CupertinoDialogAction), findsNothing);
       expect(find.byType(Dialog), findsOneWidget);
-      expect(find.byType(TextButton), findsNWidgets(2));
+      expect(find.byType(GfDialogAction), findsNWidgets(2));
       await tester.tap(find.text('Discard'));
       await tester.pumpAndSettle();
       expect(await result, isTrue);

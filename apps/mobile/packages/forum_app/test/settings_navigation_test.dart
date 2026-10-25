@@ -9,10 +9,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/settings/settings_page.dart';
+import 'package:forum_app/src/pages/settings/storage_settings_panel.dart';
 import 'package:forum_app/src/pages/settings/text_size_settings_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/push/push_service.dart';
-import 'package:forum_app/src/reading_preferences.dart';
 import 'package:forum_app/src/site_theme.dart';
 import 'package:forum_app/src/theme_mode.dart';
 import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
@@ -172,6 +172,7 @@ typedef _Harness = ({
 Future<_Harness> _mount(
   WidgetTester tester, {
   bool signedIn = false,
+  bool pageFails = false,
   String? section,
   bool autoEditProfile = false,
   bool withOrigin = false,
@@ -193,7 +194,7 @@ Future<_Harness> _mount(
     tokenStorage: storage,
     baseUrl: 'http://fake.local',
   );
-  final page = _CountingPageRepository(client);
+  final page = _CountingPageRepository(client)..fail = pageFails;
   final user = _CountingUserRepository(client);
   final container = ProviderContainer(
     overrides: [
@@ -261,6 +262,88 @@ Future<_Harness> _mount(
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('account change closes profile link drafts', (tester) async {
+    final harness = await _mount(
+      tester,
+      signedIn: true,
+      section: 'profile',
+      withOrigin: true,
+    );
+    final links = find.byKey(const Key('profile-website-row'));
+    await tester.scrollUntilVisible(
+      links,
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(links);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('profile-website')),
+      'https://old-draft.example',
+    );
+    await harness.container.read(tokenStorageProvider).clear();
+    harness.container.read(offlineCacheEpochProvider.notifier).invalidate();
+    await tester.pumpAndSettle();
+    expect(find.text('https://old-draft.example'), findsNothing);
+    expect(find.byKey(const Key('profile-links-done')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('security controls survive a failed identity read', (
+    tester,
+  ) async {
+    await _mount(tester, signedIn: true, section: 'account', pageFails: true);
+    final l = AppLocalizations.of(tester.element(find.byType(SettingsPage)));
+    expect(find.text(l.settingsTotpEnable), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('当前设备'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('当前设备'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('profile card retries a failed identity read', (tester) async {
+    final harness = await _mount(tester, signedIn: true, pageFails: true);
+    final card = find.byKey(const Key('settings-profile-card'));
+    expect(harness.page.requests, 1);
+    harness.page.fail = false;
+    await tester.tap(card);
+    await tester.pumpAndSettle();
+    expect(harness.page.requests, 2);
+    expect(
+      find.descendant(of: card, matching: find.text('Alice')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('settings audit index has one editor and account destination', (
+    tester,
+  ) async {
+    await _mount(tester, signedIn: true);
+    expect(find.byKey(const Key('settings-profile-card')), findsOneWidget);
+    expect(find.byKey(const Key('settings-category-account')), findsOneWidget);
+    expect(find.byKey(const Key('settings-category-privacy')), findsOneWidget);
+    for (final old in ['profile', 'binding', 'security']) {
+      expect(find.byKey(ValueKey('settings-category-$old')), findsNothing);
+    }
+  });
+  testWidgets('settings audit appearance has no duplicate device entries', (
+    tester,
+  ) async {
+    await _mount(tester, section: 'appearance');
+    expect(find.byKey(const Key('settings-text-size')), findsNothing);
+    expect(find.text('桌面小组件'), findsNothing);
+  });
+  testWidgets('settings audit privacy groups visibility blocks and anonymity', (
+    tester,
+  ) async {
+    await _mount(tester, signedIn: true, section: 'privacy-controls');
+    expect(find.text('个人主页可见范围'), findsOneWidget);
+    expect(find.text('已屏蔽用户'), findsOneWidget);
+    expect(find.text('匿名身份'), findsOneWidget);
+  });
 
   testWidgets('wide settings keeps its directory and opens sections in place', (
     tester,
@@ -388,7 +471,7 @@ void main() {
         find.descendant(of: directory, matching: find.byType(Scrollbar)),
       );
       expect(scrollbar.controller!.hasClients, isTrue);
-      final security = find.byKey(const ValueKey('settings-category-security'));
+      final security = find.byKey(const ValueKey('settings-category-data'));
       await tester.scrollUntilVisible(
         security,
         180,
@@ -415,7 +498,7 @@ void main() {
         find.byKey(const ValueKey('settings-detail-title')),
         findsOneWidget,
       );
-      expect(harness.user.requests, 1);
+      expect(harness.user.requests, 0);
       final state = tester.state(find.byType(SettingsPage));
       for (final viewport in [
         const Size(834, 1120),
@@ -425,8 +508,8 @@ void main() {
         tester.view.physicalSize = viewport;
         await tester.pumpAndSettle();
         expect(tester.state(find.byType(SettingsPage)), same(state));
-        expect(find.text('当前设备'), findsOneWidget);
-        expect(harness.user.requests, 1);
+        expect(find.byType(StorageSettingsPanel), findsOneWidget);
+        expect(harness.user.requests, 0);
         expect(tester.takeException(), isNull);
       }
     },
@@ -446,10 +529,13 @@ void main() {
     expect(find.text('Profile visibility'), findsNothing);
   });
 
-  testWidgets('account section lists profile visibility under privacy', (
-    tester,
-  ) async {
-    await _mount(tester, signedIn: true, section: 'account', language: 'en');
+  testWidgets('privacy section lists profile visibility', (tester) async {
+    await _mount(
+      tester,
+      signedIn: true,
+      section: 'privacy-controls',
+      language: 'en',
+    );
     final entry = find.byKey(
       const ValueKey('settings-account-profile-privacy'),
     );
@@ -475,7 +561,7 @@ void main() {
             tester.platformDispatcher.clearPlatformBrightnessTestValue,
           );
           await _mount(tester, signedIn: signedIn);
-          final row = find.byKey(const ValueKey('settings-category-privacy'));
+          final row = find.byKey(const ValueKey('settings-category-data'));
           await tester.scrollUntilVisible(
             row,
             200,
@@ -774,17 +860,15 @@ void main() {
     );
   }
 
-  testWidgets('ordinary profile editor returns to the settings route', (
+  testWidgets('profile deep link returns directly to its origin', (
     tester,
   ) async {
     await _mount(tester, signedIn: true, section: 'profile', withOrigin: true);
-    await tester.ensureVisible(find.text('编辑资料'));
-    await tester.tap(find.text('编辑资料'));
-    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('profile-save')), findsOneWidget);
     await tester.tap(find.byTooltip('取消'));
     await tester.pumpAndSettle();
-    expect(find.byType(SettingsPage), findsOneWidget);
-    expect(find.byKey(const Key('open-settings')), findsNothing);
+    expect(find.byType(SettingsPage), findsNothing);
+    expect(find.byKey(const Key('open-settings')), findsOneWidget);
   });
 
   testWidgets('profile shortcut does not pop a route opened above its editor', (
@@ -914,29 +998,18 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('appearance links to text size with both current values', (
+  testWidgets('settings index opens the single text-size destination', (
     tester,
   ) async {
-    final harness = await _mount(tester, section: 'appearance', language: 'en');
-    final row = find.byKey(const ValueKey('settings-text-size'));
-    await tester.scrollUntilVisible(
-      row,
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.text('Text size'), findsOneWidget);
-    expect(find.text('App Default · Reading Default'), findsOneWidget);
-
-    // Persist at once so no debounce timer outlives the test.
-    harness.container.read(contentFontScaleProvider.notifier)
-      ..setScale(1.2)
-      ..persistScale();
-    harness.container.read(appFontScaleProvider.notifier)
-      ..setScale(.9)
-      ..persistScale();
+    await _mount(tester, language: 'en');
+    final row = find.byKey(const ValueKey('settings-category-textSize'));
+    expect(row, findsOneWidget);
+    await tester.tap(row);
     await tester.pumpAndSettle();
-    expect(find.text('App 90% · Reading 120%'), findsOneWidget);
+    expect(find.byType(TextSizeSettingsPage), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
   });
 
   testWidgets('guest index exposes language, appearance and sign-in', (
@@ -1021,12 +1094,12 @@ void main() {
 
   for (final malformed in [false, true]) {
     testWidgets(
-      'profile refresh retains loaded content after ${malformed ? 'malformed payload' : 'network failure'}',
+      'account refresh retains loaded identity after ${malformed ? 'malformed payload' : 'network failure'}',
       (tester) async {
         final harness = await _mount(
           tester,
           signedIn: true,
-          section: 'profile',
+          section: 'account',
         );
         harness.page.fail = !malformed;
         harness.page.malformed = malformed;
@@ -1035,7 +1108,7 @@ void main() {
             .onRefresh();
         await tester.pumpAndSettle();
         expect(harness.page.requests, 2);
-        expect(find.text('编辑资料'), findsOneWidget);
+        expect(find.text('alice@example.com'), findsOneWidget);
         expect(find.byType(GfSettingsSkeleton), findsNothing);
         await tester.pump(const Duration(seconds: 4));
         expect(tester.takeException(), isNull);
@@ -1053,7 +1126,12 @@ void main() {
         .onRefresh();
     await tester.pumpAndSettle();
     expect(harness.user.requests, 2);
-    expect(harness.page.requests, 0);
+    expect(harness.page.requests, 2);
+    await tester.scrollUntilVisible(
+      find.text('当前设备'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('当前设备'), findsOneWidget);
     expect(find.byTooltip('吊销此会话'), findsOneWidget);
     await tester.pump(const Duration(seconds: 4));
@@ -1150,7 +1228,7 @@ void main() {
             viewport: null,
           );
           expect(find.byType(GfTabBar), findsNothing);
-          expect(harness.page.requests, 0);
+          expect(harness.page.requests, 1);
           expect(harness.user.requests, 0);
           expect(tester.takeException(), isNull);
           final l10n = AppLocalizations.of(
@@ -1170,16 +1248,14 @@ void main() {
           await tester.tap(dialogAction(l10n.commonCancel));
           await tester.pumpAndSettle();
           expect(find.byType(GfAlertDialog), findsNothing);
-          expect(harness.page.requests, 0);
+          expect(harness.page.requests, 1);
           expect(harness.user.requests, 0);
           for (final section in [
             'appearance',
-            'profile',
             'account',
             'privacy',
-            'binding',
             'notifications',
-            'security',
+            'data',
           ]) {
             final category = find.byKey(ValueKey('settings-category-$section'));
             // Categories now span device and account groups. Start each lookup
@@ -1222,7 +1298,12 @@ void main() {
               ),
             );
             await tester.pumpAndSettle();
-            expect(category, findsOneWidget);
+            expect(
+              tester
+                  .widget<SettingsPage>(find.byType(SettingsPage))
+                  .initialSection,
+              isNull,
+            );
           }
         },
       );

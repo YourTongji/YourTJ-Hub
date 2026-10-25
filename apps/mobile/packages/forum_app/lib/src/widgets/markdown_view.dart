@@ -24,7 +24,8 @@ import 'stickers/sticker_strings.dart';
 import 'link_preview_card.dart';
 
 // 既有引用方（页面与测试）仍从这里拿卡片实现，避免为一次拆分改所有 import。
-export 'link_preview_card.dart' show GfLinkPreviewCard, LinkPreviewPlatformLabels;
+export 'link_preview_card.dart'
+    show GfLinkPreviewCard, LinkPreviewPlatformLabels;
 import 'share/share_image_readiness.dart';
 
 /// Body text comes from [GfRichContentTypography] so post bodies, publish
@@ -272,11 +273,10 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
           marginLeft: profile.listIndent,
           marginBottom: profile.listSpacing,
         ),
+        // 正文链接无下划线、主题色（对齐 web prose.css）；外链图标与按压高亮
+        // 目前只有 Web 侧，移动端见 docs/product/forum.md 的 Planned 段。
         LinkConfig(
-          style: TextStyle(
-            color: colors.primary,
-            decoration: TextDecoration.underline,
-          ),
+          style: TextStyle(color: colors.primary),
           onTap: (String url) {
             // 标签与目标不符的链接按 suspicious 处理（对齐 Web linkRisk）：
             // 白名单与会话信任都不豁免，始终弹确认层（issue #1200）。
@@ -346,7 +346,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
                       color: colors.line,
                       width: borders.width,
                     ),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(GfRadius.sm),
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: GfNetworkImage(

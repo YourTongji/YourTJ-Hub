@@ -60,7 +60,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navPublish => 'Publish';
 
   @override
-  String get navMessages => 'Messages';
+  String get navMessages => 'Direct messages';
 
   @override
   String get navProfile => 'Me';
@@ -543,7 +543,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileNotLoggedIn => 'Not signed in';
 
   @override
-  String get messagesTitle => 'Messages';
+  String get messagesTitle => 'Direct messages';
 
   @override
   String get messagesEmpty => 'No conversations yet';
@@ -648,7 +648,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsTabProfile => 'Profile';
 
   @override
-  String get settingsTabAccount => 'Account, security & privacy';
+  String get settingsTabAccount => 'Account & security';
 
   @override
   String get settingsTabPrivacy => 'Privacy';
@@ -755,7 +755,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsOAuth => 'External account connections';
 
   @override
-  String get settingsOAuthSub => 'GitHub and Google login connections';
+  String get settingsOAuthSub => 'GitHub, Google and Apple login connections';
 
   @override
   String get settingsOAuthManage => 'Manage OAuth bindings';
@@ -844,7 +844,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsLightCurrent => 'Current: light';
 
   @override
-  String get settingsAbout => 'About';
+  String get settingsAbout => 'About the community';
 
   @override
   String get settingsAboutVersion => 'v0.1.0 · Tongji campus forum';
@@ -1056,16 +1056,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get topicLaterReplies => 'Load newer replies';
 
   @override
-  String get topicFeedModeList => 'List';
-
-  @override
-  String get topicFeedModeCard => 'Cards';
-
-  @override
   String get topicNewTopic => 'New topic';
 
   @override
-  String get scheduleTitle => 'Scheduler';
+  String get scheduleTitle => 'Course planner';
 
   @override
   String get scheduleTabTimetable => 'Plan preview';
@@ -1520,7 +1514,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileMore => 'More options';
 
   @override
-  String get profileContent => 'Manage content';
+  String get profileContent => 'My content';
 
   @override
   String get profileTrash => 'Recycle bin';
@@ -1583,7 +1577,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get publishGalleryTooMany =>
-      'Content supports up to 9 images. Remove some images or continue with the article editor.';
+      'Up to 9 images are supported. Use fewer images and try again.';
 
   @override
   String get profileActivity => 'Activity';
@@ -1811,7 +1805,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authPasswordMismatch => 'The passwords do not match';
 
   @override
-  String get schedulerWebTitle => 'Explore the full scheduler on the Web';
+  String get schedulerWebTitle => 'Explore the full course planner on the Web';
 
   @override
   String get schedulerWebAction => 'Open f.yourtj.de';
@@ -2557,13 +2551,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get campusToday => 'Today';
 
   @override
-  String get campusTimetable => 'My timetable';
+  String get campusTimetable => 'School timetable';
 
   @override
   String get campusAcademics => 'Academic records';
 
   @override
-  String get campusMessages => 'Campus notices';
+  String get campusMessages => 'School notices';
 
   @override
   String get campusCalendars => 'Calendars';
@@ -3193,9 +3187,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get notificationsUnreadEmptyDescription =>
       'You have read all your notifications.';
-
-  @override
-  String get homeFeedOptions => 'Feed display';
 
   @override
   String get homeAllCategories => 'All categories';
@@ -4451,4 +4442,99 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get timetableConfirmDelete => 'Tap again to delete';
+
+  @override
+  String get profileMutualFollowing => 'Mutual';
+
+  @override
+  String get homeFeedSwitchToList => 'Switch to list';
+
+  @override
+  String get homeFeedSwitchToCard => 'Switch to cards';
+
+  @override
+  String get profileStreamManage => 'Manage';
+
+  @override
+  String get searchFilterInCatalog => 'Filter in the course catalog';
+
+  @override
+  String get profileEditAddCover => 'Add a cover';
+
+  @override
+  String get profileEditAddSocialLinks => 'Add social links';
+
+  @override
+  String get profileEditAddWebsite => 'Add a website';
+
+  @override
+  String get profileEditBasics => 'Basic information';
+
+  @override
+  String get profileEditBioHint => 'Tell people a little about yourself';
+
+  @override
+  String get profileEditChangeAvatar => 'Change avatar';
+
+  @override
+  String get profileEditChangeCover => 'Change cover';
+
+  @override
+  String get profileEditDisplay => 'Display';
+
+  @override
+  String get profileEditDone => 'Done';
+
+  @override
+  String get profileEditFromPhotos => 'Choose from photos';
+
+  @override
+  String get profileEditLinks => 'Links';
+
+  @override
+  String get profileEditNicknameHint => 'Your display name';
+
+  @override
+  String get profileEditSignatureHint => 'Add a short signature';
+
+  @override
+  String get profileEditSocialHint => 'Username or HTTPS link';
+
+  @override
+  String get profileEditTakePhoto => 'Take a photo';
+
+  @override
+  String get profileEditWebsiteUrl => 'Website URL';
+
+  @override
+  String get profileLanguageHint =>
+      'Language of your public profile, separate from the app language.';
+
+  @override
+  String profileEditBadgeSummary(String name, int count) {
+    return 'Wearing: $name · $count displayed';
+  }
+
+  @override
+  String get contentMineTitle => 'My content';
+
+  @override
+  String get settingsManageBadges => 'Manage badges';
+
+  @override
+  String get campusSettings => 'Campus settings';
+
+  @override
+  String get scheduleStatusHelp => 'Plan status and help';
+
+  @override
+  String get courseAddToPlanner => 'Add to course planner';
+
+  @override
+  String get coursePlannerSelectTerm =>
+      'Select the same term and your major before confirming the class. Existing plans stay unchanged.';
+
+  @override
+  String get coursePlannerUnavailable =>
+      'This class is unavailable for the term. Choose another offering from course details.';
 }

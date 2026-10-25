@@ -67,7 +67,7 @@ class GfMessageBubble extends StatelessWidget {
       fontFamily: inheritedStyle.fontFamily,
       fontFamilyFallback: inheritedStyle.fontFamilyFallback,
       fontSize: 16,
-      height: 1.4,
+      height: 22 / 16,
       color: mine && showBubble
           ? colors.messageOutgoingContent
           : colors.baseContent,
@@ -91,12 +91,22 @@ class GfMessageBubble extends StatelessWidget {
             maxWidth: availableWidth * maxWidthFactor,
           ),
           padding: showBubble
-              ? const EdgeInsets.symmetric(horizontal: 14, vertical: 10)
+              ? const EdgeInsets.symmetric(horizontal: 14, vertical: 9)
               : null,
           decoration: showBubble
               ? BoxDecoration(
-                  color: mine ? colors.messageOutgoing : colors.base300,
-                  borderRadius: BorderRadius.circular(20),
+                  color: mine ? colors.messageOutgoing : colors.fill,
+                  // The corner nearest the sender tightens into a tail.
+                  borderRadius: BorderRadiusDirectional.only(
+                    topStart: const Radius.circular(GfRadius.lg),
+                    topEnd: const Radius.circular(GfRadius.lg),
+                    bottomStart: Radius.circular(
+                      mine ? GfRadius.lg : GfRadius.xs,
+                    ),
+                    bottomEnd: Radius.circular(
+                      mine ? GfRadius.xs : GfRadius.lg,
+                    ),
+                  ),
                 )
               : null,
           child: body,
@@ -145,12 +155,12 @@ class GfMessageBubble extends StatelessWidget {
                     : CrossAxisAlignment.start,
                 children: <Widget>[
                   bubble,
-                  const SizedBox(height: 4),
+                  const SizedBox(height: GfSpace.xs),
                   GfText(
                     time!,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colors.baseContent.withValues(alpha: 0.55),
+                    style: GfTheme.typographyOf(context).meta.copyWith(
+                      fontWeight: FontWeight.w400,
+                      color: colors.textSecondary,
                     ),
                   ),
                 ],

@@ -93,6 +93,70 @@ export function stickerPreviewLabel(content: string, stickerLabel?: string): str
   return content.replace(STICKER_TOKEN_RE, (_, name: string) => `[${stickerLabel ?? name}]`)
 }
 
+/** 贴纸 token 在纯文本内容里的区间（[start, end)）。 */
+type StickerDeleteRange = { start: number; end: number }
+
+export type StickerDeleteDirection = 'backward' | 'forward'
+
+const STICKER_TOKEN_PREFIX = '[:sticker:'
+const STICKER_NAME_MAX = 64
+
+function isStickerNameChar(char: string | undefined): boolean {
+  return char !== undefined && !/[\s:[\]]/.test(char)
+}
+
+/**
+ * content 中所有贴纸 token 与未闭合片段的区间。片段 = `[:sticker:` + 最多 64 个
+ * 名字字符且不以 `:]` 收尾（粘贴/撤销/逐字输入留下的 `[:sticker:na`）。
+ * 前缀后紧跟空白/`:`/`[`/`]` 说明没有名字在输入中，不算片段。
+ */
+function stickerAtomSpans(content: string): StickerDeleteRange[] {
+  const spans: StickerDeleteRange[] = []
+  for (
+    let start = content.indexOf(STICKER_TOKEN_PREFIX);
+    start !== -1;
+    start = content.indexOf(STICKER_TOKEN_PREFIX, start + 1)
+  ) {
+    const nameStart = start + STICKER_TOKEN_PREFIX.length
+    let end = nameStart
+    while (end - nameStart < STICKER_NAME_MAX && isStickerNameChar(content[end])) end++
+    // 名字超过 64 字符：不是合法 token 也不是片段，交回默认删除
+    if (isStickerNameChar(content[end])) continue
+    const hasName = end > nameStart
+    if (hasName && content.startsWith(':]', end)) {
+      spans.push({ start, end: end + 2 })
+      continue
+    }
+    // 名字后紧跟未闭合的 `:` 也算片段的一部分，否则 `[:sticker:huaji:` 会残留 `[:sticker:huaji`
+    if (hasName && content[end] === ':') {
+      spans.push({ start, end: end + 1 })
+      continue
+    }
+    if (hasName || end === content.length) spans.push({ start, end })
+  }
+  return spans
+}
+
+/**
+ * caret 处应整体删除的贴纸区间（issue #1332）：token 在编辑器里是纯文本，
+ * 逐字符删除会留下 `[:sticker:na:` 这类残缺原文。caret 紧贴 token
+ * （backward 紧跟 token 之后、forward 正好在 token 起点）或落在 token 内部时，
+ * token/片段作为一个原子块整体删除。其余情况返回 null，交回默认删除行为。
+ */
+export function stickerDeleteRangeAt(
+  content: string,
+  caret: number,
+  direction: StickerDeleteDirection,
+): StickerDeleteRange | null {
+  for (const span of stickerAtomSpans(content)) {
+    const hit = direction === 'backward'
+      ? caret > span.start && caret <= span.end
+      : caret >= span.start && caret < span.end
+    if (hit) return span
+  }
+  return null
+}
+
 // 个人上传表情名为 u_ + 48 位小写十六进制（服务端生成规则），可被精确识别。
 const PERSONAL_STICKER_TOKEN_RE = /\[:sticker:u_[0-9a-f]{48}:\]/g
 

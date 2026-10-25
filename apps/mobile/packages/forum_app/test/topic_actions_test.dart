@@ -1,6 +1,7 @@
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:ui_kit/ui_kit.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +9,7 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/topic/agent_reply_setting.dart';
 import 'package:forum_app/src/pages/topic/topic_actions.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/widgets/share/share_image_preview.dart';
 import 'package:go_router/go_router.dart';
 import 'fixtures/page_fixtures.dart';
 import 'pages_smoke_test.dart' show MemoryTokenStorage;
@@ -44,6 +46,8 @@ void main() {
     bool own = true,
     bool moderator = false,
     int status = 0,
+    bool fromSource = false,
+    bool withFirstPost = true,
     Future<void> Function()? onChanged,
   }) async {
     final repo = _Topics(
@@ -60,11 +64,15 @@ void main() {
       topicDetailPayloadJson()['props'] as Map<String, dynamic>,
     );
     final router = GoRouter(
-      initialLocation: '/topic',
+      initialLocation: fromSource ? '/source' : '/topic',
       routes: [
         GoRoute(
           path: '/',
           builder: (_, _) => const Scaffold(body: Text('Home')),
+        ),
+        GoRoute(
+          path: '/source',
+          builder: (_, _) => const Scaffold(body: Text('Source')),
         ),
         GoRoute(
           path: '/publish',
@@ -84,7 +92,7 @@ void main() {
                 ),
               ),
               onChanged: onChanged ?? () async {},
-              firstPostId: 9001,
+              firstPost: withFirstPost ? props.postStream.posts.first : null,
             ),
           ),
         ),
@@ -104,6 +112,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    if (fromSource) {
+      router.push('/topic');
+      await tester.pumpAndSettle();
+    }
     return (container: container, router: router, repo: repo);
   }
 
@@ -219,22 +231,36 @@ void main() {
     await tester.pumpAndSettle();
     expect(refreshes, 1);
   });
-  testWidgets(
-    'delete requires confirmation and returns home only after API success',
-    (tester) async {
-      final h = await pump(tester);
-      await menu(tester, 'Delete');
-      expect(h.repo.deleted, isEmpty);
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
-      expect(h.repo.deleted, isEmpty);
-      await menu(tester, 'Delete');
-      await tester.tap(find.text('Confirm'));
-      await tester.pumpAndSettle();
-      expect(h.repo.deleted, [100]);
-      expect(h.router.state.uri.path, '/');
-    },
-  );
+  testWidgets('delete requires confirmation and pops back to the source list', (
+    tester,
+  ) async {
+    final h = await pump(tester, fromSource: true);
+    await menu(tester, 'Delete');
+    expect(h.repo.deleted, isEmpty);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(h.repo.deleted, isEmpty);
+    expect(h.container.read(removedTopicsProvider), isEmpty);
+    await menu(tester, 'Delete');
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+    expect(h.repo.deleted, [100]);
+    expect(h.router.state.uri.path, '/source');
+    expect(find.text('Source'), findsOneWidget);
+    // The page beneath drops the topic in place instead of reloading.
+    expect(h.container.read(removedTopicsProvider), {100});
+  });
+  testWidgets('a deep-linked topic with nothing beneath returns home', (
+    tester,
+  ) async {
+    final h = await pump(tester);
+    await menu(tester, 'Delete');
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+    expect(h.repo.deleted, [100]);
+    expect(h.router.state.uri.path, '/');
+    expect(h.container.read(removedTopicsProvider), {100});
+  });
   testWidgets('pending topic still opens the author editor', (tester) async {
     await pump(tester, status: 2);
     await menu(tester, 'Edit');
@@ -250,6 +276,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(h.repo.deleted, isEmpty);
     expect(h.router.state.uri.path, '/topic');
+    expect(h.container.read(removedTopicsProvider), isEmpty);
   });
   testWidgets('readers cannot edit or moderate somebody else’s topic', (
     tester,
@@ -261,6 +288,75 @@ void main() {
     expect(find.text('Delete'), findsNothing);
     expect(find.text('Hide content'), findsNothing);
     expect(find.text('Revision history'), findsOneWidget);
+  });
+  testWidgets('every topic-level action lives in the app-bar menu', (
+    tester,
+  ) async {
+    await pump(tester, own: false);
+    final l10n = AppLocalizations.of(tester.element(find.byType(TopicActions)));
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    for (final label in [
+      'Share',
+      'Generate share image',
+      'Revision history',
+      'Report post',
+    ]) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    await tester.tap(find.text('Report post'));
+    await tester.pumpAndSettle();
+    expect(find.text(l10n.contentReport), findsOneWidget);
+    expect(find.byType(GfDropdownButtonFormField<String>), findsOneWidget);
+  });
+  testWidgets('authors manage but do not report their own topic', (
+    tester,
+  ) async {
+    await pump(tester);
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    for (final label in [
+      'Share',
+      'Generate share image',
+      'Edit',
+      'Revision history',
+      'Delete',
+    ]) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    expect(find.text('Report post'), findsNothing);
+  });
+  testWidgets('topic share image renders the opening post', (tester) async {
+    await pump(tester, own: false);
+    await menu(tester, 'Generate share image');
+    expect(find.byType(ShareImageCard), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(ShareImageCard),
+        matching: find.text('移动端测试话题'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(ShareImageCard),
+        matching: find.textContaining('/p/post/100'),
+      ),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+  });
+  testWidgets('without the opening post the menu omits its image and history', (
+    tester,
+  ) async {
+    await pump(tester, own: false, withFirstPost: false);
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    expect(find.text('Share'), findsOneWidget);
+    expect(find.text('Report post'), findsOneWidget);
+    expect(find.text('Generate share image'), findsNothing);
+    expect(find.text('Revision history'), findsNothing);
   });
   for (final status in [0, 1]) {
     testWidgets('moderation uses server status $status and refreshes', (

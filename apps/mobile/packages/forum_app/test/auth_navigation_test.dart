@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/navigation/auth_navigation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'fixtures/page_fixtures.dart';
@@ -123,6 +124,48 @@ Future<GoRouter> pumpLogin(
 }
 
 void main() {
+  for (final type in ['topic', 'post']) {
+    test(
+      'guest content management retains the $type filter through login',
+      () async {
+        final target = '/my-content?type=$type';
+        final redirect = await authNavigationRedirect(
+          requested: Uri.parse(target),
+          tokenStorage: MemoryTokenStorage(),
+        );
+        expect(Uri.parse(redirect!).queryParameters['returnTo'], target);
+        expect(safeAuthReturnTo(target), target);
+      },
+    );
+  }
+  test('content-management return rejects unsupported filters', () {
+    expect(safeAuthReturnTo('/my-content?type=unexpected'), isNull);
+  });
+  test(
+    'guest campus settings goes to login and retains its destination',
+    () async {
+      final redirect = await authNavigationRedirect(
+        requested: Uri.parse('/campus/settings'),
+        tokenStorage: MemoryTokenStorage(),
+      );
+      expect(redirect, isNotNull);
+      expect(Uri.parse(redirect!).path, '/login');
+      expect(
+        Uri.parse(redirect).queryParameters['returnTo'],
+        '/campus/settings',
+      );
+    },
+  );
+
+  test('auth return preserves unified search scope and keyword', () {
+    final result = safeAuthReturnTo('/search?scope=courses&q=math');
+    expect(result, isNotNull);
+    expect(Uri.parse(result!).queryParameters, {
+      'scope': 'courses',
+      'q': 'math',
+    });
+  });
+
   for (final target in ['https://example.com', '/login?returnTo=%2Fp%2F1']) {
     testWidgets('login falls back to Home for $target', (tester) async {
       final router = await pumpLogin(tester, returnTo: target);

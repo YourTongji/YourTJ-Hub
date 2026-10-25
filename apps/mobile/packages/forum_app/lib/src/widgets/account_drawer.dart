@@ -1,4 +1,5 @@
 import 'user_decoration.dart';
+import 'stickers/sticker_strings.dart';
 import 'package:core/core.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -436,8 +437,9 @@ class AccountDrawer extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   InkWell(
-                    borderRadius: BorderRadius.circular(30),
-                    onTap: () => open(signedIn ? '/profile' : '/login'),
+                    borderRadius: BorderRadius.circular(GfRadius.xl),
+                    onTap: () =>
+                        open(signedIn ? '/settings/profile' : '/login'),
                     child: GfAvatar(
                       frameColors: decorationColors(
                         context,
@@ -517,9 +519,10 @@ class AccountDrawer extends ConsumerWidget {
               ),
               entry('file-text', l10n.draftsTitle, '/drafts'),
               entry('archive', l10n.accountContent, '/my-content'),
+              entry('smile', StickerStrings(context).title, '/stickers'),
               entry('trash-2', l10n.profileTrash, '/recycle-bin'),
               entry(
-                'graduation-cap',
+                'book-open',
                 l10n.myCourseReviewsTitle,
                 '/my-course-reviews',
               ),
@@ -529,7 +532,7 @@ class AccountDrawer extends ConsumerWidget {
                 entry('shield-check', l10n.profileModeration, '/moderation'),
               if (viewer.canManageCourses) ...[
                 entry(
-                  'graduation-cap',
+                  'book-open',
                   l10n.coursesManagement,
                   '/moderation/courses',
                 ),
@@ -573,9 +576,9 @@ Future<void> _showThemeModeSheet(BuildContext context) =>
           final mode = ref.watch(themeModeProvider);
           final type = GfTheme.typographyOf(context);
           const choices = <ThemeMode>[
+            ThemeMode.system,
             ThemeMode.light,
             ThemeMode.dark,
-            ThemeMode.system,
           ];
           return SingleChildScrollView(
             child: Padding(

@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-19
+> Last verified: 2026-10-23
 
 ## Selection and presentation
 
@@ -14,6 +14,13 @@
 nickname-style slot. Each accepts one owned, enabled decoration or an empty selection. The slots
 are independent and can be combined. Preview does not mutate equipment; saving changes both slots
 atomically, and failure retains the last saved server state and the user's draft for retry.
+
+`Current`: native settings use separate frame/name tabs, effect-bearing rows and a shared identity
+preview. Each confirmation sends the active tab's selection with the other slot's last saved value;
+trying on an unowned style in that other tab never equips it implicitly. Unowned rows remain
+selectable for preview, with a disabled confirmation action. Selecting a row and wearing its style
+are distinct states, and a failed save leaves the selection available for retry. Image-frame rows
+reserve the configured artwork bounds; nickname labels validate contrast on their actual row fill.
 
 The catalog starts empty. Site managers create and configure each avatar frame or nickname style at
 `/admin/decorations`; there are no bundled starter styles. Catalog entries do not confer ownership:

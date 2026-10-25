@@ -74,6 +74,13 @@ their separate rules.
 `Alt` 点击在两种偏好下都按浏览器默认在新标签打开主页；匿名公开身份（`/a/{uid}`）入口始终跟随
 链接、不弹卡片。「通用设置」的「恢复默认」同时清除该偏好。见[决策 0085](../decisions/0085-web-avatar-click-behavior.md)。
 
+`Current`：Web 与 Flutter 的关注按钮区分单向与双向关注。个人主页、悬浮用户卡片及关注／粉丝独立页
+（`/u/{id}/following`、`/u/{id}/followers`）
+在已关注且对方也关注当前登录者时显示「已互关」并使用单独的图标；单向已关注仍显示「已关注」，
+取消关注回到「关注」。互关判定由服务端按当前登录者计算（`isMutualFollowing`），关注／取消关注
+响应返回动作执行后的真实状态，按钮无需等待重新加载。个人主页「动态」中的关注条目正文显示被关注者
+的昵称（无昵称时用账号名），历史条目同样在读取时解析，不依赖写入时的占位文本。
+
 `Current`：首页提供列表／卡片视图及最新、关注、热门、今日热榜及已启用的推荐流。「关注」标签仅登录后显示，
 访客直接访问 `/?sort=following` 时仍引导登录。切换话题流只更新选中标签、
 帖子列表、空状态和分页；URL、浏览器前进／后退及直达链接保持对应流。切换期间的加载和失败重试
@@ -89,7 +96,9 @@ their separate rules.
 不渲染图片。两档都不回退字面量：未知、停用贴纸在预览里省略；个人 `u_*` 贴纸在 Web/App
 客户端预览与帖内正文一致展开（resolve 接口只查启用状态），仅在 SSR 爬虫列表省略——公开可索引的
 HTML 不嵌入个人对象存储的图片链接。纯文本落点
-（通知、收藏预览、SEO/meta、RSS、分享卡、llms 导出）token 从文本中去掉；爬虫列表的链接文案
+（通知、点赞/收藏预览、我的内容与已删内容列表、草稿列表、后台话题列表、版主审核队列、Agent 话题列表、
+SEO/meta、RSS、分享卡、llms 导出）token 从文本中去掉；版主操作日志、举报列表与快捷处置预览回读举报证据快照时同样去掉。
+爬虫列表的链接文案
 与列表摘要同属小字视图，可解析的公开贴纸显示为 `[名字]` 文本。
 关注频道、个人备注与资料内容预览的权限和
 投影规则见[契约与数据](../architecture/contracts-and-data.md)。
@@ -171,6 +180,15 @@ Web 通知链接优先 `/p/post/{topicId}/{postNo}`，无楼层号时保留历�
 
 ## Links, Markdown and stickers
 
+`Current`：Web 与 Flutter 的帖子、回复、课评与 Wiki 正文的链接都不使用下划线、统一用主题色。
+Flutter 的课评与 Wiki 正文走服务端 HTML 渲染，该路径同样无下划线。
+
+`Current`（Web）：服务端 `markdown2html` 对绝对 HTTP(S) 链接（含同站绝对 URL）加
+`target="_blank"`，正文据此在链接前渲染小外链图标，按下链接时降低不透明度；纯图片链接不加该图标。
+
+`Planned`：Flutter 正文链接的外链图标与按下高亮。内联富文本把图标做成字符会随选区复制进剪贴板，
+做成控件又会丢掉选择复制文本与链接内的 Emoji 图片，因此当前只有主题色与跳转／外链确认。
+
 `Current`：Web／Flutter 将独占段落的 HTTP(S) URL 渲染为最多五张预览卡片，普通链接、代码、表格和
 图片地址不转换。站内元数据本地读取；第三方请求经过有界 SSRF 防护。校园网域名仅从配置生成卡片，
 不访问私网；失败保留原链接。外链确认显示域名与完整 URL，已识别的风险不继承会话信任，
@@ -225,6 +243,12 @@ canonical、prev/next 与 `og:`／`twitter:`／`article:` meta 视页面是否�
 私信列表预览与消息正文中的个人 token 均以本地化「动画表情」隐藏随机名。待审与已拒绝表情的图片
 字节在获批前不对公开读取放行。AI 视觉审核不送审动图（GIF）：动图得到一条证据不完整的转人工结论，
 上传保持待审，由站点管理员在审核队列人工处理；原生表情可单独放大预览，不混入附件图库。
+`Current`：Web 上所有共用该 Vditor 宿主的编辑器（发帖、回复、快捷发布、课程评价）里贴纸是一个整体：
+光标紧跟 token 按一次 Backspace、或在其起点按一次 Delete，即整块删除；粘贴／撤销／逐字输入留下的
+半截 token 同样整块删除，光标落在 token 内部时删除整段。IME 组合、非折叠选区与 Ctrl／Meta／Alt
+组合键保持浏览器默认（Shift 组合键不在排除范围内，Shift+Backspace／Shift+Delete 同样整段删除）。见
+[决策 0107](../decisions/0107-editor-sticker-token-atomic-delete.md)。
+`Planned`：Flutter 输入框的贴纸仍按字符删除，原子删除跟进中。
 `Planned`：Web 个人库管理界面。
 配额、历史素材保留和隐私规则见[移动端表情规范](mobile-experience.md#sticker-library)与
 [个人表情库决策](../decisions/0038-personal-sticker-library.md)及[先审后用决策](../decisions/0080-personal-sticker-pre-review.md)。
