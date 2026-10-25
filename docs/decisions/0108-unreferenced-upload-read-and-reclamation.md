@@ -62,7 +62,11 @@ co-manager editing another bot field must not revoke a cover somebody else uploa
 publicly readable by its URL and has no revocation path: messages are never deleted, so the reference
 stays for the life of the file. Existing chat media and covers predate this decision, so app data
 migration v37 backfills their references from `messages.content` and `users.profile_cover_url` before
-the reclamation job can treat those files as orphans; the backfill is idempotent and re-runnable.
+the reclamation job can treat those files as orphans. The same migration fills missing references for
+tracked uploads in topic galleries, post bodies and retained revisions, including configured
+`publicUrlPrefix` URLs. It checks uploader ownership and content visibility: deleted content and
+private revisions retain bytes without becoming public. Untracked legacy files keep their existing
+read behavior. The backfill is idempotent and re-runnable.
 
 A daily job reclaims ready uploads that still carry only their ownership row after
 `OrphanUploadTTL` (7 days). Reference creation and reclamation serialize on that ownership row in the

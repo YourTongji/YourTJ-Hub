@@ -61,7 +61,10 @@ fails before saving content. A successful delete leaves a `PURGED` ownership tom
 references; failed storage deletion stays `RECLAIMING` for retry, and lookup errors preserve bytes. Chat image/
 voice messages and profile covers register their own `ACTIVE` references, so they are publicly readable
 and never reclaimed (chat media has no recall path; re-saving an unchanged cover keeps its reference),
-and historical ones get those references once from app data migration v37 before the job can see them;
+and historical ones get those references once from app data migration v37 before the job can see them.
+The migration also repairs missing references for tracked uploads in topic galleries, post bodies and
+retained revisions; private/deleted content does not gain public access. Inline image writers recognize
+the configured `publicUrlPrefix` as well as `/file/img/`, so published CDN images remain protected;
 files without any usage row keep legacy public reads. Only uploads that never
 completed are subject to the 2-hour rule below.
 

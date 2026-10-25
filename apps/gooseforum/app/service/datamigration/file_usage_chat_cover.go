@@ -17,7 +17,7 @@ import (
 // fileUsageChatCoverBatch 是回填每批扫描的行数：只按 id 游标分批推进，不整表加载。
 const fileUsageChatCoverBatch = 500
 
-// FileUsageChatCoverResult 汇总历史私信媒体/个人封面附件引用的回填结果（issue #1365）。
+// FileUsageChatCoverResult 汇总孤儿回收前历史私信、封面和正文附件引用的回填结果（issue #1365）。
 // 这两类内容只把 URL 存在 messages.content / users.profile_cover_url 里，没有 file_usages
 // 行；不补引用的话它们的文件既对读者不可见，又会被孤儿回收任务当成从未被引用的上传删除。
 type FileUsageChatCoverResult struct {
@@ -31,7 +31,8 @@ func BackfillFileUsagesChatCover() FileUsageChatCoverResult {
 	return BackfillFileUsagesChatCoverWithDB(db.Connect())
 }
 
-// BackfillFileUsagesChatCoverWithDB 为历史私信媒体与个人封面补登 ACTIVE 附件引用。
+// BackfillFileUsagesChatCoverWithDB 为历史私信媒体与个人封面补登 ACTIVE 附件引用，
+// 并补齐话题图集、正文和版本记录漏登的已跟踪上传（保留原有可见性）。
 // 幂等：重复执行只补缺失的行（CreateIfAbsent）。归属口径与在线写入一致：只登记
 // 「文件存在、ready、且由消息发送者 / 封面所属用户上传（封面另允许站点管理员代传）」
 // 的对象——ACTIVE 非本人引用是永久的匿名读取授权 + 永久免回收，历史 URL 落库时没有校验，
@@ -44,6 +45,7 @@ func BackfillFileUsagesChatCoverWithDB(conn *gorm.DB) FileUsageChatCoverResult {
 	}
 	backfillCoverUsages(conn, &result)
 	backfillChatMediaUsages(conn, &result)
+	backfillInlineUploadUsages(conn, &result)
 	return result
 }
 

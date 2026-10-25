@@ -41,11 +41,11 @@ const MaxGalleryImagesPerTopicWrite = 9
 const MaxImageURLLength = 2048
 
 // GalleryImageURLs returns the in-site gallery candidates among urls: trimmed,
-// within MaxImageURLLength, and resolvable to a file name (see fileNameFromURL),
+// within MaxImageURLLength, and resolvable to a file name (see FileNameFromURL),
 // deduplicated by that name. Existence, readiness and ownership are not checked
 // here (FilterOwnedImageURLs does that), so MaxGalleryImagesPerTopicWrite counts
-// candidates — a coarse pre-filter costing no DB lookup per unbounded input URL.
-// URLs whose path carries no /file/img/ name (e.g. external image hosts)
+// candidates — a coarse pre-filter using cached storage settings, without file lookups.
+// Accepts /file/img/ and the configured publicUrlPrefix; unrelated image hosts
 // neither count nor persist.
 func GalleryImageURLs(urls []string) []string {
 	kept := make([]string, 0, len(urls))
@@ -55,7 +55,7 @@ func GalleryImageURLs(urls []string) []string {
 		if value == "" || len(value) > MaxImageURLLength {
 			continue
 		}
-		name := fileNameFromURL(value)
+		name := FileNameFromURL(value)
 		if name == "" || seen[name] {
 			continue
 		}
@@ -74,7 +74,7 @@ func FilterOwnedImageURLs(userID uint64, urls []string) []string {
 	candidates := GalleryImageURLs(urls)
 	kept := make([]string, 0, len(candidates))
 	for _, value := range candidates {
-		name := fileNameFromURL(value)
+		name := FileNameFromURL(value)
 		// file_usages.file_name is varchar(512); longer names cannot be referenced.
 		if len(name) > 512 {
 			continue
@@ -114,7 +114,7 @@ func ResolveOwnedInlineImages(userID uint64, content string, gallery []string) (
 	urls := append(markdown2html.ExtractImageURLs(content), gallery...)
 	var usages []Usage
 	for _, value := range GalleryImageURLs(urls) {
-		name := fileNameFromURL(value)
+		name := FileNameFromURL(value)
 		if len(name) > 512 {
 			continue
 		}
@@ -144,7 +144,7 @@ func ownedUsages(userID uint64, urls []string) []Usage {
 	usages := make([]Usage, 0, len(kept))
 	seen := make(map[string]bool, len(kept))
 	for _, value := range kept {
-		name := fileNameFromURL(value)
+		name := FileNameFromURL(value)
 		if name == "" || seen[name] {
 			continue
 		}
