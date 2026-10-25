@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { maskPersonalStickerTokens, parseStickerSegments, stickerPreviewLabel } from '@/site/utils/sticker-token'
+import { maskPersonalStickerTokens, parseStickerSegments, stickerDeleteRangeAt, stickerNamesInContent, stickerPreviewLabel } from '@/site/utils/sticker-token'
 
 const urlByName = new Map([
   ['滑稽', '/file/img/stickers/huaji.png'],
@@ -75,5 +75,100 @@ describe('maskPersonalStickerTokens', () => {
 
   it('无 token 原文返回', () => {
     expect(maskPersonalStickerTokens('普通文本', 'Animated sticker')).toBe('普通文本')
+  })
+})
+
+describe('stickerDeleteRangeAt', () => {
+  const content = '看 [:sticker:滑稽:] 好'
+  const tokenStart = content.indexOf('[:sticker:')
+  const tokenEnd = tokenStart + '[:sticker:滑稽:]'.length
+
+  it('完整 token：Backspace 紧跟其后一次删完，Delete 不越界', () => {
+    expect(stickerDeleteRangeAt(content, tokenEnd, 'backward')).toEqual({ start: tokenStart, end: tokenEnd })
+    expect(stickerDeleteRangeAt(content, tokenEnd, 'forward')).toBeNull()
+  })
+
+  it('完整 token：Delete 正好在起点一次删完，Backspace 不越界', () => {
+    expect(stickerDeleteRangeAt(content, tokenStart, 'forward')).toEqual({ start: tokenStart, end: tokenEnd })
+    expect(stickerDeleteRangeAt(content, tokenStart, 'backward')).toBeNull()
+  })
+
+  it('光标落在 token 内部两方向都整段删除', () => {
+    const inside = tokenStart + '[:sticker:'.length
+    expect(stickerDeleteRangeAt(content, inside, 'backward')).toEqual({ start: tokenStart, end: tokenEnd })
+    expect(stickerDeleteRangeAt(content, inside, 'forward')).toEqual({ start: tokenStart, end: tokenEnd })
+  })
+
+  it('相邻 token 各删各的', () => {
+    const pair = '[:sticker:a:][:sticker:b:]'
+    expect(stickerDeleteRangeAt(pair, 13, 'backward')).toEqual({ start: 0, end: 13 })
+    expect(stickerDeleteRangeAt(pair, 13, 'forward')).toEqual({ start: 13, end: 26 })
+  })
+
+  it('未闭合片段：两端都可整段删除', () => {
+    const fragment = '看 [:sticker:na'
+    const start = fragment.indexOf('[:sticker:')
+    expect(stickerDeleteRangeAt(fragment, fragment.length, 'backward')).toEqual({ start, end: fragment.length })
+    expect(stickerDeleteRangeAt(fragment, start, 'forward')).toEqual({ start, end: fragment.length })
+  })
+
+  it('片段后已有空白时只删除片段本身', () => {
+    expect(stickerDeleteRangeAt('[:sticker:na 后文', 12, 'backward')).toEqual({ start: 0, end: 12 })
+  })
+
+  it('单独前缀（后面再无字符）视为片段', () => {
+    expect(stickerDeleteRangeAt('[:sticker:', 10, 'backward')).toEqual({ start: 0, end: 10 })
+    expect(stickerDeleteRangeAt('[:sticker:', 0, 'forward')).toEqual({ start: 0, end: 10 })
+  })
+
+  it('前缀后紧跟终止字符不算片段', () => {
+    expect(stickerDeleteRangeAt('[:sticker: 好', 10, 'backward')).toBeNull()
+    expect(stickerDeleteRangeAt('[:sticker:]', 11, 'backward')).toBeNull()
+    expect(stickerDeleteRangeAt('[:sticker:[:sticker:a:]', 10, 'backward')).toBeNull()
+  })
+
+  it('普通文本与相邻标点不干预', () => {
+    expect(stickerDeleteRangeAt('hello world', 5, 'backward')).toBeNull()
+    expect(stickerDeleteRangeAt('hello world', 5, 'forward')).toBeNull()
+    expect(stickerDeleteRangeAt('(:sticker', 9, 'backward')).toBeNull()
+  })
+
+  it('名字超过 64 字符不算合法 token 也不成片段', () => {
+    const overlong = `[:sticker:${'a'.repeat(65)}]`
+    expect(stickerDeleteRangeAt(overlong, overlong.length - 1, 'backward')).toBeNull()
+  })
+
+  it('恰好 64 个名字字符的 token 整个命中', () => {
+    const token = `[:sticker:${'a'.repeat(64)}:]`
+    expect(stickerDeleteRangeAt(token, token.length, 'backward')).toEqual({ start: 0, end: token.length })
+    expect(stickerDeleteRangeAt(token, 0, 'forward')).toEqual({ start: 0, end: token.length })
+  })
+
+  it('名字后紧跟冒号但未闭合时，末尾冒号也在片段内', () => {
+    const fragment = '[:sticker:huaji:'
+    expect(stickerDeleteRangeAt(fragment, fragment.length, 'backward')).toEqual({ start: 0, end: fragment.length })
+  })
+
+  it('前缀后紧跟冒号时回落默认删除', () => {
+    expect(stickerDeleteRangeAt('[:sticker::x', 10, 'backward')).toBeNull()
+    expect(stickerDeleteRangeAt('[:sticker::x', 10, 'forward')).toBeNull()
+  })
+
+  it('光标落在片段内部（非两端）两方向都整段删除', () => {
+    const fragment = '看 [:sticker:na 后文'
+    expect(stickerDeleteRangeAt(fragment, 8, 'backward')).toEqual({ start: 2, end: 14 })
+    expect(stickerDeleteRangeAt(fragment, 8, 'forward')).toEqual({ start: 2, end: 14 })
+  })
+
+  it('渲染端可识别的 token 都被删除区间完整覆盖（防名字字符集漂移）', () => {
+    const personal = `u_${'a1'.repeat(24)}`
+    for (const name of ['滑稽', 'flower-1', personal, 'a'.repeat(64)]) {
+      const token = `[:sticker:${name}:]`
+      const content = `前缀 ${token} 后缀`
+      expect(stickerNamesInContent([content])).toEqual([name])
+      const start = content.indexOf(token)
+      expect(stickerDeleteRangeAt(content, start + token.length, 'backward')).toEqual({ start, end: start + token.length })
+      expect(stickerDeleteRangeAt(content, start, 'forward')).toEqual({ start, end: start + token.length })
+    }
   })
 })

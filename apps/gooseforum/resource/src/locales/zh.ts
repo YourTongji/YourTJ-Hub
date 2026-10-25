@@ -2553,6 +2553,7 @@ export default {
     joinedAt: '加入于 {date}',
     follow: '关注',
     following: '已关注',
+    mutualFollowing: '已互关',
     viewProfile: '查看主页',
   },
   appeals: {
@@ -2787,6 +2788,7 @@ export default {
     coverSaved: '封面已保存',
     follow: '关注',
     following: '已关注',
+    mutualFollowing: '已互关',
     joinedAt: '加入于 {date}',
     lastActive: '最后活跃 {time}',
     emptyTopics: '还没有发布内容。',

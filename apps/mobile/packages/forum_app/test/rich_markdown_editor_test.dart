@@ -173,6 +173,16 @@ void main() {
     expect(styles.inlineCode!.style.fontSize, closeTo(14.5, 0.001));
     expect(styles.quote!.style.color, profile.quote.color);
     expect(styles.lists!.style.fontSize, closeTo(15.5, 0.001));
+    // 编辑器链接与阅读态一致：主题色、无下划线（同 web prose.css 语义）。
+    final link = styles.link!;
+    expect(
+      link.color,
+      GfTheme.colorsOf(tester.element(find.byType(QuillEditor))).primary,
+    );
+    expect(
+      link.decoration?.contains(TextDecoration.underline) ?? false,
+      isFalse,
+    );
 
     // 真正渲染出来的标题字号（不是仅 config 值）。
     final heading = tester.widget<RichText>(

@@ -639,10 +639,14 @@ list) show them as `[name]` text. Unknown and disabled names are omitted in prev
 personal `u_*` names render in Web/App client previews (the resolve API keys on the enabled state,
 matching the in-topic rendering) and are omitted only in crawler SSR pages, where public
 indexable HTML must not hotlink personal storage assets. Truncation never splits a token; the
-text-only projections of the same value (meta/OG descriptions,
-RSS, share cards, llms export, notification text) strip the tokens. Missing fields on
-older servers remain valid. Bookmark
-ordering and cursor semantics are unchanged; activity reply URLs include the post number when known.
+text-only projections of the same value (liked-topic and bookmark lists, my-content and
+deleted-content lists, draft lists, the admin topic list, moderator review-queue excerpts, the Agent
+topic list, meta/OG descriptions, RSS, share cards, llms export, notification text) strip the
+tokens. Report evidence snapshots strip them before storage, and stored snapshots are stripped
+again when read back into the moderator operation log, report-list excerpts and quick-action
+preview; the admin topic editor source (`TopicSource`) keeps the stored excerpt unchanged. Missing
+fields on older servers remain valid. Bookmark ordering and cursor semantics are unchanged;
+activity reply URLs include the post number when known.
 
 `Current`: profile topics use the same batched current-viewer interaction hydration as the home
 feed. Activity entries optionally expose `liked`, `bookmarked` and `likeCount`; comment activities
@@ -650,6 +654,10 @@ resolve reply state, while topic publication/like activities resolve topic state
 unavailable targets omit personal state. These additions use the existing hand-written page
 contracts, with no API route or database schema change.
 
+`Current`: follow activities in the same timeline store no preview; `contentPreview` is resolved at
+read time from the followed user's `nickname`, falling back to `username`. `UserConnectionPayload.isMutualFollowing`
+is part of the same hand-written page contract and is a viewer-perspective flag: the server decides
+mutuality, so a one-way follow reports `false`.
 
 `Current`: notification `actor.avatarUrl` is populated from current public user presentation in
 one batch. The existing `content` field uses a visible reply's readable preview for likes with no

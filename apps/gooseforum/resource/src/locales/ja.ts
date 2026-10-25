@@ -2550,6 +2550,7 @@ export default {
     joinedAt: '{date} に参加',
     follow: 'フォロー',
     following: 'フォロー中',
+    mutualFollowing: '相互フォロー',
     viewProfile: 'プロフィールを見る',
   },
   appeals: {
@@ -2784,6 +2785,7 @@ export default {
     coverSaved: 'カバーを保存しました',
     follow: 'フォロー',
     following: 'フォロー中',
+    mutualFollowing: '相互フォロー',
     joinedAt: '{date} に参加',
     lastActive: '最終アクティブ {time}',
     emptyTopics: 'まだトピックを投稿していません。',

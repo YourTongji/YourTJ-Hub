@@ -25,6 +25,7 @@ import {
   PenLine,
   Radio,
   UserRound,
+  UserRoundCheck,
   UserPlus,
 } from '@lucide/vue'
 import { followUser } from '@/runtime/api'
@@ -51,6 +52,7 @@ const page = defineProps<{
 const { t } = useI18n()
 const router = useRouter()
 const isFollowing = ref(page.props.user.isFollowing)
+const isMutualFollowing = ref(page.props.user.isMutualFollowing)
 const followLoading = ref(false)
 const connectionLoading = ref<number | null>(null)
 const followError = ref('')
@@ -177,6 +179,7 @@ watch(
     refreshingContent.value = false
     loadingMore.value = false
     isFollowing.value = page.props.user.isFollowing
+    isMutualFollowing.value = page.props.user.isMutualFollowing
     coverUrl.value = page.props.user.profileCoverUrl || ''
     followError.value = ''
     activityTopics.value = [...page.props.topics]
@@ -199,9 +202,10 @@ async function toggleFollow() {
   followLoading.value = true
   followError.value = ''
   try {
-    await followUser(page.props.user.userId, isFollowing.value)
-    isFollowing.value = !isFollowing.value
-    broadcastFollowChange(page.props.user.userId, isFollowing.value)
+    const result = await followUser(page.props.user.userId, isFollowing.value)
+    isFollowing.value = result.isFollowing
+    isMutualFollowing.value = result.isMutualFollowing
+    broadcastFollowChange(page.props.user.userId, result.isFollowing, result.isMutualFollowing)
     if (isFollowing.value && followCanReveal()) void refreshAfterFollowChange()
   } catch (error) {
     followError.value = error instanceof Error ? error.message : t('api.followFailed')
@@ -369,9 +373,10 @@ async function toggleConnectionFollow(connection: UserConnectionPayload) {
   connectionLoading.value = connection.id
   followError.value = ''
   try {
-    await followUser(connection.id, Boolean(connection.isFollowing))
-    connection.isFollowing = !connection.isFollowing
-    broadcastFollowChange(connection.id, connection.isFollowing)
+    const result = await followUser(connection.id, Boolean(connection.isFollowing))
+    connection.isFollowing = result.isFollowing
+    connection.isMutualFollowing = result.isMutualFollowing
+    broadcastFollowChange(connection.id, result.isFollowing, result.isMutualFollowing)
   } catch (error) {
     followError.value = error instanceof Error ? error.message : t('api.followFailed')
   } finally {
@@ -396,9 +401,12 @@ let offFollowChange: (() => void) | undefined
 onMounted(() => {
   observeSentinel()
   // 用户卡片上的关注/取关广播回来时，同步本页按钮状态
-  offFollowChange = onFollowChange(({ userId, isFollowing: following }) => {
-    if (userId !== page.props.user.userId || isFollowing.value === following) return
+  offFollowChange = onFollowChange(({ userId, isFollowing: following, isMutualFollowing: mutual }) => {
+    if (userId !== page.props.user.userId) return
+    const changed = isFollowing.value !== following || isMutualFollowing.value !== mutual
+    if (!changed) return
     isFollowing.value = following
+    isMutualFollowing.value = mutual
     if (following && followCanReveal()) void refreshAfterFollowChange()
   })
 })
@@ -489,8 +497,9 @@ function safeProfileUrl(value?: string) {
                 :disabled="connectionLoading === connection.id"
                 @click="toggleConnectionFollow(connection)"
               >
-                <UserPlus class="h-4 w-4" />
-                {{ connectionLoading === connection.id ? t('common.loading') : connection.isFollowing ? t('user.following') : t('user.follow') }}
+                <UserRoundCheck v-if="connection.isFollowing && connection.isMutualFollowing" class="h-4 w-4" />
+                <UserPlus v-else class="h-4 w-4" />
+                {{ connectionLoading === connection.id ? t('common.loading') : connection.isFollowing ? (connection.isMutualFollowing ? t('user.mutualFollowing') : t('user.following')) : t('user.follow') }}
               </button>
             </div>
           </div>
@@ -567,8 +576,9 @@ function safeProfileUrl(value?: string) {
               :disabled="followLoading"
               @click="toggleFollow"
             >
-              <UserPlus class="h-4 w-4" />
-              {{ followLoading ? t('common.loading') : isFollowing ? t('user.following') : t('user.follow') }}
+              <UserRoundCheck v-if="isFollowing && isMutualFollowing" class="h-4 w-4" />
+              <UserPlus v-else class="h-4 w-4" />
+              {{ followLoading ? t('common.loading') : isFollowing ? (isMutualFollowing ? t('user.mutualFollowing') : t('user.following')) : t('user.follow') }}
             </button>
           </template>
           <template #meta>

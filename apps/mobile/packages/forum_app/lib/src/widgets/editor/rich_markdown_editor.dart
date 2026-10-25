@@ -381,11 +381,9 @@ DefaultStyles _editorDefaultStyles(
       radius: defaults.inlineCode!.radius,
     ),
     lists: defaults.lists!.copyWith(style: profile.body),
-    // Same link treatment as the reader (GfMarkdownView's LinkConfig).
-    link: TextStyle(
-      color: colors.primary,
-      decoration: TextDecoration.underline,
-    ),
+    // Same link treatment as the reader (GfMarkdownView's LinkConfig): theme
+    // color, no underline.
+    link: TextStyle(color: colors.primary),
   );
 }
 
