@@ -360,6 +360,37 @@ void main() {
     },
   );
 
+  test('user blocks stay hidden on a server-adjusted moved-out day', () {
+    final projection =
+        ScheduleWidgetProjection(
+          identity: const ScheduleWidgetIdentity(
+            siteKey: 'site',
+            accountScope: 'account',
+            bindingRevision: 'binding',
+          ),
+          generatedAt: DateTime.utc(2026, 9, 22),
+          schoolDate: '2026-09-22',
+          semesterId: 'term',
+          week: 4,
+          sectionTimes: sectionTimesFor(11, null),
+          dayKind: 'moved',
+          adjustmentLabel: 'Moved to Saturday',
+          courses: const [],
+        ).withBlocks(const [
+          ScheduleWidgetBlock(
+            id: 'club',
+            title: 'Club',
+            place: '',
+            colorSlot: 1,
+            days: [2],
+            start: 1,
+            end: 2,
+            weeks: [],
+          ),
+        ]);
+    expect(projection.courses, isEmpty);
+  });
+
   test('v1 fallback and every optional text form sanitize safely', () async {
     final snapshot = await store.write(
       scope,

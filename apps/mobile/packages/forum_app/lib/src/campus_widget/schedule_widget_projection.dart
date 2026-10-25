@@ -190,7 +190,10 @@ class ScheduleWidgetProjection {
           ? null
           : baseWeek + _monday(date).difference(baseMonday).inDays ~/ 7;
       final own = <ScheduleWidgetCourse>[
-        if (week != null && day.kind != 'holiday' && day.kind != 'unknown')
+        if (week != null &&
+            day.kind != 'holiday' &&
+            day.kind != 'moved' &&
+            day.kind != 'unknown')
           for (final block in blocks)
             if (block.days.contains(date.weekday) && block.occursIn(week))
               ?_courseFromBlock(block, day.date, sectionTimes),
