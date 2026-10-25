@@ -263,12 +263,15 @@ class TimetableMemoStore extends StateNotifier<TimetableMemoState> {
     : _database = database,
       _generation = database.generation,
       super(const TimetableMemoState()) {
-    unawaited(_load());
+    _tail = _load();
   }
 
   final UserWorkDatabase _database;
   final int _generation;
   bool _loadFailed = false;
+  late Future<void> _tail;
+
+  bool get canEdit => mounted && state.loaded && !_loadFailed;
 
   /// Null without a signed-in account: memos stay in memory only.
   final String? scope;
@@ -282,25 +285,25 @@ class TimetableMemoStore extends StateNotifier<TimetableMemoState> {
     try {
       final values = await _database.readDomain(target, kTimetableMemoDomain);
       if (!mounted) return;
-      List<Object?> list(String key) {
-        try {
-          final decoded = jsonDecode(values[key] ?? '[]');
-          return decoded is List ? decoded : const [];
-        } on FormatException {
-          return const [];
-        }
+      List<T> list<T>(String key, T? Function(Object?) decode) {
+        final decoded = jsonDecode(values[key] ?? '[]');
+        if (decoded is! List) throw FormatException('Invalid $key');
+        return decoded.map((entry) {
+          final item = decode(entry);
+          if (item == null) throw FormatException('Invalid $key entry');
+          return item;
+        }).toList();
       }
 
-      Object? prefs;
-      try {
-        prefs = jsonDecode(values['prefs'] ?? '{}');
-      } on FormatException {
-        prefs = null;
-      }
+      final prefs = jsonDecode(values['prefs'] ?? '{}');
+      if (prefs is! Map) throw const FormatException('Invalid preferences');
+      final notes = list('notes', TimetableNote.fromJson);
+      final blocks = list('blocks', TimetableBlock.fromJson);
+      _loadFailed = false;
       state = TimetableMemoState(
         loaded: true,
-        notes: list('notes').map(TimetableNote.fromJson).nonNulls.toList(),
-        blocks: list('blocks').map(TimetableBlock.fromJson).nonNulls.toList(),
+        notes: notes,
+        blocks: blocks,
         prefs: TimetablePrefs.fromJson(prefs),
       );
     } catch (error) {
@@ -309,60 +312,98 @@ class TimetableMemoStore extends StateNotifier<TimetableMemoState> {
     }
   }
 
-  Future<void> _persist(String key, Object value) async {
-    final target = scope;
-    if (target == null || _loadFailed) return;
-    try {
-      await _database.writeBatch(target, kTimetableMemoDomain, {
-        key: jsonEncode(value),
-      }, generation: _generation);
-      if (mounted && state.error != null) {
-        state = state.copyWith(clearError: true);
+  Future<void> retryLoad() {
+    _tail = _tail.then((_) async {
+      if (!mounted || !_loadFailed) return;
+      state = state.copyWith(loaded: false);
+      await _load();
+    });
+    return _tail;
+  }
+
+  // Loading and mutations share one queue. Build each new value from the last
+  // committed state, then publish it only after durable storage succeeds.
+  Future<bool> _update(
+    String key,
+    TimetableMemoState Function(TimetableMemoState) update,
+    Object Function(TimetableMemoState) encode,
+  ) {
+    final operation = _tail.then((_) async {
+      if (!canEdit) return false;
+      final next = update(state);
+      try {
+        if (scope case final String target) {
+          await _database.writeBatch(
+            target,
+            kTimetableMemoDomain,
+            {key: jsonEncode(encode(next))},
+            generation: _generation,
+            isCurrent: () => mounted,
+          );
+        }
+        if (!mounted) return false;
+        state = next.copyWith(clearError: true);
+        return true;
+      } catch (error) {
+        if (mounted) state = state.copyWith(error: error);
+        return false;
       }
-    } catch (error) {
-      if (mounted) state = state.copyWith(error: error);
-    }
+    });
+    _tail = operation.then<void>((_) {});
+    return operation;
   }
 
-  Future<void> setNote(String course, int? week, String text) {
-    if (_loadFailed) return Future<void>.value();
+  Future<bool> setNote(String course, int? week, String text) {
     final trimmed = text.trim();
-    final notes = [
-      for (final note in state.notes)
-        if (note.course != course || note.week != week) note,
-      if (trimmed.isNotEmpty)
-        TimetableNote(course: course, week: week, text: trimmed),
-    ];
-    state = state.copyWith(notes: notes);
-    return _persist('notes', [for (final note in notes) note.toJson()]);
+    return _update(
+      'notes',
+      (current) => current.copyWith(
+        notes: [
+          for (final note in current.notes)
+            if (note.course != course || note.week != week) note,
+          if (trimmed.isNotEmpty)
+            TimetableNote(course: course, week: week, text: trimmed),
+        ],
+      ),
+      (next) => [for (final note in next.notes) note.toJson()],
+    );
   }
 
-  Future<void> saveBlock(TimetableBlock block) {
-    if (_loadFailed) return Future<void>.value();
-    final blocks = [
-      for (final item in state.blocks)
-        if (item.id != block.id) item,
-      block,
-    ];
-    state = state.copyWith(blocks: blocks);
-    return _persist('blocks', [for (final item in blocks) item.toJson()]);
-  }
+  Future<bool> saveBlock(TimetableBlock block) => _update(
+    'blocks',
+    (current) => current.copyWith(
+      blocks: [
+        for (final item in current.blocks)
+          if (item.id != block.id) item,
+        block,
+      ],
+    ),
+    (next) => [for (final item in next.blocks) item.toJson()],
+  );
 
-  Future<void> deleteBlock(String id) {
-    if (_loadFailed) return Future<void>.value();
-    final blocks = [
-      for (final item in state.blocks)
-        if (item.id != id) item,
-    ];
-    state = state.copyWith(blocks: blocks);
-    return _persist('blocks', [for (final item in blocks) item.toJson()]);
-  }
+  Future<bool> deleteBlock(String id) => _update(
+    'blocks',
+    (current) => current.copyWith(
+      blocks: [
+        for (final item in current.blocks)
+          if (item.id != id) item,
+      ],
+    ),
+    (next) => [for (final item in next.blocks) item.toJson()],
+  );
 
-  Future<void> setPrefs(TimetablePrefs prefs) {
-    if (_loadFailed) return Future<void>.value();
-    state = state.copyWith(prefs: prefs);
-    return _persist('prefs', prefs.toJson());
-  }
+  Future<bool> setPrefs(TimetablePrefs prefs) => _update(
+    'prefs',
+    (current) => current.copyWith(prefs: prefs),
+    (next) => next.prefs.toJson(),
+  );
+
+  Future<bool> updatePrefs(TimetablePrefs Function(TimetablePrefs) update) =>
+      _update(
+        'prefs',
+        (current) => current.copyWith(prefs: update(current.prefs)),
+        (next) => next.prefs.toJson(),
+      );
 }
 
 String newTimetableBlockId() {

@@ -17,6 +17,7 @@ import 'package:forum_app/src/pages/campus/timetable/timetable_grid.dart';
 import 'package:forum_app/src/pages/campus/campus_memory_cache.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
+import 'package:forum_app/src/storage/user_work_database.dart';
 import 'package:forum_app/src/widgets/account_drawer.dart';
 import 'package:forum_app/src/widgets/campus_shortcuts.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -50,11 +51,14 @@ Widget campusTestApp(
   Locale locale = const Locale('zh'),
   bool signedIn = true,
   AppDatabase? database,
+  UserWorkDatabase? workDatabase,
 }) {
   final testDatabase = database ?? AppDatabase(NativeDatabase.memory());
   if (database == null) addTearDown(testDatabase.close);
   return ProviderScope(
     overrides: [
+      if (workDatabase != null)
+        userWorkDatabaseProvider.overrideWithValue(workDatabase),
       offlineDatabaseProvider.overrideWithValue(testDatabase),
       campusRepositoryProvider.overrideWithValue(repository),
       pkRepositoryProvider.overrideWithValue(CampusPkRepository()),

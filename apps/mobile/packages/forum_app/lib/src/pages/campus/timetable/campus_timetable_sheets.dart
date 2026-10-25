@@ -19,6 +19,58 @@ import '../campus_state.dart';
 import 'timetable_grid.dart';
 import 'timetable_memo_store.dart';
 
+// A modal route outlives the campus page. Capture the store that owns its
+// draft so replacing the account/site/session cannot expose or submit it.
+Future<void> _showMemoSheet(
+  BuildContext context, {
+  required WidgetBuilder builder,
+  bool keyboardAware = false,
+}) {
+  final store = ProviderScope.containerOf(
+    context,
+    listen: false,
+  ).read(timetableMemoProvider.notifier);
+  return showGfBottomSheet<void>(
+    context,
+    keyboardAware: keyboardAware,
+    builder: (_) => _MemoSessionSurface(store: store, builder: builder),
+  );
+}
+
+class _MemoSessionSurface extends ConsumerWidget {
+  const _MemoSessionSurface({required this.store, required this.builder});
+  final TimetableMemoStore store;
+  final WidgetBuilder builder;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!identical(store, ref.watch(timetableMemoProvider.notifier))) {
+      final route = ModalRoute.of(context);
+      final navigator = Navigator.of(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (navigator.mounted && route != null && route.isActive) {
+          navigator.removeRoute(route);
+        }
+      });
+      return const SizedBox.shrink();
+    }
+    return builder(context);
+  }
+}
+
+Widget _memoError(BuildContext context) => Padding(
+  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+  child: Semantics(
+    liveRegion: true,
+    child: GfText(
+      AppLocalizations.of(context).draftLocalSaveFailed,
+      style: GfTheme.typographyOf(
+        context,
+      ).small.copyWith(color: GfTheme.colorsOf(context).error),
+    ),
+  ),
+);
+
 Widget _fieldLabel(BuildContext context, String text) => Padding(
   padding: const EdgeInsets.only(bottom: 8),
   child: GfText(
@@ -237,6 +289,8 @@ class CampusCourseDetails extends ConsumerWidget {
       ),
     ];
     final noteWeek = this.noteWeek ?? week;
+    final memo = ref.watch(timetableMemoProvider);
+    final store = ref.read(timetableMemoProvider.notifier);
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       child: Column(
@@ -267,10 +321,23 @@ class CampusCourseDetails extends ConsumerWidget {
           for (final (symbol, text) in rows)
             if (text.isNotEmpty) _InfoRow(symbol: symbol, text: text),
           const SizedBox(height: 20),
-          _CourseNotes(
-            course: timetableCourseKey(event.name, event.teacher),
-            week: noteWeek,
-          ),
+          if (!memo.loaded)
+            const Center(child: CircularProgressIndicator())
+          else if (!store.canEdit) ...[
+            _memoError(context),
+            TextButton(
+              onPressed: store.retryLoad,
+              child: GfText(l.commonRetry),
+            ),
+          ] else
+            _CourseNotes(
+              key: ValueKey((
+                timetableCourseKey(event.name, event.teacher),
+                noteWeek,
+              )),
+              course: timetableCourseKey(event.name, event.teacher),
+              week: noteWeek,
+            ),
         ],
       ),
     );
@@ -306,7 +373,7 @@ class _InfoRow extends StatelessWidget {
 
 /// Notes save as you type; the last edit is flushed when the sheet closes.
 class _CourseNotes extends ConsumerStatefulWidget {
-  const _CourseNotes({required this.course, required this.week});
+  const _CourseNotes({super.key, required this.course, required this.week});
   final String course;
   final int? week;
 
@@ -327,6 +394,7 @@ class _CourseNotesState extends ConsumerState<_CourseNotes> {
   Timer? _debounce;
   final _dirty = <int?>{};
   bool _saved = false;
+  int _editRevision = 0;
 
   @override
   void initState() {
@@ -336,24 +404,37 @@ class _CourseNotesState extends ConsumerState<_CourseNotes> {
 
   void _changed(int? week) {
     _dirty.add(week);
+    _editRevision++;
+    setState(() => _saved = false);
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), _flush);
   }
 
-  void _flush({bool notify = true}) {
-    for (final week in _dirty) {
-      final text = week == null ? _standing.text : _weekly.text;
-      unawaited(_store.setNote(widget.course, week, text));
-    }
-    final changed = _dirty.isNotEmpty;
+  Future<void> _flush({bool notify = true}) async {
+    final revision = _editRevision;
+    final edits = {
+      for (final week in _dirty)
+        week: week == null ? _standing.text : _weekly.text,
+    };
     _dirty.clear();
-    if (changed && notify && mounted) setState(() => _saved = true);
+    var saved = true;
+    for (final edit in edits.entries) {
+      final success = await _store.setNote(widget.course, edit.key, edit.value);
+      if (!success) _dirty.add(edit.key);
+      saved = success && saved;
+    }
+    if (edits.isNotEmpty && notify && mounted) {
+      // A new keystroke while a write was pending is not saved by that write.
+      setState(
+        () => _saved = saved && _dirty.isEmpty && revision == _editRevision,
+      );
+    }
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
-    _flush(notify: false);
+    unawaited(_flush(notify: false));
     _standing.dispose();
     _weekly.dispose();
     super.dispose();
@@ -422,7 +503,7 @@ Future<void> showTimetableBlockEditor(
   required int rows,
   required int maxWeek,
   required List<SectionTime> times,
-}) => showGfBottomSheet<void>(
+}) => _showMemoSheet(
   context,
   keyboardAware: true,
   builder: (_) => _BlockEditor(
@@ -476,6 +557,9 @@ class _BlockEditorState extends ConsumerState<_BlockEditor> {
   late final List<int> _customWeeks = _block?.weeks ?? const [];
   bool _whenOpen = false;
   bool _noteOpen = false;
+  bool _saving = false;
+  bool _saveFailed = false;
+  late final _store = ref.read(timetableMemoProvider.notifier);
 
   _WeekMode _modeOf(List<int>? weeks) {
     if (weeks == null) return _WeekMode.only;
@@ -521,7 +605,7 @@ class _BlockEditorState extends ConsumerState<_BlockEditor> {
   }
 
   Future<void> _save() async {
-    if (!_valid) return;
+    if (!_valid || _saving) return;
     final block = TimetableBlock(
       id: _block?.id ?? newTimetableBlockId(),
       title: _title.text.trim(),
@@ -533,16 +617,41 @@ class _BlockEditorState extends ConsumerState<_BlockEditor> {
       end: _end,
       weeks: _weeks,
     );
+    FocusScope.of(context).unfocus();
     unawaited(HapticFeedback.lightImpact());
-    Navigator.of(context).pop();
-    await ref.read(timetableMemoProvider.notifier).saveBlock(block);
+    setState(() {
+      _saving = true;
+      _saveFailed = false;
+    });
+    final saved = await _store.saveBlock(block);
+    if (!mounted) return;
+    if (saved) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() {
+        _saving = false;
+        _saveFailed = true;
+      });
+    }
   }
 
   Future<void> _delete() async {
     final id = _block?.id;
-    if (id == null) return;
-    Navigator.of(context).pop();
-    await ref.read(timetableMemoProvider.notifier).deleteBlock(id);
+    if (id == null || _saving) return;
+    setState(() {
+      _saving = true;
+      _saveFailed = false;
+    });
+    final deleted = await _store.deleteBlock(id);
+    if (!mounted) return;
+    if (deleted) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() {
+        _saving = false;
+        _saveFailed = true;
+      });
+    }
   }
 
   @override
@@ -570,233 +679,241 @@ class _BlockEditorState extends ConsumerState<_BlockEditor> {
     final whenOpen = _whenOpen || _days.isEmpty;
     final noteOpen = _noteOpen || _note.text.isNotEmpty;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Flexible(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: GfText(
-                        _block == null
-                            ? l.timetableAddBlock
-                            : l.timetableEditBlock,
-                        style: type.title3,
+    return AbsorbPointer(
+      absorbing: _saving,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GfText(
+                          _block == null
+                              ? l.timetableAddBlock
+                              : l.timetableEditBlock,
+                          style: type.title3,
+                        ),
                       ),
-                    ),
-                    if (_block != null) _DeleteAction(onDelete: _delete),
-                  ],
-                ),
-                SizedBox(height: _block == null ? 16 : 8),
-                GfInput(
-                  controller: _title,
-                  labelText: l.timetableBlockTitle,
-                  hintText: l.timetableBlockTitleHint,
-                  autofocus: _block == null,
-                  maxLength: 40,
-                  textInputAction: TextInputAction.next,
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 4),
-                GfInput(
-                  controller: _place,
-                  labelText: l.timetableBlockPlace,
-                  hintText: l.timetableBlockPlaceHint,
-                  maxLength: 40,
-                  textInputAction: TextInputAction.done,
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 8),
-                // When: one summary line; the controls open on request.
-                _WhenRow(
-                  label: l.timetableBlockWhen,
-                  days: _blockDaysText(l, _days),
-                  time: time.isEmpty
-                      ? l.schedulePeriodRange('$_start–$_end')
-                      : time,
-                  weeks: weeksLabel,
-                  open: whenOpen,
-                  onTap: _days.isEmpty
-                      ? null
-                      : () => setState(() => _whenOpen = !_whenOpen),
-                ),
-                AnimatedSize(
-                  duration: GfMotion.duration(context, GfMotion.layout),
-                  curve: GfMotion.layoutCurve,
-                  alignment: Alignment.topCenter,
-                  child: !whenOpen
-                      ? const SizedBox(width: double.infinity)
-                      : Padding(
-                          padding: const EdgeInsets.only(top: 16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _fieldLabel(context, l.timetableBlockDays),
-                              // One row of seven: the week reads as a week.
-                              Row(
-                                children: [
-                                  for (var day = 1; day <= 7; day++) ...[
-                                    if (day > 1) const SizedBox(width: 6),
+                      if (_block != null) _DeleteAction(onDelete: _delete),
+                    ],
+                  ),
+                  SizedBox(height: _block == null ? 16 : 8),
+                  GfInput(
+                    controller: _title,
+                    labelText: l.timetableBlockTitle,
+                    hintText: l.timetableBlockTitleHint,
+                    autofocus: _block == null,
+                    maxLength: 40,
+                    textInputAction: TextInputAction.next,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 4),
+                  GfInput(
+                    controller: _place,
+                    labelText: l.timetableBlockPlace,
+                    hintText: l.timetableBlockPlaceHint,
+                    maxLength: 40,
+                    textInputAction: TextInputAction.done,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 8),
+                  // When: one summary line; the controls open on request.
+                  _WhenRow(
+                    label: l.timetableBlockWhen,
+                    days: _blockDaysText(l, _days),
+                    time: time.isEmpty
+                        ? l.schedulePeriodRange('$_start–$_end')
+                        : time,
+                    weeks: weeksLabel,
+                    open: whenOpen,
+                    onTap: _days.isEmpty
+                        ? null
+                        : () => setState(() => _whenOpen = !_whenOpen),
+                  ),
+                  AnimatedSize(
+                    duration: GfMotion.duration(context, GfMotion.layout),
+                    curve: GfMotion.layoutCurve,
+                    alignment: Alignment.topCenter,
+                    child: !whenOpen
+                        ? const SizedBox(width: double.infinity)
+                        : Padding(
+                            padding: const EdgeInsets.only(top: 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _fieldLabel(context, l.timetableBlockDays),
+                                // One row of seven: the week reads as a week.
+                                Row(
+                                  children: [
+                                    for (var day = 1; day <= 7; day++) ...[
+                                      if (day > 1) const SizedBox(width: 6),
+                                      Expanded(
+                                        child: _Toggle(
+                                          label: labels[day - 1],
+                                          selected: _days.contains(day),
+                                          onTap: () => setState(() {
+                                            HapticFeedback.selectionClick();
+                                            _days = {..._days};
+                                            if (!_days.remove(day)) {
+                                              _days.add(day);
+                                            }
+                                          }),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                _fieldLabel(context, l.schedulePeriods),
+                                // Each stepper shows the clock time it lands on.
+                                Row(
+                                  children: [
                                     Expanded(
-                                      child: _Toggle(
-                                        label: labels[day - 1],
-                                        selected: _days.contains(day),
-                                        onTap: () => setState(() {
-                                          HapticFeedback.selectionClick();
-                                          _days = {..._days};
-                                          if (!_days.remove(day)) {
-                                            _days.add(day);
-                                          }
+                                      child: _Stepper(
+                                        value: _start,
+                                        min: 1,
+                                        max: widget.rows,
+                                        label: l.timetableBlockStart,
+                                        caption: _start <= widget.times.length
+                                            ? widget.times[_start - 1].start
+                                            : null,
+                                        onChanged: (v) => setState(() {
+                                          _start = v;
+                                          if (_end < v) _end = v;
                                         }),
                                       ),
                                     ),
-                                  ],
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              _fieldLabel(context, l.schedulePeriods),
-                              // Each stepper shows the clock time it lands on.
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _Stepper(
-                                      value: _start,
-                                      min: 1,
-                                      max: widget.rows,
-                                      label: l.timetableBlockStart,
-                                      caption: _start <= widget.times.length
-                                          ? widget.times[_start - 1].start
-                                          : null,
-                                      onChanged: (v) => setState(() {
-                                        _start = v;
-                                        if (_end < v) _end = v;
-                                      }),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                    ),
-                                    child: GfText(
-                                      '–',
-                                      style: type.body.copyWith(
-                                        color: colors.iconMuted,
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                      ),
+                                      child: GfText(
+                                        '–',
+                                        style: type.body.copyWith(
+                                          color: colors.iconMuted,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  Expanded(
-                                    child: _Stepper(
-                                      value: _end,
-                                      min: _start,
-                                      max: widget.rows,
-                                      label: l.timetableBlockEnd,
-                                      caption: _end <= widget.times.length
-                                          ? widget.times[_end - 1].end
-                                          : null,
-                                      onChanged: (v) =>
-                                          setState(() => _end = v),
+                                    Expanded(
+                                      child: _Stepper(
+                                        value: _end,
+                                        min: _start,
+                                        max: widget.rows,
+                                        label: l.timetableBlockEnd,
+                                        caption: _end <= widget.times.length
+                                            ? widget.times[_end - 1].end
+                                            : null,
+                                        onChanged: (v) =>
+                                            setState(() => _end = v),
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              _fieldLabel(context, l.scheduleWeeksLabel),
-                              GfSegmented<_WeekMode>(
-                                segments: [
-                                  (
-                                    l.timetableWeeksOnly(widget.week),
-                                    _WeekMode.only,
-                                  ),
-                                  (l.timetableWeeksEvery, _WeekMode.every),
-                                  (l.timetableWeeksOdd, _WeekMode.odd),
-                                  (l.timetableWeeksEven, _WeekMode.even),
-                                  if (_customWeeks.isNotEmpty &&
-                                      _modeOf(_customWeeks) == _WeekMode.custom)
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                _fieldLabel(context, l.scheduleWeeksLabel),
+                                GfSegmented<_WeekMode>(
+                                  segments: [
                                     (
-                                      _blockWeeksText(l, _customWeeks),
-                                      _WeekMode.custom,
+                                      l.timetableWeeksOnly(widget.week),
+                                      _WeekMode.only,
                                     ),
-                                ],
-                                selected: _mode,
-                                onSelected: (mode) =>
-                                    setState(() => _mode = mode),
-                              ),
-                            ],
+                                    (l.timetableWeeksEvery, _WeekMode.every),
+                                    (l.timetableWeeksOdd, _WeekMode.odd),
+                                    (l.timetableWeeksEven, _WeekMode.even),
+                                    if (_customWeeks.isNotEmpty &&
+                                        _modeOf(_customWeeks) ==
+                                            _WeekMode.custom)
+                                      (
+                                        _blockWeeksText(l, _customWeeks),
+                                        _WeekMode.custom,
+                                      ),
+                                  ],
+                                  selected: _mode,
+                                  onSelected: (mode) =>
+                                      setState(() => _mode = mode),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                ),
-                const SizedBox(height: 20),
-                _fieldLabel(context, l.timetableBlockColor),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    for (var slot = 0; slot < kCourseColorSlotCount; slot++)
-                      _Swatch(
-                        slot: slot,
-                        selected: slot == _color,
-                        label: l.timetableColorN(slot + 1),
-                        onTap: () => setState(() => _color = slot),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (noteOpen)
-                  GfTextarea(
-                    controller: _note,
-                    labelText: l.timetableBlockNote,
-                    autofocus: _noteOpen && _note.text.isEmpty,
-                    minLines: 2,
-                    maxLines: 4,
-                    maxLength: 200,
-                    onChanged: (_) => setState(() {}),
-                  )
-                else
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: TextButton.icon(
-                      onPressed: () => setState(() => _noteOpen = true),
-                      icon: GfSymbol('plus', size: 18, color: colors.primary),
-                      label: GfText(l.timetableAddNote),
-                    ),
                   ),
+                  const SizedBox(height: 20),
+                  _fieldLabel(context, l.timetableBlockColor),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      for (var slot = 0; slot < kCourseColorSlotCount; slot++)
+                        _Swatch(
+                          slot: slot,
+                          selected: slot == _color,
+                          label: l.timetableColorN(slot + 1),
+                          onTap: () => setState(() => _color = slot),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (noteOpen)
+                    GfTextarea(
+                      controller: _note,
+                      labelText: l.timetableBlockNote,
+                      autofocus: _noteOpen && _note.text.isEmpty,
+                      minLines: 2,
+                      maxLines: 4,
+                      maxLength: 200,
+                      onChanged: (_) => setState(() {}),
+                    )
+                  else
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: TextButton.icon(
+                        onPressed: () => setState(() => _noteOpen = true),
+                        icon: GfSymbol('plus', size: 18, color: colors.primary),
+                        label: GfText(l.timetableAddNote),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (_saveFailed) _memoError(context),
+          // Pinned so the keyboard or open sections never hide the choice:
+          // leave without changes, or keep them.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GfButton(
+                    label: l.commonCancel,
+                    variant: GfButtonVariant.secondary,
+                    expanded: true,
+                    onPressed: _saving
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GfButton(
+                    label: l.timetableSaveBlock,
+                    expanded: true,
+                    loading: _saving,
+                    onPressed: _valid && _changed && !_saving ? _save : null,
+                  ),
+                ),
               ],
             ),
           ),
-        ),
-        // Pinned so the keyboard or open sections never hide the choice:
-        // leave without changes, or keep them.
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-          child: Row(
-            children: [
-              Expanded(
-                child: GfButton(
-                  label: l.commonCancel,
-                  variant: GfButtonVariant.secondary,
-                  expanded: true,
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: GfButton(
-                  label: l.timetableSaveBlock,
-                  expanded: true,
-                  onPressed: _valid && _changed ? _save : null,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1012,7 +1129,7 @@ Future<void> showTimetableBlockDetails(
   required TimetableBlock block,
   required List<SectionTime> times,
   required VoidCallback onEdit,
-}) => showGfBottomSheet<void>(
+}) => _showMemoSheet(
   context,
   builder: (sheet) => _BlockDetails(
     block: block,
@@ -1331,7 +1448,7 @@ Future<void> showTimetableOptions(
   required bool exportEnabled,
   required VoidCallback onAddBlock,
   required ValueChanged<TimetableBlock> onEditBlock,
-}) => showGfBottomSheet<void>(
+}) => _showMemoSheet(
   context,
   builder: (_) => _TimetableOptions(
     exportEnabled: exportEnabled,
@@ -1396,16 +1513,26 @@ class _TimetableOptions extends ConsumerWidget {
     final memo = ref.watch(timetableMemoProvider);
     final store = ref.read(timetableMemoProvider.notifier);
     final prefs = memo.prefs;
+    if (!memo.loaded) return const Center(child: CircularProgressIndicator());
+    if (!store.canEdit) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _memoError(context),
+          TextButton(onPressed: store.retryLoad, child: GfText(l.commonRetry)),
+        ],
+      );
+    }
     Widget toggle(
       String title,
       bool value,
-      TimetablePrefs Function(bool) next, {
+      TimetablePrefs Function(TimetablePrefs, bool) next, {
       String? hint,
     }) => GfSwitchRow(
       title: title,
       description: hint,
       value: value,
-      onChanged: (v) => store.setPrefs(next(v)),
+      onChanged: (v) => store.updatePrefs((prefs) => next(prefs, v)),
     );
 
     return ListView(
@@ -1413,28 +1540,29 @@ class _TimetableOptions extends ConsumerWidget {
       padding: const EdgeInsets.only(bottom: 16),
       children: [
         _sheetHeading(context, l.timetableOptions, l.timetableGestureTip),
+        if (memo.error != null) _memoError(context),
         _groupTitle(context, l.timetableDisplay),
         toggle(
           l.timetableAlwaysShowWeekend,
           prefs.alwaysShowWeekend,
-          (v) => prefs.copyWith(alwaysShowWeekend: v),
+          (prefs, v) => prefs.copyWith(alwaysShowWeekend: v),
           hint: l.timetableAlwaysShowWeekendHint,
         ),
         toggle(
           l.timetableShowOtherWeeks,
           prefs.showOtherWeeks,
-          (v) => prefs.copyWith(showOtherWeeks: v),
+          (prefs, v) => prefs.copyWith(showOtherWeeks: v),
           hint: l.timetableShowOtherWeeksHint,
         ),
         toggle(
           l.timetableShowSectionTimes,
           prefs.showSectionTimes,
-          (v) => prefs.copyWith(showSectionTimes: v),
+          (prefs, v) => prefs.copyWith(showSectionTimes: v),
         ),
         toggle(
           l.timetableFocusToday,
           prefs.focusToday,
-          (v) => prefs.copyWith(focusToday: v),
+          (prefs, v) => prefs.copyWith(focusToday: v),
         ),
         _groupTitle(context, l.timetableMore),
         GfSettingRow(
@@ -1443,7 +1571,7 @@ class _TimetableOptions extends ConsumerWidget {
           description: memo.blocks.isEmpty && memo.notes.isEmpty
               ? l.timetableMemosNone
               : l.timetableMemoSummary(memo.blocks.length, memo.notes.length),
-          onTap: () => showGfBottomSheet<void>(
+          onTap: () => _showMemoSheet(
             context,
             builder: (_) =>
                 _MemoSheet(onAddBlock: onAddBlock, onEditBlock: onEditBlock),
@@ -1507,6 +1635,7 @@ class _MemoSheet extends ConsumerWidget {
             padding: EdgeInsets.zero,
             children: [
               _sheetHeading(context, l.timetableMemos, l.timetableMemosIntro),
+              if (memo.error != null) _memoError(context),
               if (empty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),

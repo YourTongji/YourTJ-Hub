@@ -14,11 +14,13 @@ import 'package:forum_app/src/pages/campus/timetable/timetable_grid.dart';
 import 'package:forum_app/src/pages/campus/timetable/timetable_layout.dart';
 import 'package:forum_app/src/pages/campus/timetable/timetable_memo_store.dart';
 import 'package:forum_app/src/storage/user_work_database.dart';
+import 'package:forum_app/src/providers.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'campus_native_test.dart' show campusTestApp;
 import 'fixtures/campus_fixtures.dart';
 import 'test_font_helpers.dart';
+import 'timetable_memo_store_test.dart' show ControlledMemoDatabase;
 
 CampusEvent _event(String name, int day, int start, int end, List<int> weeks) =>
     CampusEvent(
@@ -70,6 +72,60 @@ class _ReadFailingUserWorkDatabase extends UserWorkDatabase {
 }
 
 void main() {
+  testWidgets('block save failure keeps the editor draft for retry', (
+    tester,
+  ) async {
+    final database = ControlledMemoDatabase(UserWorkDatabase.instance);
+    addTearDown(database.close);
+    await tester.pumpWidget(
+      campusTestApp(FakeCampusRepository(), workDatabase: database),
+    );
+    await tester.pumpAndSettle();
+    await _openTimetable(tester);
+    final l = AppLocalizations.of(tester.element(find.byType(CampusPage)));
+    await tester.tap(find.byTooltip(l.timetableAddBlock));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'Keep this draft');
+    await tester.pump();
+    database.failWrites = true;
+    await tester.tap(find.text(l.timetableSaveBlock));
+    await tester.pumpAndSettle();
+    expect(find.text(l.timetableSaveBlock), findsOneWidget);
+    expect(find.text('Keep this draft'), findsOneWidget);
+    expect(find.text(l.draftLocalSaveFailed), findsOneWidget);
+    database.failWrites = false;
+    await tester.tap(find.text(l.timetableSaveBlock));
+    await tester.pumpAndSettle();
+    expect(find.text(l.timetableSaveBlock), findsNothing);
+    expect(_cardOf((i) => i.title == 'Keep this draft'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('account change dismisses a block draft from the old account', (
+    tester,
+  ) async {
+    await tester.pumpWidget(campusTestApp(FakeCampusRepository()));
+    await tester.pumpAndSettle();
+    await _openTimetable(tester);
+    final context = tester.element(find.byType(CampusPage));
+    final container = ProviderScope.containerOf(context);
+    final l = AppLocalizations.of(context);
+    await tester.tap(find.byTooltip(l.timetableAddBlock));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextField).first,
+      'Account A private draft',
+    );
+    container.read(offlineCacheEpochProvider.notifier).state++;
+    await tester.pumpAndSettle();
+    expect(find.text('Account A private draft'), findsNothing);
+    expect(find.text(l.timetableSaveBlock), findsNothing);
+    expect(container.read(timetableMemoProvider).blocks, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
   group('week layout', () {
     test('empty weekends fold away unless pinned or used', () {
       final events = [
