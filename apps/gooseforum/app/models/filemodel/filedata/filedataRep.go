@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path"
-	"strings"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
@@ -32,18 +30,6 @@ type FileResourcePageResult struct {
 	Page     int
 	PageSize int
 	MaxId    int64
-}
-
-// CheckImageType returns the canonical image MIME type for a supported
-// filename extension. The authoritative supported set lives in imagepolicy:
-// everything else (svg/html/js/xml/pdf/double extensions) is rejected here too,
-// keeping the storage naming path consistent with the upload gate.
-func CheckImageType(filename string) (string, error) {
-	contentType, ok := imagepolicy.ContentTypeForFilename(filename)
-	if !ok {
-		return "", fmt.Errorf("unsupported image type: %s", path.Ext(filename))
-	}
-	return contentType, nil
 }
 
 func create(entity *Entity) int64 {
@@ -184,6 +170,24 @@ func getFileMetadataByNameAndStatus(ctx context.Context, name string, status str
 	return &entity, nil
 }
 
+// RenameFileMetadata rewrites a pending row's object name and content type
+// after the byte-detected type forced a direct-upload rename. The update only
+// matches the caller's still-pending row, so a concurrent complete that already
+// renamed or published it reports zero affected rows instead of overwriting the
+// winner's row.
+func RenameFileMetadata(ctx context.Context, oldName, newName, fileType string) (*Entity, error) {
+	result := builder().WithContext(ctx).Where(queryopt.Eq(fieldName, oldName)).
+		Where("storage_status = ?", StorageStatusPending).
+		UpdateColumns(map[string]any{fieldName: newName, "assert_type": fileType})
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, errors.New("file metadata not found")
+	}
+	return GetPendingFileMetadataByNameContext(ctx, newName)
+}
+
 // MarkFileReady flips a pending metadata row to ready after the uploaded
 // object has been verified.
 func MarkFileReady(ctx context.Context, name string) (*Entity, error) {
@@ -317,29 +321,25 @@ func CountDailyUploads(userId uint64) int64 {
 	return CountUserUploadsToday(userId)
 }
 
-func SaveFileFromUpload(userId uint64, fileData []byte, filename string, customPath string) (*Entity, error) {
-	return SaveFileFromUploadWithLimit(userId, fileData, filename, customPath, MaxFileSize)
+// SaveFileFromUpload 保存上传字节。对象名扩展名取自 contentType（调用方按字节判定的
+// 真实类型），不再取客户端文件名的扩展名：声明与字节冲突时名字以真实类型为准。
+func SaveFileFromUpload(userId uint64, fileData []byte, contentType, customPath string) (*Entity, error) {
+	return SaveFileFromUploadWithLimit(userId, fileData, contentType, customPath, MaxFileSize)
 }
 
 // SaveFileFromUploadWithLimit 与 SaveFileFromUpload 相同，但允许调用方指定更小/更大的
 // 字节上限（例如管理员上传的头像框动图，见 decorationassetservice）。
-func SaveFileFromUploadWithLimit(userId uint64, fileData []byte, filename string, customPath string, maxBytes int) (*Entity, error) {
+func SaveFileFromUploadWithLimit(userId uint64, fileData []byte, contentType, customPath string, maxBytes int) (*Entity, error) {
 	if len(fileData) > maxBytes {
 		return nil, fmt.Errorf("file size exceeds maximum limit of %dMB", maxBytes/(1024*1024))
 	}
 
-	contentType, err := CheckImageType(filename)
-	if err != nil {
-		return nil, err
+	ext, ok := imagepolicy.ExtForContentType(contentType)
+	if !ok {
+		return nil, fmt.Errorf("unsupported image type: %s", contentType)
 	}
 
-	fileExt := path.Ext(filename)
-	newFilename := fmt.Sprintf("%s/%s%s",
-		customPath,
-		uuid.New().String(),
-		fileExt)
-
-	return SaveFile(userId, newFilename, contentType, fileData)
+	return SaveFile(userId, fmt.Sprintf("%s/%s%s", customPath, uuid.New().String(), ext), contentType, fileData)
 }
 
 const (
@@ -348,18 +348,18 @@ const (
 )
 
 type AvatarUpload struct {
-	Filename string
-	Data     []byte
+	ContentType string
+	Data        []byte
 }
 
-// SaveAvatar stores an uploaded avatar file.
-func SaveAvatar(userId uint64, fileData []byte, filename string) (*Entity, error) {
+// SaveAvatar stores an uploaded avatar file under its byte-detected type.
+func SaveAvatar(userId uint64, fileData []byte, contentType string) (*Entity, error) {
 	avatarPath := fmt.Sprintf("%s/avatar_%d_%d",
 		AvatarPath,
 		userId,
 		time.Now().Unix())
 
-	return SaveFileFromUpload(userId, fileData, filename, avatarPath)
+	return SaveFileFromUpload(userId, fileData, contentType, avatarPath)
 }
 
 func SaveAvatarSet(userId uint64, uploads []AvatarUpload) ([]*Entity, error) {
@@ -379,13 +379,12 @@ func SaveAvatarSet(userId uint64, uploads []AvatarUpload) ([]*Entity, error) {
 			return nil, fmt.Errorf("file size exceeds maximum limit of %dMB", MaxFileSize/(1024*1024))
 		}
 
-		contentType, err := CheckImageType(upload.Filename)
-		if err != nil {
-			return nil, err
+		fileExt, ok := imagepolicy.ExtForContentType(upload.ContentType)
+		if !ok {
+			return nil, fmt.Errorf("unsupported image type: %s", upload.ContentType)
 		}
 
-		fileExt := strings.ToLower(path.Ext(upload.Filename))
-		entity, err := SaveFile(userId, fmt.Sprintf("%s/%s%s", avatarPath, avatarNames[index], fileExt), contentType, upload.Data)
+		entity, err := SaveFile(userId, fmt.Sprintf("%s/%s%s", avatarPath, avatarNames[index], fileExt), upload.ContentType, upload.Data)
 		if err != nil {
 			return nil, err
 		}

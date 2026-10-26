@@ -526,6 +526,14 @@ uploadAvatar:
     description: |
       Multipart upload of a custom avatar. The `avatar` file part is required;
       `avatarMedium` is an optional pre-cropped medium file stored alongside.
+      The declared extension must pass the posting-settings allowlist before the
+      body is read, then the bytes decide the stored type: the header must decode
+      as a supported image and that detected type must also be allowed. When the
+      detected type conflicts with the declared extension the avatar is accepted
+      and stored under the detected type's canonical extension (the returned
+      `avatarUrl` carries it). `upload.image.invalidContent` means the bytes are
+      not a usable image (or its header does not decode), not an extension
+      mismatch.
       Business failures (HTTP 200): `upload.attachment.disabled`, `upload.cooldown`
       (new-account upload cooldown, params minutes/availableAt),
       `upload.file.missing`, `upload.filename.required`,

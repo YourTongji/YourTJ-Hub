@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/google/uuid"
 )
 
@@ -48,12 +49,12 @@ type DirectUploadSession struct {
 }
 
 // CompleteDirectUploadRequest identifies the pending upload being completed or
-// aborted. Validator, when set, reads the uploaded object and validates its
-// content before the row is marked ready.
+// aborted. Validator, when set, reads the uploaded object and returns the
+// byte-authoritative content type before the row is marked ready.
 type CompleteDirectUploadRequest struct {
 	Name      string
 	UserId    uint64
-	Validator func(io.Reader, string) error
+	Validator func(io.Reader) (contentType string, err error)
 }
 
 // FileMetadata is the subset of file metadata rows the direct upload lifecycle
@@ -76,6 +77,9 @@ type DirectUploadMetadataStore interface {
 	CreateFileMetadata(ctx context.Context, userId uint64, name, fileType string, size int64) (*FileMetadata, error)
 	GetPendingFileMetadataByName(ctx context.Context, name string) (*FileMetadata, error)
 	GetFileMetadataByName(ctx context.Context, name string) (*FileMetadata, error)
+	// RenameFileMetadata rewrites a pending row's object name and content type
+	// after the byte-detected type forced a rename.
+	RenameFileMetadata(ctx context.Context, oldName, newName, fileType string) (*FileMetadata, error)
 	MarkFileReady(ctx context.Context, name string) (*FileMetadata, error)
 	ListPendingFilesBefore(ctx context.Context, before time.Time, limit int) ([]FileMetadata, error)
 	DeleteByName(ctx context.Context, name string) error
@@ -187,52 +191,98 @@ func CompleteDirectUpload(ctx context.Context, request CompleteDirectUploadReque
 		}
 		return nil, err
 	}
+	uploadName := metadata.Name
 	if request.Validator != nil {
-		// Validate only a bounded header: the object's full size and content
-		// type were already checked by VerifyUpload (StatObject), so the server
-		// never downloads the whole (up to the upload cap) object during a
-		// direct upload publish. Providers that support range reads are
-		// preferred; others fall back to a full Get.
-		headerReader, contentType, err := readObjectHeader(ctx, request.Name)
+		// Validate only a bounded header: the object's full size was already
+		// checked by VerifyUpload (StatObject), so the server never downloads
+		// the whole (up to the upload cap) object during a direct upload
+		// publish. Providers that support range reads are preferred; others
+		// fall back to reading the whole object.
+		headerReader, err := readObjectHeader(ctx, request.Name)
 		if err != nil {
 			return nil, err
 		}
-		validationErr := request.Validator(headerReader, contentType)
+		detectedType, validationErr := request.Validator(headerReader)
 		if validationErr != nil {
 			if errors.Is(validationErr, ErrDirectUploadInvalidObject) {
 				return nil, rollbackDirectUpload(ctx, metadataRepo, request.Name, validationErr)
 			}
 			return nil, validationErr
 		}
+		renamed, renameErr := normalizeDirectUploadType(ctx, metadataRepo, metadata, detectedType)
+		if renameErr != nil {
+			return nil, renameErr
+		}
+		uploadName = renamed.Name
 	}
-	return metadataRepo.MarkFileReady(ctx, request.Name)
+	return metadataRepo.MarkFileReady(ctx, uploadName)
 }
 
-// ImageHeaderSniffBytes is the header window read for content validation of a
-// direct-uploaded object. Only enough bytes to sniff and decode an image
-// header are needed (a few hundred bytes in practice); 512KB is far more than
-// any supported format requires, and avoids downloading the whole object.
-const ImageHeaderSniffBytes = 512 * 1024
+// normalizeDirectUploadType renames the object to the canonical extension of the
+// byte-detected type when the client-declared extension differs, so the stored
+// name (and the Content-Type served from it) follows the bytes. Only the
+// extension is replaced: the client's declared name is already gone from the
+// object key (it is a path/uuid pair).
+//
+// shortcut: the rename downloads the whole object to copy it; it only runs on a
+// declared/detected extension conflict, never for a matching upload, so a plain
+// Get+Save is enough. Upgrade to a provider-side server-side copy when the
+// Provider interface exposes one.
+func normalizeDirectUploadType(ctx context.Context, metadataRepo DirectUploadMetadataStore, metadata *FileMetadata, contentType string) (*FileMetadata, error) {
+	ext, ok := imagepolicy.ExtForContentType(contentType)
+	if !ok {
+		return nil, fmt.Errorf("detected content type %q has no canonical extension", contentType)
+	}
+	if declaredType, known := imagepolicy.ContentTypeForFilename(metadata.Name); known && declaredType == contentType {
+		return metadata, nil
+	}
+	newName := strings.TrimSuffix(metadata.Name, path.Ext(metadata.Name)) + ext
+	data, _, err := Current().Get(ctx, metadata.Name)
+	if err != nil {
+		return nil, fmt.Errorf("read direct upload object %q: %w", metadata.Name, err)
+	}
+	if err := Current().Save(ctx, newName, data, contentType); err != nil {
+		return nil, fmt.Errorf("save renamed direct upload object %q: %w", newName, err)
+	}
+	renamed, err := metadataRepo.RenameFileMetadata(ctx, metadata.Name, newName, contentType)
+	if err != nil {
+		// The row is not ours any more: a concurrent complete of the same pending
+		// name may already have renamed or published it, so the object under
+		// newName can be the winner's. Never delete it here.
+		// shortcut: a failed rename leaves the copy written above unreferenced; the
+		// orphan reclamation (upload_owner rows) and CleanupPending (pending
+		// metadata rows) both need a row, so nothing sweeps these objects on its
+		// own - they need a later cleanup task or manual removal. Accepted because
+		// it never blocks a publish and holds no over-privileged data.
+		return nil, fmt.Errorf("rename direct upload metadata %q: %w", metadata.Name, err)
+	}
+	// The rename is committed, so a failed delete must not fail the publish.
+	// shortcut: the leftover old object has no metadata row, and neither the
+	// orphan reclamation nor CleanupPending collects row-less objects, so it stays
+	// until a later cleanup task or manual removal. Accepted for the same reason.
+	_ = Current().Delete(ctx, metadata.Name)
+	return renamed, nil
+}
 
 // readObjectHeader returns a reader over a bounded prefix of the object. When
 // the provider implements ObjectRangeReader the server only pulls the header
 // bytes; otherwise it falls back to reading the whole object and truncating.
-func readObjectHeader(ctx context.Context, name string) (io.Reader, string, error) {
+func readObjectHeader(ctx context.Context, name string) (io.Reader, error) {
 	if rangeReader, ok := Current().(ObjectRangeReader); ok {
-		data, contentType, err := rangeReader.GetRange(ctx, name, 0, ImageHeaderSniffBytes)
+		data, _, err := rangeReader.GetRange(ctx, name, 0, imagepolicy.ImageHeaderSniffBytes)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
-		return bytes.NewReader(data), contentType, nil
+		return bytes.NewReader(data), nil
 	}
-	data, contentType, err := Current().Get(ctx, name)
+	data, _, err := Current().Get(ctx, name)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
-	if int64(len(data)) > ImageHeaderSniffBytes {
-		data = data[:ImageHeaderSniffBytes]
+	if len(data) > imagepolicy.ImageHeaderSniffBytes {
+		data = data[:imagepolicy.ImageHeaderSniffBytes]
 	}
-	return bytes.NewReader(data), contentType, nil
+	return bytes.NewReader(data), nil
 }
 
 // AbortDirectUpload verifies ownership and removes both the object and the

@@ -8,7 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"mime/multipart"
-	"path/filepath"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -499,17 +499,17 @@ func UploadAvatar(c *gin.Context) {
 	if configMaxSize := int64(postingConfig.UploadControl.MaxAttachmentSizeKb) * 1024; configMaxSize > 0 && configMaxSize < maxSize {
 		maxSize = configMaxSize
 	}
-	allowedExts := imagepolicy.EffectiveAllowedExtensions(postingConfig.UploadControl.AuthorizedExtensions)
+	policy := imageUploadPolicy{MaxSize: maxSize, AllowedExts: imagepolicy.EffectiveAllowedExtensions(postingConfig.UploadControl.AuthorizedExtensions)}
 
-	mainData, err := readAvatarUploadFile(files.Main, maxSize, allowedExts)
+	mainData, mainType, err := readAvatarUploadFile(files.Main, policy)
 	if err != nil {
-		c.JSON(200, component.FailDataError(err))
+		writeAvatarUploadError(c, err)
 		return
 	}
 
 	var fileEntities []*filedata.Entity
 	if files.AvatarMedium == nil {
-		fileEntity, err := filedata.SaveAvatar(userId, mainData, files.Main.Filename)
+		fileEntity, err := filedata.SaveAvatar(userId, mainData, mainType)
 		if err != nil {
 			c.JSON(200, component.FailDataCode(
 				component.MessageUploadSaveFailed,
@@ -521,17 +521,17 @@ func UploadAvatar(c *gin.Context) {
 	} else {
 		uploads := make([]filedata.AvatarUpload, 0, 2)
 		uploads = append(uploads, filedata.AvatarUpload{
-			Filename: files.Main.Filename,
-			Data:     mainData,
+			ContentType: mainType,
+			Data:        mainData,
 		})
-		fileData, err := readAvatarUploadFile(files.AvatarMedium, maxSize, allowedExts)
+		mediumData, mediumType, err := readAvatarUploadFile(files.AvatarMedium, policy)
 		if err != nil {
-			c.JSON(200, component.FailDataError(err))
+			writeAvatarUploadError(c, err)
 			return
 		}
 		uploads = append(uploads, filedata.AvatarUpload{
-			Filename: files.AvatarMedium.Filename,
-			Data:     fileData,
+			ContentType: mediumType,
+			Data:        mediumData,
 		})
 
 		fileEntities, err = filedata.SaveAvatarSet(userId, uploads)
@@ -606,51 +606,52 @@ func avatarUploadMaxSize() int64 {
 	return int64(filedata.MaxFileSize)
 }
 
-func readAvatarUploadFile(file *multipart.FileHeader, maxSize int64, allowedExts []string) ([]byte, error) {
-	if file.Filename == "" {
-		return nil, component.NewMessageError(component.MessageUploadFilenameRequired, "文件名不能为空", nil)
+func readAvatarUploadFile(file *multipart.FileHeader, policy imageUploadPolicy) ([]byte, string, error) {
+	if failure := policy.validateDeclaredFilename(file.Filename, file.Size); failure != nil {
+		return nil, "", &uploadFailureError{failure: failure}
 	}
-	if file.Size > maxSize {
-		return nil, component.NewMessageError(
-			component.MessageUploadFileTooLarge,
-			fmt.Sprintf("文件大小超过限制，最大允许%dKB", maxSize/1024),
-			component.MessageParams{"maxSizeKb": maxSize / 1024},
-		)
-	}
-
-	contentType, err := filedata.CheckImageType(file.Filename)
-	if err != nil || !imagepolicy.IsAllowedExt(filepath.Ext(file.Filename), allowedExts) {
-		extensions := strings.Join(allowedExts, ", ")
-		return nil, component.NewMessageError(
-			component.MessageUploadUnsupportedExt,
-			"不支持的文件格式，允许的格式为: "+extensions,
-			component.MessageParams{"extensions": extensions},
-		)
+	if failure := policy.validateDeclaredExtension(file.Filename); failure != nil {
+		return nil, "", &uploadFailureError{failure: failure}
 	}
 
 	src, err := file.Open()
 	if err != nil {
-		return nil, component.NewMessageError(component.MessageUploadOpenFailed, "打开文件失败", nil)
+		return nil, "", component.NewMessageError(component.MessageUploadOpenFailed, "打开文件失败", nil)
 	}
 	defer func() { _ = src.Close() }()
 
-	fileData, err := io.ReadAll(io.LimitReader(src, maxSize+1))
+	fileData, err := io.ReadAll(io.LimitReader(src, policy.MaxSize+1))
 	if err != nil {
-		return nil, component.NewMessageError(component.MessageUploadReadFailed, "读取文件失败", nil)
+		return nil, "", component.NewMessageError(component.MessageUploadReadFailed, "读取文件失败", nil)
 	}
-	if int64(len(fileData)) > maxSize {
-		return nil, component.NewMessageError(
+	if int64(len(fileData)) > policy.MaxSize {
+		return nil, "", component.NewMessageError(
 			component.MessageUploadFileTooLarge,
-			fmt.Sprintf("文件大小超过限制，最大允许%dKB", maxSize/1024),
-			component.MessageParams{"maxSizeKb": maxSize / 1024},
+			fmt.Sprintf("文件大小超过限制，最大允许%dKB", policy.MaxSize/1024),
+			component.MessageParams{"maxSizeKb": policy.MaxSize / 1024},
 		)
 	}
-	// 头像与普通图片上传同口径做解码级内容校验（issue #408）：扩展名推出的类型
-	// 必须与 sniff/解码格式一致，伪造/空/不支持的内容只回稳定 messageCode。
-	if err := validateUploadedImage(bytes.NewReader(fileData), contentType); err != nil {
-		return nil, component.NewMessageError(imageContentFailureCode(err), "文件内容不是有效的图片格式", nil)
+	// 头像与普通图片上传同口径（issue #408 / #1393）：真实类型只由文件头决定，与
+	// 声明扩展名冲突时按真实类型存储；空/不支持/不可用字节只回稳定 messageCode。
+	contentType, err := detectUploadedImageContent(bytes.NewReader(fileData))
+	if err != nil {
+		return nil, "", component.NewMessageError(imageContentFailureCode(err), "文件内容不是有效的图片格式", nil)
 	}
-	return fileData, nil
+	if failure := policy.validateDetectedContentType(contentType); failure != nil {
+		return nil, "", &uploadFailureError{failure: failure}
+	}
+	return fileData, contentType, nil
+}
+
+// writeAvatarUploadError 保持头像路径的业务失败信封（HTTP 200 + messageCode）：
+// 内容/扩展名失败直接回共用策略里的稳定码，其余错误仍走原映射。
+func writeAvatarUploadError(c *gin.Context, err error) {
+	var failureErr *uploadFailureError
+	if errors.As(err, &failureErr) {
+		c.JSON(http.StatusOK, failureErr.failure.Data)
+		return
+	}
+	c.JSON(http.StatusOK, component.FailDataError(err))
 }
 
 // ChangePasswordReq is the password change request.

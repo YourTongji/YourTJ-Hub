@@ -42,6 +42,14 @@ func (directUploadMetadataStore) GetFileMetadataByName(ctx context.Context, name
 	return toFileMetadata(entity), nil
 }
 
+func (directUploadMetadataStore) RenameFileMetadata(ctx context.Context, oldName, newName, fileType string) (*storageservice.FileMetadata, error) {
+	entity, err := RenameFileMetadata(ctx, oldName, newName, fileType)
+	if err != nil {
+		return nil, err
+	}
+	return toFileMetadata(entity), nil
+}
+
 func (directUploadMetadataStore) MarkFileReady(ctx context.Context, name string) (*storageservice.FileMetadata, error) {
 	entity, err := MarkFileReady(ctx, name)
 	if err != nil {

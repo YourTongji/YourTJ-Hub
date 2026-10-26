@@ -111,7 +111,7 @@ func TestPersonalStickerUploadLifecycleHTTPContract(t *testing.T) {
 	owner := createHTTPContractUser(t, conn, contractTestID())
 	other := createHTTPContractUser(t, conn, contractTestID())
 	token := contractSessionToken(t, owner)
-	file, err := filedata.SaveFileFromUpload(owner.Id, contractTinyPNG, "personal.png", "stickers")
+	file, err := filedata.SaveFileFromUpload(owner.Id, contractTinyPNG, "image/png", "stickers")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +256,7 @@ func TestPersonalStickerUploadQuotaAndAtomicUsage(t *testing.T) {
 	conn, router := setupStickerLibraryContractTest(t)
 	owner := createHTTPContractUser(t, conn, contractTestID())
 	token := contractSessionToken(t, owner)
-	file, err := filedata.SaveFileFromUpload(owner.Id, contractTinyPNG, "quota.png", "stickers")
+	file, err := filedata.SaveFileFromUpload(owner.Id, contractTinyPNG, "image/png", "stickers")
 	if err != nil {
 		t.Fatal(err)
 	}

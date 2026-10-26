@@ -117,6 +117,21 @@ func (s *fakeMetadataStore) GetFileMetadataByName(_ context.Context, name string
 	return &row, nil
 }
 
+func (s *fakeMetadataStore) RenameFileMetadata(_ context.Context, oldName, newName, fileType string) (*FileMetadata, error) {
+	row, ok := s.rows[oldName]
+	if !ok || s.status[oldName] != "pending" {
+		return nil, errors.New("file metadata not found")
+	}
+	row.Name = newName
+	row.Type = fileType
+	delete(s.rows, oldName)
+	status := s.status[oldName]
+	delete(s.status, oldName)
+	s.rows[newName] = row
+	s.status[newName] = status
+	return &row, nil
+}
+
 func (s *fakeMetadataStore) MarkFileReady(_ context.Context, name string) (*FileMetadata, error) {
 	row, ok := s.rows[name]
 	if !ok {
@@ -183,7 +198,7 @@ func TestBeginDirectUploadLifecycle(t *testing.T) {
 	metadata, err := CompleteDirectUpload(ctx, CompleteDirectUploadRequest{
 		Name:      session.Metadata.Name,
 		UserId:    1,
-		Validator: func(_ io.Reader, _ string) error { return nil },
+		Validator: func(_ io.Reader) (string, error) { return "image/png", nil },
 	})
 	if err != nil {
 		t.Fatalf("CompleteDirectUpload() error = %v", err)
@@ -253,7 +268,7 @@ func TestCompleteDirectUploadInvalidObjectRollsBack(t *testing.T) {
 	_, err = CompleteDirectUpload(ctx, CompleteDirectUploadRequest{
 		Name:      session.Metadata.Name,
 		UserId:    1,
-		Validator: func(_ io.Reader, _ string) error { return ErrDirectUploadInvalidObject },
+		Validator: func(_ io.Reader) (string, error) { return "", ErrDirectUploadInvalidObject },
 	})
 	if !errors.Is(err, ErrDirectUploadInvalidObject) {
 		t.Fatalf("CompleteDirectUpload() error = %v, want ErrDirectUploadInvalidObject", err)
@@ -263,6 +278,122 @@ func TestCompleteDirectUploadInvalidObjectRollsBack(t *testing.T) {
 	}
 	if _, ok := store.rows[session.Metadata.Name]; ok {
 		t.Fatal("pending row still present after invalid-object rollback")
+	}
+}
+
+// TestCompleteDirectUploadRenamesToDetectedType is the issue #1393 contract
+// change: bytes decide the type, so a declared .png that turns out to be a JPEG
+// is renamed to the canonical .jpg extension and the row's type follows it.
+func TestCompleteDirectUploadRenamesToDetectedType(t *testing.T) {
+	provider, store := setupDirectUploadTest(t)
+	ctx := context.Background()
+
+	session, err := BeginDirectUpload(ctx, DirectUploadRequest{
+		Name: "2026/09/01/mismatch.png", ContentType: "image/png", Size: 4, UserId: 1,
+	})
+	if err != nil {
+		t.Fatalf("BeginDirectUpload() error = %v", err)
+	}
+	provider.objects[session.Metadata.Name] = fakeObject{data: []byte("jpeg"), contentType: "image/png"}
+	metadata, err := CompleteDirectUpload(ctx, CompleteDirectUploadRequest{
+		Name:      session.Metadata.Name,
+		UserId:    1,
+		Validator: func(_ io.Reader) (string, error) { return "image/jpeg", nil },
+	})
+	if err != nil {
+		t.Fatalf("CompleteDirectUpload() error = %v", err)
+	}
+	if metadata.Name != "2026/09/01/mismatch.jpg" || metadata.Type != "image/jpeg" {
+		t.Fatalf("renamed metadata = %+v, want name .jpg and type image/jpeg", metadata)
+	}
+	if store.status[metadata.Name] != "ready" {
+		t.Fatalf("row status = %q, want ready", store.status[metadata.Name])
+	}
+	if _, ok := provider.objects[session.Metadata.Name]; ok {
+		t.Fatal("old object still present after rename")
+	}
+	obj, ok := provider.objects[metadata.Name]
+	if !ok || string(obj.data) != "jpeg" || obj.contentType != "image/jpeg" {
+		t.Fatalf("renamed object = %+v, %v; want copied bytes under image/jpeg", obj, ok)
+	}
+}
+
+// staleRenameStore is a metadata store whose rename always loses: it plays the
+// concurrent complete that still holds the old pending snapshot after the winner
+// renamed and published it.
+type staleRenameStore struct {
+	*fakeMetadataStore
+	err error
+}
+
+func (s staleRenameStore) RenameFileMetadata(context.Context, string, string, string) (*FileMetadata, error) {
+	return nil, s.err
+}
+
+// TestNormalizeDirectUploadTypeKeepsPublishedObjectOnRenameConflict pins the
+// concurrent-complete rule (issue #1393 review): a loser whose metadata rename
+// matches zero rows must not delete the object under the new name, because the
+// winner's ready row points at it.
+func TestNormalizeDirectUploadTypeKeepsPublishedObjectOnRenameConflict(t *testing.T) {
+	provider, store := setupDirectUploadTest(t)
+	ctx := context.Background()
+
+	const oldName, newName = "2026/09/01/race.png", "2026/09/01/race.jpg"
+	// The winner's published object under newName and the loser's still-pending
+	// old snapshot.
+	provider.objects[oldName] = fakeObject{data: []byte("jpeg"), contentType: "image/png"}
+	provider.objects[newName] = fakeObject{data: []byte("jpeg"), contentType: "image/jpeg"}
+	staleMetadata := FileMetadata{Name: oldName, Type: "image/png", Size: 4, UserId: 1}
+	loser := staleRenameStore{fakeMetadataStore: store, err: errors.New("file metadata not found")}
+
+	if _, err := normalizeDirectUploadType(ctx, loser, &staleMetadata, "image/jpeg"); err == nil {
+		t.Fatal("normalizeDirectUploadType() error = nil, want the rename conflict")
+	}
+	if _, ok := provider.objects[newName]; !ok {
+		t.Fatal("renamed object deleted on a rename conflict; the winner's ready row would point at a missing object")
+	}
+}
+
+// TestCompleteDirectUploadRenameLosesToSequentialWinner simulates the two
+// completes in sequence: the winner publishes the renamed name, then a loser
+// still holding the old pending snapshot runs the rename path and must fail
+// without destroying the winner's object or row.
+func TestCompleteDirectUploadRenameLosesToSequentialWinner(t *testing.T) {
+	provider, store := setupDirectUploadTest(t)
+	ctx := context.Background()
+
+	session, err := BeginDirectUpload(ctx, DirectUploadRequest{
+		Name: "2026/09/01/loser.png", ContentType: "image/png", Size: 4, UserId: 1,
+	})
+	if err != nil {
+		t.Fatalf("BeginDirectUpload() error = %v", err)
+	}
+	staleMetadata, err := store.GetPendingFileMetadataByName(ctx, session.Metadata.Name)
+	if err != nil {
+		t.Fatalf("GetPendingFileMetadataByName() error = %v", err)
+	}
+	provider.objects[session.Metadata.Name] = fakeObject{data: []byte("jpeg"), contentType: "image/png"}
+
+	// Winner: full complete, renames the row to .jpg and marks it ready.
+	winner, err := CompleteDirectUpload(ctx, CompleteDirectUploadRequest{
+		Name:      session.Metadata.Name,
+		UserId:    1,
+		Validator: func(_ io.Reader) (string, error) { return "image/jpeg", nil },
+	})
+	if err != nil {
+		t.Fatalf("winner CompleteDirectUpload() error = %v", err)
+	}
+
+	// Loser: runs the same rename from its stale snapshot; the row is already
+	// gone/ready, so the update affects no row.
+	if _, err := normalizeDirectUploadType(ctx, store, staleMetadata, "image/jpeg"); err == nil {
+		t.Fatal("loser normalizeDirectUploadType() error = nil, want the rename conflict")
+	}
+	if _, ok := provider.objects[winner.Name]; !ok {
+		t.Fatalf("winner object %q deleted by the losing rename", winner.Name)
+	}
+	if store.status[winner.Name] != "ready" {
+		t.Fatalf("winner row status = %q, want ready", store.status[winner.Name])
 	}
 }
 

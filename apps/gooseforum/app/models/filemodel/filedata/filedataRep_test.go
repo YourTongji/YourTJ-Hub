@@ -143,6 +143,43 @@ func TestCreateFileMetadataAndMarkReady(t *testing.T) {
 	}
 }
 
+// TestRenameFileMetadataOnlyMatchesPendingRows pins the concurrent-complete
+// guard (issue #1393 review): the update carries `storage_status = pending`, so
+// a losing rename cannot rewrite a row that was already renamed or published by
+// the winner.
+func TestRenameFileMetadataOnlyMatchesPendingRows(t *testing.T) {
+	setupFileDataTestDB(t)
+	ctx := context.Background()
+
+	created, err := CreateFileMetadata(ctx, 3, "2026/09/01/rename.png", "image/png", 4)
+	if err != nil {
+		t.Fatalf("CreateFileMetadata() error = %v", err)
+	}
+	renamed, err := RenameFileMetadata(ctx, created.Name, "2026/09/01/rename.jpg", "image/jpeg")
+	if err != nil {
+		t.Fatalf("RenameFileMetadata() error = %v", err)
+	}
+	if renamed.Name != "2026/09/01/rename.jpg" || renamed.Type != "image/jpeg" {
+		t.Fatalf("renamed row = %+v, want name .jpg and type image/jpeg", renamed)
+	}
+	// The old name no longer matches, so a repeated rename reports no row.
+	if _, err := RenameFileMetadata(ctx, created.Name, "2026/09/01/rename.gif", "image/gif"); err == nil {
+		t.Fatal("RenameFileMetadata() on the old name error = nil, want not found")
+	}
+
+	// A published (ready) row is not renamed either.
+	if _, err := MarkFileReady(ctx, renamed.Name); err != nil {
+		t.Fatalf("MarkFileReady() error = %v", err)
+	}
+	if _, err := RenameFileMetadata(ctx, renamed.Name, "2026/09/01/ready.jpg", "image/jpeg"); err == nil {
+		t.Fatal("RenameFileMetadata() on a ready row error = nil, want not found")
+	}
+	row, err := GetFileMetadataByNameContext(ctx, renamed.Name)
+	if err != nil || row.Name != renamed.Name || row.Type != "image/jpeg" {
+		t.Fatalf("ready row = %+v, %v; want it untouched at %q", row, err, renamed.Name)
+	}
+}
+
 func TestCreateFileMetadataRejectsDuplicateName(t *testing.T) {
 	setupFileDataTestDB(t)
 	ctx := context.Background()
