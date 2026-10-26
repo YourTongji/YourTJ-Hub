@@ -104,7 +104,8 @@ preferred; rotation can move it to the left. Unavailable or insufficient native 
 the ordinary safe-area navigation layout.
 `Current`: Home presents category navigation in a horizontal row above its topic feed, settings presents its directory
 beside the current section, and publishing presents editor and preview together when space permits.
-Wide Home windows use a right column for search and existing Hot topics. Messages shows its conversation
+Home keeps a single centered reading column at wide widths; search and Hot remain in its header and
+sort tabs, as recorded in [0110](../decisions/0110-single-column-home-reading.md). Messages shows its conversation
 directory beside the selected chat; course and Wiki workspaces keep their selectors beside their content.
 Drafts keeps its filters and search beside the retained draft list; content management keeps topic/reply
 selection beside its retained results. Site information keeps its directory beside the selected document.

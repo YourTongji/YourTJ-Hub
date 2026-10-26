@@ -2,8 +2,12 @@
 
 ## Status
 
-Accepted
+Superseded by [0110](0110-single-column-home-reading.md)
 Class: architecture
+
+The successor replaces only Home's two-column composition and retains the other
+window-layout rules. [0100](0100-material-interaction-surfaces-on-ios.md) owns the
+Material presentation of transient surfaces.
 
 ## Context and Problem Statement
 

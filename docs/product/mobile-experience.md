@@ -70,8 +70,7 @@ You topic goes without one; feeds without a server reason stay unstamped.
 remaining window width. Without a usable side pocket, below 600 logical pixels it retains bottom
 destinations; at 600 and above it uses a persistent, scrollable navigation rail. At 1100 pixels and above with text scale no greater than 1.4, its 220-pixel
 sidebar places destination icons and names in the same row. Smaller windows or larger text use
-an 88–176-pixel rail (including 8-pixel outer margins on each side) according to localized label width and system text size. Home, Campus and
-Messages can use 1120 pixels for their workspaces; notifications retain a readable column up to
+an 88–176-pixel rail (including 8-pixel outer margins on each side) according to localized label width and system text size. Campus and Messages can use 1120 pixels for their workspaces; Home and notifications retain a readable column up to
 720 pixels wide. The rail is anchored to the same workspace edge across destinations; narrower
 content starts beside it, so switching pages does not move navigation. Wide layouts reclaim the bottom-navigation inset, keep
 compose actions inside the content column and anchor their menu to that column. Resizing preserves
@@ -125,9 +124,12 @@ areas are consumed once and each bounded page receives its actual column width. 
 route, input and scroll state mounted; the compact route continues to use the iOS edge-swipe transition.
 
 `Current`: tablet workspaces organize navigation beside their content. Home keeps its category
-tabs in a horizontal row above the retained topic feed at every window width. Sufficiently wide Home windows add a
-search entry and up to five topics from the existing Hot feed on the right; their loading, empty and retry states
-remain visible. This right column collapses for narrow windows or enlarged text without resetting the reading position.
+tabs in a horizontal row above one retained topic feed at every window width. Home centers its complete
+header and feed in a reading column up to 720 logical pixels wide, with a neutral canvas outside it.
+Search has one header entry; Hot remains a sort tab with the same loading, empty and retry behavior as
+other streams. Wider windows do not prefetch or display a second topic list. Centering consumes the
+part of each horizontal safe area covered by its outer gutter; controls receive only the remaining inset.
+Folding, rotating and resizing retain the active stream and reading position.
 Settings places its directory beside the
 selected section, so changing sections updates the detail without a full-screen route transition.
 Enlarged text raises the required width, restoring a single pane when labels or content need more
