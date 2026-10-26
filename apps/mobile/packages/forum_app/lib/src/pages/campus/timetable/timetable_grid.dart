@@ -301,6 +301,10 @@ class _TimetableGridState extends State<TimetableGrid>
   void _paintStart(Offset position) {
     final cell = _geometry?.cellAt(position);
     if (cell == null) return;
+    final day = widget.layout.days[cell.$1];
+    final section = cell.$2 + 1;
+    // Like taps, painting starts only on a free cell.
+    if (!widget.layout.isFree(day, section)) return;
     HapticFeedback.mediumImpact();
     setState(() {
       _anchor = cell;
@@ -321,8 +325,20 @@ class _TimetableGridState extends State<TimetableGrid>
         current.days.first == next.days.first) {
       return;
     }
+    // Refuse to paint over courses or blocks; the selection keeps the last
+    // fully free range so releasing never creates an overlap.
+    if (!_rangeFree(next)) return;
     HapticFeedback.selectionClick();
     setState(() => _selection = next);
+  }
+
+  bool _rangeFree(TimetableCellRange range) {
+    for (final day in range.days) {
+      for (var section = range.start; section <= range.end; section++) {
+        if (!widget.layout.isFree(day, section)) return false;
+      }
+    }
+    return true;
   }
 
   void _paintEnd() {

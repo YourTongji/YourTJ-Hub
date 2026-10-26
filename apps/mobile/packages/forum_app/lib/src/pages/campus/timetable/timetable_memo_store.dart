@@ -285,26 +285,33 @@ class TimetableMemoStore extends StateNotifier<TimetableMemoState> {
     try {
       final values = await _database.readDomain(target, kTimetableMemoDomain);
       if (!mounted) return;
-      List<T> list<T>(String key, T? Function(Object?) decode) {
-        final decoded = jsonDecode(values[key] ?? '[]');
-        if (decoded is! List) throw FormatException('Invalid $key');
-        return decoded.map((entry) {
-          final item = decode(entry);
-          if (item == null) throw FormatException('Invalid $key entry');
-          return item;
-        }).toList();
+      // Tolerate corrupt data: a bad key or entry drops itself, the rest of
+      // the domain still loads, and the next successful write rewrites the
+      // cleaned key. An unreadable domain (below) still blocks edits so a
+      // failed read can never be overwritten by an empty one.
+      Object? decoded(String key, String fallback) {
+        try {
+          return jsonDecode(values[key] ?? fallback);
+        } catch (_) {
+          return null;
+        }
       }
 
-      final prefs = jsonDecode(values['prefs'] ?? '{}');
-      if (prefs is! Map) throw const FormatException('Invalid preferences');
-      final notes = list('notes', TimetableNote.fromJson);
-      final blocks = list('blocks', TimetableBlock.fromJson);
+      List<T> list<T>(String key, T? Function(Object?) decode) {
+        final value = decoded(key, '[]');
+        if (value is! List) return const [];
+        return value.map(decode).whereType<T>().toList();
+      }
+
+      final prefsJson = decoded('prefs', '{}');
       _loadFailed = false;
       state = TimetableMemoState(
         loaded: true,
-        notes: notes,
-        blocks: blocks,
-        prefs: TimetablePrefs.fromJson(prefs),
+        notes: list('notes', TimetableNote.fromJson),
+        blocks: list('blocks', TimetableBlock.fromJson),
+        prefs: prefsJson is Map
+            ? TimetablePrefs.fromJson(prefsJson)
+            : const TimetablePrefs(),
       );
     } catch (error) {
       _loadFailed = true;

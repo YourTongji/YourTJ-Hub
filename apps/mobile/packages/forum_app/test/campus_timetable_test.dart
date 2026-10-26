@@ -47,13 +47,16 @@ class _ReadFailingUserWorkDatabase extends UserWorkDatabase {
   _ReadFailingUserWorkDatabase(this.backing) : super(NativeDatabase.memory());
 
   final UserWorkDatabase backing;
+  bool failReads = true;
 
   @override
   int get generation => backing.generation;
 
   @override
   Future<Map<String, String>> readDomain(String scope, String domain) =>
-      Future.error(StateError('read failed'));
+      failReads
+          ? Future.error(StateError('read failed'))
+          : backing.readDomain(scope, domain);
 
   @override
   Future<void> writeBatch(
@@ -470,6 +473,203 @@ void main() {
     await tester.tap(find.text(l.timetableConfirmDelete));
     await tester.pumpAndSettle();
     expect(block, findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('long-pressing an occupied cell does not start a block', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(campusTestApp(FakeCampusRepository()));
+    await tester.pumpAndSettle();
+    await _openTimetable(tester);
+    final l = AppLocalizations.of(tester.element(find.byType(CampusPage)));
+    final monday = tester.getRect(_cardOf((i) => i.day == 1 && i.start == 1));
+    final gesture = await tester.startGesture(monday.center);
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    // A long press on a course keeps its own meaning: no painting, no editor.
+    expect(find.text(l.timetableAddBlock), findsNothing);
+    expect(_selection(l), findsNothing);
+    expect(_cardOf((i) => i.kind == TimetableItemKind.block), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('drawing across an occupied cell keeps the free range', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(campusTestApp(FakeCampusRepository()));
+    await tester.pumpAndSettle();
+    await _openTimetable(tester);
+    final l = AppLocalizations.of(tester.element(find.byType(CampusPage)));
+    final monday = tester.getRect(_cardOf((i) => i.day == 1 && i.start == 1));
+    final row = (monday.height + 3) / 2;
+    // Section 4 on Monday is free; sections 1-2 hold the fixture course.
+    final gesture = await tester.startGesture(
+      Offset(monday.center.dx, monday.bottom + row * 1.5),
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    // Dragging up across the occupied pair freezes instead of overlapping it.
+    await gesture.moveBy(Offset(0, -row * 2));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(find.text(l.timetableAddBlock), findsOneWidget);
+    await tester.enterText(find.byType(TextField).first, '自习');
+    await tester.pump();
+    await tester.ensureVisible(find.text(l.timetableSaveBlock));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(l.timetableSaveBlock));
+    await tester.pumpAndSettle();
+    final item = tester.widget<TimetableSessionCard>(
+      _cardOf((i) => i.kind == TimetableItemKind.block),
+    ).item;
+    expect((item.day, item.start, item.end), (1, 4, 4));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('block editor offers retry when memos cannot load', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final backing = UserWorkDatabase(NativeDatabase.memory());
+    addTearDown(backing.close);
+    final failing = _ReadFailingUserWorkDatabase(backing);
+    addTearDown(failing.close);
+    await tester.pumpWidget(
+      campusTestApp(FakeCampusRepository(), workDatabase: failing),
+    );
+    await tester.pumpAndSettle();
+    await _openTimetable(tester);
+    final l = AppLocalizations.of(tester.element(find.byType(CampusPage)));
+    await tester.tap(find.byTooltip(l.timetableAddBlock));
+    await tester.pumpAndSettle();
+    // A failed load offers the error and a retry, not a form that cannot save.
+    expect(find.text(l.draftLocalSaveFailed), findsOneWidget);
+    expect(find.text(l.commonRetry), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+    await tester.tap(find.text(l.commonRetry));
+    await tester.pumpAndSettle();
+    expect(find.text(l.draftLocalSaveFailed), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+    failing.failReads = false;
+    await tester.tap(find.text(l.commonRetry));
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsWidgets);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('header add falls back to a visible day when the focused weekend folds', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(campusTestApp(FakeCampusRepository()));
+    await tester.pumpAndSettle();
+    await _openTimetable(tester);
+    final l = AppLocalizations.of(tester.element(find.byType(CampusPage)));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(CampusPage)),
+    );
+    final semantics = tester.ensureSemantics();
+    // A week-1 Saturday block keeps the weekend visible; focusing it selects
+    // the day.
+    await container.read(timetableMemoProvider.notifier).saveBlock(
+      const TimetableBlock(
+        id: 'sat',
+        title: '社团',
+        days: [6],
+        start: 4,
+        end: 5,
+        weeks: [1],
+      ),
+    );
+    await tester.pumpAndSettle();
+    final saturdayHeader = find.descendant(
+      of: find.byType(TimetableGrid),
+      matching: find.text(l.scheduleDaySat),
+    );
+    await tester.tap(saturdayHeader);
+    await tester.pumpAndSettle();
+    // In week 2 the block does not recur and the fixture course only ghosts,
+    // so the weekend folds and the focused day disappears from the grid.
+    await tester.tap(find.text(l.scheduleWeekN(1)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel(l.scheduleWeekN(2)));
+    await tester.pumpAndSettle();
+    expect(saturdayHeader, findsNothing);
+    // The header add must prefill a day that is actually visible.
+    await tester.tap(find.byTooltip(l.timetableAddBlock));
+    await tester.pumpAndSettle();
+    final when = find.textContaining(
+      RegExp(r'\d{2}:\d{2}–\d{2}:\d{2}'),
+      findRichText: true,
+    );
+    expect(
+      tester.widget<RichText>(when).text.toPlainText(),
+      startsWith('${l.scheduleDayMon} '),
+    );
+    semantics.dispose();
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('a failed block delete asks again before removing', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final database = ControlledMemoDatabase(UserWorkDatabase.instance);
+    addTearDown(database.close);
+    await tester.pumpWidget(
+      campusTestApp(FakeCampusRepository(), workDatabase: database),
+    );
+    await tester.pumpAndSettle();
+    await _openTimetable(tester);
+    final context = tester.element(find.byType(CampusPage));
+    final l = AppLocalizations.of(context);
+    final container = ProviderScope.containerOf(context);
+    await container.read(timetableMemoProvider.notifier).saveBlock(
+      const TimetableBlock(
+        id: 'keep',
+        title: '例会',
+        days: [1],
+        start: 4,
+        end: 5,
+      ),
+    );
+    await tester.pumpAndSettle();
+    final block = _cardOf((i) => i.kind == TimetableItemKind.block);
+    await tester.tap(block);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(l.timetableEditBlock));
+    await tester.pumpAndSettle();
+    database.failWrites = true;
+    await tester.tap(find.byTooltip(l.timetableDeleteBlock));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(l.timetableConfirmDelete));
+    await tester.pumpAndSettle();
+    expect(find.text(l.draftLocalSaveFailed), findsOneWidget);
+    expect(block, findsOneWidget);
+    // The failed delete disarms: the next tap asks again instead of deleting.
+    expect(find.text(l.timetableConfirmDelete), findsNothing);
+    await tester.tap(find.byTooltip(l.timetableDeleteBlock));
+    await tester.pumpAndSettle();
+    expect(find.text(l.timetableConfirmDelete), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     await tester.pumpAndSettle();
   });

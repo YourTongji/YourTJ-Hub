@@ -506,15 +506,42 @@ Future<void> showTimetableBlockEditor(
 }) => _showMemoSheet(
   context,
   keyboardAware: true,
-  builder: (_) => _BlockEditor(
-    block: block,
-    range: range,
-    week: week,
-    rows: rows,
-    maxWeek: maxWeek,
-    times: times,
+  builder: (_) => _MemoReady(
+    builder: (_) => _BlockEditor(
+      block: block,
+      range: range,
+      week: week,
+      rows: rows,
+      maxWeek: maxWeek,
+      times: times,
+    ),
   ),
 );
+
+/// Memo write surfaces gate on an editable store: a failed load offers the
+/// error and a retry instead of a form whose saves always fail.
+class _MemoReady extends ConsumerWidget {
+  const _MemoReady({required this.builder});
+  final WidgetBuilder builder;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final memo = ref.watch(timetableMemoProvider);
+    final store = ref.read(timetableMemoProvider.notifier);
+    if (!memo.loaded) return const Center(child: CircularProgressIndicator());
+    if (!store.canEdit) {
+      final l = AppLocalizations.of(context);
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _memoError(context),
+          TextButton(onPressed: store.retryLoad, child: GfText(l.commonRetry)),
+        ],
+      );
+    }
+    return builder(context);
+  }
+}
 
 class _BlockEditor extends ConsumerStatefulWidget {
   const _BlockEditor({
@@ -635,23 +662,24 @@ class _BlockEditorState extends ConsumerState<_BlockEditor> {
     }
   }
 
-  Future<void> _delete() async {
+  Future<bool> _delete() async {
     final id = _block?.id;
-    if (id == null || _saving) return;
+    if (id == null || _saving) return false;
     setState(() {
       _saving = true;
       _saveFailed = false;
     });
     final deleted = await _store.deleteBlock(id);
-    if (!mounted) return;
+    if (!mounted) return false;
     if (deleted) {
       Navigator.of(context).pop();
-    } else {
-      setState(() {
-        _saving = false;
-        _saveFailed = true;
-      });
+      return true;
     }
+    setState(() {
+      _saving = false;
+      _saveFailed = true;
+    });
+    return false;
   }
 
   @override
@@ -922,7 +950,7 @@ class _BlockEditorState extends ConsumerState<_BlockEditor> {
 /// it settles back on its own if the user moves on.
 class _DeleteAction extends StatefulWidget {
   const _DeleteAction({required this.onDelete});
-  final VoidCallback onDelete;
+  final Future<bool> Function() onDelete;
 
   @override
   State<_DeleteAction> createState() => _DeleteActionState();
@@ -935,8 +963,7 @@ class _DeleteActionState extends State<_DeleteAction> {
   void _tap() {
     _disarm?.cancel();
     if (_armed) {
-      unawaited(HapticFeedback.mediumImpact());
-      widget.onDelete();
+      unawaited(_confirm());
       return;
     }
     unawaited(HapticFeedback.selectionClick());
@@ -944,6 +971,14 @@ class _DeleteActionState extends State<_DeleteAction> {
     _disarm = Timer(const Duration(seconds: 3), () {
       if (mounted) setState(() => _armed = false);
     });
+  }
+
+  Future<void> _confirm() async {
+    unawaited(HapticFeedback.mediumImpact());
+    final deleted = await widget.onDelete();
+    if (!mounted || deleted) return;
+    // The delete failed: ask again instead of staying armed.
+    setState(() => _armed = false);
   }
 
   @override
