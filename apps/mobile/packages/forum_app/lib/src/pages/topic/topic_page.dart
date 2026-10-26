@@ -100,6 +100,11 @@ class _TopicPageState extends ConsumerState<TopicPage>
   int? _beforePostNo;
   bool _hasEarlierPosts = false;
   final _scrollToTop = GfScrollToTopController();
+  final _bodyScrollToTop = GfScrollToTopController();
+  final _mainContentKey = GlobalKey();
+  bool _splitView = false;
+  bool _lastScrollWasReplies = false;
+  int _paneLayoutGeneration = 0;
   final GlobalKey _discussionKey = GlobalKey();
   final GlobalKey _revealPostKey = GlobalKey();
   final List<PostPayload> _posts = [];
@@ -398,6 +403,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
     _replyFocus.dispose();
     _replyPanelFocus.dispose();
     _mentionSession.dispose();
+    _scrollToTop.dispose();
+    _bodyScrollToTop.dispose();
     super.dispose();
   }
 
@@ -821,6 +828,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
     try {
       await _load(silent: true, postNo: floor);
       if (mounted && _currentFloor == floor) {
+        if (_splitView && floor == 1) await _bodyScrollToTop.scrollToTop();
         await _scrollToTop.scrollToTop();
       }
     } finally {
@@ -1097,6 +1105,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
     _syncMentionContext();
     setState(() {
       _composerOpen = true;
+      _lastScrollWasReplies = true;
       _railOpen = false;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1667,6 +1676,71 @@ class _TopicPageState extends ConsumerState<TopicPage>
     unawaited(_restoreReplyDraft());
   }
 
+  double get _mainContentHeight {
+    final box = _mainContentKey.currentContext?.findRenderObject();
+    return box is RenderBox && box.hasSize ? box.size.height : 0;
+  }
+
+  bool _trackReadingPane(
+    ScrollNotification notification, {
+    required bool replies,
+  }) {
+    if (notification.depth == 0 &&
+        notification is ScrollStartNotification &&
+        notification.dragDetails != null &&
+        _lastScrollWasReplies != replies) {
+      setState(() => _lastScrollWasReplies = replies);
+    }
+    return false;
+  }
+
+  void _updatePaneLayout(bool split) {
+    if (_splitView == split) return;
+    final oldSplit = _splitView;
+    _splitView = split;
+    final list = _listScrollController;
+    if (list == null || !list.hasClients) return;
+    final extent = _mainContentHeight;
+    final body = _bodyScrollToTop.scrollController;
+    final bodyOffset = oldSplit
+        ? (body != null && body.hasClients ? body.offset : 0.0)
+        : math.min(list.offset, extent);
+    final replyOffset = oldSplit
+        ? list.offset
+        : math.max(0.0, list.offset - extent);
+    final readingReplies = oldSplit
+        ? _lastScrollWasReplies
+        : extent > 0 && list.offset >= extent;
+    _lastScrollWasReplies = readingReplies;
+    final generation = ++_paneLayoutGeneration;
+    // Keep the active pane's relative reading offset when its content moves
+    // between the combined phone list and the two independently scrolling panes.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          generation != _paneLayoutGeneration ||
+          list != _listScrollController ||
+          !list.hasClients) {
+        return;
+      }
+      void restore(ScrollController? controller, double offset) {
+        if (controller == null || !controller.hasClients) return;
+        controller.jumpTo(
+          offset.clamp(0.0, controller.position.maxScrollExtent),
+        );
+      }
+
+      if (split) {
+        restore(_bodyScrollToTop.scrollController, bodyOffset);
+        restore(list, replyOffset);
+      } else {
+        restore(
+          list,
+          readingReplies ? _mainContentHeight + replyOffset : bodyOffset,
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen<int>(
@@ -1705,6 +1779,44 @@ class _TopicPageState extends ConsumerState<TopicPage>
       _scheduleSessionRecovery(sessionEpoch);
       return const Scaffold(body: GfTopicDetailSkeleton());
     }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = math.max(
+          1.0,
+          MediaQuery.textScalerOf(context).scale(16) / 16,
+        );
+        final split = constraints.maxWidth >= 840 * scale;
+        _updatePaneLayout(split);
+        final width = split
+            ? constraints.maxWidth
+            : math.min(720.0, constraints.maxWidth);
+        final commentsWidth = math.min(420.0, width * .42);
+        return ColoredBox(
+          color: GfTheme.colorsOf(context).base200,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: width,
+              child: MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(size: Size(width, constraints.maxHeight)),
+                child: Builder(
+                  builder: (context) => _buildPage(
+                    context,
+                    split,
+                    split ? width - commentsWidth : 0,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPage(BuildContext context, bool split, double commentsLeft) {
     final GfColors colors = GfTheme.colorsOf(context);
     final AppLocalizations l10n = AppLocalizations.of(context);
 
@@ -1753,177 +1865,188 @@ class _TopicPageState extends ConsumerState<TopicPage>
               mainPost: mainPost,
             );
 
+            final mainContent = Column(
+              key: _mainContentKey,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_fromCache)
+                  CacheSnapshotHint(
+                    savedAt: _snapshotTime,
+                    refreshing: _cacheRefreshing,
+                    onRetry: () => _load(silent: true),
+                  ),
+                _TopicHeader(
+                  titleKey: _titleKey,
+                  topic: props.topic,
+                  mainPost: mainPost,
+                  isOwnTopic: props.permissions.isOwnTopic,
+                ),
+                const GfDivider(),
+                if (_topicAvailable)
+                  AgentReplySetting(
+                    topicId: props.topic.id,
+                    disabled: props.topic.agentRepliesDisabled,
+                    canManage: props.permissions.canManageAgentReplies,
+                    onChanged: () => _load(silent: true, postNo: _currentFloor),
+                  ),
+              ],
+            );
             return Stack(
               children: <Widget>[
                 Positioned.fill(
-                  child: GfScrollToTop(
-                    semanticLabel: l10n.commonBackToTop,
-                    showButton: false,
-                    controller: _scrollToTop,
-                    threshold: 360,
-                    bottomInset: 84,
-                    builder: (context, scrollController) {
-                      _listScrollController = scrollController;
-                      return AppRefreshIndicator(
-                        // 正序从已加载的最早一楼重建窗口:_currentFloor 会被
-                        // 尾窗改写成最后一楼,拿它作锚点只能取到锚点之后的
-                        // 楼层。倒序仍取最新尾窗;锚点 ≤1 落回默认首窗。
-                        onRefresh: () => _load(
-                          silent: true,
-                          postNo: _sort == CommentSort.asc && _posts.isNotEmpty
-                              ? _posts
-                                    .map((PostPayload post) => post.postNo)
-                                    .reduce(math.min)
-                              : null,
-                        ),
-                        child: CustomScrollView(
-                          keyboardDismissBehavior:
-                              ScrollViewKeyboardDismissBehavior.onDrag,
-                          controller: scrollController,
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          slivers: <Widget>[
-                            if (_fromCache)
+                  key: const Key('topic-replies-pane'),
+                  left: commentsLeft,
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (notification) =>
+                        _trackReadingPane(notification, replies: true),
+                    child: GfScrollToTop(
+                      semanticLabel: l10n.commonBackToTop,
+                      showButton: false,
+                      controller: _scrollToTop,
+                      threshold: 360,
+                      bottomInset: 84,
+                      builder: (context, scrollController) {
+                        _listScrollController = scrollController;
+                        return AppRefreshIndicator(
+                          // 正序从已加载的最早一楼重建窗口:_currentFloor 会被
+                          // 尾窗改写成最后一楼,拿它作锚点只能取到锚点之后的
+                          // 楼层。倒序仍取最新尾窗;锚点 ≤1 落回默认首窗。
+                          onRefresh: () => _load(
+                            silent: true,
+                            postNo:
+                                _sort == CommentSort.asc && _posts.isNotEmpty
+                                ? _posts
+                                      .map((PostPayload post) => post.postNo)
+                                      .reduce(math.min)
+                                : null,
+                          ),
+                          child: CustomScrollView(
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            controller: scrollController,
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            slivers: <Widget>[
+                              if (!split)
+                                SliverToBoxAdapter(child: mainContent),
                               SliverToBoxAdapter(
-                                child: CacheSnapshotHint(
-                                  savedAt: _snapshotTime,
-                                  refreshing: _cacheRefreshing,
-                                  onRetry: () => _load(silent: true),
-                                ),
-                              ),
-                            SliverToBoxAdapter(
-                              child: _TopicHeader(
-                                titleKey: _titleKey,
-                                topic: props.topic,
-                                mainPost: mainPost,
-                                isOwnTopic: props.permissions.isOwnTopic,
-                              ),
-                            ),
-                            const SliverToBoxAdapter(child: GfDivider()),
-                            if (_topicAvailable)
-                              SliverToBoxAdapter(
-                                child: AgentReplySetting(
-                                  topicId: props.topic.id,
-                                  disabled: props.topic.agentRepliesDisabled,
-                                  canManage:
-                                      props.permissions.canManageAgentReplies,
-                                  onChanged: () => _load(
-                                    silent: true,
-                                    postNo: _currentFloor,
+                                child: SizedBox(
+                                  key: _discussionKey,
+                                  child: _ReplySectionHeader(
+                                    count: props.topic.replyCount,
+                                    sort: _sort,
+                                    onSortChanged: _setCommentSort,
                                   ),
                                 ),
                               ),
-                            SliverToBoxAdapter(
-                              child: SizedBox(
-                                key: _discussionKey,
-                                child: _ReplySectionHeader(
-                                  count: props.topic.replyCount,
-                                  sort: _sort,
-                                  onSortChanged: _setCommentSort,
-                                ),
-                              ),
-                            ),
-                            if (_sort == CommentSort.desc
-                                ? (_hasMorePosts || _latestLoadFailed)
-                                : _hasEarlierPosts)
-                              SliverToBoxAdapter(
-                                child: TextButton(
-                                  onPressed: _loadingMore
-                                      ? null
-                                      : _latestLoadFailed &&
-                                            _sort == CommentSort.desc
-                                      ? _retryLatestReplies
-                                      : () => _loadMore(earlier: true),
-                                  child: GfText(
-                                    _sort == CommentSort.desc
-                                        ? l10n.topicLaterReplies
-                                        : l10n.topicEarlierReplies,
-                                  ),
-                                ),
-                              ),
-                            if (replyPosts.isEmpty)
-                              SliverToBoxAdapter(
-                                child: GfEmpty(
-                                  symbol: 'message-circle',
-                                  message: _sort == CommentSort.onlyOp
-                                      ? (_hasEarlierPosts || _hasMorePosts
-                                            ? l10n.topicOpRepliesPending
-                                            : l10n.topicOpRepliesEmpty)
-                                      : l10n.topicReplies(0),
-                                  description: l10n.topicReplyHint,
-                                ),
-                              )
-                            else
-                              SliverList.builder(
-                                itemCount: replyPosts.length,
-                                itemBuilder: (BuildContext context, int index) {
-                                  final PostPayload post = replyPosts[index];
-                                  return RepaintBoundary(
-                                    // 新回复用可定位的锚点 key,便于滚入视野。
-                                    key: post.id == _revealPostId
-                                        ? _revealPostKey
-                                        : ValueKey<int>(post.id),
-                                    child: Column(
-                                      children: <Widget>[
-                                        _PostCard(
-                                          post: post,
-                                          topicTitle: topicTitle,
-                                          topicAvailable: _topicAvailable,
-                                          readOnly: _fromCache,
-                                          showReplyQuote: _showReplyQuote(
-                                            post,
-                                            mainPost,
-                                          ),
-                                          quoteTarget:
-                                              _replyTargets[post.replyToPostId],
-                                          onReply: _canReply
-                                              ? () =>
-                                                    _openComposer(replyTo: post)
-                                              : null,
-                                          onReport: () => _reportPost(post),
-                                          onPostPatched: _patchPost,
-                                          onChanged: () => _load(
-                                            silent: true,
-                                            postNo: _currentFloor,
-                                          ),
-                                        ),
-                                        if (index < replyPosts.length - 1)
-                                          const GfDivider(),
-                                      ],
+                              if (_sort == CommentSort.desc
+                                  ? (_hasMorePosts || _latestLoadFailed)
+                                  : _hasEarlierPosts)
+                                SliverToBoxAdapter(
+                                  child: TextButton(
+                                    onPressed: _loadingMore
+                                        ? null
+                                        : _latestLoadFailed &&
+                                              _sort == CommentSort.desc
+                                        ? _retryLatestReplies
+                                        : () => _loadMore(earlier: true),
+                                    child: GfText(
+                                      _sort == CommentSort.desc
+                                          ? l10n.topicLaterReplies
+                                          : l10n.topicEarlierReplies,
                                     ),
-                                  );
-                                },
+                                  ),
+                                ),
+                              if (replyPosts.isEmpty)
+                                SliverToBoxAdapter(
+                                  child: GfEmpty(
+                                    symbol: 'message-circle',
+                                    message: _sort == CommentSort.onlyOp
+                                        ? (_hasEarlierPosts || _hasMorePosts
+                                              ? l10n.topicOpRepliesPending
+                                              : l10n.topicOpRepliesEmpty)
+                                        : l10n.topicReplies(0),
+                                    description: l10n.topicReplyHint,
+                                  ),
+                                )
+                              else
+                                SliverList.builder(
+                                  itemCount: replyPosts.length,
+                                  itemBuilder:
+                                      (BuildContext context, int index) {
+                                        final PostPayload post =
+                                            replyPosts[index];
+                                        return RepaintBoundary(
+                                          // 新回复用可定位的锚点 key,便于滚入视野。
+                                          key: post.id == _revealPostId
+                                              ? _revealPostKey
+                                              : ValueKey<int>(post.id),
+                                          child: Column(
+                                            children: <Widget>[
+                                              _PostCard(
+                                                post: post,
+                                                topicTitle: topicTitle,
+                                                topicAvailable: _topicAvailable,
+                                                readOnly: _fromCache,
+                                                showReplyQuote: _showReplyQuote(
+                                                  post,
+                                                  mainPost,
+                                                ),
+                                                quoteTarget:
+                                                    _replyTargets[post
+                                                        .replyToPostId],
+                                                onReply: _canReply
+                                                    ? () => _openComposer(
+                                                        replyTo: post,
+                                                      )
+                                                    : null,
+                                                onReport: () =>
+                                                    _reportPost(post),
+                                                onPostPatched: _patchPost,
+                                                onChanged: () => _load(
+                                                  silent: true,
+                                                  postNo: _currentFloor,
+                                                ),
+                                              ),
+                                              if (index < replyPosts.length - 1)
+                                                const GfDivider(),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                ),
+                              SliverToBoxAdapter(
+                                child: GfListFooter(
+                                  progressKey: (_sort, _posts.length),
+                                  // Sparse author-only scans retain their five-window budget.
+                                  autoLoad:
+                                      !_opScanning &&
+                                      (_sort != CommentSort.onlyOp ||
+                                          _hasOpReply()),
+                                  loading: _loadingMore,
+                                  hasMore: _sort == CommentSort.desc
+                                      ? _hasEarlierPosts
+                                      : _hasMorePosts,
+                                  onLoadMore: () async {
+                                    await _loadMore();
+                                    if (_sort == CommentSort.onlyOp) {
+                                      await _scanForOpReplies();
+                                    }
+                                  },
+                                ),
                               ),
-                            SliverToBoxAdapter(
-                              child: GfListFooter(
-                                progressKey: (_sort, _posts.length),
-                                // Sparse author-only scans retain their five-window budget.
-                                autoLoad:
-                                    !_opScanning &&
-                                    (_sort != CommentSort.onlyOp ||
-                                        _hasOpReply()),
-                                loading: _loadingMore,
-                                hasMore: _sort == CommentSort.desc
-                                    ? _hasEarlierPosts
-                                    : _hasMorePosts,
-                                onLoadMore: () async {
-                                  await _loadMore();
-                                  if (_sort == CommentSort.onlyOp) {
-                                    await _scanForOpReplies();
-                                  }
-                                },
+                              const SliverToBoxAdapter(
+                                child: _ReplyDockClearance(),
                               ),
-                            ),
-                            const SliverToBoxAdapter(
-                              child: _ReplyDockClearance(),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
                 Positioned(
-                  left: _composerOpen ? 0 : 12,
+                  key: const Key('topic-composer-pane'),
+                  left: commentsLeft + (_composerOpen ? 0 : 12),
                   right: _composerOpen ? 0 : 12,
                   bottom: _composerOpen ? 0 : 12,
                   // The open composer spans the body; its accessory slot owns
@@ -2216,7 +2339,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                   ),
                 if (_railOpen && !_composerOpen)
                   Positioned(
-                    left: 16,
+                    left: commentsLeft + 16,
                     right: 16,
                     bottom: 76,
                     child: SafeArea(
@@ -2236,6 +2359,39 @@ class _TopicPageState extends ConsumerState<TopicPage>
                       ),
                     ),
                   ),
+                if (split)
+                  Positioned(
+                    key: const Key('topic-content-pane'),
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: commentsLeft - 1,
+                    child: NotificationListener<ScrollNotification>(
+                      onNotification: (notification) =>
+                          _trackReadingPane(notification, replies: false),
+                      child: GfScrollToTop(
+                        controller: _bodyScrollToTop,
+                        semanticLabel: l10n.commonBackToTop,
+                        showButton: false,
+                        builder: (context, controller) => SingleChildScrollView(
+                          key: const Key('topic-body-scroll'),
+                          controller: controller,
+                          padding: EdgeInsets.only(
+                            bottom: 24 + MediaQuery.paddingOf(context).bottom,
+                          ),
+                          child: mainContent,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (split)
+                  Positioned(
+                    left: commentsLeft - 1,
+                    top: 0,
+                    bottom: 0,
+                    width: 1,
+                    child: ColoredBox(color: colors.separator),
+                  ),
               ],
             );
           },
@@ -2249,7 +2405,12 @@ class _TopicPageState extends ConsumerState<TopicPage>
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _goBack();
       },
-      child: GfStatusBarScrollToTop(controller: _scrollToTop, child: scaffold),
+      child: GfStatusBarScrollToTop(
+        controller: split && !_lastScrollWasReplies
+            ? _bodyScrollToTop
+            : _scrollToTop,
+        child: scaffold,
+      ),
     );
   }
 

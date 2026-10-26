@@ -115,13 +115,21 @@ The layout model follows [Apple's Duo guidance](https://developer.apple.com/vide
 and [Flutter's window-based layout guidance](https://docs.flutter.dev/ui/adaptive-responsive/large-screens),
 consulted 2026-10-26. Generic size/inset tests do not substitute for device acceptance.
 
-`Current`: pushed forum, account and information pages keep their complete header and content in a
+`Current`: pushed account and information pages keep their complete header and content in a
 centered column up to 720 logical pixels wide. Course, Wiki, search, settings, publishing, chat, drafts, content management and
 Campus Explore can use 1120 pixels; the scheduler, authenticated management and image viewer use the full viewport.
 Login fills the viewport with one continuous surface while its form stays within 520 pixels.
 Imperative account, message and sticker-library routes share the reading window. Horizontal safe
 areas are consumed once and each bounded page receives its actual column width. Resizing leaves the
 route, input and scroll state mounted; the compact route continues to use the iOS edge-swipe transition.
+
+`Current`: topic details use a workspace up to 1120 logical pixels wide. With at least 840 pixels
+available at the default text size, the original post occupies the left pane and its comments occupy
+the right pane (42% of the workspace, capped at 420 pixels). Each pane scrolls independently;
+reply composition and floor navigation stay in the comments pane. Narrow windows combine the post
+and comments into one reading column up to 720 pixels. Enlarged text raises the split threshold.
+Folding retains the active pane's relative reading offset and unsent reply draft; unfolding maps that
+position back into the appropriate pane. See [0111](../decisions/0111-topic-content-and-comments-panes.md).
 
 `Current`: tablet workspaces organize navigation beside their content. Home keeps its category
 tabs in a horizontal row above one retained topic feed at every window width. Home centers its complete

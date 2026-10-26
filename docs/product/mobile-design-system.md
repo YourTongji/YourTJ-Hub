@@ -90,7 +90,7 @@ Navigation uses the same destinations, icons and unread meaning at every window 
 rail stays reachable independently of reading scroll; compact controls reclaim vertical reading
 space. Compose menus follow their source column and consume system insets once. Implemented
 breakpoints and bounds live in [mobile experience](mobile-experience.md#navigation-and-reading).
-`Current`: pushed reading pages use a centered bounded column, including their headers;
+`Current`: pushed reading pages use a centered bounded column or topic workspace, including their headers;
 the page receives the actual column width and retains its state across window changes. Timetable,
 management, login and image-viewer pages retain their full viewport; login keeps its form bounded on a continuous background.
 The wide rail floats on the shared Dock glass surface and shows destination names
@@ -105,7 +105,11 @@ the ordinary safe-area navigation layout.
 `Current`: Home presents category navigation in a horizontal row above its topic feed, settings presents its directory
 beside the current section, and publishing presents editor and preview together when space permits.
 Home keeps a single centered reading column at wide widths; search and Hot remain in its header and
-sort tabs, as recorded in [0110](../decisions/0110-single-column-home-reading.md). Messages shows its conversation
+sort tabs, as recorded in [0110](../decisions/0110-single-column-home-reading.md). Topic details pair the original
+post on the left with comments on the right when space permits, using a quiet separator and independently
+scrolling panes. Reply composition stays with comments; folding combines both into one reading flow
+while retaining the active reading offset and draft. See [0111](../decisions/0111-topic-content-and-comments-panes.md).
+Messages shows its conversation
 directory beside the selected chat; course and Wiki workspaces keep their selectors beside their content.
 Drafts keeps its filters and search beside the retained draft list; content management keeps topic/reply
 selection beside its retained results. Site information keeps its directory beside the selected document.

@@ -322,6 +322,7 @@ void main() {
     String replyCaptchaAction = 'post.create',
     bool trailingReplies = false,
     int createdPostNo = 16,
+    double textScale = 1,
   }) async {
     final GfApiClient client = GfApiClient(
       dio: Dio(),
@@ -380,6 +381,12 @@ void main() {
         container: container,
         child: MaterialApp(
           theme: gfThemeData(Brightness.light),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           locale: const Locale('zh'),
@@ -423,6 +430,110 @@ void main() {
     composer(tester).onPublish();
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+    'expanded topic separates body and replies without losing the draft',
+    (tester) async {
+      tester.view.physicalSize = const Size(867, 669);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final page = anchoredPageJson(
+        posts: [
+          floorPost(
+            1,
+            content: List.generate(
+              40,
+              (i) => '正文段落 $i，展开后可以一边读正文一边看评论。',
+            ).join('\n\n'),
+          ),
+          for (var floor = 2; floor <= 15; floor++) floorPost(floor),
+        ],
+        hasBefore: false,
+        hasAfter: false,
+      );
+      await pumpTopic(tester, page: page);
+      final body = find.byKey(const Key('topic-body-scroll'));
+      final replies = find.byType(CustomScrollView);
+      expect(body, findsOneWidget);
+      expect(
+        tester.getRect(body).right,
+        lessThan(tester.getRect(replies).left),
+      );
+      final replyController = tester
+          .widget<CustomScrollView>(replies)
+          .controller!;
+      final bodyController = tester
+          .widget<SingleChildScrollView>(body)
+          .controller!;
+      await tester.drag(replies, const Offset(0, -250));
+      await tester.pumpAndSettle();
+      expect(replyController.offset, greaterThan(100));
+      expect(bodyController.offset, 0);
+      final replyOffset = replyController.offset;
+      await tester.drag(body, const Offset(0, -220));
+      await tester.pumpAndSettle();
+      expect(bodyController.offset, greaterThan(100));
+      expect(replyController.offset, replyOffset);
+      final bodyOffset = bodyController.offset;
+      tester.view.physicalSize = const Size(390, 844);
+      await tester.pumpAndSettle();
+      expect(body, findsNothing);
+      expect(replyController.offset, closeTo(bodyOffset, 1));
+      tester.view.physicalSize = const Size(867, 669);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<SingleChildScrollView>(body).controller!.offset,
+        closeTo(bodyOffset, 1),
+      );
+      await tester.drag(replies, const Offset(0, -250));
+      await tester.pumpAndSettle();
+      final activeReplyOffset = replyController.offset;
+      tester
+          .widget<GfFloatingControls>(find.byType(GfFloatingControls))
+          .onOpenReply!();
+      await tester.pumpAndSettle();
+      composer(tester).controller.text = '保留我的回复草稿';
+      final draft = composer(tester).controller;
+      expect(
+        tester.getRect(find.byType(GfPostComposer)).left,
+        greaterThanOrEqualTo(tester.getRect(replies).left),
+      );
+      tester.view.physicalSize = const Size(390, 844);
+      await tester.pumpAndSettle();
+      expect(body, findsNothing);
+      expect(composer(tester).controller, same(draft));
+      expect(draft.text, '保留我的回复草稿');
+      expect(replyController.offset, greaterThan(activeReplyOffset));
+      tester.view.physicalSize = const Size(867, 669);
+      await tester.pumpAndSettle();
+      expect(body, findsOneWidget);
+      expect(composer(tester).controller, same(draft));
+      expect(replyController.offset, closeTo(activeReplyOffset, 1));
+      expect(tester.takeException(), isNull);
+      await disposePage(tester);
+    },
+  );
+
+  testWidgets('large text keeps topic content and comments in one column', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(867, 669);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpTopic(
+      tester,
+      page: anchoredPageJson(
+        posts: [floorPost(1), floorPost(2)],
+        hasBefore: false,
+        hasAfter: false,
+      ),
+      textScale: 2,
+    );
+    expect(find.byKey(const Key('topic-body-scroll')), findsNothing);
+    expect(tester.getSize(find.byType(CustomScrollView)).width, 720);
+    expect(tester.takeException(), isNull);
+    await disposePage(tester);
+  });
 
   for (final removed in ['', 'authorDeleted', 'moderatorRemoved']) {
     testWidgets('robot reply banner requires an available topic ($removed)', (
