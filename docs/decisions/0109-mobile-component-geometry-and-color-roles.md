@@ -1,7 +1,7 @@
 # Mobile component geometry and derived color roles
 
 ## Status
-Proposed
+Accepted
 Class: architecture
 
 ## Context and Problem Statement
