@@ -275,7 +275,7 @@ class _ProfilePrivacyPageState extends ConsumerState<ProfilePrivacyPage> {
               key: const ValueKey('profile-privacy-view-profile'),
               label: l10n.profilePrivacyViewProfile,
               variant: GfButtonVariant.ghost,
-              onPressed: () => context.go('/profile'),
+              onPressed: () => context.push('/profile'),
             ),
           ),
         ),
