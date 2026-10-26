@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-03
+> Last verified: 2026-10-26
 
 This is the single entry point for yourtj-hub product, architecture, development, and operations specs.
 Docs describe only the currently supported model; stale phase plans, PR delivery checklists, and
@@ -97,6 +97,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 - [Anonymous identity permissions and recovery](operations/anonymous-identity.md)
 - [Feed ranking operations](operations/feed-ranking.md)
 - [Campus connection operations](operations/campus.md)
+- [Daily XP settlement operations](operations/xp-daily-settlement.md)
 - [Independent status site on Cloudflare](operations/status-cloudflare.md)
 - [Mobile releases and signing](operations/mobile-releases.md)
 - [Object storage](operations/object-storage.md)
