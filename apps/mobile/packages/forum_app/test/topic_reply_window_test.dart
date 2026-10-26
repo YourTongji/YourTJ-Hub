@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:convert';
+import 'dart:ui' show Tristate;
 
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
@@ -11,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/local/writing_store.dart';
+import 'package:forum_app/src/navigation/window_reserved_regions.dart';
 import 'package:forum_app/src/pages/topic/post_actions.dart';
 import 'package:forum_app/src/pages/topic/topic_page.dart';
 import 'package:forum_app/src/providers.dart';
@@ -113,6 +115,34 @@ class _NotificationPageRepository extends PageRepository {
 /// 以便断言客户端请求的 limit 与游标。
 class TopicWindowServer extends TopicRepository {
   TopicWindowServer(super.client);
+
+  final List<String> topicActions = [];
+
+  @override
+  Future<bool> likeTopic({
+    required int topicId,
+    required int action,
+    TopicPayload? feedTopic,
+  }) async {
+    topicActions.add('like:$topicId:$action');
+    return true;
+  }
+
+  @override
+  Future<bool> bookmarkTopic({
+    required int topicId,
+    required int action,
+    TopicPayload? feedTopic,
+  }) async {
+    topicActions.add('bookmark:$topicId:$action');
+    return true;
+  }
+
+  @override
+  Future<bool> watchTopic({required int topicId, required int action}) async {
+    topicActions.add('watch:$topicId:$action');
+    return true;
+  }
 
   /// 服务端楼层(按 postNo 升序)。
   final List<PostPayload> posts = <PostPayload>[];
@@ -323,6 +353,7 @@ void main() {
     bool trailingReplies = false,
     int createdPostNo = 16,
     double textScale = 1,
+    WindowReservedRegions? reservedRegions,
   }) async {
     final GfApiClient client = GfApiClient(
       dio: Dio(),
@@ -335,6 +366,9 @@ void main() {
       ]);
     container = ProviderContainer(
       overrides: <Override>[
+        windowReservedRegionsProvider.overrideWith(
+          (ref) => Stream.value(reservedRegions),
+        ),
         apiClientProvider.overrideWithValue(client),
         pageRepositoryProvider.overrideWithValue(
           pageRepo = _NotificationPageRepository(client, page, pageByPath),
@@ -430,6 +464,98 @@ void main() {
     composer(tester).onPublish();
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+    'Duo topic moves back and topic actions into the clear side pocket',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      tester.view.physicalSize = const Size(951, 669);
+      tester.view.devicePixelRatio = 1;
+      tester.view.padding = const FakeViewPadding(right: 84, bottom: 20);
+      tester.view.viewPadding = const FakeViewPadding(right: 84, bottom: 20);
+      addTearDown(tester.view.reset);
+      await pumpTopic(
+        tester,
+        page: anchoredPageJson(
+          posts: [floorPost(1), floorPost(2)],
+          hasBefore: false,
+          hasAfter: false,
+        ),
+        reservedRegions: const WindowReservedRegions(
+          size: Size(951, 669),
+          safeArea: EdgeInsets.only(right: 84, bottom: 20),
+          occlusions: [Rect.fromLTWH(867, 0, 84, 120)],
+        ),
+      );
+      final rail = find.byKey(const Key('topic-action-rail'));
+      expect(rail, findsOneWidget);
+      expect(tester.getRect(rail).left, greaterThanOrEqualTo(867));
+      expect(tester.getRect(rail).top, greaterThanOrEqualTo(120));
+      expect(tester.getRect(rail).bottom, lessThanOrEqualTo(649));
+      expect(find.byType(GfFloatingControls), findsNothing);
+      expect(find.byTooltip(l10nOf(tester).commonBack), findsOneWidget);
+      for (final label in [
+        '${l10nOf(tester).topicLike} · 2',
+        l10nOf(tester).topicBookmark,
+        l10nOf(tester).topicWatch,
+      ]) {
+        await tester.tap(
+          find.descendant(of: rail, matching: find.byTooltip(label)),
+        );
+        await tester.pumpAndSettle();
+      }
+      expect(server.topicActions, [
+        'like:100:1',
+        'bookmark:100:1',
+        'watch:100:1',
+      ]);
+      final watchSemantics = tester.getSemantics(
+        find.bySemanticsLabel(l10nOf(tester).topicUnwatch),
+      );
+      expect(watchSemantics.flagsCollection.isEnabled, Tristate.isTrue);
+      expect(watchSemantics.flagsCollection.isToggled, Tristate.isTrue);
+      expect(
+        find.descendant(
+          of: rail,
+          matching: find.byTooltip(l10nOf(tester).topicUnwatch),
+        ),
+        findsOneWidget,
+      );
+      final floors = find.descendant(
+        of: rail,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is GfIconButton && widget.symbol == 'list-ordered',
+        ),
+      );
+      await tester.tap(floors);
+      await tester.pumpAndSettle();
+      expect(find.byType(GfPostPositionRail), findsOneWidget);
+      await tester.tap(floors);
+      await tester.pumpAndSettle();
+      final reply = find.descendant(
+        of: rail,
+        matching: find.byTooltip(l10nOf(tester).topicJoinDiscussion),
+      );
+      await tester.tap(reply);
+      await tester.pumpAndSettle();
+      composer(tester).controller.text = '侧栏回复草稿';
+      expect(
+        tester.getRect(find.byType(GfPostComposer)).right,
+        lessThanOrEqualTo(tester.getRect(rail).left),
+      );
+      // Stale geometry must restore safe controls without replacing the draft.
+      final draft = composer(tester).controller;
+      tester.view.physicalSize = const Size(466, 678);
+      await tester.pumpAndSettle();
+      expect(rail, findsNothing);
+      expect(composer(tester).controller, same(draft));
+      expect(draft.text, '侧栏回复草稿');
+      expect(find.byTooltip(l10nOf(tester).commonBack), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      semantics.dispose();
+      await disposePage(tester);
+    },
+  );
 
   testWidgets(
     'expanded topic separates body and replies without losing the draft',

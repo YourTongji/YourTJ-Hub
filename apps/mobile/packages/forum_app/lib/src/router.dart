@@ -597,9 +597,8 @@ final GoRouter appRouter = GoRouter(
         categoryId: int.parse(state.pathParameters['id']!),
       ),
     ),
-    _readingPageRoute(
+    GoRoute(
       path: '/p/:postId',
-      maxContentWidth: 1120,
       builder: (BuildContext context, GoRouterState state) => TopicPage(
         topicId: int.parse(state.pathParameters['postId']!),
         initialPostNo: int.tryParse(state.uri.queryParameters['postNo'] ?? ''),

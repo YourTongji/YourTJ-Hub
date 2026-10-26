@@ -1932,6 +1932,12 @@ abstract class AppLocalizations {
   /// **'{year}/{month}/{day} {time}'**
   String dateYearMonthDayTime(int year, int month, int day, String time);
 
+  /// No description provided for @topicJumpToFloor.
+  ///
+  /// In en, this message translates to:
+  /// **'Jump to floor'**
+  String get topicJumpToFloor;
+
   /// No description provided for @topicFloorSelected.
   ///
   /// In en, this message translates to:

@@ -38,6 +38,9 @@ import '../../widgets/user_badge.dart';
 import '../../widgets/user_profile_preview.dart';
 import 'post_actions.dart';
 import 'topic_actions.dart';
+import 'topic_side_actions.dart';
+import '../../navigation/reading_window.dart';
+import '../../navigation/window_reserved_regions.dart';
 import 'mention_panel.dart';
 import 'mention_search.dart';
 import 'mention_session.dart';
@@ -1779,6 +1782,51 @@ class _TopicPageState extends ConsumerState<TopicPage>
       _scheduleSessionRecovery(sessionEpoch);
       return const Scaffold(body: GfTopicDetailSkeleton());
     }
+    final reserved = ref.watch(windowReservedRegionsProvider).valueOrNull;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final media = MediaQuery.of(context);
+        final frame = reserved?.navigationFrame(
+          media,
+          constraints.biggest,
+          topInset: media.size.height - constraints.maxHeight,
+        );
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: ReadingPageWindow(
+                maxContentWidth: 1120,
+                child: _buildReadingWindow(frame != null),
+              ),
+            ),
+            if (frame != null)
+              Positioned.fromRect(
+                rect: frame,
+                child: MediaQuery.removePadding(
+                  context: context,
+                  removeLeft: true,
+                  removeRight: true,
+                  removeTop: true,
+                  removeBottom: true,
+                  child: TopicSideActions(
+                    onBack: _goBack,
+                    actions: _topicActions(context),
+                    currentNo: _currentFloor,
+                    maxNo: _page.valueOrNull?.postStream.maxPostNo,
+                    onFloorTap: _composerOpen ? null : _toggleFloorRail,
+                    onOpenReply: _canReply && !_composerOpen
+                        ? () => _openComposer()
+                        : null,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildReadingWindow(bool sideActions) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final scale = math.max(
@@ -1806,6 +1854,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                     context,
                     split,
                     split ? width - commentsWidth : 0,
+                    sideActions: sideActions,
                   ),
                 ),
               ),
@@ -1816,7 +1865,49 @@ class _TopicPageState extends ConsumerState<TopicPage>
     );
   }
 
-  Widget _buildPage(BuildContext context, bool split, double commentsLeft) {
+  void _toggleFloorRail() {
+    setState(() {
+      _lastScrollWasReplies = true;
+      _railOpen = !_railOpen;
+    });
+  }
+
+  List<GfTopicAction> _topicActions(BuildContext context) {
+    final colors = GfTheme.colorsOf(context);
+    final l10n = AppLocalizations.of(context);
+    return [
+      if (_topicAvailable) ...[
+        GfTopicAction(
+          symbol: _liked ? 'heart-filled' : 'heart',
+          active: _liked,
+          title: '${l10n.topicLike} · ${formatNumber(_likeCount)}',
+          activeColor: colors.error,
+          onTap: _toggleLike,
+        ),
+        GfTopicAction(
+          symbol: _bookmarked ? 'bookmark-filled' : 'bookmark',
+          active: _bookmarked,
+          title: _bookmarked ? l10n.topicBookmarked : l10n.topicBookmark,
+          activeColor: colors.warning,
+          onTap: _toggleBookmark,
+        ),
+        GfTopicAction(
+          symbol: _watched ? 'bell-filled' : 'bell',
+          active: _watched,
+          title: _watched ? l10n.topicUnwatch : l10n.topicWatch,
+          activeColor: colors.primary,
+          onTap: _toggleWatch,
+        ),
+      ],
+    ];
+  }
+
+  Widget _buildPage(
+    BuildContext context,
+    bool split,
+    double commentsLeft, {
+    required bool sideActions,
+  }) {
     final GfColors colors = GfTheme.colorsOf(context);
     final AppLocalizations l10n = AppLocalizations.of(context);
 
@@ -1829,12 +1920,15 @@ class _TopicPageState extends ConsumerState<TopicPage>
       // The reply accessory slot consumes the keyboard inset itself.
       resizeToAvoidBottomInset: false,
       appBar: GfAppBar(
-        leading: GfIconButton(
-          symbol: 'chevron-left',
-          tooltip: l10n.commonBack,
-          size: 44,
-          onPressed: _goBack,
-        ),
+        automaticallyImplyLeading: false,
+        leading: sideActions
+            ? null
+            : GfIconButton(
+                symbol: 'chevron-left',
+                tooltip: l10n.commonBack,
+                size: 44,
+                onPressed: _goBack,
+              ),
         title: GfText(
           appBarTitle,
           maxLines: 1,
@@ -2269,51 +2363,17 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                       ),
                                     ),
                                   )
+                                : sideActions
+                                ? const SizedBox.shrink()
                                 : GfFloatingControls(
                                     joinLabel: l10n.topicJoinDiscussion,
-                                    actions: <GfTopicAction>[
-                                      if (_topicAvailable) ...[
-                                        GfTopicAction(
-                                          symbol: _liked
-                                              ? 'heart-filled'
-                                              : 'heart',
-                                          active: _liked,
-                                          title:
-                                              '${l10n.topicLike} · ${formatNumber(_likeCount)}',
-                                          activeColor: colors.error,
-                                          onTap: _toggleLike,
-                                        ),
-                                        GfTopicAction(
-                                          symbol: _bookmarked
-                                              ? 'bookmark-filled'
-                                              : 'bookmark',
-                                          active: _bookmarked,
-                                          title: _bookmarked
-                                              ? l10n.topicBookmarked
-                                              : l10n.topicBookmark,
-                                          activeColor: colors.warning,
-                                          onTap: _toggleBookmark,
-                                        ),
-                                        GfTopicAction(
-                                          symbol: _watched
-                                              ? 'bell-filled'
-                                              : 'bell',
-                                          active: _watched,
-                                          title: _watched
-                                              ? l10n.topicUnwatch
-                                              : l10n.topicWatch,
-                                          activeColor: colors.primary,
-                                          onTap: _toggleWatch,
-                                        ),
-                                      ],
-                                    ],
+                                    actions: _topicActions(context),
                                     onOpenReply: _canReply
                                         ? () => _openComposer()
                                         : null,
                                     currentNo: _currentFloor,
                                     maxNo: props.postStream.maxPostNo,
-                                    onFloorTap: () =>
-                                        setState(() => _railOpen = !_railOpen),
+                                    onFloorTap: _toggleFloorRail,
                                   ),
                             if (_composerOpen)
                               GfInputAccessorySlot(
@@ -2341,7 +2401,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                   Positioned(
                     left: commentsLeft + 16,
                     right: 16,
-                    bottom: 76,
+                    bottom: sideActions ? 12 : 76,
                     child: SafeArea(
                       top: false,
                       child: GfFloatingSurface(

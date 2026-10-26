@@ -319,6 +319,7 @@
   "dateYearMonthDay": "{year}年{month}月{day}日",
   "dateMonthDayTime": "{month}月{day}日 {time}",
   "dateYearMonthDayTime": "{year}年{month}月{day}日 {time}",
+  "topicJumpToFloor": "階へ移動",
   "topicFloorSelected": "{floor}階へ移動しました",
   "sortLatest": "最新",
   "sortHot": "人気",

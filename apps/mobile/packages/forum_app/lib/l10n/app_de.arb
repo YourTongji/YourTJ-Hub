@@ -319,6 +319,7 @@
   "dateYearMonthDay": "{day}.{month}.{year}",
   "dateMonthDayTime": "{day}.{month} {time}",
   "dateYearMonthDayTime": "{day}.{month}.{year} {time}",
+  "topicJumpToFloor": "Zum Beitrag springen",
   "topicFloorSelected": "Zu Beitrag {floor} gesprungen",
   "sortLatest": "Neueste",
   "sortHot": "Trending",

@@ -27,7 +27,9 @@ these two regions share one subject and are useful together.
 ## Decision Outcome
 
 Use a bounded topic workspace with the original post on the left and comments on the right.
-The comments pane owns reply composition and floor controls. The shared header and a quiet separator
+The comments pane owns reply composition and the floor picker. Back and the discussion actions use
+the native side-pocket glass capsule when available, sharing its existing geometry and fallback rules.
+The shared header and a quiet separator
 connect both panes without presenting them as unrelated cards. Narrow windows and enlarged text use
 the existing combined reading flow. Layout changes map the active pane's relative scroll offset and
 retain the same reply controller, target and draft. Comments retain their sorting, pagination,

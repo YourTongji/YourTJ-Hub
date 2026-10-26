@@ -589,6 +589,7 @@
       }
     }
   },
+  "topicJumpToFloor": "Jump to floor",
   "topicFloorSelected": "Jumped to floor {floor}",
   "sortLatest": "Latest",
   "sortHot": "Hot",

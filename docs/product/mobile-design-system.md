@@ -107,7 +107,9 @@ beside the current section, and publishing presents editor and preview together 
 Home keeps a single centered reading column at wide widths; search and Hot remain in its header and
 sort tabs, as recorded in [0110](../decisions/0110-single-column-home-reading.md). Topic details pair the original
 post on the left with comments on the right when space permits, using a quiet separator and independently
-scrolling panes. Reply composition stays with comments; folding combines both into one reading flow
+scrolling panes. Topic navigation and discussion actions share the side-pocket glass capsule when
+available; the page then removes the duplicate header Back button and bottom action bar. Reply
+composition and the floor picker stay with comments; folding combines both into one reading flow
 while retaining the active reading offset and draft. See [0111](../decisions/0111-topic-content-and-comments-panes.md).
 Messages shows its conversation
 directory beside the selected chat; course and Wiki workspaces keep their selectors beside their content.

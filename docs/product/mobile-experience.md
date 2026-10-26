@@ -126,7 +126,12 @@ route, input and scroll state mounted; the compact route continues to use the iO
 `Current`: topic details use a workspace up to 1120 logical pixels wide. With at least 840 pixels
 available at the default text size, the original post occupies the left pane and its comments occupy
 the right pane (42% of the workspace, capped at 420 pixels). Each pane scrolls independently;
-reply composition and floor navigation stay in the comments pane. Narrow windows combine the post
+reply composition and the floor picker stay in the comments pane. Where iOS reports a usable side
+pocket, a glass action capsule contains Back, the floor-picker entry, Like, Bookmark, Watch and Reply.
+The header's Back button and bottom action bar are omitted in that layout. Actions keep 48-pixel
+targets, accessible names and toggle states; the capsule scrolls within a short pocket. Unavailable,
+stale or keyboard-covered geometry restores the header and bottom controls without replacing the
+draft. The same pocket placement works in expanded and folded windows. Narrow windows combine the post
 and comments into one reading column up to 720 pixels. Enlarged text raises the split threshold.
 Folding retains the active pane's relative reading offset and unsent reply draft; unfolding maps that
 position back into the appropriate pane. See [0111](../decisions/0111-topic-content-and-comments-panes.md).

@@ -1033,6 +1033,9 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get topicJumpToFloor => 'Zum Beitrag springen';
+
+  @override
   String topicFloorSelected(Object floor) {
     return 'Zu Beitrag $floor gesprungen';
   }
