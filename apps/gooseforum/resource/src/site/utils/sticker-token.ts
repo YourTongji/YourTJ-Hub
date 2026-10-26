@@ -158,7 +158,13 @@ export function stickerDeleteRangeAt(
 }
 
 // 个人上传表情名为 u_ + 48 位小写十六进制（服务端生成规则），可被精确识别。
+const PERSONAL_STICKER_NAME_RE = /^u_[0-9a-f]{48}$/
 const PERSONAL_STICKER_TOKEN_RE = /\[:sticker:u_[0-9a-f]{48}:\]/g
+
+/** 贴纸名（不含 [:sticker:…:] 包裹）是否为服务端生成的个人贴纸名。 */
+export function isPersonalStickerName(name: string): boolean {
+  return PERSONAL_STICKER_NAME_RE.test(name)
+}
 
 /**
  * 消息正文渲染用的个人表情遮蔽：待审/被拒的个人 token 无法解析，

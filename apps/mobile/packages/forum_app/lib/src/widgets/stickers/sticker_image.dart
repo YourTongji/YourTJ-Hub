@@ -132,7 +132,7 @@ class _StickerImageState extends State<StickerImage> {
     final semantics = Semantics(
       label:
           widget.label ??
-          (RegExp(r'^u_[0-9a-f]{48}$').hasMatch(widget.name)
+          (StickerStrings.isPersonalName(widget.name)
               ? StickerStrings(context).custom
               : widget.name),
       button: true,

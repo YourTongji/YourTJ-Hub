@@ -7,6 +7,11 @@ class StickerStrings {
   StickerStrings(BuildContext context)
     : _locale = Localizations.localeOf(context).languageCode;
   final String _locale;
+
+  /// 服务端生成的个人贴纸名（u_ + 48 位小写十六进制），与 Web 端
+  /// isPersonalStickerName 同规则。
+  static final RegExp _personalNameRe = RegExp(r'^u_[0-9a-f]{48}$');
+  static bool isPersonalName(String name) => _personalNameRe.hasMatch(name);
   String _s(String zh, String en, String de, String ja) => switch (_locale) {
     'zh' => zh,
     'de' => de,

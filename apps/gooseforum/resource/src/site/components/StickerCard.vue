@@ -5,6 +5,7 @@ import { Bookmark, BookmarkCheck, X } from '@lucide/vue'
 import { DialogClose, DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { ApiResponseError, saveMySticker } from '@/runtime/api'
 import { useStickerLibrary } from '@/site/composables/useStickerLibrary'
+import { isPersonalStickerName } from '@/site/utils/sticker-token'
 import type { MarkdownSticker } from '@/runtime/markdown-image-preview'
 
 // 正文贴纸的轻量小窗：放大查看、显示名称、收藏到我的表情。与普通图片灯箱分开，
@@ -35,7 +36,7 @@ function namesFor(uid: number): Set<string> {
 
 const label = computed(() => {
   const name = sticker.value?.name || ''
-  if (/^u_[0-9a-f]{48}$/.test(name)) return t('stickers.custom')
+  if (isPersonalStickerName(name)) return t('stickers.custom')
   return stickers.value.find((item) => item.name === name)?.displayName || name
 })
 

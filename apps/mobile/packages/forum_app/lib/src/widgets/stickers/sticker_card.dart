@@ -113,7 +113,7 @@ class _StickerCardState extends State<StickerCard> {
     for (final item in [...?collection?.mine, ...?collection?.library.items]) {
       if (item.name == widget.name) return strings.displayLabel(item);
     }
-    return RegExp(r'^u_[0-9a-f]{48}$').hasMatch(widget.name)
+    return StickerStrings.isPersonalName(widget.name)
         ? strings.custom
         : widget.name;
   }
