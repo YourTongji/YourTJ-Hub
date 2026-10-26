@@ -247,6 +247,16 @@ void main() {
     expect(dock.center.dx, moreOrLessEquals(195, epsilon: 0.5));
     await tester.tapAt(Offset(dock.left - 8, dock.center.dy));
     expect(contentTaps, 1, reason: 'the margins beside the dock stay content');
+
+    // A press swells the dock's paint, never the area it takes touches in.
+    final TestGesture hold = await tester.startGesture(
+      tester.getCenter(_target(1)),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tapAt(Offset(dock.left - 1.5, dock.center.dy));
+    expect(contentTaps, 2);
+    await hold.up();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('selection feedback remains interruptible between destinations', (

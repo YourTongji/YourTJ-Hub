@@ -593,6 +593,7 @@ class _DockState extends State<_Dock> with TickerProviderStateMixin {
             return Transform.scale(
               scaleX: 1 + swell / size.width,
               scaleY: 1 + swell / size.height,
+              transformHitTests: false,
               child: child,
             );
           },
