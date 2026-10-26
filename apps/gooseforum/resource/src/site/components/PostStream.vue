@@ -2605,7 +2605,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
   />
 
   <MarkdownImageViewer ref="markdownImageViewer" />
-  <StickerCard ref="stickerCard" :signed-in="viewer.isAuthenticated" @sign-in="openLogin" />
+  <StickerCard ref="stickerCard" :user-id="viewer.isAuthenticated ? viewer.id : null" @sign-in="openLogin" />
 
   <Teleport to="body">
     <Transition name="gf-modal">

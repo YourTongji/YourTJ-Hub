@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Bookmark, BookmarkCheck, X } from '@lucide/vue'
 import { DialogClose, DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
@@ -9,7 +9,9 @@ import type { MarkdownSticker } from '@/runtime/markdown-image-preview'
 
 // 正文贴纸的轻量小窗：放大查看、显示名称、收藏到我的表情。与普通图片灯箱分开，
 // 不进入相册翻页；收藏成功后原地确认，不弹额外提示。
-const props = defineProps<{ signedIn: boolean }>()
+// 已收藏记忆按当前账号（numeric user id，null 为访客）分区：切换账号或登出时
+// 状态重新计算，不能把上一个用户的收藏当成下一个用户的。
+const props = defineProps<{ userId: number | null }>()
 const emit = defineEmits<{ signIn: [] }>()
 const { t } = useI18n()
 const { stickers, ensureStickers } = useStickerLibrary()
@@ -19,8 +21,17 @@ const open = ref(false)
 const saving = ref(false)
 const saved = ref(false)
 const error = ref('')
-// 同一次浏览内已收藏过的贴纸再次打开时直接显示已收藏。
-const savedNames = new Set<string>()
+// 同一次浏览内、同一账号下已收藏过的贴纸再次打开时直接显示已收藏。
+const savedNamesByUser = new Map<number, Set<string>>()
+
+function namesFor(uid: number): Set<string> {
+  let names = savedNamesByUser.get(uid)
+  if (!names) {
+    names = new Set()
+    savedNamesByUser.set(uid, names)
+  }
+  return names
+}
 
 const label = computed(() => {
   const name = sticker.value?.name || ''
@@ -30,32 +41,40 @@ const label = computed(() => {
 
 function show(next: MarkdownSticker) {
   sticker.value = next
-  saved.value = savedNames.has(next.name)
+  saved.value = props.userId != null && namesFor(props.userId).has(next.name)
   saving.value = false
   error.value = ''
   open.value = true
   void ensureStickers()
 }
 
+// 小窗开启期间切换账号：在途请求的守卫以发起时的 uid 为准，这里只重置界面状态。
+watch(() => props.userId, () => {
+  saving.value = false
+  error.value = ''
+  saved.value = props.userId != null && sticker.value != null && namesFor(props.userId).has(sticker.value.name)
+})
+
 async function save() {
   const current = sticker.value
   if (!current || saving.value || saved.value) return
-  if (!props.signedIn) {
+  if (props.userId == null) {
     emit('signIn')
     return
   }
+  const uid = props.userId
   saving.value = true
   error.value = ''
   try {
     await saveMySticker(current.name)
-    savedNames.add(current.name)
-    if (sticker.value === current) saved.value = true
+    namesFor(uid).add(current.name)
+    if (sticker.value === current && props.userId === uid) saved.value = true
   } catch (cause) {
-    if (sticker.value === current) {
+    if (sticker.value === current && props.userId === uid) {
       error.value = cause instanceof ApiResponseError ? cause.message : t('stickers.saveFailed')
     }
   } finally {
-    if (sticker.value === current) saving.value = false
+    if (sticker.value === current && props.userId === uid) saving.value = false
   }
 }
 
@@ -97,7 +116,7 @@ defineExpose({ open: show })
         >
           <BookmarkCheck v-if="saved" class="size-4" />
           <Bookmark v-else class="size-4" />
-          {{ saved ? t('stickers.saved') : props.signedIn ? t('stickers.save') : t('stickers.signInToSave') }}
+          {{ saved ? t('stickers.saved') : props.userId != null ? t('stickers.save') : t('stickers.signInToSave') }}
         </button>
         <p
           v-if="error"
