@@ -79,8 +79,8 @@ class RootSurface extends ConsumerWidget {
       ),
       showLabels: shellNavigationShowsLabels,
     );
-    final navMetrics = GfBottomNavigation.metrics(
-      safeAreaBottom: bottom,
+    final navMetrics = GfBottomNavigation.metricsOf(
+      context,
       barHeight: navigationHeight,
     );
     // Insets stay fixed while chrome slides, so content never jumps.

@@ -670,8 +670,8 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
         final window = context
             .dependOnInheritedWidgetOfExactType<ReadingWindowScope>();
         final bottomInset = window != null && !window.hasRail
-            ? GfBottomNavigation.metrics(
-                safeAreaBottom: MediaQuery.paddingOf(context).bottom,
+            ? GfBottomNavigation.metricsOf(
+                context,
                 barHeight: GfBottomNavigation.heightFor(
                   context,
                   labels: GfShellDestination.values.map(
