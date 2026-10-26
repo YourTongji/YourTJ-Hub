@@ -1664,7 +1664,10 @@ servers that omit interaction fields retain read-only content previews.
   Picker and chat draft-preview thumbnails remain 56 × 56, and personal-library rows use 48 × 48.
 - `Current`: tapping a native inline sticker opens a compact sticker card, not the photo viewer: an
   enlarged 168 × 168 view, the sticker's name, and Save to my stickers, which reads In your stickers
-  once saved. Failures stay in the card for retry; read-only feed excerpts omit the action. Long
+  once saved. Failures stay in the card for retry; read-only feed excerpts omit the action. Guests
+  browsing without a session see Sign in to save instead — the account-owned library is never
+  requested, so merely viewing a sticker cannot hit the login-only endpoints — and tapping it opens
+  the login page. Long
   presses keep their existing collection/retry sheet. Library rows open that sticker alone in the
   shared image viewer, with animated GIF playback, pinch/double-tap zoom and actual-size viewing.
   Stickers remain excluded from surrounding attachment galleries. Picker taps still insert without

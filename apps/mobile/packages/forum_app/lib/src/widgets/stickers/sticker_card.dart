@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../../asset_url.dart';
+import '../../providers.dart';
 import 'sticker_library_state.dart';
 import 'sticker_preview.dart';
 import 'sticker_strings.dart';
@@ -10,19 +12,40 @@ import 'sticker_strings.dart';
 /// Tapping a sticker in content opens this compact card instead of the photo
 /// viewer: an enlarged sticker, its name and one collection action. The card
 /// closes with the account that opened it, like library-launched previews.
+///
+/// Guests can browse public content, but the sticker library is account-owned:
+/// any authenticated request from a guest (my-stickers / my-sticker-save)
+/// returns 401, which the API client treats as a session boundary and tears
+/// the whole shell down to the login page. So for guests the card skips the
+/// library fetch entirely and offers a "sign in to save" action instead.
 Future<void> showStickerCard(
   BuildContext context, {
   required String name,
   required String url,
   String? label,
   bool collectible = true,
-}) {
+}) async {
+  final container = ProviderScope.containerOf(context, listen: false);
   final collection = collectible
-      ? ProviderScope.containerOf(
-          context,
-          listen: false,
-        ).read(stickerCollectionProvider)
+      ? container.read(stickerCollectionProvider)
       : null;
+  // Distinguish "no token" (guest) from "storage unavailable": the latter
+  // keeps the signed-in path so a transient secure-storage failure cannot
+  // demote a signed-in user to the guest action. The read is bounded: the
+  // card must always open (widget tests without a storage override never
+  // complete the secure-storage plugin call), and a stalled plugin must not
+  // block a reader either.
+  bool signedIn;
+  try {
+    final token = await container
+        .read(tokenStorageProvider)
+        .read()
+        .timeout(const Duration(milliseconds: 500));
+    signedIn = token != null && token.isNotEmpty;
+  } catch (_) {
+    signedIn = true;
+  }
+  if (!context.mounted) return;
   return showGfModal<void>(
     context,
     builder: (_) {
@@ -31,6 +54,13 @@ Future<void> showStickerCard(
         url: url,
         label: label,
         collection: collection,
+        signedIn: signedIn,
+        onSignIn: signedIn
+            ? null
+            : () {
+                Navigator.of(context, rootNavigator: true).maybePop();
+                context.go('/login');
+              },
       );
       return collection == null
           ? card
@@ -46,6 +76,8 @@ class StickerCard extends StatefulWidget {
     required this.url,
     this.label,
     this.collection,
+    this.signedIn = true,
+    this.onSignIn,
   });
 
   /// Enlarged display size; small enough to keep the card light.
@@ -57,6 +89,13 @@ class StickerCard extends StatefulWidget {
 
   /// Null hides the collection action (read-only excerpts).
   final StickerCollection? collection;
+
+  /// False for guests: the library is not fetched and the collection action
+  /// becomes a sign-in prompt ([onSignIn]).
+  final bool signedIn;
+
+  /// Where the guest prompt navigates; provided by [showStickerCard].
+  final VoidCallback? onSignIn;
 
   @override
   State<StickerCard> createState() => _StickerCardState();
@@ -70,7 +109,7 @@ class _StickerCardState extends State<StickerCard> {
   void initState() {
     super.initState();
     final collection = widget.collection;
-    if (collection == null) return;
+    if (collection == null || !widget.signedIn) return;
     collection.addListener(_changed);
     // Membership decides between "save" and "saved"; a cached list is reused.
     Future.microtask(() {
@@ -162,7 +201,16 @@ class _StickerCardState extends State<StickerCard> {
             const SizedBox(height: GfSpace.xl),
             AnimatedSwitcher(
               duration: GfMotion.duration(context, GfMotion.content),
-              child: saved
+              child: !widget.signedIn
+                  ? GfButton(
+                      key: const ValueKey('sign-in'),
+                      label: strings.signInToSave,
+                      onPressed: widget.onSignIn,
+                      variant: GfButtonVariant.tonal,
+                      icon: const GfSymbol('bookmark', size: 18),
+                      expanded: true,
+                    )
+                  : saved
                   ? GfButton(
                       key: const ValueKey('saved'),
                       label: strings.inMine,

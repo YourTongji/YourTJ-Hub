@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:go_router/go_router.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_card.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_library_page.dart';
@@ -25,12 +26,16 @@ class _Repository extends StickerRepository {
   List<StickerItemPayload> members = [_item];
   final removed = <String>[];
   final saved = <String>[];
+  int mineCalls = 0;
   bool failRemove = false;
   bool failSave = false;
   @override
   Future<List<StickerItemPayload>> list() async => [_item];
   @override
-  Future<List<StickerItemPayload>> mine() async => [...members];
+  Future<List<StickerItemPayload>> mine() async {
+    mineCalls++;
+    return [...members];
+  }
   @override
   Future<StickerItemPayload> save({
     String? stickerName,
@@ -65,7 +70,12 @@ Future<StickerCollection> _pump(
   final state = StickerCollection(repository, StickerLibrary(repository));
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [stickerCollectionProvider.overrideWith((_) => state)],
+      overrides: [
+        stickerCollectionProvider.overrideWith((_) => state),
+        // StickerImage taps open the sticker card, which checks the session
+        // before touching the account-owned library.
+        tokenStorageProvider.overrideWith((_) => MemTokenStorage('session')),
+      ],
       child: MaterialApp(theme: gfThemeData(brightness), home: child),
     ),
   );
@@ -417,6 +427,49 @@ void main() {
       );
       await open(tester, 'dance');
       expect(find.byType(GfButton), findsNothing);
+    });
+
+    testWidgets('guests get a sign-in prompt instead of library requests', (
+      tester,
+    ) async {
+      final repository = _Repository();
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(path: '/', builder: (context, state) => sticker('dance')),
+          GoRoute(
+            path: '/login',
+            builder: (context, state) =>
+                const Scaffold(body: Text('login page')),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            stickerCollectionProvider.overrideWith(
+              (_) => StickerCollection(repository, StickerLibrary(repository)),
+            ),
+            tokenStorageProvider.overrideWith((_) => MemTokenStorage()),
+          ],
+          child: MaterialApp.router(
+            theme: gfThemeData(Brightness.light),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await open(tester, 'dance');
+      // 客访不触碰账号态表情库:不发 my-stickers 请求(401 会触发全局拆会话)。
+      expect(repository.mineCalls, 0);
+      expect(find.text('Sign in to save'), findsOneWidget);
+      expect(find.text('Save to my stickers'), findsNothing);
+
+      await tester.tap(find.text('Sign in to save'));
+      await tester.pumpAndSettle();
+      expect(find.text('login page'), findsOneWidget);
+      expect(find.byType(StickerCard), findsNothing);
     });
   });
 

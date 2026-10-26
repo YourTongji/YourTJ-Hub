@@ -65,6 +65,7 @@ class _RootScrollController extends GfScrollToTopController {
 }
 
 class MemTokenStorage implements TokenStorage {
+  MemTokenStorage([this._token]);
   String? _token;
 
   @override
