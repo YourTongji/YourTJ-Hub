@@ -1563,7 +1563,7 @@ class _CampusRefreshSkeletonState extends State<_CampusRefreshSkeleton>
       child: ExcludeSemantics(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [if (widget.tab != 'connection') _snapshot(), _body(l)],
+          children: [_snapshot(), _body(l)],
         ),
       ),
     );

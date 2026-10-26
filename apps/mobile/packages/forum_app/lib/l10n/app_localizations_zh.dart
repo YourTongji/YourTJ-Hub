@@ -818,6 +818,48 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsAppearance => '外观';
 
   @override
+  String get decorationAppearance => '个人装扮';
+
+  @override
+  String get decorationTitle => '头像框与多彩昵称';
+
+  @override
+  String get decorationFrame => '头像框';
+
+  @override
+  String get decorationNickname => '多彩昵称';
+
+  @override
+  String get decorationGrant => '装扮由管理员授予。';
+
+  @override
+  String get decorationNone => '不装备';
+
+  @override
+  String get decorationPreview => '预览';
+
+  @override
+  String get decorationEquip => '使用此款';
+
+  @override
+  String get decorationLocked => '尚未拥有';
+
+  @override
+  String get decorationEquipped => '已装备';
+
+  @override
+  String get decorationAvailable => '可使用';
+
+  @override
+  String get decorationCurrent => '当前装扮';
+
+  @override
+  String get decorationPreviewOnly => '仅供预览';
+
+  @override
+  String get decorationLockedHint => '尚未拥有，可以预览效果。';
+
+  @override
   String get settingsDarkMode => '深色模式';
 
   @override
@@ -1490,9 +1532,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get profileTrash => '回收站';
-
-  @override
-  String get profileSecurity => '账户、安全与隐私';
 
   @override
   String get profileAdmin => '管理工作台';
@@ -4307,4 +4346,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get coursePlannerUnavailable => '这个学期的教学班不可用，请返回课程详情选择其他开课记录。';
+
+  @override
+  String get coursePlannerCalendarsFailed => '学期列表加载失败，请检查网络后重试。';
 }

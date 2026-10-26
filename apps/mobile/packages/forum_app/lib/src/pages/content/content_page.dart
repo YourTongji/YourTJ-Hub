@@ -176,6 +176,15 @@ class _ContentPageState extends ConsumerState<ContentPage> {
           .read(contentRepositoryProvider)
           .delete(contentType: _type, ids: ids, password: password);
       final failures = results.where((result) => !result.success).toList();
+      // 成功删除的话题记入 tombstone，让热榜/feed 同步移除，与单条删除一致。
+      if (mounted &&
+          epoch == ref.read(offlineCacheEpochProvider) &&
+          _type == 'topic') {
+        final removed = ref.read(removedTopicsProvider.notifier);
+        for (final result in results) {
+          if (result.success) removed.add(result.contentId);
+        }
+      }
       if (failures.isNotEmpty &&
           mounted &&
           epoch == ref.read(offlineCacheEpochProvider)) {

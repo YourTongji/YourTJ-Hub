@@ -44,6 +44,9 @@ class FakePkRepository extends PkRepository {
   PkReviewBrief? reviewBrief;
   FakePkRepository(super.client);
 
+  /// 为 true 时模拟学期字典加载失败（离线/网络错误）。
+  bool calendarsFail = false;
+
   static const List<PkCalendarItem> calendarsFixture = <PkCalendarItem>[
     PkCalendarItem(
       calendarId: 119,
@@ -54,7 +57,10 @@ class FakePkRepository extends PkRepository {
   ];
 
   @override
-  Future<List<PkCalendarItem>> calendars() async => calendarsFixture;
+  Future<List<PkCalendarItem>> calendars() async {
+    if (calendarsFail) throw StateError('network down');
+    return calendarsFixture;
+  }
 
   @override
   Future<SectionTimesPayload?> sectionTimes() async => null;
@@ -820,6 +826,132 @@ void main() {
       expect(calls, 0);
       expect(notifier.activePlan.toJson(), before);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'handoff with unloaded term dictionary shows load-failure hint',
+      (tester) async {
+        SharedPreferences.setMockInitialValues(<String, Object>{});
+        final notifier = await seededNotifier();
+        notifier.setMajorSelection(
+          PkMajorSelection(calendarId: 119, grade: 2025, major: 'm1'),
+        );
+        final repo = FakePkRepository(
+          GfApiClient(
+            dio: Dio(),
+            tokenStorage: MemoryTokenStorage(),
+            baseUrl: 'https://forum.example',
+          ),
+        );
+        repo.calendarsFail = true;
+        final calls = <String>[];
+        repo.onCourseDetails = (code) {
+          calls.add(code);
+          return [];
+        };
+        final container = makeContainer(notifier, repository: repo);
+        addTearDown(container.dispose);
+        await tester.pumpWidget(
+          wrapApp(
+            container,
+            page: const SchedulePage(
+              courseCode: '100001',
+              classCode: '10000101',
+              termCode: '2025-2026-1',
+              courseName: '交接课程',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('添加到选课排课'));
+        await tester.pumpAndSettle();
+        expect(calls, isEmpty);
+        // 学期字典未加载（离线失败）应与「学期不匹配」区分开提示。
+        expect(find.textContaining('学期列表加载失败'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+
+    testWidgets('handoff card omits the term code segment when absent', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final notifier = await seededNotifier();
+      final container = makeContainer(notifier);
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        wrapApp(
+          container,
+          page: const SchedulePage(
+            courseCode: '100001',
+            classCode: '10000101',
+            courseName: '交接课程',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('交接课程 · 10000101'), findsOneWidget);
+      expect(find.textContaining('null'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('stale-epoch class list sheet offers a tappable way out', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final notifier = await seededNotifier();
+      notifier.setMajorSelection(
+        PkMajorSelection(calendarId: 119, grade: 2025, major: 'm1'),
+      );
+      final repo = FakePkRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemoryTokenStorage(),
+          baseUrl: 'https://forum.example',
+        ),
+      );
+      repo.onCourseDetails = (_) => [
+        PkCourseDetailBrief.fromJson({
+          'code': '10000101',
+          'campus': '四平',
+          'teachers': [],
+          'arrangementInfo': [
+            {
+              'occupyDay': 1,
+              'occupyTime': [1, 2],
+              'occupyWeek': [1],
+              'occupyRoom': 'A101',
+            },
+          ],
+        }),
+      ];
+      final container = makeContainer(notifier, repository: repo);
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        wrapApp(
+          container,
+          page: const SchedulePage(
+            courseCode: '100001',
+            classCode: '10000101',
+            termCode: '2025-2026-1',
+            courseName: '交接课程',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('添加到选课排课'));
+      await tester.pumpAndSettle();
+      expect(find.text('10000101'), findsOneWidget);
+      // 打开期间数据过期：围栏只渲染重试文案，提供可点出口关闭 sheet。
+      container.read(offlineCacheEpochProvider.notifier).state++;
+      await tester.pumpAndSettle();
+      expect(find.text('10000101'), findsNothing);
+      expect(find.text('重试'), findsOneWidget);
+      await tester.tap(find.text('重试'));
+      await tester.pumpAndSettle();
+      expect(find.text('重试'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
     });
 
     testWidgets('渲染课程格 + 统计', (tester) async {

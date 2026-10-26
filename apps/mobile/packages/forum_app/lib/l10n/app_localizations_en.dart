@@ -835,6 +835,48 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsAppearance => 'Appearance';
 
   @override
+  String get decorationAppearance => 'Appearance';
+
+  @override
+  String get decorationTitle => 'Avatar frames & colorful names';
+
+  @override
+  String get decorationFrame => 'Avatar frames';
+
+  @override
+  String get decorationNickname => 'Colorful names';
+
+  @override
+  String get decorationGrant => 'Styles are granted by administrators.';
+
+  @override
+  String get decorationNone => 'None';
+
+  @override
+  String get decorationPreview => 'Preview';
+
+  @override
+  String get decorationEquip => 'Use this style';
+
+  @override
+  String get decorationLocked => 'Not owned';
+
+  @override
+  String get decorationEquipped => 'Equipped';
+
+  @override
+  String get decorationAvailable => 'Available';
+
+  @override
+  String get decorationCurrent => 'Current look';
+
+  @override
+  String get decorationPreviewOnly => 'Preview only';
+
+  @override
+  String get decorationLockedHint => 'Not owned. You can preview this style.';
+
+  @override
   String get settingsDarkMode => 'Dark mode';
 
   @override
@@ -1518,9 +1560,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileTrash => 'Recycle bin';
-
-  @override
-  String get profileSecurity => 'Account, security & privacy';
 
   @override
   String get profileAdmin => 'Admin workspace';
@@ -4537,4 +4576,8 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get coursePlannerUnavailable =>
       'This class is unavailable for the term. Choose another offering from course details.';
+
+  @override
+  String get coursePlannerCalendarsFailed =>
+      'Failed to load the term list. Check your network and try again.';
 }
