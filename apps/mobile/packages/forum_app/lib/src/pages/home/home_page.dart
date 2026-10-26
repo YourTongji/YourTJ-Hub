@@ -18,6 +18,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../format.dart';
 import '../../navigation/tab_scroll_registry.dart';
+import '../../navigation/reading_window.dart';
 import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/topic_list.dart';
@@ -1044,9 +1045,14 @@ class _HomePageState extends ConsumerState<HomePage> {
                 constraints: const BoxConstraints(maxWidth: 720),
                 child: LayoutBuilder(
                   builder: (context, constraints) => MediaQuery(
-                    data: MediaQuery.of(context).copyWith(
-                      size: Size(constraints.maxWidth, constraints.maxHeight),
-                    ),
+                    data: MediaQuery.of(context)
+                        .removePadding(removeRight: wide)
+                        .copyWith(
+                          size: Size(
+                            constraints.maxWidth,
+                            constraints.maxHeight,
+                          ),
+                        ),
                     child: surface,
                   ),
                 ),
@@ -1056,7 +1062,14 @@ class _HomePageState extends ConsumerState<HomePage> {
               offstage: !wide,
               child: TickerMode(
                 enabled: wide && TickerMode.valuesOf(context).enabled,
-                child: SizedBox(width: 324, child: _buildDiscovery(context)),
+                child: SizedBox(
+                  width: 324,
+                  child: MediaQuery.removePadding(
+                    context: context,
+                    removeLeft: true,
+                    child: Builder(builder: _buildDiscovery),
+                  ),
+                ),
               ),
             ),
           ],
@@ -1069,6 +1082,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     final l10n = AppLocalizations.of(context);
     final colors = GfTheme.colorsOf(context);
     final hot = _feeds['hot'];
+    final edge = ReadingWindowScope.edgeNavigationOf(context);
     final removed = ref.watch(removedTopicsProvider);
     final hotTopics = (hot?.topics ?? const <TopicPayload>[])
         .where((topic) => !removed.contains(topic.id))
@@ -1077,34 +1091,46 @@ class _HomePageState extends ConsumerState<HomePage> {
     return NotificationListener<ScrollNotification>(
       onNotification: (_) => true,
       child: SafeArea(
+        left: !edge,
+        right: !edge,
         child: ListView(
           key: const ValueKey('home-discovery-panel'),
-          padding: const EdgeInsets.fromLTRB(24, 12, 16, 24),
+          padding: EdgeInsets.fromLTRB(
+            24,
+            12,
+            16,
+            math.max(24, ReadingWindowScope.edgeContentBottomInsetOf(context)),
+          ),
           children: [
-            Material(
-              color: colors.base300,
-              borderRadius: BorderRadius.circular(GfRadius.xl),
-              clipBehavior: Clip.antiAlias,
-              child: Semantics(
-                button: true,
-                child: InkWell(
-                  key: const ValueKey('home-discovery-search'),
-                  onTap: () => context.push('/search'),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        GfSymbol('search', color: colors.iconMuted),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: GfText(
-                            l10n.commonSearch,
-                            style: GfTheme.typographyOf(
-                              context,
-                            ).body.copyWith(color: colors.iconMuted),
+            Padding(
+              padding: EdgeInsets.only(
+                right: edge ? MediaQuery.paddingOf(context).right : 0,
+              ),
+              child: Material(
+                color: colors.base300,
+                borderRadius: BorderRadius.circular(GfRadius.xl),
+                clipBehavior: Clip.antiAlias,
+                child: Semantics(
+                  button: true,
+                  child: InkWell(
+                    key: const ValueKey('home-discovery-search'),
+                    onTap: () => context.push('/search'),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          GfSymbol('search', color: colors.iconMuted),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: GfText(
+                              l10n.commonSearch,
+                              style: GfTheme.typographyOf(
+                                context,
+                              ).body.copyWith(color: colors.iconMuted),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),

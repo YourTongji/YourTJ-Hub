@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
   name: "home_widget",
   platforms: [
-    .iOS("13.0")
+    .iOS("15.0")
   ],
   products: [
     .library(name: "home-widget", targets: ["home_widget"])

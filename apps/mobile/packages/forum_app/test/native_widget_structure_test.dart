@@ -468,7 +468,7 @@ void main() {
       contains('ContainerRelativeShape().fill(.ultraThinMaterial)'),
     );
     expect(source, contains('widgetAccentable()'));
-    expect(project, contains('IPHONEOS_DEPLOYMENT_TARGET = 14.0'));
+    expect(project, contains('IPHONEOS_DEPLOYMENT_TARGET = 15.0'));
     expect(source, contains('timelineDates(after:'));
     expect(source, contains('Asia/Shanghai'));
     expect(source, contains('emptyStateKey'));
@@ -510,7 +510,7 @@ void main() {
     expect(source, isNot(contains('ScrollView')));
   });
 
-  test('home_widget bridge stays compatible with the iOS 13 Runner', () {
+  test('home_widget bridge shares the iOS 15 app and extension minimum', () {
     final project = read('ios/Runner.xcodeproj/project.pbxproj');
     final mobilePubspec = read('../../pubspec.yaml');
     final package = read(
@@ -521,16 +521,12 @@ void main() {
     );
 
     expect(
-      RegExp(r'IPHONEOS_DEPLOYMENT_TARGET = 13\.0;').allMatches(project).length,
-      3,
-    );
-    expect(
-      RegExp(r'IPHONEOS_DEPLOYMENT_TARGET = 14\.0;').allMatches(project).length,
-      3,
+      RegExp(r'IPHONEOS_DEPLOYMENT_TARGET = 15\.0;').allMatches(project).length,
+      6,
     );
     expect(mobilePubspec, contains('path: third_party/home_widget'));
-    expect(package, contains('.iOS("13.0")'));
-    expect(podspec, contains("s.platform = :ios, '13.0'"));
+    expect(package, contains('.iOS("15.0")'));
+    expect(podspec, contains("s.platform = :ios, '15.0'"));
   });
 
   test('iOS 13 widget reload is a no-op so login cache clearing can finish', () {

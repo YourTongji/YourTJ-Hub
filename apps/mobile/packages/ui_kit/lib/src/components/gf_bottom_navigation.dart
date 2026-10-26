@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +9,7 @@ import '../theme/gf_theme.dart';
 import '../twemoji/twemoji_text.dart';
 import 'gf_motion.dart';
 import 'gf_symbol.dart';
+import 'surfaces/gf_navigation_surface.dart';
 
 class GfBottomNavigationItem {
   const GfBottomNavigationItem({
@@ -206,10 +206,7 @@ class GfBottomNavigation extends StatelessWidget {
       homeIndicator: _floatsOverHomeIndicator(context),
     );
     // Glass is skipped wherever the platform asks for plainer surfaces.
-    final bool glass =
-        !MediaQuery.highContrastOf(context) &&
-        !MediaQuery.disableAnimationsOf(context) &&
-        !MediaQuery.accessibleNavigationOf(context);
+    final bool glass = GfNavigationSurface.usesGlass(context);
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final double available = math.max(
@@ -261,7 +258,6 @@ class GfBottomNavigation extends StatelessWidget {
                     label: actionLabel,
                     onTap: onAction!,
                     showLabel: showLabels,
-                    glass: glass,
                     width: showLabels ? _labeledActionWidth : barHeight,
                   ),
                 ],
@@ -614,9 +610,7 @@ class _DockState extends State<_Dock> with TickerProviderStateMixin {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: <Widget>[
-                  Positioned.fill(
-                    child: _DockMaterial(colors: colors, glass: widget.glass),
-                  ),
+                  Positioned.fill(child: const GfNavigationSurface()),
                   AnimatedBuilder(
                     animation: _lensMotion,
                     builder: (BuildContext context, Widget? child) =>
@@ -934,159 +928,6 @@ class _LensPainter extends CustomPainter {
       oldDelegate.lift != lift;
 }
 
-List<double> _saturation(double amount) {
-  const double r = 0.2126, g = 0.7152, b = 0.0722;
-  final double rest = 1 - amount;
-  return <double>[
-    r * rest + amount, g * rest, b * rest, 0, 0, //
-    r * rest, g * rest + amount, b * rest, 0, 0, //
-    r * rest, g * rest, b * rest + amount, 0, 0, //
-    0, 0, 0, 1, 0, //
-  ];
-}
-
-/// The dock's pill. On glass, content under it is blurred and its colour
-/// lifted, as frosted glass reads, under a translucent raised-surface tint
-/// with a lit rim. High contrast keeps the opaque raised surface.
-class _DockMaterial extends StatelessWidget {
-  const _DockMaterial({required this.colors, required this.glass});
-
-  final GfColors colors;
-  final bool glass;
-
-  @override
-  Widget build(BuildContext context) {
-    final BorderRadius radius = BorderRadius.circular(GfRadius.full);
-    if (!glass) {
-      return DecoratedBox(
-        decoration: BoxDecoration(
-          color: colors.surfaceRaised,
-          borderRadius: radius,
-          border: Border.all(color: colors.outline),
-          boxShadow: colors.elevation(GfElevation.mid),
-        ),
-      );
-    }
-    return CustomPaint(
-      painter: _DockShadowPainter(colors.elevation(GfElevation.mid)),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: BackdropFilter(
-          filter: ImageFilter.compose(
-            outer: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-            inner: ColorFilter.matrix(_saturation(colors.isDark ? 1.4 : 1.7)),
-          ),
-          child: CustomPaint(
-            painter: _GlassPainter(colors, gfHairline(context)),
-            child: const SizedBox.expand(),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Casts the floating elevation only outside the pill, so translucent glass
-/// never shows its own shadow through itself.
-class _DockShadowPainter extends CustomPainter {
-  const _DockShadowPainter(this.shadows);
-
-  final List<BoxShadow> shadows;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (shadows.isEmpty) return;
-    final RRect pill = RRect.fromRectAndRadius(
-      Offset.zero & size,
-      Radius.circular(size.height / 2),
-    );
-    canvas
-      ..save()
-      ..clipPath(
-        Path.combine(
-          PathOperation.difference,
-          Path()..addRect((Offset.zero & size).inflate(64)),
-          Path()..addRRect(pill),
-        ),
-      );
-    for (final BoxShadow shadow in shadows) {
-      canvas.drawRRect(
-        pill.shift(shadow.offset).inflate(shadow.spreadRadius),
-        shadow.toPaint(),
-      );
-    }
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_DockShadowPainter oldDelegate) =>
-      !listEquals(oldDelegate.shadows, shadows);
-}
-
-class _GlassPainter extends CustomPainter {
-  const _GlassPainter(this.colors, this.hairline);
-
-  final GfColors colors;
-  final double hairline;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final bool dark = colors.isDark;
-    final Rect bounds = Offset.zero & size;
-    final RRect pill = RRect.fromRectAndRadius(
-      bounds,
-      Radius.circular(size.height / 2),
-    );
-    canvas.drawRRect(
-      pill,
-      Paint()
-        ..color = colors.surfaceRaised.withValues(alpha: dark ? 0.66 : 0.64),
-    );
-    // Light falls from above: a sheen across the upper half...
-    canvas.drawRRect(
-      pill,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.center,
-          colors: <Color>[
-            Colors.white.withValues(alpha: dark ? 0.05 : 0.3),
-            Colors.white.withValues(alpha: 0),
-          ],
-        ).createShader(bounds),
-    );
-    // ...a rim that is brightest where it faces the light...
-    canvas.drawRRect(
-      pill.deflate(0.75),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[
-            Colors.white.withValues(alpha: dark ? 0.16 : 0.9),
-            Colors.white.withValues(alpha: dark ? 0.03 : 0.3),
-          ],
-        ).createShader(bounds),
-    );
-    // ...and an outer edge that keeps the pill distinct on a matching page.
-    canvas.drawRRect(
-      pill.deflate(hairline / 2),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = hairline
-        ..color = dark
-            ? colors.line
-            : colors.baseContent.withValues(alpha: 0.07),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_GlassPainter oldDelegate) =>
-      oldDelegate.colors != colors || oldDelegate.hairline != hairline;
-}
-
 /// Icon-only destinations reveal their name on long press; the destination
 /// node already carries it for screen readers.
 class _LabelTooltip extends StatelessWidget {
@@ -1113,7 +954,6 @@ class _DockAction extends StatefulWidget {
     required this.label,
     required this.onTap,
     required this.showLabel,
-    required this.glass,
     required this.width,
   });
 
@@ -1121,7 +961,6 @@ class _DockAction extends StatefulWidget {
   final String label;
   final VoidCallback onTap;
   final bool showLabel;
-  final bool glass;
   final double width;
 
   @override
@@ -1163,9 +1002,7 @@ class _DockActionState extends State<_DockAction> {
                 curve: GfMotion.enterCurve,
                 child: Stack(
                   children: <Widget>[
-                    Positioned.fill(
-                      child: _DockMaterial(colors: colors, glass: widget.glass),
-                    ),
+                    Positioned.fill(child: const GfNavigationSurface()),
                     Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,

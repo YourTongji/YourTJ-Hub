@@ -66,10 +66,11 @@ glyph for the `recent` fallback. Like Web, the app labels every reason the serve
 You topic goes without one; feeds without a server reason stay unstamped.
 
 
-`Current`: root layout uses the available window width. Below 600 logical pixels it retains bottom
+`Current`: ordinary root layout consumes the independent left and right safe areas once, then uses the
+remaining window width. Without a usable side pocket, below 600 logical pixels it retains bottom
 destinations; at 600 and above it uses a persistent, scrollable navigation rail. At 1100 pixels and above with text scale no greater than 1.4, its 220-pixel
 sidebar places destination icons and names in the same row. Smaller windows or larger text use
-a 72–160-pixel rail according to localized label width and system text size. Home, Campus and
+an 88–176-pixel rail (including 8-pixel outer margins on each side) according to localized label width and system text size. Home, Campus and
 Messages can use 1120 pixels for their workspaces; notifications retain a readable column up to
 720 pixels wide. The rail is anchored to the same workspace edge across destinations; narrower
 content starts beside it, so switching pages does not move navigation. Wide layouts reclaim the bottom-navigation inset, keep
@@ -77,14 +78,43 @@ compose actions inside the content column and anchor their menu to that column. 
 the retained branch navigator, inputs and reading position; opening a keyboard does not change the
 width breakpoint.
 
-`Current`: the rail shares destination icons and unread state with the bottom bar and displays each
-localized destination name beside or below its icon. Labels wrap and the rail scrolls when large system text
+`Current`: the rail floats in a rounded glass surface with the same tint, blur, highlight and
+outer-only shadow as the compact Dock. Its height follows the destinations up to the available
+safe height; short windows scroll inside the surface. High contrast, reduced motion and accessible
+navigation use an opaque raised surface. The rail shares destination icons and unread state with the bottom bar and displays each
+localized destination name beside or below its icon in the ordinary width-based layout. Labels wrap and the rail scrolls when large system text
 or a short window needs more space. Each action
 exposes its name, selected state and activation in one semantic node. Persistent navigation is
 ordered after the active route in the accessibility tree so iOS does not hide it behind that route.
 On a hardware keyboard, ⌘1–4 select the four shell destinations and ⌘F opens search. These commands
 are inactive while a dialog, drawer or pushed page covers the shell; text editing keeps its platform
 shortcuts. The navigation and keyboard patterns draw on [X for iOS](https://help.x.com/en/using-x/x-ios-app).
+
+`Current`: on iOS 27.1, a clear pocket in the existing right safe-area strip takes priority over
+width-based navigation. A 56-pixel glass capsule with four icon actions sits at the bottom of that
+pocket; reading content extends to the window edge beneath the translucent, blurred capsule,
+and no bottom Dock is overlaid. Headers, search, compose and chat input keep their horizontal
+safe areas. Scrollable root content has enough trailing space to bring its last item fully above
+the capsule. Split-pane headers consume only the safe area on their own outside edge. The pocket must
+provide at least 72 pixels of width and 224 pixels of height, including margins and 48-pixel touch
+targets. Tooltips, accessible names, selected states and unread announcements remain available.
+UIKit's active occlusion regions and the scene's status-bar frame keep navigation clear of the
+camera and system controls. Rotation can move the pocket to the left; navigation follows it.
+Missing, stale or insufficient geometry falls back to the ordinary safe-area layout. Keyboard
+insets reduce the available pocket height. Placement uses the current window's geometry, not a
+device-name check or fixed camera coordinates.
+
+`Partial`: iPhone Duo retains reading state across asymmetric safe areas and Split View-sized
+windows. The App and Widget Extension require iOS 15 or later. Native Duo full-screen presentation
+and side-pocket navigation require building with Xcode 27.1 / the iOS 27.1 SDK. On the Duo simulator,
+the production shell with demo content preserves input, scroll position and branch navigation
+through open, rotated and closed windows in both themes; content scrolls under the glass and the
+side rail avoids reported system occlusions.
+Physical-device behavior, keyboard and VoiceOver acceptance on Duo remain unverified.
+The layout model follows [Apple's Duo guidance](https://developer.apple.com/videos/play/tech-talks/111461/),
+[reserved-region guidance](https://developer.apple.com/videos/play/tech-talks/111463/)
+and [Flutter's window-based layout guidance](https://docs.flutter.dev/ui/adaptive-responsive/large-screens),
+consulted 2026-10-26. Generic size/inset tests do not substitute for device acceptance.
 
 `Current`: pushed forum, account and information pages keep their complete header and content in a
 centered column up to 720 logical pixels wide. Course, Wiki, search, settings, publishing, chat, drafts, content management and

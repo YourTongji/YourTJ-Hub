@@ -93,8 +93,15 @@ breakpoints and bounds live in [mobile experience](mobile-experience.md#navigati
 `Current`: pushed reading pages use a centered bounded column, including their headers;
 the page receives the actual column width and retains its state across window changes. Timetable,
 management, login and image-viewer pages retain their full viewport; login keeps its form bounded on a continuous background.
-The wide rail shows destination names
+The wide rail floats on the shared Dock glass surface and shows destination names
 beside their icons when space permits, otherwise below them, with wrapping labels and scrolling at enlarged text sizes.
+`Current`: when iOS reports a clear pocket in an existing side safe area, the glass navigation
+capsule uses that pocket with icon-only actions and accessible names. It aligns to the pocket's
+bottom and avoids system occlusions. Reading content extends beneath the translucent capsule;
+headers and fixed actions remain inside their safe areas, and trailing scroll space keeps the
+last content reachable above navigation. The right pocket is
+preferred; rotation can move it to the left. Unavailable or insufficient native geometry retains
+the ordinary safe-area navigation layout.
 `Current`: Home presents category navigation in a horizontal row above its topic feed, settings presents its directory
 beside the current section, and publishing presents editor and preview together when space permits.
 Wide Home windows use a right column for search and existing Hot topics. Messages shows its conversation
@@ -248,11 +255,12 @@ tooltip. Its floating shape, glass material, lens selection, drag gestures and a
 fallbacks follow the
 [shell navigation entry](mobile-experience.md#navigation-and-reading). The root
 header keeps the one-physical-pixel `line` hairline instead of a logical-pixel rule; the floating
-dock separates from content by elevation instead. The dock uses a translucent raised surface over a
-blurred, saturated backdrop on iOS and Android, while high-contrast mode, reduced motion and
-accessible-navigation mode use the opaque theme surface. This does not claim adoption of a native
-iOS Liquid Glass API. Selecting a destination springs a lens between destinations, and reduced
-motion settles it at once. Selected ratings use a filled counterpart. Brand marks and functional radio and
+dock separates from content by elevation instead. The floating dock and wide rail share the same
+glass surface — a translucent raised surface over a blurred, saturated backdrop on iOS and Android —
+while high-contrast mode, reduced motion and accessible-navigation mode use the opaque theme
+surface. This does not claim adoption of a native iOS Liquid Glass API. Selecting a destination
+springs a lens between destinations, and reduced motion settles it at once; the rail keeps ordinary
+button activation and its selected icon and label. Selected ratings use a filled counterpart. Brand marks and functional radio and
 strikethrough glyphs retain their source artwork, as recorded in the
 [UI Kit asset inventory](../../apps/mobile/packages/ui_kit/assets/README.md).
 Pinned topic markers use `thumbtack` Filled in the theme's red at 16 pixels on both list rows
