@@ -1,10 +1,37 @@
 import 'package:core/core.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/widgets/announcement_banner.dart';
+
+TapGestureRecognizer? _linkRecognizer(InlineSpan span) {
+  if (span is TextSpan && span.recognizer is TapGestureRecognizer) {
+    return span.recognizer! as TapGestureRecognizer;
+  }
+  if (span is! TextSpan) return null;
+  for (final InlineSpan child in span.children ?? const <InlineSpan>[]) {
+    final TapGestureRecognizer? recognizer = _linkRecognizer(child);
+    if (recognizer != null) return recognizer;
+  }
+  return null;
+}
+
+/// 点击正文里含 [label] 的链接（fwfh 把 `<a>` 渲染成带识别器的 TextSpan）。
+void _tapLink(WidgetTester tester, String label) {
+  final RichText rich = tester.widget<RichText>(
+    find.byWidgetPredicate(
+      (Widget widget) =>
+          widget is RichText && widget.text.toPlainText().contains(label),
+    ),
+  );
+  final TapGestureRecognizer? recognizer = _linkRecognizer(rich.text);
+  expect(recognizer, isNotNull, reason: '$label should be tappable');
+  recognizer!.onTap!();
+}
 
 void main() {
   Future<void> pump(
@@ -413,6 +440,97 @@ void main() {
       );
       expect(find.text('收起'), findsNothing);
     }
+  });
+
+  for (final MapEntry<String, String> link in <String, String>{
+    '${GfApiClient.defaultBaseUrl}/p/post/123': 'topic 123',
+    '/topics/9': 'topic 9',
+  }.entries) {
+    testWidgets('announcement body link ${link.key} opens its in-app route', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(420, 900);
+      addTearDown(tester.view.reset);
+      final GoRouter router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (BuildContext context, GoRouterState state) => Scaffold(
+              body: AnnouncementBanner(
+                announcement: AnnouncementPayload(
+                  enabled: true,
+                  html: '<p>公告正文 <a href="${link.key}">公告链接</a></p>',
+                ),
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/p/:topicId',
+            builder: (BuildContext context, GoRouterState state) => Scaffold(
+              body: Text('topic ${state.pathParameters['topicId']}'),
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp.router(
+            theme: gfThemeData(Brightness.light),
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      _tapLink(tester, '公告链接');
+      await tester.pumpAndSettle();
+      expect(
+        find.text(link.value),
+        findsOneWidget,
+        reason: '${link.key} should push its in-app route',
+      );
+      // 应用内跳转，不当成外链弹出确认层。
+      expect(find.text('即将离开 YourTJ'), findsNothing);
+    });
+  }
+
+  testWidgets('announcement body external links keep the confirmation layer', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(420, 900);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: AnnouncementBanner(
+              announcement: const AnnouncementPayload(
+                enabled: true,
+                html:
+                    '<p>News <a href="https://example.com/doc">Details</a></p>',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    _tapLink(tester, 'Details');
+    await tester.pumpAndSettle();
+    expect(find.text('Leaving YourTJ'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('fluid pill dots and prev/next chevrons switch announcements', (
