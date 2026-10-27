@@ -21,7 +21,7 @@ class BuildEnvironmentTests(unittest.TestCase):
         with self.assertRaises(ValueError): android_package('other')
         # Gradle derives the same identity from the YOURTJ_ENVIRONMENT define.
         gradle = (Path(__file__).resolve().parents[2] /
-                  'apps/mobile/packages/forum_app/android/app/build.gradle.kts').read_text()
+                  'apps/mobile/packages/forum_app/android/app/build.gradle.kts').read_text(encoding='utf-8')
         self.assertIn('dartDefines["YOURTJ_ENVIRONMENT"] == "dev"', gradle)
         for environment in ('dev', 'production'):
             self.assertIn(f'"{android_package(environment)}"', gradle)
