@@ -93,8 +93,9 @@ shortcuts. The navigation and keyboard patterns draw on [X for iOS](https://help
 width-based navigation. A 56-pixel glass capsule with four icon actions sits at the bottom of that
 pocket; reading content extends to the window edge beneath the translucent, blurred capsule,
 and no bottom Dock is overlaid. Headers, search, compose and chat input keep their horizontal
-safe areas. Scrollable root content has enough trailing space to bring its last item fully above
-the capsule. Split-pane headers consume only the safe area on their own outside edge. The pocket must
+safe areas. Scrollable root content, including the conversation timeline, has enough trailing space
+to bring its last item fully above the capsule without lifting the chat input. Split-pane headers
+consume only the safe area on their own outside edge. The pocket must
 provide at least 72 pixels of width and 224 pixels of height, including margins and 48-pixel touch
 targets. Tooltips, accessible names, selected states and unread announcements remain available.
 UIKit's active occlusion regions and the scene's status-bar frame keep navigation clear of the
@@ -264,6 +265,8 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   floats over the home indicator; on Android it sits above the system navigation. Content scrolls
   under it and stays tappable beside it. Each destination keeps its localized name for screen
   readers and shows it as a long-press tooltip; unread dots ride above the selection and pop in.
+  Tab and Shift+Tab traverse the destinations and optional compose action, with a visible focus tint;
+  Enter and Space activate the focused control without changing the touch or drag behavior.
   The selection is a lens that springs between destinations and stretches while it travels; the
   icon it covers turns Filled and primary part by part as it passes. A press swells the dock
   slightly. Dragging along the dock lifts the lens into clear glass that magnifies its icon, ticks

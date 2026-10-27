@@ -2335,11 +2335,16 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                             : ListView.builder(
                                 controller: _scrollController,
                                 physics: const ChatViewportScrollPhysics(),
-                                padding: const EdgeInsets.fromLTRB(
+                                // Only the timeline scrolls clear of the side
+                                // capsule; the input keeps its own safe area.
+                                padding: EdgeInsets.fromLTRB(
                                   12,
                                   12,
                                   12,
-                                  18,
+                                  18 +
+                                      ReadingWindowScope.edgeContentBottomInsetOf(
+                                        context,
+                                      ),
                                 ),
                                 itemCount:
                                     timeline.length +

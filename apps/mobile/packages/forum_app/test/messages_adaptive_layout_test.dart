@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/pages/messages/messages_page.dart';
+import 'package:forum_app/src/navigation/reading_window.dart';
+import 'package:forum_app/src/navigation/window_reserved_regions.dart';
 
 import 'chat_avatar_profile_test.dart' show pumpConversation;
 import 'chat_visible_read_test.dart' show pumpChat;
@@ -17,6 +19,77 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});
   });
+
+  for (final size in [const Size(466, 678), const Size(951, 669)]) {
+    testWidgets('latest chat message clears the side capsule at $size', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = size;
+      tester.view.padding = const FakeViewPadding(right: 84, bottom: 34);
+      tester.view.viewPadding = const FakeViewPadding(right: 84, bottom: 34);
+      addTearDown(tester.view.reset);
+      final reserved = WindowReservedRegions(
+        size: size,
+        safeArea: const EdgeInsets.only(right: 84, bottom: 34),
+        occlusions: [Rect.fromLTWH(size.width - 84, 0, 84, 190)],
+      );
+      await pumpChat(
+        tester,
+        surfaceSize: size,
+        messages: List.generate(
+          40,
+          (i) => makeChatMessage(i + 1).copyWith(isSelf: true),
+        ),
+        pageWrapper: (page) => ReadingWindow(
+          reservedRegions: reserved,
+          maxContentWidth: 1120,
+          rail: const Align(
+            alignment: Alignment.bottomCenter,
+            child: SizedBox(width: 56, height: 224, key: Key('capsule')),
+          ),
+          bottomNavigation: const SizedBox(height: 56),
+          child: page,
+        ),
+      );
+      final timeline = find.byType(ListView).last;
+      final scroll = tester.widget<ListView>(timeline).controller!;
+      // Reach the real end of the lazy message list, including its trailing space.
+      await tester.drag(timeline, const Offset(0, -5000));
+      await tester.pumpAndSettle();
+      final bubble = find.text('消息 40');
+      expect(bubble, findsOneWidget);
+      expect(
+        tester.getRect(bubble).bottom,
+        lessThan(tester.getRect(find.byKey(const Key('capsule'))).top),
+      );
+      final input = find.byType(GfChatInput);
+      expect(tester.getRect(input).right, lessThanOrEqualTo(size.width - 84));
+      final field = find.byType(TextField).last;
+      final controller = tester.widget<TextField>(field).controller!;
+      await tester.enterText(field, 'draft stays in the safe input');
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      tester.view.padding = const FakeViewPadding(right: 84);
+      await tester.pumpAndSettle();
+      expect(
+        ReadingWindowScope.edgeNavigationOf(
+          tester.element(find.byType(MessagesPage)),
+        ),
+        isFalse,
+      );
+      expect(
+        tester.widget<ListView>(timeline).padding,
+        const EdgeInsets.fromLTRB(12, 12, 12, 18),
+      );
+      expect(tester.widget<ListView>(timeline).controller, same(scroll));
+      expect(
+        tester.widget<TextField>(find.byType(TextField).last).controller,
+        same(controller),
+      );
+      expect(controller.text, 'draft stays in the safe input');
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets(
     'wide messages keep the directory and retain chat across resizing',

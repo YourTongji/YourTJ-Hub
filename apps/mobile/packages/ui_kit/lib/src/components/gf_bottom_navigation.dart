@@ -712,6 +712,7 @@ class _DockState extends State<_Dock> with TickerProviderStateMixin {
           Expanded(
             child: Semantics(
               button: true,
+              enabled: true,
               selected: widget.currentIndex == i,
               label: widget.items[i].semanticsLabel,
               onTap: () => _select(i),
@@ -719,15 +720,22 @@ class _DockState extends State<_Dock> with TickerProviderStateMixin {
                 child: _LabelTooltip(
                   label: widget.items[i].label,
                   enabled: !widget.showLabels,
-                  child: GestureDetector(
-                    key: ValueKey<String>('gf-bottom-navigation-target-$i'),
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => _select(i),
-                    child: _UnreadDot(
-                      visible: widget.items[i].badge,
-                      showLabel: widget.showLabels,
-                      ring: colors.surfaceRaised,
-                      color: colors.error,
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: InkWell(
+                      key: ValueKey<String>('gf-bottom-navigation-target-$i'),
+                      onTap: () => _select(i),
+                      borderRadius: BorderRadius.circular(999),
+                      splashFactory: NoSplash.splashFactory,
+                      highlightColor: Colors.transparent,
+                      hoverColor: Colors.transparent,
+                      focusColor: colors.primary.withValues(alpha: 0.18),
+                      child: _UnreadDot(
+                        visible: widget.items[i].badge,
+                        showLabel: widget.showLabels,
+                        ring: colors.surfaceRaised,
+                        color: colors.error,
+                      ),
                     ),
                   ),
                 ),
@@ -984,61 +992,72 @@ class _DockActionState extends State<_DockAction> {
       width: widget.width,
       child: Semantics(
         button: true,
+        enabled: true,
         label: widget.label,
         onTap: widget.onTap,
         child: ExcludeSemantics(
           child: _LabelTooltip(
             label: widget.label,
             enabled: !widget.showLabel,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapDown: (_) => _setPressed(true),
-              onTapUp: (_) => _setPressed(false),
-              onTapCancel: () => _setPressed(false),
-              onTap: widget.onTap,
-              child: AnimatedScale(
-                scale: _pressed ? 0.94 : 1,
-                duration: GfMotion.duration(context, GfMotion.press),
-                curve: GfMotion.enterCurve,
-                child: Stack(
-                  children: <Widget>[
-                    Positioned.fill(child: const GfNavigationSurface()),
-                    Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: colors.primary,
-                              shape: BoxShape.circle,
-                            ),
-                            child: SizedBox.square(
-                              dimension: disc,
-                              child: GfSymbol(
-                                widget.symbol,
-                                size: widget.showLabel
-                                    ? GfIconSize.md
-                                    : GfIconSize.lg,
-                                color: colors.primaryContent,
-                              ),
+            child: AnimatedScale(
+              scale: _pressed ? 0.94 : 1,
+              duration: GfMotion.duration(context, GfMotion.press),
+              curve: GfMotion.enterCurve,
+              child: Stack(
+                children: <Widget>[
+                  Positioned.fill(child: const GfNavigationSurface()),
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: colors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: SizedBox.square(
+                            dimension: disc,
+                            child: GfSymbol(
+                              widget.symbol,
+                              size: widget.showLabel
+                                  ? GfIconSize.md
+                                  : GfIconSize.lg,
+                              color: colors.primaryContent,
                             ),
                           ),
-                          if (widget.showLabel) ...<Widget>[
-                            const SizedBox(height: GfSpace.xxs),
-                            GfText(
-                              widget.label,
-                              textAlign: TextAlign.center,
-                              style: _navigationLabelStyle(
-                                context,
-                                color: colors.primary,
-                              ),
+                        ),
+                        if (widget.showLabel) ...<Widget>[
+                          const SizedBox(height: GfSpace.xxs),
+                          GfText(
+                            widget.label,
+                            textAlign: TextAlign.center,
+                            style: _navigationLabelStyle(
+                              context,
+                              color: colors.primary,
                             ),
-                          ],
+                          ),
                         ],
+                      ],
+                    ),
+                  ),
+                  // Paint keyboard focus above the glass and action glyph.
+                  Positioned.fill(
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: InkWell(
+                        onTapDown: (_) => _setPressed(true),
+                        onTapUp: (_) => _setPressed(false),
+                        onTapCancel: () => _setPressed(false),
+                        onTap: widget.onTap,
+                        borderRadius: BorderRadius.circular(999),
+                        splashFactory: NoSplash.splashFactory,
+                        highlightColor: Colors.transparent,
+                        hoverColor: Colors.transparent,
+                        focusColor: colors.primary.withValues(alpha: 0.18),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
