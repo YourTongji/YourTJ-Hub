@@ -60,8 +60,10 @@ distribution, not a promise of identical binary bytes after rebuilding. The prot
 and environment; automated artifact/signature checks and formal recovery still protect published
 bytes. Operators do not calculate artifact hashes or allocate build numbers manually.
 
-Preview apps use the existing app IDs and replace an installed production app. They display
-`DEV <short SHA>` or `PROD TEST <short SHA>`. Dev uses separate secure-session keys, preferences,
+Android dev previews install beside the stable app as `tj.yourtj.forum_app.dev`, named
+`YourTJ Dev` with a badged DEV icon. Production rehearsals and iOS previews use the existing app IDs
+and replace an installed production app. Previews display `DEV <short SHA>` or
+`PROD TEST <short SHA>`. Dev uses separate secure-session keys, preferences,
 encrypted local database paths and encryption keys; it does not migrate production local data.
 Offline/media scopes retain their site/account boundaries. Preview update checks do not query or
 install stable releases. Scheduler links follow the configured API origin. Dev native push is

@@ -1484,7 +1484,9 @@ The approved permission/privacy/failure boundaries for optional analytics are re
 
 - `Current`: controlled preview builds display `DEV <short SHA>` or `PROD TEST <short SHA>` and
   suppress stable update prompts. Dev previews connect to `dev.yourtj.de`, with separate session,
-  preference and local database storage. They use the existing app IDs and replace installed apps.
+  preference and local database storage. Android dev previews install beside the stable app as
+  `YourTJ Dev` (`tj.yourtj.forum_app.dev`, badged DEV icon); production rehearsals and iOS previews
+  use the existing app IDs and replace installed apps.
   Preview platforms can be selected per run. Installed previews warn when their source is no longer
   the active candidate, their platform is no longer selected or the freeze expires; offline/missing
   status is shown as unverified. A status link identifies the current candidate and normal production

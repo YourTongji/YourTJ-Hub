@@ -1,3 +1,4 @@
+import java.util.Base64
 import java.util.Properties
 
 plugins {
@@ -28,6 +29,17 @@ if ("fcm" in vendors) {
     apply(plugin = "com.google.gms.google-services")
 }
 
+// Flutter forwards each --dart-define to Gradle as a base64 entry. Dev builds
+// (YOURTJ_ENVIRONMENT=dev, which AppConfig.validate binds to the dev API) get
+// their own package, name and badged icon, so they install beside the stable app.
+val dartDefines = project.findProperty("dart-defines")?.toString().orEmpty()
+    .split(",").filter { it.isNotBlank() }
+    .associate {
+        val entry = String(Base64.getDecoder().decode(it), Charsets.UTF_8).split("=", limit = 2)
+        entry[0] to entry.getOrElse(1) { "" }
+    }
+val devIdentity = dartDefines["YOURTJ_ENVIRONMENT"] == "dev"
+
 val releaseKeys = Properties()
 val releaseKeysFile = rootProject.file("key.properties")
 if (releaseKeysFile.exists()) {
@@ -50,7 +62,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "tj.yourtj.forum_app"
+        applicationId = if (devIdentity) "tj.yourtj.forum_app.dev" else "tj.yourtj.forum_app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -67,9 +79,14 @@ android {
             require(value.isNotBlank()) { "Missing push parameter: $key" }
             manifestPlaceholders[key] = value
         }
+        manifestPlaceholders["appLabel"] = if (devIdentity) "YourTJ Dev" else "YourTJ"
+        manifestPlaceholders["appIcon"] = if (devIdentity) "@mipmap/ic_launcher_dev" else "@mipmap/ic_launcher"
         // flutter_appauth:OIDC custom scheme 回跳(yourtj://callback)。
         manifestPlaceholders["appAuthRedirectScheme"] = "yourtj"
     }
+
+    // The badged icon ships only in dev builds; production resources are unchanged.
+    if (devIdentity) sourceSets.getByName("main").res.srcDir("src/devIdentity/res")
 
     signingConfigs {
         create("release") {
