@@ -413,7 +413,10 @@ Auth contract for state-changing API requests (issue #406):
 - **Browser pages (site + admin SPA, GoHTML SSR views)** authenticate solely with the HttpOnly
   `access_token` cookie that login flows set (password/TOTP, GitHub/Google OAuth callbacks, OIDC
   exchange). They issue same-origin relative `fetch()` calls and never send an `Authorization`
-  header. The cookie is `SameSite=Lax` + `Secure` (whenever `app.env != "local"`) and is
+  header. The cookie is `SameSite=Lax` + `Secure` (per `server.cookieSecure`, default
+  `auto`: https or loopback `server.url` → `Secure`, an unset or unparsable URL →
+  `Secure`, plain-http non-loopback hosts → no `Secure` so LAN/IP login works;
+  explicit `on`/`off` overrides) and is
   host-only, so it is only sent to the exact domain that set it.
 - **Non-browser clients** authenticate with an `Authorization: Bearer` header: the mobile app
   (forum JWT from `POST /api/auth/oidc/exchange`, stored in Keychain/Keystore), Agent `agt_`
@@ -474,9 +477,10 @@ support.
 - The forum HS256 JWT is never accepted at the OIDC userinfo endpoint (opaque access tokens only).
 - Client secrets are configured server-side and never logged.
 - id_token / access token never persisted by clients; forum JWT goes into an HttpOnly cookie
-  (`Secure` + SameSite=Lax whenever `app.env != "local"`; the Secure flag follows the environment
-  fail-closed rather than the `server.url` scheme, so production cookies stay Secure even when the
-  template default `server.url = "http://localhost"` is left untouched — issue #113).
+  (`Secure` + SameSite=Lax resolved by `setting.CookieSecure()` from `server.cookieSecure`,
+  default `auto`: https or loopback `server.url` → `Secure`, unset/unparsable URL → `Secure`,
+  plain-http non-loopback host → no `Secure`, explicit `on`/`off` overriding — issues #113 and
+  #1277).
 - Enumeration resistance: login errors do not distinguish "user not found / wrong password", and
   unknown accounts run the same-cost PBKDF2 verification as real ones so response time does not
   reveal whether a username/email is registered. Password registration collapses username/email-taken into

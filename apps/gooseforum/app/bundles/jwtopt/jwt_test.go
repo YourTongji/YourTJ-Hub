@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/gin-gonic/gin"
 )
 
 func TestCreateNewToken(t *testing.T) {
@@ -126,17 +126,22 @@ func TestTokenSettingAndClean(t *testing.T) {
 	}
 }
 
-// withEnv restores app.env and server.url after the test so package-level
-// viper state does not leak across tests.
-func withEnv(t *testing.T, appEnv, serverURL string) {
+// withEnv restores app.env, server.url and server.cookieSecure after the test
+// so package-level viper state does not leak across tests. preferences.Set
+// cannot unset a key, so an absent cookieSecure is restored as "" — which
+// resolves exactly like the unset default "auto".
+func withEnv(t *testing.T, appEnv, serverURL, cookieSecure string) {
 	t.Helper()
 	prevEnv := preferences.GetString("app.env", "production")
 	prevURL := preferences.GetString("server.url", "")
+	prevCookieSecure := preferences.GetString("server.cookieSecure", "")
 	preferences.Set("app.env", appEnv)
 	preferences.Set("server.url", serverURL)
+	preferences.Set("server.cookieSecure", cookieSecure)
 	t.Cleanup(func() {
 		preferences.Set("app.env", prevEnv)
 		preferences.Set("server.url", prevURL)
+		preferences.Set("server.cookieSecure", prevCookieSecure)
 	})
 }
 
@@ -145,7 +150,7 @@ func withEnv(t *testing.T, appEnv, serverURL string) {
 // the access_token cookie must still carry the Secure flag.
 func TestAccessTokenCookieSecureProductionHTTP(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	withEnv(t, "production", "http://localhost")
+	withEnv(t, "production", "http://localhost", "")
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -181,7 +186,7 @@ func TestAccessTokenCookieSecureProductionHTTP(t *testing.T) {
 // so plain-http 0.0.0.0 / LAN-IP access keeps the cookie.
 func TestAccessTokenCookieLocalKeepsSecureOff(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	withEnv(t, "local", "http://localhost:5234")
+	withEnv(t, "local", "http://localhost:5234", "")
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -191,6 +196,49 @@ func TestAccessTokenCookieLocalKeepsSecureOff(t *testing.T) {
 		if ck.Name == "access_token" && ck.Secure {
 			t.Fatalf("access_token Secure=true under local, want false for dev over plain http")
 		}
+	}
+}
+
+// TestAccessTokenCookieSecurePlainHTTPHost covers issue #1277: a production
+// deployment served over plain http on a LAN/IP host must not set Secure on
+// access_token (browsers drop it and web login silently fails), while an
+// explicit server.cookieSecure = "on" restores the flag there.
+func TestAccessTokenCookieSecurePlainHTTPHost(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cases := []struct {
+		name         string
+		serverURL    string
+		cookieSecure string
+		want         bool
+	}{
+		{name: "auto http lan ip", serverURL: "http://10.0.0.5:5234", cookieSecure: "auto", want: false},
+		{name: "forced on http lan ip", serverURL: "http://10.0.0.5:5234", cookieSecure: "on", want: true},
+		{name: "forced off https", serverURL: "https://example.com", cookieSecure: "off", want: false},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			withEnv(t, "production", tt.serverURL, tt.cookieSecure)
+
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+			TokenSetting(c, "tok")
+
+			found := false
+			for _, ck := range rec.Result().Cookies() {
+				if ck.Name != "access_token" {
+					continue
+				}
+				found = true
+				if ck.Secure != tt.want {
+					t.Fatalf("access_token Secure = %v (url=%q cookieSecure=%q), want %v", ck.Secure, tt.serverURL, tt.cookieSecure, tt.want)
+				}
+			}
+			if !found {
+				t.Fatal("no access_token cookie emitted")
+			}
+		})
 	}
 }
 

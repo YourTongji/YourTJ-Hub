@@ -78,25 +78,40 @@ func runWeb(_ *cobra.Command, _ []string) error {
 }
 
 // warnInsecureServerURL logs a startup warning when a non-local deployment is
-// reachable over plain http (CWE-614). Cookies are already fail-closed by
-// setting.CookieSecure(), so this is a deployment hygiene notice, not a fatal
-// gate — template defaults are `production` + `http://localhost`, and browsers
-// treat `localhost` as a secure context that still accepts Secure cookies,
-// so we do not refuse to boot (issue #113).
+// reachable over plain http (CWE-614), telling the operator how the effective
+// setting.CookieSecure() affects them. This is a deployment hygiene notice, not
+// a fatal gate — template defaults are `production` + `http://localhost`, and
+// browsers treat loopback as a secure context, so we do not refuse to boot
+// (issue #113).
 func warnInsecureServerURL() {
 	serverURL := strings.TrimSpace(preferences.GetString("server.url", ""))
 	if !shouldWarnInsecureServerURL() {
 		return
 	}
-	slog.Warn(fmt.Sprintf(
-		"server.url=%q 在非 local 环境下不是 https，会话 Cookie 已强制 Secure，浏览器不会在明文连接上回传它们；请将 server.url 改为 https:// 反向代理地址或显式配置 HTTPS 终结",
+	slog.Warn(insecureServerURLMessage(serverURL, setting.CookieSecure()))
+}
+
+// insecureServerURLMessage describes a plain-http deployment warning. With
+// Secure cookies the browser will not send them on this origin, so web login
+// cannot work; without Secure the session travels in clear text (CWE-614).
+func insecureServerURLMessage(serverURL string, cookieSecure bool) string {
+	if cookieSecure {
+		return fmt.Sprintf(
+			"server.url=%q 在非 local 环境下不是 https，且会话 Cookie 会带 Secure：浏览器不会在明文连接上回传它们，Web 登录将无法保持。请改用 https:// 反向代理地址；若确实是有意的明文部署，设置 server.cookieSecure = \"auto\" 或 \"off\"",
+			serverURL,
+		)
+	}
+	return fmt.Sprintf(
+		"server.url=%q 在非 local 环境下不是 https，会话 Cookie 不带 Secure：凭证会以明文 http 传输（CWE-614），仅限内网或临时使用；正式部署请改用 https:// 反向代理地址",
 		serverURL,
-	))
+	)
 }
 
 // shouldWarnInsecureServerURL is the pure decision predicate backing
-// warnInsecureServerURL. Returns true only when the deployment is non-local
-// and `server.url` points at a non-https, non-loopback host.
+// warnInsecureServerURL. Returns true only when the deployment is non-local and
+// `server.url` is non-empty but not a usable https or loopback origin — including
+// a scheme-less `10.0.0.5:5234` or an unparsable URL, which stay Secure and would
+// otherwise fail silently (issue #1277).
 func shouldWarnInsecureServerURL() bool {
 	if setting.IsLocal() {
 		return false
@@ -107,17 +122,13 @@ func shouldWarnInsecureServerURL() bool {
 	}
 	u, err := url.Parse(serverURL)
 	if err != nil {
-		return false
+		return true
 	}
 	if strings.ToLower(u.Scheme) == "https" {
 		return false
 	}
-	host := strings.ToLower(strings.TrimSpace(u.Hostname()))
-	switch host {
-	case "localhost", "127.0.0.1", "::1", "":
-		return false
-	}
-	return true
+	host := u.Hostname()
+	return host == "" || !setting.IsLoopbackHost(host)
 }
 
 func startDebugServices() {
