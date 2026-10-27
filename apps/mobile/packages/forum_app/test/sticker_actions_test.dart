@@ -461,12 +461,55 @@ void main() {
       );
       await tester.pumpAndSettle();
       await open(tester, 'dance');
-      // 客访不触碰账号态表情库:不发 my-stickers 请求(401 会触发全局拆会话)。
+      // 访客不触碰账号态表情库:不发 my-stickers 请求(401 会触发全局拆会话)。
       expect(repository.mineCalls, 0);
       expect(find.text('Sign in to save'), findsOneWidget);
       expect(find.text('Save to my stickers'), findsNothing);
 
       await tester.tap(find.text('Sign in to save'));
+      await tester.pumpAndSettle();
+      expect(find.text('login page'), findsOneWidget);
+      expect(find.byType(StickerCard), findsNothing);
+    });
+
+    testWidgets('router navigation closes the card with its page', (
+      tester,
+    ) async {
+      final repository = _Repository();
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(path: '/', builder: (context, state) => sticker('dance')),
+          GoRoute(
+            path: '/login',
+            builder: (context, state) =>
+                const Scaffold(body: Text('login page')),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            stickerCollectionProvider.overrideWith(
+              (_) => StickerCollection(repository, StickerLibrary(repository)),
+            ),
+            tokenStorageProvider.overrideWith((_) => MemTokenStorage()),
+          ],
+          child: MaterialApp.router(
+            theme: gfThemeData(Brightness.light),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await open(tester, 'dance');
+
+      // The card's sign-in callback must never run on a defunct context. That
+      // is guaranteed because go_router rebuilds its pages on navigation and
+      // drops root-navigator dialogs with the page that pushed them — a 401
+      // teardown navigating to /login closes the card instead of orphaning it.
+      router.go('/login');
       await tester.pumpAndSettle();
       expect(find.text('login page'), findsOneWidget);
       expect(find.byType(StickerCard), findsNothing);

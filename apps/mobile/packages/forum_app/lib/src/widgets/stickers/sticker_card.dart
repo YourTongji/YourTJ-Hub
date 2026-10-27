@@ -46,9 +46,14 @@ Future<void> showStickerCard(
     signedIn = true;
   }
   if (!context.mounted) return;
+  // The callback runs after the dialog closes, when the caller element may
+  // already be defunct, so resolve the router now, while the caller context
+  // is alive, and let the callback pop via the dialog's own context instead
+  // of touching the caller's.
+  final router = signedIn ? null : GoRouter.of(context);
   return showGfModal<void>(
     context,
-    builder: (_) {
+    builder: (dialogContext) {
       final card = StickerCard(
         name: name,
         url: url,
@@ -58,8 +63,8 @@ Future<void> showStickerCard(
         onSignIn: signedIn
             ? null
             : () {
-                Navigator.of(context, rootNavigator: true).maybePop();
-                context.go('/login');
+                Navigator.of(dialogContext, rootNavigator: true).maybePop();
+                router?.go('/login');
               },
       );
       return collection == null
