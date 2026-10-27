@@ -27,7 +27,7 @@ surfaces use brighter fills and separators. Semantic labels derive a foreground 
 contrast on supported neutral surfaces; export cards retain their own theme-specific contrast rules.
 Destructive actions use the error role. `GfListSection` provides inset groups and aligned separators;
 settings symbols share a 24dp icon column; custom avatars retain their intrinsic square dimensions. Source rationale is recorded in
-[0109](../decisions/0109-mobile-component-geometry-and-color-roles.md).
+[0112](../decisions/0112-mobile-component-geometry-and-color-roles.md).
 
 `Current`: the standalone `ui_kit/example` gallery previews real components and synthetic screens in
 both themes, without a forum account. It supplements production-page workflow checks; it does not
