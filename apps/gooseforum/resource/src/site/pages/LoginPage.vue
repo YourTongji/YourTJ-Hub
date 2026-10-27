@@ -23,6 +23,9 @@ type Mode = 'login' | 'register' | 'forgot'
 const { t, locale } = useI18n()
 const { isDark } = useSiteTheme()
 const mode = ref<Mode>(page.props.initialMode || 'login')
+// issue #1278：站点关闭验证码时（payload 缺省按开启处理）不渲染验证码区、
+// 不做必填校验、不请求验证码，请求也不带 captchaId/captchaCode。
+const captchaRequired = computed(() => page.props.captchaRequired !== false)
 // issue #643：空白名单时后端（存量配置行缺键）会把 allowedDomains 序列化为
 // null，setup 直接解引用曾导致整页白屏；归一化为数组后再使用。
 const allowedDomains = computed(() => page.props.allowedDomains ?? [])
@@ -132,6 +135,7 @@ function switchMode(next: Mode) {
 }
 
 async function refreshCaptcha() {
+  if (!captchaRequired.value) return
   captchaLoading.value = true
   try {
     const captcha = await getCaptcha()
@@ -149,7 +153,7 @@ async function handleLogin() {
     await handleTotpVerify()
     return
   }
-  if (!loginForm.username || !loginForm.password || !loginForm.captcha) {
+  if (!loginForm.username || !loginForm.password || (captchaRequired.value && !loginForm.captcha)) {
     error.value = t('auth.validation.loginRequired')
     return
   }
@@ -212,7 +216,7 @@ function backToPasswordLogin() {
 }
 
 async function handleRegister() {
-  if (!registerForm.username || !registerForm.email || !registerForm.password || !registerForm.captcha) {
+  if (!registerForm.username || !registerForm.email || !registerForm.password || (captchaRequired.value && !registerForm.captcha)) {
     error.value = t('auth.validation.registerRequired')
     return
   }
@@ -245,7 +249,7 @@ async function handleRegister() {
 }
 
 async function handleForgot() {
-  if (!forgotForm.email || !forgotForm.captcha) {
+  if (!forgotForm.email || (captchaRequired.value && !forgotForm.captcha)) {
     error.value = t('auth.validation.forgotRequired')
     return
   }
@@ -425,7 +429,7 @@ function onToggleTheme() {
               <span class="sr-only">{{ t('auth.password') }}</span>
               <PasswordInput v-model="loginForm.password" :placeholder="t('auth.password')" autocomplete="current-password" :label="t('auth.password')" />
             </label>
-            <div class="flex gap-3">
+            <div v-if="captchaRequired" class="flex gap-3">
               <input v-model.trim="loginForm.captcha" class="gf-input min-w-0 flex-1" :placeholder="t('auth.captcha')" />
               <button type="button" class="relative h-10 w-28 overflow-hidden gf-panel" @click="refreshCaptcha">
                 <LoaderCircle v-if="captchaLoading || !captchaImg" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
@@ -492,7 +496,7 @@ function onToggleTheme() {
               <span class="sr-only">{{ t('auth.confirmPassword') }}</span>
               <PasswordInput v-model="registerForm.confirmPassword" :placeholder="t('auth.confirmPassword')" autocomplete="new-password" :label="t('auth.confirmPassword')" />
             </label>
-            <div class="flex gap-3">
+            <div v-if="captchaRequired" class="flex gap-3">
               <span class="relative min-w-0 flex-1">
                 <input v-model.trim="registerForm.captcha" class="gf-input" :placeholder="t('auth.captcha')" />
               </span>
@@ -526,7 +530,7 @@ function onToggleTheme() {
                 <input v-model.trim="forgotForm.email" type="email" class="gf-input pl-10" :placeholder="t('auth.registeredEmail')" autocomplete="email" />
               </span>
             </label>
-            <div class="flex gap-3">
+            <div v-if="captchaRequired" class="flex gap-3">
               <input v-model.trim="forgotForm.captcha" class="gf-input min-w-0 flex-1" :placeholder="t('auth.captcha')" />
               <button type="button" class="relative h-10 w-28 overflow-hidden gf-panel" @click="refreshCaptcha">
                 <LoaderCircle v-if="captchaLoading || !captchaImg" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
