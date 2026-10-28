@@ -65,10 +65,15 @@ flutter build apk --debug --split-per-abi
 
 ```bash
 flutter build apk --debug --split-per-abi \
+  --dart-define=YOURTJ_ENVIRONMENT=dev \
+  --dart-define=YOURTJ_PREVIEW=true \
   --dart-define=YOURTJ_API_BASE_URL=https://dev.yourtj.de \
   --dart-define=YOURTJ_OIDC_ISSUER=https://dev.yourtj.de/api/oauth \
   --dart-define=YOURTJ_OIDC_CLIENT_ID=yourtj-mobile
 ```
+
+`YOURTJ_ENVIRONMENT=dev` selects the separate Android package
+`tj.yourtj.forum_app.dev`; the preview flag is required by the dev configuration check.
 
 也可以直接运行仓库脚本，避免误装未注入地址的旧 `app-debug.apk`：
 
