@@ -568,7 +568,10 @@ class _DockState extends State<_Dock> with TickerProviderStateMixin {
       ..tune(260, 0.72)
       ..moveTo(index.toDouble(), immediate: _reduced);
     _landing = true;
-    if (_reduced) _onTravel();
+    // The landing check must run even when moveTo above was a no-op (the
+    // travel spring already converged on this destination): otherwise the
+    // lift never gets the signal to come back down.
+    _onTravel();
     _pressUp();
     if (index != widget.currentIndex) widget.onSelected(index);
     _reconcile();

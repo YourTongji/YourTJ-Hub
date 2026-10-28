@@ -522,6 +522,54 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(selections, [1]);
+
+    // A fast leftward flick also projects momentum in visual order: it may
+    // carry one destination past where it crossed, and a flipped velocity
+    // sign would wrongly round back onto the current destination.
+    await tester.fling(_target(1), Offset(-1.2 * pitch, 0), 2400);
+    await tester.pumpAndSettle();
+    expect(selections, [1, 3]);
+  });
+
+  testWidgets('the lens settles back down after a still hold before release', (
+    tester,
+  ) async {
+    int currentIndex = 0;
+    await tester.pumpWidget(
+      gfApp(
+        StatefulBuilder(
+          builder: (BuildContext context, StateSetter setState) => _dock(
+            index: currentIndex,
+            onSelected: (int value) => setState(() => currentIndex = value),
+          ),
+        ),
+      ),
+    );
+    double slot(int index) => tester.getCenter(_target(index)).dx;
+    final double y = tester.getCenter(_target(0)).dy;
+
+    final TestGesture gesture = await tester.startGesture(
+      tester.getCenter(_target(0)),
+    );
+    for (int step = 1; step <= 10; step++) {
+      await gesture.moveTo(
+        Offset(slot(0) + (slot(2) - slot(0)) * step / 10, y),
+      );
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    // Rest on the destination until the travel spring has fully converged
+    // (pump in frames; one long pump advances the spring at most one clamped
+    // step), then let go without any fling velocity.
+    // Rest on the destination until the travel spring has settled (pump in
+    // frames; one long pump advances the spring at most one clamped step),
+    // then let go without any fling velocity.
+    for (int i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(currentIndex, 2);
+    expect(tester.getSize(_lens), _restingLens(tester, 2));
   });
 
   testWidgets('a lens the parent does not accept returns to the selection', (
