@@ -343,8 +343,11 @@ class _TimetableGridState extends State<TimetableGrid>
 
   void _paintEnd() {
     final selection = _selection;
+    // Only a gesture that actually started painting may create a block:
+    // releasing a long press elsewhere must not act on a stale selection.
+    final painted = _anchor != null;
     _anchor = null;
-    if (selection != null) _create(selection);
+    if (painted && selection != null) _create(selection);
   }
 
   bool _creating = false;

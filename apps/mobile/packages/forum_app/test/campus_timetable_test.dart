@@ -7,6 +7,9 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
+import 'package:forum_app/src/campus_widget/schedule_widget_projection.dart';
+import 'package:forum_app/src/current_user.dart';
+import 'package:forum_app/src/local/writing_store.dart' show writingScope;
 import 'package:forum_app/src/pages/campus/campus_calendar_export.dart';
 import 'package:forum_app/src/pages/campus/campus_page.dart';
 import 'package:forum_app/src/pages/campus/timetable/campus_timetable.dart';
@@ -18,9 +21,22 @@ import 'package:forum_app/src/providers.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'campus_native_test.dart' show campusTestApp;
+import 'campus_widget_test.dart' show RecordingWidgetBridge;
 import 'fixtures/campus_fixtures.dart';
 import 'test_font_helpers.dart';
-import 'timetable_memo_store_test.dart' show ControlledMemoDatabase;
+import 'timetable_memo_store_test.dart' show ControlledMemoDatabase, newBlock;
+
+class _BlocksRecordingBridge extends RecordingWidgetBridge {
+  final calls = <List<ScheduleWidgetBlock>>[];
+
+  @override
+  Future<void> setBlocks(
+    String accountScope,
+    List<ScheduleWidgetBlock> blocks,
+  ) async {
+    calls.add(blocks);
+  }
+}
 
 CampusEvent _event(String name, int day, int start, int end, List<int> weeks) =>
     CampusEvent(
@@ -670,6 +686,87 @@ void main() {
     await tester.tap(find.byTooltip(l.timetableDeleteBlock));
     await tester.pumpAndSettle();
     expect(find.text(l.timetableConfirmDelete), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('a corrupt blocks key never reaches the widget bridge', (
+    tester,
+  ) async {
+    final bridge = _BlocksRecordingBridge();
+    final database = UserWorkDatabase.instance;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          userWorkDatabaseProvider.overrideWithValue(database),
+          currentUserProvider.overrideWith(
+            (ref) async => const CurrentUser(id: 1, username: 'demo'),
+          ),
+          scheduleWidgetBridgeProvider.overrideWithValue(bridge),
+        ],
+        child: const SizedBox(),
+      ),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SizedBox)),
+    );
+    final site = Uri.parse(container.read(apiClientProvider).baseUrl).origin;
+    await database.writeBatch(writingScope(site, 1), kTimetableMemoDomain, {
+      'blocks': '{broken',
+    });
+    // Resolve the account first so the store is created once at its real
+    // scope; reading the provider then loads the corrupt key.
+    await container.read(currentUserProvider.future);
+    container.read(timetableMemoProvider.notifier);
+    for (var i = 0;
+        i < 100 && !container.read(timetableMemoProvider).loaded;
+        i++) {
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+    expect(container.read(timetableMemoProvider).loaded, isTrue);
+    expect(container.read(timetableMemoProvider).blocksKeyDropped, isTrue);
+    // The projection on the widget keeps the blocks it already had.
+    expect(bridge.calls, isEmpty);
+    // Once a block write succeeds, the cleaned key publishes again.
+    await container.read(timetableMemoProvider.notifier).saveBlock(newBlock);
+    expect(bridge.calls, hasLength(1));
+    expect(bridge.calls.single.single.id, 'new');
+  });
+
+  testWidgets('every-week blocks mark every week in the week picker', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(campusTestApp(FakeCampusRepository()));
+    await tester.pumpAndSettle();
+    await _openTimetable(tester);
+    final context = tester.element(find.byType(CampusPage));
+    final l = AppLocalizations.of(context);
+    final container = ProviderScope.containerOf(context);
+    final semantics = tester.ensureSemantics();
+    // A block without weeks repeats every week.
+    await container.read(timetableMemoProvider.notifier).saveBlock(
+      const TimetableBlock(
+        id: 'weekly',
+        title: '例会',
+        days: [1],
+        start: 4,
+        end: 5,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(l.scheduleWeekN(1)));
+    await tester.pumpAndSettle();
+    // Week 4 has no fixture course; only the every-week block marks it busy.
+    final cell = find.bySemanticsLabel(l.scheduleWeekN(4));
+    expect(cell, findsOneWidget);
+    final material = tester.widget<Material>(
+      find.ancestor(of: cell, matching: find.byType(Material)).first,
+    );
+    expect(material.color, isNot(Colors.transparent));
+    semantics.dispose();
     await tester.pumpWidget(const SizedBox());
     await tester.pumpAndSettle();
   });

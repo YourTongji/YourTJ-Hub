@@ -220,6 +220,7 @@ class TimetableMemoState {
     this.blocks = const [],
     this.prefs = const TimetablePrefs(),
     this.error,
+    this.blocksKeyDropped = false,
   });
 
   final bool loaded;
@@ -227,6 +228,12 @@ class TimetableMemoState {
   final List<TimetableBlock> blocks;
   final TimetablePrefs prefs;
   final Object? error;
+
+  /// The stored blocks key failed to decode, so [blocks] may be incomplete.
+  /// The widget bridge keeps the projection it already has instead of
+  /// publishing this possibly-empty list; the next successful block write
+  /// clears the flag.
+  final bool blocksKeyDropped;
 
   /// The every-week note when [week] is null, otherwise that week's memo.
   String noteFor(String course, int? week) {
@@ -248,6 +255,7 @@ class TimetableMemoState {
     List<TimetableBlock>? blocks,
     TimetablePrefs? prefs,
     Object? error,
+    bool? blocksKeyDropped,
     bool clearError = false,
   }) => TimetableMemoState(
     loaded: loaded ?? this.loaded,
@@ -255,6 +263,7 @@ class TimetableMemoState {
     blocks: blocks ?? this.blocks,
     prefs: prefs ?? this.prefs,
     error: clearError ? null : error ?? this.error,
+    blocksKeyDropped: blocksKeyDropped ?? this.blocksKeyDropped,
   );
 }
 
@@ -297,18 +306,21 @@ class TimetableMemoStore extends StateNotifier<TimetableMemoState> {
         }
       }
 
-      List<T> list<T>(String key, T? Function(Object?) decode) {
-        final value = decoded(key, '[]');
-        if (value is! List) return const [];
-        return value.map(decode).whereType<T>().toList();
-      }
+      List<T> list<T>(Object? value, T? Function(Object?) decode) => value is List
+          ? value.map(decode).whereType<T>().toList()
+          : const [];
 
+      final notesJson = decoded('notes', '[]');
+      final blocksJson = decoded('blocks', '[]');
       final prefsJson = decoded('prefs', '{}');
       _loadFailed = false;
       state = TimetableMemoState(
         loaded: true,
-        notes: list('notes', TimetableNote.fromJson),
-        blocks: list('blocks', TimetableBlock.fromJson),
+        notes: list(notesJson, TimetableNote.fromJson),
+        blocks: list(blocksJson, TimetableBlock.fromJson),
+        // Only an unparseable key marks the blocks list as incomplete; a
+        // genuinely empty one must still publish and clear the widget.
+        blocksKeyDropped: blocksJson == null,
         prefs: prefsJson is Map
             ? TimetablePrefs.fromJson(prefsJson)
             : const TimetablePrefs(),
@@ -379,6 +391,7 @@ class TimetableMemoStore extends StateNotifier<TimetableMemoState> {
   Future<bool> saveBlock(TimetableBlock block) => _update(
     'blocks',
     (current) => current.copyWith(
+      blocksKeyDropped: false,
       blocks: [
         for (final item in current.blocks)
           if (item.id != block.id) item,
@@ -391,6 +404,7 @@ class TimetableMemoStore extends StateNotifier<TimetableMemoState> {
   Future<bool> deleteBlock(String id) => _update(
     'blocks',
     (current) => current.copyWith(
+      blocksKeyDropped: false,
       blocks: [
         for (final item in current.blocks)
           if (item.id != id) item,
@@ -434,8 +448,11 @@ final timetableMemoProvider =
           CampusCacheScope(site: site, accountId: id),
         );
         store.addListener((state) {
-          // A failed load must not wipe blocks already on the widget.
-          if (!state.loaded || (state.error != null && state.blocks.isEmpty)) {
+          // A failed or incomplete blocks load must not wipe blocks already
+          // on the widget; only a verified (possibly empty) list publishes.
+          if (!state.loaded ||
+              state.blocksKeyDropped ||
+              (state.error != null && state.blocks.isEmpty)) {
             return;
           }
           unawaited(

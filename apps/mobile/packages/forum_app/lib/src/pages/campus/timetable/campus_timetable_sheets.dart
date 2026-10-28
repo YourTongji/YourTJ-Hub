@@ -528,7 +528,19 @@ class _MemoReady extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final memo = ref.watch(timetableMemoProvider);
     final store = ref.read(timetableMemoProvider.notifier);
-    if (!memo.loaded) return const Center(child: CircularProgressIndicator());
+    // Keep the loading state small: the sheet sizes to content, and a
+    // full-height spinner flashes on every open.
+    if (!memo.loaded) {
+      return const Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ],
+      );
+    }
     if (!store.canEdit) {
       final l = AppLocalizations.of(context);
       return Column(
@@ -1608,8 +1620,10 @@ class _TimetableOptions extends ConsumerWidget {
               : l.timetableMemoSummary(memo.blocks.length, memo.notes.length),
           onTap: () => _showMemoSheet(
             context,
-            builder: (_) =>
-                _MemoSheet(onAddBlock: onAddBlock, onEditBlock: onEditBlock),
+            builder: (_) => _MemoReady(
+              builder: (_) =>
+                  _MemoSheet(onAddBlock: onAddBlock, onEditBlock: onEditBlock),
+            ),
           ),
         ),
         GfSettingRow(
