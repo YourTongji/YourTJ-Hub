@@ -15,6 +15,7 @@ import 'status_views.dart';
 import '../asset_url.dart';
 import '../images/image_save.dart';
 import 'sticker_message_span.dart';
+import 'stickers/sticker_image.dart';
 
 enum GfTopicFeedMode { list, card }
 
@@ -181,9 +182,9 @@ class GfTopicList extends ConsumerWidget {
   }
 }
 
-/// 卡片摘要（17px 文本，行高约 24px）里的贴纸图片尺寸：允许到两倍行距。
+/// 卡片摘要（17px 文本）里的贴纸与帖内正文同一倍率内联。
 /// 列表行是小字视图，改用 [名字] 文本。
-const double _cardStickerSize = 48;
+const double _cardStickerSize = 17 * StickerImage.inlineScale;
 
 /// One resolution for the whole page: the visible topics' descriptions are
 /// sent together, rows only read the resolved map. Unknown or disabled tokens

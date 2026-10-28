@@ -28,7 +28,10 @@ public availability does not establish the full physical-device acceptance matri
 Dev-connected TestFlight/Android previews and production configuration rehearsals follow the
 [release-cycle runbook](release-cycles.md). They have environment/SHA badges, isolated dev storage,
 and no stable update/catalog publication. Their dedicated internal TestFlight group does not replace
-the formal production TestFlight group. Source QA and production configuration QA precede Prepare.
+the formal production TestFlight group. Builds defining `YOURTJ_ENVIRONMENT=dev` use the Android
+package `tj.yourtj.forum_app.dev`, label `YourTJ Dev` and the badged icon in
+`android/app/src/devIdentity`; the publisher verifies that package. Source QA and production
+configuration QA precede Prepare.
 
 Use [Release / Prepare and the portable release CLI](releases.md). Source must already be in main;
 release preparation does not promote dev. Choose Android, iOS or both. iOS defaults to TestFlight;
@@ -343,9 +346,11 @@ set the `mobile-release/FCM_GOOGLE_SERVICES_JSON` secret to the matching Firebas
 `google-services.json`. The preparation script writes ignored `android/push.properties` and selected
 provider configuration files after checking their package names. It rejects missing parameters for
 selected adapters, unknown fields and provider server secrets. Signed releases require a valid JPush
-AppKey but do not require an offline adapter. Ordinary debug builds without a `push.properties` AppKey
-show push as unavailable. Local dev APKs can use the same `prepare_push.py` inputs before running
-`apps/mobile/scripts/build_dev_apk.sh`; generated JSON files are ignored by Git.
+AppKey but do not require an offline adapter. Android dev previews skip this step because their
+package has no provider registration and dev push is disabled. They, and ordinary debug builds
+without a `push.properties` AppKey, show push as unavailable. Local dev APKs can use the same
+`prepare_push.py` inputs before running `apps/mobile/scripts/build_dev_apk.sh`; generated JSON
+files are ignored by Git.
 
 FCM is an optional transport inside JPush; it does not bypass a disabled server JPush channel.
 Keep Firebase Messaging auto initialization and Analytics collection disabled in the Android manifest:

@@ -275,7 +275,7 @@ describe('TopicCardActions 卡片快捷互动（issue #380）', () => {
     expect(view.findComponent(TopicFeedMeta).props('showStats')).toBe(true)
   })
 
-  it('卡片摘要把已解析表情渲染为 h-6 图片，未知 token 丢弃且属性不含 token', async () => {
+  it('卡片摘要把已解析表情按字形内联渲染，未知 token 丢弃且属性不含 token', async () => {
     vi.mocked(resolveForumStickers).mockResolvedValue([{ name: 'cat', url: '/file/img/cat.png' }])
     const view = mount(TopicList, {
       props: {
@@ -295,8 +295,8 @@ describe('TopicCardActions 卡片快捷互动（issue #380）', () => {
     const image = view.get('img[src="/file/img/cat.png"]')
     // alt 与 aria/title 同一口径：[名字] 纯文本，屏幕阅读器不读 token 语法。
     expect(image.attributes('alt')).toBe('[cat]')
-    // 卡片允许两倍行距：贴纸图片按 h-12/w-12 渲染。
-    expect(image.classes()).toEqual(expect.arrayContaining(['h-12', 'w-12']))
+    // 卡片摘要与帖内正文一致：贴纸按字号的 2.5 倍内联。
+    expect(image.classes()).toEqual(expect.arrayContaining(['h-[2.5em]', 'w-auto']))
     expect(view.text()).not.toContain('[:sticker:')
     for (const link of view.findAll('a[aria-label]')) {
       expect(link.attributes('aria-label')).not.toContain('[:sticker:')

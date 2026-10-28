@@ -3,18 +3,23 @@ import 'package:ui_kit/ui_kit.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../asset_url.dart';
+import 'sticker_card.dart';
 import 'sticker_library_state.dart';
 import 'sticker_strings.dart';
-import 'sticker_preview.dart';
 import '../share/share_image_readiness.dart';
 
-/// Shared expression renderer. Taps preview this sticker alone; holding exposes
-/// collection unless the surrounding message owns the long-press menu.
+/// Shared expression renderer. Taps open the compact sticker card; holding
+/// exposes collection unless the surrounding message owns the long-press menu.
 class StickerImage extends StatefulWidget {
-  /// Reading surfaces need enough room for captions in animated stickers.
+  /// Chat bubbles show stickers as standalone messages, so they keep room for
+  /// captions in animated stickers.
   /// Pickers and bounded draft previews retain the smaller thumbnail size.
   static const double readingSize = 128;
   static const double thumbnailSize = 56;
+
+  /// Stickers inside prose sit on the text line at a multiple of its font
+  /// size: large enough to read, small enough not to break the paragraph.
+  static const double inlineScale = 2.5;
 
   const StickerImage({
     super.key,
@@ -127,7 +132,7 @@ class _StickerImageState extends State<StickerImage> {
     final semantics = Semantics(
       label:
           widget.label ??
-          (RegExp(r'^u_[0-9a-f]{48}$').hasMatch(widget.name)
+          (StickerStrings.isPersonalName(widget.name)
               ? StickerStrings(context).custom
               : widget.name),
       button: true,
@@ -135,7 +140,13 @@ class _StickerImageState extends State<StickerImage> {
       onLongPress: showActions ? _actions : null,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => showStickerPreview(context, widget.url),
+        onTap: () => showStickerCard(
+          context,
+          name: widget.name,
+          url: widget.url,
+          label: widget.label,
+          collectible: widget.collectible,
+        ),
         onLongPress: showActions ? _actions : null,
         child: SizedBox.square(
           dimension: widget.size,
@@ -185,7 +196,7 @@ class _StickerImageState extends State<StickerImage> {
                     : null,
                 child: GfSymbol(
                   'image-off',
-                  size: 22,
+                  size: widget.size < 22 ? widget.size : 22,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               );

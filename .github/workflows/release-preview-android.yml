@@ -58,6 +58,9 @@ jobs:
           channel: stable
           cache: true
       - name: Prepare Android OEM push configuration
+        # Dev previews use their own package (tj.yourtj.forum_app.dev) and never
+        # register for push (client and dev server both disable it), so they skip it.
+        if: inputs.purpose != 'dev'
         env:
           ANDROID_PUSH_JSON: ${{ secrets.ANDROID_PUSH_JSON }}
           HUAWEI_AGCONNECT_JSON: ${{ secrets.HUAWEI_AGCONNECT_JSON }}

@@ -1,5 +1,6 @@
 import unittest
-from publish_android import check_package, android_version_code
+from build_environment import android_package
+from publish_android import check_package, android_version_code, preview_notes
 
 
 class ApkIdentityTest(unittest.TestCase):
@@ -45,6 +46,20 @@ class ApkIdentityTest(unittest.TestCase):
                                 (self.package, signature + '\nSigner #2 certificate SHA-256 digest: ' + 'cd' * 32)]:
             with self.subTest(package=package), self.assertRaises(ValueError):
                 check_package(package, signed, '1.2.0', '12', self.certificate)
+
+    def test_dev_previews_use_their_own_package(self):
+        signature = 'Signer #1 certificate SHA-256 digest: ' + self.certificate
+        dev = self.package.replace("'tj.yourtj.forum_app'", "'tj.yourtj.forum_app.dev'")
+        check_package(dev, signature, '1.2.0', '12', self.certificate, android_package('dev'))
+        # Neither identity is accepted in place of the other.
+        with self.assertRaises(ValueError):
+            check_package(self.package, signature, '1.2.0', '12', self.certificate, android_package('dev'))
+        with self.assertRaises(ValueError):
+            check_package(dev, signature, '1.2.0', '12', self.certificate)
+
+    def test_preview_notes_describe_installation(self):
+        self.assertIn('Installs alongside the stable app', preview_notes('dev', 'a' * 40))
+        self.assertIn('Replaces the installed app', preview_notes('production', 'a' * 40))
 
 
 class DraftReleaseTest(unittest.TestCase):

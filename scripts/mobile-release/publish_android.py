@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 from approved_notes import read_notes
+from build_environment import android_package
 
 ROOT = Path(os.environ.get("RELEASE_SOURCE_ROOT", Path(__file__).resolve().parents[2]))
 REPOSITORY = "YourTongji/YourTJ-Hub"
@@ -25,9 +26,9 @@ def android_version_code(number, abi):
     return str(code)
 
 
-def check_package(badging, signatures, version, number, certificate):
+def check_package(badging, signatures, version, number, certificate, package=android_package('production')):
     match = re.search(r"package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", badging)
-    if not match or match.groups() != ("tj.yourtj.forum_app", number, version):
+    if not match or match.groups() != (package, number, version):
         raise ValueError("APK package/version does not match this release")
     # Build Tools 37 labels certificates by scheme (e.g. "V2 Signer:").
     # The same identity can appear under multiple schemes. Public-key hashes and
@@ -39,6 +40,16 @@ def check_package(badging, signatures, version, number, certificate):
         raise ValueError("No supported APK signer certificate fingerprint found in apksigner output")
     if {fingerprint.lower() for fingerprint in fingerprints} != {certificate.lower()}:
         raise ValueError("APK is not signed by the YourTJ release certificate")
+
+
+def preview_notes(environment, source):
+    # Dev previews have their own package; production rehearsals share the stable one.
+    install = ("Installs alongside the stable app" if environment == 'dev'
+               else "Replaces the installed app")
+    return (f"{environment.upper()} testing only. Source: {source}. {install}; "
+            "this preview never updates the stable download links. "
+            "Before testing, check the current candidate and return-to-production instructions: "
+            "https://github.com/YourTongji/YourTJ-Hub/releases/tag/preview-status")
 
 
 def gh(*args, allow_missing=False):
@@ -73,6 +84,7 @@ def main():
         raise ValueError("Invalid mobile release identity")
     if not preview and os.environ.get('MOBILE_ENVIRONMENT', 'production') != 'production':
         raise ValueError('Dev APKs cannot enter production distribution')
+    package = android_package(os.environ.get('MOBILE_ENVIRONMENT', 'production'))
     config = json.loads((ROOT / "apps/mobile/release-config.json").read_text(encoding='utf-8'))
     tools = Path(os.environ.get("ANDROID_HOME") or os.environ["ANDROID_SDK_ROOT"]) / "build-tools"
     versions = [p for p in tools.iterdir() if re.fullmatch(r"\d+(\.\d+)*", p.name)]
@@ -86,7 +98,7 @@ def main():
         signatures = subprocess.check_output([str(toolchain / "apksigner"), "verify", "--verbose", "--print-certs", str(apk)], text=True)
         badging = subprocess.check_output([str(toolchain / "aapt"), "dump", "badging", str(apk)], text=True)
         code = android_version_code(number, abi)
-        check_package(badging, signatures, version, code, config["androidCertificateSha256"])
+        check_package(badging, signatures, version, code, config["androidCertificateSha256"], package)
         if f"native-code: '{abi}'" not in badging:
             raise ValueError(f"APK contains an unexpected native architecture: {abi}")
         destination = output / f"YourTJ-{version}+{code}-{abi}.apk"
@@ -103,11 +115,7 @@ def main():
     if preview:
         from build_environment import dart_defines
         dart_defines()  # Validate the allowlisted environment and full SHA.
-        approved_notes = (f"{os.environ['MOBILE_ENVIRONMENT'].upper()} testing only. "
-                          f"Source: {os.environ['SOURCE_SHA']}. Replaces the installed app; "
-                          "this preview never updates the stable download links. "
-                          "Before testing, check the current candidate and return-to-production instructions: "
-                          "https://github.com/YourTongji/YourTJ-Hub/releases/tag/preview-status")
+        approved_notes = preview_notes(os.environ['MOBILE_ENVIRONMENT'], os.environ['SOURCE_SHA'])
     else:
         approved_notes = read_notes("ANDROID_NOTES_PATH")
     release = find_release(tag)

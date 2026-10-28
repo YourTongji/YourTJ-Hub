@@ -348,6 +348,92 @@ func TestApplyRewardConcurrentWritesOnPostgres(t *testing.T) {
 	}
 }
 
+func TestDailyBaseSettlementIsIdempotentOnPostgres(t *testing.T) {
+	dsn := os.Getenv("YOURTJ_TEST_PG_URL")
+	if dsn == "" {
+		t.Skip("YOURTJ_TEST_PG_URL not set; skipping PostgreSQL daily settlement test")
+	}
+	admin, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	if err != nil {
+		t.Fatalf("connect PostgreSQL: %v", err)
+	}
+	schema := "xp_daily_test_" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	if err := admin.Exec("CREATE SCHEMA \"" + schema + "\"").Error; err != nil {
+		t.Fatalf("create isolated PostgreSQL schema: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = admin.Exec("DROP SCHEMA IF EXISTS \"" + schema + "\" CASCADE").Error
+	})
+	conn, err := gorm.Open(postgres.Open(dsn+" search_path="+schema), &gorm.Config{TranslateError: true, Logger: logger.Default.LogMode(logger.Silent)})
+	if err != nil {
+		t.Fatalf("connect isolated PostgreSQL schema: %v", err)
+	}
+	if sqlDB, err := conn.DB(); err == nil {
+		sqlDB.SetMaxOpenConns(12)
+	}
+	models := []any{&users.EntityComplete{}}
+	models = append(models, xpmodel.Models()...)
+	if err := conn.AutoMigrate(models...); err != nil {
+		t.Fatalf("migrate XP schema on PostgreSQL: %v", err)
+	}
+	if err := xpmodel.EnsureAppendOnlyGuards(conn); err != nil {
+		t.Fatalf("install PostgreSQL XP guards: %v", err)
+	}
+	if err := EnsureInitialRules(context.Background(), conn); err != nil {
+		t.Fatalf("seed initial XP rules on PostgreSQL: %v", err)
+	}
+	createdAt := time.Date(2026, 10, 24, 16, 0, 0, 0, time.UTC)
+	if err := conn.Create(&users.EntityComplete{
+		Username:  "xp-pg-daily-" + strconv.FormatInt(time.Now().UnixNano(), 10),
+		ActorType: users.ActorTypeHuman, IsFrozen: users.StatusNormal, CreatedAt: createdAt,
+	}).Error; err != nil {
+		t.Fatalf("create PostgreSQL daily settlement user: %v", err)
+	}
+	var account users.EntityComplete
+	if err := conn.Order("id DESC").Take(&account).Error; err != nil {
+		t.Fatal(err)
+	}
+	svc := newWithPolicy(conn, pageConfig.SecurityAndRegistration{})
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	errs := make(chan error, 2)
+	stats := make(chan DailySettlementStats, 2)
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			result, err := svc.settleDailyBase(context.Background(), "2026-10-26", false, 1, time.Date(2026, 10, 26, 1, 0, 0, 0, time.UTC))
+			stats <- result
+			errs <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	close(stats)
+	for err := range errs {
+		if err != nil {
+			t.Errorf("concurrent PostgreSQL daily settlement returned error: %v", err)
+		}
+	}
+	var awarded, replayed int64
+	for result := range stats {
+		awarded += result.Awarded
+		replayed += result.AlreadySettled
+	}
+	if awarded != 1 || replayed != 1 {
+		t.Fatalf("PostgreSQL daily settlement totals awarded=%d already=%d; want one of each", awarded, replayed)
+	}
+	var count int64
+	if err := conn.Model(&xpmodel.Entry{}).Where("user_id = ? AND source_key = ?", account.Id, dailyBaseSourceKey("2026-10-26", account.Id)).Count(&count).Error; err != nil || count != 1 {
+		t.Fatalf("PostgreSQL daily entries = %d, %v; want one", count, err)
+	}
+	if got, err := svc.CurrentBalance(context.Background(), account.Id); err != nil || got != 5 {
+		t.Fatalf("PostgreSQL XP balance = %d, %v; want 5", got, err)
+	}
+}
+
 func TestXPAuditColumnsUpgradeExistingPostgresTables(t *testing.T) {
 	dsn := os.Getenv("YOURTJ_TEST_PG_URL")
 	if dsn == "" {

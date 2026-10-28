@@ -2,11 +2,13 @@
 
 > Doc type: product spec
 >
-> Status: Active (implementation `Partial`: legacy forum-local points mechanics are `Current`; XP core mechanics are `Partial` and automatic settlement/event delivery is not connected; cross-platform credit is `Planned`)
+> Status: Active (implementation `Partial`: legacy forum-local points mechanics are `Current`; the XP ledger and
+> controlled single-date daily-base service/CLI are `Current`, while scheduled settlement and event delivery are not
+> connected; cross-platform credit is `Planned`)
 >
 > Owner: Product owner, Platform maintainers
 >
-> Last verified: 2026-10-13
+> Last verified: 2026-10-26
 
 ## Positioning
 
@@ -53,16 +55,20 @@ Forum built-in OIDC Provider (numeric sub = users.id)
   reverses its reward in the same transaction, and migration v14 reconstructs missing legacy balance rows.
 - **Forum-local delivery is `Partial`**: reward events use the in-memory event bus, so process loss after
   content persistence can lose a reward; no durable outbox or reconciliation job currently repairs it.
-- **Forum XP core is `Partial`**: `xp_balances` is a projection of the append-only `xp_entries` ledger;
+- **Forum XP end-to-end delivery is `Partial`**: `xp_balances` is a projection of the append-only `xp_entries` ledger;
   versioned reward rules track per-event, per-rule daily, and optional per-user daily positive XP limits
   on Asia/Shanghai dates from event time. XP levels are derived from the current balance and account eligibility. The
-  confirmed daily base rule is +5 XP and does not depend on activity; automatic server-side daily
-  settlement and business-event integration are not yet connected. Reversals append a negative entry
+  confirmed daily base rule is +5 XP and does not depend on activity. A controlled service and CLI can
+  preview or apply one explicit date; no automatic schedule or business-event integration is connected.
+  The product-approved 65 XP daily positive-reward ceiling is not active in the currently seeded rule set;
+  publishing a new immutable rule version with that limit is required before it governs awards. Reversals append a negative entry
   and do not restore consumed daily quota. XP uses the numeric forum `users.id` and does not modify the
   legacy points or prestige path. Trusted business-event adapters must map anonymous personas to
   their owning account before settlement; manual reversals and rule publications carry the actor from
   authenticated server context, while automated awards use the system actor. See the [XP ledger and
   dynamic-level decision](../decisions/0090-xp-ledger-and-dynamic-levels.md).
+  Operators use the [daily XP settlement guide](../operations/xp-daily-settlement.md); past-date runs
+  report historical qualification limits and must stay within the operator-supplied start date.
 - **Cross-platform credit is `Planned`**: services/credit is a deployment placeholder; it is
   not deployed or wired, and the local ledger is not presented as the future settlement source.
 - No top-up/withdrawal/fiat exchange/free transfers.

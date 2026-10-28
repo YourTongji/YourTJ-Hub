@@ -56,7 +56,7 @@ class GfMarkdownView extends ConsumerStatefulWidget {
     this.images,
     this.mentions = const <PostMention>[],
     this.selectable = false,
-    this.stickerSize = StickerImage.readingSize,
+    this.stickerSize,
     this.screenshot = false,
     this.colors,
     this.compact = false,
@@ -70,8 +70,9 @@ class GfMarkdownView extends ConsumerStatefulWidget {
 
   final bool selectable;
 
-  /// Draft previews opt into thumbnails; posts and replies use reading size.
-  final double stickerSize;
+  /// Null sizes each sticker from its surrounding text
+  /// ([StickerImage.inlineScale]); callers may pin a fixed size instead.
+  final double? stickerSize;
 
   /// Uses stable raw Markdown links rather than deferred network link cards.
   final bool screenshot;
@@ -306,14 +307,6 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         H6Config(style: profile.h6), // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
         ImgConfig(
           builder: (String url, Map<String, String> attributes) {
-            final sticker = stickerImages[url];
-            if (sticker != null) {
-              return StickerImage(
-                name: sticker.name,
-                url: sticker.url,
-                size: widget.stickerSize,
-              );
-            }
             final String resolvedUrl = resolveApiAssetUrl(url);
             readiness?.begin(resolvedUrl);
             var hasFrame = false;
@@ -421,6 +414,23 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
       shrinkWrap: true,
       markdownGenerator: MarkdownGenerator(
         linesMargin: EdgeInsets.symmetric(vertical: profile.paragraphSpacing),
+        generators: [
+          SpanNodeGeneratorWithTag(
+            tag: MarkdownTag.img.name,
+            generator: (element, config, visitor) {
+              final sticker = stickerImages[element.attributes['src']];
+              if (sticker == null) {
+                return ImageNode(element.attributes, config, visitor);
+              }
+              return _StickerSpanNode(
+                name: sticker.name,
+                url: sticker.url,
+                fallbackFontSize: profile.body.fontSize ?? 16,
+                size: widget.stickerSize,
+              );
+            },
+          ),
+        ],
         richTextBuilder: (span) => GfText.rich(span),
       ),
       // Embedded in the page scroll view: never repeat its safe-area insets.
@@ -598,6 +608,35 @@ class _DeferredLinkPreviewState extends State<_DeferredLinkPreview> {
                 ? widget.fallback
                 : GfLinkPreviewCard(preview: preview);
           },
+    );
+  }
+}
+
+/// Places a token-generated sticker on the text line: centred on it and sized
+/// from the nearest styled ancestor (body, heading, quote).
+class _StickerSpanNode extends SpanNode {
+  _StickerSpanNode({
+    required this.name,
+    required this.url,
+    required this.fallbackFontSize,
+    this.size,
+  });
+
+  final String name;
+  final String url;
+  final double fallbackFontSize;
+  final double? size;
+
+  @override
+  InlineSpan build() {
+    final double fontSize = parentStyle?.fontSize ?? fallbackFontSize;
+    return WidgetSpan(
+      alignment: PlaceholderAlignment.middle,
+      child: StickerImage(
+        name: name,
+        url: url,
+        size: size ?? fontSize * StickerImage.inlineScale,
+      ),
     );
   }
 }

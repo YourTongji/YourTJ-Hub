@@ -1304,6 +1304,11 @@ export default {
     pickerTitle: 'スタンプ',
     empty: '利用可能なスタンプがありません',
     previewAnimation: 'アニメーションスタンプ',
+    custom: 'カスタムスタンプ',
+    save: 'マイスタンプに保存',
+    saved: 'マイスタンプに保存済み',
+    signInToSave: 'ログインして保存',
+    saveFailed: '保存できませんでした。再試行してください',
   },
   common: {
     back: '戻る',
