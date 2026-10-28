@@ -46,11 +46,9 @@ class StickerDraftPreview extends StatelessWidget {
             Flexible(
               child: SingleChildScrollView(
                 reverse: true,
+                // Markdown drafts preview stickers at their published size.
                 child: markdown
-                    ? GfMarkdownView(
-                        data: content,
-                        stickerSize: StickerImage.thumbnailSize,
-                      )
+                    ? GfMarkdownView(data: content)
                     : ResolvedStickerContent(
                         content: content,
                         builder: (urls) => GfText.rich(

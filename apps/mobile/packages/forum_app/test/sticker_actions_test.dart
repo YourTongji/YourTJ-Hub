@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:go_router/go_router.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_card.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_library_page.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
@@ -23,11 +25,34 @@ class _Repository extends StickerRepository {
     : super(GfApiClient(dio: Dio(), tokenStorage: MemTokenStorage()));
   List<StickerItemPayload> members = [_item];
   final removed = <String>[];
+  final saved = <String>[];
+  int mineCalls = 0;
   bool failRemove = false;
+  bool failSave = false;
   @override
   Future<List<StickerItemPayload>> list() async => [_item];
   @override
-  Future<List<StickerItemPayload>> mine() async => [...members];
+  Future<List<StickerItemPayload>> mine() async {
+    mineCalls++;
+    return [...members];
+  }
+  @override
+  Future<StickerItemPayload> save({
+    String? stickerName,
+    String? fileName,
+    String? displayName,
+  }) async {
+    saved.add(stickerName!);
+    if (failSave) throw StateError('offline');
+    final item = StickerItemPayload(
+      name: stickerName,
+      url: 'https://example.test/$stickerName.gif',
+      isOfficial: false,
+    );
+    members.add(item);
+    return item;
+  }
+
   @override
   Future<void> remove(String name) async {
     removed.add(name);
@@ -45,7 +70,12 @@ Future<StickerCollection> _pump(
   final state = StickerCollection(repository, StickerLibrary(repository));
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [stickerCollectionProvider.overrideWith((_) => state)],
+      overrides: [
+        stickerCollectionProvider.overrideWith((_) => state),
+        // StickerImage taps open the sticker card, which checks the session
+        // before touching the account-owned library.
+        tokenStorageProvider.overrideWith((_) => MemTokenStorage('session')),
+      ],
       child: MaterialApp(theme: gfThemeData(brightness), home: child),
     ),
   );
@@ -66,10 +96,7 @@ void main() {
         child: MaterialApp(
           theme: gfThemeData(Brightness.light),
           home: Scaffold(
-            body: SizedBox(
-              height: 400,
-              child: StickerPicker(onInsert: (_) {}),
-            ),
+            body: SizedBox(height: 400, child: StickerPicker(onInsert: (_) {})),
           ),
         ),
       ),
@@ -306,10 +333,187 @@ void main() {
     expect(holds, 1);
     expect(find.byType(GfImageViewer), findsNothing);
     await tester.tap(find.byType(StickerImage));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(find.byType(GfImageViewer), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.byType(StickerCard), findsOneWidget);
+    expect(find.byType(GfImageViewer), findsNothing);
     expect(taps, 0);
+  });
+
+  group('sticker card', () {
+    Future<void> open(WidgetTester tester, String name) async {
+      await tester.tap(find.byType(StickerImage));
+      await tester.pumpAndSettle();
+      expect(find.byType(StickerCard), findsOneWidget);
+      // Opening never inserts or collects anything by itself.
+      expect(
+        tester.getSize(find.byType(GfNetworkImage).last),
+        const Size.square(StickerCard.stageSize),
+      );
+    }
+
+    Widget sticker(String name) => Scaffold(
+      body: Center(
+        child: StickerImage(name: name, url: 'https://example.test/$name.gif'),
+      ),
+    );
+
+    testWidgets('collects a shared sticker and confirms in place', (
+      tester,
+    ) async {
+      final repository = _Repository()..members = [];
+      final state = await _pump(tester, repository, child: sticker('dance'));
+      await state.library.load();
+      await open(tester, 'dance');
+      expect(find.text('Dance'), findsOneWidget);
+      expect(repository.saved, isEmpty);
+
+      await tester.tap(find.text('Save to my stickers'));
+      await tester.pumpAndSettle();
+      expect(repository.saved, ['dance']);
+      expect(find.text('In your stickers'), findsOneWidget);
+      expect(find.text('Save to my stickers'), findsNothing);
+
+      await tester.tapAt(const Offset(4, 4));
+      await tester.pumpAndSettle();
+      expect(find.byType(StickerCard), findsNothing);
+    });
+
+    testWidgets('shows a sticker already in your library as saved', (
+      tester,
+    ) async {
+      await _pump(tester, _Repository(), child: sticker('dance'));
+      await open(tester, 'dance');
+      expect(find.text('In your stickers'), findsOneWidget);
+    });
+
+    testWidgets('keeps the card open with a retryable error', (tester) async {
+      final repository = _Repository()
+        ..members = []
+        ..failSave = true;
+      await _pump(tester, repository, child: sticker('u_${'a' * 48}'));
+      await open(tester, 'u_${'a' * 48}');
+      expect(find.text('Custom sticker'), findsOneWidget);
+      await tester.tap(find.text('Save to my stickers'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Could not complete this action. Try again.'),
+        findsOneWidget,
+      );
+      repository.failSave = false;
+      await tester.tap(find.text('Save to my stickers'));
+      await tester.pumpAndSettle();
+      expect(find.text('In your stickers'), findsOneWidget);
+      expect(
+        find.text('Could not complete this action. Try again.'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('read-only excerpts open the card without collection', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        _Repository(),
+        child: const Scaffold(
+          body: Center(
+            child: StickerImage(
+              name: 'dance',
+              url: 'https://example.test/dance.gif',
+              collectible: false,
+            ),
+          ),
+        ),
+      );
+      await open(tester, 'dance');
+      expect(find.byType(GfButton), findsNothing);
+    });
+
+    testWidgets('guests get a sign-in prompt instead of library requests', (
+      tester,
+    ) async {
+      final repository = _Repository();
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(path: '/', builder: (context, state) => sticker('dance')),
+          GoRoute(
+            path: '/login',
+            builder: (context, state) =>
+                const Scaffold(body: Text('login page')),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            stickerCollectionProvider.overrideWith(
+              (_) => StickerCollection(repository, StickerLibrary(repository)),
+            ),
+            tokenStorageProvider.overrideWith((_) => MemTokenStorage()),
+          ],
+          child: MaterialApp.router(
+            theme: gfThemeData(Brightness.light),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await open(tester, 'dance');
+      // 访客不触碰账号态表情库:不发 my-stickers 请求(401 会触发全局拆会话)。
+      expect(repository.mineCalls, 0);
+      expect(find.text('Sign in to save'), findsOneWidget);
+      expect(find.text('Save to my stickers'), findsNothing);
+
+      await tester.tap(find.text('Sign in to save'));
+      await tester.pumpAndSettle();
+      expect(find.text('login page'), findsOneWidget);
+      expect(find.byType(StickerCard), findsNothing);
+    });
+
+    testWidgets('router navigation closes the card with its page', (
+      tester,
+    ) async {
+      final repository = _Repository();
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(path: '/', builder: (context, state) => sticker('dance')),
+          GoRoute(
+            path: '/login',
+            builder: (context, state) =>
+                const Scaffold(body: Text('login page')),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            stickerCollectionProvider.overrideWith(
+              (_) => StickerCollection(repository, StickerLibrary(repository)),
+            ),
+            tokenStorageProvider.overrideWith((_) => MemTokenStorage()),
+          ],
+          child: MaterialApp.router(
+            theme: gfThemeData(Brightness.light),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await open(tester, 'dance');
+
+      // The card's sign-in callback must never run on a defunct context. That
+      // is guaranteed because go_router rebuilds its pages on navigation and
+      // drops root-navigator dialogs with the page that pushed them — a 401
+      // teardown navigating to /login closes the card instead of orphaning it.
+      router.go('/login');
+      await tester.pumpAndSettle();
+      expect(find.text('login page'), findsOneWidget);
+      expect(find.byType(StickerCard), findsNothing);
+    });
   });
 
   testWidgets('account change invalidates a pending removal confirmation', (

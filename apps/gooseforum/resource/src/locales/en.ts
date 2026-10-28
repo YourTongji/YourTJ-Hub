@@ -1305,6 +1305,11 @@ export default {
     pickerTitle: 'Stickers',
     empty: 'No stickers available',
     previewAnimation: 'Animated sticker',
+    custom: 'Custom sticker',
+    save: 'Save to my stickers',
+    saved: 'In your stickers',
+    signInToSave: 'Sign in to save',
+    saveFailed: 'Could not save. Try again.',
   },
   common: {
     back: 'Back',

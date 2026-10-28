@@ -7,6 +7,11 @@ class StickerStrings {
   StickerStrings(BuildContext context)
     : _locale = Localizations.localeOf(context).languageCode;
   final String _locale;
+
+  /// 服务端生成的个人贴纸名（u_ + 48 位小写十六进制），与 Web 端
+  /// isPersonalStickerName 同规则。
+  static final RegExp _personalNameRe = RegExp(r'^u_[0-9a-f]{48}$');
+  static bool isPersonalName(String name) => _personalNameRe.hasMatch(name);
   String _s(String zh, String en, String de, String ja) => switch (_locale) {
     'zh' => zh,
     'de' => de,
@@ -66,6 +71,14 @@ class StickerStrings {
       _s('收藏到我的表情', 'Save to my stickers', 'Zu meinen Stickern', 'マイステッカーに保存');
   String get saved =>
       _s('已添加到我的表情', 'Saved to your stickers', 'Sticker gespeichert', '保存しました');
+  String get inMine =>
+      _s('已在我的表情', 'In your stickers', 'In deinen Stickern', 'マイステッカーに保存済み');
+  String get signInToSave => _s(
+    '登录后收藏',
+    'Sign in to save',
+    'Zum Speichern anmelden',
+    '保存するにはログイン',
+  );
   String get remove => _s('移除', 'Remove', 'Entfernen', '削除');
   String get rename => _s('重命名', 'Rename', 'Umbenennen', '名前を変更');
   String get name => _s('表情名称', 'Sticker name', 'Stickername', '名前');

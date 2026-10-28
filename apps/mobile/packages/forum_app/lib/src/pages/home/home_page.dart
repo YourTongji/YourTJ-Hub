@@ -940,9 +940,14 @@ class _HomePageState extends ConsumerState<HomePage> {
     final sortKeys = [
       for (final tab in _homeSortTabs(toolbarProps, _category)) tab.key,
     ];
+    // A chosen sort that is still loading must stay selected: the fallback
+    // navigation props describe the previous sort, and following them would
+    // pull the underline back before the new feed arrives.
     final selectedSort =
-        toolbarProps?.actualSort ??
-        (_sort.isEmpty ? (toolbarProps?.sort ?? 'latest') : _sort);
+        _activeFeed.page.valueOrNull?.actualSort ??
+        (_sort.isEmpty
+            ? (toolbarProps?.actualSort ?? toolbarProps?.sort ?? 'latest')
+            : _sort);
     final selectedSortPosition = sortKeys.indexOf(selectedSort);
     final selectedSortIndex = selectedSortPosition < 0
         ? 0
