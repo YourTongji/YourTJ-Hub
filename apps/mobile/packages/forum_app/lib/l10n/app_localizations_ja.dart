@@ -1007,6 +1007,9 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get topicJumpToFloor => '階へ移動';
+
+  @override
   String topicFloorSelected(Object floor) {
     return '$floor階へ移動しました';
   }

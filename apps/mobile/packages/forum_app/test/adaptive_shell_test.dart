@@ -255,8 +255,12 @@ void main() {
         tester.getRect(find.byKey(const ValueKey('compose-menu'))).right,
         closeTo(readingBounds.right - 16, 1),
       );
+      // Enlarged labels can make the menu taller than this short window.
+      await tester.ensureVisible(find.byTooltip(l10n.commonClose));
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip(l10n.commonClose));
       await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('compose-menu')), findsNothing);
       tester.view.viewInsets = const FakeViewPadding(bottom: 160);
       await tester.pumpAndSettle();
       expect(find.byType(ReadingNavigationRail), findsOneWidget);

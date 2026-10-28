@@ -10,6 +10,61 @@ import 'package:ui_kit/ui_kit.dart';
 import '../helpers.dart';
 
 void main() {
+  for (final brightness in Brightness.values) {
+    testWidgets('compact dock supports Tab and Enter/Space ($brightness)', (
+      tester,
+    ) async {
+      int selected = 0;
+      int composeTaps = 0;
+      await tester.pumpWidget(
+        gfApp(
+          StatefulBuilder(
+            builder: (context, setState) => _dock(
+              index: selected,
+              onSelected: (value) => setState(() => selected = value),
+              onAction: () => composeTaps++,
+            ),
+          ),
+          brightness: brightness,
+        ),
+      );
+      bool focused(Finder target) {
+        var inside = false;
+        FocusManager.instance.primaryFocus?.context?.visitAncestorElements((
+          element,
+        ) {
+          if (element == tester.element(target)) inside = true;
+          return !inside;
+        });
+        return inside;
+      }
+
+      for (var index = 0; index < 4; index++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+        expect(focused(_target(index)), isTrue);
+        await tester.sendKeyEvent(
+          index.isEven ? LogicalKeyboardKey.enter : LogicalKeyboardKey.space,
+        );
+        await tester.pumpAndSettle();
+        expect(selected, index);
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(composeTaps, 1);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pumpAndSettle();
+      expect(composeTaps, 2);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pumpAndSettle();
+      expect(focused(_target(3)), isTrue);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('GfAppBar uses compact centered navigation chrome', (
     tester,
   ) async {
@@ -109,7 +164,7 @@ void main() {
 
     await tester.tap(_target(3));
     expect(selected, 3);
-    await tester.tap(find.text('发布'));
+    await tester.tap(find.bySemanticsLabel('发布'));
     expect(composeTaps, 1);
   });
 
@@ -802,31 +857,35 @@ Size _restingLens(WidgetTester tester, int index) {
 Finder _target(int index) =>
     find.byKey(ValueKey<String>('gf-bottom-navigation-target-$index'));
 
-Widget _dock({required int index, ValueChanged<int>? onSelected}) =>
-    GfBottomNavigation(
-      currentIndex: index,
-      onSelected: onSelected ?? (_) {},
-      showLabels: false,
-      items: const <GfBottomNavigationItem>[
-        GfBottomNavigationItem(
-          label: '首页',
-          symbol: 'house',
-          selectedSymbol: 'house-filled',
-        ),
-        GfBottomNavigationItem(
-          label: '校园',
-          symbol: 'graduation-cap',
-          selectedSymbol: 'graduation-cap-filled',
-        ),
-        GfBottomNavigationItem(
-          label: '通知',
-          symbol: 'bell',
-          selectedSymbol: 'bell-filled',
-        ),
-        GfBottomNavigationItem(
-          label: '消息',
-          symbol: 'mail',
-          selectedSymbol: 'mail-filled',
-        ),
-      ],
-    );
+Widget _dock({
+  required int index,
+  ValueChanged<int>? onSelected,
+  VoidCallback? onAction,
+}) => GfBottomNavigation(
+  currentIndex: index,
+  onSelected: onSelected ?? (_) {},
+  onAction: onAction,
+  showLabels: false,
+  items: const <GfBottomNavigationItem>[
+    GfBottomNavigationItem(
+      label: '首页',
+      symbol: 'house',
+      selectedSymbol: 'house-filled',
+    ),
+    GfBottomNavigationItem(
+      label: '校园',
+      symbol: 'graduation-cap',
+      selectedSymbol: 'graduation-cap-filled',
+    ),
+    GfBottomNavigationItem(
+      label: '通知',
+      symbol: 'bell',
+      selectedSymbol: 'bell-filled',
+    ),
+    GfBottomNavigationItem(
+      label: '消息',
+      symbol: 'mail',
+      selectedSymbol: 'mail-filled',
+    ),
+  ],
+);

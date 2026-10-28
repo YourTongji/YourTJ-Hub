@@ -1023,6 +1023,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get topicJumpToFloor => 'Jump to floor';
+
+  @override
   String topicFloorSelected(Object floor) {
     return 'Jumped to floor $floor';
   }

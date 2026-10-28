@@ -1,5 +1,5 @@
-# Uncomment this line to define a global platform for your project
-# platform :ios, '13.0'
+# Xcode 27.1 builds for iPhone Duo require an iOS 15 deployment floor.
+platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -39,5 +39,13 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    # Plugins can still declare older minimums; build every pod with the app's
+    # supported floor without lowering a dependency's higher requirement.
+    target.build_configurations.each do |config|
+      minimum = config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+      if minimum.nil? || Gem::Version.new(minimum) < Gem::Version.new('15.0')
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      end
+    end
   end
 end

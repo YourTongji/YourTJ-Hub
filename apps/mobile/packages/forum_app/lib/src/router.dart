@@ -18,6 +18,7 @@ import 'navigation/tab_scroll_registry.dart';
 import 'navigation/route_visibility.dart';
 import 'navigation/reading_chrome.dart';
 import 'navigation/reading_window.dart';
+import 'navigation/window_reserved_regions.dart';
 import 'widgets/account_drawer.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/admin/admin_page.dart';
@@ -420,6 +421,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
             return false;
           },
           child: ReadingWindow(
+            reservedRegions: ref.watch(windowReservedRegionsProvider).value,
             navigationRailWidth: ReadingNavigationRail.widthFor(
               context,
               destinations,
@@ -595,7 +597,7 @@ final GoRouter appRouter = GoRouter(
         categoryId: int.parse(state.pathParameters['id']!),
       ),
     ),
-    _readingPageRoute(
+    GoRoute(
       path: '/p/:postId',
       builder: (BuildContext context, GoRouterState state) => TopicPage(
         topicId: int.parse(state.pathParameters['postId']!),

@@ -42,7 +42,7 @@ Web/API/schema: `Current`. `/campus` 是登录用户自己的校园工作台。�
 
 ## Home-screen widgets
 
-`Current`：Android 使用 Jetpack Glance，iOS 14 及以上使用 WidgetKit／SwiftUI；iOS 13 的主 App 仍可使用。
+`Current`：Android 使用 Jetpack Glance，iOS 使用 WidgetKit／SwiftUI；主 App 与小组件的最低系统均为 iOS 15。
 点击任一小组件进入校园「我的课表」，不进入排课器：先显示同一身份的设备快照（含前一日快照，教学周按快照提交后经过的周一顺延），再在后台核验绑定并重新读取；核验发现绑定变化时立即撤下旧快照。
 
 | 平台与尺寸 | 展示规则 |

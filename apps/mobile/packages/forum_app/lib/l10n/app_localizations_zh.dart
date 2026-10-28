@@ -1005,6 +1005,9 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get topicJumpToFloor => '跳转楼层';
+
+  @override
   String topicFloorSelected(Object floor) {
     return '已跳转到 $floor 楼';
   }

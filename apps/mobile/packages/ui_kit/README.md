@@ -29,6 +29,10 @@ YourTJ 移动端设计系统(Flutter):设计 token、`ThemeData` 与 Gf* 组件�
 `GfUserCard` 的 `coloredBadges` 使用纯图标入口，保留名称语义、提示和详情回调；
 `GfAchievementCard` 使用同一徽章图案、居中名称与说明，随字号增高，点击详情由应用层处理。
 
+`Current`: `GfNavigationSurface` 为底部 Dock 和宽屏侧栏提供共用的半透明材质、模糊、
+高光与仅在轮廓外绘制的阴影；调用方提供有界尺寸和圆角。高对比度、减少动态效果和
+无障碍导航模式统一回退到不透明表面；组件不持有导航状态或手势。
+
 ## Token 与主题规则
 
 - 主题数据来自 `lib/src/theme/tokens.json`(light/dark 双主题);`GfThemeData` 生成 `ThemeData`,`GfTheme.colorsOf(context)` 提供语义色。
