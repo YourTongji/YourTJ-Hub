@@ -564,6 +564,8 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
 
 `Current`: native mobile motion uses one semantic policy: 120 ms press feedback,
 160 ms selection, 180 ms content, 220 ms layout and 280 ms sheet/media transitions.
+Duration figures cover timed transitions; the shell dock's selection lens is a physical
+spring that settles per its own dynamics (see [Navigation and reading](#navigation-and-reading)).
 Root headers, navigation and compose controls move together while the reading viewport stays
 stable. Tabs, announcement expansion, form focus, theme/logo changes and local disclosures
 consume that policy. Android pushed pages use a 220 ms fade with a six-logical-pixel rise and
