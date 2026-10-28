@@ -423,6 +423,107 @@ void main() {
     expect(selections, [2]);
   });
 
+  testWidgets('a fast flick adds at most one destination past the finger', (
+    tester,
+  ) async {
+    final List<int> selections = <int>[];
+    int currentIndex = 0;
+    await tester.pumpWidget(
+      gfApp(
+        StatefulBuilder(
+          builder: (BuildContext context, StateSetter setState) => _dock(
+            index: currentIndex,
+            onSelected: (int value) => setState(() {
+              selections.add(value);
+              currentIndex = value;
+            }),
+          ),
+        ),
+      ),
+    );
+    final double pitch =
+        tester.getCenter(_target(1)).dx - tester.getCenter(_target(0)).dx;
+
+    // A flick that stops the finger between the second and third
+    // destinations has only crossed the second; its momentum carries the
+    // selection one further, never to the far end.
+    await tester.fling(_target(0), Offset(1.2 * pitch, 0), 2400);
+    await tester.pumpAndSettle();
+    expect(
+      selections,
+      [2],
+      reason: 'the flick is capped one destination past where it crossed',
+    );
+  });
+
+  testWidgets('a slow drag to the same point selects where it stops', (
+    tester,
+  ) async {
+    final List<int> selections = <int>[];
+    int currentIndex = 0;
+    await tester.pumpWidget(
+      gfApp(
+        StatefulBuilder(
+          builder: (BuildContext context, StateSetter setState) => _dock(
+            index: currentIndex,
+            onSelected: (int value) => setState(() {
+              selections.add(value);
+              currentIndex = value;
+            }),
+          ),
+        ),
+      ),
+    );
+    final double pitch =
+        tester.getCenter(_target(1)).dx - tester.getCenter(_target(0)).dx;
+
+    await tester.timedDrag(
+      _target(0),
+      Offset(1.2 * pitch, 0),
+      const Duration(milliseconds: 400),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      selections,
+      [1],
+      reason: 'without fling momentum the nearest crossed destination wins',
+    );
+  });
+
+  testWidgets('dragging the dock follows visual order in rtl', (tester) async {
+    final List<int> selections = <int>[];
+    int currentIndex = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: gfThemeData(Brightness.light),
+        builder: (BuildContext context, Widget? child) =>
+            Directionality(textDirection: TextDirection.rtl, child: child!),
+        home: Scaffold(
+          bottomNavigationBar: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) => _dock(
+              index: currentIndex,
+              onSelected: (int value) => setState(() {
+                selections.add(value);
+                currentIndex = value;
+              }),
+            ),
+          ),
+        ),
+      ),
+    );
+    double slot(int index) => tester.getCenter(_target(index)).dx;
+    expect(slot(1), lessThan(slot(0)), reason: 'rtl grows the index leftward');
+    final double pitch = slot(0) - slot(1);
+
+    await tester.timedDrag(
+      _target(0),
+      Offset(-pitch, 0),
+      const Duration(milliseconds: 300),
+    );
+    await tester.pumpAndSettle();
+    expect(selections, [1]);
+  });
+
   testWidgets('a lens the parent does not accept returns to the selection', (
     tester,
   ) async {
