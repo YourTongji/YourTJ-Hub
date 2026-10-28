@@ -242,13 +242,17 @@ interaction targets do not stretch the artwork. Native page actions, notificatio
 ratings and image controls use ReIcon SVGs on a 24-pixel grid. Compact inline marks commonly render
 at 16 pixels, actions at 20–24 pixels, and navigation at 24 pixels inside independent touch targets.
 The bottom bar and wide rail switch each active destination from Outline to the matching Filled
-ReIcon glyph. The compact shell bottom bar is icon-only at a fixed compact height with 44-pixel targets;
-destination names stay in the accessibility label and a long-press tooltip. The bar and the root
-header separate from content with a one-physical-pixel `line` hairline instead of a logical-pixel rule. Its iOS surface
-may use a restrained Flutter blur/translucency, while Android, high-contrast mode, reduced motion
-and accessible-navigation mode use the opaque theme surface. This does not claim adoption of a
-native iOS Liquid Glass API. Selecting a destination uses one interruptible 160 ms transition for its indicator,
-icon color and, where shown, label style; reduced motion settles that state immediately. Selected ratings use a filled counterpart. Brand marks and functional radio and
+ReIcon glyph. The compact shell bottom bar is a floating dock — icon-only at a fixed compact
+height with 44-pixel targets; destination names stay in the accessibility label and a long-press
+tooltip. Its floating shape, glass material, lens selection, drag gestures and accessibility
+fallbacks follow the
+[shell navigation entry](mobile-experience.md#navigation-and-reading). The root
+header keeps the one-physical-pixel `line` hairline instead of a logical-pixel rule; the floating
+dock separates from content by elevation instead. The dock uses a translucent raised surface over a
+blurred, saturated backdrop on iOS and Android, while high-contrast mode, reduced motion and
+accessible-navigation mode use the opaque theme surface. This does not claim adoption of a native
+iOS Liquid Glass API. Selecting a destination springs a lens between destinations, and reduced
+motion settles it at once. Selected ratings use a filled counterpart. Brand marks and functional radio and
 strikethrough glyphs retain their source artwork, as recorded in the
 [UI Kit asset inventory](../../apps/mobile/packages/ui_kit/assets/README.md).
 Pinned topic markers use `thumbtack` Filled in the theme's red at 16 pixels on both list rows

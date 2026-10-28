@@ -670,14 +670,20 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
         final window = context
             .dependOnInheritedWidgetOfExactType<ReadingWindowScope>();
         final bottomInset = window != null && !window.hasRail
-            ? GfBottomNavigation.metrics(
-                safeAreaBottom: MediaQuery.paddingOf(context).bottom,
+            ? GfBottomNavigation.metricsOf(
+                context,
                 barHeight: GfBottomNavigation.heightFor(
                   context,
                   labels: GfShellDestination.values.map(
                     (destination) => destination.label(l10n),
                   ),
-                  availableWidth: window.navigationWidth,
+                  // Mirror the shell's own measurement so a labeled dock
+                  // wraps at the same width here and in the root surface.
+                  availableWidth: math.max(
+                    1,
+                    window.navigationWidth -
+                        MediaQuery.paddingOf(context).horizontal,
+                  ),
                   showLabels: shellNavigationShowsLabels,
                 ),
               ).contentBottomInset

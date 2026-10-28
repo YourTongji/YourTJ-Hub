@@ -1,7 +1,10 @@
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/gf_theme.dart';
 import '../twemoji/twemoji_text.dart';
@@ -44,8 +47,34 @@ class GfBottomNavigationMetrics {
   final double actionBottomInset;
 }
 
-/// Four accessible navigation destinations with optional visible labels and a
-/// compose slot.
+// Dock geometry. The selection lens sits [_dockInset] inside the rim, so the
+// dock and the lens stay concentric pills.
+const double _dockHeight = 56;
+const double _dockInset = 5;
+const double _dockSideMargin = GfSpace.xl;
+const double _maxSlotExtent = 80;
+const double _labeledActionWidth = 64;
+// How far a lifted lens grows past its resting box on each side.
+const double _lensLift = 3;
+// How much of the destinations a lifted lens magnifies.
+const double _lensMagnify = 0.1;
+// How far a press swells the dock on each side.
+const double _pressSwell = 3;
+const double _maxStretch = 0.26;
+// Lens stretch per destination per second of travel.
+const double _stretchPerSlot = 0.03;
+// The furthest, in destinations, a drag can pull the lens past either end.
+const double _overdrag = 0.3;
+const double _flingProjection = 0.09;
+
+/// Four accessible destinations on a floating glass dock, with optional
+/// visible labels and a compose action beside it.
+///
+/// The selection is a lens that springs between destinations and stretches
+/// while it travels; the destinations it covers take the selected colour and
+/// filled glyph part by part as it passes. Dragging along the dock lifts the
+/// lens and scrubs it under the finger, ticking at each destination, and
+/// selects where it is let go.
 class GfBottomNavigation extends StatelessWidget {
   const GfBottomNavigation({
     super.key,
@@ -66,14 +95,61 @@ class GfBottomNavigation extends StatelessWidget {
   final String actionSymbol;
   final bool showLabels;
 
+  /// Gap between the dock's foot and the screen edge. On iOS the dock floats
+  /// over the home indicator, as the system tab bar does; elsewhere it clears
+  /// the system navigation entirely.
+  static double bottomMarginFor(
+    double safeAreaBottom, {
+    bool homeIndicator = false,
+  }) => math.max(
+    GfSpace.md,
+    homeIndicator ? safeAreaBottom - GfSpace.md : safeAreaBottom,
+  );
+
+  static bool _floatsOverHomeIndicator(BuildContext context) =>
+      Theme.of(context).platform == TargetPlatform.iOS;
+
   static GfBottomNavigationMetrics metrics({
     required double safeAreaBottom,
     required double barHeight,
+    bool homeIndicator = false,
   }) {
+    final double margin = bottomMarginFor(
+      safeAreaBottom,
+      homeIndicator: homeIndicator,
+    );
     return GfBottomNavigationMetrics(
       barHeight: barHeight,
-      contentBottomInset: barHeight + safeAreaBottom + 8,
-      actionBottomInset: barHeight + 16,
+      contentBottomInset: margin + barHeight + GfSpace.md,
+      // Callers place floating actions above the safe area.
+      actionBottomInset: margin + barHeight + GfSpace.lg - safeAreaBottom,
+    );
+  }
+
+  /// [metrics] for the device insets and platform of [context].
+  static GfBottomNavigationMetrics metricsOf(
+    BuildContext context, {
+    required double barHeight,
+  }) => metrics(
+    safeAreaBottom: MediaQuery.paddingOf(context).bottom,
+    barHeight: barHeight,
+    homeIndicator: _floatsOverHomeIndicator(context),
+  );
+
+  static double _dockWidthFor(
+    double availableWidth, {
+    required bool hasAction,
+    required bool showLabels,
+  }) {
+    final double action = hasAction
+        ? (showLabels ? _labeledActionWidth : _dockHeight) + GfSpace.sm
+        : 0;
+    return math.max(
+      _dockInset * 2 + 4,
+      math.min(
+        availableWidth - _dockSideMargin * 2 - action,
+        4 * _maxSlotExtent + _dockInset * 2,
+      ),
     );
   }
 
@@ -81,32 +157,40 @@ class GfBottomNavigation extends StatelessWidget {
     BuildContext context, {
     required Iterable<String> labels,
     required double availableWidth,
-    int slots = 4,
     bool showLabels = true,
     bool hasAction = false,
   }) {
-    if (!showLabels) return 56;
+    if (!showLabels) return _dockHeight;
     final TextStyle style = _navigationLabelStyle(
       context,
       color: GfTheme.colorsOf(context).baseContent,
-      fontWeight: FontWeight.w600,
     );
     final TextScaler scaler = MediaQuery.textScalerOf(context);
-    final double itemWidth = math.max(1, availableWidth / slots - 8);
+    final double dockWidth = _dockWidthFor(
+      availableWidth,
+      hasAction: hasAction,
+      showLabels: showLabels,
+    );
+    final double labelWidth = math.max(1, _labelWidthFor(dockWidth));
     double maxLabelHeight = 0;
     for (final String label in labels) {
       final TextPainter painter = TextPainter(
         text: TextSpan(text: label, style: style),
         textDirection: Directionality.of(context),
         textScaler: scaler,
-      )..layout(maxWidth: itemWidth);
+      )..layout(maxWidth: labelWidth);
       maxLabelHeight = math.max(maxLabelHeight, painter.height);
       painter.dispose();
     }
-    // The top divider contributes one layout pixel before the destination
-    // padding and label.
-    return math.max(72, (hasAction ? 56 : 53) + maxLabelHeight);
+    return math.max(64, _labeledContentHeight + maxLabelHeight);
   }
+
+  static double _labelWidthFor(double dockWidth) =>
+      (dockWidth - _dockInset * 2) / 4 - GfSpace.sm;
+
+  // Inset, glyph and gap above a label, and the air below it.
+  static const double _labeledContentHeight =
+      _dockInset * 2 + GfSpace.sm + GfIconSize.lg + GfSpace.xxs + GfSpace.xs;
 
   @override
   Widget build(BuildContext context) {
@@ -116,230 +200,891 @@ class GfBottomNavigation extends StatelessWidget {
         'received ${items.length}.',
       );
     }
-    final GfColors colors = GfTheme.colorsOf(context);
-    final bool highContrast = MediaQuery.highContrastOf(context);
-    final bool useGlass =
-        !highContrast &&
+    final EdgeInsets padding = MediaQuery.paddingOf(context);
+    final double margin = bottomMarginFor(
+      padding.bottom,
+      homeIndicator: _floatsOverHomeIndicator(context),
+    );
+    // Glass is skipped wherever the platform asks for plainer surfaces.
+    final bool glass =
+        !MediaQuery.highContrastOf(context) &&
         !MediaQuery.disableAnimationsOf(context) &&
-        !MediaQuery.accessibleNavigationOf(context) &&
-        Theme.of(context).platform == TargetPlatform.iOS;
+        !MediaQuery.accessibleNavigationOf(context);
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
+        final double available = math.max(
+          1,
+          constraints.maxWidth - padding.horizontal,
+        );
+        final bool hasAction = onAction != null;
         final double barHeight = heightFor(
           context,
           labels: [
             ...items.map((item) => item.label),
-            if (onAction != null) actionLabel,
+            if (hasAction) actionLabel,
           ],
-          availableWidth: math.max(
-            1,
-            constraints.maxWidth - MediaQuery.paddingOf(context).horizontal,
-          ),
-          slots: onAction == null ? 4 : 5,
+          availableWidth: available,
           showLabels: showLabels,
-          hasAction: onAction != null && showLabels,
+          hasAction: hasAction,
         );
-        return _buildBar(context, colors, useGlass, barHeight);
-      },
-    );
-  }
-
-  Widget _buildBar(
-    BuildContext context,
-    GfColors colors,
-    bool useGlass,
-    double barHeight,
-  ) {
-    final Widget bar = Material(
-      color: useGlass ? colors.canvas.withValues(alpha: 0.92) : colors.canvas,
-      child: SafeArea(
-        top: false,
-        child: Container(
-          height: barHeight,
-          decoration: BoxDecoration(
-            // One physical pixel, like X: separation without a heavy rule.
-            border: Border(top: BorderSide(color: colors.separator, width: 0)),
+        final double dockWidth = _dockWidthFor(
+          available,
+          hasAction: hasAction,
+          showLabels: showLabels,
+        );
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            padding.left + _dockSideMargin,
+            0,
+            padding.right + _dockSideMargin,
+            margin,
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              _Destination(
-                showLabel: showLabels,
-                item: items[0],
-                selected: currentIndex == 0,
-                onTap: () => onSelected(0),
-              ),
-              _Destination(
-                showLabel: showLabels,
-                item: items[1],
-                selected: currentIndex == 1,
-                onTap: () => onSelected(1),
-              ),
-              if (onAction != null)
-                _ComposeAction(
-                  symbol: actionSymbol,
-                  label: actionLabel,
-                  onTap: onAction,
-                  showLabel: showLabels,
+          child: SizedBox(
+            height: barHeight,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                SizedBox(
+                  width: dockWidth,
+                  child: _Dock(
+                    items: items,
+                    currentIndex: currentIndex,
+                    onSelected: onSelected,
+                    showLabels: showLabels,
+                    glass: glass,
+                  ),
                 ),
-              _Destination(
-                showLabel: showLabels,
-                item: items[2],
-                selected: currentIndex == 2,
-                onTap: () => onSelected(2),
-              ),
-              _Destination(
-                showLabel: showLabels,
-                item: items[3],
-                selected: currentIndex == 3,
-                onTap: () => onSelected(3),
-              ),
-            ],
+                if (hasAction) ...<Widget>[
+                  const SizedBox(width: GfSpace.sm),
+                  _DockAction(
+                    symbol: actionSymbol,
+                    label: actionLabel,
+                    onTap: onAction!,
+                    showLabel: showLabels,
+                    glass: glass,
+                    width: showLabels ? _labeledActionWidth : barHeight,
+                  ),
+                ],
+              ],
+            ),
           ),
-        ),
-      ),
-    );
-    if (!useGlass) return bar;
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: bar,
-      ),
+        );
+      },
     );
   }
 }
 
-class _Destination extends StatelessWidget {
-  const _Destination({
-    required this.item,
-    required this.selected,
-    required this.onTap,
-    required this.showLabel,
+/// A spring whose target may move every frame.
+///
+/// [AnimationController.animateWith] restarts its clock on every call, so a
+/// value retargeted each frame (the lens under a finger, or its stretch while
+/// it travels) would hold still. This integrates continuously instead.
+class _Spring extends ChangeNotifier implements ValueListenable<double> {
+  _Spring(TickerProvider vsync, this._value) : _target = _value {
+    _ticker = vsync.createTicker(_tick);
+  }
+
+  late final Ticker _ticker;
+  double _value;
+  double _target;
+  double _velocity = 0;
+  double _stiffness = 300;
+  double _damping = 30;
+  Duration? _last;
+
+  @override
+  double get value => _value;
+  double get velocity => _velocity;
+  double get target => _target;
+
+  void tune(double stiffness, double dampingRatio) {
+    _stiffness = stiffness;
+    _damping = 2 * dampingRatio * math.sqrt(stiffness);
+  }
+
+  void moveTo(double target, {bool immediate = false}) {
+    _target = target;
+    if (immediate) {
+      _ticker.stop();
+      _velocity = 0;
+      if (_value != target) {
+        _value = target;
+        notifyListeners();
+      }
+      return;
+    }
+    if (!_ticker.isActive && (_value != target || _velocity != 0)) {
+      _last = null;
+      _ticker.start();
+    }
+  }
+
+  void _tick(Duration elapsed) {
+    double dt = _last == null
+        ? 1 / 60
+        : (elapsed - _last!).inMicroseconds / Duration.microsecondsPerSecond;
+    _last = elapsed;
+    dt = math.min(dt, 1 / 20);
+    while (dt > 0) {
+      final double step = math.min(dt, 1 / 240);
+      final double force =
+          -_stiffness * (_value - _target) - _damping * _velocity;
+      _velocity += force * step;
+      _value += _velocity * step;
+      dt -= step;
+    }
+    if ((_value - _target).abs() < 1e-3 && _velocity.abs() < 1e-2) {
+      _value = _target;
+      _velocity = 0;
+      _ticker.stop();
+    }
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+}
+
+class _DockGeometry {
+  const _DockGeometry(this.size, this.count, this.rtl);
+
+  final Size size;
+  final int count;
+  final bool rtl;
+
+  double get pitch => (size.width - _dockInset * 2) / count;
+
+  double centerOf(double position) {
+    final double x = _dockInset + (position + 0.5) * pitch;
+    return rtl ? size.width - x : x;
+  }
+
+  double positionAt(double x) =>
+      ((rtl ? size.width - x : x) - _dockInset) / pitch - 0.5;
+
+  /// The lens over [position]: [stretch] lengthens it along its travel and
+  /// thins it a little, and [lift] raises it past the dock's rim.
+  RRect lens(double position, double stretch, double lift) {
+    final double grow = _lensLift * 2 * lift;
+    final double width = (pitch + grow) * (1 + stretch);
+    final double height =
+        (size.height - _dockInset * 2 + grow) * (1 - stretch * 0.3);
+    return RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset(centerOf(position), size.height / 2),
+        width: width,
+        height: height,
+      ),
+      Radius.circular(height / 2),
+    );
+  }
+}
+
+class _Dock extends StatefulWidget {
+  const _Dock({
+    required this.items,
+    required this.currentIndex,
+    required this.onSelected,
+    required this.showLabels,
+    required this.glass,
   });
 
-  final bool showLabel;
-  final GfBottomNavigationItem item;
-  final bool selected;
-  final VoidCallback onTap;
+  final List<GfBottomNavigationItem> items;
+  final int currentIndex;
+  final ValueChanged<int> onSelected;
+  final bool showLabels;
+  final bool glass;
+
+  @override
+  State<_Dock> createState() => _DockState();
+}
+
+class _DockState extends State<_Dock> with TickerProviderStateMixin {
+  late final _Spring _travel = _Spring(this, widget.currentIndex.toDouble())
+    ..addListener(_onTravel);
+  late final _Spring _stretch = _Spring(this, 0);
+  late final _Spring _lift = _Spring(this, 0);
+  late final _Spring _press = _Spring(this, 0);
+  late final Listenable _lensMotion = Listenable.merge(<Listenable>[
+    _travel,
+    _stretch,
+    _lift,
+  ]);
+  _DockGeometry _geometry = const _DockGeometry(Size(1, 1), 4, false);
+  bool _reduced = false;
+  bool _dragging = false;
+  // Set while a lifted lens is on its way down to a destination.
+  bool _landing = false;
+  int _pressedSlot = -1;
+  int _dragSlot = 0;
+
+  int get _last => widget.items.length - 1;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduced = GfMotion.reducedOf(context);
+    if (_reduced) {
+      // Reduced motion takes effect at once, even mid-flight.
+      _travel.moveTo(_travel.target, immediate: true);
+      for (final _Spring spring in <_Spring>[_stretch, _lift, _press]) {
+        spring.moveTo(0, immediate: true);
+      }
+      _landing = false;
+    }
+  }
+
+  @override
+  void didUpdateWidget(_Dock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_dragging && _travel.target != widget.currentIndex) {
+      _travelTo(widget.currentIndex, lifted: false);
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final _Spring spring in <_Spring>[_travel, _stretch, _lift, _press]) {
+      spring.dispose();
+    }
+    super.dispose();
+  }
+
+  RRect get _lens => _geometry.lens(_travel.value, _stretch.value, _lift.value);
+
+  void _onTravel() {
+    _stretch
+      ..tune(320, 0.42)
+      ..moveTo(
+        _reduced
+            ? 0
+            : math.min(_maxStretch, _travel.velocity.abs() * _stretchPerSlot),
+        immediate: _reduced,
+      );
+    if (_landing && (_travel.value - _travel.target).abs() < 0.12) {
+      _landing = false;
+      _lift
+        ..tune(260, 1)
+        ..moveTo(0, immediate: _reduced);
+    }
+  }
+
+  void _travelTo(int index, {required bool lifted}) {
+    _travel
+      ..tune(260, 0.78)
+      ..moveTo(index.toDouble(), immediate: _reduced);
+    if (lifted && !_reduced) {
+      _lift
+        ..tune(420, 0.7)
+        ..moveTo(1);
+      _landing = true;
+    }
+  }
+
+  /// Follows the parent if it did not take the selection we sent it.
+  void _reconcile() {
+    SchedulerBinding.instance
+      ..addPostFrameCallback((_) {
+        if (mounted && !_dragging && _travel.target != widget.currentIndex) {
+          _travelTo(widget.currentIndex, lifted: false);
+        }
+      })
+      ..ensureVisualUpdate();
+  }
+
+  void _select(int index) {
+    if (index != widget.currentIndex) _travelTo(index, lifted: true);
+    // Selecting the current destination still reaches the parent, which
+    // scrolls it back to the top.
+    widget.onSelected(index);
+    _reconcile();
+  }
+
+  void _pressDown(PointerDownEvent event) {
+    _pressedSlot = _geometry
+        .positionAt(event.localPosition.dx)
+        .round()
+        .clamp(0, _last);
+    _press
+      ..tune(520, 0.62)
+      ..moveTo(1, immediate: _reduced);
+  }
+
+  void _pressUp([PointerEvent? _]) {
+    if (_dragging) return;
+    _press
+      ..tune(300, 0.8)
+      ..moveTo(0, immediate: _reduced);
+  }
+
+  void _dragStart(DragStartDetails details) {
+    _dragging = true;
+    _landing = false;
+    _dragSlot = _travel.target.round().clamp(0, _last);
+    _lift
+      ..tune(420, 0.7)
+      ..moveTo(1, immediate: _reduced);
+    _press.moveTo(1, immediate: _reduced);
+    _follow(details.localPosition.dx);
+  }
+
+  void _follow(double x) {
+    final double raw = _geometry.positionAt(x);
+    final double clamped = raw.clamp(0.0, _last.toDouble());
+    final double over = raw - clamped;
+    // Past either end the lens resists, approaching [_overdrag] at most.
+    final double pull = _overdrag * (1 - 1 / (over.abs() / _overdrag + 1));
+    _travel
+      ..tune(1100, 0.92)
+      ..moveTo(clamped + pull * over.sign, immediate: _reduced);
+    final int slot = clamped.round();
+    if (slot != _dragSlot) {
+      _dragSlot = slot;
+      HapticFeedback.selectionClick();
+    }
+  }
+
+  void _dragEnd(DragEndDetails details) {
+    final double velocity = (details.primaryVelocity ?? 0) / _geometry.pitch;
+    final double projected =
+        _travel.value +
+        (_geometry.rtl ? -velocity : velocity) * _flingProjection;
+    // A flick carries on at most one destination past the finger.
+    _settle(
+      projected
+          .round()
+          .clamp(_dragSlot - 1, _dragSlot + 1)
+          .clamp(0, _last)
+          .toInt(),
+    );
+  }
+
+  void _settle(int index) {
+    _dragging = false;
+    _travel
+      ..tune(260, 0.72)
+      ..moveTo(index.toDouble(), immediate: _reduced);
+    _landing = true;
+    // The landing check must run even when moveTo above was a no-op (the
+    // travel spring already converged on this destination): otherwise the
+    // lift never gets the signal to come back down.
+    _onTravel();
+    _pressUp();
+    if (index != widget.currentIndex) widget.onSelected(index);
+    _reconcile();
+  }
 
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final Color foreground = selected ? colors.primary : colors.textSecondary;
-    final Color labelColor = selected ? colors.primary : colors.textSecondary;
-    final bool reducedMotion = GfMotion.reducedOf(context);
-
-    return Expanded(
-      child: Semantics(
-        button: true,
-        selected: selected,
-        label: item.semanticsLabel,
-        onTap: onTap,
-        child: ExcludeSemantics(
-          child: _LabelTooltip(
-            label: item.label,
-            enabled: !showLabel,
-            child: InkWell(
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
-                child: KeyedSubtree(
-                  // A preference change must discard any in-flight decorative
-                  // interpolation so reduced motion takes effect immediately.
-                  key: ValueKey<String>(
-                    'gf-bottom-navigation-destination-${item.symbol}-$reducedMotion',
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        _geometry = _DockGeometry(
+          constraints.biggest,
+          widget.items.length,
+          Directionality.of(context) == TextDirection.rtl,
+        );
+        final Size size = constraints.biggest;
+        return AnimatedBuilder(
+          animation: _press,
+          builder: (BuildContext context, Widget? child) {
+            final double swell = _press.value * _pressSwell * 2;
+            // The swell only paints: layout and hit testing see the dock at rest.
+            return Transform.scale(
+              scaleX: 1 + swell / size.width,
+              scaleY: 1 + swell / size.height,
+              transformHitTests: false,
+              child: child,
+            );
+          },
+          child: Listener(
+            onPointerDown: _pressDown,
+            onPointerUp: _pressUp,
+            onPointerCancel: _pressUp,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragStart: _dragStart,
+              onHorizontalDragUpdate: (DragUpdateDetails details) =>
+                  _follow(details.localPosition.dx),
+              onHorizontalDragEnd: _dragEnd,
+              onHorizontalDragCancel: () => _settle(widget.currentIndex),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  Positioned.fill(
+                    child: _DockMaterial(colors: colors, glass: widget.glass),
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: <Widget>[
-                      AnimatedContainer(
-                        // Keep the animated element stable when selection moves
-                        // between destinations so the transition can be
-                        // interrupted without jumping to its end state.
-                        key: ValueKey<String>(
-                          'gf-bottom-navigation-indicator-${item.symbol}',
+                  AnimatedBuilder(
+                    animation: _lensMotion,
+                    builder: (BuildContext context, Widget? child) =>
+                        Positioned.fromRect(
+                          rect: _lens.outerRect,
+                          child: child!,
                         ),
-                        duration: GfMotion.duration(
-                          context,
-                          GfMotion.selection,
-                        ),
-                        curve: GfMotion.layoutCurve,
-                        width: 56,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? colors.primarySoft
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(GfRadius.full),
-                        ),
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: <Widget>[
-                            Center(
-                              child: TweenAnimationBuilder<Color?>(
-                                tween: ColorTween(end: foreground),
-                                duration: GfMotion.duration(
-                                  context,
-                                  GfMotion.selection,
+                    child: _Lens(
+                      key: const ValueKey<String>('gf-bottom-navigation-lens'),
+                      colors: colors,
+                      glass: widget.glass,
+                      lift: _lift,
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: ExcludeSemantics(
+                      child: ClipPath(
+                        clipper: _LensClipper(this, inside: false),
+                        child: _destinations(colors, selected: false),
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: ExcludeSemantics(
+                      child: ClipPath(
+                        clipper: _LensClipper(this, inside: true),
+                        child: AnimatedBuilder(
+                          animation: _lensMotion,
+                          builder: (BuildContext context, Widget? child) {
+                            // A lifted lens magnifies what it carries.
+                            final Offset center = _lens.center;
+                            final double scale = 1 + _lensMagnify * _lift.value;
+                            return Transform(
+                              transform: Matrix4.identity()
+                                ..translateByDouble(center.dx, center.dy, 0, 1)
+                                ..scaleByDouble(scale, scale, 1, 1)
+                                ..translateByDouble(
+                                  -center.dx,
+                                  -center.dy,
+                                  0,
+                                  1,
                                 ),
-                                curve: GfMotion.layoutCurve,
-                                builder: (context, color, child) => GfSymbol(
-                                  selected ? item.selectedSymbol : item.symbol,
-                                  size: 24,
-                                  color: color ?? foreground,
-                                ),
-                              ),
-                            ),
-                            if (item.badge)
-                              Positioned(
-                                top: 2,
-                                right: 12,
-                                child: Container(
-                                  width: 10,
-                                  height: 10,
-                                  decoration: BoxDecoration(
-                                    color: colors.error,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: colors.canvas,
-                                      width: 2,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
+                              child: child,
+                            );
+                          },
+                          child: _destinations(colors, selected: true),
                         ),
                       ),
-                      if (showLabel) const SizedBox(height: 2),
-                      if (showLabel)
-                        AnimatedDefaultTextStyle(
-                          duration: GfMotion.duration(
-                            context,
-                            GfMotion.selection,
-                          ),
-                          curve: GfMotion.layoutCurve,
-                          style: _navigationLabelStyle(
-                            context,
-                            color: labelColor,
-                            fontWeight: selected
-                                ? FontWeight.w600
-                                : FontWeight.w500,
-                          ),
-                          child: GfText(
-                            item.label,
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                    ],
+                    ),
+                  ),
+                  Positioned.fill(child: _targets(colors)),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Every destination drawn in one state; the lens decides which parts of
+  /// each layer show.
+  Widget _destinations(GfColors colors, {required bool selected}) => Padding(
+    key: ValueKey<String>(
+      selected
+          ? 'gf-bottom-navigation-selected-layer'
+          : 'gf-bottom-navigation-resting-layer',
+    ),
+    padding: const EdgeInsets.symmetric(horizontal: _dockInset),
+    child: Row(
+      children: <Widget>[
+        for (int i = 0; i < widget.items.length; i++)
+          Expanded(
+            child: AnimatedBuilder(
+              animation: _press,
+              builder: (BuildContext context, Widget? child) => Transform.scale(
+                // The pressed destination gives a little under the finger.
+                scale: i == _pressedSlot && !_dragging
+                    ? 1 - 0.06 * _press.value
+                    : 1,
+                child: child,
+              ),
+              child: _DestinationContent(
+                item: widget.items[i],
+                selected: selected,
+                showLabel: widget.showLabels,
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+
+  Widget _targets(GfColors colors) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: _dockInset),
+    child: Row(
+      children: <Widget>[
+        for (int i = 0; i < widget.items.length; i++)
+          Expanded(
+            child: Semantics(
+              button: true,
+              selected: widget.currentIndex == i,
+              label: widget.items[i].semanticsLabel,
+              onTap: () => _select(i),
+              child: ExcludeSemantics(
+                child: _LabelTooltip(
+                  label: widget.items[i].label,
+                  enabled: !widget.showLabels,
+                  child: GestureDetector(
+                    key: ValueKey<String>('gf-bottom-navigation-target-$i'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _select(i),
+                    child: _UnreadDot(
+                      visible: widget.items[i].badge,
+                      showLabel: widget.showLabels,
+                      ring: colors.surfaceRaised,
+                      color: colors.error,
+                    ),
                   ),
                 ),
               ),
             ),
           ),
+      ],
+    ),
+  );
+}
+
+class _LensClipper extends CustomClipper<Path> {
+  _LensClipper(this.dock, {required this.inside})
+    : super(reclip: dock._lensMotion);
+
+  final _DockState dock;
+  final bool inside;
+
+  @override
+  Path getClip(Size size) {
+    final Path lens = Path()..addRRect(dock._lens);
+    if (inside) return lens;
+    return Path.combine(
+      PathOperation.difference,
+      Path()..addRect((Offset.zero & size).inflate(_lensLift * 4)),
+      lens,
+    );
+  }
+
+  @override
+  bool shouldReclip(_LensClipper oldClipper) =>
+      oldClipper.dock != dock || oldClipper.inside != inside;
+}
+
+class _DestinationContent extends StatelessWidget {
+  const _DestinationContent({
+    required this.item,
+    required this.selected,
+    required this.showLabel,
+  });
+
+  final GfBottomNavigationItem item;
+  final bool selected;
+  final bool showLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    final Color color = selected ? colors.primary : colors.textSecondary;
+    final Widget glyph = GfSymbol(
+      selected ? item.selectedSymbol : item.symbol,
+      size: GfIconSize.lg,
+      color: color,
+    );
+    if (!showLabel) return Center(child: glyph);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        GfSpace.xs,
+        _dockInset + GfSpace.sm,
+        GfSpace.xs,
+        0,
+      ),
+      child: Column(
+        children: <Widget>[
+          glyph,
+          const SizedBox(height: GfSpace.xxs),
+          // Both layers share one weight so a lens edge never splits a glyph
+          // into two different shapes.
+          GfText(
+            item.label,
+            textAlign: TextAlign.center,
+            style: _navigationLabelStyle(context, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The unread mark rides above both layers so the lens never tints it, and
+/// pops in when a destination gains unread content.
+class _UnreadDot extends StatelessWidget {
+  const _UnreadDot({
+    required this.visible,
+    required this.showLabel,
+    required this.ring,
+    required this.color,
+  });
+
+  final bool visible;
+  final bool showLabel;
+  final Color ring;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (BuildContext context, BoxConstraints constraints) {
+      final double glyphCenter = showLabel
+          ? _dockInset + GfSpace.sm + GfIconSize.lg / 2
+          : constraints.maxHeight / 2;
+      return Stack(
+        children: <Widget>[
+          Positioned(
+            left: constraints.maxWidth / 2 + 4,
+            top: glyphCenter - 14,
+            child: AnimatedScale(
+              scale: visible ? 1 : 0,
+              duration: GfMotion.duration(context, GfMotion.layout),
+              curve: visible ? Curves.easeOutBack : GfMotion.exitCurve,
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: ring, width: 2),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+/// The resting lens is a soft primary platter; lifted, it clears into glass
+/// that catches the light along its top edge.
+class _Lens extends StatelessWidget {
+  const _Lens({
+    super.key,
+    required this.colors,
+    required this.glass,
+    required this.lift,
+  });
+
+  final GfColors colors;
+  final bool glass;
+  final ValueListenable<double> lift;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    painter: _LensPainter(colors: colors, glass: glass, lift: lift),
+  );
+}
+
+class _LensPainter extends CustomPainter {
+  _LensPainter({required this.colors, required this.glass, required this.lift})
+    : super(repaint: lift);
+
+  final GfColors colors;
+  final bool glass;
+  final ValueListenable<double> lift;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double t = lift.value.clamp(0, 1);
+    final RRect lens = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      Radius.circular(size.height / 2),
+    );
+    final bool dark = colors.isDark;
+    if (!glass) {
+      canvas.drawRRect(lens, Paint()..color = colors.primarySoft);
+      return;
+    }
+    if (t > 0 && !dark) {
+      canvas.drawRRect(
+        lens.shift(const Offset(0, 2)),
+        Paint()
+          ..color = const Color(0xFF0F172A).withValues(alpha: 0.12 * t)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+      );
+    }
+    final Color resting = colors.primary.withValues(alpha: dark ? 0.2 : 0.11);
+    final Color clear = Colors.white.withValues(alpha: dark ? 0.1 : 0.55);
+    canvas.drawRRect(lens, Paint()..color = Color.lerp(resting, clear, t)!);
+    canvas.drawRRect(
+      lens.deflate(0.5),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Colors.white.withValues(alpha: (dark ? 0.1 : 0.5) + 0.35 * t),
+            Colors.white.withValues(alpha: dark ? 0.02 : 0.08),
+          ],
+        ).createShader(lens.outerRect),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_LensPainter oldDelegate) =>
+      oldDelegate.colors != colors ||
+      oldDelegate.glass != glass ||
+      oldDelegate.lift != lift;
+}
+
+List<double> _saturation(double amount) {
+  const double r = 0.2126, g = 0.7152, b = 0.0722;
+  final double rest = 1 - amount;
+  return <double>[
+    r * rest + amount, g * rest, b * rest, 0, 0, //
+    r * rest, g * rest + amount, b * rest, 0, 0, //
+    r * rest, g * rest, b * rest + amount, 0, 0, //
+    0, 0, 0, 1, 0, //
+  ];
+}
+
+/// The dock's pill. On glass, content under it is blurred and its colour
+/// lifted, as frosted glass reads, under a translucent raised-surface tint
+/// with a lit rim. High contrast keeps the opaque raised surface.
+class _DockMaterial extends StatelessWidget {
+  const _DockMaterial({required this.colors, required this.glass});
+
+  final GfColors colors;
+  final bool glass;
+
+  @override
+  Widget build(BuildContext context) {
+    final BorderRadius radius = BorderRadius.circular(GfRadius.full);
+    if (!glass) {
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.surfaceRaised,
+          borderRadius: radius,
+          border: Border.all(color: colors.outline),
+          boxShadow: colors.elevation(GfElevation.mid),
+        ),
+      );
+    }
+    return CustomPaint(
+      painter: _DockShadowPainter(colors.elevation(GfElevation.mid)),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.compose(
+            outer: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            inner: ColorFilter.matrix(_saturation(colors.isDark ? 1.4 : 1.7)),
+          ),
+          child: CustomPaint(
+            painter: _GlassPainter(colors, gfHairline(context)),
+            child: const SizedBox.expand(),
+          ),
         ),
       ),
     );
   }
+}
+
+/// Casts the floating elevation only outside the pill, so translucent glass
+/// never shows its own shadow through itself.
+class _DockShadowPainter extends CustomPainter {
+  const _DockShadowPainter(this.shadows);
+
+  final List<BoxShadow> shadows;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (shadows.isEmpty) return;
+    final RRect pill = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      Radius.circular(size.height / 2),
+    );
+    canvas
+      ..save()
+      ..clipPath(
+        Path.combine(
+          PathOperation.difference,
+          Path()..addRect((Offset.zero & size).inflate(64)),
+          Path()..addRRect(pill),
+        ),
+      );
+    for (final BoxShadow shadow in shadows) {
+      canvas.drawRRect(
+        pill.shift(shadow.offset).inflate(shadow.spreadRadius),
+        shadow.toPaint(),
+      );
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_DockShadowPainter oldDelegate) =>
+      !listEquals(oldDelegate.shadows, shadows);
+}
+
+class _GlassPainter extends CustomPainter {
+  const _GlassPainter(this.colors, this.hairline);
+
+  final GfColors colors;
+  final double hairline;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bool dark = colors.isDark;
+    final Rect bounds = Offset.zero & size;
+    final RRect pill = RRect.fromRectAndRadius(
+      bounds,
+      Radius.circular(size.height / 2),
+    );
+    canvas.drawRRect(
+      pill,
+      Paint()
+        ..color = colors.surfaceRaised.withValues(alpha: dark ? 0.66 : 0.64),
+    );
+    // Light falls from above: a sheen across the upper half...
+    canvas.drawRRect(
+      pill,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.center,
+          colors: <Color>[
+            Colors.white.withValues(alpha: dark ? 0.05 : 0.3),
+            Colors.white.withValues(alpha: 0),
+          ],
+        ).createShader(bounds),
+    );
+    // ...a rim that is brightest where it faces the light...
+    canvas.drawRRect(
+      pill.deflate(0.75),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Colors.white.withValues(alpha: dark ? 0.16 : 0.9),
+            Colors.white.withValues(alpha: dark ? 0.03 : 0.3),
+          ],
+        ).createShader(bounds),
+    );
+    // ...and an outer edge that keeps the pill distinct on a matching page.
+    canvas.drawRRect(
+      pill.deflate(hairline / 2),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = hairline
+        ..color = dark
+            ? colors.line
+            : colors.baseContent.withValues(alpha: 0.07),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_GlassPainter oldDelegate) =>
+      oldDelegate.colors != colors || oldDelegate.hairline != hairline;
 }
 
 /// Icon-only destinations reveal their name on long press; the destination
@@ -361,65 +1106,102 @@ class _LabelTooltip extends StatelessWidget {
       : child;
 }
 
-class _ComposeAction extends StatelessWidget {
-  const _ComposeAction({
+/// A compose action that floats beside the dock on the same material.
+class _DockAction extends StatefulWidget {
+  const _DockAction({
     required this.symbol,
     required this.label,
     required this.onTap,
     required this.showLabel,
+    required this.glass,
+    required this.width,
   });
 
   final String symbol;
   final String label;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
   final bool showLabel;
+  final bool glass;
+  final double width;
+
+  @override
+  State<_DockAction> createState() => _DockActionState();
+}
+
+class _DockActionState extends State<_DockAction> {
+  bool _pressed = false;
+
+  void _setPressed(bool pressed) {
+    if (_pressed != pressed) setState(() => _pressed = pressed);
+  }
 
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final GfShadows shadows = GfTheme.shadowsOf(context);
-
-    return Expanded(
+    final double disc = widget.showLabel
+        ? GfControl.compact
+        : _dockHeight - _dockInset * 2;
+    return SizedBox(
+      width: widget.width,
       child: Semantics(
         button: true,
-        label: label,
-        onTap: onTap,
+        label: widget.label,
+        onTap: widget.onTap,
         child: ExcludeSemantics(
-          child: InkWell(
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(4, 5, 4, 5),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: colors.primary,
-                      shape: BoxShape.circle,
-                      boxShadow: shadows.card,
+          child: _LabelTooltip(
+            label: widget.label,
+            enabled: !widget.showLabel,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (_) => _setPressed(true),
+              onTapUp: (_) => _setPressed(false),
+              onTapCancel: () => _setPressed(false),
+              onTap: widget.onTap,
+              child: AnimatedScale(
+                scale: _pressed ? 0.94 : 1,
+                duration: GfMotion.duration(context, GfMotion.press),
+                curve: GfMotion.enterCurve,
+                child: Stack(
+                  children: <Widget>[
+                    Positioned.fill(
+                      child: _DockMaterial(colors: colors, glass: widget.glass),
                     ),
-                    child: SizedBox(
-                      width: 44,
-                      height: 44,
-                      child: GfSymbol(
-                        symbol,
-                        size: 24,
-                        color: colors.primaryContent,
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: colors.primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: SizedBox.square(
+                              dimension: disc,
+                              child: GfSymbol(
+                                widget.symbol,
+                                size: widget.showLabel
+                                    ? GfIconSize.md
+                                    : GfIconSize.lg,
+                                color: colors.primaryContent,
+                              ),
+                            ),
+                          ),
+                          if (widget.showLabel) ...<Widget>[
+                            const SizedBox(height: GfSpace.xxs),
+                            GfText(
+                              widget.label,
+                              textAlign: TextAlign.center,
+                              style: _navigationLabelStyle(
+                                context,
+                                color: colors.primary,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 1),
-                  if (showLabel)
-                    GfText(
-                      label,
-                      textAlign: TextAlign.center,
-                      style: _navigationLabelStyle(
-                        context,
-                        color: colors.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -429,17 +1211,15 @@ class _ComposeAction extends StatelessWidget {
   }
 }
 
-TextStyle _navigationLabelStyle(
-  BuildContext context, {
-  required Color color,
-  required FontWeight fontWeight,
-}) {
+TextStyle _navigationLabelStyle(BuildContext context, {required Color color}) {
   final TextStyle materialStyle =
       Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
   return materialStyle.merge(
     GfTheme.typographyOf(context).meta.copyWith(
       color: color,
-      fontWeight: MediaQuery.boldTextOf(context) ? FontWeight.w700 : fontWeight,
+      fontWeight: MediaQuery.boldTextOf(context)
+          ? FontWeight.w700
+          : FontWeight.w600,
     ),
   );
 }

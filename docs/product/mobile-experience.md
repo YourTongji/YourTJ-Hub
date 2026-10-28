@@ -214,13 +214,21 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   the top using that feed's existing scroll controller. Other tabs retain their
   reading position; the action does not reload data or navigate.
 - `Current`: four persistent destinations — Home, Campus, Notifications and Messages — use an
-  icon-only bottom bar on compact windows, with the selected Filled icon, indicator and unread state
-  kept together at a fixed compact height, so labels never add height or grow with text size. Each
-  destination keeps its localized name for screen readers and shows it as a long-press tooltip.
-  The iOS bottom bar uses a restrained Flutter blur and translucent surface over
-  the existing theme; Android, high-contrast mode, reduced motion and accessible-navigation mode
-  use the opaque theme surface. This is a Flutter material treatment and does not adopt a native
-  iOS Liquid Glass API. Search is a pushed
+  icon-only floating dock on compact windows: a 56-logical-pixel pill, centered within 20-pixel side
+  margins and at most 330 pixels wide, so labels never add height or grow with text size. On iOS it
+  floats over the home indicator; on Android it sits above the system navigation. Content scrolls
+  under it and stays tappable beside it. Each destination keeps its localized name for screen
+  readers and shows it as a long-press tooltip; unread dots ride above the selection and pop in.
+  The selection is a lens that springs between destinations and stretches while it travels; the
+  icon it covers turns Filled and primary part by part as it passes. A press swells the dock
+  slightly. Dragging along the dock lifts the lens into clear glass that magnifies its icon, ticks
+  a selection haptic at each destination crossed, resists past either end and selects where it is
+  released (a flick carries at most one destination further); releasing on the current destination
+  selects nothing, while tapping it still returns that page to the top. The dock is translucent
+  raised surface over a blurred, saturated backdrop with a top-lit rim on iOS and Android;
+  high-contrast mode, reduced motion and accessible-navigation mode use the opaque raised surface,
+  and reduced motion settles the lens at once. This is a Flutter treatment built on the existing
+  theme and does not adopt a native iOS Liquid Glass API. Search is a pushed
   page, reachable from Home. Campus links to the native course catalog, scheduler and Wiki;
   returning preserves the selected destination.
   About links to native friend links, sponsors, terms and privacy pages using the site’s published
@@ -319,7 +327,7 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   settle follows a fast release fling, otherwise the net movement since the drag began, so a small
   release jitter cannot reverse it. Hiding or showing them does not rebuild the root surface. Near the top they stay attached to the content; edge bounce is ignored. Content insets
   never change, so the feed does not jump. Hidden headers are clipped at the system safe-area edge;
-  the compose button follows the bottom bar. Header and bottom-bar borders are one physical pixel.
+  the compose button follows the bottom dock, 16 pixels above it. Header borders are one physical pixel.
   While controls are hidden, off-screen tab panes scroll their reserved header band away, so a pane
   swiped or tapped into shows content rather than a blank band; the pane on screen never moves and
   returning controls restore those offsets. Reaching the top or changing destination restores the
@@ -558,6 +566,8 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
 
 `Current`: native mobile motion uses one semantic policy: 120 ms press feedback,
 160 ms selection, 180 ms content, 220 ms layout and 280 ms sheet/media transitions.
+Duration figures cover timed transitions; the shell dock's selection lens is a physical
+spring that settles per its own dynamics (see [Navigation and reading](#navigation-and-reading)).
 Root headers, navigation and compose controls move together while the reading viewport stays
 stable. Tabs, announcement expansion, form focus, theme/logo changes and local disclosures
 consume that policy. Android pushed pages use a 220 ms fade with a six-logical-pixel rise and
