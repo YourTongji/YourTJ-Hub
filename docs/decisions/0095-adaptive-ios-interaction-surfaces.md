@@ -2,10 +2,11 @@
 
 ## Status
 
-Superseded by [0110](0110-single-column-home-reading.md)
+Accepted
 Class: architecture
 
-The successor replaces only Home's two-column composition and retains the other
+Home's two-column composition is superseded by
+[0110](0110-single-column-home-reading.md); this record retains the other
 window-layout rules. [0100](0100-material-interaction-surfaces-on-ios.md) owns the
 Material presentation of transient surfaces.
 
@@ -42,8 +43,10 @@ keyboard avoidance and their existing save/error semantics.
 
 Pushed reading and form routes use a centered reading window without an additional navigator. The
 wrapper remains in the widget tree across width changes, consumes horizontal safe areas once and
-gives the page its actual column width. Home keeps category tabs above its retained feed and uses
-the right column for search and existing Hot topics; settings uses a directory beside its current section.
+gives the page its actual column width. Home's composition here — category tabs above its retained
+feed with the right column used for search and existing Hot topics — is superseded by
+[0110](0110-single-column-home-reading.md), which keeps Home on a single centered reading column
+with one search entry; settings uses a directory beside its current section.
 Messages pairs its directory with the selected chat, and course and Wiki selectors stay beside their content.
 These workspaces, search and publishing can use
 1120 pixels, while individual reading surfaces retain their reading bounds. Compact windows or
@@ -52,7 +55,8 @@ bound in [0037](0037-adaptive-mobile-reading-window.md); its retained navigator 
 root navigation breakpoint continue to apply. The root rail displays destination labels and measures
 them at the current system text size. It uses a 220-pixel sidebar with icon-and-label rows when the
 window is at least 1100 pixels wide and text scale is no greater than 1.4; otherwise its width grows
-from 72 to 160 pixels before labels wrap. Text is not scaled down. Login fills the window with a
+from 88 to 176 pixels, including the floating surface's 8-pixel outer margins on each side (72 to 160
+before the margins), before labels wrap. Text is not scaled down. Login fills the window with a
 continuous background while its form stays bounded. Image viewing, the
 scheduler and authenticated management keep their full viewport. The component foundation in
 [0039](0039-native-gf-component-foundation.md) and visual acceptance in
