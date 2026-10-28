@@ -8,6 +8,7 @@ import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/pages/messages/messages_page.dart';
 import 'package:forum_app/src/navigation/reading_window.dart';
 import 'package:forum_app/src/navigation/window_reserved_regions.dart';
+import 'package:forum_app/src/realtime/realtime_updates.dart';
 
 import 'chat_avatar_profile_test.dart' show pumpConversation;
 import 'chat_visible_read_test.dart' show pumpChat;
@@ -90,6 +91,57 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets(
+    'edge navigation keeps the new-messages FAB clear of the capsule',
+    (tester) async {
+      const size = Size(466, 678);
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = size;
+      tester.view.padding = const FakeViewPadding(right: 84, bottom: 34);
+      tester.view.viewPadding = const FakeViewPadding(right: 84, bottom: 34);
+      addTearDown(tester.view.reset);
+      final reserved = WindowReservedRegions(
+        size: size,
+        safeArea: const EdgeInsets.only(right: 84, bottom: 34),
+        occlusions: [Rect.fromLTWH(size.width - 84, 0, 84, 190)],
+      );
+      final app = await pumpChat(
+        tester,
+        surfaceSize: size,
+        messages: List.generate(
+          40,
+          (i) => makeChatMessage(i + 1).copyWith(isSelf: true),
+        ),
+        pageWrapper: (page) => ReadingWindow(
+          reservedRegions: reserved,
+          maxContentWidth: 1120,
+          rail: const Align(
+            alignment: Alignment.bottomCenter,
+            child: SizedBox(width: 56, height: 224, key: Key('capsule')),
+          ),
+          bottomNavigation: const SizedBox(height: 56),
+          child: page,
+        ),
+      );
+      final timeline = find.byType(ListView).last;
+      // Scroll away from the bottom so an incoming message stays "unseen".
+      await tester.drag(timeline, const Offset(0, 600));
+      await tester.pumpAndSettle();
+      app.container.read(realtimeHealthyProvider.notifier).setHealthy(true);
+      app.repo.messages.add(makeChatMessage(41));
+      app.container.read(realtimeInvalidationsProvider.notifier).chat(1);
+      await tester.pump(const Duration(seconds: 16));
+      await tester.pumpAndSettle();
+      final fab = find.byKey(const Key('chat-new-messages'));
+      expect(fab, findsOneWidget);
+      // The FAB must stay left of the side pocket that hosts the capsule.
+      expect(tester.getRect(fab).right, lessThanOrEqualTo(size.width - 84));
+      await tester.tap(fab);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chat-new-messages')), findsNothing);
+    },
+  );
 
   testWidgets(
     'wide messages keep the directory and retain chat across resizing',

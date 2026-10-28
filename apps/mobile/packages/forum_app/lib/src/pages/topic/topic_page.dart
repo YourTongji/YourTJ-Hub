@@ -1690,7 +1690,6 @@ class _TopicPageState extends ConsumerState<TopicPage>
   }) {
     if (notification.depth == 0 &&
         notification is ScrollStartNotification &&
-        notification.dragDetails != null &&
         _lastScrollWasReplies != replies) {
       setState(() => _lastScrollWasReplies = replies);
     }

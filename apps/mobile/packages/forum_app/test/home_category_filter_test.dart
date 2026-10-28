@@ -319,6 +319,8 @@ void main() {
           find.byKey(const ValueKey('home-category-rail')),
         );
         expect(feed.width, 720);
+        expect(feed.left, (951 - 720) / 2);
+        expect(feed.right, 951 - (951 - 720) / 2);
         expect(toolbar.left, feed.left);
         expect(toolbar.right, feed.right);
         expect(tester.takeException(), isNull);

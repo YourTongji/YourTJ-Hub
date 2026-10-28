@@ -712,7 +712,6 @@ class _DockState extends State<_Dock> with TickerProviderStateMixin {
           Expanded(
             child: Semantics(
               button: true,
-              enabled: true,
               selected: widget.currentIndex == i,
               label: widget.items[i].semanticsLabel,
               onTap: () => _select(i),
@@ -992,7 +991,6 @@ class _DockActionState extends State<_DockAction> {
       width: widget.width,
       child: Semantics(
         button: true,
-        enabled: true,
         label: widget.label,
         onTap: widget.onTap,
         child: ExcludeSemantics(

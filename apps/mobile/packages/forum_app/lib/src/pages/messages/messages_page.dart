@@ -2614,7 +2614,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                       ),
                     if (_unseenNewMessages)
                       Positioned(
-                        right: 12,
+                        right:
+                            12 +
+                            (ReadingWindowScope.edgeNavigationOf(context)
+                                ? MediaQuery.paddingOf(context).right
+                                : 0),
                         bottom: 12,
                         child: FloatingActionButton.small(
                           key: const Key('chat-new-messages'),

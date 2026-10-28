@@ -16,6 +16,8 @@ final windowReservedRegionsProvider = StreamProvider<WindowReservedRegions?>((
     ).receiveBroadcastStream()) {
       yield WindowReservedRegions.fromMessage(message);
     }
+    // Older SDKs close the channel without publishing any geometry.
+    yield null;
   } on MissingPluginException {
     // Older SDKs/OS versions retain the ordinary safe-area navigation.
     yield null;

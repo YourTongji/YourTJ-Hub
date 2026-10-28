@@ -11,7 +11,10 @@ class ReadingNavigationRail extends StatelessWidget {
     required this.items,
     required this.currentIndex,
     required this.onSelected,
-  });
+  }) : assert(
+         items.length == 4,
+         'WindowReservedRegions.navigationClearance assumes four 48-pixel destinations',
+       );
   final List<GfBottomNavigationItem> items;
   final int currentIndex;
   final ValueChanged<int> onSelected;
