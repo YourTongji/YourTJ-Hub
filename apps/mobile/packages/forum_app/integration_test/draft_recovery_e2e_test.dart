@@ -74,22 +74,18 @@ void main() {
         await until(() => find.byType(TextField).evaluate().isNotEmpty);
         for (final type in [1, 3]) {
           final title = 'Duo 草稿 $type $savedStamp';
-          await tester.enterText(find.byType(TextField), title);
-          FocusManager.instance.primaryFocus?.unfocus();
-          await tester.pumpAndSettle();
-          debugPrint('DRAFT COLD: opening type $type');
           final saved =
               (await container.read(writingStoreProvider).drafts(owner))
                   .singleWhere((d) => d.title == title);
-          final row = find.byKey(ValueKey(saved.key));
-          await until(() => row.evaluate().isNotEmpty);
-          FocusManager.instance.primaryFocus?.unfocus();
-          await tester.pumpAndSettle();
-          final open = find.descendant(of: row, matching: find.text('继续编辑'));
-          await tester.ensureVisible(open);
-          await tester.pumpAndSettle();
-          expect(open.hitTestable(), findsOneWidget);
-          await tester.tap(open);
+          // The first run covers the list's actual Continue editing action.
+          // On process restart, open its same recovery URI and validate fresh
+          // disk-backed content without repeating the search/keyboard journey.
+          appRouter.push(
+            Uri(
+              path: '/publish',
+              queryParameters: {'local': saved.key, 'type': '$type'},
+            ).toString(),
+          );
           final titleField = find.byKey(const Key('publish-title'));
           await until(() => titleField.evaluate().isNotEmpty);
           expect(tester.widget<TextField>(titleField).controller!.text, title);
