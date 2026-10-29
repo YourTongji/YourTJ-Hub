@@ -415,45 +415,48 @@ void main() {
     });
 
     for (final locale in <String?>['zh', 'en', 'ja', 'de', null, '']) {
-      test('registration forwards locale $locale to the request body', () async {
-        final storage = MemoryTokenStorage();
-        final adapter = MockAdapter((request) async {
-          expect(request.path, '/api/register');
-          return ResponseData(200, {
-            'code': 0,
-            'result': 'registered',
-            'messageCode': 'auth.register.emailVerify',
+      test(
+        'registration forwards locale $locale to the request body',
+        () async {
+          final storage = MemoryTokenStorage();
+          final adapter = MockAdapter((request) async {
+            expect(request.path, '/api/register');
+            return ResponseData(200, {
+              'code': 0,
+              'result': 'registered',
+              'messageCode': 'auth.register.emailVerify',
+            });
           });
-        });
-        final client = GfApiClient(
-          dio: Dio()..httpClientAdapter = adapter,
-          tokenStorage: storage,
-          baseUrl: 'http://fake.local',
-        );
-        final controller = AuthController(
-          authRepository: AuthRepository(client),
-          apiClient: client,
-          tokenStorage: storage,
-        );
-        addTearDown(controller.dispose);
+          final client = GfApiClient(
+            dio: Dio()..httpClientAdapter = adapter,
+            tokenStorage: storage,
+            baseUrl: 'http://fake.local',
+          );
+          final controller = AuthController(
+            authRepository: AuthRepository(client),
+            apiClient: client,
+            tokenStorage: storage,
+          );
+          addTearDown(controller.dispose);
 
-        final messageCode = await controller.register(
-          username: 'mobile',
-          email: 'student@example.com',
-          password: 'secret123',
-          locale: locale,
-        );
+          final messageCode = await controller.register(
+            username: 'mobile',
+            email: 'student@example.com',
+            password: 'secret123',
+            locale: locale,
+          );
 
-        final body = adapter.requests.single.data as Map<String, dynamic>;
-        if (locale == null || locale.isEmpty) {
-          expect(body.containsKey('locale'), isFalse);
-        } else {
-          expect(body['locale'], locale);
-        }
-        expect(messageCode, 'auth.register.emailVerify');
-        expect(controller.phase, LoginPhase.idle);
-        expect(controller.error, isEmpty);
-      });
+          final body = adapter.requests.single.data as Map<String, dynamic>;
+          if (locale == null || locale.isEmpty) {
+            expect(body.containsKey('locale'), isFalse);
+          } else {
+            expect(body['locale'], locale);
+          }
+          expect(messageCode, 'auth.register.emailVerify');
+          expect(controller.phase, LoginPhase.idle);
+          expect(controller.error, isEmpty);
+        },
+      );
     }
 
     test('注册遇到 common.captchaRequired 进入 needsCaptcha', () async {

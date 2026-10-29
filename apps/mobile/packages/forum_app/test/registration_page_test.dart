@@ -172,12 +172,15 @@ class _Auth extends AuthController {
 }
 
 void main() {
-  Future<({
-    _Auth auth,
-    _Options options,
-    ProviderContainer container,
-    Future<void> Function(Locale) changeLocale,
-  })> pump(
+  Future<
+    ({
+      _Auth auth,
+      _Options options,
+      ProviderContainer container,
+      Future<void> Function(Locale) changeLocale,
+    })
+  >
+  pump(
     WidgetTester tester, {
     List<String> domains = const [],
     bool policies = false,
