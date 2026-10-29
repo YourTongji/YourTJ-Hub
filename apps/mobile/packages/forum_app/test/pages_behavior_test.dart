@@ -1477,6 +1477,20 @@ int nativePushStops = 0;
 class LogoutAuthRepository extends AuthRepository {
   LogoutAuthRepository(super.client);
 
+  @override
+  Future<ActivationStatus> getActivationStatus({
+    CancelToken? cancelToken,
+  }) async => const ActivationStatus(
+    currentEmail: 'alice@example.test',
+    pendingEmail: '',
+    targetEmail: '',
+    targetKind: 'none',
+    state: 'verified',
+    remainingToday: 3,
+    dailyLimit: 3,
+    retryAfterSeconds: 0,
+  );
+
   int logoutCalls = 0;
 
   @override
@@ -4142,6 +4156,11 @@ void main() {
             )
             .first,
       );
+      await Scrollable.ensureVisible(
+        tester.element(find.byKey(const Key('settings-close-account'))),
+        alignment: .5,
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.text('注销账号'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'password');
