@@ -25,6 +25,7 @@ mixin _$LoginPageProps {
   String get initialMode => throw _privateConstructorUsedError;
   String get redirectUrl => throw _privateConstructorUsedError;
   String get githubUrl => throw _privateConstructorUsedError;
+  bool get githubReady => throw _privateConstructorUsedError;
   bool get googleReady => throw _privateConstructorUsedError;
   bool get appleReady => throw _privateConstructorUsedError;
   bool get tongjiReady => throw _privateConstructorUsedError;
@@ -59,6 +60,7 @@ abstract class $LoginPagePropsCopyWith<$Res> {
     String initialMode,
     String redirectUrl,
     String githubUrl,
+    bool githubReady,
     bool googleReady,
     bool appleReady,
     bool tongjiReady,
@@ -90,6 +92,7 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
     Object? initialMode = null,
     Object? redirectUrl = null,
     Object? githubUrl = null,
+    Object? githubReady = null,
     Object? googleReady = null,
     Object? appleReady = null,
     Object? tongjiReady = null,
@@ -118,6 +121,10 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
                 ? _value.githubUrl
                 : githubUrl // ignore: cast_nullable_to_non_nullable
                       as String,
+            githubReady: null == githubReady
+                ? _value.githubReady
+                : githubReady // ignore: cast_nullable_to_non_nullable
+                      as bool,
             googleReady: null == googleReady
                 ? _value.googleReady
                 : googleReady // ignore: cast_nullable_to_non_nullable
@@ -174,6 +181,7 @@ abstract class _$$LoginPagePropsImplCopyWith<$Res>
     String initialMode,
     String redirectUrl,
     String githubUrl,
+    bool githubReady,
     bool googleReady,
     bool appleReady,
     bool tongjiReady,
@@ -204,6 +212,7 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
     Object? initialMode = null,
     Object? redirectUrl = null,
     Object? githubUrl = null,
+    Object? githubReady = null,
     Object? googleReady = null,
     Object? appleReady = null,
     Object? tongjiReady = null,
@@ -232,6 +241,10 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
             ? _value.githubUrl
             : githubUrl // ignore: cast_nullable_to_non_nullable
                   as String,
+        githubReady: null == githubReady
+            ? _value.githubReady
+            : githubReady // ignore: cast_nullable_to_non_nullable
+                  as bool,
         googleReady: null == googleReady
             ? _value.googleReady
             : googleReady // ignore: cast_nullable_to_non_nullable
@@ -281,6 +294,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
     required this.initialMode,
     required this.redirectUrl,
     required this.githubUrl,
+    this.githubReady = false,
     required this.googleReady,
     this.appleReady = false,
     this.tongjiReady = false,
@@ -304,6 +318,9 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
   final String redirectUrl;
   @override
   final String githubUrl;
+  @override
+  @JsonKey()
+  final bool githubReady;
   @override
   final bool googleReady;
   @override
@@ -340,7 +357,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
 
   @override
   String toString() {
-    return 'LoginPageProps(tongjiRegistration: $tongjiRegistration, initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, googleReady: $googleReady, appleReady: $appleReady, tongjiReady: $tongjiReady, tongjiUrl: $tongjiUrl, tongjiNotice: $tongjiNotice, termsOfServiceEnabled: $termsOfServiceEnabled, privacyPolicyEnabled: $privacyPolicyEnabled, allowedDomains: $allowedDomains, oauthNotice: $oauthNotice)';
+    return 'LoginPageProps(tongjiRegistration: $tongjiRegistration, initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, githubReady: $githubReady, googleReady: $googleReady, appleReady: $appleReady, tongjiReady: $tongjiReady, tongjiUrl: $tongjiUrl, tongjiNotice: $tongjiNotice, termsOfServiceEnabled: $termsOfServiceEnabled, privacyPolicyEnabled: $privacyPolicyEnabled, allowedDomains: $allowedDomains, oauthNotice: $oauthNotice)';
   }
 
   @override
@@ -356,6 +373,8 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
                 other.redirectUrl == redirectUrl) &&
             (identical(other.githubUrl, githubUrl) ||
                 other.githubUrl == githubUrl) &&
+            (identical(other.githubReady, githubReady) ||
+                other.githubReady == githubReady) &&
             (identical(other.googleReady, googleReady) ||
                 other.googleReady == googleReady) &&
             (identical(other.appleReady, appleReady) ||
@@ -386,6 +405,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
     initialMode,
     redirectUrl,
     githubUrl,
+    githubReady,
     googleReady,
     appleReady,
     tongjiReady,
@@ -420,6 +440,7 @@ abstract class _LoginPageProps implements LoginPageProps {
     required final String initialMode,
     required final String redirectUrl,
     required final String githubUrl,
+    final bool githubReady,
     required final bool googleReady,
     final bool appleReady,
     final bool tongjiReady,
@@ -442,6 +463,8 @@ abstract class _LoginPageProps implements LoginPageProps {
   String get redirectUrl;
   @override
   String get githubUrl;
+  @override
+  bool get githubReady;
   @override
   bool get googleReady;
   @override

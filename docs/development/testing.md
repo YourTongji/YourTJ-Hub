@@ -47,6 +47,9 @@ python3 -m unittest discover -s scripts/release -p test_archive_licenses.py -v
 # Action pin consistency (issue #1212): composite actions vs repository-root workflows
 node scripts/verify-action-pins.mjs
 
+# /login provider readiness: Go/Web/Dart declarations and generated JSON keys
+node --test scripts/test-login-provider-mirrors.mjs
+
 # Full
 make test
 

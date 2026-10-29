@@ -67,6 +67,7 @@ class _LoginOptions implements HttpClientAdapter {
           'initialMode': 'login',
           'redirectUrl': '/',
           'githubUrl': github ? '/api/auth/github' : '',
+          'githubReady': github,
           'googleReady': google,
           'appleReady': apple,
           'tongjiReady': tongji,
@@ -553,6 +554,7 @@ void main() {
       initialMode: 'login',
       redirectUrl: '/',
       githubUrl: github ? '/api/auth/github' : '',
+      githubReady: github,
       googleReady: google,
       appleReady: apple,
       tongjiReady: tongji,
@@ -572,6 +574,25 @@ void main() {
           SignInMethod.github,
         ],
       );
+    });
+
+    test('GitHub availability uses readiness, not the Web login URL', () {
+      for (final ready in [false, true]) {
+        for (final url in ['', '/api/auth/github']) {
+          final props = options().copyWith(githubReady: ready, githubUrl: url);
+          expect(
+            availableSignInMethods(props, loginMode: true),
+            ready ? [SignInMethod.github] : isEmpty,
+          );
+        }
+      }
+      final legacy = LoginPageProps.fromJson({
+        'initialMode': 'login',
+        'redirectUrl': '/',
+        'githubUrl': '/api/auth/github',
+        'googleReady': false,
+      });
+      expect(availableSignInMethods(legacy, loginMode: true), isEmpty);
     });
 
     test('Apple needs a configured site and native iOS sign-in', () {
