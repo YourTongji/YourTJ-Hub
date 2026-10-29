@@ -5,9 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:ui_kit/ui_kit.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../link_navigation.dart';
 import '../providers.dart';
 
 /// 首页公告栏：轻量信息条，保留展开、折叠与多公告导航。
@@ -109,14 +109,14 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
     super.dispose();
   }
 
+  /// 公告正文的链接与帖子正文走同一套跳转规则（issue #1381）：同站链接应用内
+  /// 跳转，映射不到的同站链接与外链一样外开系统浏览器（外链先过确认层）。
   Future<bool> _open(String url) async {
-    final uri = Uri.tryParse(url);
-    if (uri == null || !{'https', 'http'}.contains(uri.scheme)) return true;
-    try {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (_) {
-      // A missing system browser must not break the feed.
-    }
+    await LinkNavigation.open(
+      context,
+      url,
+      baseUrl: ref.read(apiClientProvider).baseUrl,
+    );
     return true;
   }
 
