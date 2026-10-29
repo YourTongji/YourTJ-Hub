@@ -8584,7 +8584,7 @@ AdminHttpNotifyChannelType:
   description: |
     Notification channel adapter (issue #1049). `generic` posts the structured JSON envelope
     with `X-Goose-*` headers and the optional HMAC signature; `feishu` posts a schema 2.0
-    interactive card to a Feishu group custom-bot webhook (approval events only), signs it with
+    interactive card to a Feishu group custom-bot webhook (approval events and read-only user.signup alerts), signs it with
     the bot's signature secret, and counts HTTP 200 responses whose body `code` is non-zero as
     failures. `astrbot` posts `{content, umo, message_type: "text"}` to the `/send` endpoint of
     the AstrBot push_lite plugin (`/send` is appended when the URL has no path) with

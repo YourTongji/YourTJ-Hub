@@ -1067,12 +1067,13 @@ export interface paths {
          *     and are intentionally not covered by the anti-enumeration envelope.
          *
          *     Honeypot: when the hidden `website` field is populated the server treats the
-         *     request as bot traffic, silently returns a success envelope identical to a normal
-         *     successful registration, and creates no account.
+         *     request as bot traffic, silently returns a success envelope matching registration
+         *     with verification disabled, and creates no account or session.
          *
          *     On success the server creates the account, enqueues an activation email task when
-         *     the site enables email verification, and immediately issues a session (Set-Cookie
-         *     `access_token` + `New-Token` header). Consumers must still inspect the envelope:
+         *     the site enables email verification (no automatic activation task when disabled),
+         *     and immediately issues a session (Set-Cookie `access_token` + `New-Token` header).
+         *     Consumers must still inspect the envelope:
          *     the residual observable difference between "account created" and "creation
          *     failed" is intrinsic to the protocol and is not part of this contract's failure
          *     taxonomy.
@@ -15756,7 +15757,7 @@ export interface components {
         /**
          * @description Notification channel adapter (issue #1049). `generic` posts the structured JSON envelope
          *     with `X-Goose-*` headers and the optional HMAC signature; `feishu` posts a schema 2.0
-         *     interactive card to a Feishu group custom-bot webhook (approval events only), signs it with
+         *     interactive card to a Feishu group custom-bot webhook (approval events and read-only user.signup alerts), signs it with
          *     the bot's signature secret, and counts HTTP 200 responses whose body `code` is non-zero as
          *     failures. `astrbot` posts `{content, umo, message_type: "text"}` to the `/send` endpoint of
          *     the AstrBot push_lite plugin (`/send` is appended when the URL has no path) with
