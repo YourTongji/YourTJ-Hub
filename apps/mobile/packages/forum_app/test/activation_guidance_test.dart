@@ -279,6 +279,9 @@ void main() {
       old.complete(_sent);
       await tester.pumpAndSettle();
       expect(find.text('验证邮件已重新发送，请查收邮箱'), findsNothing);
+      expect(auth.statusCalls, 1);
+      await tester.tap(find.text(AppLocalizationsZh().activationStatusRefresh));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('重发验证邮件'));
       await tester.pumpAndSettle();
       expect(auth.calls, 2);
