@@ -1241,6 +1241,11 @@ change. The header keeps a small outer margin for its primary action.
   error. Registration API failures use the shared server-message catalog, including daily quotas
   and retry-login instructions. Occupied usernames/emails and creation failures retain the same
   generic registration error, preserving the server's account-enumeration boundary.
+- `Current`: native password registration submits the current resolved UI language (`zh`, `en`,
+  `ja` or `de`) as the account's initial locale, including after a language change on the same form.
+  Following the system uses the existing supported-language resolution and Chinese fallback.
+  Activation email content and its link language use that stored locale; later device-language
+  changes do not silently rewrite the account's profile language.
 - `Current`: when email verification is enabled, successful registration tells the user to check
   their inbox; when it is disabled, the ordinary registration confirmation remains. Email changes
   tell the user to check the new address for its activation link in both immediate and staged modes.

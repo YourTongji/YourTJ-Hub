@@ -703,6 +703,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
       password: _password.text,
       captchaId: (captchaId == null || captchaId.isEmpty) ? null : captchaId,
       captchaCode: captchaCode.isEmpty ? null : captchaCode,
+      locale: Localizations.localeOf(context).languageCode,
     );
     if (mounted && _authController.phase == LoginPhase.needsCaptcha) {
       await _authController.loadCaptcha();

@@ -26,6 +26,7 @@ class _Options implements HttpClientAdapter {
     this.registrationSuccessMessageCode,
   });
   final headers = <String?>[];
+  final registrationBodies = <Map<String, dynamic>>[];
   @override
   void close({bool force = false}) {}
   final List<String> domains;
@@ -41,6 +42,7 @@ class _Options implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     if (request.path == '/api/register') {
+      registrationBodies.add(Map<String, dynamic>.from(request.data as Map));
       return ResponseBody.fromString(
         jsonEncode({
           'code': registrationSuccessMessageCode == null ? 1 : 0,
@@ -162,6 +164,7 @@ class _Auth extends AuthController {
     required String password,
     String? captchaId,
     String? captchaCode,
+    String? locale,
   }) async {
     emails.add(email);
     return null;
@@ -169,7 +172,12 @@ class _Auth extends AuthController {
 }
 
 void main() {
-  Future<({_Auth auth, _Options options, ProviderContainer container})> pump(
+  Future<({
+    _Auth auth,
+    _Options options,
+    ProviderContainer container,
+    Future<void> Function(Locale) changeLocale,
+  })> pump(
     WidgetTester tester, {
     List<String> domains = const [],
     bool policies = false,
@@ -212,35 +220,44 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: gfThemeData(Brightness.light),
-          locale: locale,
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: TextScaler.linear(textScale)),
-            child: child!,
+    Future<void> render(Locale currentLocale) async {
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            locale: currentLocale,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: child!,
+            ),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home:
+                registrationMessageCode == null &&
+                    registrationSuccessMessageCode == null
+                ? LoginPage(authController: auth, authTokenStorage: staged)
+                : const LoginPage(),
           ),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home:
-              registrationMessageCode == null &&
-                  registrationSuccessMessageCode == null
-              ? LoginPage(authController: auth, authTokenStorage: staged)
-              : const LoginPage(),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await render(locale);
     if (register) {
       final l10n = AppLocalizations.of(tester.element(find.byType(LoginPage)));
       await tester.tap(find.text(l10n.loginModeRegister).first);
     }
     await tester.pumpAndSettle();
-    return (auth: auth, options: options, container: container);
+    return (
+      auth: auth,
+      options: options,
+      container: container,
+      changeLocale: render,
+    );
   }
 
   Finder input(String label) => find.byWidgetPredicate(
@@ -832,11 +849,11 @@ void main() {
       await tester.pump(const Duration(seconds: 4));
     },
   );
-  testWidgets(
-    'registration verification success toast is localized from success code',
-    (tester) async {
-      for (final language in ['zh', 'en', 'ja', 'de']) {
-        await pump(
+  for (final language in ['zh', 'en', 'ja', 'de']) {
+    testWidgets(
+      '$language registration request and verification toast use the selected language',
+      (tester) async {
+        final h = await pump(
           tester,
           locale: Locale(language),
           registrationSuccessMessageCode: 'auth.register.emailVerify',
@@ -854,14 +871,46 @@ void main() {
         await tester.ensureVisible(submit());
         await tester.tap(submit());
         await tester.pumpAndSettle();
+        expect(h.options.registrationBodies.single['locale'], language);
         expect(find.text(l10n.authRegisterEmailVerify), findsOneWidget);
         expect(find.text(l10n.authRegisterSuccess), findsNothing);
         expect(input(l10n.authEmail), findsNothing);
         await tester.pump(const Duration(seconds: 4));
         await tester.pumpAndSettle();
-      }
-    },
-  );
+      },
+    );
+  }
+
+  testWidgets('registration retry uses the current language on the same form', (
+    tester,
+  ) async {
+    final h = await pump(
+      tester,
+      registrationMessageCode: 'auth.register.failed',
+    );
+    await fill(tester, 'Email', 'student@example.com');
+    await tester.ensureVisible(submit());
+    await tester.tap(submit());
+    await tester.pumpAndSettle();
+    expect(h.options.registrationBodies.single['locale'], 'en');
+
+    final form = tester.state(find.byType(LoginPage));
+    await h.changeLocale(const Locale('ja', 'JP'));
+    expect(tester.state(find.byType(LoginPage)), same(form));
+    final l10n = AppLocalizations.of(tester.element(find.byType(LoginPage)));
+    expect(l10n.localeName, 'ja');
+    expect(
+      tester.widget<TextField>(input(l10n.authEmail)).controller!.text,
+      'student@example.com',
+    );
+    await tester.ensureVisible(submit());
+    await tester.tap(submit());
+    await tester.pumpAndSettle();
+    expect(h.options.registrationBodies.map((body) => body['locale']), [
+      'en',
+      'ja',
+    ]);
+  });
 
   testWidgets('registration without verification keeps generic success toast', (
     tester,
