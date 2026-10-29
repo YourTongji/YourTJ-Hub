@@ -181,6 +181,14 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/sticker-market"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/sticker-market-pack"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/stickers"
   },
   {
@@ -313,6 +321,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/forum/my-sticker-packs"
+  },
+  {
+    "method": "GET",
     "path": "/api/forum/my-stickers"
   },
   {
@@ -338,6 +350,14 @@
   {
     "method": "GET",
     "path": "/api/forum/search"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/sticker-market"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/sticker-market/pack"
   },
   {
     "method": "GET",
@@ -1045,6 +1065,22 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/sticker-market-import"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/sticker-market-item-save"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/sticker-market-pack-save"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/sticker-market-sync"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/sticker-save"
   },
   {
@@ -1382,6 +1418,14 @@
   {
     "method": "POST",
     "path": "/api/forum/my-sticker-delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/my-sticker-pack-delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/my-sticker-pack-save"
   },
   {
     "method": "POST",

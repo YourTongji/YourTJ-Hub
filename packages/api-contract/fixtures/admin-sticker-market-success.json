@@ -1,0 +1,61 @@
+{
+  "result": {
+    "enabled": true,
+    "source": "fluxdo",
+    "lastSyncedAt": "2026-10-29T08:00:00Z",
+    "topics": [
+      {
+        "id": "anime",
+        "label": "动画"
+      }
+    ],
+    "packs": [
+      {
+        "id": 9201,
+        "upstreamId": "group-1",
+        "name": "Pack One",
+        "topic": "anime",
+        "upstreamCount": 3,
+        "archived": false,
+        "missing": false,
+        "status": "partial",
+        "published": true,
+        "sortOrder": 0,
+        "itemCount": 2,
+        "failedCount": 1,
+        "importTotal": 3,
+        "lastError": "",
+        "coverUrl": "/file/img/stickers/market/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+        "iconUrl": "https://cdn3.ldstatic.com/original/pack-icon.webp",
+        "iconText": "",
+        "syncedAt": "2026-10-29T08:00:00Z",
+        "importedAt": "2026-10-29T08:05:00Z"
+      },
+      {
+        "id": 9202,
+        "upstreamId": "group-2",
+        "name": "Pack Two",
+        "topic": "anime",
+        "upstreamCount": 2,
+        "archived": false,
+        "missing": false,
+        "status": "new",
+        "published": false,
+        "sortOrder": 0,
+        "itemCount": 0,
+        "failedCount": 0,
+        "importTotal": 0,
+        "lastError": "",
+        "coverUrl": "",
+        "iconUrl": "https://cdn3.ldstatic.com/original/pack-icon.webp",
+        "iconText": "",
+        "syncedAt": "2026-10-29T08:00:00Z",
+        "importedAt": null
+      }
+    ],
+    "total": 2,
+    "page": 1,
+    "pageSize": 50
+  },
+  "code": 0
+}

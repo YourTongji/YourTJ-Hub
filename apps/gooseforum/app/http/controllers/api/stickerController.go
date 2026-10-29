@@ -20,11 +20,17 @@ type StickerAdminItem struct {
 	SortOrder int    `json:"sortOrder"`
 	IsEnabled bool   `json:"isEnabled"`
 	CreatedBy uint64 `json:"createdBy"`
+	// Aliases are previous names that sent content still resolves to this row.
+	Aliases []string `json:"aliases"`
 }
 
-func stickerAdminItems(entities []sticker.Entity) []StickerAdminItem {
+func stickerAdminItems(entities []sticker.Entity, aliases map[uint64][]string) []StickerAdminItem {
 	items := make([]StickerAdminItem, 0, len(entities))
 	for _, entity := range entities {
+		names := aliases[entity.Id]
+		if names == nil {
+			names = []string{}
+		}
 		items = append(items, StickerAdminItem{
 			Id:        entity.Id,
 			Name:      entity.Name,
@@ -33,6 +39,7 @@ func stickerAdminItems(entities []sticker.Entity) []StickerAdminItem {
 			SortOrder: entity.SortOrder,
 			IsEnabled: entity.IsEnabled,
 			CreatedBy: entity.CreatedBy,
+			Aliases:   names,
 		})
 	}
 	return items
@@ -44,7 +51,15 @@ func StickerList(req component.BetterRequest[component.Null]) component.Response
 	if err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
-	return component.SuccessResponse(stickerAdminItems(entities))
+	ids := make([]uint64, 0, len(entities))
+	for _, entity := range entities {
+		ids = append(ids, entity.Id)
+	}
+	aliases, err := sticker.AliasNamesBySticker(ids)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	return component.SuccessResponse(stickerAdminItems(entities, aliases))
 }
 
 // PublicStickerList returns enabled stickers with public access paths; the
@@ -76,6 +91,8 @@ func stickerWriteError(err error, fallback component.MessageCode) component.Resp
 		code = component.MessageAdminStickerNameInvalid
 	case errors.Is(err, stickerservice.ErrNameExists):
 		code = component.MessageAdminStickerNameExists
+	case errors.Is(err, stickerservice.ErrNameReserved):
+		code = component.MessageAdminStickerNameReserved
 	case errors.Is(err, stickerservice.ErrFileRequired):
 		code = component.MessageUploadFileMissing
 	case errors.Is(err, stickerservice.ErrNotFound):

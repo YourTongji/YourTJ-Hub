@@ -1,7 +1,8 @@
 <script setup lang="ts">import { adminText } from '@/admin/runtime/i18n-text'
 
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Edit3, Loader2, Plus, RefreshCw, Trash2, Upload } from '@lucide/vue'
+import { Edit3, Loader2, Plus, RefreshCw, Store, Trash2, Upload } from '@lucide/vue'
+import { RouterLink } from 'vue-router'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import AdminConfirmDialog from '@/admin/components/AdminConfirmDialog.vue'
 import { BasicPage } from '@/admin/components/global-layout'
@@ -76,6 +77,7 @@ const stickerMessageTexts: Record<string, string> = {
   'admin.sticker.nameRequired': 'k00vgp',
   'admin.sticker.nameInvalid': 'k00vgo',
   'admin.sticker.nameExists': 'k00vh0',
+  'admin.sticker.nameReserved': 'stickerNameReserved',
   'admin.sticker.notFound': 'k00vh1',
   'admin.sticker.importTooLarge': 'k00vh2',
   'admin.sticker.importInvalidZip': 'k00vh3',
@@ -107,7 +109,7 @@ async function loadStickers() {
 function openCreate() {
   imageFile.value = null
   Object.assign(form, emptyStickerForm)
-  editing.value = { id: 0, name: '', fileName: '', url: '', sortOrder: 1000, isEnabled: true, createdBy: 0 }
+  editing.value = { id: 0, name: '', fileName: '', url: '', sortOrder: 1000, isEnabled: true, createdBy: 0, aliases: [] }
 }
 
 function openEdit(sticker: AdminSticker) {
@@ -220,6 +222,12 @@ onMounted(() => {
           <RefreshCw class="size-4" />
           {{ adminText('k004q') }}
         </Button>
+        <Button variant="outline" as-child>
+          <RouterLink to="/admin/sticker-market">
+            <Store class="size-4" />
+            {{ adminText('stickerMarketOpen') }}
+          </RouterLink>
+        </Button>
         <Button variant="outline" type="button" @click="openImport">
           <Upload class="size-4" />
           {{ adminText('k00vgi') }}
@@ -250,7 +258,10 @@ onMounted(() => {
         <td class="px-4 py-2 align-middle">
           <img :src="sticker.url" :alt="sticker.name" class="size-10 rounded object-contain" loading="lazy" />
         </td>
-        <td class="px-4 py-2 align-middle font-medium">{{ sticker.name }}</td>
+        <td class="px-4 py-2 align-middle">
+          <div class="font-medium">{{ sticker.name }}</div>
+          <div v-if="sticker.aliases?.length" class="text-xs text-muted-foreground">{{ adminText('stickerAliases', { names: sticker.aliases.join(', ') }) }}</div>
+        </td>
         <td class="px-4 py-2 align-middle tabular-nums">{{ sticker.sortOrder }}</td>
         <td class="px-4 py-2 align-middle">
           <Switch
@@ -282,6 +293,8 @@ onMounted(() => {
           <label class="grid gap-2 text-sm font-medium">
             {{ adminText('k00af') }}
             <Input v-model="form.name" />
+            <span v-if="form.id" class="text-xs font-normal text-muted-foreground">{{ adminText('stickerRenameHint') }}</span>
+            <span v-if="editing?.aliases?.length" class="text-xs font-normal text-muted-foreground">{{ adminText('stickerAliases', { names: editing.aliases.join(', ') }) }}</span>
           </label>
           <label class="grid gap-2 text-sm font-medium">
             {{ adminText('k0088') }}

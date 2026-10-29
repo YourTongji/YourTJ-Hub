@@ -10902,7 +10902,7 @@ ForumStickerListResponse:
 
 AdminStickerItem:
   type: object
-  required: [id, name, fileName, url, sortOrder, isEnabled, createdBy]
+  required: [id, name, fileName, url, sortOrder, isEnabled, createdBy, aliases]
   properties:
     id:
       type: integer
@@ -10929,6 +10929,11 @@ AdminStickerItem:
       format: uint64
       minimum: 0
       description: Admin user id that created/imported the sticker; 0 when unrecorded.
+    aliases:
+      type: array
+      items:
+        type: string
+      description: Previous names, oldest first. Content sent before a rename keeps using them, so they still resolve to this row, and no other sticker can take them until this row is deleted (issue #1428).
   additionalProperties: false
 
 AdminStickerListSuccess:
@@ -10959,7 +10964,7 @@ AdminStickerSaveRequest:
     name:
       type: string
       maxLength: 64
-      description: Sticker name (token body), trimmed server-side. Allowed characters are Unicode letters/digits/underscore/hyphen, 1-64 chars (Go pattern `^[\p{L}\p{N}_\-]{1,64}$`). Blank fails with `admin.sticker.nameRequired`; disallowed characters fail with `admin.sticker.nameInvalid`; a name taken by another row fails with `admin.sticker.nameExists` (all HTTP 200).
+      description: Sticker name (token body), trimmed server-side. Allowed characters are Unicode letters/digits/underscore/hyphen, 1-64 chars (Go pattern `^[\p{L}\p{N}_\-]{1,64}$`). Blank fails with `admin.sticker.nameRequired`; disallowed characters fail with `admin.sticker.nameInvalid`; a name taken by another row fails with `admin.sticker.nameExists`; another row's previous name fails with `admin.sticker.nameReserved` (all HTTP 200).
     fileName:
       type: string
       description: An existing image upload owned by the caller, as a storage key or its public URL. Required when id is 0; omission preserves the current image when updating. Missing, unknown, non-image or foreign uploads fail with `upload.file.missing`. The image reference is registered atomically with the sticker.
@@ -12922,3 +12927,399 @@ ModerationAppealQueueResponse:
             result:
               $ref: '#/ModerationAppealQueueResult'
     - $ref: '#/ApiFailure'
+
+StickerMarketTopic:
+  type: object
+  required: [id, label]
+  properties:
+    id:
+      type: string
+      description: Upstream category id; pass it as the `topic` filter.
+    label:
+      type: string
+      description: Category label from the upstream index.
+  additionalProperties: false
+
+StickerMarketPack:
+  type: object
+  required: [id, name, topic, stickerCount, coverUrl]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Local pack id; independent of the upstream group id.
+    name:
+      type: string
+    topic:
+      type: string
+      description: Upstream category id; empty when the upstream gave none.
+    stickerCount:
+      type: integer
+      minimum: 0
+      description: Imported stickers held locally. Only packs with at least one are published.
+    coverUrl:
+      type: string
+      description: Locally stored cover image access path; empty when the cover sticker is withdrawn. Never an upstream URL.
+  additionalProperties: false
+
+StickerMarketPage:
+  type: object
+  required: [topics, packs, total, page, pageSize]
+  properties:
+    topics:
+      type: array
+      items:
+        $ref: '#/StickerMarketTopic'
+      description: Categories that currently contain a published pack, in upstream order.
+    packs:
+      type: array
+      items:
+        $ref: '#/StickerMarketPack'
+      description: Published packs in administrator order, then upstream order.
+    total:
+      type: integer
+      minimum: 0
+    page:
+      type: integer
+      minimum: 1
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 100
+  additionalProperties: false
+
+StickerMarketPageSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/StickerMarketPage'
+
+StickerMarketPageResponse:
+  oneOf:
+    - $ref: '#/StickerMarketPageSuccess'
+    - $ref: '#/ApiFailure'
+
+StickerMarketPackDetail:
+  type: object
+  required: [pack, stickers]
+  properties:
+    pack:
+      $ref: '#/StickerMarketPack'
+    stickers:
+      type: array
+      items:
+        $ref: '#/StickerItem'
+      description: Enabled stickers in pack order. Market stickers have `pack` = `market`, `isOfficial` = false and stable `m_` token names.
+  additionalProperties: false
+
+StickerMarketPackDetailSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/StickerMarketPackDetail'
+
+StickerMarketPackDetailResponse:
+  oneOf:
+    - $ref: '#/StickerMarketPackDetailSuccess'
+    - $ref: '#/ApiFailure'
+
+StickerMarketPackListSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/StickerMarketPack'
+          description: Subscribed packs that are still published, in subscription order.
+
+StickerMarketPackListResponse:
+  oneOf:
+    - $ref: '#/StickerMarketPackListSuccess'
+    - $ref: '#/ApiFailure'
+
+StickerMarketPackSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/StickerMarketPack'
+
+StickerMarketPackResponse:
+  oneOf:
+    - $ref: '#/StickerMarketPackSuccess'
+    - $ref: '#/ApiFailure'
+
+StickerPackRequest:
+  type: object
+  required: [packId]
+  properties:
+    packId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Local market pack id.
+  additionalProperties: false
+
+AdminStickerMarketPack:
+  type: object
+  required: [id, upstreamId, name, topic, upstreamCount, archived, missing, status, published, sortOrder, itemCount, failedCount, importTotal, lastError, coverUrl, iconUrl, iconText, syncedAt, importedAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    upstreamId:
+      type: string
+      description: Upstream group id from the market index.
+    name:
+      type: string
+    topic:
+      type: string
+    upstreamCount:
+      type: integer
+      minimum: 0
+      description: Sticker count the upstream index reports; imports keep at most the first 500.
+    archived:
+      type: boolean
+      description: Upstream marks the group archived.
+    missing:
+      type: boolean
+      description: The latest complete catalog sync no longer lists this group. Imported stickers stay.
+    status:
+      type: string
+      enum: [new, queued, importing, ready, partial, failed]
+      description: Local import state. `partial` imported some items; `failed` imported none or the last attempt failed.
+    published:
+      type: boolean
+      description: Visible in the market and pickers. Requires at least one imported sticker.
+    sortOrder:
+      type: integer
+      description: Ascending order among published packs.
+    itemCount:
+      type: integer
+      minimum: 0
+      description: Stickers held locally.
+    failedCount:
+      type: integer
+      minimum: 0
+      description: Upstream items the last import could not store.
+    importTotal:
+      type: integer
+      minimum: 0
+      description: Items in the latest import run; `itemCount + failedCount` reaches it while the run progresses. 0 before the first import.
+    lastError:
+      type: string
+      description: Stable reason for the last pack-level failure (for example `timeout`, `status`, `blocked`, `invalid`, `unsupported`, `disabled`, `empty`; when every item failed for one reason, that item reason); empty when none. Never contains URLs or addresses.
+    coverUrl:
+      type: string
+      description: Locally stored cover image access path, or empty.
+    iconUrl:
+      type: string
+      description: Upstream catalog cover (an HTTPS URL on an allow-listed image host), shown to administrators before import; empty when none. Members never receive it.
+    iconText:
+      type: string
+      description: Short text cover (for example one emoji) when the upstream catalog has no cover image; empty otherwise.
+    syncedAt:
+      type: string
+      format: date-time
+      description: Last catalog sync that listed this group.
+    importedAt:
+      type: [string, 'null']
+      format: date-time
+      description: Completion time of the last successful import; null before the first one.
+  additionalProperties: false
+
+AdminStickerMarketPage:
+  type: object
+  required: [enabled, source, lastSyncedAt, topics, packs, total, page, pageSize]
+  properties:
+    enabled:
+      type: boolean
+      description: False when `sticker_market.enabled` is off or the configured index URL is not an HTTPS origin.
+    source:
+      type: string
+      description: Market source identifier (`fluxdo`).
+    lastSyncedAt:
+      type: [string, 'null']
+      format: date-time
+      description: Most recent successful catalog sync; null before the first one.
+    topics:
+      type: array
+      items:
+        $ref: '#/StickerMarketTopic'
+    packs:
+      type: array
+      items:
+        $ref: '#/AdminStickerMarketPack'
+      description: Catalog packs in upstream order.
+    total:
+      type: integer
+      minimum: 0
+    page:
+      type: integer
+      minimum: 1
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 100
+  additionalProperties: false
+
+AdminStickerMarketPageSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AdminStickerMarketPage'
+
+AdminStickerMarketPageResponse:
+  oneOf:
+    - $ref: '#/AdminStickerMarketPageSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminStickerMarketSyncResult:
+  type: object
+  required: [topics, packs, missing]
+  properties:
+    topics:
+      type: integer
+      minimum: 0
+    packs:
+      type: integer
+      minimum: 0
+      description: Groups listed by the complete catalog.
+    missing:
+      type: integer
+      minimum: 0
+      description: Previously known groups the catalog no longer lists.
+  additionalProperties: false
+
+AdminStickerMarketSyncSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AdminStickerMarketSyncResult'
+
+AdminStickerMarketSyncResponse:
+  oneOf:
+    - $ref: '#/AdminStickerMarketSyncSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminStickerMarketPackRequest:
+  type: object
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Local pack id; 0 or unknown ids fail with `admin.sticker.notFound` (HTTP 200).
+  additionalProperties: false
+
+AdminStickerMarketPackSaveRequest:
+  type: object
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 0
+    published:
+      type: boolean
+      description: True publishes the pack; false hides it from the market and pickers while sent stickers keep resolving.
+    sortOrder:
+      type: integer
+      description: Ascending order among published packs.
+  additionalProperties: false
+
+AdminStickerMarketPackSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AdminStickerMarketPack'
+
+AdminStickerMarketPackResponse:
+  oneOf:
+    - $ref: '#/AdminStickerMarketPackSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminStickerMarketItem:
+  type: object
+  required: [upstreamId, stickerId, name, url, isEnabled, error]
+  properties:
+    upstreamId:
+      type: string
+    stickerId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Local sticker id; 0 when the item could not be stored.
+    name:
+      type: string
+      description: Stable `m_` token name; empty for failed items.
+    url:
+      type: string
+      description: Locally stored image access path; empty for failed items.
+    isEnabled:
+      type: boolean
+    error:
+      type: string
+      description: Stable failure reason (`blocked`, `timeout`, `status`, `tooLarge`, `unsupported`, `invalid`, `storage`, `unavailable`); empty when stored.
+  additionalProperties: false
+
+AdminStickerMarketPackDetail:
+  type: object
+  required: [pack, items]
+  properties:
+    pack:
+      $ref: '#/AdminStickerMarketPack'
+    items:
+      type: array
+      items:
+        $ref: '#/AdminStickerMarketItem'
+      description: Every recorded upstream item in pack order, including withdrawn and failed ones.
+  additionalProperties: false
+
+AdminStickerMarketPackDetailSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AdminStickerMarketPackDetail'
+
+AdminStickerMarketPackDetailResponse:
+  oneOf:
+    - $ref: '#/AdminStickerMarketPackDetailSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminStickerMarketItemSaveRequest:
+  type: object
+  properties:
+    stickerId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Market sticker id; other stickers fail with `admin.sticker.notFound` (HTTP 200).
+    isEnabled:
+      type: boolean
+      description: False withdraws the sticker; it can no longer be inserted and sent tokens stop resolving.
+  additionalProperties: false

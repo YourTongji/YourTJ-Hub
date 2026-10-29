@@ -34,6 +34,15 @@ class StickerCollection extends ChangeNotifier {
   bool officialLoaded = false;
   bool mineLoaded = false;
   bool busy = false;
+
+  /// Subscribed market packs (issue #1429), in the server's subscription order.
+  List<StickerMarketPackPayload> packs = [];
+  Object? packsError;
+  bool loadingPacks = false;
+  bool packsLoaded = false;
+  final Map<int, List<StickerItemPayload>> packStickers = {};
+  final Map<int, Object> packStickerErrors = {};
+  final Set<int> loadingPackStickers = {};
   bool _active = true;
   int _membershipRevision = 0;
   bool get active => _active;
@@ -98,6 +107,63 @@ class StickerCollection extends ChangeNotifier {
       if (_active && changedWhileLoading) await loadMine(refresh: true);
     }
   }
+
+  Future<void> loadPacks({bool refresh = false}) async {
+    if (loadingPacks || (packsLoaded && !refresh)) return;
+    loadingPacks = true;
+    packsError = null;
+    _notify();
+    try {
+      final items = await repository.myPacks();
+      if (!_active) return;
+      packs = items;
+      packsLoaded = true;
+    } catch (error) {
+      if (_active) packsError = error;
+    } finally {
+      loadingPacks = false;
+      _notify();
+    }
+  }
+
+  /// Stickers of one published pack; cached for the session and remembered by
+  /// the resolver so inserted tokens render before the server echoes them.
+  Future<void> loadPackStickers(int packId, {bool refresh = false}) async {
+    if (loadingPackStickers.contains(packId) ||
+        (packStickers.containsKey(packId) && !refresh)) {
+      return;
+    }
+    loadingPackStickers.add(packId);
+    packStickerErrors.remove(packId);
+    _notify();
+    try {
+      final detail = await repository.marketPack(packId);
+      if (!_active) return;
+      packStickers[packId] = detail.stickers;
+      library.remember(detail.stickers);
+    } catch (error) {
+      if (_active) packStickerErrors[packId] = error;
+    } finally {
+      loadingPackStickers.remove(packId);
+      _notify();
+    }
+  }
+
+  bool hasPack(int packId) => packs.any((pack) => pack.id == packId);
+
+  /// Subscription changes wait for the server: a pack never appears added
+  /// before its stickers are usable on every device.
+  Future<void> addPack(StickerMarketPackPayload pack) => _mutate(() async {
+    final saved = await repository.savePack(pack.id);
+    if (!_active || hasPack(saved.id)) return;
+    packs = [...packs, saved];
+  });
+
+  Future<void> removePack(StickerMarketPackPayload pack) => _mutate(() async {
+    await repository.removePack(pack.id);
+    if (!_active) return;
+    packs = packs.where((item) => item.id != pack.id).toList();
+  });
 
   void used(StickerItemPayload item) {
     if (!_active || !item.isAvailable) return;

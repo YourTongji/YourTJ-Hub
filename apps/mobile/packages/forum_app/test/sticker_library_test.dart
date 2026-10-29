@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -142,7 +143,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Official'));
     await tester.pumpAndSettle();
-    await tester.longPress(find.text('Smile'));
+    // Holding opens the preview bubble; the secondary entry keeps the menu.
+    await tester.tap(find.text('Smile'), buttons: kSecondaryButton);
     await tester.pumpAndSettle();
     expect(find.text('Save to my stickers'), findsOneWidget);
     repository.pendingSave = Completer();

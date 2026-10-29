@@ -134,6 +134,8 @@
   "serverMessages.sticker.uploadQuota": "Du hast das Limit von {limit} hochgeladenen Stickern erreicht. Gesendete Bilder bleiben für den Nachrichtenverlauf erhalten.",
   "serverMessages.sticker.imageRequired": "Wähle ein selbst hochgeladenes Bild oder GIF mit höchstens {maxSizeMb} MB.",
   "serverMessages.sticker.unavailable": "Dieser Sticker ist nicht verfügbar.",
+  "serverMessages.sticker.market.packUnavailable": "Dieses Sticker-Paket ist nicht verfügbar.",
+  "serverMessages.sticker.market.packLimit": "Du kannst bis zu {limit} Sticker-Pakete hinzufügen. Entferne zuerst eines.",
   "permission.revealAnonymousIdentity": "Anonyme Identität offenlegen (beschränkte Prüfung)",
   "anonymous.profileContentHidden": "Die Beiträge dieses Mitglieds werden hier nicht angezeigt",
   "anonymous.identity": "Anonyme Identität",

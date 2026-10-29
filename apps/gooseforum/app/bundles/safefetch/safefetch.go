@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -73,6 +74,10 @@ type Config struct {
 	MaxRedirects   int
 	MaxBodyBytes   int64
 	MaxConcurrency int
+	// PreferIPv4 dials validated IPv4 addresses first and falls back to the
+	// next validated address when a dial fails. It is for large downloads on
+	// networks whose IPv6 path connects but stalls mid-transfer.
+	PreferIPv4 bool
 }
 
 // Result is the complete, bounded response available to metadata resolvers.
@@ -92,6 +97,7 @@ type Client struct {
 	dialContext    DialContextFunc
 	maxBodyBytes   int64
 	connectTimeout time.Duration
+	preferIPv4     bool
 	semaphore      chan struct{}
 }
 
@@ -124,6 +130,7 @@ func New(config Config) *Client {
 		dialContext:    config.DialContext,
 		maxBodyBytes:   config.MaxBodyBytes,
 		connectTimeout: config.ConnectTimeout,
+		preferIPv4:     config.PreferIPv4,
 		semaphore:      make(chan struct{}, config.MaxConcurrency),
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
@@ -162,6 +169,9 @@ var (
 	// 不会放宽任何边界——响应体仍必须通过调用方的 JSON 解析才能变成字段，畸形或
 	// HTML 内容在解析那一步就被丢弃。
 	jsonDocument = documentPolicy{accept: "application/json", mediaTypes: []string{"application/json", "text/javascript"}}
+	// 图片响应头只是第一道筛选：调用方仍须按字节判定真实类型（imagepolicy）。
+	// image/avif 只有贴纸市场导入会转码（PNG/GIF）后入库，其它调用方仍按字节拒绝。
+	imageDocument = documentPolicy{accept: "image/webp, image/png, image/gif, image/jpeg, image/avif", mediaTypes: []string{"image/webp", "image/png", "image/gif", "image/jpeg", "image/avif"}}
 )
 
 func (p documentPolicy) allows(mediaType string) bool {
@@ -185,6 +195,14 @@ func (c *Client) Fetch(ctx context.Context, rawURL string) (Result, error) {
 // identical to Fetch, so a JSON endpoint cannot widen the fetch surface.
 func (c *Client) FetchJSON(ctx context.Context, rawURL string) (Result, error) {
 	return c.fetchDocument(ctx, rawURL, jsonDocument)
+}
+
+// FetchImage retrieves one bounded image response under the same URL, DNS,
+// redirect, timeout, size and concurrency policy as Fetch. It exists for
+// server-side materialization of administrator-approved assets; the declared
+// type only filters responses, so callers must still validate the bytes.
+func (c *Client) FetchImage(ctx context.Context, rawURL string) (Result, error) {
+	return c.fetchDocument(ctx, rawURL, imageDocument)
 }
 
 func (c *Client) fetchDocument(ctx context.Context, rawURL string, policy documentPolicy) (Result, error) {
@@ -254,7 +272,34 @@ func (c *Client) dialVerifiedWithPolicy(ctx context.Context, network, address st
 	if err != nil {
 		return nil, err
 	}
-	return c.dialContext(ctx, network, net.JoinHostPort(addresses[0].String(), port))
+	if !c.preferIPv4 {
+		return c.dialContext(ctx, network, net.JoinHostPort(addresses[0].String(), port))
+	}
+	// Every candidate passed the same policy check, so falling back never
+	// reaches an address the caller did not accept.
+	addresses = slices.Clone(addresses)
+	slices.SortStableFunc(addresses, func(a, b netip.Addr) int {
+		switch a4, b4 := a.Unmap().Is4(), b.Unmap().Is4(); {
+		case a4 == b4:
+			return 0
+		case a4:
+			return -1
+		default:
+			return 1
+		}
+	})
+	var dialErr error
+	for _, address := range addresses {
+		conn, err := c.dialContext(ctx, network, net.JoinHostPort(address.String(), port))
+		if err == nil {
+			return conn, nil
+		}
+		dialErr = err
+		if ctx.Err() != nil {
+			break
+		}
+	}
+	return nil, dialErr
 }
 
 // resolveAccepted is shared by configuration checks and each fresh connection.

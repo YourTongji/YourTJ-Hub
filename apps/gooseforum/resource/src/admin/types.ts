@@ -181,7 +181,18 @@ export interface AdminSticker {
   sortOrder: number
   isEnabled: boolean
   createdBy: number
+  /** Previous names that still resolve to this sticker (issue #1428). */
+  aliases: string[]
 }
+
+export type {
+  AdminStickerMarketItem,
+  AdminStickerMarketPack,
+  AdminStickerMarketPackDetail,
+  AdminStickerMarketPage,
+  AdminStickerMarketStatus,
+  AdminStickerMarketSyncResult,
+} from '@gooseforum/client'
 
 export interface StickerImportIssue {
   name: string

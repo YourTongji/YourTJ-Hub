@@ -22,6 +22,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
 )
@@ -69,6 +70,12 @@ func GetFileByFileName(c *gin.Context) {
 			"messageCode": component.MessagePageNotFound,
 		})
 		return
+	}
+	// Market sticker objects are named by their content hash, so the bytes behind
+	// a public name never change. A one-day public lifetime lets Web and the app
+	// reuse them while bounding how long a withdrawn image stays cached (issue #1429).
+	if access.Public && strings.HasPrefix(referenceName, stickerservice.MarketAssetPrefix) {
+		c.Header("Cache-Control", "public, max-age=86400")
 	}
 	// 响应类型由存储对象名的规范化扩展名权威决定（issue #408）：对象名在入库时已按
 	// 文件头判定的真实类型改写（issue #1393），因此名字扩展名即真实类型，无需嗅探。

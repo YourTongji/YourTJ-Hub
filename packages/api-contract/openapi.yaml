@@ -358,6 +358,16 @@ paths:
     $ref: ./paths/sticker-library.yaml#/orderMyStickers
   /api/forum/stickers:
     $ref: ./paths/forum-read.yaml#/forumStickerList
+  /api/forum/sticker-market:
+    $ref: ./paths/sticker-market.yaml#/stickerMarket
+  /api/forum/sticker-market/pack:
+    $ref: ./paths/sticker-market.yaml#/stickerMarketPack
+  /api/forum/my-sticker-packs:
+    $ref: ./paths/sticker-market.yaml#/myStickerPacks
+  /api/forum/my-sticker-pack-save:
+    $ref: ./paths/sticker-market.yaml#/saveMyStickerPack
+  /api/forum/my-sticker-pack-delete:
+    $ref: ./paths/sticker-market.yaml#/deleteMyStickerPack
   /api/site-theme/tokens:
     $ref: ./paths/site-theme-public.yaml#/getPublicSiteThemeTokens
   /api/external-link-policy:
@@ -645,6 +655,18 @@ paths:
     $ref: ./paths/admin-stickers.yaml#/adminStickerDelete
   /api/admin/sticker-import:
     $ref: ./paths/admin-stickers.yaml#/adminStickerImport
+  /api/admin/sticker-market:
+    $ref: ./paths/admin-sticker-market.yaml#/adminStickerMarket
+  /api/admin/sticker-market-sync:
+    $ref: ./paths/admin-sticker-market.yaml#/adminStickerMarketSync
+  /api/admin/sticker-market-pack:
+    $ref: ./paths/admin-sticker-market.yaml#/adminStickerMarketPack
+  /api/admin/sticker-market-import:
+    $ref: ./paths/admin-sticker-market.yaml#/adminStickerMarketImport
+  /api/admin/sticker-market-pack-save:
+    $ref: ./paths/admin-sticker-market.yaml#/adminStickerMarketPackSave
+  /api/admin/sticker-market-item-save:
+    $ref: ./paths/admin-sticker-market.yaml#/adminStickerMarketItemSave
   /api/admin/review-queue:
     $ref: ./paths/admin-content-ops.yaml#/adminListReviewQueue
   /api/admin/review-action:
@@ -2203,6 +2225,64 @@ components:
       $ref: ./components/schemas.yaml#/AdminStickerImportSuccess
     AdminStickerImportResponse:
       $ref: ./components/schemas.yaml#/AdminStickerImportResponse
+    StickerMarketTopic:
+      $ref: ./components/schemas.yaml#/StickerMarketTopic
+    StickerMarketPack:
+      $ref: ./components/schemas.yaml#/StickerMarketPack
+    StickerMarketPage:
+      $ref: ./components/schemas.yaml#/StickerMarketPage
+    StickerMarketPageSuccess:
+      $ref: ./components/schemas.yaml#/StickerMarketPageSuccess
+    StickerMarketPageResponse:
+      $ref: ./components/schemas.yaml#/StickerMarketPageResponse
+    StickerMarketPackDetail:
+      $ref: ./components/schemas.yaml#/StickerMarketPackDetail
+    StickerMarketPackDetailSuccess:
+      $ref: ./components/schemas.yaml#/StickerMarketPackDetailSuccess
+    StickerMarketPackDetailResponse:
+      $ref: ./components/schemas.yaml#/StickerMarketPackDetailResponse
+    StickerMarketPackListSuccess:
+      $ref: ./components/schemas.yaml#/StickerMarketPackListSuccess
+    StickerMarketPackListResponse:
+      $ref: ./components/schemas.yaml#/StickerMarketPackListResponse
+    StickerMarketPackSuccess:
+      $ref: ./components/schemas.yaml#/StickerMarketPackSuccess
+    StickerMarketPackResponse:
+      $ref: ./components/schemas.yaml#/StickerMarketPackResponse
+    StickerPackRequest:
+      $ref: ./components/schemas.yaml#/StickerPackRequest
+    AdminStickerMarketPack:
+      $ref: ./components/schemas.yaml#/AdminStickerMarketPack
+    AdminStickerMarketPage:
+      $ref: ./components/schemas.yaml#/AdminStickerMarketPage
+    AdminStickerMarketPageSuccess:
+      $ref: ./components/schemas.yaml#/AdminStickerMarketPageSuccess
+    AdminStickerMarketPageResponse:
+      $ref: ./components/schemas.yaml#/AdminStickerMarketPageResponse
+    AdminStickerMarketSyncResult:
+      $ref: ./components/schemas.yaml#/AdminStickerMarketSyncResult
+    AdminStickerMarketSyncSuccess:
+      $ref: ./components/schemas.yaml#/AdminStickerMarketSyncSuccess
+    AdminStickerMarketSyncResponse:
+      $ref: ./components/schemas.yaml#/AdminStickerMarketSyncResponse
+    AdminStickerMarketPackRequest:
+      $ref: ./components/schemas.yaml#/AdminStickerMarketPackRequest
+    AdminStickerMarketPackSaveRequest:
+      $ref: ./components/schemas.yaml#/AdminStickerMarketPackSaveRequest
+    AdminStickerMarketPackSuccess:
+      $ref: ./components/schemas.yaml#/AdminStickerMarketPackSuccess
+    AdminStickerMarketPackResponse:
+      $ref: ./components/schemas.yaml#/AdminStickerMarketPackResponse
+    AdminStickerMarketItem:
+      $ref: ./components/schemas.yaml#/AdminStickerMarketItem
+    AdminStickerMarketPackDetail:
+      $ref: ./components/schemas.yaml#/AdminStickerMarketPackDetail
+    AdminStickerMarketPackDetailSuccess:
+      $ref: ./components/schemas.yaml#/AdminStickerMarketPackDetailSuccess
+    AdminStickerMarketPackDetailResponse:
+      $ref: ./components/schemas.yaml#/AdminStickerMarketPackDetailResponse
+    AdminStickerMarketItemSaveRequest:
+      $ref: ./components/schemas.yaml#/AdminStickerMarketItemSaveRequest
     PkPlanItem:
       $ref: ./components/schemas.yaml#/PkPlanItem
     PkPlanItemPutRequest:

@@ -18,7 +18,7 @@ func TestStickerSchemaOnSQLite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := conn.AutoMigrate(&sticker.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&sticker.Entity{}, &sticker.Alias{}); err != nil {
 		t.Fatalf("migrate stickers: %v", err)
 	}
 	if !conn.Migrator().HasTable("stickers") {
@@ -64,7 +64,7 @@ func assertStickerUpgrade(t *testing.T, conn *gorm.DB) {
 	if err := conn.Create(&old).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := conn.AutoMigrate(&sticker.Entity{}, &sticker.LibraryOwner{}, &sticker.LibraryEntry{}); err != nil {
+	if err := conn.AutoMigrate(&sticker.Entity{}, &sticker.Alias{}, &sticker.LibraryOwner{}, &sticker.LibraryEntry{}, &sticker.PackSubscription{}); err != nil {
 		t.Fatal(err)
 	}
 	var upgraded sticker.Entity

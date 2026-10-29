@@ -1,0 +1,416 @@
+adminStickerMarket:
+  get:
+    tags: [Admin]
+    summary: List the sticker market catalog with local state
+    operationId: adminStickerMarket
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied`. Returns one page of the synchronized market catalog
+      (issue #1429) with each pack's import and publication state, plus the source,
+      whether the market is enabled and the last successful sync time. Packs keep
+      upstream order. Upstream image URLs are never returned; covers are local images.
+      `pageSize` outside 1-100 falls back to 50. A database failure returns
+      `common.operation.failed`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    parameters:
+      - name: topic
+        in: query
+        schema:
+          type: string
+        description: Upstream category id; empty lists every category.
+      - name: q
+        in: query
+        schema:
+          type: string
+        description: Case-insensitive pack name substring.
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum: ['', imported, published, new, queued, importing, ready, partial, failed]
+        description: Empty lists every pack; `imported` keeps packs with stored stickers; `published` keeps visible packs; other values match the import state.
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: pageSize
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+    responses:
+      '200':
+        description: Catalog page or stable business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminStickerMarketPageResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-sticker-market-success.json
+      '400':
+        description: A non-numeric query value fails query binding.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/parse-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+adminStickerMarketSync:
+  post:
+    tags: [Admin]
+    summary: Refresh the sticker market catalog
+    operationId: adminStickerMarketSync
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied`. The server fetches the market index (topics and every
+      catalog page) from the configured HTTPS origin through the bounded fetch client:
+      no proxy, public addresses only, redirects kept on the index host, bounded size
+      and time. Every page is read before anything is written, so a failure keeps the
+      last complete snapshot and fails with `admin.sticker.market.unavailable`. Groups
+      the complete catalog no longer lists are marked `missing`; their stored stickers
+      stay. Sync never downloads images or publishes packs. A concurrent sync fails with
+      `admin.sticker.market.busy`; a disabled market fails with
+      `admin.sticker.market.disabled`. The request body is ignored. Recorded in the
+      operation log.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Sync summary or stable business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminStickerMarketSyncResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-sticker-market-sync-success.json
+              unavailable:
+                externalValue: ../fixtures/admin-sticker-market-unavailable.json
+              busy:
+                externalValue: ../fixtures/admin-sticker-market-busy.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+adminStickerMarketPack:
+  get:
+    tags: [Admin]
+    summary: Review one market pack before publishing
+    operationId: adminStickerMarketPack
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied`. Returns the pack with every recorded upstream item: the
+      local sticker, its stored image, whether it is enabled, and a stable failure
+      reason for items that could not be stored. Unknown ids fail with
+      `admin.sticker.notFound`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    parameters:
+      - name: id
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    responses:
+      '200':
+        description: Pack detail or stable business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminStickerMarketPackDetailResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-sticker-market-pack-success.json
+              notFound:
+                externalValue: ../fixtures/admin-sticker-not-found.json
+      '400':
+        description: A non-numeric query value fails query binding.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/parse-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+adminStickerMarketImport:
+  post:
+    tags: [Admin]
+    summary: Import one market pack
+    operationId: adminStickerMarketImport
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied`. Queues a background download of the pack's current
+      upstream items, at most the first 500. The worker fetches only HTTPS images on
+      the configured host allowlist, validates them by their bytes (PNG, JPEG, GIF,
+      WebP; at most 4 MiB and 4096 px per side) and stores each distinct image once,
+      named by its SHA-256, so packs and stickers that share an image share one object.
+      Items that already have a local sticker are never downloaded again and keep
+      their image. Each stored item becomes a shared sticker with a stable `m_` token.
+      Importing does not publish. A pack that is already queued or importing fails
+      with `admin.sticker.market.busy`; unknown ids fail with `admin.sticker.notFound`.
+      Recorded in the operation log.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminStickerMarketPackRequest
+    responses:
+      '200':
+        description: Queued pack or stable business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminStickerMarketPackResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-sticker-market-import-success.json
+              busy:
+                externalValue: ../fixtures/admin-sticker-market-busy.json
+              notFound:
+                externalValue: ../fixtures/admin-sticker-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+adminStickerMarketPackSave:
+  post:
+    tags: [Admin]
+    summary: Publish, hide or reorder one market pack
+    operationId: adminStickerMarketPackSave
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied`. Sets whether the pack appears in the market and in
+      subscribers' pickers, and its order among published packs. Publishing requires at
+      least one stored sticker and otherwise fails with `admin.sticker.market.notReady`.
+      Hiding keeps subscriptions and never breaks stickers that were already sent.
+      Unknown ids fail with `admin.sticker.notFound`. Recorded in the operation log.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminStickerMarketPackSaveRequest
+    responses:
+      '200':
+        description: Saved pack or stable business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminStickerMarketPackResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-sticker-market-pack-save-success.json
+              notReady:
+                externalValue: ../fixtures/admin-sticker-market-not-ready.json
+              notFound:
+                externalValue: ../fixtures/admin-sticker-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+adminStickerMarketItemSave:
+  post:
+    tags: [Admin]
+    summary: Withdraw or restore one market sticker
+    operationId: adminStickerMarketItemSave
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied`. Disabling a market sticker removes it from every pack
+      and picker, prevents new use and stops its sent tokens from resolving, like a
+      disabled official sticker; enabling restores it. Ids that are not market stickers
+      fail with `admin.sticker.notFound`. Recorded in the operation log.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminStickerMarketItemSaveRequest
+    responses:
+      '200':
+        description: Result or stable business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ContentActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/my-sticker-action-success.json
+              notFound:
+                externalValue: ../fixtures/admin-sticker-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

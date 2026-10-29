@@ -3,7 +3,7 @@ import type { components, TopicPayload } from '@gooseforum/client'
 // CourseSummaryPayload 以别名导入：本文件 1663 行另有一个同名但形状不同的
 // CourseSummaryPayload（AI 总结：consensus/keywords/pros/cons），二者同名异物。
 // 这里导入的是课程卡片（id/name/ratingAvg/...），故别名为 CourseCatalogItem 避免混淆。
-import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, MentionTarget, ModerationApprovalActionView, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationCategory, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
+import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, MentionTarget, ModerationApprovalActionView, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationCategory, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, StickerMarketPack, StickerMarketPackDetail, StickerMarketPage, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import type { ReviewQueueItem } from '@/admin/types'
 import { resolveApiMessage } from './api-message'
@@ -488,6 +488,47 @@ export async function saveMySticker(stickerName: string): Promise<StickerItem> {
     body: JSON.stringify({ stickerName }),
   })
   return readApiResponse<StickerItem>(response, t('stickers.saveFailed'))
+}
+
+/** Published market packs (issue #1429); browsing needs no account. */
+export async function getStickerMarket(query: { topic?: string, page?: number, pageSize?: number } = {}): Promise<StickerMarketPage> {
+  const params = new URLSearchParams()
+  if (query.topic) params.set('topic', query.topic)
+  if (query.page) params.set('page', String(query.page))
+  if (query.pageSize) params.set('pageSize', String(query.pageSize))
+  const search = params.toString()
+  const response = await feedFetch(`/api/forum/sticker-market${search ? `?${search}` : ''}`, { headers: { Accept: 'application/json' } })
+  return readApiResponse<StickerMarketPage>(response, t('api.stickersLoadFailed'))
+}
+
+export async function getStickerMarketPack(id: number): Promise<StickerMarketPackDetail> {
+  const response = await feedFetch(`/api/forum/sticker-market/pack?id=${encodeURIComponent(id)}`, { headers: { Accept: 'application/json' } })
+  return readApiResponse<StickerMarketPackDetail>(response, t('api.stickersLoadFailed'))
+}
+
+/** The viewer's subscribed packs, synchronized across devices. */
+export async function getMyStickerPacks(): Promise<StickerMarketPack[]> {
+  const response = await feedFetch('/api/forum/my-sticker-packs', { headers: { Accept: 'application/json' } })
+  const packs = await readApiResponse<StickerMarketPack[]>(response, t('api.stickersLoadFailed'))
+  return Array.isArray(packs) ? packs : []
+}
+
+export async function saveMyStickerPack(packId: number): Promise<StickerMarketPack> {
+  const response = await feedFetch('/api/forum/my-sticker-pack-save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ packId }),
+  })
+  return readApiResponse<StickerMarketPack>(response, t('stickers.packActionFailed'))
+}
+
+export async function deleteMyStickerPack(packId: number): Promise<void> {
+  const response = await feedFetch('/api/forum/my-sticker-pack-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ packId }),
+  })
+  await readApiResponse<boolean>(response, t('stickers.packActionFailed'))
 }
 
 export async function likeTopic(id: number, action: 1 | 2, topic?: TopicPayload): Promise<boolean> {

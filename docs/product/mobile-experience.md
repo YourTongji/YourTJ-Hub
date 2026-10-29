@@ -1676,8 +1676,8 @@ servers that omit interaction fields retain read-only content previews.
 
 ## Sticker library
 
-- `Current`: messages, replies and publishing share a Recent / My / Official sticker picker. Official
-  packs come from the administrator's enabled library, with a source and license link. Bundled presets
+- `Current`: messages, replies and publishing share a Recent / My / Official / Packs sticker picker.
+  Official packs come from the administrator's enabled library, with a source and license link. Bundled presets
   retain their manifest's source pack; upgrades restore the default grouping on previously seeded
   official entries while preserving custom groups. Recent use
   keeps up to 30 distinct items in the current account/site session. Picking inserts at the caret or replaces the
@@ -1731,8 +1731,8 @@ servers that omit interaction fields retain read-only content previews.
   presses keep their existing collection/retry sheet. Library rows open that sticker alone in the
   shared image viewer, with animated GIF playback, pinch/double-tap zoom and actual-size viewing.
   Stickers remain excluded from surrounding attachment galleries. Picker taps still insert without
-  sending; a visible hint and each item’s long-press action expose a separate large preview on all
-  three tabs. Previewing does not insert a token or change recent use. Chat long presses still open
+  sending; a visible hint and each item’s hold preview expose a larger preview on all four tabs.
+  Previewing does not insert a token or change recent use. Chat long presses still open
   the message action menu, including when an image fails to load. Unknown or unavailable tokens
   retain a readable fallback. Library state is isolated by site and account.
 - `Current`: disabled official stickers stay in personal management for ordering/removal and are
@@ -1745,6 +1745,16 @@ servers that omit interaction fields retain read-only content previews.
   non-interactive. Ordinary photos retain image preview, and
   images explicitly linked to another page retain their link destination. Sticker recognition uses
   renderer-owned provenance; an ordinary image's author-supplied alt text does not change its behavior.
+- `Current`: the picker's Packs tab lists the market packs the account has added, with a Sticker
+  market entry; an empty tab points to the market. The market lists published packs by topic; each
+  pack opens a grid with Add/Remove, and an account holds up to 50 packs. Guests can browse; adding
+  requires sign-in. Add and remove wait for the server and report the result. In pickers and pack
+  grids, holding a sticker opens a larger preview above it; sliding switches the preview, releasing
+  over Save collects it into my stickers, and releasing elsewhere closes it without inserting. A
+  secondary click, Shift+F10 or the accessibility long-press action opens the item's action sheet.
+  Web shows the same preview on hover, keyboard focus or touch hold. Market and alias rules are in
+  [0115](../decisions/0115-sticker-market-subscriptions.md) and
+  [0114](../decisions/0114-sticker-rename-aliases.md).
 - `Partial`: Web renders shared personal stickers, but personal-library management is a native App
   surface. Physical-device keyboard transitions and both-platform visual acceptance remain separate
   from widget and simulator coverage.

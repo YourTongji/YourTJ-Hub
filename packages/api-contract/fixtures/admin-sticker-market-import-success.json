@@ -1,0 +1,24 @@
+{
+  "result": {
+    "id": 9202,
+    "upstreamId": "group-2",
+    "name": "Pack Two",
+    "topic": "anime",
+    "upstreamCount": 2,
+    "archived": false,
+    "missing": false,
+    "status": "queued",
+    "published": false,
+    "sortOrder": 0,
+    "itemCount": 0,
+    "failedCount": 0,
+    "importTotal": 0,
+    "lastError": "",
+    "coverUrl": "",
+    "iconUrl": "https://cdn3.ldstatic.com/original/pack-icon.webp",
+    "iconText": "",
+    "syncedAt": "2026-10-29T08:00:00Z",
+    "importedAt": null
+  },
+  "code": 0
+}

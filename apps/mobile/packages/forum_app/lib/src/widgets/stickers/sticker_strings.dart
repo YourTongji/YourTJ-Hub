@@ -14,12 +14,24 @@ class StickerStrings {
   /// isPersonalStickerName 同规则。
   static final RegExp _personalNameRe = RegExp(r'^u_[0-9a-f]{48}$');
   static bool isPersonalName(String name) => _personalNameRe.hasMatch(name);
+
+  /// 市场贴纸名（m_ + 40 位小写十六进制，issue #1429）。
+  static final RegExp _marketNameRe = RegExp(r'^m_[0-9a-f]{40}$');
+  static bool isMarketName(String name) => _marketNameRe.hasMatch(name);
+
+  /// 屏幕阅读器与提示里不朗读生成的随机名。
+  String fallbackLabel(String name) => isPersonalName(name)
+      ? custom
+      : isMarketName(name)
+      ? sticker
+      : name;
   String _s(String zh, String en, String de, String ja) => switch (_locale) {
     'zh' => zh,
     'de' => de,
     'ja' => ja,
     _ => en,
   };
+  String get sticker => _s('表情', 'Sticker', 'Sticker', 'ステッカー');
   String get custom =>
       _s('自定义表情', 'Custom sticker', 'Eigener Sticker', 'カスタムステッカー');
   String displayLabel(StickerItemPayload item) =>
@@ -78,6 +90,52 @@ class StickerStrings {
   String get signInToSave =>
       _s('登录后收藏', 'Sign in to save', 'Zum Speichern anmelden', '保存するにはログイン');
   String get remove => _s('移除', 'Remove', 'Entfernen', '削除');
+  String get packs => _s('表情包', 'Packs', 'Pakete', 'パック');
+  String get market =>
+      _s('表情市场', 'Sticker market', 'Sticker-Markt', 'ステッカーマーケット');
+  String get browseMarket => _s(
+    '浏览表情市场',
+    'Browse the sticker market',
+    'Sticker-Markt durchsuchen',
+    'ステッカーマーケットを見る',
+  );
+  String get emptyPacks => _s(
+    '添加的表情包会出现在这里',
+    'Sticker packs you add appear here',
+    'Hinzugefügte Sticker-Pakete erscheinen hier',
+    '追加したパックがここに表示されます',
+  );
+  String get marketEmpty => _s(
+    '这里还没有表情包',
+    'No sticker packs here yet',
+    'Hier gibt es noch keine Sticker-Pakete',
+    'ここにはまだパックがありません',
+  );
+  String get addPack => _s('添加', 'Add', 'Hinzufügen', '追加');
+  String get addPackFull =>
+      _s('添加表情包', 'Add sticker pack', 'Sticker-Paket hinzufügen', 'パックを追加');
+  String get removePackFull =>
+      _s('移除表情包', 'Remove sticker pack', 'Sticker-Paket entfernen', 'パックを削除');
+  String get collectShort => _s('收藏', 'Save', 'Speichern', '保存');
+  String get loadMore => _s('加载更多', 'Load more', 'Mehr laden', 'さらに読み込む');
+  String packCount(int count) => _s(
+    '$count 个表情',
+    count == 1 ? '1 sticker' : '$count stickers',
+    '$count Sticker',
+    '$count 個',
+  );
+  String packAdded(String name) => _s(
+    '已添加“$name”',
+    'Added “$name”',
+    '„$name“ hinzugefügt',
+    '「$name」を追加しました',
+  );
+  String packRemoved(String name) => _s(
+    '已移除“$name”。已发送的表情仍会正常显示。',
+    'Removed “$name”. Stickers you sent keep displaying.',
+    '„$name“ entfernt. Gesendete Sticker bleiben sichtbar.',
+    '「$name」を削除しました。送信済みのステッカーは引き続き表示されます。',
+  );
   String get rename => _s('重命名', 'Rename', 'Umbenennen', '名前を変更');
   String get name => _s('表情名称', 'Sticker name', 'Stickername', '名前');
   String get select => _s('选择', 'Select', 'Auswählen', '選択');

@@ -1,0 +1,201 @@
+// @vitest-environment happy-dom
+import { afterEach, describe, expect, test, vi } from 'vitest'
+import { DOMWrapper, flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import StickerMarketManagementPage from '../src/admin/pages/management/StickerMarketManagementPage.vue'
+import {
+  getStickerMarket,
+  getStickerMarketPack,
+  importStickerMarketPack,
+  saveStickerMarketItem,
+  saveStickerMarketPack,
+  syncStickerMarket,
+} from '../src/admin/runtime/api'
+import { adminToast } from '../src/admin/runtime/toast'
+import type { AdminPayload, AdminStickerMarketPack, AdminStickerMarketPage } from '../src/admin/types'
+
+vi.mock('../src/admin/runtime/api', () => ({
+  getStickerMarket: vi.fn(),
+  getStickerMarketPack: vi.fn(),
+  importStickerMarketPack: vi.fn(),
+  saveStickerMarketItem: vi.fn(),
+  saveStickerMarketPack: vi.fn(),
+  syncStickerMarket: vi.fn(),
+}))
+vi.mock('../src/admin/runtime/toast', () => ({
+  adminToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+}))
+vi.mock('../src/admin/runtime/i18n-text', () => ({
+  adminText: (key: string, params?: Record<string, unknown>) => key + (params ? JSON.stringify(params) : ''),
+}))
+
+const pack = (overrides: Partial<AdminStickerMarketPack> = {}): AdminStickerMarketPack => ({
+  id: 9201,
+  upstreamId: 'group-1',
+  name: 'Pack One',
+  topic: 'anime',
+  upstreamCount: 3,
+  archived: false,
+  missing: false,
+  status: 'partial',
+  published: true,
+  sortOrder: 0,
+  itemCount: 2,
+  failedCount: 1,
+  importTotal: 3,
+  lastError: '',
+  coverUrl: '/file/img/stickers/market/a.png',
+  iconUrl: '',
+  iconText: '',
+  syncedAt: '2026-10-29T08:00:00Z',
+  importedAt: '2026-10-29T08:05:00Z',
+  ...overrides,
+})
+
+const marketPage = (packs: AdminStickerMarketPack[]): AdminStickerMarketPage => ({
+  enabled: true,
+  source: 'fluxdo',
+  lastSyncedAt: '2026-10-29T08:00:00Z',
+  topics: [{ id: 'anime', label: '动画' }],
+  packs,
+  total: packs.length,
+  page: 1,
+  pageSize: 20,
+})
+
+const payload = { component: 'manage-home', props: {}, meta: { title: 'admin' }, layout: {}, url: '/admin/sticker-market', version: 'test' } as unknown as AdminPayload
+
+let wrapper: VueWrapper | undefined
+afterEach(() => {
+  wrapper?.unmount()
+  document.body.innerHTML = ''
+  vi.useRealTimers()
+  vi.resetAllMocks()
+})
+
+function mountPage() {
+  wrapper = mount(StickerMarketManagementPage, { props: { payload }, attachTo: document.body })
+  return { page: wrapper, body: new DOMWrapper(document.body) }
+}
+
+function buttonWithText(text: string) {
+  return wrapper!.findAll('button').find(button => button.text().includes(text))!
+}
+
+describe('sticker market management page', () => {
+  test('lists packs with their import state and topic label', async () => {
+    vi.mocked(getStickerMarket).mockResolvedValue(marketPage([pack(), pack({ id: 9202, upstreamId: 'group-2', name: 'Pack Two', status: 'new', published: false, itemCount: 0, failedCount: 0, coverUrl: '', importedAt: null })]))
+    const { page } = mountPage()
+    await flushPromises()
+
+    const rows = page.findAll('tbody tr')
+    expect(rows).toHaveLength(2)
+    expect(rows[0].text()).toContain('Pack One')
+    expect(rows[0].text()).toContain('动画')
+    expect(rows[0].text()).toContain('stickerMarketStatusPartial')
+    expect(rows[0].text()).toContain('stickerMarketFailedCount{"count":1}')
+    // A pack with no imported stickers cannot be published yet.
+    const publish = rows[1].get('[role="switch"]')
+    expect(publish.attributes('disabled')).toBeDefined()
+    expect(rows[1].text()).toContain('stickerMarketImport')
+  })
+
+  test('import queues the pack and shows live progress until the task finishes', async () => {
+    vi.useFakeTimers()
+    const fresh = pack({ id: 9202, status: 'new', published: false, itemCount: 0, failedCount: 0, importTotal: 0 })
+    vi.mocked(getStickerMarket).mockResolvedValueOnce(marketPage([fresh]))
+    vi.mocked(importStickerMarketPack).mockResolvedValue({ ...fresh, status: 'queued' })
+    const { page } = mountPage()
+    await flushPromises()
+
+    await buttonWithText('stickerMarketImport').trigger('click')
+    await flushPromises()
+    expect(importStickerMarketPack).toHaveBeenCalledWith(9202)
+    expect(adminToast.success).toHaveBeenCalledWith('stickerMarketImportQueued')
+    expect(page.text()).toContain('stickerMarketStatusQueued')
+    expect(page.text()).toContain('stickerMarketWaiting')
+
+    vi.mocked(getStickerMarket).mockResolvedValueOnce(marketPage([{ ...fresh, status: 'importing', itemCount: 1, failedCount: 1, importTotal: 4 }]))
+    await vi.advanceTimersByTimeAsync(1500)
+    await flushPromises()
+    const bar = page.get('[role="progressbar"]')
+    expect(bar.attributes('aria-valuenow')).toBe('2')
+    expect(bar.attributes('aria-valuemax')).toBe('4')
+    expect(bar.attributes('aria-label')).toBe('stickerMarketProgressLabel{"name":"Pack One"}')
+    expect(page.text()).toContain('stickerMarketProgress{"done":2,"total":4}')
+
+    vi.mocked(getStickerMarket).mockResolvedValueOnce(marketPage([{ ...fresh, status: 'ready', itemCount: 2, failedCount: 0, importTotal: 2 }]))
+    await vi.advanceTimersByTimeAsync(1500)
+    await flushPromises()
+    expect(getStickerMarket).toHaveBeenCalledTimes(3)
+    expect(page.text()).toContain('stickerMarketStatusReady')
+    expect(page.find('[role="progressbar"]').exists()).toBe(false)
+  })
+
+  test('shows the upstream cover before import and falls back when it fails', async () => {
+    vi.mocked(getStickerMarket).mockResolvedValue(marketPage([
+      pack({ id: 9203, status: 'new', coverUrl: '', iconUrl: 'https://cdn3.ldstatic.com/icon.webp' }),
+      pack({ id: 9204, status: 'new', coverUrl: '', iconUrl: '', iconText: '🌿' }),
+      pack({ id: 9205, coverUrl: '/file/img/stickers/market/b.png', iconUrl: 'https://cdn3.ldstatic.com/other.webp' }),
+    ]))
+    const { page } = mountPage()
+    await flushPromises()
+    // Emoji text covers render through Twemoji; only the cover images carry the size class.
+    const images = page.findAll('tbody img.size-10')
+    expect(images.map((image) => image.attributes('src'))).toEqual(['https://cdn3.ldstatic.com/icon.webp', '/file/img/stickers/market/b.png'])
+    expect(images[0].attributes('referrerpolicy')).toBe('no-referrer')
+    expect(page.find('tbody img[src="/twemoji/72x72/1f33f.png"]').exists()).toBe(true)
+
+    await images[0].trigger('error')
+    expect(page.findAll('tbody img.size-10').map((image) => image.attributes('src'))).toEqual(['/file/img/stickers/market/b.png'])
+  })
+
+  test('publishing saves the pack and confirms the change', async () => {
+    vi.mocked(getStickerMarket).mockResolvedValue(marketPage([pack({ published: false })]))
+    vi.mocked(saveStickerMarketPack).mockResolvedValue(pack({ published: true }))
+    const { page } = mountPage()
+    await flushPromises()
+
+    await page.get('tbody [role="switch"]').trigger('click')
+    await flushPromises()
+    expect(saveStickerMarketPack).toHaveBeenCalledWith({ id: 9201, published: true, sortOrder: 0 })
+    expect(adminToast.success).toHaveBeenCalledWith('stickerMarketPublished{"name":"Pack One"}')
+  })
+
+  test('sync reports packs that left the upstream catalog and localizes failures', async () => {
+    vi.mocked(getStickerMarket).mockResolvedValue(marketPage([]))
+    vi.mocked(syncStickerMarket).mockResolvedValueOnce({ topics: 1, packs: 2, missing: 1 })
+    mountPage()
+    await flushPromises()
+
+    await buttonWithText('stickerMarketSync').trigger('click')
+    await flushPromises()
+    expect(adminToast.success).toHaveBeenCalledWith('stickerMarketSyncedWithMissing{"packs":2,"missing":1}')
+
+    vi.mocked(syncStickerMarket).mockRejectedValueOnce(Object.assign(new Error('x'), { messageCode: 'admin.sticker.market.unavailable' }))
+    await buttonWithText('stickerMarketSync').trigger('click')
+    await flushPromises()
+    expect(adminToast.warning).toHaveBeenCalledWith('stickerMarketUnavailable')
+  })
+
+  test('withdrawing one sticker from the pack detail', async () => {
+    vi.mocked(getStickerMarket).mockResolvedValue(marketPage([pack()]))
+    vi.mocked(getStickerMarketPack).mockResolvedValue({
+      pack: pack(),
+      items: [
+        { upstreamId: 'e1', stickerId: 9301, name: 'm_a', url: '/a.png', isEnabled: true, error: '' },
+        { upstreamId: 'e3', stickerId: 0, name: '', url: '', isEnabled: false, error: 'blocked' },
+      ],
+    })
+    vi.mocked(saveStickerMarketItem).mockResolvedValue(true)
+    const { page, body } = mountPage()
+    await flushPromises()
+
+    await page.findAll('button').find(button => button.attributes('title') === 'stickerMarketViewStickers')!.trigger('click')
+    await flushPromises()
+    expect(body.text()).toContain('stickerMarketItemNotImported{"reason":"stickerMarketReasonBlocked"}')
+    await body.get('[role="dialog"] [role="switch"]').trigger('click')
+    await flushPromises()
+    expect(saveStickerMarketItem).toHaveBeenCalledWith(9301, false)
+    expect(adminToast.success).toHaveBeenCalledWith('stickerMarketItemWithdrawn')
+  })
+})

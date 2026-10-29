@@ -25,6 +25,7 @@ const sticker = (overrides: Partial<AdminSticker> = {}): AdminSticker => ({
   sortOrder: 1000,
   isEnabled: true,
   createdBy: 7,
+  aliases: [],
   ...overrides,
 })
 
@@ -47,7 +48,7 @@ afterEach(() => {
 function mountPage() {
   // reka-ui Dialog 通过 DialogPortal teleport 到 document.body；
   // 模态内容需用 DOMWrapper(document.body) 断言。
-  wrapper = mount(StickersManagementPage, { props: { payload }, attachTo: document.body })
+  wrapper = mount(StickersManagementPage, { props: { payload }, attachTo: document.body, global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } } })
   return { page: wrapper, body: new DOMWrapper(document.body) }
 }
 
@@ -104,6 +105,21 @@ describe('stickers management page', () => {
     expect(saveSticker).toHaveBeenCalledTimes(1)
     expect(saveSticker).toHaveBeenCalledWith({ id: 0, name: 'chiikawa', fileName: '/file/img/owned.png', sortOrder: 1000, isEnabled: true })
     expect(getStickers).toHaveBeenCalledTimes(2)
+  })
+
+  test('previous names stay visible and a reserved name explains why it is taken', async () => {
+    vi.mocked(getStickers).mockResolvedValue([sticker({ aliases: ['old_smile'] })])
+    vi.mocked(saveSticker).mockRejectedValue(Object.assign(new Error('reserved'), { messageCode: 'admin.sticker.nameReserved' }))
+    const { page, body } = mountPage()
+    await flushPromises()
+    expect(page.text()).toContain('stickerAliases{"names":"old_smile"}')
+
+    const editButton = page.findAll('button').find(button => button.attributes('title') === 'k005j')
+    await editButton!.trigger('click')
+    expect(body.text()).toContain('stickerRenameHint')
+    await body.get('form').trigger('submit')
+    await flushPromises()
+    expect(saveSticker).toHaveBeenCalledWith({ id: 1, name: 'chiikawa', sortOrder: 1000, isEnabled: true })
   })
 
   test('row switch toggles enabled state via save', async () => {

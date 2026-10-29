@@ -1,5 +1,5 @@
-/// 表情包域契约镜像（对应 packages/api-contract 的 paths/admin-stickers.yaml 与
-/// paths/forum-read.yaml#forumStickerList，MADR 0030）。
+/// 表情包域契约镜像（对应 packages/api-contract 的 paths/admin-stickers.yaml、
+/// paths/forum-read.yaml#forumStickerList 与 paths/sticker-market.yaml，MADR 0030）。
 ///
 /// 手写维护（user_content.dart / wiki_search.dart 同风格）：Dart 代码生成仍为
 /// Planned，未跑 build_runner，因此不使用 freezed part 文件。字段名与
@@ -54,6 +54,7 @@ class StickerAdminItemPayload {
     required this.sortOrder,
     required this.isEnabled,
     required this.createdBy,
+    this.aliases = const [],
   });
   final int id;
   final String name;
@@ -62,6 +63,9 @@ class StickerAdminItemPayload {
   final int sortOrder;
   final bool isEnabled;
   final int createdBy;
+
+  /// 改名前的名称，旧 token 仍解析到本行（issue #1428）。
+  final List<String> aliases;
   factory StickerAdminItemPayload.fromJson(Map<String, dynamic> json) =>
       StickerAdminItemPayload(
         id: (json['id'] as num?)?.toInt() ?? 0,
@@ -71,6 +75,9 @@ class StickerAdminItemPayload {
         sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
         isEnabled: json['isEnabled'] == true,
         createdBy: (json['createdBy'] as num?)?.toInt() ?? 0,
+        aliases: (json['aliases'] as List? ?? const [])
+            .whereType<String>()
+            .toList(growable: false),
       );
 }
 
@@ -130,5 +137,100 @@ class StickerImportResultPayload {
               ),
             )
             .toList(),
+      );
+}
+
+/// 市场分类（GET /api/forum/sticker-market 的 topics）。
+class StickerMarketTopicPayload {
+  const StickerMarketTopicPayload({required this.id, required this.label});
+  final String id;
+  final String label;
+  factory StickerMarketTopicPayload.fromJson(Map<String, dynamic> json) =>
+      StickerMarketTopicPayload(
+        id: json['id'] as String? ?? '',
+        label: json['label'] as String? ?? '',
+      );
+}
+
+/// 已上架的市场表情包（市场目录、我的表情包列表与添加结果共用）。
+class StickerMarketPackPayload {
+  const StickerMarketPackPayload({
+    required this.id,
+    required this.name,
+    this.topic = '',
+    this.stickerCount = 0,
+    this.coverUrl = '',
+  });
+  final int id;
+  final String name;
+  final String topic;
+  final int stickerCount;
+  final String coverUrl;
+  factory StickerMarketPackPayload.fromJson(Map<String, dynamic> json) =>
+      StickerMarketPackPayload(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        name: json['name'] as String? ?? '',
+        topic: json['topic'] as String? ?? '',
+        stickerCount: (json['stickerCount'] as num?)?.toInt() ?? 0,
+        coverUrl: json['coverUrl'] as String? ?? '',
+      );
+}
+
+/// 市场目录一页（GET /api/forum/sticker-market）。
+class StickerMarketPagePayload {
+  const StickerMarketPagePayload({
+    this.topics = const [],
+    this.packs = const [],
+    this.total = 0,
+    this.page = 1,
+    this.pageSize = 24,
+  });
+  final List<StickerMarketTopicPayload> topics;
+  final List<StickerMarketPackPayload> packs;
+  final int total;
+  final int page;
+  final int pageSize;
+  factory StickerMarketPagePayload.fromJson(Map<String, dynamic> json) =>
+      StickerMarketPagePayload(
+        topics: (json['topics'] as List? ?? const [])
+            .map(
+              (e) => StickerMarketTopicPayload.fromJson(
+                Map<String, dynamic>.from(e as Map),
+              ),
+            )
+            .toList(growable: false),
+        packs: (json['packs'] as List? ?? const [])
+            .map(
+              (e) => StickerMarketPackPayload.fromJson(
+                Map<String, dynamic>.from(e as Map),
+              ),
+            )
+            .toList(growable: false),
+        total: (json['total'] as num?)?.toInt() ?? 0,
+        page: (json['page'] as num?)?.toInt() ?? 1,
+        pageSize: (json['pageSize'] as num?)?.toInt() ?? 24,
+      );
+}
+
+/// 市场表情包详情（GET /api/forum/sticker-market/pack）。
+class StickerMarketPackDetailPayload {
+  const StickerMarketPackDetailPayload({
+    required this.pack,
+    this.stickers = const [],
+  });
+  final StickerMarketPackPayload pack;
+  final List<StickerItemPayload> stickers;
+  factory StickerMarketPackDetailPayload.fromJson(Map<String, dynamic> json) =>
+      StickerMarketPackDetailPayload(
+        pack: StickerMarketPackPayload.fromJson(
+          Map<String, dynamic>.from(json['pack'] as Map? ?? const {}),
+        ),
+        stickers: (json['stickers'] as List? ?? const [])
+            .map(
+              (e) => StickerItemPayload.fromJson(
+                Map<String, dynamic>.from(e as Map),
+              ),
+            )
+            .toList(growable: false),
       );
 }

@@ -1,0 +1,52 @@
+{
+  "result": {
+    "pack": {
+      "id": 9201,
+      "upstreamId": "group-1",
+      "name": "Pack One",
+      "topic": "anime",
+      "upstreamCount": 3,
+      "archived": false,
+      "missing": false,
+      "status": "partial",
+      "published": true,
+      "sortOrder": 0,
+      "itemCount": 2,
+      "failedCount": 1,
+      "importTotal": 3,
+      "lastError": "",
+      "coverUrl": "/file/img/stickers/market/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+      "iconUrl": "https://cdn3.ldstatic.com/original/pack-icon.webp",
+      "iconText": "",
+      "syncedAt": "2026-10-29T08:00:00Z",
+      "importedAt": "2026-10-29T08:05:00Z"
+    },
+    "items": [
+      {
+        "upstreamId": "e1",
+        "stickerId": 9301,
+        "name": "m_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "url": "/file/img/stickers/market/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+        "isEnabled": true,
+        "error": ""
+      },
+      {
+        "upstreamId": "e2",
+        "stickerId": 9302,
+        "name": "m_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "url": "/file/img/stickers/market/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.png",
+        "isEnabled": true,
+        "error": ""
+      },
+      {
+        "upstreamId": "e3",
+        "stickerId": 0,
+        "name": "",
+        "url": "",
+        "isEnabled": false,
+        "error": "blocked"
+      }
+    ]
+  },
+  "code": 0
+}

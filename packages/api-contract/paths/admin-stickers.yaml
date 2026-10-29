@@ -72,7 +72,11 @@ adminStickerSave:
       (Unicode letters/digits/underscore/hyphen, 1-64 chars — the token form
       `[:sticker:name:]` requires a sticker-safe identifier, MADR 0030) fails
       with `admin.sticker.nameInvalid`, and a name already taken by another
-      row fails with `admin.sticker.nameExists`. A positive `id` matching no
+      row fails with `admin.sticker.nameExists`. Renaming keeps the previous
+      name as an alias of the same row, so content sent with the old token keeps
+      showing this sticker (issue #1428); a name that is still another row's alias
+      fails with `admin.sticker.nameReserved`, and renaming a row back to one of
+      its own previous names releases that alias. A positive `id` matching no
       official sticker (including an id belonging to a personal asset) fails with `admin.sticker.notFound`; a persistence failure
       fails with `admin.sticker.saveFailed` (all HTTP 200). JSON binding is
       lenient: a malformed body binds to zero values and fails as
@@ -89,7 +93,7 @@ adminStickerSave:
             $ref: ../components/schemas.yaml#/AdminStickerSaveRequest
     responses:
       '200':
-        description: "Sticker saved (`result` is the string `success`), or a legacy business failure envelope (`admin.sticker.nameRequired` / `admin.sticker.nameInvalid` / `admin.sticker.nameExists` / `admin.sticker.notFound` / `admin.sticker.saveFailed`)."
+        description: "Sticker saved (`result` is the string `success`), or a legacy business failure envelope (`admin.sticker.nameRequired` / `admin.sticker.nameInvalid` / `admin.sticker.nameExists` / `admin.sticker.nameReserved` / `admin.sticker.notFound` / `admin.sticker.saveFailed`)."
         content:
           application/json:
             schema:
@@ -103,6 +107,8 @@ adminStickerSave:
                 externalValue: ../fixtures/admin-sticker-name-required.json
               nameExists:
                 externalValue: ../fixtures/admin-sticker-name-exists.json
+              nameReserved:
+                externalValue: ../fixtures/admin-sticker-name-reserved.json
               stickerNotFound:
                 externalValue: ../fixtures/admin-sticker-not-found.json
       '401':

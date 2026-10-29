@@ -363,6 +363,15 @@ const (
 	MessageAdminStickerDeleteFailed     MessageCode = "admin.sticker.deleteFailed"     // 删除表情包失败。
 	MessageAdminStickerImportTooLarge   MessageCode = "admin.sticker.importTooLarge"   // 表情包压缩包超过大小限制，params.maxSizeMb。
 	MessageAdminStickerImportInvalidZip MessageCode = "admin.sticker.importInvalidZip" // 表情包导入仅支持 zip 压缩包。
+
+	// 改名保留曾用名（issue #1428）与贴纸市场（issue #1429）
+	MessageAdminStickerNameReserved      MessageCode = "admin.sticker.nameReserved"       // 名称是另一个表情包的曾用名，旧内容仍引用它。
+	MessageStickerMarketPackUnavailable  MessageCode = "sticker.market.packUnavailable"   // Market pack hidden, unknown or empty.
+	MessageStickerMarketPackLimit        MessageCode = "sticker.market.packLimit"         // Subscribed packs reached params.limit.
+	MessageAdminStickerMarketBusy        MessageCode = "admin.sticker.market.busy"        // 目录正在同步，或该表情包正在导入。
+	MessageAdminStickerMarketDisabled    MessageCode = "admin.sticker.market.disabled"    // 站点配置关闭了表情市场。
+	MessageAdminStickerMarketUnavailable MessageCode = "admin.sticker.market.unavailable" // 上游目录不可用，保留上次同步结果。
+	MessageAdminStickerMarketNotReady    MessageCode = "admin.sticker.market.notReady"    // 表情包还没有已导入的图片，不能上架。
 	// 管理员可配置 URL 校验（issue #409）
 	MessageAdminUrlInvalid MessageCode = "admin.url.invalid" // 链接不符合允许的协议/目标策略（http(s)、站内相对路径，部分字段允许 mailto）。
 

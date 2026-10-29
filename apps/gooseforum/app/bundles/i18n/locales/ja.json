@@ -134,6 +134,8 @@
   "serverMessages.sticker.uploadQuota": "アップロード上限の {limit} 個に達しました。送信済みの素材は履歴表示のため保持されます。",
   "serverMessages.sticker.imageRequired": "自分がアップロードした {maxSizeMb} MB 以下の画像または GIF を選択してください。",
   "serverMessages.sticker.unavailable": "このスタンプは利用できません。",
+  "serverMessages.sticker.market.packUnavailable": "このスタンプパックは利用できません。",
+  "serverMessages.sticker.market.packLimit": "スタンプパックは {limit} 個まで追加できます。追加する前に一部を削除してください。",
   "permission.revealAnonymousIdentity": "匿名の身元開示（制限された監査）",
   "anonymous.profileContentHidden": "このメンバーの投稿はこのページに表示されません",
   "anonymous.identity": "匿名の身元",

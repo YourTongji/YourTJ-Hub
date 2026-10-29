@@ -22,6 +22,9 @@ var (
 	ErrNameRequired = errors.New("sticker name required")
 	ErrNameInvalid  = errors.New("invalid sticker name")
 	ErrNameExists   = errors.New("sticker name exists")
+	// ErrNameReserved: the name is another sticker's previous name and existing
+	// content still resolves it to that sticker (issue #1428).
+	ErrNameReserved = errors.New("sticker name reserved by a previous name")
 	ErrFileRequired = errors.New("an owned image upload is required")
 	ErrNotFound     = errors.New("sticker not found")
 )
@@ -64,6 +67,14 @@ func Save(ctx context.Context, userID uint64, input SaveInput) error {
 		if existing.Id != 0 && existing.Id != row.Id {
 			return ErrNameExists
 		}
+		alias, aliasErr := sticker.AliasByNameTx(tx, input.Name)
+		if aliasErr != nil && !errors.Is(aliasErr, gorm.ErrRecordNotFound) {
+			return aliasErr
+		}
+		if aliasErr == nil && (row.Id == 0 || alias.StickerID != row.Id) {
+			return ErrNameReserved
+		}
+		previousName := row.Name
 		fileName := row.FileName
 		if input.FileName != "" {
 			fileName = strings.TrimPrefix(input.FileName, storageservice.PublicAccessPath(""))
@@ -96,11 +107,23 @@ func Save(ctx context.Context, userID uint64, input SaveInput) error {
 					return err
 				}
 			}
-		} else if err := sticker.SaveTx(tx, &row); err != nil {
-			if errors.Is(err, gorm.ErrDuplicatedKey) {
-				return ErrNameExists
+		} else {
+			// Taking back a previous name releases it before the row claims it.
+			if err := sticker.ReleaseAliasTx(tx, row.Name, row.Id); err != nil {
+				return err
 			}
-			return err
+			if err := sticker.SaveTx(tx, &row); err != nil {
+				if errors.Is(err, gorm.ErrDuplicatedKey) {
+					return ErrNameExists
+				}
+				return err
+			}
+			// Sent tokens keep the old name; record it so they still resolve here.
+			if previousName != row.Name {
+				if err := sticker.RecordAliasTx(tx, previousName, row.Id); err != nil {
+					return err
+				}
+			}
 		}
 		return fileusageservice.SetStickerUsageTx(tx, row.Id, row.CreatedBy, row.FileName, fileUsage.UsageStatusActive)
 	})
@@ -171,6 +194,16 @@ func ImportImage(ctx context.Context, userID uint64, data []byte, fileName, rawN
 					runes = runes[:sticker.MaxNameLen-len(suffix)]
 				}
 				name = string(runes) + suffix
+			}
+			// A previous name still resolves to its renamed sticker: treat it as taken.
+			if _, err := sticker.AliasByNameTx(tx, name); err == nil {
+				if skipExisting {
+					skipped = true
+					return nil
+				}
+				continue
+			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
 			}
 			row := sticker.Entity{Name: name, FileName: file.Name, SortOrder: sortOrder, IsEnabled: true, IsOfficial: true, Pack: pack, CreatedBy: userID}
 			inserted, err := sticker.InsertIfNameAvailable(tx, &row)

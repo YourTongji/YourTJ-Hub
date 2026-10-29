@@ -340,6 +340,9 @@ func apiRoute(ginApp *gin.Engine) {
 	// 表情包库：公开只读（启用列表供编辑器选择器与客户端 token 替换）。
 	forumApi.GET("stickers", middleware.RateLimit(middleware.RateLimitStickerList), ginUpNP(api.PublicStickerList))
 	forumApi.POST("stickers/resolve", middleware.RateLimit(middleware.RateLimitStickerList), UpLimitedJsonReq(64<<10, api.ResolveStickers))
+	// 贴纸市场（issue #1429）：公开只读，只列出管理员已上架、已导入的表情包。
+	forumApi.GET("sticker-market", middleware.RateLimit(middleware.RateLimitStickerList), UpQueryReq(api.StickerMarket))
+	forumApi.GET("sticker-market/pack", middleware.RateLimit(middleware.RateLimitStickerList), UpQueryReq(api.StickerMarketPack))
 	// wiki 分站：公开读。
 	// wiki 分站：公开读（GitHub SSOT：内容由仓库同步，无站内写）。
 	wikiApi := baseApi.Group("wiki")
@@ -372,6 +375,9 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("my-sticker-save", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.SaveMySticker))
 	forumLoginApi.POST("my-sticker-delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.DeleteMySticker))
 	forumLoginApi.POST("my-stickers-order", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.OrderMyStickers))
+	forumLoginApi.GET("my-sticker-packs", middleware.NoUpdateUserActivity, UpButterReq(api.MyStickerPacks))
+	forumLoginApi.POST("my-sticker-pack-save", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.SaveMyStickerPack))
+	forumLoginApi.POST("my-sticker-pack-delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.DeleteMyStickerPack))
 	forumLoginApi.GET("unread-status", middleware.NoUpdateUserActivity, UpButterReq(api.GetUnreadStatus))
 	forumLoginApi.GET("notifications", middleware.NoUpdateUserActivity, UpQueryReq(api.NotificationList))
 	// 未读清理（notification/chat mark-read）用放行变体：pending 用户仅清理自己的
@@ -647,6 +653,12 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("sticker-save", UpButterReq(api.SaveSticker)).
 		POST("sticker-delete", UpButterReq(api.DeleteSticker)).
 		POST("sticker-import", api.ImportStickerPack).
+		GET("sticker-market", UpQueryReq(api.AdminStickerMarket)).
+		POST("sticker-market-sync", UpButterReq(api.AdminStickerMarketSync)).
+		GET("sticker-market-pack", UpQueryReq(api.AdminStickerMarketPack)).
+		POST("sticker-market-import", UpButterReq(api.AdminStickerMarketImport)).
+		POST("sticker-market-pack-save", UpButterReq(api.AdminStickerMarketPackSave)).
+		POST("sticker-market-item-save", UpButterReq(api.AdminStickerMarketItemSave)).
 		GET("terms-of-service", UpButterReq(api.GetTermsOfService)).
 		POST("save-terms-of-service", UpButterReq(api.SaveTermsOfService)).
 		GET("privacy-policy", UpButterReq(api.GetPrivacyPolicy)).

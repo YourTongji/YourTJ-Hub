@@ -1,5 +1,6 @@
 import '../../navigation/reading_window.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -10,6 +11,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'sticker_image.dart';
 import 'sticker_library_page.dart';
 import 'sticker_library_state.dart';
+import 'sticker_market_page.dart';
+import 'sticker_peek.dart';
 import 'sticker_strings.dart';
 import 'sticker_preview.dart';
 
@@ -46,6 +49,7 @@ class StickerPicker extends ConsumerStatefulWidget {
 class _StickerPickerState extends ConsumerState<StickerPicker> {
   int _tab = 2;
   String? _pack;
+  int? _marketPack;
   String _query = '';
   @override
   void initState() {
@@ -56,7 +60,26 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
       if (collection.recent.isNotEmpty) setState(() => _tab = 0);
       collection.loadOfficial(refresh: true);
       collection.loadMine(refresh: true);
+      collection.loadPacks(refresh: true);
     });
+  }
+
+  void _showMarketPack(StickerCollection collection, int id) {
+    setState(() => _marketPack = id);
+    collection.loadPackStickers(id);
+  }
+
+  Future<void> _collect(StickerItemPayload item) async {
+    final collection = ref.read(stickerCollectionProvider);
+    final strings = StickerStrings(context);
+    try {
+      await collection.save(stickerName: item.name);
+      if (mounted && collection.active) showGfToast(context, strings.saved);
+    } catch (error) {
+      if (mounted && collection.active) {
+        showGfToast(context, strings.failure(error), error: true);
+      }
+    }
   }
 
   Future<void> _actions(StickerItemPayload item) async {
@@ -96,15 +119,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
       await showStickerPreview(context, item.url, collection: collection);
       return;
     }
-    if (action != 'save') return;
-    try {
-      await collection.save(stickerName: item.name);
-      if (mounted && collection.active) showGfToast(context, strings.saved);
-    } catch (error) {
-      if (mounted && collection.active) {
-        showGfToast(context, strings.failure(error), error: true);
-      }
-    }
+    if (action == 'save') await _collect(item);
   }
 
   Future<void> _openLicenses() async {
@@ -130,9 +145,19 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
     final strings = StickerStrings(context);
     final state = ref.watch(stickerCollectionProvider);
     final colors = GfTheme.colorsOf(context);
+    // The packs tab follows the account's subscriptions; a removed pack falls
+    // back to the first remaining one.
+    final marketPack = state.packs.any((pack) => pack.id == _marketPack)
+        ? _marketPack
+        : state.packs.firstOrNull?.id;
+    if (_tab == 3 && marketPack != null && marketPack != _marketPack) {
+      _marketPack = marketPack;
+      Future.microtask(() => state.loadPackStickers(marketPack));
+    }
     final source = switch (_tab) {
       1 => state.mine,
       2 => state.official,
+      3 => state.packStickers[marketPack] ?? const <StickerItemPayload>[],
       _ => state.recent,
     };
     final items = source
@@ -147,16 +172,21 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                   item.name.toLowerCase().contains(_query.toLowerCase())),
         )
         .toList();
-    final error = _tab == 1
-        ? state.mineError
-        : _tab == 2
-        ? state.officialError
-        : null;
-    final loading = _tab == 1
-        ? state.loadingMine
-        : _tab == 2
-        ? state.loadingOfficial
-        : false;
+    final error = switch (_tab) {
+      1 => state.mineError,
+      2 => state.officialError,
+      3 =>
+        marketPack == null
+            ? state.packsError
+            : state.packStickerErrors[marketPack],
+      _ => null,
+    };
+    final loading = switch (_tab) {
+      1 => state.loadingMine,
+      2 => state.loadingOfficial,
+      3 => state.loadingPacks || state.loadingPackStickers.contains(marketPack),
+      _ => false,
+    };
     final packs = state.official
         .map((e) => e.pack)
         .where((e) => e.isNotEmpty)
@@ -171,12 +201,18 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
               strings.recent,
               strings.mine,
               strings.official,
+              strings.packs,
             ].indexed)
               Expanded(
                 child: Semantics(
                   selected: _tab == index,
                   child: TextButton(
-                    onPressed: () => setState(() => _tab = index),
+                    onPressed: () {
+                      setState(() => _tab = index);
+                      if (index == 3 && marketPack != null) {
+                        state.loadPackStickers(marketPack);
+                      }
+                    },
                     style: TextButton.styleFrom(
                       foregroundColor: _tab == index
                           ? colors.primary
@@ -206,159 +242,234 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
         // Only the three destinations remain fixed, leaving a useful viewport
         // when the keyboard or enlarged text consumes the available height.
         Expanded(
-          child: CustomScrollView(
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                sliver: SliverToBoxAdapter(
-                  child: GfSearchField(
-                    hintText: strings.search,
-                    clearLabel: MaterialLocalizations.of(
-                      context,
-                    ).deleteButtonTooltip,
-                    onChanged: (value) => setState(() => _query = value),
-                  ),
-                ),
-              ),
-              if (_tab == 2 && packs.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(
-                      children: [
-                        for (final pack in [null, ...packs])
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 3),
-                            child: ChoiceChip(
-                              label: GfText(pack ?? strings.all),
-                              selected: _pack == pack,
-                              onSelected: (_) => setState(() => _pack = pack),
-                            ),
-                          ),
-                      ],
+          child: StickerPeekScope(
+            labelOf: strings.displayLabel,
+            collectLabel: strings.collectShort,
+            canCollect: (item) =>
+                !state.mine.any((value) => value.name == item.name),
+            onCollect: _collect,
+            child: CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  sliver: SliverToBoxAdapter(
+                    child: GfSearchField(
+                      hintText: strings.search,
+                      clearLabel: MaterialLocalizations.of(
+                        context,
+                      ).deleteButtonTooltip,
+                      onChanged: (value) => setState(() => _query = value),
                     ),
                   ),
                 ),
-              if (loading && source.isEmpty)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: GfProgressIndicator()),
-                  ),
-                )
-              else if (error != null)
-                SliverToBoxAdapter(
-                  child: _status(
-                    strings.failure(error, loading: true),
-                    action: strings.retry,
-                    onAction: () => _tab == 1
-                        ? state.loadMine(refresh: true)
-                        : state.loadOfficial(refresh: true),
-                  ),
-                )
-              else if (items.isEmpty)
-                SliverToBoxAdapter(
-                  child: _status(
-                    _query.isNotEmpty
-                        ? strings.noResults
-                        : switch (_tab) {
-                            1 => strings.emptyMine,
-                            2 => strings.emptyOfficial,
-                            _ => strings.emptyRecent,
-                          },
-                    action: _tab == 0
-                        ? strings.official
-                        : _tab == 1
-                        ? strings.add
-                        : null,
-                    onAction: _tab == 0
-                        ? () => setState(() => _tab = 2)
-                        : () => Navigator.of(context, rootNavigator: true).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => ReadingPageWindow(
-                                child: const StickerLibraryPage(),
+                if (_tab == 2 && packs.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        children: [
+                          for (final pack in [null, ...packs])
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 3,
+                              ),
+                              child: ChoiceChip(
+                                label: GfText(pack ?? strings.all),
+                                selected: _pack == pack,
+                                onSelected: (_) => setState(() => _pack = pack),
                               ),
                             ),
-                          ),
-                  ),
-                )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.all(12),
-                  sliver: SliverGrid.builder(
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 90,
-                          mainAxisExtent: 88,
-                          mainAxisSpacing: 4,
-                          crossAxisSpacing: 4,
-                        ),
-                    itemCount: items.length,
-                    itemBuilder: (context, index) {
-                      final item = items[index];
-                      return Semantics(
-                        button: true,
-                        label: strings.displayLabel(item),
-                        hint: strings.pickerHint,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(GfRadius.md),
-                          onLongPress: () => _actions(item),
-                          onTap: () {
-                            widget.onInsert(item.token);
-                            state.used(item);
-                          },
-                          child: Column(
-                            children: [
-                              IgnorePointer(
-                                child: StickerImage(
-                                  name: item.name,
-                                  url: item.url,
-                                  label: strings.displayLabel(item),
-                                  collectible: false,
-                                  excludeSemantics: true,
-                                ),
-                              ),
-                              GfText(
-                                strings.displayLabel(item),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.labelSmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
-                ),
-                sliver: SliverToBoxAdapter(
-                  child: GfText(
-                    strings.pickerHint,
-                    style: TextStyle(fontSize: 12, color: colors.iconMuted),
-                  ),
-                ),
-              ),
-              if (_tab == 2)
-                SliverToBoxAdapter(
-                  child: Align(
-                    child: TextButton.icon(
-                      onPressed: _openLicenses,
-                      icon: const GfSymbol('external-link', size: 14),
-                      label: GfText(strings.licenses),
-                      style: TextButton.styleFrom(
-                        textStyle: const TextStyle(fontSize: 12),
-                        foregroundColor: colors.iconMuted,
+                        ],
                       ),
                     ),
                   ),
+                if (_tab == 3 && state.packs.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        children: [
+                          for (final pack in state.packs)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 3,
+                              ),
+                              child: ChoiceChip(
+                                label: GfText(pack.name),
+                                selected: marketPack == pack.id,
+                                onSelected: (_) =>
+                                    _showMarketPack(state, pack.id),
+                              ),
+                            ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 3),
+                            child: ActionChip(
+                              avatar: const GfSymbol('layout-grid', size: 16),
+                              label: GfText(strings.market),
+                              tooltip: strings.browseMarket,
+                              onPressed: () => openStickerMarket(context),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (loading && source.isEmpty)
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: GfProgressIndicator()),
+                    ),
+                  )
+                else if (error != null)
+                  SliverToBoxAdapter(
+                    child: _status(
+                      strings.failure(error, loading: true),
+                      action: strings.retry,
+                      onAction: () => switch (_tab) {
+                        1 => state.loadMine(refresh: true),
+                        3 when marketPack != null => state.loadPackStickers(
+                          marketPack,
+                          refresh: true,
+                        ),
+                        3 => state.loadPacks(refresh: true),
+                        _ => state.loadOfficial(refresh: true),
+                      },
+                    ),
+                  )
+                else if (items.isEmpty)
+                  SliverToBoxAdapter(
+                    child: _status(
+                      _query.isNotEmpty
+                          ? strings.noResults
+                          : switch (_tab) {
+                              1 => strings.emptyMine,
+                              2 => strings.emptyOfficial,
+                              3 => strings.emptyPacks,
+                              _ => strings.emptyRecent,
+                            },
+                      action: switch (_tab) {
+                        0 => strings.official,
+                        1 => strings.add,
+                        3 when state.packs.isEmpty => strings.browseMarket,
+                        _ => null,
+                      },
+                      onAction: _tab == 0
+                          ? () => setState(() => _tab = 2)
+                          : _tab == 3
+                          ? () => openStickerMarket(context)
+                          : () =>
+                                Navigator.of(context, rootNavigator: true).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => ReadingPageWindow(
+                                      child: const StickerLibraryPage(),
+                                    ),
+                                  ),
+                                ),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.all(12),
+                    sliver: SliverGrid.builder(
+                      gridDelegate:
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 90,
+                            mainAxisExtent: 88,
+                            mainAxisSpacing: 4,
+                            crossAxisSpacing: 4,
+                          ),
+                      itemCount: items.length,
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        // Holding opens the preview bubble. Screen readers,
+                        // keyboards and pointers keep the preview/save menu.
+                        return StickerPeekCell(
+                          item: item,
+                          onSecondaryTap: () => _actions(item),
+                          child: CallbackShortcuts(
+                            bindings: {
+                              const SingleActivator(
+                                LogicalKeyboardKey.contextMenu,
+                              ): () =>
+                                  _actions(item),
+                              const SingleActivator(
+                                LogicalKeyboardKey.f10,
+                                shift: true,
+                              ): () =>
+                                  _actions(item),
+                            },
+                            child: Semantics(
+                              button: true,
+                              label: strings.displayLabel(item),
+                              hint: strings.pickerHint,
+                              onLongPress: () => _actions(item),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(
+                                  GfRadius.md,
+                                ),
+                                onTap: () {
+                                  widget.onInsert(item.token);
+                                  state.used(item);
+                                },
+                                child: Column(
+                                  children: [
+                                    IgnorePointer(
+                                      child: StickerImage(
+                                        name: item.name,
+                                        url: item.url,
+                                        label: strings.displayLabel(item),
+                                        collectible: false,
+                                        excludeSemantics: true,
+                                      ),
+                                    ),
+                                    GfText(
+                                      strings.displayLabel(item),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.labelSmall,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
+                  sliver: SliverToBoxAdapter(
+                    child: GfText(
+                      strings.pickerHint,
+                      style: TextStyle(fontSize: 12, color: colors.iconMuted),
+                    ),
+                  ),
                 ),
-            ],
+                if (_tab == 2)
+                  SliverToBoxAdapter(
+                    child: Align(
+                      child: TextButton.icon(
+                        onPressed: _openLicenses,
+                        icon: const GfSymbol('external-link', size: 14),
+                        label: GfText(strings.licenses),
+                        style: TextButton.styleFrom(
+                          textStyle: const TextStyle(fontSize: 12),
+                          foregroundColor: colors.iconMuted,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ],

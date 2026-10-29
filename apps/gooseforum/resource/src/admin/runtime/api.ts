@@ -16,6 +16,10 @@ import type {
   AdminTaskRow,
   AdminTopic,
   AdminSticker,
+  AdminStickerMarketPack,
+  AdminStickerMarketPackDetail,
+  AdminStickerMarketPage,
+  AdminStickerMarketSyncResult,
   AdminBadge,
   AdminCategory,
   AdminCategoryModerator,
@@ -361,6 +365,43 @@ export function importStickerPack(file: File) {
   const body = new FormData()
   body.append('file', file)
   return postForm<StickerImportResult>('/api/admin/sticker-import', body, adminText('k001u'))
+}
+
+export interface StickerMarketQuery {
+  topic?: string
+  q?: string
+  status?: string
+  page?: number
+  pageSize?: number
+}
+
+export function getStickerMarket(query: StickerMarketQuery = {}) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== '') params.set(key, String(value))
+  }
+  const search = params.toString()
+  return getJson<AdminStickerMarketPage>(`/api/admin/sticker-market${search ? `?${search}` : ''}`, adminText('stickerMarketLoadFailed'))
+}
+
+export function syncStickerMarket() {
+  return postJson<AdminStickerMarketSyncResult>('/api/admin/sticker-market-sync', {}, adminText('stickerMarketLoadFailed'))
+}
+
+export function getStickerMarketPack(id: number) {
+  return getJson<AdminStickerMarketPackDetail>(`/api/admin/sticker-market-pack?id=${encodeURIComponent(id)}`, adminText('stickerMarketLoadFailed'))
+}
+
+export function importStickerMarketPack(id: number) {
+  return postJson<AdminStickerMarketPack>('/api/admin/sticker-market-import', { id }, adminText('stickerMarketSaveFailed'))
+}
+
+export function saveStickerMarketPack(data: { id: number, published: boolean, sortOrder: number }) {
+  return postJson<AdminStickerMarketPack>('/api/admin/sticker-market-pack-save', data, adminText('stickerMarketSaveFailed'))
+}
+
+export function saveStickerMarketItem(stickerId: number, isEnabled: boolean) {
+  return postJson<boolean>('/api/admin/sticker-market-item-save', { stickerId, isEnabled }, adminText('stickerMarketSaveFailed'))
 }
 
 export function getSiteSettings() {
