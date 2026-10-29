@@ -140,7 +140,17 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   TypeScript, client package manifest, and its own workflow configuration. The route-level HTTP
   contract fixture tests run inside the backend `go test ./...` gate.
 - ci-mobile.yml: Flutter source, tests, assets, dependency/tooling or native files trigger independent
-  analysis and test jobs. Dart paths include `integration_test`, `test_driver` and package-local `tool`
+  analysis and test jobs. Before Flutter bootstrap, its analysis job runs the dependency-free
+  UI-kit Node tool tests: Twemoji inventory/Unicode input → JSON manifest + Dart map freshness
+  (`generate_twemoji_manifest.mjs --check`), plus exact Web/mobile token key/value parity. The
+  frontend `pnpm test` runs the same tools, so changes on either side are gated. Token comparison
+  resolves root defaults and dark overrides; it normalizes opaque OKLCH/hex colors to the existing
+  clipped, rounded 8-bit sRGB representation and numeric rem/px values to the 16px design baseline.
+  Web-only course slots and typography sizes are explicitly excluded; mobile component roles and
+  runtime text scaling are not rewritten. Unsupported value syntax fails for review rather than
+  skipping parity. Run `node --test apps/mobile/packages/ui_kit/tool/*.test.mjs` from the repository
+  root, or `node apps/mobile/packages/ui_kit/tool/check_token_mirror.mjs` for just token parity.
+  Dart paths include `integration_test`, `test_driver` and package-local `tool`
   so these sources still receive analysis; device integration tests remain a separate manual run.
   Each package tests on its own runner; `forum_app` has two disjoint Flutter
   shards. All package suites run for a shared-code change, including dependent packages. The local
