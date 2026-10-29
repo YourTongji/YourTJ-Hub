@@ -15,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/db4fileconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth"
 )
@@ -271,6 +272,27 @@ func TestLoginPagePropsHideUnregisteredOAuthRoutes(t *testing.T) {
 	}
 	if route, _ := payload["googleUrl"].(string); route != "" {
 		t.Fatalf("googleUrl = %q, want no route when Google is unavailable", route)
+	}
+}
+
+func TestLoginPagePropsExposeCaptchaRequirement(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/login", nil)
+
+	encoded, err := json.Marshal(buildLoginPageProps(ctx))
+	if err != nil {
+		t.Fatalf("marshal login props: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatalf("decode login props: %v", err)
+	}
+	// issue #1278：认证三页据该字段决定是否渲染/校验验证码；字段缺失或恒 true
+	// 会让关闭验证码的站点继续被前端拦截。
+	required, ok := payload["captchaRequired"].(bool)
+	if !ok || required != hotdataserve.GetSecuritySettingsConfigCache().CaptchaRequired {
+		t.Fatalf("captchaRequired = %#v, want the security setting", payload["captchaRequired"])
 	}
 }
 
