@@ -165,18 +165,12 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     return GfPopupMenuItem(
       value: value,
       destructive: destructive,
-      child: Row(
-        key: ValueKey('profile-sheet-$value'),
-        children: [
-          GfSymbol(
-            symbol,
-            size: 22,
-            color: destructive ? colors.error : colors.baseContent,
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: GfText(label)),
-        ],
+      leading: GfSymbol(
+        symbol,
+        size: 22,
+        color: destructive ? colors.error : colors.baseContent,
       ),
+      child: GfText(label, key: ValueKey('profile-sheet-$value')),
     );
   }
 
