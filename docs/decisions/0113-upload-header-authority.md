@@ -58,27 +58,27 @@ allowlist (`upload.extension.unsupported` when it is not allowed), and only then
 storage. `upload.image.invalidContent` now means exactly "the bytes are not a
 usable image"; an extension conflict is no longer an error.
 
-Storage naming follows the detected type. The multipart, admin and avatar paths
-already build `path/uuid.ext`, so they take the extension from the detected MIME
-and write it as `assert_type`; the response still echoes the client's original
-filename. The direct-upload object key is pinned by the presigned policy at init,
-so complete renames it: full `Provider.Get`, `Provider.Save` under the canonical
-extension, metadata row name/type rewrite, then delete of the old object. The row
-rewrite only matches the caller's still-pending row (`storage_status = pending`),
-so a concurrent complete of the same pending name either wins and publishes or
-loses with zero affected rows; a loser never rewrites the winner's row and never
-deletes the object under the new name. The old object is removed only after the
-rename is committed, so a success never leaves a row pointing at a missing object.
+Storage naming follows the detected type. Multipart, admin and avatar uploads
+use their generated UUID key with the canonical extension. A direct-upload
+conflict copies to a fresh UUID key in the same directory, using the canonical
+extension; the response is the authority for the final name.
 
-Row-less objects are a known leak confined to this rename: a loser's copy and a
-failed post-rename delete both stay unreferenced, and neither sweeper collects
-them (`fileusageservice` orphan reclamation scans `upload_owner` rows,
-`storageservice.CleanupPending` scans pending metadata rows). They need a later
-cleanup task or manual bucket-side removal. Accepted because the leak only occurs
-on the rename path (a declared/detected type conflict), never blocks a publish,
-and the leaked object is the user's own validated image, not over-privileged
-data. With the local provider direct upload is not offered, so the rename path
-only exists for object storage.
+Before writing the copy, reserve a `copying` file metadata row. Publication is a
+single file-database transaction: consume the original `pending` row into
+`cleanup` and publish the same owner's `copying` row as `ready`. A source can be
+consumed only once. Each attempt owns a different key, so a losing attempt cannot
+overwrite or delete the winner's object. The copy keeps the source creation time
+when published. `copying` and `cleanup` rows are excluded from user upload counts,
+so normalization does not charge a second upload, including across midnight.
+
+After publication, attempt to delete the old object but retain its cleanup row
+until the upload expiry cutoff: an already issued presigned POST can still write
+the old key again. The worker retries failed deletes and late writes. Any leftover copy remains tracked by its copying row. The existing two-hour cleanup worker scans pending, copying and cleanup
+rows, deleting bytes before metadata; ready winners are excluded. A process crash
+between copy and publication therefore retains a reclaimable record. Provider
+errors never justify dropping the last cleanup record. File ready publication and
+main-database upload-owner registration retain their existing separate-write
+boundary, documented in the object-storage runbook.
 
 Reads keep deriving `Content-Type` from the stored object name's extension,
 without sniffing: after this decision a stored name's extension is the detected
@@ -101,8 +101,9 @@ type by construction, so the header and the bytes cannot disagree.
   on an extension conflict (the matching case keeps the header-only read); a
   client that re-completes with the old pending name after a rename gets
   `page.notFound`, so it must use the returned name (the Web client already does);
-  a failed rename or a failed post-rename delete leaves an unreferenced object
-  that no current sweeper reclaims (see Decision Outcome).
+  each conflicting attempt needs an additional tracked copy row and a file-db
+  transaction. Failed operations can retain temporary objects until the cleanup
+  worker retries; no new table or column is required.
 
 ### bytes authoritative, keep the declared name (rejected)
 

@@ -8941,8 +8941,8 @@ export interface paths {
          *     A detected type outside the posting-settings allowlist fails with
          *     `upload.extension.unsupported`. When the detected type conflicts with the declared extension
          *     but both are allowed, the upload is accepted: the object is renamed to the detected type's
-         *     canonical extension (`.png` → `.jpg`; `.jpeg` and `.jpg` are the same type, so the name is
-         *     kept) and the response carries the renamed `filename`/`url`. On success the file becomes visible and the response carries the final public
+         *     canonical extension under a fresh UUID key in the same directory (`.png` → `.jpg`; `.jpeg`
+         *     and `.jpg` are the same type, so their original name is kept) and the response carries the renamed `filename`/`url`. On success the file becomes visible and the response carries the final public
          *     `url`, the stored object name and the stored byte `size`. An unknown or foreign `name` fails
          *     with `page.notFound`; storage failures fail with `upload.saveFailed` (params error). Frozen accounts
          *     are rejected by the route-level CheckWritableAccount middleware.

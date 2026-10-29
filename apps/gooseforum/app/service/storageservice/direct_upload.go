@@ -70,16 +70,17 @@ type FileMetadata struct {
 	UpdatedAt time.Time
 }
 
-// DirectUploadMetadataStore abstracts the pending/ready file metadata rows used
+// DirectUploadMetadataStore abstracts upload, copy and cleanup metadata rows used
 // by the direct upload lifecycle. Implemented by the file model package and
 // registered through RegisterDirectUploadMetadataStore to avoid an import cycle.
 type DirectUploadMetadataStore interface {
 	CreateFileMetadata(ctx context.Context, userId uint64, name, fileType string, size int64) (*FileMetadata, error)
+	CreateFileCopyMetadata(ctx context.Context, userId uint64, name, fileType string, size int64) (*FileMetadata, error)
 	GetPendingFileMetadataByName(ctx context.Context, name string) (*FileMetadata, error)
 	GetFileMetadataByName(ctx context.Context, name string) (*FileMetadata, error)
-	// RenameFileMetadata rewrites a pending row's object name and content type
-	// after the byte-detected type forced a rename.
-	RenameFileMetadata(ctx context.Context, oldName, newName, fileType string) (*FileMetadata, error)
+	// PublishRenamedFileMetadata atomically retires the source pending row to
+	// cleanup and publishes the separately reserved copy. Only one caller wins.
+	PublishRenamedFileMetadata(ctx context.Context, oldName, newName string) (*FileMetadata, error)
 	MarkFileReady(ctx context.Context, name string) (*FileMetadata, error)
 	ListPendingFilesBefore(ctx context.Context, before time.Time, limit int) ([]FileMetadata, error)
 	DeleteByName(ctx context.Context, name string) error
@@ -191,7 +192,6 @@ func CompleteDirectUpload(ctx context.Context, request CompleteDirectUploadReque
 		}
 		return nil, err
 	}
-	uploadName := metadata.Name
 	if request.Validator != nil {
 		// Validate only a bounded header: the object's full size was already
 		// checked by VerifyUpload (StatObject), so the server never downloads
@@ -209,57 +209,44 @@ func CompleteDirectUpload(ctx context.Context, request CompleteDirectUploadReque
 			}
 			return nil, validationErr
 		}
-		renamed, renameErr := normalizeDirectUploadType(ctx, metadataRepo, metadata, detectedType)
-		if renameErr != nil {
-			return nil, renameErr
-		}
-		uploadName = renamed.Name
+		return normalizeDirectUploadType(ctx, metadataRepo, metadata, detectedType)
 	}
-	return metadataRepo.MarkFileReady(ctx, uploadName)
+	return metadataRepo.MarkFileReady(ctx, metadata.Name)
 }
 
-// normalizeDirectUploadType renames the object to the canonical extension of the
-// byte-detected type when the client-declared extension differs, so the stored
-// name (and the Content-Type served from it) follows the bytes. Only the
-// extension is replaced: the client's declared name is already gone from the
-// object key (it is a path/uuid pair).
-//
-// shortcut: the rename downloads the whole object to copy it; it only runs on a
-// declared/detected extension conflict, never for a matching upload, so a plain
-// Get+Save is enough. Upgrade to a provider-side server-side copy when the
-// Provider interface exposes one.
+// normalizeDirectUploadType publishes a verified upload. A type conflict uses a
+// unique copy key reserved in metadata before any object write. Failed copies
+// remain pending; a published copy leaves a cleanup row for the old key until
+// its object is deleted. CleanupPending can therefore retry either failure.
 func normalizeDirectUploadType(ctx context.Context, metadataRepo DirectUploadMetadataStore, metadata *FileMetadata, contentType string) (*FileMetadata, error) {
 	ext, ok := imagepolicy.ExtForContentType(contentType)
 	if !ok {
 		return nil, fmt.Errorf("detected content type %q has no canonical extension", contentType)
 	}
 	if declaredType, known := imagepolicy.ContentTypeForFilename(metadata.Name); known && declaredType == contentType {
-		return metadata, nil
+		return metadataRepo.MarkFileReady(ctx, metadata.Name)
 	}
-	newName := strings.TrimSuffix(metadata.Name, path.Ext(metadata.Name)) + ext
 	data, _, err := Current().Get(ctx, metadata.Name)
 	if err != nil {
 		return nil, fmt.Errorf("read direct upload object %q: %w", metadata.Name, err)
 	}
-	if err := Current().Save(ctx, newName, data, contentType); err != nil {
-		return nil, fmt.Errorf("save renamed direct upload object %q: %w", newName, err)
+	// Each attempt owns a different key, so rolling back a losing copy cannot
+	// delete a winner's object. Reserve its cleanup record before writing bytes.
+	newName := NewUploadName("image"+ext, path.Dir(metadata.Name))
+	if _, err := metadataRepo.CreateFileCopyMetadata(ctx, metadata.UserId, newName, contentType, metadata.Size); err != nil {
+		return nil, fmt.Errorf("reserve renamed direct upload %q: %w", newName, err)
 	}
-	renamed, err := metadataRepo.RenameFileMetadata(ctx, metadata.Name, newName, contentType)
+	if err := Current().Save(ctx, newName, data, contentType); err != nil {
+		return nil, rollbackDirectUpload(ctx, metadataRepo, newName, fmt.Errorf("save renamed direct upload object %q: %w", newName, err))
+	}
+	renamed, err := metadataRepo.PublishRenamedFileMetadata(ctx, metadata.Name, newName)
 	if err != nil {
-		// The row is not ours any more: a concurrent complete of the same pending
-		// name may already have renamed or published it, so the object under
-		// newName can be the winner's. Never delete it here.
-		// shortcut: a failed rename leaves the copy written above unreferenced; the
-		// orphan reclamation (upload_owner rows) and CleanupPending (pending
-		// metadata rows) both need a row, so nothing sweeps these objects on its
-		// own - they need a later cleanup task or manual removal. Accepted because
-		// it never blocks a publish and holds no over-privileged data.
+		// A commit can succeed even when its acknowledgement fails. Do not
+		// delete this copy here: its pending row is swept, or it is already ready.
 		return nil, fmt.Errorf("rename direct upload metadata %q: %w", metadata.Name, err)
 	}
-	// The rename is committed, so a failed delete must not fail the publish.
-	// shortcut: the leftover old object has no metadata row, and neither the
-	// orphan reclamation nor CleanupPending collects row-less objects, so it stays
-	// until a later cleanup task or manual removal. Accepted for the same reason.
+	// Keep the retired key tracked until expiry even if deletion succeeds: an
+	// already issued presigned POST can still write the old key again meanwhile.
 	_ = Current().Delete(ctx, metadata.Name)
 	return renamed, nil
 }
@@ -317,8 +304,8 @@ func DeleteDirectUpload(ctx context.Context, name string) error {
 	return rollbackDirectUpload(ctx, metadataRepo, name, nil)
 }
 
-// CleanupPending removes pending uploads older than before, deleting their
-// objects and rows. Returns the number of uploads removed.
+// CleanupPending removes unpublished uploads/copies and retired source keys
+// older than before, deleting objects before rows. Ready uploads are excluded.
 func CleanupPending(ctx context.Context, before time.Time, limit int) (int, error) {
 	metadataRepo := metadataStore()
 	if metadataRepo == nil {

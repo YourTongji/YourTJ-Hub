@@ -129,6 +129,16 @@ func DeleteByNameContext(ctx context.Context, name string) error {
 // row carries the expected size and content type so the complete step can
 // verify the uploaded object before flipping it to ready.
 func CreateFileMetadata(ctx context.Context, userId uint64, name string, fileType string, size int64) (*Entity, error) {
+	return createFileMetadata(ctx, userId, name, fileType, size, StorageStatusPending)
+}
+
+// CreateFileCopyMetadata reserves an internal copy without charging another
+// user upload. It cannot be completed through the browser pending-upload path.
+func CreateFileCopyMetadata(ctx context.Context, userId uint64, name, fileType string, size int64) (*Entity, error) {
+	return createFileMetadata(ctx, userId, name, fileType, size, StorageStatusCopying)
+}
+
+func createFileMetadata(ctx context.Context, userId uint64, name, fileType string, size int64, status string) (*Entity, error) {
 	var count int64
 	result := builder().WithContext(ctx).Where(queryopt.Eq(fieldName, name)).Count(&count)
 	if result.Error != nil {
@@ -137,7 +147,7 @@ func CreateFileMetadata(ctx context.Context, userId uint64, name string, fileTyp
 	if count > 0 {
 		return nil, fmt.Errorf("file already exists: %s", name)
 	}
-	entity := &Entity{Name: name, Type: fileType, Size: size, StorageStatus: StorageStatusPending, UserId: userId}
+	entity := &Entity{Name: name, Type: fileType, Size: size, StorageStatus: status, UserId: userId}
 	result = builder().WithContext(ctx).Create(entity)
 	if result.Error != nil {
 		return nil, result.Error
@@ -170,22 +180,38 @@ func getFileMetadataByNameAndStatus(ctx context.Context, name string, status str
 	return &entity, nil
 }
 
-// RenameFileMetadata rewrites a pending row's object name and content type
-// after the byte-detected type forced a direct-upload rename. The update only
-// matches the caller's still-pending row, so a concurrent complete that already
-// renamed or published it reports zero affected rows instead of overwriting the
-// winner's row.
-func RenameFileMetadata(ctx context.Context, oldName, newName, fileType string) (*Entity, error) {
-	result := builder().WithContext(ctx).Where(queryopt.Eq(fieldName, oldName)).
-		Where("storage_status = ?", StorageStatusPending).
-		UpdateColumns(map[string]any{fieldName: newName, "assert_type": fileType})
-	if result.Error != nil {
-		return nil, result.Error
+// PublishRenamedFileMetadata atomically publishes a reserved copy and leaves
+// its source tracked for cleanup. A source can be consumed by only one copy;
+// errors roll back both state changes, including an invalid copy owner.
+func PublishRenamedFileMetadata(ctx context.Context, oldName, newName string) (*Entity, error) {
+	var published Entity
+	err := builder().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var source Entity
+		if err := tx.Where("name = ? AND storage_status = ?", oldName, StorageStatusPending).Take(&source).Error; err != nil {
+			return err
+		}
+		result := tx.Where("id = ? AND storage_status = ?", source.Id, StorageStatusPending).
+			UpdateColumn("storage_status", StorageStatusCleanup)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("pending source already consumed")
+		}
+		result = tx.Where("name = ? AND storage_status = ? AND user_id = ?", newName, StorageStatusCopying, source.UserId).
+			UpdateColumns(map[string]any{"storage_status": StorageStatusReady, "created_at": source.CreatedAt})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("reserved upload copy not found")
+		}
+		return tx.Where("name = ?", newName).Take(&published).Error
+	})
+	if err != nil {
+		return nil, err
 	}
-	if result.RowsAffected == 0 {
-		return nil, errors.New("file metadata not found")
-	}
-	return GetPendingFileMetadataByNameContext(ctx, newName)
+	return &published, nil
 }
 
 // MarkFileReady flips a pending metadata row to ready after the uploaded
@@ -201,7 +227,7 @@ func MarkFileReady(ctx context.Context, name string) (*Entity, error) {
 	return GetFileMetadataByNameContext(ctx, name)
 }
 
-// ListPendingFilesBefore returns pending metadata rows created before the
+// ListPendingFilesBefore returns unpublished or retired metadata rows before the
 // given time, oldest first, capped at limit. Used by the cleanup job to reap
 // interrupted or expired direct uploads.
 func ListPendingFilesBefore(ctx context.Context, before time.Time, limit int) ([]Entity, error) {
@@ -214,7 +240,7 @@ func ListPendingFilesBefore(ctx context.Context, before time.Time, limit int) ([
 	var entities []Entity
 	err := builder().WithContext(ctx).
 		Select("id, name, assert_type, file_size, storage_status, user_id, created_at, updated_at").
-		Where("storage_status = ? AND created_at < ?", StorageStatusPending, before).
+		Where("storage_status IN ? AND created_at < ?", []string{StorageStatusPending, StorageStatusCopying, StorageStatusCleanup}, before).
 		Order("id ASC").Limit(limit).Find(&entities).Error
 	return entities, err
 }
@@ -397,7 +423,8 @@ func SaveAvatarSet(userId uint64, uploads []AvatarUpload) ([]*Entity, error) {
 // CountUserUploadsInTimeRange counts uploads for a user within a time range.
 func CountUserUploadsInTimeRange(userId uint64, startTime, endTime time.Time) int64 {
 	var count int64
-	builder().Where("user_id = ? AND created_at >= ? AND created_at <= ?", userId, startTime, endTime).Count(&count)
+	builder().Where("user_id = ? AND created_at >= ? AND created_at <= ?", userId, startTime, endTime).
+		Where("storage_status NOT IN ?", []string{StorageStatusCopying, StorageStatusCleanup}).Count(&count)
 	return count
 }
 

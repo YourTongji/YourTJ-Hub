@@ -136,11 +136,13 @@ VPC 内解析（解析结果形如 `100.100.2.136` / `100.100.2.138` 等 100.100
    `upload.image.empty`、已知但不受支持格式（HEIC/AVIF/TIFF 等）`upload.image.unsupported`、
    字节不是可用图片 `upload.image.invalidContent`；真实类型不在发布设置允许列表时
    `upload.extension.unsupported`。真实类型与声明扩展名冲突但两者都被允许时受理：对象改名为
-   真实类型的规范扩展名（如 `.png` → `.jpg`；`.jpeg` 与 `.jpg` 同类型，保留原名），行内类型
-   同步改写，响应返回改名后的 `name`/`url`。行改名只匹配 `storage_status = pending` 的行：
-   并发 complete 的落后一方影响 0 行、只返回错误，不会覆盖或删除先完成者已发布的对象与行；
-   元数据改名失败时行仍是 pending，可重试。稳定码只有上述 `upload.image.*` 三个（旧文档中的
-   `upload.invalidImage` 不是实际码），且 `invalidContent` 不再表示扩展名不符。
+   同目录下新的 UUID 对象名，扩展名跟随真实类型（如 `.png` → `.jpg`；`.jpeg` 与 `.jpg`
+   同类型，保留原名）。写入副本前预留 `copying` 元数据行，再在文件数据库的同一事务中把
+   原 `pending` 行改为 `cleanup`、同一上传者的副本行改为 `ready`。一个原始上传只允许一个
+   complete 成功；并发落后方的副本拥有独立名字，不会覆盖或删除成功对象。删除旧对象失败时
+   保留 cleanup 行供清理重试。响应返回最终名字，客户端必须使用返回值。
+   稳定码只有上述 `upload.image.*` 三个（旧文档中的 `upload.invalidImage` 不是实际码），
+   且 `invalidContent` 不再表示扩展名不符。
 5. 发布成功后返回最终公开 `url`、存储对象名 `filename`（通常是 init 返回的 `name`，发生改名时是
    改名后的 name；都不是调用方原始文件名）与字节 `size`；失败或取消时浏览器
    `POST /file/img-upload/abort`（`{ name }`）删除待发布对象。
@@ -212,13 +214,13 @@ VPC 内解析（解析结果形如 `100.100.2.136` / `100.100.2.138` 等 100.100
 - **每日上传额度按 pending 行计**：`init` 即创建 pending 行，`CountDailyUploads`
   按 `user_id × created_at` 计数且不区分 storage_status——abort 或 2 小时清理前，该次
   init 计入当日额度（作为反滥用上界，自限、无跨用户影响）。
-- **改名路径可能残留无引用对象（已知泄漏，仅改名）**：真实类型与声明扩展名冲突时，
-  `complete` 会先 `Get` + `Save` 出一个新名字的对象，再改元数据行。若改名失败（例如并发
-  complete 由另一方先改名）该副本不会被删除——删除可能命中另一方已发布的对象；改名提交后
-  删除旧对象失败同样会留下旧对象。这两种无行对象都不会被现有清理回收：`fileusageservice`
-  的孤儿回收只扫 `upload_owner` 行，`storageservice.CleanupPending` 只扫 pending 元数据行。
-  因此需要后续清理任务或按 bucket 列表人工回收；接受原因：只在改名路径、仅冲突时产生，
-  不阻塞发布，对象内容就是该用户正常上传的图片，不含越权数据。
+- **改名对象有持久清理记录**：写副本前预留 `copying` 行，发布后保留原名的 `cleanup`
+  行直到两小时清理窗口，避免仍有效的预签名 POST 迟到写回旧 key 后失去清理记录。元数据发布失败的副本与旧对象删除失败都由现有两小时清理任务重试；
+  清理只扫描 pending/copying/cleanup，ready 成功对象不在候选中。内部 copying/cleanup
+  行不重复计入用户上传额度，成功副本沿用原上传的创建时间。见
+  [决策 0113](../decisions/0113-upload-header-authority.md)。
+  回滚到不识别 copying/cleanup 状态的旧二进制时，这两类记录暂停自动清理；恢复支持版本后继续回收，
+  不应手动把它们改为 ready。已发布图片的读取不受影响。
 - **发布与归属记录非事务**：`complete` 的 `MarkFileReady` 与控制器里的 `AddUploadOwner`
   是两次独立写，崩溃窗口可能产生「已 ready 但无 owner 记录」的行（对象可读但归属审计
   缺失）；概率极低，归属记录失败时服务端会同时删除对象与元数据行作为回滚。

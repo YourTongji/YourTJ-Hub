@@ -26,6 +26,14 @@ func (directUploadMetadataStore) CreateFileMetadata(ctx context.Context, userId 
 	return toFileMetadata(entity), nil
 }
 
+func (directUploadMetadataStore) CreateFileCopyMetadata(ctx context.Context, userId uint64, name, fileType string, size int64) (*storageservice.FileMetadata, error) {
+	entity, err := CreateFileCopyMetadata(ctx, userId, name, fileType, size)
+	if err != nil {
+		return nil, err
+	}
+	return toFileMetadata(entity), nil
+}
+
 func (directUploadMetadataStore) GetPendingFileMetadataByName(ctx context.Context, name string) (*storageservice.FileMetadata, error) {
 	entity, err := GetPendingFileMetadataByNameContext(ctx, name)
 	if err != nil {
@@ -42,8 +50,8 @@ func (directUploadMetadataStore) GetFileMetadataByName(ctx context.Context, name
 	return toFileMetadata(entity), nil
 }
 
-func (directUploadMetadataStore) RenameFileMetadata(ctx context.Context, oldName, newName, fileType string) (*storageservice.FileMetadata, error) {
-	entity, err := RenameFileMetadata(ctx, oldName, newName, fileType)
+func (directUploadMetadataStore) PublishRenamedFileMetadata(ctx context.Context, oldName, newName string) (*storageservice.FileMetadata, error) {
+	entity, err := PublishRenamedFileMetadata(ctx, oldName, newName)
 	if err != nil {
 		return nil, err
 	}

@@ -179,10 +179,10 @@ func TestDirectUploadCompleteRenamesToDetectedType(t *testing.T) {
 	if !strings.HasSuffix(result.Filename, ".jpg") || !strings.Contains(result.URL, result.Filename) {
 		t.Fatalf("complete result = %+v, want the detected .jpg name in filename and url", result)
 	}
-	// Only the extension is replaced: the object stem the presigned policy pinned
-	// at init stays byte-identical.
-	if before, after := strings.TrimSuffix(declaredName, path.Ext(declaredName)), strings.TrimSuffix(result.Filename, ".jpg"); before != after {
-		t.Fatalf("rename changed the object stem: %q -> %q, want only the extension replaced", before, after)
+	// A fresh key isolates each copy attempt, so a losing complete cannot
+	// overwrite or delete the winner. The canonical extension still follows bytes.
+	if path.Dir(declaredName) != path.Dir(result.Filename) || declaredName == result.Filename {
+		t.Fatalf("copy name escaped original directory: %q -> %q", declaredName, result.Filename)
 	}
 	if row := filedata.GetByName(result.Filename); row.Type != "image/jpeg" {
 		t.Fatalf("completed assert_type = %q, want image/jpeg", row.Type)
