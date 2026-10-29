@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:core/core.dart';
 
+import '../../server_messages.dart';
+
 /// Localized copy shared by all sticker entry points. Kept together with the
 /// feature until ARB ownership is consolidated; no server error text is shown.
 class StickerStrings {
@@ -73,12 +75,8 @@ class StickerStrings {
       _s('已添加到我的表情', 'Saved to your stickers', 'Sticker gespeichert', '保存しました');
   String get inMine =>
       _s('已在我的表情', 'In your stickers', 'In deinen Stickern', 'マイステッカーに保存済み');
-  String get signInToSave => _s(
-    '登录后收藏',
-    'Sign in to save',
-    'Zum Speichern anmelden',
-    '保存するにはログイン',
-  );
+  String get signInToSave =>
+      _s('登录后收藏', 'Sign in to save', 'Zum Speichern anmelden', '保存するにはログイン');
   String get remove => _s('移除', 'Remove', 'Entfernen', '削除');
   String get rename => _s('重命名', 'Rename', 'Umbenennen', '名前を変更');
   String get name => _s('表情名称', 'Sticker name', 'Stickername', '名前');
@@ -175,16 +173,11 @@ class StickerStrings {
       if (error.statusCode == 404 || error.statusCode == 405) {
         return unsupported;
       }
-      switch (error.messageCode) {
-        case 'sticker.libraryFull':
-          return limit;
-        case 'sticker.uploadQuota':
-          return uploadQuota;
-        case 'sticker.imageRequired':
-          return tooLarge;
-        case 'sticker.unavailable':
-          return unavailable;
-      }
+      return resolveApiErrorMessage(
+        _locale,
+        error,
+        fallbackMessage: loading ? failed : operationFailed,
+      );
     }
     return loading ? failed : operationFailed;
   }

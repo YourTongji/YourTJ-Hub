@@ -6,10 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/images/image_upload.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/server_message_catalog.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_library_page.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_strings.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -47,6 +50,7 @@ class _Files extends FileRepository {
   _Files(super.client);
   final uploads = <({String name, List<int> bytes})>[];
   bool fail = false;
+  Object? failure;
 
   @override
   Future<String> uploadImage({
@@ -54,6 +58,7 @@ class _Files extends FileRepository {
     required String filename,
   }) async {
     uploads.add((name: filename, bytes: bytes));
+    if (failure != null) throw failure!;
     if (fail) throw StateError('offline');
     return '/uploaded.gif';
   }
@@ -63,6 +68,7 @@ class _Stickers extends StickerRepository {
   _Stickers(super.client);
   final saves = <({String? file, String? label})>[];
   bool fail = false;
+  Object? failure;
   @override
   Future<List<StickerItemPayload>> mine() async => [];
   @override
@@ -72,6 +78,7 @@ class _Stickers extends StickerRepository {
     String? displayName,
   }) async {
     saves.add((file: fileName, label: displayName));
+    if (failure != null) throw failure!;
     if (fail) throw StateError('offline');
     return StickerItemPayload(
       name: 'user_1',
@@ -88,7 +95,10 @@ void main() {
   late _Stickers stickers;
   late ProviderContainer container;
 
-  Future<void> pumpPage(WidgetTester tester) async {
+  Future<void> pumpPage(
+    WidgetTester tester, {
+    Locale locale = const Locale('en'),
+  }) async {
     final client = GfApiClient(dio: Dio(), tokenStorage: MemoryTokenStorage());
     photos = _Photos();
     files = _Files(client);
@@ -109,6 +119,9 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
+          locale: locale,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           theme: gfThemeData(Brightness.light),
           home: const StickerLibraryPage(),
         ),
@@ -118,10 +131,13 @@ void main() {
   }
 
   Future<void> choosePhotos(WidgetTester tester) async {
-    await tester.tap(find.text('Add sticker'));
+    final strings = StickerStrings(
+      tester.element(find.byType(StickerLibraryPage)),
+    );
+    await tester.tap(find.text(strings.add));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    await tester.tap(find.text('Choose from photos'));
+    await tester.tap(find.text(strings.fromPhotos));
     // A pending native picker keeps the progress indicator animating.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
@@ -259,4 +275,78 @@ void main() {
     expect(files.uploads, isEmpty);
     expect(stickers.saves, isEmpty);
   });
+
+  for (final locale in AppLocalizations.supportedLocales) {
+    testWidgets(
+      'img-upload messageCode is localized in ${locale.languageCode}',
+      (tester) async {
+        await pumpPage(tester, locale: locale);
+        files.failure = const ApiException(
+          fallbackMessage: 'internal upload details',
+          messageCode: 'upload.image.invalidContent',
+        );
+        await choosePhotos(tester);
+        await tester.pumpAndSettle();
+
+        final expected =
+            serverMessageCatalog[locale
+                .languageCode]!['upload.image.invalidContent']!;
+        expect(find.text(expected), findsOneWidget);
+        expect(find.text('upload.image.invalidContent'), findsNothing);
+        expect(find.text('internal upload details'), findsNothing);
+        expect(stickers.saves, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'my-sticker-save imageRequired copy is localized in ${locale.languageCode}',
+      (tester) async {
+        await pumpPage(tester, locale: locale);
+        stickers.failure = const ApiException(
+          fallbackMessage: 'internal save details',
+          messageCode: 'sticker.imageRequired',
+          params: {'maxSizeMb': 4},
+        );
+        await choosePhotos(tester);
+        await tester.pumpAndSettle();
+
+        final expected =
+            serverMessageCatalog[locale.languageCode]!['sticker.imageRequired']!
+                .replaceAll('{maxSizeMb}', '4');
+        final strings = StickerStrings(
+          tester.element(find.byType(StickerLibraryPage)),
+        );
+        expect(find.text(expected), findsOneWidget);
+        expect(expected, isNot(strings.tooLarge));
+        expect(find.text('sticker.imageRequired'), findsNothing);
+        expect(find.text('internal save details'), findsNothing);
+        expect(files.uploads, hasLength(1));
+        expect(stickers.saves, hasLength(1));
+      },
+    );
+
+    testWidgets(
+      'unknown img-upload error stays safe in ${locale.languageCode}',
+      (tester) async {
+        await pumpPage(tester, locale: locale);
+        files.failure = const ApiException(
+          fallbackMessage: 'SQL failure at /srv/private/upload.go',
+          messageCode: 'upload.internal.privatePath',
+        );
+        await choosePhotos(tester);
+        await tester.pumpAndSettle();
+
+        final strings = StickerStrings(
+          tester.element(find.byType(StickerLibraryPage)),
+        );
+        expect(find.text(strings.operationFailed), findsOneWidget);
+        expect(find.text('upload.internal.privatePath'), findsNothing);
+        expect(
+          find.text('SQL failure at /srv/private/upload.go'),
+          findsNothing,
+        );
+        expect(stickers.saves, isEmpty);
+      },
+    );
+  }
 }
