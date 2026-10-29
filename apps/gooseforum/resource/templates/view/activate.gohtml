@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-visual">
-    <title>{{.Data.Title}} - YourTJHub</title>
+    <title>{{.Data.Title}} - {{if .Data.SiteName}}{{.Data.SiteName}}{{else}}yourtj{{end}}</title>
     <style>
         :root {
             color-scheme: light;
@@ -127,6 +127,7 @@
         .actions {
             display: flex;
             gap: 10px;
+            flex-wrap: wrap;
             margin-top: 28px;
         }
 
@@ -134,13 +135,19 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-height: 42px;
+            min-height: 44px;
             padding: 0 18px;
             border-radius: 12px;
             font-size: 14px;
             font-weight: 700;
             text-decoration: none;
+            text-align: center;
+            overflow-wrap: anywhere;
             transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+        }
+
+        .actions.recovery .primary {
+            flex-basis: 100%;
         }
 
         .button.primary {
@@ -204,7 +211,7 @@
     <section class="card" aria-labelledby="activation-title">
         <div class="content">
             <div class="topline">
-                <a class="brand" href="/" aria-label="YourTJHub">YourTJ<span>Hub</span></a>
+                <a class="brand" href="/">{{if .Data.SiteName}}{{.Data.SiteName}}{{else}}yourtj{{end}}</a>
 
                 <div class="status {{if .Data.Success}}success{{else}}fail{{end}}" aria-hidden="true">
                     {{if .Data.Success}}
@@ -226,13 +233,14 @@
             <p class="result {{if .Data.Success}}success{{else}}fail{{end}}">{{.Data.Message}}</p>
             <p class="message">{{.Data.Description}}</p>
 
-            <div class="actions">
+            <div class="actions{{if not .Data.Success}} recovery{{end}}">
                 {{if .Data.Success}}
                 <a href="/login" class="button primary">{{call .T "login_now"}}</a>
                 <a href="/" class="button secondary">{{call .T "back_home"}}</a>
                 {{else}}
-                <a href="/" class="button primary">{{call .T "back_home"}}</a>
-                <a href="mailto:support@gooseforum.online" class="button secondary">{{call .T "contact_support"}}</a>
+                <a href="{{.Data.RecoveryURL}}" class="button primary">{{call .T "activationRecoveryAction"}}</a>
+                <a href="/" class="button secondary">{{call .T "back_home"}}</a>
+                {{if .Data.SupportURL}}<a href="{{.Data.SupportURL}}" class="button secondary">{{call .T "contact_support"}}</a>{{end}}
                 {{end}}
             </div>
         </div>

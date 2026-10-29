@@ -37,7 +37,7 @@
   "activationDescFail": "激活失败，请检查您的激活链接是否正确或联系管理员。",
   "activationSuccess": "账号激活成功",
   "activationInvalidLink": "无效的激活链接",
-  "activationExpired": "激活链接已过期或无效",
+  "activationExpired": "激活链接已过期",
   "activationUserNotFound": "用户不存在",
   "activationLinkInvalid": "激活链接无效",
   "activationFailed": "激活失败",
@@ -142,5 +142,8 @@
   "anonymous.candidateExpired": "这批花名已失效，请重新加载后再选。",
   "anonymous.unavailable": "匿名身份暂时不可用",
   "forYouFeed": "为你推荐",
-  "dailyFeed": "今日热榜"
+  "dailyFeed": "今日热榜",
+  "activationMissingLink": "激活链接缺少验证信息",
+  "activationRecoveryDescription": "请登录需要验证的账号，在邮箱设置中重发验证邮件或更换邮箱。",
+  "activationRecoveryAction": "前往邮箱设置"
 }
