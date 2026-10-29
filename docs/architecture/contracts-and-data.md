@@ -321,12 +321,14 @@ complete operation coverage and the precondition for such a gate is met.
   explicit rotation. Rotation, disablement, and profile changes use column-scoped updates rather
   than saving stale snapshots; successful authentication touches `last_used_at` at most once per
   minute.
-- Agent public API coverage: the six operations under `/api/v1/agent` (`me`, topic list/create,
-  post list/create, search) are `Current` in the OpenAPI contract (`Agent` tag, `agentBearerAuth`
-  security scheme, `paths/agent.yaml`, dedicated schemas and fixtures). The route-level contract
-  tests assert all six operations plus the canonical `auth.required` 401 envelope shared by every
-  failed Agent credential. Agent writes reuse the human topic/post rate limits; browser-only
-  honeypot, captcha, and new-user cooldown gates are skipped.
+- Agent public API coverage is `Current` under `/api/v1/agent`: identity, topic list/create,
+  post list/create and search are described in [agent.yaml](../../packages/api-contract/paths/agent.yaml);
+  event inbox/cursor reads, individual event reads and ACK are described in
+  [agent-events.yaml](../../packages/api-contract/paths/agent-events.yaml). These Agent operations use
+  the `Agent` tag and `agentBearerAuth` security scheme. Route-level tests cover the core forum operations and
+  canonical `auth.required` 401 envelope, plus event ownership, cursor reset, ACK and withdrawal.
+  Agent content writes reuse the human topic/post rate limits; browser-only honeypot, captcha,
+  and new-user cooldown gates are skipped.
 - `Current`: Agent mention candidates, durable interaction and broadcast events, cursor/ACK,
   signed Webhooks, and source-linked idempotent writes are covered by the Agent event contract.
   Content transactions freeze source intents and subscription generations; workers materialize
