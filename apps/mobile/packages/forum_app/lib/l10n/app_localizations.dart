@@ -222,6 +222,24 @@ abstract class AppLocalizations {
   /// **'View image {index} of {count}'**
   String imageViewPosition(int index, int count);
 
+  /// No description provided for @imageViewerThumbnails.
+  ///
+  /// In en, this message translates to:
+  /// **'Image thumbnails'**
+  String get imageViewerThumbnails;
+
+  /// No description provided for @imageViewerOriginalSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Original size'**
+  String get imageViewerOriginalSize;
+
+  /// No description provided for @imageViewerFitPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Fit preview'**
+  String get imageViewerFitPreview;
+
   /// No description provided for @imageSave.
   ///
   /// In en, this message translates to:

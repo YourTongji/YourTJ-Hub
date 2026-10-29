@@ -73,6 +73,15 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get imageViewerThumbnails => '画像のサムネイル';
+
+  @override
+  String get imageViewerOriginalSize => '元のサイズ';
+
+  @override
+  String get imageViewerFitPreview => '画面に合わせる';
+
+  @override
   String get imageSave => '画像を保存';
 
   @override

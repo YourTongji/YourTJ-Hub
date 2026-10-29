@@ -296,7 +296,10 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   position, and both author targets have at least 44-by-44 logical-pixel touch areas.
 - `Current`: topic bodies, Markdown and Wiki reading surfaces open the shared image viewer. It
   supports swipe navigation, pinch and double-tap zoom, actual-size viewing, long-press save and
-  system sharing. Multi-image viewers show a horizontally scrolling thumbnail rail with a centered
+  system sharing. The host supplies four-language labels for original-size/fit controls,
+  the thumbnail rail and each image position across Markdown, Wiki, course review, chat and
+  sticker entry points; thumbnail buttons retain their selected state in Semantics.
+  Multi-image viewers show a horizontally scrolling thumbnail rail with a centered
   focus; selecting a thumbnail changes the image and resets zoom and actual-size mode. Distant
   selections jump directly; adjacent selections use the shared media cadence. Tapping
   toggles the viewer controls and rail together; a vertical drag dismisses at minimum scale, moving
