@@ -1231,6 +1231,12 @@ change. The header keeps a small outer margin for its primary action.
 
 ## Registration
 
+- `Current`: post-creation mail scheduling failures have a dedicated localized
+  warning directing the user to email settings for retry or an address change.
+  They do not become the ordinary “check your inbox” confirmation. A created
+  account whose automatic sign-in failed instead asks the user to sign in without
+  registering again; public occupied-account failures remain generic.
+
 - `Current`: registration loads the current Web login configuration before submission. Restricted
   email domains use a prefix field and domain selector; unrestricted sites accept the full address.
   Password confirmation is checked locally. Only published terms/privacy policies are linked and

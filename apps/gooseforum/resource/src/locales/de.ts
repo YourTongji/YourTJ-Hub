@@ -3640,7 +3640,8 @@ export default {
       register: {
         dailyQuota: 'Das tägliche Registrierungslimit ist erreicht. Bitte versuchen Sie es morgen erneut.',
         failed: 'Registrierung fehlgeschlagen',
-        retryLogin: 'Bei der Registrierung ist ein Problem aufgetreten; versuche dich anzumelden',
+        emailRetry: "Dein Konto wurde erstellt. Die Bestätigungs-E-Mail ist derzeit nicht verfügbar. Sende sie in den E-Mail-Einstellungen erneut oder ändere die Adresse.",
+        retryLogin: "Dein Konto wurde erstellt, die automatische Anmeldung aber nicht abgeschlossen. Melde dich an, um fortzufahren; registriere dich nicht erneut.",
         emailVerify: 'Registrierung erfolgreich. Bestätige deine E-Mail',
       },
       login: {

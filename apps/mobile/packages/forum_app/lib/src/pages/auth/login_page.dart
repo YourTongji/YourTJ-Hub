@@ -711,7 +711,15 @@ class _LoginPageState extends ConsumerState<LoginPage>
       final l10n = AppLocalizations.of(context);
       showGfToast(
         context,
-        messageCode == 'auth.register.emailVerify'
+        messageCode == 'auth.register.emailRetry'
+            ? resolveErrorMessage(
+                l10n,
+                const ApiException(
+                  fallbackMessage: '',
+                  messageCode: 'auth.register.emailRetry',
+                ),
+              )
+            : messageCode == 'auth.register.emailVerify'
             ? l10n.authRegisterEmailVerify
             : l10n.authRegisterSuccess,
       );

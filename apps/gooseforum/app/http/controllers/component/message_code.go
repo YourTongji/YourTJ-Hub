@@ -59,6 +59,7 @@ const (
 	MessageAuthCaptchaInvalid            MessageCode = "auth.captcha.invalid"            // 验证码错误或已过期。
 	MessageAuthRegisterFailed            MessageCode = "auth.register.failed"            // 注册失败。
 	MessageAuthRegisterRetryLogin        MessageCode = "auth.register.retryLogin"        // 注册成功但自动登录失败，建议手动登录。
+	MessageAuthRegisterEmailRetry        MessageCode = "auth.register.emailRetry"        // 已建号并发会话，但验证邮件暂不可用。
 	MessageAuthRegisterEmailVerify       MessageCode = "auth.register.emailVerify"       // 注册成功，需要邮箱验证。
 	MessageAuthTongjiAccountExists       MessageCode = "auth.tongji.accountExists"       // 同济身份或其学号邮箱已归属已有账号，需登录/找回后在校园页绑定。
 	MessageAuthLoginSuccess              MessageCode = "auth.login.success"              // 登录成功。

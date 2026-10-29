@@ -3641,7 +3641,8 @@ export default {
       register: {
         dailyQuota: 'Today\'s registration quota is full. Please try again tomorrow.',
         failed: 'Registration failed',
-        retryLogin: 'Registration had an issue; please try signing in',
+        emailRetry: "Your account was created, but verification email is temporarily unavailable. Retry or change the address in email settings.",
+        retryLogin: "Your account was created, but automatic sign-in did not finish. Sign in to continue; do not register again.",
         emailVerify: 'Registration successful. Please verify your email',
       },
       login: {

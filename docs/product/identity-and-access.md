@@ -238,6 +238,16 @@ social counts and badges, and moderator access rules beyond today's public profi
   (admin/site/user/… permissions) and activates them immediately through the user-cache
   refresh path, so the admin console cannot lock itself out; ordinary pending users are left
   untouched and must still complete the activation email.
+- Registration outcomes (`Current`): account creation, activation-mail scheduling
+  and session creation are distinct. If mail preparation or queue acknowledgement
+  fails after creation, `auth.register.emailRetry` preserves the new pending account
+  and issued session and directs its owner to retry or change the address in email
+  settings. It does not claim rejection or SMTP delivery. Session-creation failure
+  instead returns `auth.register.retryLogin` without credentials, explaining that
+  the account exists and sign-in can recover it. Neither outcome rolls back or
+  repeats registration; occupied/failed-create cases keep the generic public
+  failure. Pending sessions retain the existing write gates, and asynchronous
+  delivery failure is not inferred from an accepted queue acknowledgement.
 - Username/nickname policy: `reservedUsernames` / `bannedUsernames` are enforced at
   password registration/rename and at Agent account creation with **normalized whole-string
   equality** (case folding, NFKC full-width, zero-width stripping, ASCII leetspeak folding):

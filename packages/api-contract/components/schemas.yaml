@@ -4167,11 +4167,13 @@ RegisterSuccess:
           description: Human-readable success message. The wording is UI copy and not a stable machine contract value; clients must branch on `messageCode`.
         messageCode:
           type: string
-          enum: [auth.login.success, auth.register.emailVerify]
+          enum: [auth.login.success, auth.register.emailVerify, auth.register.emailRetry]
           description: |
             `auth.login.success` when the account is created and a session is issued
             immediately (email verification disabled); `auth.register.emailVerify` when
-            the site requires email verification before the session is usable. The
+            email verification is required before protected writes. `auth.register.emailRetry`
+            means the account and session exist but activation-mail preparation or queue
+            acceptance could not be confirmed; it does not claim delivery. The
             honeypot path returns the same `auth.login.success` envelope without
             creating an account.
 
