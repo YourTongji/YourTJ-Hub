@@ -70,10 +70,13 @@ func TestReleaseQuotaLegacyState(t *testing.T) {
 	userID := testUserID.Add(1)
 	now := time.Date(2026, 10, 29, 10, 0, 0, 0, time.UTC)
 	key, ttl := resendKey(userID, now)
-	legacy, _ := json.Marshal(struct {
+	legacy, err := json.Marshal(struct {
 		Count int   `json:"count"`
 		Last  int64 `json:"lastSentAt"`
 	}{2, now.Unix()})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := kvstore.SetBytes(key, legacy, ttl); err != nil {
 		t.Fatal(err)
 	}
