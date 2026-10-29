@@ -1417,7 +1417,11 @@ export default {
     contentGone: 'Der Inhalt wurde endgültig gelöscht',
   },
   auth: {
-    writeRecovery: {"email": "E-Mail-Bestätigung prüfen", "login": "Mit demselben Konto erneut anmelden", "hint": "Deine Eingaben bleiben auf dieser Seite. Schließe die Bestätigung oder Anmeldung im neuen Tab ab, kehre zurück und fahre manuell fort."},
+    writeRecovery: {
+      email: "E-Mail-Bestätigung prüfen",
+      login: "Mit demselben Konto erneut anmelden",
+      hint: "Deine Eingaben bleiben auf dieser Seite. Schließe die Bestätigung oder Anmeldung im neuen Tab ab, kehre zurück und fahre manuell fort.",
+    },
     passkeyLogin: 'Mit Passkey anmelden',
     passkeyWorking: 'Passkey wird geprüft…',
     passkeyCancelled: 'Kein Passkey ausgewählt oder verfügbar. Versuche es erneut oder melde dich mit deinem Passwort an.',

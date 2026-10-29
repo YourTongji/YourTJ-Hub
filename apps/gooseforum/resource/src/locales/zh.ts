@@ -1418,7 +1418,11 @@ export default {
     contentGone: '内容已永久删除',
   },
   auth: {
-    writeRecovery: {"email": "检查邮箱验证", "login": "使用同一账号重新登录", "hint": "当前输入保留在此页。请在新标签页完成验证或登录，再返回这里手动继续。"},
+    writeRecovery: {
+      email: "检查邮箱验证",
+      login: "使用同一账号重新登录",
+      hint: "当前输入保留在此页。请在新标签页完成验证或登录，再返回这里手动继续。",
+    },
     passkeyLogin: '使用通行密钥登录',
     passkeyWorking: '正在验证通行密钥…',
     passkeyCancelled: '未选择或没有可用的通行密钥，请重试或使用密码登录。',

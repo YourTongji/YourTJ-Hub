@@ -1418,7 +1418,11 @@ export default {
     contentGone: 'Content has been permanently deleted',
   },
   auth: {
-    writeRecovery: {"email": "Check email verification", "login": "Sign in again with the same account", "hint": "Your input stays on this page. Complete verification or sign-in in the new tab, then return here and continue manually."},
+    writeRecovery: {
+      email: "Check email verification",
+      login: "Sign in again with the same account",
+      hint: "Your input stays on this page. Complete verification or sign-in in the new tab, then return here and continue manually.",
+    },
     passkeyLogin: 'Sign in with a passkey',
     passkeyWorking: 'Checking your passkey…',
     passkeyCancelled: 'No passkey was selected or available. Try again or use your password.',
