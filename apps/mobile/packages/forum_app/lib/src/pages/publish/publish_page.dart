@@ -542,7 +542,9 @@ class _PublishPageState extends ConsumerState<PublishPage>
       }
       final keepEditing = _dirty;
       if (!keepEditing) {
-        _identity = props.topic.identity;
+        _identity = props.topic.identity.isEmpty
+            ? "member"
+            : props.topic.identity;
         _contentType = props.isEditing
             ? (props.topic.contentType == 0 ? 3 : props.topic.contentType)
             : widget.initialContentType;
