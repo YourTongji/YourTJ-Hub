@@ -74,6 +74,7 @@ flutter build apk --debug --split-per-abi \
 
 `YOURTJ_ENVIRONMENT=dev` selects the separate Android package
 `tj.yourtj.forum_app.dev`; the preview flag is required by the dev configuration check.
+The script removes previous split debug APKs before building and fails if the current build produces none.
 
 也可以直接运行仓库脚本，避免误装未注入地址的旧 `app-debug.apk`：
 

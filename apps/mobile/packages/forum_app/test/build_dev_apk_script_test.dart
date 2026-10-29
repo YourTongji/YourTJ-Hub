@@ -4,15 +4,51 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/src/app_config.dart';
 
 void main() {
+  test('old split APK is not reported as a new build', () async {
+    final root = await Directory.systemTemp.createTemp('dev-apk-stale-');
+    addTearDown(() => root.delete(recursive: true));
+    final script = File('${root.path}/apps/mobile/scripts/build_dev_apk.sh');
+    await script.parent.create(recursive: true);
+    await File('../../scripts/build_dev_apk.sh').copy(script.path);
+    final app = Directory('${root.path}/apps/mobile/packages/forum_app');
+    final oldApk = File(
+      '${app.path}/build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk',
+    );
+    await oldApk.parent.create(recursive: true);
+    await oldApk.writeAsString('old build');
+    final flutter = File('${root.path}/flutter');
+    await flutter.writeAsString('#!/bin/sh\nexit 0\n');
+    expect((await Process.run('chmod', ['+x', flutter.path])).exitCode, 0);
+
+    final result = await Process.run(
+      '/bin/bash',
+      [script.path],
+      environment: {
+        ...Platform.environment,
+        'PATH': '${root.path}:${Platform.environment['PATH']}',
+      },
+    );
+    expect(result.exitCode, isNot(0));
+    expect(result.stdout, isNot(contains('Dev APKs:')));
+  });
+
   test('dev APK script passes the dev preview AppConfig defines', () async {
-    final forumAppDirectory = Directory.current;
-    final script = File('../../scripts/build_dev_apk.sh').absolute;
-    expect(script.existsSync(), isTrue);
+    final originalScript = File('../../scripts/build_dev_apk.sh').absolute;
+    expect(originalScript.existsSync(), isTrue);
 
     final temporaryDirectory = await Directory.systemTemp.createTemp(
       'build-dev-apk-test-',
     );
     addTearDown(() => temporaryDirectory.delete(recursive: true));
+    final script = File(
+      '${temporaryDirectory.path}/repo/apps/mobile/scripts/build_dev_apk.sh',
+    );
+    await script.parent.create(recursive: true);
+    await originalScript.copy(script.path);
+    final forumAppDirectory = Directory(
+      '${temporaryDirectory.path}/repo/apps/mobile/packages/forum_app',
+    );
+    await forumAppDirectory.create(recursive: true);
 
     final capturedArguments = File('${temporaryDirectory.path}/arguments');
     final fakeFlutter = File('${temporaryDirectory.path}/flutter');
@@ -26,23 +62,6 @@ fi
     final chmod = await Process.run('chmod', ['+x', fakeFlutter.path]);
     expect(chmod.exitCode, 0);
 
-    final expectedApk = File(
-      'build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk',
-    );
-    final createTestApk = !expectedApk.existsSync();
-    final buildDirectoryExisted = Directory('build').existsSync();
-    if (createTestApk) {
-      addTearDown(() async {
-        if (expectedApk.existsSync()) await expectedApk.delete();
-        if (!buildDirectoryExisted) {
-          final generatedBuildDirectory = Directory('build');
-          if (generatedBuildDirectory.existsSync()) {
-            await generatedBuildDirectory.delete(recursive: true);
-          }
-        }
-      });
-    }
-
     final process = await Process.run(
       '/bin/bash',
       [script.path],
@@ -50,7 +69,7 @@ fi
         ...Platform.environment,
         'PATH': '${temporaryDirectory.path}:${Platform.environment['PATH']}',
         'YOURTJ_CAPTURED_FLUTTER_ARGUMENTS': capturedArguments.path,
-        'YOURTJ_CREATE_TEST_APK': createTestApk.toString(),
+        'YOURTJ_CREATE_TEST_APK': 'true',
         'YOURTJ_DEV_CLIENT_ID': 'yourtj-mobile',
       },
       workingDirectory: forumAppDirectory.path,

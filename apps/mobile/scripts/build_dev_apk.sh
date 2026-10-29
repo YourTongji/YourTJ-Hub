@@ -10,6 +10,12 @@ DEV_OIDC_ISSUER="$DEV_API_URL/api/oauth"
 DEV_CLIENT_ID="${YOURTJ_DEV_CLIENT_ID:-yourtj-mobile}"
 
 cd "$FORUM_APP_DIR"
+shopt -s nullglob
+# A successful command must not make a previous build look like a new APK.
+previous_apks=(build/app/outputs/flutter-apk/app-*-debug.apk)
+if ((${#previous_apks[@]} > 0)); then
+  rm -f -- "${previous_apks[@]}"
+fi
 flutter build apk --debug --split-per-abi \
   --dart-define=YOURTJ_ENVIRONMENT=dev \
   --dart-define=YOURTJ_PREVIEW=true \
@@ -17,7 +23,6 @@ flutter build apk --debug --split-per-abi \
   --dart-define=YOURTJ_OIDC_ISSUER="$DEV_OIDC_ISSUER" \
   --dart-define=YOURTJ_OIDC_CLIENT_ID="$DEV_CLIENT_ID"
 
-shopt -s nullglob
 apks=(build/app/outputs/flutter-apk/app-*-debug.apk)
 if ((${#apks[@]} == 0)); then
   printf 'No split debug APKs found under %s/build/app/outputs/flutter-apk\n' \
