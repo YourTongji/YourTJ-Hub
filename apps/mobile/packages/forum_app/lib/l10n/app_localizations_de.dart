@@ -4629,4 +4629,12 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       'Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.';
+
+  @override
+  String get campusTimetableNotConnected =>
+      'Tongji-Identität noch nicht verbunden';
+
+  @override
+  String get campusTimetableConnectBody =>
+      'Verbinde deine Tongji-Identität, um hier deinen persönlichen Hochschulstundenplan zu sehen. Kurskatalog und Stundenplaner kannst du auch ohne Verbindung nutzen.';
 }

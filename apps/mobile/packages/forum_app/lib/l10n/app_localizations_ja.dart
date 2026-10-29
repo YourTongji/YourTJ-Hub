@@ -4407,4 +4407,11 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       '学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。';
+
+  @override
+  String get campusTimetableNotConnected => '同済大学の本人認証が未接続です';
+
+  @override
+  String get campusTimetableConnectBody =>
+      '本人認証を接続すると、大学から提供される個人の時間割を表示できます。接続しなくても、科目一覧と時間割シミュレーターを利用できます。';
 }

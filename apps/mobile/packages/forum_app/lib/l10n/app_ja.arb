@@ -1542,5 +1542,7 @@
   "courseAddToPlanner": "履修プランナーに追加",
   "coursePlannerSelectTerm": "同じ学期と専攻を選択してからクラスを確認してください。既存プランは自動変更されません。",
   "coursePlannerUnavailable": "この学期のクラスは利用できません。講義詳細から別の開講記録を選択してください。",
-  "coursePlannerCalendarsFailed": "学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。"
+  "coursePlannerCalendarsFailed": "学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。",
+  "campusTimetableNotConnected": "同済大学の本人認証が未接続です",
+  "campusTimetableConnectBody": "本人認証を接続すると、大学から提供される個人の時間割を表示できます。接続しなくても、科目一覧と時間割シミュレーターを利用できます。"
 }

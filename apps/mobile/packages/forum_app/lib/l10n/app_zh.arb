@@ -1891,5 +1891,7 @@
   "courseAddToPlanner": "添加到选课排课",
   "coursePlannerSelectTerm": "请先选择相同学期和专业，再确认教学班；现有方案不会自动更改。",
   "coursePlannerUnavailable": "这个学期的教学班不可用，请返回课程详情选择其他开课记录。",
-  "coursePlannerCalendarsFailed": "学期列表加载失败，请检查网络后重试。"
+  "coursePlannerCalendarsFailed": "学期列表加载失败，请检查网络后重试。",
+  "campusTimetableNotConnected": "尚未连接同济身份",
+  "campusTimetableConnectBody": "连接同济身份后，这里会显示学校提供的个人课表。暂不连接也可以使用课程目录和模拟排课。"
 }

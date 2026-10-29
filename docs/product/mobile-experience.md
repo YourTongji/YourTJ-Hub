@@ -939,6 +939,11 @@ change. The header keeps a small outer margin for its primary action.
 
 ## Campus and sign-in
 
+`Current`: an unconnected school-timetable tab explains the required Tongji identity and the
+personal timetable shown after connection. Its connection action keeps the existing confirmation
+flow, with direct course-catalog and simulation-planner paths available without school binding.
+The unconnected state does not fetch personal school datasets.
+
 - `Current`: Campus opens a native private overview with the school teaching week, time-aware
   greeting, today's courses and then recent notices. Weekly timetable, academic records and charts,
   calendars, notice bodies and identity management use the existing campus API. Today’s timetable

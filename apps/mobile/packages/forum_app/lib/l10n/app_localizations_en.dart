@@ -4583,4 +4583,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       'Failed to load the term list. Check your network and try again.';
+
+  @override
+  String get campusTimetableNotConnected => 'Tongji identity not connected';
+
+  @override
+  String get campusTimetableConnectBody =>
+      'Connect your Tongji identity to see your personal school timetable here. You can use the course catalog and schedule planner without connecting.';
 }

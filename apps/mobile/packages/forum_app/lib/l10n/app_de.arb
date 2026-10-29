@@ -1542,5 +1542,7 @@
   "courseAddToPlanner": "Zum Kursplaner hinzufügen",
   "coursePlannerSelectTerm": "Vor der Bestätigung dasselbe Semester und dein Fach wählen. Bestehende Pläne bleiben unverändert.",
   "coursePlannerUnavailable": "Dieser Kurs ist im Semester nicht verfügbar. Wähle ein anderes Angebot in den Kursdetails.",
-  "coursePlannerCalendarsFailed": "Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut."
+  "coursePlannerCalendarsFailed": "Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.",
+  "campusTimetableNotConnected": "Tongji-Identität noch nicht verbunden",
+  "campusTimetableConnectBody": "Verbinde deine Tongji-Identität, um hier deinen persönlichen Hochschulstundenplan zu sehen. Kurskatalog und Stundenplaner kannst du auch ohne Verbindung nutzen."
 }
