@@ -3015,6 +3015,18 @@ export default {
     },
   },
   settings: {
+    activationStatus: {
+      target: "收件目标：{email}",
+      remaining: "今天还可重发 {count} / {limit} 次",
+      refresh: "刷新状态",
+      cooldown: "请在 {seconds} 秒后重发",
+      daily_limit: "今日额度已用完，请明天再试",
+      disabled: "本站暂未要求邮箱验证",
+      verified: "邮箱已验证，无需重发",
+      frozen: "账号受限，暂不能重发",
+      mail_unavailable: "邮件服务暂不可用，请稍后刷新",
+      missing_email: "请先在账号设置中添加邮箱",
+    },
     editing: '编辑中',
     backToProfile: '返回我的主页',
     savingShort: '保存中',

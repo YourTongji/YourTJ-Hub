@@ -2719,7 +2719,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Read the caller's activation target and resend availability
+         * @description Owner-only private read. Ignores user-id query parameters. Returns the current
+         *     address, fresh staged address, actual resend target, availability, daily quota
+         *     and server-relative wait in seconds (rounded up). No token generation, queue
+         *     insertion or quota reservation. Missing or expired staging is never a target.
+         *     Frozen, verified, disabled, mail-unavailable and missing-email states are
+         *     explicit; this read does not grant permission to send. POST revalidates all
+         *     existing write and quota gates. Clients refresh after each attempt, at wait
+         *     expiry and on return; they must never automatically resend.
+         */
+        get: operations["getActivationStatus"];
         put?: never;
         /**
          * Resend the account activation email
@@ -15343,6 +15354,25 @@ export interface components {
             /** @constant */
             result?: true;
         };
+        ActivationStatus: {
+            currentEmail: string;
+            /** @description Fresh staged address; empty when absent or expired. */
+            pendingEmail: string;
+            /** @description Address that POST will target; empty when no target exists. */
+            targetEmail: string;
+            /** @enum {string} */
+            targetKind: "none" | "current" | "pending";
+            /** @enum {string} */
+            state: "ready" | "cooldown" | "daily_limit" | "disabled" | "verified" | "frozen" | "mail_unavailable" | "missing_email";
+            remainingToday: number;
+            /** @constant */
+            dailyLimit: 3;
+            /** @description Relative wait until cooldown or daily quota expires, rounded up; zero otherwise. */
+            retryAfterSeconds: number;
+        };
+        ActivationStatusResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ActivationStatus"];
+        };
         DisplayBadgesRequest: {
             badgeCodes: string[];
         };
@@ -21226,6 +21256,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    getActivationStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner status; Cache-Control private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivationStatusResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Quota state unavailable or corrupt; clients must not assume ready. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };

@@ -31,6 +31,28 @@ GfApiClient _client() =>
 
 class _Auth extends AuthRepository {
   _Auth() : super(_client());
+  ActivationStatus status = const ActivationStatus(
+    currentEmail: 'owner@example.test',
+    pendingEmail: '',
+    targetEmail: 'owner@example.test',
+    targetKind: 'current',
+    state: 'ready',
+    remainingToday: 3,
+    dailyLimit: 3,
+    retryAfterSeconds: 0,
+  );
+  Completer<ActivationStatus>? pendingStatus;
+  ApiException? statusError;
+  int statusCalls = 0;
+  @override
+  Future<ActivationStatus> getActivationStatus({
+    CancelToken? cancelToken,
+  }) async {
+    statusCalls++;
+    if (statusError != null) throw statusError!;
+    return pendingStatus?.future ?? status;
+  }
+
   int calls = 0;
   ApiException? error;
   CancelToken? cancel;
@@ -89,6 +111,75 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
   test('campus email gate tells the user to activate their account', () {
     expect(campusError(AppLocalizationsZh(), _gate), '请先到邮箱激活账号');
+  });
+
+  testWidgets('activation status fails closed and refreshes without sending', (
+    tester,
+  ) async {
+    final auth = _Auth()
+      ..statusError = const ApiException(
+        fallbackMessage: '',
+        messageCode: 'auth.activation.resendFailed',
+      );
+    final container = ProviderContainer(
+      overrides: [authRepositoryProvider.overrideWithValue(auth)],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(_app(container, const ActivationEmailAction()));
+    await tester.pumpAndSettle();
+    final l = AppLocalizationsZh();
+    await tester.tap(find.text(l.authResendActivationEmail));
+    expect(auth.calls, 0);
+    auth.statusError = null;
+    auth.status = const ActivationStatus(
+      currentEmail: 'old@example.test',
+      pendingEmail: 'new@example.test',
+      targetEmail: 'new@example.test',
+      targetKind: 'pending',
+      state: 'verified',
+      remainingToday: 2,
+      dailyLimit: 3,
+      retryAfterSeconds: 0,
+    );
+    await tester.tap(find.text(l.activationStatusRefresh));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(l.activationStatusTarget('new@example.test')),
+      findsOneWidget,
+    );
+    expect(find.text(l.activationStatusRemaining(2, 3)), findsOneWidget);
+    expect(find.text(l.activationStatusVerified), findsOneWidget);
+    expect(auth.calls, 0);
+    expect(auth.statusCalls, 2);
+  });
+  testWidgets('old account status cannot populate new account', (tester) async {
+    final old = Completer<ActivationStatus>();
+    final auth = _Auth()..pendingStatus = old;
+    final container = ProviderContainer(
+      overrides: [authRepositoryProvider.overrideWithValue(auth)],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(_app(container, const ActivationEmailAction()));
+    await tester.pump();
+    auth.pendingStatus = null;
+    container.read(offlineCacheEpochProvider.notifier).state++;
+    await tester.pumpAndSettle();
+    old.complete(
+      const ActivationStatus(
+        currentEmail: 'stale@example.test',
+        pendingEmail: '',
+        targetEmail: 'stale@example.test',
+        targetKind: 'current',
+        state: 'ready',
+        remainingToday: 3,
+        dailyLimit: 3,
+        retryAfterSeconds: 0,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('stale@example.test'), findsNothing);
+    expect(find.textContaining('owner@example.test'), findsOneWidget);
+    expect(auth.calls, 0);
   });
   for (final locale in ['zh', 'en', 'ja', 'de']) {
     testWidgets('resend feedback in $locale at narrow width and large text', (

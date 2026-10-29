@@ -3012,6 +3012,18 @@ export default {
     },
   },
   settings: {
+    activationStatus: {
+      target: "送信先：{email}",
+      remaining: "本日の再送可能回数：{count} / {limit}",
+      refresh: "状態を更新",
+      cooldown: "{seconds} 秒後に再送できます",
+      daily_limit: "本日の上限に達しました。明日お試しください",
+      disabled: "メール確認は現在無効です",
+      verified: "メールは確認済みです。再送は不要です",
+      frozen: "このアカウントでは再送できません",
+      mail_unavailable: "メールを利用できません。後で更新してください",
+      missing_email: "先にアカウント設定でメールを追加してください",
+    },
     editing: '編集中',
     backToProfile: 'マイページに戻る',
     savingShort: '保存中',

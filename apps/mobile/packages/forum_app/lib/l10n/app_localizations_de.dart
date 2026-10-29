@@ -4629,4 +4629,46 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       'Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.';
+
+  @override
+  String activationStatusTarget(String email) {
+    return 'Empfänger: $email';
+  }
+
+  @override
+  String activationStatusRemaining(int count, int limit) {
+    return 'Heute verbleibend: $count / $limit';
+  }
+
+  @override
+  String get activationStatusRefresh => 'Status aktualisieren';
+
+  @override
+  String activationStatusCooldown(int seconds) {
+    return 'In $seconds Sekunden erneut senden';
+  }
+
+  @override
+  String get activationStatusDailyLimit =>
+      'Tageslimit erreicht. Morgen erneut versuchen.';
+
+  @override
+  String get activationStatusDisabled =>
+      'E-Mail-Bestätigung ist derzeit deaktiviert';
+
+  @override
+  String get activationStatusVerified =>
+      'E-Mail bestätigt. Erneutes Senden ist nicht nötig.';
+
+  @override
+  String get activationStatusFrozen =>
+      'Dieses Konto kann keine E-Mail erneut senden';
+
+  @override
+  String get activationStatusMailUnavailable =>
+      'E-Mail-Dienst nicht verfügbar. Später aktualisieren.';
+
+  @override
+  String get activationStatusMissingEmail =>
+      'Zuerst in den Kontoeinstellungen eine E-Mail hinzufügen';
 }

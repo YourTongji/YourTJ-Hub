@@ -4407,4 +4407,40 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       '学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。';
+
+  @override
+  String activationStatusTarget(String email) {
+    return '送信先：$email';
+  }
+
+  @override
+  String activationStatusRemaining(int count, int limit) {
+    return '本日の再送可能回数：$count / $limit';
+  }
+
+  @override
+  String get activationStatusRefresh => '状態を更新';
+
+  @override
+  String activationStatusCooldown(int seconds) {
+    return '$seconds 秒後に再送できます';
+  }
+
+  @override
+  String get activationStatusDailyLimit => '本日の上限に達しました。明日お試しください';
+
+  @override
+  String get activationStatusDisabled => 'メール確認は現在無効です';
+
+  @override
+  String get activationStatusVerified => 'メールは確認済みです。再送は不要です';
+
+  @override
+  String get activationStatusFrozen => 'このアカウントでは再送できません';
+
+  @override
+  String get activationStatusMailUnavailable => 'メールを利用できません。後で更新してください';
+
+  @override
+  String get activationStatusMissingEmail => '先にアカウント設定でメールを追加してください';
 }

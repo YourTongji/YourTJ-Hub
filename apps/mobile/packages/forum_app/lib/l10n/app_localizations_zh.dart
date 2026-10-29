@@ -4352,4 +4352,40 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get coursePlannerCalendarsFailed => '学期列表加载失败，请检查网络后重试。';
+
+  @override
+  String activationStatusTarget(String email) {
+    return '收件目标：$email';
+  }
+
+  @override
+  String activationStatusRemaining(int count, int limit) {
+    return '今天还可重发 $count / $limit 次';
+  }
+
+  @override
+  String get activationStatusRefresh => '刷新状态';
+
+  @override
+  String activationStatusCooldown(int seconds) {
+    return '请在 $seconds 秒后重发';
+  }
+
+  @override
+  String get activationStatusDailyLimit => '今日额度已用完，请明天再试';
+
+  @override
+  String get activationStatusDisabled => '本站暂未要求邮箱验证';
+
+  @override
+  String get activationStatusVerified => '邮箱已验证，无需重发';
+
+  @override
+  String get activationStatusFrozen => '账号受限，暂不能重发';
+
+  @override
+  String get activationStatusMailUnavailable => '邮件服务暂不可用，请稍后刷新';
+
+  @override
+  String get activationStatusMissingEmail => '请先在账号设置中添加邮箱';
 }

@@ -1542,5 +1542,39 @@
   "courseAddToPlanner": "履修プランナーに追加",
   "coursePlannerSelectTerm": "同じ学期と専攻を選択してからクラスを確認してください。既存プランは自動変更されません。",
   "coursePlannerUnavailable": "この学期のクラスは利用できません。講義詳細から別の開講記録を選択してください。",
-  "coursePlannerCalendarsFailed": "学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。"
+  "coursePlannerCalendarsFailed": "学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。",
+  "activationStatusTarget": "送信先：{email}",
+  "@activationStatusTarget": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "activationStatusRemaining": "本日の再送可能回数：{count} / {limit}",
+  "@activationStatusRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "activationStatusRefresh": "状態を更新",
+  "activationStatusCooldown": "{seconds} 秒後に再送できます",
+  "@activationStatusCooldown": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "activationStatusDailyLimit": "本日の上限に達しました。明日お試しください",
+  "activationStatusDisabled": "メール確認は現在無効です",
+  "activationStatusVerified": "メールは確認済みです。再送は不要です",
+  "activationStatusFrozen": "このアカウントでは再送できません",
+  "activationStatusMailUnavailable": "メールを利用できません。後で更新してください",
+  "activationStatusMissingEmail": "先にアカウント設定でメールを追加してください"
 }

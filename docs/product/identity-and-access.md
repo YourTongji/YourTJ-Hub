@@ -238,6 +238,15 @@ social counts and badges, and moderator access rules beyond today's public profi
   (admin/site/user/… permissions) and activates them immediately through the user-cache
   refresh path, so the admin console cannot lock itself out; ordinary pending users are left
   untouched and must still complete the activation email.
+- Activation resend status (`Current`): authenticated owners read
+  `GET /api/resend-activation-email` with `private, no-store`. It returns current,
+  fresh staged and actual target addresses, availability, remaining daily quota
+  and a relative wait rounded up using server time. Reading never reserves quota
+  or queues mail; query parameters cannot select another account. Web and App
+  refresh after attempts, on return and at wait expiry. They do not automatically
+  resend. Failed status reads keep sending unavailable and expose a refresh action;
+  stale responses are isolated from account changes. Write permissions and the
+  shared daily/interval limits are still checked by POST.
 - Username/nickname policy: `reservedUsernames` / `bannedUsernames` are enforced at
   password registration/rename and at Agent account creation with **normalized whole-string
   equality** (case folding, NFKC full-width, zero-width stripping, ASCII leetspeak folding):

@@ -1189,6 +1189,13 @@ export async function saveUserEmail(email: string, password: string): Promise<bo
   return true
 }
 
+export type ActivationStatus = components['schemas']['ActivationStatus']
+
+export async function getActivationStatus(signal?: AbortSignal): Promise<ActivationStatus> {
+  const response = await feedFetch('/api/resend-activation-email', { signal, cache: 'no-store' })
+  return readApiResponse<ActivationStatus>(response, t('api.activationEmailSendFailed'))
+}
+
 export async function resendActivationEmail(): Promise<string> {
   const response = await feedFetch('/api/resend-activation-email', {
     method: 'POST',

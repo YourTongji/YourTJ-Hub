@@ -8219,6 +8219,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to load the term list. Check your network and try again.'**
   String get coursePlannerCalendarsFailed;
+
+  /// No description provided for @activationStatusTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Send to: {email}'**
+  String activationStatusTarget(String email);
+
+  /// No description provided for @activationStatusRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'Resends left today: {count} / {limit}'**
+  String activationStatusRemaining(int count, int limit);
+
+  /// No description provided for @activationStatusRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh status'**
+  String get activationStatusRefresh;
+
+  /// No description provided for @activationStatusCooldown.
+  ///
+  /// In en, this message translates to:
+  /// **'Resend in {seconds} seconds'**
+  String activationStatusCooldown(int seconds);
+
+  /// No description provided for @activationStatusDailyLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily limit reached. Try again tomorrow.'**
+  String get activationStatusDailyLimit;
+
+  /// No description provided for @activationStatusDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Email verification is currently disabled'**
+  String get activationStatusDisabled;
+
+  /// No description provided for @activationStatusVerified.
+  ///
+  /// In en, this message translates to:
+  /// **'Email verified. No resend needed.'**
+  String get activationStatusVerified;
+
+  /// No description provided for @activationStatusFrozen.
+  ///
+  /// In en, this message translates to:
+  /// **'This account cannot resend email'**
+  String get activationStatusFrozen;
+
+  /// No description provided for @activationStatusMailUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Mail is unavailable. Refresh later.'**
+  String get activationStatusMailUnavailable;
+
+  /// No description provided for @activationStatusMissingEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Add an email address in account settings first'**
+  String get activationStatusMissingEmail;
 }
 
 class _AppLocalizationsDelegate

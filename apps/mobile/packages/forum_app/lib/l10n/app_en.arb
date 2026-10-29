@@ -2269,5 +2269,39 @@
   "courseAddToPlanner": "Add to course planner",
   "coursePlannerSelectTerm": "Select the same term and your major before confirming the class. Existing plans stay unchanged.",
   "coursePlannerUnavailable": "This class is unavailable for the term. Choose another offering from course details.",
-  "coursePlannerCalendarsFailed": "Failed to load the term list. Check your network and try again."
+  "coursePlannerCalendarsFailed": "Failed to load the term list. Check your network and try again.",
+  "activationStatusTarget": "Send to: {email}",
+  "@activationStatusTarget": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "activationStatusRemaining": "Resends left today: {count} / {limit}",
+  "@activationStatusRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "activationStatusRefresh": "Refresh status",
+  "activationStatusCooldown": "Resend in {seconds} seconds",
+  "@activationStatusCooldown": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "activationStatusDailyLimit": "Daily limit reached. Try again tomorrow.",
+  "activationStatusDisabled": "Email verification is currently disabled",
+  "activationStatusVerified": "Email verified. No resend needed.",
+  "activationStatusFrozen": "This account cannot resend email",
+  "activationStatusMailUnavailable": "Mail is unavailable. Refresh later.",
+  "activationStatusMissingEmail": "Add an email address in account settings first"
 }

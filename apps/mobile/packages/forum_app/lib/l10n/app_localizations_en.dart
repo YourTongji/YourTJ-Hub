@@ -4583,4 +4583,44 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       'Failed to load the term list. Check your network and try again.';
+
+  @override
+  String activationStatusTarget(String email) {
+    return 'Send to: $email';
+  }
+
+  @override
+  String activationStatusRemaining(int count, int limit) {
+    return 'Resends left today: $count / $limit';
+  }
+
+  @override
+  String get activationStatusRefresh => 'Refresh status';
+
+  @override
+  String activationStatusCooldown(int seconds) {
+    return 'Resend in $seconds seconds';
+  }
+
+  @override
+  String get activationStatusDailyLimit =>
+      'Daily limit reached. Try again tomorrow.';
+
+  @override
+  String get activationStatusDisabled =>
+      'Email verification is currently disabled';
+
+  @override
+  String get activationStatusVerified => 'Email verified. No resend needed.';
+
+  @override
+  String get activationStatusFrozen => 'This account cannot resend email';
+
+  @override
+  String get activationStatusMailUnavailable =>
+      'Mail is unavailable. Refresh later.';
+
+  @override
+  String get activationStatusMissingEmail =>
+      'Add an email address in account settings first';
 }

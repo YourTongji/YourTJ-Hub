@@ -1891,5 +1891,39 @@
   "courseAddToPlanner": "添加到选课排课",
   "coursePlannerSelectTerm": "请先选择相同学期和专业，再确认教学班；现有方案不会自动更改。",
   "coursePlannerUnavailable": "这个学期的教学班不可用，请返回课程详情选择其他开课记录。",
-  "coursePlannerCalendarsFailed": "学期列表加载失败，请检查网络后重试。"
+  "coursePlannerCalendarsFailed": "学期列表加载失败，请检查网络后重试。",
+  "activationStatusTarget": "收件目标：{email}",
+  "@activationStatusTarget": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "activationStatusRemaining": "今天还可重发 {count} / {limit} 次",
+  "@activationStatusRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "activationStatusRefresh": "刷新状态",
+  "activationStatusCooldown": "请在 {seconds} 秒后重发",
+  "@activationStatusCooldown": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "activationStatusDailyLimit": "今日额度已用完，请明天再试",
+  "activationStatusDisabled": "本站暂未要求邮箱验证",
+  "activationStatusVerified": "邮箱已验证，无需重发",
+  "activationStatusFrozen": "账号受限，暂不能重发",
+  "activationStatusMailUnavailable": "邮件服务暂不可用，请稍后刷新",
+  "activationStatusMissingEmail": "请先在账号设置中添加邮箱"
 }
