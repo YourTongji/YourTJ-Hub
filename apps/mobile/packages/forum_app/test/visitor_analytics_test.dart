@@ -246,11 +246,12 @@ void main() {
     addTearDown(analytics.dispose);
     analytics.setActive(true);
     analytics.visit(Uri.parse('/'), tablet: false);
-    await flush();
+    // The transport can start after 10 ms on a loaded CI worker.
+    await adapter.waitForRequests(1);
     expect(adapter.requests, hasLength(1));
     adapter.fail = false;
     analytics.visit(Uri.parse('/courses'), tablet: false);
-    await flush();
+    await adapter.waitForRequests(2);
     expect(adapter.requests, hasLength(2));
   });
 
