@@ -15,7 +15,9 @@ const props: LoginPageProps = {
   redirectUrl: '/campus', githubUrl: githubReady ? '/api/auth/github' : '', githubReady,
   googleUrl: googleReady ? '/api/auth/google' : '', googleReady,
   tongjiReady: true, tongjiUrl: '/api/auth/tongji?redirect=%2Fcampus',
-  termsOfServiceEnabled: true, privacyPolicyEnabled: true, allowedDomains: ['tongji.edu.cn'], oauthNotice: false,
+  captchaRequired: params.get('captcha') !== 'off',
+  termsOfServiceEnabled: true, privacyPolicyEnabled: true,
+  allowedDomains: params.get('domains') === 'multiple' ? ['tongji.edu.cn', 's.tongji.edu.cn'] : ['tongji.edu.cn'], oauthNotice: false,
 }
 const layout = {
   site: { name: 'yourtj', brandType: 'text' },
