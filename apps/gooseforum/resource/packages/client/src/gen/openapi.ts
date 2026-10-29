@@ -8899,7 +8899,11 @@ export interface paths {
          *     byte size; the server validates them against the posting-settings allowlist and size cap
          *     before returning a mode. Init has only declarations and no bytes, so it pre-checks the
          *     declared extension allowlist and requires the declared MIME type to match the type its
-         *     extension stands for; the bytes decide the real type at `/file/img-upload/complete`. With the local storage provider the response is `mode: "proxy"` and
+         *     extension stands for; the bytes decide the real type at `/file/img-upload/complete`.
+         *     A declared MIME that contradicts the declared extension fails init with
+         *     `upload.image.invalidContent` — with no bytes yet this code means the declarations
+         *     disagree with each other (at complete the same code means the bytes are not a usable
+         *     image). With the local storage provider the response is `mode: "proxy"` and
          *     the caller must continue with the existing multipart `POST /file/img-upload`; the same applies
          *     to an S3-compatible provider while the storage setting `forceProxyUpload` is enabled (the
          *     server then writes the proxied upload to the bucket). Otherwise, with an S3-compatible

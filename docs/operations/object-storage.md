@@ -125,6 +125,8 @@ VPC 内解析（解析结果形如 `100.100.2.136` / `100.100.2.138` 等 100.100
 1. 浏览器 `POST /file/img-upload/init`（JWT + 可写账号校验 + 上传限流），携带
    `{ filename, contentType, size }`；此时只有声明信息，服务端先按发布设置做扩展名白名单、
    声明 MIME 与扩展名的一致性以及大小上限校验，真实类型留到 complete 阶段以文件头为准。
+   一致性校验失败返回 `upload.image.invalidContent`：init 阶段还没有字节，该码在此表示
+   「声明 MIME 与声明扩展名自相矛盾」，与 complete 阶段「字节不是可用图片」的同名码语义不同。
 2. 响应 `mode`：
    - `proxy`（本地提供方）——浏览器继续走既有 multipart `POST /file/img-upload`；
    - `direct`（S3 提供方）——响应携带短时效的预签名 POST 策略（`upload.url` +
@@ -139,7 +141,9 @@ VPC 内解析（解析结果形如 `100.100.2.136` / `100.100.2.138` 等 100.100
    同目录下新的 UUID 对象名，扩展名跟随真实类型（如 `.png` → `.jpg`；`.jpeg` 与 `.jpg`
    同类型，保留原名）。写入副本前预留 `copying` 元数据行，再在文件数据库的同一事务中把
    原 `pending` 行改为 `cleanup`、同一上传者的副本行改为 `ready`。一个原始上传只允许一个
-   complete 成功；并发落后方的副本拥有独立名字，不会覆盖或删除成功对象。删除旧对象失败时
+   complete 成功；并发落后方的副本拥有独立名字，不会覆盖或删除成功对象；落后方 complete
+   在发布竞争时报 `upload.saveFailed`，行已发布后再用旧 `name` 重试则为 `page.notFound`。
+   删除旧对象失败时
    保留 cleanup 行供清理重试。响应返回最终名字，客户端必须使用返回值。
    稳定码只有上述 `upload.image.*` 三个（旧文档中的 `upload.invalidImage` 不是实际码），
    且 `invalidContent` 不再表示扩展名不符。
