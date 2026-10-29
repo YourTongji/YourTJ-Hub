@@ -7,6 +7,7 @@ import TongjiLoginButton from '@/site/components/TongjiLoginButton.vue'
 import PasswordInput from '@/site/components/PasswordInput.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
 import { forgotPassword, getCaptcha, getPasskeyStatus, login, loginWithPasskey, register, verifyTotp } from '@/runtime/api'
+import { resolveApiMessage } from '@/runtime/api-message'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
 import { useSiteTheme, setThemePreference } from '@/runtime/site-theme'
@@ -70,6 +71,14 @@ const forgotForm = reactive({
   captcha: '',
   website: '',
 })
+
+const passwordSignupOpen = computed(() => (page.props.passwordSignupState ?? 'open') === 'open')
+const signupUnavailableMessage = computed(() => {
+  const codes: Record<string, string | undefined> = { disabled: 'auth.signupDisabled', daily_limit: 'auth.register.dailyQuota', mail_unavailable: 'auth.mail.notConfigured' }
+  const code = codes[page.props.passwordSignupState ?? 'unavailable']
+  return code ? resolveApiMessage({ messageCode: code }, t('auth.registrationUnavailable')) : t('auth.registrationUnavailable')
+})
+function reloadSignupAvailability() { window.location.reload() }
 
 const title = computed(() => {
   if (mode.value === 'register') return t('auth.registerTitle')
@@ -216,6 +225,7 @@ function backToPasswordLogin() {
 }
 
 async function handleRegister() {
+  if (!passwordSignupOpen.value) return
   if (!registerForm.username || !registerForm.email || !registerForm.password || (captchaRequired.value && !registerForm.captcha)) {
     error.value = t('auth.validation.registerRequired')
     return
@@ -456,6 +466,10 @@ function onToggleTheme() {
             </button>
           </form>
 
+          <div v-else-if="mode === 'register' && !passwordSignupOpen" data-testid="signup-availability" class="space-y-3">
+            <p role="status" class="gf-status-message gf-status-message-info">{{ signupUnavailableMessage }}</p>
+            <button type="button" class="gf-button gf-button-lg gf-button-secondary w-full" @click="reloadSignupAvailability">{{ t('auth.checkSignupAvailability') }}</button>
+          </div>
           <form v-else-if="mode === 'register'" class="space-y-3" @submit.prevent="handleRegister">
             <label class="block">
               <span class="sr-only">{{ t('auth.username') }}</span>

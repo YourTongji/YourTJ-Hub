@@ -1891,5 +1891,7 @@
   "courseAddToPlanner": "添加到选课排课",
   "coursePlannerSelectTerm": "请先选择相同学期和专业，再确认教学班；现有方案不会自动更改。",
   "coursePlannerUnavailable": "这个学期的教学班不可用，请返回课程详情选择其他开课记录。",
-  "coursePlannerCalendarsFailed": "学期列表加载失败，请检查网络后重试。"
+  "coursePlannerCalendarsFailed": "学期列表加载失败，请检查网络后重试。",
+  "authRegistrationUnavailable": "注册暂不可用，请稍后再试。",
+  "authCheckSignupAvailability": "重新检查注册状态"
 }

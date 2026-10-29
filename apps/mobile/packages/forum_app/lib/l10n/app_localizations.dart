@@ -8219,6 +8219,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to load the term list. Check your network and try again.'**
   String get coursePlannerCalendarsFailed;
+
+  /// No description provided for @authRegistrationUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Registration is unavailable. Please try again later.'**
+  String get authRegistrationUnavailable;
+
+  /// No description provided for @authCheckSignupAvailability.
+  ///
+  /// In en, this message translates to:
+  /// **'Check registration again'**
+  String get authCheckSignupAvailability;
 }
 
 class _AppLocalizationsDelegate

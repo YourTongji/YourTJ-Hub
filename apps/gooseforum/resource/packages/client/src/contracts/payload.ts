@@ -45,6 +45,8 @@ export interface ErrorPageProps {
 }
 
 export interface LoginPageProps {
+  /** Public advisory state; the server revalidates every registration. */
+  passwordSignupState?: 'open' | 'disabled' | 'daily_limit' | 'mail_unavailable' | 'unavailable'
   tongjiRegistration?: boolean
   initialMode: 'login' | 'register' | 'forgot'
   redirectUrl: string

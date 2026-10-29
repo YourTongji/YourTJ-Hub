@@ -1450,6 +1450,8 @@ export default {
     showPassword: 'Show password',
     hidePassword: 'Hide password',
     captcha: 'Captcha',
+    registrationUnavailable: "Registration is unavailable. Please try again later.",
+    checkSignupAvailability: "Check registration again",
     captchaAlt: 'Captcha',
     publishCaptchaExplanation: 'The site may require a captcha for frequent posting by newer accounts. This check lifts as recent activity subsides or the account meets the site’s age condition.',
     forgotPassword: 'Forgot password?',

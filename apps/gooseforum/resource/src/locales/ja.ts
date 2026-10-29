@@ -1449,6 +1449,8 @@ export default {
     showPassword: 'パスワードを表示',
     hidePassword: 'パスワードを隠す',
     captcha: '認証コード',
+    registrationUnavailable: "現在登録できません。しばらくしてからお試しください。",
+    checkSignupAvailability: "登録状況を再確認",
     captchaAlt: '認証コード',
     publishCaptchaExplanation: '新しいアカウントでは、投稿や返信が多い場合に認証コードが必要になることがあります。最近の利用が落ち着くか、アカウントがサイト所定の期間に達すると解除されます。',
     forgotPassword: 'パスワードを忘れましたか？',

@@ -4583,4 +4583,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       'Failed to load the term list. Check your network and try again.';
+
+  @override
+  String get authRegistrationUnavailable =>
+      'Registration is unavailable. Please try again later.';
+
+  @override
+  String get authCheckSignupAvailability => 'Check registration again';
 }

@@ -4629,4 +4629,11 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       'Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.';
+
+  @override
+  String get authRegistrationUnavailable =>
+      'Registrierung ist derzeit nicht verfügbar. Bitte später erneut versuchen.';
+
+  @override
+  String get authCheckSignupAvailability => 'Registrierung erneut prüfen';
 }

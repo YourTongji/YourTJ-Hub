@@ -212,6 +212,16 @@ social counts and badges, and moderator access rules beyond today's public profi
 
 ## Account lifecycle
 
+- Password registration availability (`Current`): the existing public login-page
+  payload includes `passwordSignupState`: `open`, `disabled`, `daily_limit`,
+  `mail_unavailable` or `unavailable`. It exposes no exact creation count or limit
+  and reserves no quota. Web and App explain unavailable states before collecting
+  registration fields and offer a fresh configuration read; login remains usable.
+  A count failure is unavailable, never an empty-day assumption. The payload uses
+  the existing no-store page response. Older clients remain protected by POST,
+  and older servers omitting the field retain the existing client form behavior.
+  Every submission still rechecks signup/mail gates and the transactional quota;
+  a stale open page cannot authorize an account after registration closes or fills.
 - Registration: forum self-service password registration (with email verification when enabled) is
   one account-creation path. Tongji SSO also creates school-verified activated accounts; GitHub/Google OAuth never provisions accounts (issue #531). The built-in
   OIDC provider also never creates accounts — it authenticates existing users.

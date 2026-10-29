@@ -3,7 +3,7 @@
 // 配置行缺键会把 allowedDomains 序列化为 null；LoginPage setup 曾直接解引用
 // 导致整页白屏。修复后页面必须容错挂载，注册表单退化为自由邮箱输入。
 import { describe, expect, test, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { i18n } from '../src/runtime/i18n'
 import type { LayoutPayload, LoginPageProps } from '@gooseforum/client'
 
@@ -94,4 +94,19 @@ describe('LoginPage allowedDomains null 容错（issue #643）', () => {
     expect(wrapper.text()).toContain('@tongji.edu.cn')
     wrapper.unmount()
   })
+})
+
+
+describe('password registration availability (#1220 F12)', () => {
+  for (const state of ['disabled', 'daily_limit', 'mail_unavailable', 'unavailable'] as const) {
+    test(`shows ${state} before collecting a registration`, async () => {
+      const w = mount(LoginPage, { props: { layout, props: { ...buildProps([]), passwordSignupState: state } }, global: { plugins: [i18n] } })
+      await flushPromises()
+      expect(w.find('input[type="email"]').exists()).toBe(false)
+      expect(w.find('form button[type="submit"]').exists()).toBe(false)
+      expect(w.find('[data-testid="signup-availability"]').exists()).toBe(true)
+      expect(w.findAll('.gf-segmented-item')).toHaveLength(2)
+      w.unmount()
+    })
+  }
 })
