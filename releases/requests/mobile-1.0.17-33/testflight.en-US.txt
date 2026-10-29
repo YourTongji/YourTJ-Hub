@@ -1,0 +1,5 @@
+Test production sign-in, logout and callback return. If passkeys are enabled, check availability, enrollment, sign-in and removal; unsupported devices must retain other sign-in methods.
+Edit a reply with text, images, stickers and mentions. Switch between keyboard and sticker panel, save, reopen, and confirm the content and input position are retained.
+Check anonymous posting, profile visibility, pending sticker uploads and rejected-content appeals. Confirm another account cannot see content hidden by the selected privacy settings.
+Check iPhone and iPad navigation, search history, notification category/unread filters and text scaling. Resize the iPad window and confirm inputs and reading position remain usable.
+Search courses without losing keyboard input; check timetable display, Bilibili/Apple Music previews, external-link confirmation and Emoji copy/paste.
