@@ -1009,6 +1009,14 @@ change. The header keeps a small outer margin for its primary action.
   the native credential. Plans are not official enrollment results. Help, storage recovery and sync
   controls share one expandable status section; sync conflicts and blocked/adoption states remain
   visible in its summary. The custom-event action uses a plus symbol.
+- `Current`: choosing the already selected term, grade or major leaves every plan unchanged.
+  Changing one of these values asks for confirmation when any plan contains courses or custom
+  blocks, listing all plan names and affected counts. Cancel preserves the selection and content;
+  confirmation clears every plan's courses and blocks while retaining plan IDs and names.
+  The confirmation explains that existing plan synchronization also propagates these clears.
+  Configuration and cleared plans commit together before the screen changes. Saving blocks
+  further editing and leaving; failure retains the old configuration and content for explicit retry.
+  Responses from synchronization started under the previous configuration cannot apply afterward.
 - `Current`: course offering rows open the Course planner with course, class and term context.
   The user selects the matching term and major before opening the exact class for confirmation.
   Navigation never changes existing plans; mismatched terms and unavailable classes explain how to

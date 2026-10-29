@@ -45,6 +45,13 @@ newer revision survives. Local write failures remain visible and retain the in-m
 Switching accounts hides another account's drafts without adopting them. Explicit account erasure
 removes its local work according to the account lifecycle. Ordinary cache clearing never deletes it.
 
+`Current`: a scheduler configuration change writes the new term/grade/major and all cleared
+plan bodies in one `schedule` domain transaction. State publication follows the durable commit;
+a failed write retains the previous selection and plan contents. Equal selection codes are a
+no-op. During this short commit, the store rejects other plan mutations and the sync controller
+invalidates its request generation, then resumes existing dirty-plan synchronization afterward.
+Plan IDs, names, creation times and existing merge ancestors survive the clear.
+
 `Current`: ordinary drafts, bounded search history, local schedule snapshots and campus timetable
 memos (domain `campus-timetable`: course notes, user-drawn blocks and display preferences) use
 `user_work.sqlite`, with API origin and numeric account scope. Preference migration commits and

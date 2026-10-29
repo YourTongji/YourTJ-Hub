@@ -1542,5 +1542,11 @@
   "courseAddToPlanner": "履修プランナーに追加",
   "coursePlannerSelectTerm": "同じ学期と専攻を選択してからクラスを確認してください。既存プランは自動変更されません。",
   "coursePlannerUnavailable": "この学期のクラスは利用できません。講義詳細から別の開講記録を選択してください。",
-  "coursePlannerCalendarsFailed": "学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。"
+  "coursePlannerCalendarsFailed": "学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。",
+  "scheduleConfigChangeTitle": "時間割の設定を切り替えますか？",
+  "scheduleConfigChangeBody": "すべてのプランの科目と予定を空にします。内容のある {planCount} 件のプランに、科目 {courseCount} 件と予定 {eventCount} 件があります。プラン名は残ります。",
+  "scheduleConfigChangePlan": "{name}：科目 {courseCount} 件、予定 {eventCount} 件",
+  "scheduleConfigChangeSync": "同期済みのプランでは、内容の消去も他の端末に同期されます。",
+  "scheduleConfigChangeConfirm": "プランを空にして切り替える",
+  "scheduleConfigChangeUpdated": "プランが変更されました。再度選択して影響を確認してください。"
 }
