@@ -8,6 +8,7 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/pages/drafts/drafts_page.dart';
+import 'package:forum_app/src/pages/topic/post_editor.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
@@ -261,6 +262,45 @@ Finder _button(String label) => find.ancestor(
 );
 
 void main() {
+  testWidgets(
+    'reply edits reopen the reply editor instead of a topic publisher',
+    (tester) async {
+      final store = WritingStore();
+      await store.save(
+        _scope,
+        LocalDraft(
+          key: postEditDraftKey(42),
+          kind: DraftKind.postEdit,
+          postId: 42,
+          postOriginalContent: 'server reply',
+          title: '',
+          content: 'recovered reply edit',
+          contentType: 2,
+          topicId: 0,
+          categories: const [],
+          images: const [],
+          updatedAt: 1,
+        ),
+      );
+      await _mount(tester, store, locale: const Locale('en'));
+      final row = find.byKey(ValueKey(postEditDraftKey(42)));
+      expect(row, findsOneWidget);
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      expect(find.byType(PostEditor), findsOneWidget);
+      final field = find.descendant(
+        of: find.byType(PostEditor),
+        matching: find.byType(TextField),
+      );
+      expect(
+        tester.widget<TextField>(field).controller!.text,
+        'recovered reply edit',
+      );
+      expect(find.text('editing-post-edit-42'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   setUp(() => SharedPreferences.setMockInitialValues({}));
   testWidgets('wide draft filters preserve search, list and undo on resizing', (
     tester,

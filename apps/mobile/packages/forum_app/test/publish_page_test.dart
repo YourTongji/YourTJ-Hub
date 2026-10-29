@@ -99,6 +99,7 @@ class _RecordingTopicRepository extends TopicRepository {
     this.pendingReview = false,
     this.captchaAction = 'topic.write',
   });
+  Future<void> Function()? beforeWrite;
   final bool requireCaptcha;
   final bool pendingReview;
   final String captchaAction;
@@ -142,6 +143,7 @@ class _RecordingTopicRepository extends TopicRepository {
     String? captchaCode,
     String? identity,
   }) async {
+    await beforeWrite?.call();
     if (requireCaptcha &&
         (captchaId != 'challenge' ||
             captchaCode == null ||
@@ -439,6 +441,43 @@ void main() {
       topicRepository: topicRepository,
     );
   }
+
+  testWidgets(
+    'the last input is durable before a write can expire the session',
+    (tester) async {
+      usePhoneViewport(tester);
+      final store = WritingStore();
+      final result = await pumpPublishPage(
+        tester,
+        editing: true,
+        contentType: 2,
+        locale: const Locale('en'),
+        localStore: store,
+      );
+      final field = find.byKey(const Key('publish-editor'));
+      await tester.enterText(field, 'older text');
+      final controller = tester.widget<TextField>(field).controller!;
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      // Change immediately before submitting, without waiting for the debounce.
+      controller.text = 'the final unsent tail';
+      List<LocalDraft>? atRequest;
+      var calls = 0;
+      result.topicRepository.beforeWrite = () async {
+        calls++;
+        atRequest = await store.drafts(writingScope('http://fake.local', 1));
+        throw const UnauthorizedException();
+      };
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(calls, 1);
+      expect(atRequest, hasLength(1));
+      expect(atRequest!.single.content, 'the final unsent tail');
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   testWidgets(
     'publish body editor keeps the toolbar-free custom builder path',

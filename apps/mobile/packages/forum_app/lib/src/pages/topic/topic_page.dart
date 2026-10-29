@@ -1289,6 +1289,12 @@ class _TopicPageState extends ConsumerState<TopicPage>
     final epoch = ref.read(offlineCacheEpochProvider);
     setState(() => _replying = true);
     try {
+      if (!await _saveReplyDraft() ||
+          !mounted ||
+          !_writingCurrent ||
+          topicId != widget.topicId) {
+        return;
+      }
       final result = await ref
           .read(postRepositoryProvider)
           .createPost(
