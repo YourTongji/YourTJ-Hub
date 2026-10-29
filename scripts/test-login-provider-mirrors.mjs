@@ -89,3 +89,11 @@ test('missing declarations cannot make the guard vacuously pass', () => {
     assert.throws(() => assertMirrors({ ...sources, [language]: '' }));
   }
 });
+
+test('filtered generation cannot delete other outputs before analysis', () => {
+  const workflow = read('.github/workflows/ci-mobile.yml');
+  const analyze = workflow.indexOf('- name: Analyze');
+  const generate = workflow.indexOf('- name: Require fresh generated login contract');
+  assert.ok(analyze >= 0 && generate > analyze,
+    'Run filtered auth generation after analysis: build_runner cleans unselected outputs');
+});
