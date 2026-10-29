@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/kvstore"
@@ -46,9 +47,9 @@ type reservedSend struct {
 }
 
 type quotaReservation struct {
-	key string
-	ttl time.Duration
-	id  string
+	key       string
+	expiresAt time.Time
+	id        string
 }
 
 func Resend(userEntity users.EntityComplete) (ResendResult, error) {
@@ -79,8 +80,11 @@ func Resend(userEntity users.EntityComplete) (ResendResult, error) {
 	}
 	if err != nil {
 		slog.Info("验证邮件重发失败", "userId", userEntity.Id, "error", err)
-		// Only a synchronous token/queue failure is compensated. Once enqueued,
-		// neither HTTP cancellation nor a later SMTP failure refunds the charge.
+		// A COMMIT error can follow a successful write. Only proven rejection
+		// before commit may refund; an uncertain receipt retains its charge.
+		if !errors.Is(err, taskQueue.ErrNotEnqueued) {
+			return result, err
+		}
 		if released, releaseErr := releaseQuota(reservation); releaseErr != nil {
 			slog.Error("返还验证邮件重发额度失败", "userId", userEntity.Id, "error", releaseErr)
 			err = errors.Join(err, releaseErr)
@@ -96,7 +100,7 @@ func Resend(userEntity users.EntityComplete) (ResendResult, error) {
 func reserveQuota(userID uint64, now time.Time) (ResendResult, quotaReservation, error) {
 	result := ResendResult{DailyLimit: resendDailyLimit}
 	key, ttl := resendKey(userID, now)
-	reservation := quotaReservation{key: key, ttl: ttl, id: uuid.NewString()}
+	reservation := quotaReservation{key: key, expiresAt: time.Now().Add(ttl), id: uuid.NewString()}
 	err := kvstore.UpdateBytes(key, ttl, func(current []byte, exists bool) (kvstore.UpdateAction, []byte, error) {
 		result = ResendResult{DailyLimit: resendDailyLimit}
 		state := resendState{}
@@ -138,7 +142,11 @@ func reserveQuota(userID uint64, now time.Time) (ResendResult, quotaReservation,
 // enqueueing. Retaining the original key also isolates midnight compensation.
 func releaseQuota(reservation quotaReservation) (ResendResult, error) {
 	result := ResendResult{DailyLimit: resendDailyLimit}
-	err := kvstore.UpdateBytes(reservation.key, reservation.ttl, func(current []byte, exists bool) (kvstore.UpdateAction, []byte, error) {
+	ttl := time.Until(reservation.expiresAt)
+	if ttl <= 0 {
+		return result, nil
+	}
+	err := kvstore.UpdateBytes(reservation.key, ttl, func(current []byte, exists bool) (kvstore.UpdateAction, []byte, error) {
 		result = ResendResult{DailyLimit: resendDailyLimit}
 		if !exists {
 			return kvstore.UpdateKeep, nil, nil

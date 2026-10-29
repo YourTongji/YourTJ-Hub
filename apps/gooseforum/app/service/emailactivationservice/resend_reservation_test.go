@@ -184,3 +184,16 @@ func TestReleaseQuotaAllFailuresAllowRetry(t *testing.T) {
 		t.Fatalf("retry after all failures = %+v, %v", result, err)
 	}
 }
+
+func TestExpiredRefundReceiptDoesNotExtendQuota(t *testing.T) {
+	owner := testUserID.Add(1)
+	now := time.Now()
+	reservation := mustReserve(t, owner, now)
+	reservation.expiresAt = now.Add(-time.Second)
+	if _, err := releaseQuota(reservation); err != nil {
+		t.Fatal(err)
+	}
+	if state := readQuota(t, owner, now); state.Count != 1 {
+		t.Fatal("expired compensation changed the original quota")
+	}
+}

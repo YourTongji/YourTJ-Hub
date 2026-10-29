@@ -24,12 +24,26 @@ func setupResend(t *testing.T) {
 	if err := conn.AutoMigrate(&pageConfig.Entity{}, &taskQueue.Entity{}); err != nil {
 		t.Fatal(err)
 	}
+	var previous pageConfig.Entity
+	previousErr := conn.Where("page_type = ?", pageConfig.SecuritySettings).First(&previous).Error
+	if previousErr != nil && !errors.Is(previousErr, gorm.ErrRecordNotFound) {
+		t.Fatal(previousErr)
+	}
 	config := pageConfig.Entity{PageType: pageConfig.SecuritySettings, Config: `{"enableEmailVerification":true}`}
 	if err := conn.Where("page_type = ?", config.PageType).Assign(config).FirstOrCreate(&config).Error; err != nil {
 		t.Fatal(err)
 	}
 	hotdataserve.ClearSecuritySettingsConfigCache()
-	t.Cleanup(hotdataserve.ClearSecuritySettingsConfigCache)
+	t.Cleanup(func() {
+		if previousErr == nil {
+			if err := conn.Save(&previous).Error; err != nil {
+				t.Error(err)
+			}
+		} else if err := conn.Delete(&config).Error; err != nil {
+			t.Error(err)
+		}
+		hotdataserve.ClearSecuritySettingsConfigCache()
+	})
 	old := preferences.GetString("app.signingKey")
 	preferences.Set("app.signingKey", "resend-quota-regression-test-key")
 	t.Cleanup(func() { preferences.Set("app.signingKey", old) })
@@ -64,7 +78,7 @@ func TestResendFailureReleasesQuota(t *testing.T) {
 					fail = true
 					if err := conn.Callback().Create().Before("gorm:create").Register("test:resend_queue_failure", func(tx *gorm.DB) {
 						if fail && tx.Statement.Table == "task_queue" {
-							tx.AddError(errors.New("injected queue failure"))
+							_ = tx.AddError(errors.New("injected queue failure"))
 						}
 					}); err != nil {
 						t.Fatal(err)
