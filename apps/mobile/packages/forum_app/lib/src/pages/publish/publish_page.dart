@@ -2409,6 +2409,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                     maxHeight: constraints.maxHeight * .6,
                   ),
                   child: GfComposerPanel(
+                    minHeight: StickerPicker.comfortableHeight,
                     child: StickerPicker(onInsert: _insertSticker),
                   ),
                 ),

@@ -4093,6 +4093,7 @@ export default {
       stickerMarketHidden: "Hid sticker pack \"{pack}\"",
       stickerMarketStickerDisabled: "Withdrew market sticker {id}",
       stickerMarketStickerEnabled: "Restored market sticker {id}",
+      stickerMarketStickerRenamed: "Renamed market sticker {from} to {to}",
     },
     status: {
       blocked: 'blocked',

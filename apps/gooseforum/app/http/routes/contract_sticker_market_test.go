@@ -86,6 +86,7 @@ func setupStickerMarketContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	admin.POST("/sticker-market-import", UpButterReq(api.AdminStickerMarketImport))
 	admin.POST("/sticker-market-pack-save", UpButterReq(api.AdminStickerMarketPackSave))
 	admin.POST("/sticker-market-item-save", UpButterReq(api.AdminStickerMarketItemSave))
+	admin.GET("/sticker-market-cover", api.AdminStickerMarketCover)
 	router.GET("/file/img/*filename", api.GetFileByFileName)
 	return conn, router
 }
@@ -247,10 +248,49 @@ func TestAdminStickerMarketHTTPContract(t *testing.T) {
 		serveAdminStickersOK(t, conn, router, http.MethodPost, "/api/admin/sticker-market-item-save", `{"stickerId":9101,"isEnabled":false}`, "admin-sticker-not-found.json")
 	})
 
+	t.Run("renaming keeps the generated token resolving", func(t *testing.T) {
+		conn, router := setupStickerMarketContractTest(t)
+		seedContractMarket(t, conn)
+		generated := "m_" + strings.Repeat("b", 40)
+		serveAdminStickersOK(t, conn, router, http.MethodPost, "/api/admin/sticker-market-item-save", `{"stickerId":9302,"name":"happy_cat","isEnabled":true}`, "my-sticker-action-success.json")
+		urls, err := stickerservice.ResolveURLs([]string{generated, "happy_cat"})
+		if err != nil || urls[generated] == "" || urls["happy_cat"] != urls[generated] {
+			t.Fatalf("renamed sticker resolution: %#v, %v", urls, err)
+		}
+		serveAdminStickersOK(t, conn, router, http.MethodPost, "/api/admin/sticker-market-item-save", `{"stickerId":9301,"name":"happy_cat","isEnabled":true}`, "admin-sticker-name-exists.json")
+		serveAdminStickersOK(t, conn, router, http.MethodPost, "/api/admin/sticker-market-item-save", `{"stickerId":9301,"name":"`+generated+`","isEnabled":true}`, "admin-sticker-name-reserved.json")
+	})
+
+	t.Run("cover previews redirect to a stored thumbnail", func(t *testing.T) {
+		conn, router := setupStickerMarketContractTest(t)
+		seedContractMarket(t, conn)
+		if err := conn.Model(&sticker.MarketPack{}).Where("id = ?", 9201).Update("icon_file", contractMarketFileA).Error; err != nil {
+			t.Fatal(err)
+		}
+		token := contractSessionToken(t, createContractSiteManager(t, conn))
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/sticker-market-cover?id=9201", "", token)
+		if recorder.Code != http.StatusFound || recorder.Header().Get("Location") != "/file/img/"+contractMarketFileA {
+			t.Fatalf("cover redirect = %d %q", recorder.Code, recorder.Header().Get("Location"))
+		}
+		if got := recorder.Header().Get("Cache-Control"); got != "private, max-age=86400" {
+			t.Fatalf("cover redirect Cache-Control = %q", got)
+		}
+		// The fake upstream serves nothing, so no thumbnail can be made.
+		recorder = serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/sticker-market-cover?id=9202", "", token)
+		if recorder.Code != http.StatusNotFound || recorder.Body.Len() != 0 {
+			t.Fatalf("missing cover = %d %q", recorder.Code, recorder.Body.String())
+		}
+		recorder = serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/sticker-market-cover?id=1", "", token)
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("unknown pack cover = %d", recorder.Code)
+		}
+	})
+
 	for _, route := range []struct{ method, path string }{
 		{http.MethodGet, "/api/admin/sticker-market"},
 		{http.MethodPost, "/api/admin/sticker-market-sync"},
 		{http.MethodPost, "/api/admin/sticker-market-import"},
+		{http.MethodGet, "/api/admin/sticker-market-cover"},
 	} {
 		t.Run(route.path, func(t *testing.T) {
 			adminStickerRouteGuardScenarios(t, setupStickerMarketContractTest, route.method, route.path)

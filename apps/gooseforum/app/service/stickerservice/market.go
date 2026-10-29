@@ -3,6 +3,7 @@ package stickerservice
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -406,24 +407,50 @@ func SaveMarketPack(ctx context.Context, input SaveMarketPackInput) (sticker.Mar
 	return pack, err
 }
 
-// SetMarketStickerEnabled lets an administrator withdraw one market sticker.
+// SaveMarketStickerInput withdraws, restores or renames one market sticker.
+// An empty Name keeps the current name.
+type SaveMarketStickerInput struct {
+	StickerID uint64
+	Name      string
+	IsEnabled bool
+}
+
+// SaveMarketSticker applies an administrator's change to one market sticker.
 // A disabled sticker cannot be inserted and its sent tokens stop resolving,
-// matching a disabled official sticker.
-func SetMarketStickerEnabled(ctx context.Context, stickerID uint64, enabled bool) error {
-	err := db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
-		row, err := sticker.GetByIDTx(tx, stickerID)
-		if errors.Is(err, gorm.ErrRecordNotFound) || err == nil && row.Pack != sticker.PackMarket {
+// matching a disabled official sticker. A new name replaces the generated
+// token, and the previous name keeps resolving as for official stickers.
+// It returns the sticker before and after the change.
+func SaveMarketSticker(ctx context.Context, input SaveMarketStickerInput) (before, row sticker.Entity, err error) {
+	name := strings.TrimSpace(input.Name)
+	if name != "" && !ValidateName(name) {
+		return before, row, ErrNameInvalid
+	}
+	err = db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		before, err = sticker.GetByIDTx(tx, input.StickerID)
+		if errors.Is(err, gorm.ErrRecordNotFound) || err == nil && before.Pack != sticker.PackMarket {
 			return ErrNotFound
 		}
 		if err != nil {
 			return err
 		}
-		return tx.Model(&sticker.Entity{}).Where("id = ?", row.Id).Update("is_enabled", enabled).Error
+		row = before
+		row.IsEnabled = input.IsEnabled
+		if name == "" || name == row.Name {
+			return tx.Model(&sticker.Entity{}).Where("id = ?", row.Id).Update("is_enabled", row.IsEnabled).Error
+		}
+		if err := checkStickerNameTx(tx, row.Id, name); err != nil {
+			return err
+		}
+		previousName := row.Name
+		// The chosen name is also the label pickers show, replacing "<pack> <n>".
+		row.Name, row.DisplayName = name, ""
+		return saveRenamedStickerTx(tx, &row, previousName)
 	})
 	if err == nil {
 		InvalidateCache()
 	}
-	return err
+	return before, row, err
 }
 
 // marketImportBusy reports whether a pack is already waiting for or running an import.

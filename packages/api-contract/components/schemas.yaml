@@ -13127,10 +13127,10 @@ AdminStickerMarketPack:
       description: Locally stored cover image access path, or empty.
     iconUrl:
       type: string
-      description: Upstream catalog cover (an HTTPS URL on an allow-listed image host), shown to administrators before import; empty when none. Members never receive it.
+      description: Administrator cover for packs without an imported cover, always a same-origin path. It is the stored thumbnail of the upstream icon (or of the pack's first sticker), or `/api/admin/sticker-market-cover?id=<id>` until that thumbnail exists. Members never receive it.
     iconText:
       type: string
-      description: Short text cover (for example one emoji) when the upstream catalog has no cover image; empty otherwise.
+      description: Short text cover (for example one emoji) from the upstream catalog; clients show it when `iconUrl` fails to load. Empty otherwise.
     syncedAt:
       type: string
       format: date-time
@@ -13262,7 +13262,7 @@ AdminStickerMarketPackResponse:
 
 AdminStickerMarketItem:
   type: object
-  required: [upstreamId, stickerId, name, url, isEnabled, error]
+  required: [upstreamId, stickerId, name, aliases, url, isEnabled, error]
   properties:
     upstreamId:
       type: string
@@ -13273,7 +13273,12 @@ AdminStickerMarketItem:
       description: Local sticker id; 0 when the item could not be stored.
     name:
       type: string
-      description: Stable `m_` token name; empty for failed items.
+      description: Current token name, the generated `m_` name until an administrator renames the sticker; empty for failed items.
+    aliases:
+      type: array
+      items:
+        type: string
+      description: Previous names, oldest first, that sent content still resolves to this sticker.
     url:
       type: string
       description: Locally stored image access path; empty for failed items.
@@ -13319,6 +13324,10 @@ AdminStickerMarketItemSaveRequest:
       format: uint64
       minimum: 0
       description: Market sticker id; other stickers fail with `admin.sticker.notFound` (HTTP 200).
+    name:
+      type: string
+      maxLength: 64
+      description: New token name (letters, digits, `_` and `-`); empty or omitted keeps the current name.
     isEnabled:
       type: boolean
       description: False withdraws the sticker; it can no longer be inserted and sent tokens stop resolving.

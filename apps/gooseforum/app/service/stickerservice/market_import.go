@@ -205,6 +205,20 @@ func importMarketItem(ctx context.Context, config marketConfig, pack sticker.Mar
 				SortOrder:   index,
 				IsEnabled:   true,
 			}
+			// An administrator may have renamed the sticker of an earlier attempt;
+			// its generated token is then an alias of that sticker.
+			if alias, err := sticker.AliasByNameTx(tx, row.Name); err == nil {
+				if row, err = sticker.GetByIDTx(tx, alias.StickerID); err != nil {
+					return err
+				}
+				if row.Pack != sticker.PackMarket {
+					return ErrNameExists
+				}
+				item.StickerID = row.Id
+				return sticker.UpsertMarketItemTx(tx, &item)
+			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
 			inserted, err := sticker.InsertMarketStickerTx(tx, &row)
 			if err != nil {
 				return err
@@ -237,24 +251,32 @@ func importMarketItem(ctx context.Context, config marketConfig, pack sticker.Mar
 	}
 }
 
-// downloadMarketImage returns the stored object name for the image at rawURL.
-func downloadMarketImage(ctx context.Context, config marketConfig, rawURL string) (string, error) {
+// fetchMarketImageBytes downloads one image from an allowed image host.
+func fetchMarketImageBytes(ctx context.Context, config marketConfig, rawURL string) ([]byte, error) {
 	if !config.allowedImageURL(rawURL) {
-		return "", errMarketHostBlocked
+		return nil, errMarketHostBlocked
 	}
 	result, err := marketClient.FetchImage(ctx, rawURL)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if result.StatusCode != http.StatusOK {
-		return "", errMarketStatus
+		return nil, errMarketStatus
 	}
 	if result.FinalURL != nil && !config.allowedImageURL(result.FinalURL.String()) {
-		return "", errMarketHostBlocked
+		return nil, errMarketHostBlocked
 	}
-	data := result.Body
-	if len(data) == 0 || len(data) > filedata.MaxFileSize {
-		return "", errMarketImageTooLarge
+	if len(result.Body) == 0 || len(result.Body) > filedata.MaxFileSize {
+		return nil, errMarketImageTooLarge
+	}
+	return result.Body, nil
+}
+
+// downloadMarketImage returns the stored object name for the image at rawURL.
+func downloadMarketImage(ctx context.Context, config marketConfig, rawURL string) (string, error) {
+	data, err := fetchMarketImageBytes(ctx, config, rawURL)
+	if err != nil {
+		return "", err
 	}
 	// The bytes decide the type, exactly as for member uploads (issue #1393).
 	contentType, err := imagepolicy.DetectContentType(bytes.NewReader(data))

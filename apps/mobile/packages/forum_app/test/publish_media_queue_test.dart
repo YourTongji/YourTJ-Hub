@@ -133,6 +133,14 @@ class _Pages extends PageRepository {
       });
 }
 
+/// Picker cells show only the image; their accessible label names them.
+Finder _pickerSticker(String label) => find.byWidgetPredicate(
+  (widget) =>
+      widget is Semantics &&
+      widget.properties.label == label &&
+      widget.child is InkWell,
+);
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
   late ProviderContainer container;
@@ -238,9 +246,9 @@ void main() {
       final caret = editor.selection.baseOffset;
       expect(caret, greaterThan(7));
       final before = editor.document.toPlainText();
-      await tester.ensureVisible(find.text('Smile').last);
+      await tester.ensureVisible(_pickerSticker('Smile').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Smile').last);
+      await tester.tap(_pickerSticker('Smile').last);
       await tester.pumpAndSettle();
       expect(
         editor.document.toPlainText(),

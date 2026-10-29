@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { adminText } from '@/admin/runtime/i18n-text'
 
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Eye, Loader2, RefreshCw, Search } from '@lucide/vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Eye, Loader2, Pencil, RefreshCw, Search } from '@lucide/vue'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import AdminSelect from '@/admin/components/AdminSelect.vue'
 import AdminToolbar from '@/admin/components/AdminToolbar.vue'
@@ -60,6 +60,10 @@ const busyPackId = ref<number | null>(null)
 const detail = ref<AdminStickerMarketPackDetail | null>(null)
 const detailLoading = ref(false)
 const busyItemId = ref<number | null>(null)
+// Inline rename in the pack dialog: one item at a time, error shown under its field.
+const renamingId = ref<number | null>(null)
+const renameDraft = ref('')
+const renameError = ref('')
 let pollTimer: ReturnType<typeof setTimeout> | undefined
 // Cover URLs that failed to load; the cell falls back to the next candidate.
 const brokenCovers = ref(new Set<string>())
@@ -118,6 +122,16 @@ const marketMessageTexts: Record<string, string> = {
   'admin.sticker.notFound': 'k00vh1',
 }
 
+// Rename failures stay next to the name field instead of a toast.
+const nameMessageTexts: Record<string, string> = {
+  'admin.sticker.nameInvalid': 'k00vgo',
+  'admin.sticker.nameExists': 'stickerMarketNameExists',
+  'admin.sticker.nameReserved': 'stickerNameReserved',
+}
+
+// Imports name stickers m_ + 40 hex characters until an administrator renames them.
+const GENERATED_NAME = /^m_[0-9a-f]{40}$/
+
 function reasonText(reason: string) {
   const key = reasonTexts[reason]
   return key ? adminText(key) : reason
@@ -133,7 +147,8 @@ function statusVariant(value: AdminStickerMarketStatus): 'secondary' | 'destruct
   return 'outline'
 }
 
-// Imported packs show the stored cover members see; before that, the upstream catalog cover.
+// Imported packs show the stored cover members see; before that, a server-made
+// thumbnail of the upstream cover, so the browser never contacts the upstream host.
 function coverSource(pack: AdminStickerMarketPack) {
   return [pack.coverUrl, pack.iconUrl].find((url) => url && !brokenCovers.value.has(url)) ?? ''
 }
@@ -217,6 +232,10 @@ function clearSearch() {
   keyword.value = ''
   applySearch()
 }
+
+watch(detail, (next, previous) => {
+  if (next?.pack.id !== previous?.pack.id) cancelRename()
+})
 
 watch([topic, status], () => {
   page.value = 1
@@ -311,11 +330,67 @@ async function openDetail(pack: AdminStickerMarketPack) {
 async function toggleItem(item: AdminStickerMarketItem, isEnabled: boolean) {
   busyItemId.value = item.stickerId
   try {
-    await saveStickerMarketItem(item.stickerId, isEnabled)
+    await saveStickerMarketItem({ stickerId: item.stickerId, isEnabled })
     item.isEnabled = isEnabled
     adminToast.success(adminText(isEnabled ? 'stickerMarketItemRestored' : 'stickerMarketItemWithdrawn'))
   } catch (err) {
     marketToastError(err, 'stickerMarketSaveFailed')
+  } finally {
+    busyItemId.value = null
+  }
+}
+
+function renameFieldId(item: AdminStickerMarketItem) {
+  return `sticker-market-name-${item.stickerId}`
+}
+
+async function startRename(item: AdminStickerMarketItem) {
+  renamingId.value = item.stickerId
+  renameDraft.value = GENERATED_NAME.test(item.name) ? '' : item.name
+  renameError.value = ''
+  await nextTick()
+  const field = document.getElementById(renameFieldId(item)) as HTMLInputElement | null
+  field?.focus()
+  field?.select()
+}
+
+function cancelRename() {
+  renamingId.value = null
+  renameError.value = ''
+}
+
+// Escape first leaves an open name field; a second press closes the dialog.
+function onDialogEscape(event: KeyboardEvent) {
+  if (renamingId.value === null) return
+  event.preventDefault()
+  cancelRename()
+}
+
+async function submitRename(item: AdminStickerMarketItem) {
+  if (renamingId.value !== item.stickerId || busyItemId.value === item.stickerId) return
+  const name = renameDraft.value.trim()
+  if (!name || name === item.name) {
+    cancelRename()
+    return
+  }
+  busyItemId.value = item.stickerId
+  renameError.value = ''
+  try {
+    await saveStickerMarketItem({ stickerId: item.stickerId, name, isEnabled: item.isEnabled })
+    item.aliases = item.aliases.includes(name)
+      ? item.aliases.filter((alias) => alias !== name)
+      : [...item.aliases, item.name]
+    item.name = name
+    renamingId.value = null
+    adminToast.success(adminText('stickerMarketRenamed', { name }))
+  } catch (err) {
+    const key = nameMessageTexts[(err as { messageCode?: string } | null)?.messageCode || '']
+    if (key) {
+      renameError.value = adminText(key)
+      void nextTick(() => document.getElementById(renameFieldId(item))?.focus())
+    } else {
+      marketToastError(err, 'stickerMarketSaveFailed')
+    }
   } finally {
     busyItemId.value = null
   }
@@ -397,7 +472,6 @@ onBeforeUnmount(() => {
             v-if="coverSource(pack)"
             :src="coverSource(pack)"
             alt=""
-            referrerpolicy="no-referrer"
             class="size-10 rounded object-contain outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
             loading="lazy"
             @error="markCoverBroken(coverSource(pack))"
@@ -463,10 +537,19 @@ onBeforeUnmount(() => {
     </ManagementTable>
 
     <Dialog :open="detail !== null" @update:open="(open) => !open && (detail = null)">
-      <DialogContent class="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{{ detail?.pack.name }}</DialogTitle>
-          <DialogDescription>{{ adminText('stickerMarketItemsDescription') }}</DialogDescription>
+      <DialogContent class="sm:max-w-2xl" @escape-key-down="onDialogEscape">
+        <DialogHeader class="flex-row items-center gap-3 space-y-0 text-start">
+          <img
+            v-if="detail && coverSource(detail.pack)"
+            :src="coverSource(detail.pack)"
+            alt=""
+            class="size-12 shrink-0 rounded-md object-contain outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
+            @error="detail && markCoverBroken(coverSource(detail.pack))"
+          />
+          <div class="min-w-0 space-y-1.5">
+            <DialogTitle class="truncate">{{ detail?.pack.name }}</DialogTitle>
+            <DialogDescription class="text-pretty">{{ adminText('stickerMarketItemsDescription') }}</DialogDescription>
+          </div>
         </DialogHeader>
         <StickerMarketImportProgress v-if="detail && isRunning(detail.pack)" :pack="detail.pack" />
         <div v-if="detailLoading" class="py-8 text-center text-sm text-muted-foreground">{{ adminText('k0046') }}</div>
@@ -488,13 +571,60 @@ onBeforeUnmount(() => {
               loading="lazy"
             />
             <div v-else class="size-16 rounded bg-muted" aria-hidden="true" />
-            <Switch
-              v-if="item.stickerId"
-              :model-value="item.isEnabled"
-              :disabled="busyItemId === item.stickerId"
-              :aria-label="adminText('stickerMarketItemEnabledLabel', { name: item.name })"
-              @update:model-value="(checked: boolean) => toggleItem(item, checked)"
-            />
+            <template v-if="item.stickerId">
+              <form
+                v-if="renamingId === item.stickerId"
+                class="flex w-full flex-col gap-1"
+                @submit.prevent="submitRename(item)"
+              >
+                <Input
+                  :id="renameFieldId(item)"
+                  v-model="renameDraft"
+                  maxlength="64"
+                  autocomplete="off"
+                  spellcheck="false"
+                  class="h-7 px-2 text-base sm:text-xs"
+                  :aria-label="adminText('stickerMarketNameLabel')"
+                  :aria-invalid="renameError ? 'true' : undefined"
+                  :aria-describedby="renameError ? `${renameFieldId(item)}-error` : undefined"
+                  :placeholder="adminText('stickerMarketNameLabel')"
+                  :disabled="busyItemId === item.stickerId"
+                  @blur="submitRename(item)"
+                />
+                <p
+                  v-if="renameError"
+                  :id="`${renameFieldId(item)}-error`"
+                  role="alert"
+                  class="text-pretty text-xs leading-snug text-destructive"
+                >
+                  {{ renameError }}
+                </p>
+              </form>
+              <button
+                v-else
+                type="button"
+                class="group flex w-full min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-1 text-xs transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.96]"
+                :title="item.name"
+                :aria-label="adminText('stickerMarketRename', { name: item.name })"
+                @click="startRename(item)"
+              >
+                <span class="truncate" :class="GENERATED_NAME.test(item.name) ? 'font-mono text-muted-foreground' : 'font-medium'">{{ item.name }}</span>
+                <Pencil class="size-3 shrink-0 text-muted-foreground opacity-60 transition-opacity duration-150 group-hover:opacity-100" aria-hidden="true" />
+              </button>
+              <p
+                v-if="item.aliases.length && renamingId !== item.stickerId"
+                class="-mt-1.5 max-w-full truncate text-[11px] text-muted-foreground"
+                :title="adminText('stickerAliases', { names: item.aliases.join(', ') })"
+              >
+                {{ adminText('stickerMarketPreviousNames') }}
+              </p>
+              <Switch
+                :model-value="item.isEnabled"
+                :disabled="busyItemId === item.stickerId"
+                :aria-label="adminText('stickerMarketItemEnabledLabel', { name: item.name })"
+                @update:model-value="(checked: boolean) => toggleItem(item, checked)"
+              />
+            </template>
             <span v-else class="text-center text-xs text-muted-foreground">{{ adminText('stickerMarketItemNotImported', { reason: reasonText(item.error) }) }}</span>
           </li>
         </ul>

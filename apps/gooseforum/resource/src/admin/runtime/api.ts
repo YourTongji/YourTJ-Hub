@@ -16,6 +16,7 @@ import type {
   AdminTaskRow,
   AdminTopic,
   AdminSticker,
+  AdminStickerMarketItemSaveRequest,
   AdminStickerMarketPack,
   AdminStickerMarketPackDetail,
   AdminStickerMarketPage,
@@ -400,8 +401,8 @@ export function saveStickerMarketPack(data: { id: number, published: boolean, so
   return postJson<AdminStickerMarketPack>('/api/admin/sticker-market-pack-save', data, adminText('stickerMarketSaveFailed'))
 }
 
-export function saveStickerMarketItem(stickerId: number, isEnabled: boolean) {
-  return postJson<boolean>('/api/admin/sticker-market-item-save', { stickerId, isEnabled }, adminText('stickerMarketSaveFailed'))
+export function saveStickerMarketItem(request: AdminStickerMarketItemSaveRequest) {
+  return postJson<boolean>('/api/admin/sticker-market-item-save', request, adminText('stickerMarketSaveFailed'))
 }
 
 export function getSiteSettings() {

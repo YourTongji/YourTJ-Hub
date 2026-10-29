@@ -2379,6 +2379,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                 accessory: _replyAccessory,
                                 panelFocusNode: _replyPanelFocus,
                                 availableHeight: box.maxHeight,
+                                minPanelHeight: StickerPicker.comfortableHeight,
                                 panelBuilder: (_) => StickerPicker(
                                   onInsert: _insertReplySticker,
                                 ),

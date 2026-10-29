@@ -36,6 +36,47 @@ type SaveInput struct {
 	IsEnabled      bool
 }
 
+// checkStickerNameTx reports whether the sticker rowID (0 for a new one) may
+// take name: another sticker's current or previous name is unavailable,
+// because sent content resolves it to that sticker (issue #1428).
+func checkStickerNameTx(tx *gorm.DB, rowID uint64, name string) error {
+	existing, err := sticker.GetByNameTx(tx, name)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	if existing.Id != 0 && existing.Id != rowID {
+		return ErrNameExists
+	}
+	alias, err := sticker.AliasByNameTx(tx, name)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	if err == nil && (rowID == 0 || alias.StickerID != rowID) {
+		return ErrNameReserved
+	}
+	return nil
+}
+
+// saveRenamedStickerTx stores an existing sticker whose name may have changed
+// and keeps previousName resolving to it.
+func saveRenamedStickerTx(tx *gorm.DB, row *sticker.Entity, previousName string) error {
+	// Taking back a previous name releases it before the row claims it.
+	if err := sticker.ReleaseAliasTx(tx, row.Name, row.Id); err != nil {
+		return err
+	}
+	if err := sticker.SaveTx(tx, row); err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return ErrNameExists
+		}
+		return err
+	}
+	// Sent tokens keep the old name; record it so they still resolve here.
+	if previousName != row.Name {
+		return sticker.RecordAliasTx(tx, previousName, row.Id)
+	}
+	return nil
+}
+
 func Save(ctx context.Context, userID uint64, input SaveInput) error {
 	input.Name = strings.TrimSpace(input.Name)
 	if input.Name == "" {
@@ -60,19 +101,8 @@ func Save(ctx context.Context, userID uint64, input SaveInput) error {
 			row = existing
 		}
 		// Keep duplicate-name errors independent of whether a new upload was supplied.
-		existing, lookupErr := sticker.GetByNameTx(tx, input.Name)
-		if lookupErr != nil && !errors.Is(lookupErr, gorm.ErrRecordNotFound) {
-			return lookupErr
-		}
-		if existing.Id != 0 && existing.Id != row.Id {
-			return ErrNameExists
-		}
-		alias, aliasErr := sticker.AliasByNameTx(tx, input.Name)
-		if aliasErr != nil && !errors.Is(aliasErr, gorm.ErrRecordNotFound) {
-			return aliasErr
-		}
-		if aliasErr == nil && (row.Id == 0 || alias.StickerID != row.Id) {
-			return ErrNameReserved
+		if err := checkStickerNameTx(tx, row.Id, input.Name); err != nil {
+			return err
 		}
 		previousName := row.Name
 		fileName := row.FileName
@@ -107,23 +137,8 @@ func Save(ctx context.Context, userID uint64, input SaveInput) error {
 					return err
 				}
 			}
-		} else {
-			// Taking back a previous name releases it before the row claims it.
-			if err := sticker.ReleaseAliasTx(tx, row.Name, row.Id); err != nil {
-				return err
-			}
-			if err := sticker.SaveTx(tx, &row); err != nil {
-				if errors.Is(err, gorm.ErrDuplicatedKey) {
-					return ErrNameExists
-				}
-				return err
-			}
-			// Sent tokens keep the old name; record it so they still resolve here.
-			if previousName != row.Name {
-				if err := sticker.RecordAliasTx(tx, previousName, row.Id); err != nil {
-					return err
-				}
-			}
+		} else if err := saveRenamedStickerTx(tx, &row, previousName); err != nil {
+			return err
 		}
 		return fileusageservice.SetStickerUsageTx(tx, row.Id, row.CreatedBy, row.FileName, fileUsage.UsageStatusActive)
 	})

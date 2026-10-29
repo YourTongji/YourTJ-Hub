@@ -837,8 +837,9 @@ change. The header keeps a small outer margin for its primary action.
   state sits beside the send action as one muted line, so it never grows or clips the editor; a failed
   local save turns it into a tappable retry in the warning color.
 - `Current`: the topic reply sticker panel replaces the software keyboard in the same slot below the
-  composer and matches the last settled keyboard height. Switching holds the outgoing surface until
-  the incoming one covers it, so the editor stays in place; without a keyboard the panel slides in and
+  composer and matches the last settled keyboard height, but is never shorter than three sticker rows;
+  under a shorter keyboard it rises smoothly from the keyboard's edge. Switching holds the outgoing
+  surface until the incoming one covers it, so the editor stays in place; without a keyboard the panel slides in and
   out in one direction, instantly with reduced motion. The panel keeps its tab, scroll and search state
   while the composer stays open. Searching stickers raises the keyboard below the panel and bounds the
   editor to one line without changing its multiline input. Back closes the panel before leaving the
@@ -1745,6 +1746,11 @@ servers that omit interaction fields retain read-only content previews.
   non-interactive. Ordinary photos retain image preview, and
   images explicitly linked to another page retain their link destination. Sticker recognition uses
   renderer-owned provenance; an ordinary image's author-supplied alt text does not change its behavior.
+- `Current`: the picker header holds the four tabs, a search icon and a gear that opens my-sticker
+  management. Search expands in place of the tabs, covers recent, my, official and added-pack stickers,
+  and Cancel restores the tabs and the previous focus. The grid shows about five stickers per row and
+  three rows at once, without per-item text; names stay available to screen readers and in the preview.
+  Messages and publishing use the same minimum panel height.
 - `Current`: the picker's Packs tab lists the market packs the account has added, with a Sticker
   market entry; an empty tab points to the market. The market lists published packs by topic; each
   pack opens a grid with Add/Remove, and an account holds up to 50 packs. Guests can browse; adding

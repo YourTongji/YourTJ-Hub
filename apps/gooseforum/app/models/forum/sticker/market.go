@@ -61,10 +61,12 @@ type MarketPack struct {
 	ImportTotal    int    `gorm:"column:import_total;not null;default:0;" json:"importTotal"`
 	LastError      string `gorm:"column:last_error;type:varchar(64);not null;default:'';" json:"lastError"`
 	CoverStickerID uint64 `gorm:"column:cover_sticker_id;not null;default:0;" json:"coverStickerId"`
-	// IconURL/IconText are the upstream catalog cover, shown to administrators
-	// before import. Members only ever see the locally stored cover.
+	// IconURL/IconText are the upstream catalog cover. IconFile is the locally
+	// stored thumbnail of it that administrators see before import; members
+	// only ever see the cover of an imported sticker.
 	IconURL    string     `gorm:"column:icon_url;type:varchar(512);not null;default:'';" json:"iconUrl"`
 	IconText   string     `gorm:"column:icon_text;type:varchar(64);not null;default:'';" json:"iconText"`
+	IconFile   string     `gorm:"column:icon_file;type:varchar(128);not null;default:'';" json:"iconFile"`
 	SyncedAt   time.Time  `gorm:"column:synced_at;" json:"syncedAt"`
 	ImportedAt *time.Time `gorm:"column:imported_at;" json:"importedAt"`
 	CreatedAt  time.Time  `gorm:"column:created_at;autoCreateTime;<-:create;" json:"createdAt"`
@@ -111,14 +113,19 @@ func UpsertMarketTopicsTx(tx *gorm.DB, topics []MarketTopic) error {
 }
 
 // UpsertMarketPacksTx refreshes upstream metadata only. Local import and
-// publication state survive every catalog refresh.
+// publication state survive every catalog refresh; a changed upstream icon
+// drops the stored thumbnail so the next preview fetches the new one.
 func UpsertMarketPacksTx(tx *gorm.DB, packs []MarketPack) error {
 	if len(packs) == 0 {
 		return nil
 	}
+	updates := clause.AssignmentColumns([]string{"name", "topic", "icon_url", "icon_text", "upstream_count", "upstream_order", "archived", "missing", "synced_at", "updated_at"})
+	// SET expressions read the row before the update, so this compares the old icon.
+	updates = append(updates, clause.Assignment{Column: clause.Column{Name: "icon_file"}, Value: gorm.Expr(
+		"CASE WHEN sticker_market_packs.icon_url = excluded.icon_url THEN sticker_market_packs.icon_file ELSE '' END")})
 	return tx.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "source"}, {Name: "upstream_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"name", "topic", "icon_url", "icon_text", "upstream_count", "upstream_order", "archived", "missing", "synced_at", "updated_at"}),
+		DoUpdates: updates,
 	}).CreateInBatches(&packs, 200).Error
 }
 

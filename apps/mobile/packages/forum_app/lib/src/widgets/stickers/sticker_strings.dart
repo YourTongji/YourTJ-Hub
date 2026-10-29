@@ -34,11 +34,16 @@ class StickerStrings {
   String get sticker => _s('表情', 'Sticker', 'Sticker', 'ステッカー');
   String get custom =>
       _s('自定义表情', 'Custom sticker', 'Eigener Sticker', 'カスタムステッカー');
-  String displayLabel(StickerItemPayload item) =>
-      !item.isOfficial &&
-          (item.displayName.isEmpty || item.displayName == item.name)
-      ? custom
-      : item.label;
+  String displayLabel(StickerItemPayload item) {
+    final unnamed = item.displayName.isEmpty || item.displayName == item.name;
+    // An administrator may rename a market sticker; only its generated token
+    // stays unspoken.
+    if (item.pack == 'market') {
+      return unnamed && isMarketName(item.name) ? sticker : item.label;
+    }
+    return !item.isOfficial && unnamed ? custom : item.label;
+  }
+
   String get licenses =>
       _s('来源与许可', 'Sources & licenses', 'Quellen & Lizenzen', '出典とライセンス');
   String get title =>
@@ -142,6 +147,19 @@ class StickerStrings {
   String get done => _s('完成', 'Done', 'Fertig', '完了');
   String get retry => _s('重试', 'Retry', 'Erneut versuchen', '再試行');
   String get search => _s('搜索表情', 'Search stickers', 'Sticker suchen', '検索');
+  String get searchAll => _s(
+    '搜索全部表情',
+    'Search all stickers',
+    'Alle Sticker durchsuchen',
+    'すべてのステッカーを検索',
+  );
+  String get closeSearch => _s('取消', 'Cancel', 'Abbrechen', 'キャンセル');
+  String get manageLibrary => _s(
+    '管理我的表情',
+    'Manage my stickers',
+    'Meine Sticker verwalten',
+    'マイステッカーを管理',
+  );
   String get all => _s('全部', 'All', 'Alle', 'すべて');
   String get emptyRecent => _s(
     '用过的表情会出现在这里',

@@ -185,6 +185,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/sticker-market-cover"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/sticker-market-pack"
   },
   {

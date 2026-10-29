@@ -270,6 +270,14 @@ PagePayload _publishPayload({
   });
 }
 
+/// Picker cells show only the image; their accessible label names them.
+Finder _pickerSticker(String label) => find.byWidgetPredicate(
+  (widget) =>
+      widget is Semantics &&
+      widget.properties.label == label &&
+      widget.child is InkWell,
+);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -542,13 +550,13 @@ void main() {
             tester.getTopLeft(editor).dy,
             lessThan(tester.getTopLeft(find.byType(StickerPicker)).dy),
           );
-          await tester.ensureVisible(find.text('Smile').last);
+          await tester.ensureVisible(_pickerSticker('Smile').last);
           await tester.pumpAndSettle();
-          await tester.tap(find.text('Smile').last);
+          await tester.tap(_pickerSticker('Smile').last);
           await tester.pumpAndSettle();
-          await tester.ensureVisible(find.text('Smile').last);
+          await tester.ensureVisible(_pickerSticker('Smile').last);
           await tester.pumpAndSettle();
-          await tester.tap(find.text('Smile').last);
+          await tester.tap(_pickerSticker('Smile').last);
           await tester.pumpAndSettle();
           final preview = find.byKey(const Key('sticker-draft-preview'));
           expect(
@@ -560,6 +568,9 @@ void main() {
             findsOneWidget,
           );
           await tester.drag(find.byType(StickerPicker), const Offset(0, 300));
+          await tester.pumpAndSettle();
+          // Search starts as an icon in the picker's header.
+          await tester.tap(find.byTooltip('搜索全部表情'));
           await tester.pumpAndSettle();
           final search = find.descendant(
             of: find.byType(StickerPicker),

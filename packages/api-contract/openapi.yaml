@@ -661,6 +661,8 @@ paths:
     $ref: ./paths/admin-sticker-market.yaml#/adminStickerMarketSync
   /api/admin/sticker-market-pack:
     $ref: ./paths/admin-sticker-market.yaml#/adminStickerMarketPack
+  /api/admin/sticker-market-cover:
+    $ref: ./paths/admin-sticker-market.yaml#/adminStickerMarketCover
   /api/admin/sticker-market-import:
     $ref: ./paths/admin-sticker-market.yaml#/adminStickerMarketImport
   /api/admin/sticker-market-pack-save:

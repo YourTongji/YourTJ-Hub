@@ -2732,6 +2732,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                           StickerDraftPreview(content: text),
                       accessoryBuilder: (insert) =>
                           StickerPicker(onInsert: insert),
+                      accessoryMinHeight: StickerPicker.comfortableHeight,
                       onAttach: _showAttachments,
                       attachLabel: l10n.messagesAttachments,
                       clearOnSend: false,

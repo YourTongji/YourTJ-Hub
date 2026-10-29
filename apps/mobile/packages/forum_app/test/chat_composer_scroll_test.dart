@@ -11,6 +11,14 @@ import 'chat_visible_read_test.dart' show pumpChat;
 import 'fixtures/sticker_fixtures.dart';
 import 'pages_behavior_test.dart' show MemTokenStorage, makeChatMessage;
 
+/// Picker cells show only the image; their accessible label names them.
+Finder _pickerSticker(String label) => find.byWidgetPredicate(
+  (widget) =>
+      widget is Semantics &&
+      widget.properties.label == label &&
+      widget.child is InkWell,
+);
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
@@ -97,7 +105,7 @@ void main() {
         expectAnchor();
 
         // Draft previews also consume list height without a window-metrics event.
-        await tester.tap(find.text('Smile').last);
+        await tester.tap(_pickerSticker('Smile').last);
         await tester.pumpAndSettle();
         expect(find.byKey(const Key('sticker-draft-preview')), findsOneWidget);
         expectAnchor();

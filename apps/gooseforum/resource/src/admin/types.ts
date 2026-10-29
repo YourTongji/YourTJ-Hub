@@ -187,6 +187,7 @@ export interface AdminSticker {
 
 export type {
   AdminStickerMarketItem,
+  AdminStickerMarketItemSaveRequest,
   AdminStickerMarketPack,
   AdminStickerMarketPackDetail,
   AdminStickerMarketPage,

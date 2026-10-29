@@ -381,6 +381,7 @@ class _PostEditorState extends ConsumerState<PostEditor> {
                 accessory: _accessory,
                 panelFocusNode: _panelFocus,
                 availableHeight: box.maxHeight,
+                minPanelHeight: StickerPicker.comfortableHeight,
                 panelBuilder: (_) => StickerPicker(onInsert: _insertSticker),
               ),
             ],

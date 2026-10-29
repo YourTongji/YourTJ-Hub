@@ -4095,6 +4095,7 @@ export default {
       stickerMarketHidden: "下架表情包「{pack}」",
       stickerMarketStickerDisabled: "停用市场表情 {id}",
       stickerMarketStickerEnabled: "恢复市场表情 {id}",
+      stickerMarketStickerRenamed: "将市场表情 {from} 改名为 {to}",
     },
     status: {
       blocked: '封禁',

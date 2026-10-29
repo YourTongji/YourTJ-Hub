@@ -656,6 +656,7 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("sticker-market", UpQueryReq(api.AdminStickerMarket)).
 		POST("sticker-market-sync", UpButterReq(api.AdminStickerMarketSync)).
 		GET("sticker-market-pack", UpQueryReq(api.AdminStickerMarketPack)).
+		GET("sticker-market-cover", api.AdminStickerMarketCover).
 		POST("sticker-market-import", UpButterReq(api.AdminStickerMarketImport)).
 		POST("sticker-market-pack-save", UpButterReq(api.AdminStickerMarketPackSave)).
 		POST("sticker-market-item-save", UpButterReq(api.AdminStickerMarketItemSave)).

@@ -25,7 +25,9 @@ enum GfInputAccessory {
 /// When the keyboard and panel trade places, the slot stays as tall as the
 /// outgoing surface until the incoming one covers it, so the editor above never
 /// drops and rises again. The panel adopts the last settled keyboard height for
-/// the current orientation, which makes a like-for-like switch motionless.
+/// the current orientation, which makes a like-for-like switch motionless. A
+/// panel that needs more room than a short keyboard ([minPanelHeight]) grows
+/// smoothly from the keyboard's edge instead of jumping.
 class GfInputAccessorySlot extends StatefulWidget {
   const GfInputAccessorySlot({
     super.key,
@@ -33,6 +35,7 @@ class GfInputAccessorySlot extends StatefulWidget {
     required this.panelFocusNode,
     required this.panelBuilder,
     required this.availableHeight,
+    this.minPanelHeight = 0,
     this.maxPanelWidth = 560,
   });
 
@@ -48,6 +51,10 @@ class GfInputAccessorySlot extends StatefulWidget {
 
   /// Height of the box hosting the composer; bounds the panel.
   final double availableHeight;
+
+  /// Content height the panel needs to be useful, bottom safe area excluded.
+  /// The panel is at least this tall, still within the [availableHeight] cap.
+  final double minPanelHeight;
   final double maxPanelWidth;
 
   @override
@@ -139,9 +146,15 @@ class _GfInputAccessorySlotState extends State<GfInputAccessorySlot>
     if (to == GfInputAccessory.panel) {
       _cancelHold();
       _panelMounted = true;
+      final double height = _panelHeight();
       // Under a visible keyboard the panel is revealed by the keyboard itself.
-      if (_inset > 0 || GfMotion.reducedOf(context)) {
+      if (GfMotion.reducedOf(context) ||
+          (_inset > 0 && _inset >= height - .5)) {
         _reveal.value = 1;
+      } else if (_inset > 0) {
+        // A panel taller than the keyboard rises from the keyboard's edge.
+        _reveal.value = _revealAt(_inset / height);
+        _reveal.forward();
       } else {
         _reveal.forward();
       }
@@ -216,6 +229,20 @@ class _GfInputAccessorySlotState extends State<GfInputAccessorySlot>
     setState(() {});
   }
 
+  /// The reveal value whose curved extent is [fraction] of the panel.
+  double _revealAt(double fraction) {
+    double low = 0, high = 1;
+    for (int i = 0; i < 24; i++) {
+      final double mid = (low + high) / 2;
+      if (GfMotion.enterCurve.transform(mid) < fraction) {
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+    return high;
+  }
+
   /// Panel height measured from the screen bottom, safe area included, like
   /// the keyboard it replaces.
   double _panelHeight() {
@@ -224,8 +251,10 @@ class _GfInputAccessorySlotState extends State<GfInputAccessorySlot>
     final double fallback =
         ((size.height - padding.vertical) * .36).clamp(80.0, 300.0) +
         padding.bottom;
-    final double preferred =
-        _settledKeyboard[MediaQuery.orientationOf(context)] ?? fallback;
+    final double preferred = math.max(
+      _settledKeyboard[MediaQuery.orientationOf(context)] ?? fallback,
+      widget.minPanelHeight + padding.bottom,
+    );
     return math.min(preferred, math.max(80.0, widget.availableHeight * .55));
   }
 

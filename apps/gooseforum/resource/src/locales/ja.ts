@@ -4092,6 +4092,7 @@ export default {
       stickerMarketHidden: "スタンプパック「{pack}」を非公開に変更",
       stickerMarketStickerDisabled: "マーケットスタンプ {id} を停止",
       stickerMarketStickerEnabled: "マーケットスタンプ {id} を再開",
+      stickerMarketStickerRenamed: "マーケットスタンプ {from} を {to} に名前変更",
     },
     status: {
       blocked: 'blocked',

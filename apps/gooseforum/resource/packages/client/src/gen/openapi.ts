@@ -7729,6 +7729,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/sticker-market-cover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Redirect to the stored cover thumbnail of a market pack
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied`. This is a bare gin handler (not the UpButterReq
+         *     wrapper) used as an `<img>` source for packs that have no imported cover
+         *     (issue #1429). On first request the server fetches the pack's upstream icon,
+         *     or its first sticker when upstream lists no icon image, through the market
+         *     client, stores a PNG thumbnail of the first frame (long side at most 160 px)
+         *     under `stickers/market/`, and redirects to it with HTTP 302 and
+         *     `Cache-Control: private, max-age=86400`; later requests redirect immediately.
+         *     The browser never contacts the upstream host. Unknown ids, a disabled market
+         *     or a cover that cannot be fetched or decoded return HTTP 404 with an empty body
+         *     and `Cache-Control: private, max-age=600`; the server also waits 10 minutes
+         *     before fetching a failed cover again.
+         */
+        get: operations["adminStickerMarketCover"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/sticker-market-import": {
         parameters: {
             query?: never;
@@ -7796,13 +7828,19 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Withdraw or restore one market sticker
+         * Withdraw, restore or rename one market sticker
          * @description Admin console operation gated by the `SiteManager` role permission
          *     (Admin role is a superset); callers without it fail with HTTP 403 and
          *     `permission.denied`. Disabling a market sticker removes it from every pack
          *     and picker, prevents new use and stops its sent tokens from resolving, like a
-         *     disabled official sticker; enabling restores it. Ids that are not market stickers
-         *     fail with `admin.sticker.notFound`. Recorded in the operation log.
+         *     disabled official sticker; enabling restores it. A non-empty `name` renames the
+         *     sticker and becomes its picker label; the previous name (for example the
+         *     generated `m_` token) stays an alias, so sent content keeps resolving, exactly
+         *     as for official stickers (issue #1428). An invalid name fails with
+         *     `admin.sticker.nameInvalid`, another sticker's current name with
+         *     `admin.sticker.nameExists` and another sticker's previous name with
+         *     `admin.sticker.nameReserved`. Ids that are not market stickers fail with
+         *     `admin.sticker.notFound`. Changes are recorded in the operation log.
          */
         post: operations["adminStickerMarketItemSave"];
         delete?: never;
@@ -15026,9 +15064,9 @@ export interface components {
             lastError: string;
             /** @description Locally stored cover image access path, or empty. */
             coverUrl: string;
-            /** @description Upstream catalog cover (an HTTPS URL on an allow-listed image host), shown to administrators before import; empty when none. Members never receive it. */
+            /** @description Administrator cover for packs without an imported cover, always a same-origin path. It is the stored thumbnail of the upstream icon (or of the pack's first sticker), or `/api/admin/sticker-market-cover?id=<id>` until that thumbnail exists. Members never receive it. */
             iconUrl: string;
-            /** @description Short text cover (for example one emoji) when the upstream catalog has no cover image; empty otherwise. */
+            /** @description Short text cover (for example one emoji) from the upstream catalog; clients show it when `iconUrl` fails to load. Empty otherwise. */
             iconText: string;
             /**
              * Format: date-time
@@ -15099,8 +15137,10 @@ export interface components {
              * @description Local sticker id; 0 when the item could not be stored.
              */
             stickerId: number;
-            /** @description Stable `m_` token name; empty for failed items. */
+            /** @description Current token name, the generated `m_` name until an administrator renames the sticker; empty for failed items. */
             name: string;
+            /** @description Previous names, oldest first, that sent content still resolves to this sticker. */
+            aliases: string[];
             /** @description Locally stored image access path; empty for failed items. */
             url: string;
             isEnabled: boolean;
@@ -15122,6 +15162,8 @@ export interface components {
              * @description Market sticker id; other stickers fail with `admin.sticker.notFound` (HTTP 200).
              */
             stickerId?: number;
+            /** @description New token name (letters, digits, `_` and `-`); empty or omitted keeps the current name. */
+            name?: string;
             /** @description False withdraws the sticker; it can no longer be inserted and sent tokens stop resolving. */
             isEnabled?: boolean;
         };
@@ -29866,6 +29908,52 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
+            };
+        };
+    };
+    adminStickerMarketCover: {
+        parameters: {
+            query: {
+                id: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the stored thumbnail under `/file/img/stickers/market/`. */
+            302: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Unknown pack, market disabled, or no cover could be made; empty body. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

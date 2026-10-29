@@ -9,7 +9,8 @@ import (
 )
 
 // AdminMarketPack is the administrator view of one catalog pack, including
-// upstream metadata and local import state. Upstream URLs are never returned.
+// upstream metadata and local import state. Upstream URLs are never returned:
+// IconURL is a local thumbnail or the endpoint that creates it.
 type AdminMarketPack struct {
 	ID            uint64     `json:"id"`
 	UpstreamID    string     `json:"upstreamId"`
@@ -49,9 +50,11 @@ type AdminMarketItem struct {
 	UpstreamID string `json:"upstreamId"`
 	StickerID  uint64 `json:"stickerId"`
 	Name       string `json:"name"`
-	URL        string `json:"url"`
-	IsEnabled  bool   `json:"isEnabled"`
-	Error      string `json:"error"`
+	// Aliases are previous names that sent content still resolves (issue #1428).
+	Aliases   []string `json:"aliases"`
+	URL       string   `json:"url"`
+	IsEnabled bool     `json:"isEnabled"`
+	Error     string   `json:"error"`
 }
 
 // AdminMarketPackDetail lists every item an import recorded for a pack.
@@ -72,7 +75,7 @@ func adminMarketPacks(packs []sticker.MarketPack) ([]AdminMarketPack, error) {
 			UpstreamCount: pack.UpstreamCount, Archived: pack.Archived, Missing: pack.Missing,
 			Status: pack.Status, Published: pack.Published, SortOrder: pack.SortOrder,
 			ItemCount: pack.ItemCount, FailedCount: pack.FailedCount, ImportTotal: pack.ImportTotal, LastError: pack.LastError,
-			CoverURL: covers[pack.CoverStickerID], IconURL: pack.IconURL, IconText: pack.IconText, SyncedAt: pack.SyncedAt, ImportedAt: pack.ImportedAt,
+			CoverURL: covers[pack.CoverStickerID], IconURL: marketPackIconURL(pack), IconText: pack.IconText, SyncedAt: pack.SyncedAt, ImportedAt: pack.ImportedAt,
 		})
 	}
 	return items, nil
@@ -150,9 +153,16 @@ func AdminMarketPackItems(packID uint64) (AdminMarketPackDetail, error) {
 			byID[entity.Id] = entity
 		}
 	}
+	aliases, err := sticker.AliasNamesBySticker(ids)
+	if err != nil {
+		return detail, err
+	}
 	detail.Items = make([]AdminMarketItem, 0, len(rows))
 	for _, row := range rows {
-		item := AdminMarketItem{UpstreamID: row.UpstreamID, StickerID: row.StickerID, Error: row.Error}
+		item := AdminMarketItem{UpstreamID: row.UpstreamID, StickerID: row.StickerID, Aliases: []string{}, Error: row.Error}
+		if names := aliases[row.StickerID]; len(names) > 0 {
+			item.Aliases = names
+		}
 		if entity, ok := byID[row.StickerID]; ok {
 			item.Name, item.URL, item.IsEnabled = entity.Name, ResolveURLFor(entity), entity.IsEnabled
 		}

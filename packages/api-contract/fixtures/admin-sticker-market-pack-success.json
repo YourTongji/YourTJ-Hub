@@ -16,7 +16,7 @@
       "importTotal": 3,
       "lastError": "",
       "coverUrl": "/file/img/stickers/market/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
-      "iconUrl": "https://cdn3.ldstatic.com/original/pack-icon.webp",
+      "iconUrl": "/api/admin/sticker-market-cover?id=9201",
       "iconText": "",
       "syncedAt": "2026-10-29T08:00:00Z",
       "importedAt": "2026-10-29T08:05:00Z"
@@ -26,6 +26,7 @@
         "upstreamId": "e1",
         "stickerId": 9301,
         "name": "m_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "aliases": [],
         "url": "/file/img/stickers/market/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
         "isEnabled": true,
         "error": ""
@@ -34,6 +35,7 @@
         "upstreamId": "e2",
         "stickerId": 9302,
         "name": "m_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "aliases": [],
         "url": "/file/img/stickers/market/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.png",
         "isEnabled": true,
         "error": ""
@@ -42,6 +44,7 @@
         "upstreamId": "e3",
         "stickerId": 0,
         "name": "",
+        "aliases": [],
         "url": "",
         "isEnabled": false,
         "error": "blocked"

@@ -123,6 +123,8 @@ export interface AdminStickerMarketItem {
   upstreamId: string
   stickerId: number
   name: string
+  /** Previous names that sent content still resolves, oldest first (issue #1428). */
+  aliases: string[]
   url: string
   isEnabled: boolean
   error: string
@@ -141,5 +143,7 @@ export interface AdminStickerMarketPackSaveRequest {
 
 export interface AdminStickerMarketItemSaveRequest {
   stickerId: number
+  /** Renames the sticker when set; the previous name keeps resolving. */
+  name?: string
   isEnabled: boolean
 }

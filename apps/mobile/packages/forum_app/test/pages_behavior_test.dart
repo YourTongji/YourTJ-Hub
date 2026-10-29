@@ -52,8 +52,16 @@ import 'fixtures/page_fixtures.dart';
 class _EmptyWikiSearch extends WikiRepository {
   _EmptyWikiSearch(super.client);
   @override
-  Future<WikiSearchResult> search(String query, {int? limit, CancelToken? cancelToken}) async =>
-    WikiSearchResult(query: query, items: const [], total: 0, searchUnavailable: false);
+  Future<WikiSearchResult> search(
+    String query, {
+    int? limit,
+    CancelToken? cancelToken,
+  }) async => WikiSearchResult(
+    query: query,
+    items: const [],
+    total: 0,
+    searchUnavailable: false,
+  );
 }
 
 class _RootScrollController extends GfScrollToTopController {
@@ -1722,6 +1730,14 @@ Map<String, dynamic> draftsPayloadJson({required String editUrl}) {
   };
 }
 
+/// Picker cells show only the image; their accessible label names them.
+Finder _pickerSticker(String label) => find.byWidgetPredicate(
+  (widget) =>
+      widget is Semantics &&
+      widget.properties.label == label &&
+      widget.child is InkWell,
+);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -2700,8 +2716,14 @@ void main() {
       await tester.tap(find.text('在课程中搜索“$query”'));
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/');
-      expect(tester.widget<GfTabBar>(find.byType(GfTabBar)).selected, 'courses');
-      expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, query);
+      expect(
+        tester.widget<GfTabBar>(find.byType(GfTabBar)).selected,
+        'courses',
+      );
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        query,
+      );
       await tester.tap(find.byTooltip('清空搜索'));
       await tester.pumpAndSettle();
       expect(find.text('最近搜索'), findsOneWidget);
@@ -3418,13 +3440,13 @@ void main() {
             tester.getBottomLeft(field).dy,
             lessThan(tester.getTopLeft(find.byType(StickerPicker)).dy),
           );
-          await tester.ensureVisible(find.text('Smile').last);
+          await tester.ensureVisible(_pickerSticker('Smile').last);
           await tester.pumpAndSettle();
-          await tester.tap(find.text('Smile').last);
+          await tester.tap(_pickerSticker('Smile').last);
           await tester.pumpAndSettle();
-          await tester.ensureVisible(find.text('Smile').last);
+          await tester.ensureVisible(_pickerSticker('Smile').last);
           await tester.pumpAndSettle();
-          await tester.tap(find.text('Smile').last);
+          await tester.tap(_pickerSticker('Smile').last);
           await tester.pumpAndSettle();
           expect(
             controller.text,
@@ -3436,6 +3458,9 @@ void main() {
             findsNWidgets(2),
           );
           await tester.drag(find.byType(StickerPicker), const Offset(0, 300));
+          await tester.pumpAndSettle();
+          // Search starts as an icon in the picker's header.
+          await tester.tap(find.byTooltip('搜索全部表情'));
           await tester.pumpAndSettle();
           final search = find.descendant(
             of: find.byType(StickerPicker),
@@ -3635,9 +3660,9 @@ void main() {
       await tester.pumpAndSettle();
       final caret = controller.selection.baseOffset;
       final before = controller.text;
-      await tester.ensureVisible(find.text('Smile').last);
+      await tester.ensureVisible(_pickerSticker('Smile').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Smile').last);
+      await tester.tap(_pickerSticker('Smile').last);
       await tester.pumpAndSettle();
       expect(
         controller.text,
@@ -5573,7 +5598,7 @@ void main() {
         overrides: [
           tokenStorageProvider.overrideWithValue(storage),
           pageRepositoryProvider.overrideWithValue(pageRepo),
-        wikiRepositoryProvider.overrideWithValue(_EmptyWikiSearch(client)),
+          wikiRepositoryProvider.overrideWithValue(_EmptyWikiSearch(client)),
           topicRepositoryProvider.overrideWithValue(
             PagingTopicRepository(client),
           ),
@@ -6698,7 +6723,7 @@ void main() {
         overrides: [
           tokenStorageProvider.overrideWithValue(realStorage),
           pageRepositoryProvider.overrideWithValue(pageRepo),
-        wikiRepositoryProvider.overrideWithValue(_EmptyWikiSearch(client)),
+          wikiRepositoryProvider.overrideWithValue(_EmptyWikiSearch(client)),
           topicRepositoryProvider.overrideWithValue(
             PagingTopicRepository(client),
           ),

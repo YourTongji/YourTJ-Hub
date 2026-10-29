@@ -97,6 +97,14 @@ class _Repository extends StickerRepository {
   }
 }
 
+/// Picker cells show only the image; their accessible label names them.
+Finder _pickerSticker(String label) => find.byWidgetPredicate(
+  (widget) =>
+      widget is Semantics &&
+      widget.properties.label == label &&
+      widget.child is InkWell,
+);
+
 void main() {
   test(
     'busy library rejects every skipped mutation instead of succeeding',
@@ -144,7 +152,7 @@ void main() {
     await tester.tap(find.text('Official'));
     await tester.pumpAndSettle();
     // Holding opens the preview bubble; the secondary entry keeps the menu.
-    await tester.tap(find.text('Smile'), buttons: kSecondaryButton);
+    await tester.tap(_pickerSticker('Smile'), buttons: kSecondaryButton);
     await tester.pumpAndSettle();
     expect(find.text('Save to my stickers'), findsOneWidget);
     repository.pendingSave = Completer();
@@ -521,7 +529,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     expect(tester.takeException(), isNull);
     await tester.scrollUntilVisible(
-      find.text('Smile'),
+      _pickerSticker('Smile'),
       80,
       scrollable: find
           .descendant(
@@ -531,7 +539,7 @@ void main() {
           .first,
     );
     await tester.pump();
-    await tester.tap(find.text('Smile').last);
+    await tester.tap(_pickerSticker('Smile').last);
     expect(inserted, [official.token]);
   });
 

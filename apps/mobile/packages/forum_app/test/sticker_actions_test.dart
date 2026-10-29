@@ -130,6 +130,14 @@ Future<StickerCollection> _pump(
   return state;
 }
 
+/// Picker cells show only the image; their accessible label names them.
+Finder _pickerSticker(String label) => find.byWidgetPredicate(
+  (widget) =>
+      widget is Semantics &&
+      widget.properties.label == label &&
+      widget.child is InkWell,
+);
+
 void main() {
   testWidgets('embedded sticker copies expose a single outer button label', (
     tester,
@@ -152,7 +160,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Official'));
     await tester.pumpAndSettle();
     expect(
-      tester.getSemantics(find.text('Dance')),
+      tester.getSemantics(_pickerSticker('Dance')),
       matchesSemantics(
         isButton: true,
         isFocusable: true,
@@ -314,7 +322,7 @@ void main() {
       await tester.tap(find.widgetWithText(TextButton, tab));
       await tester.pumpAndSettle();
       final gesture = await tester.startGesture(
-        tester.getCenter(find.text('Dance')),
+        tester.getCenter(_pickerSticker('Dance')),
       );
       await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
       await tester.pump();
@@ -329,7 +337,7 @@ void main() {
       expect(state.recent, isEmpty);
     }
     // Pointer and assistive users keep the preview and save menu.
-    await tester.tap(find.text('Dance'), buttons: kSecondaryButton);
+    await tester.tap(_pickerSticker('Dance'), buttons: kSecondaryButton);
     await tester.pumpAndSettle();
     await tester.tap(find.text('View larger'));
     await tester.pump();
@@ -339,10 +347,54 @@ void main() {
     ]);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Dance'));
+    await tester.tap(_pickerSticker('Dance'));
     await tester.pumpAndSettle();
     expect(inserted, [_item.token]);
     expect(state.recent, [_item]);
+  });
+
+  testWidgets('search opens from an icon and covers every tab and pack', (
+    tester,
+  ) async {
+    const wave = StickerItemPayload(
+      name: 'wave',
+      displayName: 'Wave',
+      url: 'https://example.test/wave.gif',
+    );
+    final inserted = <String>[];
+    await _pump(
+      tester,
+      _Repository()
+        ..members = [_item, wave]
+        ..packs = [_pack],
+      child: Scaffold(
+        body: SizedBox(
+          height: StickerPicker.comfortableHeight,
+          child: StickerPicker(onInsert: inserted.add),
+        ),
+      ),
+    );
+    expect(find.byType(GfSearchField), findsNothing);
+    expect(find.byTooltip('Manage my stickers'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Search all stickers'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextButton, 'Official'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'pack one');
+    await tester.pumpAndSettle();
+    // A subscribed pack is searchable without opening its tab first.
+    await tester.tap(_pickerSticker('Pack One 1'));
+    expect(inserted, [_marketItem.token]);
+
+    await tester.enterText(find.byType(TextField), 'wav');
+    await tester.pumpAndSettle();
+    expect(_pickerSticker('Wave'), findsOneWidget);
+    expect(_pickerSticker('Dance'), findsNothing);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.byType(GfSearchField), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Official'), findsOneWidget);
   });
 
   testWidgets('sliding while holding switches the previewed sticker', (
@@ -375,12 +427,12 @@ void main() {
         )
         .url;
     final gesture = await tester.startGesture(
-      tester.getCenter(find.text('Dance')),
+      tester.getCenter(_pickerSticker('Dance')),
     );
     await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
     await tester.pump();
     expect(previewed(), _item.url);
-    await gesture.moveTo(tester.getCenter(find.text('Wave')));
+    await gesture.moveTo(tester.getCenter(_pickerSticker('Wave')));
     await tester.pump();
     expect(previewed(), wave.url);
     await gesture.cancel();
@@ -409,7 +461,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Official'));
     await tester.pumpAndSettle();
     final gesture = await tester.startGesture(
-      tester.getCenter(find.text('Dance')),
+      tester.getCenter(_pickerSticker('Dance')),
     );
     await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
     await tester.pump();
@@ -439,7 +491,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Packs'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(ChoiceChip, 'Pack One'), findsOneWidget);
-    await tester.tap(find.text('Pack One 1'));
+    await tester.tap(_pickerSticker('Pack One 1'));
     await tester.pumpAndSettle();
     expect(inserted, [_marketItem.token]);
   });

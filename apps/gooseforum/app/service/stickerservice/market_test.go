@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -22,6 +23,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 )
 
 // fakeMarket serves fixed upstream responses keyed by absolute URL.
@@ -107,7 +109,7 @@ func setupMarketTest(t *testing.T) *fakeMarket {
 		t.Fatal(err)
 	}
 	clean := func() {
-		for _, model := range []any{&sticker.MarketTopic{}, &sticker.MarketPack{}, &sticker.MarketItem{}, &sticker.PackSubscription{}, &sticker.LibraryOwner{}} {
+		for _, model := range []any{&sticker.MarketTopic{}, &sticker.MarketPack{}, &sticker.MarketItem{}, &sticker.PackSubscription{}, &sticker.LibraryOwner{}, &sticker.Alias{}} {
 			conn.Where("1 = 1").Delete(model)
 		}
 		conn.Where("pack = ?", sticker.PackMarket).Delete(&sticker.Entity{})
@@ -386,13 +388,13 @@ func TestMarketImportDeduplicatesContentAndPublishes(t *testing.T) {
 	}
 
 	// Withdrawing one sticker stops it everywhere, like a disabled official one.
-	if err := SetMarketStickerEnabled(ctx, first.ID, false); err != nil {
+	if _, _, err := SaveMarketSticker(ctx, SaveMarketStickerInput{StickerID: first.ID, IsEnabled: false}); err != nil {
 		t.Fatal(err)
 	}
 	if resolved, _ := Resolve([]string{first.Name}); len(resolved) != 0 {
 		t.Fatal("a withdrawn market sticker still resolves")
 	}
-	if err := SetMarketStickerEnabled(ctx, first.ID+100000, false); !errors.Is(err, ErrNotFound) {
+	if _, _, err := SaveMarketSticker(ctx, SaveMarketStickerInput{StickerID: first.ID + 100000}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("toggle unknown sticker = %v", err)
 	}
 
@@ -538,5 +540,138 @@ func TestStoreMarketAssetConcurrentWritersShareOneObject(t *testing.T) {
 	}
 	if got := marketFileCount(t); got != 1 {
 		t.Fatalf("concurrent writers stored %d objects", got)
+	}
+}
+
+func TestMarketStickerRenameKeepsGeneratedTokenResolvable(t *testing.T) {
+	fake := setupMarketTest(t)
+	ctx := context.Background()
+	fake.catalog(marketGroup("group-1", "Pack One", 2))
+	if _, err := SyncMarketCatalog(ctx); err != nil {
+		t.Fatal(err)
+	}
+	fake.json[testMarketBase+"group-1.json"] = `{"id":"group-1","emojis":[{"id":"e1","url":"https://cdn3.ldstatic.com/a.png"},{"id":"e2","url":"https://cdn3.ldstatic.com/b.png"}]}`
+	fake.images["https://cdn3.ldstatic.com/a.png"] = marketPNG(t, color.RGBA{R: 255, A: 255})
+	fake.images["https://cdn3.ldstatic.com/b.png"] = marketPNG(t, color.RGBA{G: 255, A: 255})
+	pack := runQueuedMarketImport(t, packByUpstream(t, "group-1").Id)
+	detail, err := AdminMarketPackItems(pack.Id)
+	if err != nil || len(detail.Items) != 2 {
+		t.Fatalf("pack items = %#v, %v", detail, err)
+	}
+	first, second := detail.Items[0], detail.Items[1]
+
+	before, saved, err := SaveMarketSticker(ctx, SaveMarketStickerInput{StickerID: first.StickerID, Name: " 开心猫 ", IsEnabled: true})
+	if err != nil || before.Name != first.Name || saved.Name != "开心猫" || saved.DisplayName != "" {
+		t.Fatalf("rename = %#v -> %#v, %v", before, saved, err)
+	}
+	resolved, _ := Resolve([]string{first.Name, "开心猫"})
+	if len(resolved) != 2 || resolved[0].ID != first.StickerID || resolved[1].ID != first.StickerID {
+		t.Fatalf("resolved after rename = %#v", resolved)
+	}
+	if urls, _ := ResolveURLs([]string{first.Name}); urls[first.Name] == "" {
+		t.Fatal("server rendering lost the generated token after a rename")
+	}
+	detail, _ = AdminMarketPackItems(pack.Id)
+	if detail.Items[0].Name != "开心猫" || len(detail.Items[0].Aliases) != 1 || detail.Items[0].Aliases[0] != first.Name {
+		t.Fatalf("renamed item = %#v", detail.Items[0])
+	}
+
+	// Names stay unique across current and previous names of every sticker.
+	if _, _, err := SaveMarketSticker(ctx, SaveMarketStickerInput{StickerID: second.StickerID, Name: "开心猫", IsEnabled: true}); !errors.Is(err, ErrNameExists) {
+		t.Fatalf("rename to a taken name = %v", err)
+	}
+	if _, _, err := SaveMarketSticker(ctx, SaveMarketStickerInput{StickerID: second.StickerID, Name: first.Name, IsEnabled: true}); !errors.Is(err, ErrNameReserved) {
+		t.Fatalf("rename to another sticker's previous name = %v", err)
+	}
+	if _, _, err := SaveMarketSticker(ctx, SaveMarketStickerInput{StickerID: second.StickerID, Name: "bad name!", IsEnabled: true}); !errors.Is(err, ErrNameInvalid) {
+		t.Fatalf("rename to an invalid name = %v", err)
+	}
+
+	// Re-importing never recreates the generated token of a renamed sticker.
+	db.Connect().Where("pack_id = ?", pack.Id).Delete(&sticker.MarketItem{})
+	pack = runQueuedMarketImport(t, pack.Id)
+	var count int64
+	db.Connect().Model(&sticker.Entity{}).Where("pack = ?", sticker.PackMarket).Count(&count)
+	if pack.ItemCount != 2 || count != 2 {
+		t.Fatalf("re-import after rename: items %d, stickers %d", pack.ItemCount, count)
+	}
+}
+
+func TestMarketCoverPreviewStoresOneThumbnail(t *testing.T) {
+	fake := setupMarketTest(t)
+	ctx := context.Background()
+	fake.catalog(
+		`{"id":"group-icon","name":"Icon","topic":"anime","emojiCount":1,"icon":"https://cdn3.ldstatic.com/icon.png"}`,
+		marketGroup("group-plain", "Plain", 1),
+		marketGroup("group-broken", "Broken", 1),
+	)
+	if _, err := SyncMarketCatalog(ctx); err != nil {
+		t.Fatal(err)
+	}
+	big := image.NewNRGBA(image.Rect(0, 0, 640, 320))
+	for i := range big.Pix {
+		big.Pix[i] = 200
+	}
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, big); err != nil {
+		t.Fatal(err)
+	}
+	fake.images["https://cdn3.ldstatic.com/icon.png"] = encoded.Bytes()
+	fake.json[testMarketBase+"group-plain.json"] = `{"id":"group-plain","emojis":[{"id":"p1","url":"https://cdn3.ldstatic.com/first.png"}]}`
+	fake.images["https://cdn3.ldstatic.com/first.png"] = marketPNG(t, color.RGBA{B: 255, A: 255})
+
+	withIcon := packByUpstream(t, "group-icon")
+	if got := marketPackIconURL(withIcon); got != MarketCoverPreviewPath+"?id="+strconv.FormatUint(withIcon.Id, 10) {
+		t.Fatalf("icon url before preview = %q", got)
+	}
+	name, err := MarketCoverPreview(ctx, withIcon.Id)
+	if err != nil || !strings.HasPrefix(name, MarketAssetPrefix) || !strings.HasSuffix(name, ".png") {
+		t.Fatalf("cover preview = %q, %v", name, err)
+	}
+	if again, err := MarketCoverPreview(ctx, withIcon.Id); err != nil || again != name || fake.callCount("https://cdn3.ldstatic.com/icon.png") != 1 {
+		t.Fatalf("second preview = %q, %v after %d fetches", again, err, fake.callCount("https://cdn3.ldstatic.com/icon.png"))
+	}
+	stored, err := filedata.GetFileByName(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	thumb, err := png.DecodeConfig(bytes.NewReader(stored.Data))
+	if err != nil || thumb.Width != marketCoverSide || thumb.Height != marketCoverSide/2 {
+		t.Fatalf("thumbnail = %#v, %v", thumb, err)
+	}
+	withIcon = packByUpstream(t, "group-icon")
+	if marketPackIconURL(withIcon) != storageservice.PublicAccessPath(name) {
+		t.Fatalf("icon url after preview = %q", marketPackIconURL(withIcon))
+	}
+
+	// Without an upstream icon the first sticker becomes the cover.
+	if name, err := MarketCoverPreview(ctx, packByUpstream(t, "group-plain").Id); err != nil || name == "" {
+		t.Fatalf("first-sticker cover = %q, %v", name, err)
+	}
+
+	// A failure is remembered instead of refetched on every catalog load.
+	broken := packByUpstream(t, "group-broken")
+	if _, err := MarketCoverPreview(ctx, broken.Id); err == nil {
+		t.Fatal("a pack without any image produced a cover")
+	}
+	calls := fake.callCount(testMarketBase + "group-broken.json")
+	if _, err := MarketCoverPreview(ctx, broken.Id); err == nil || fake.callCount(testMarketBase+"group-broken.json") != calls {
+		t.Fatal("a failed cover was fetched again immediately")
+	}
+
+	// A changed upstream icon replaces the stored thumbnail on the next sync.
+	fake.catalog(
+		`{"id":"group-icon","name":"Icon","topic":"anime","emojiCount":1,"icon":"https://cdn3.ldstatic.com/icon-2.png"}`,
+		marketGroup("group-plain", "Plain", 1),
+		marketGroup("group-broken", "Broken", 1),
+	)
+	if _, err := SyncMarketCatalog(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if pack := packByUpstream(t, "group-icon"); pack.IconFile != "" {
+		t.Fatalf("stale thumbnail kept after icon change: %q", pack.IconFile)
+	}
+	if pack := packByUpstream(t, "group-plain"); pack.IconFile == "" {
+		t.Fatal("an unchanged pack lost its thumbnail on sync")
 	}
 }

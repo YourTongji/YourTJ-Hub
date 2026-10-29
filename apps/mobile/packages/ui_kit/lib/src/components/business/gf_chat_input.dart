@@ -24,6 +24,7 @@ class GfChatInput extends StatefulWidget {
     this.canSend = true,
     this.clearOnSend = true,
     this.accessoryBuilder,
+    this.accessoryMinHeight = 0,
     this.previewBuilder,
     this.onAttach,
     this.attachLabel,
@@ -47,6 +48,9 @@ class GfChatInput extends StatefulWidget {
 
   /// App-owned stickers use the same selection-preserving insertion callback.
   final Widget Function(ValueChanged<String> insert)? accessoryBuilder;
+
+  /// Content height the accessory needs; see [GfComposerPanel.minHeight].
+  final double accessoryMinHeight;
 
   /// Optional app-owned rendering of the current draft above the input.
   final Widget Function(String text)? previewBuilder;
@@ -420,6 +424,7 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
                           maxHeight: constraints.maxHeight * .5,
                         ),
                         child: GfComposerPanel(
+                          minHeight: widget.accessoryMinHeight,
                           child:
                               widget.accessoryBuilder?.call(_insertEmoji) ??
                               GridView.extent(

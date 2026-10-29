@@ -2,10 +2,15 @@ package api
 
 import (
 	"errors"
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 )
 
 // StickerMarketQuery pages the published market (issue #1429).
@@ -91,6 +96,8 @@ type AdminStickerMarketPackReq struct {
 
 type AdminStickerMarketItemReq struct {
 	StickerID uint64 `json:"stickerId"`
+	// Name renames the sticker when set; its previous name keeps resolving.
+	Name      string `json:"name"`
 	IsEnabled bool   `json:"isEnabled"`
 }
 
@@ -169,15 +176,42 @@ func AdminStickerMarketPackSave(req component.BetterRequest[stickerservice.SaveM
 	return component.SuccessResponse(pack)
 }
 
-// AdminStickerMarketItemSave withdraws or restores one market sticker.
+// AdminStickerMarketItemSave withdraws, restores or renames one market sticker.
 func AdminStickerMarketItemSave(req component.BetterRequest[AdminStickerMarketItemReq]) component.Response {
-	if err := stickerservice.SetMarketStickerEnabled(betterRequestContext(req), req.Params.StickerID, req.Params.IsEnabled); err != nil {
+	before, saved, err := stickerservice.SaveMarketSticker(betterRequestContext(req), stickerservice.SaveMarketStickerInput{
+		StickerID: req.Params.StickerID, Name: req.Params.Name, IsEnabled: req.Params.IsEnabled,
+	})
+	if errors.Is(err, stickerservice.ErrNameInvalid) || errors.Is(err, stickerservice.ErrNameExists) || errors.Is(err, stickerservice.ErrNameReserved) {
+		return stickerWriteError(err, component.MessageOperationFailed)
+	}
+	if err != nil {
 		return adminStickerMarketError(err)
 	}
-	code := "admin.opt.stickerMarket.stickerDisabled"
-	if req.Params.IsEnabled {
-		code = "admin.opt.stickerMarket.stickerEnabled"
+	if saved.Name != before.Name {
+		optlogger.UserOptCode(req.UserId, optlogger.ManageStickerMarket, saved.Id, "admin.opt.stickerMarket.stickerRenamed", optlogger.MessageParams{"from": before.Name, "to": saved.Name})
 	}
-	optlogger.UserOptCode(req.UserId, optlogger.ManageStickerMarket, req.Params.StickerID, code, optlogger.MessageParams{"id": req.Params.StickerID})
+	if saved.IsEnabled != before.IsEnabled {
+		code := "admin.opt.stickerMarket.stickerDisabled"
+		if saved.IsEnabled {
+			code = "admin.opt.stickerMarket.stickerEnabled"
+		}
+		optlogger.UserOptCode(req.UserId, optlogger.ManageStickerMarket, saved.Id, code, optlogger.MessageParams{"id": saved.Id})
+	}
 	return component.SuccessResponse(true)
+}
+
+// AdminStickerMarketCover redirects to the stored thumbnail of a pack's
+// upstream cover, creating it on first request, so the admin catalog shows
+// covers before import without the browser contacting the upstream host.
+func AdminStickerMarketCover(c *gin.Context) {
+	packID, _ := strconv.ParseUint(c.Query("id"), 10, 64)
+	name, err := stickerservice.MarketCoverPreview(c.Request.Context(), packID)
+	if err != nil {
+		// Failures are remembered briefly server-side; let the browser back off too.
+		c.Header("Cache-Control", "private, max-age=600")
+		c.Status(http.StatusNotFound)
+		return
+	}
+	c.Header("Cache-Control", "private, max-age=86400")
+	c.Redirect(http.StatusFound, storageservice.PublicAccessPath(name))
 }

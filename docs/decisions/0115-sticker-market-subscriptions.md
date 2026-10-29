@@ -40,8 +40,13 @@ Choose option 1.
   body limit; index redirects must stay on the HTTPS base host and image redirects on allowed image
   hosts. The market client dials validated IPv4 addresses first and falls back to the next validated
   address, because image CDNs whose IPv6 path connects but stalls otherwise time out every download.
-  Sync also keeps each pack's upstream cover (an allow-listed HTTPS image or a short text cover);
-  only the admin catalog shows it, from the administrator's browser, until a local cover exists.
+  Sync also keeps each pack's upstream cover (an allow-listed HTTPS image or a short text cover).
+- **Catalog covers.** The admin catalog never loads upstream images in the browser. A pack without
+  a stored cover points at `sticker-market-cover?id=<pack>`; the first request fetches the upstream
+  cover, or the pack's first sticker when it has none, stores one 160 px PNG thumbnail and redirects
+  to it. One fetch runs per pack and at most four at a time; a failure is remembered for 10 minutes.
+  Thumbnails are publicly readable but not cached publicly, and a changed upstream cover drops the
+  stored one at the next sync.
 - **Import.** Importing a pack queues one `sticker-market-import` task. The worker downloads at most
   500 images per pack, checks the actual bytes against the upload image policy and a 4096 px side
   limit, and stores each image once as `stickers/market/<sha256>.<ext>`. HEIC and TIFF stay
@@ -62,9 +67,12 @@ Choose option 1.
   updates the ready and failed counts after every item, so the admin list shows live progress; a
   retry clears the previous failures first. When every item fails for one reason, that reason becomes
   the pack's error. A pack can be published once it holds at least one imported sticker.
-- **Publication.** Administrators publish, hide and order packs, and disable single stickers. Hidden
-  packs disappear from browsing and pickers, while their stickers keep resolving in existing content;
-  a disabled sticker stops resolving, like a disabled official sticker.
+- **Publication.** Administrators publish, hide and order packs, and disable or rename single
+  stickers. Renaming follows [0114](0114-sticker-rename-aliases.md): the generated `m_` token stays
+  as an alias, so existing content keeps resolving, and a re-import matches the alias instead of
+  creating a duplicate. Hidden packs disappear from browsing and pickers, while their stickers keep
+  resolving in existing content; a disabled sticker stops resolving, like a disabled official
+  sticker.
 - **Subscriptions.** Anyone can browse published packs; adding one requires sign-in. An account holds
   at most 50 packs in `user_sticker_packs`, separate from the 200-item personal library. Account
   closure removes subscriptions.

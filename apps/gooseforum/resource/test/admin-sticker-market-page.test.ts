@@ -131,22 +131,24 @@ describe('sticker market management page', () => {
     expect(page.find('[role="progressbar"]').exists()).toBe(false)
   })
 
-  test('shows the upstream cover before import and falls back when it fails', async () => {
+  test('shows a server-made cover before import and falls back when it fails', async () => {
     vi.mocked(getStickerMarket).mockResolvedValue(marketPage([
-      pack({ id: 9203, status: 'new', coverUrl: '', iconUrl: 'https://cdn3.ldstatic.com/icon.webp' }),
-      pack({ id: 9204, status: 'new', coverUrl: '', iconUrl: '', iconText: '🌿' }),
-      pack({ id: 9205, coverUrl: '/file/img/stickers/market/b.png', iconUrl: 'https://cdn3.ldstatic.com/other.webp' }),
+      pack({ id: 9203, status: 'new', coverUrl: '', iconUrl: '/api/admin/sticker-market-cover?id=9203' }),
+      pack({ id: 9204, status: 'new', coverUrl: '', iconUrl: '/api/admin/sticker-market-cover?id=9204', iconText: '🌿' }),
+      pack({ id: 9205, coverUrl: '/file/img/stickers/market/b.png', iconUrl: '/file/img/stickers/market/icon.png' }),
     ]))
     const { page } = mountPage()
     await flushPromises()
     // Emoji text covers render through Twemoji; only the cover images carry the size class.
-    const images = page.findAll('tbody img.size-10')
-    expect(images.map((image) => image.attributes('src'))).toEqual(['https://cdn3.ldstatic.com/icon.webp', '/file/img/stickers/market/b.png'])
-    expect(images[0].attributes('referrerpolicy')).toBe('no-referrer')
+    const covers = () => page.findAll('tbody img.size-10').map((image) => image.attributes('src'))
+    expect(covers()).toEqual(['/api/admin/sticker-market-cover?id=9203', '/api/admin/sticker-market-cover?id=9204', '/file/img/stickers/market/b.png'])
+
+    await page.findAll('tbody img.size-10')[1].trigger('error')
+    expect(covers()).toEqual(['/api/admin/sticker-market-cover?id=9203', '/file/img/stickers/market/b.png'])
     expect(page.find('tbody img[src="/twemoji/72x72/1f33f.png"]').exists()).toBe(true)
 
-    await images[0].trigger('error')
-    expect(page.findAll('tbody img.size-10').map((image) => image.attributes('src'))).toEqual(['/file/img/stickers/market/b.png'])
+    await page.findAll('tbody img.size-10')[0].trigger('error')
+    expect(covers()).toEqual(['/file/img/stickers/market/b.png'])
   })
 
   test('publishing saves the pack and confirms the change', async () => {
@@ -182,8 +184,8 @@ describe('sticker market management page', () => {
     vi.mocked(getStickerMarketPack).mockResolvedValue({
       pack: pack(),
       items: [
-        { upstreamId: 'e1', stickerId: 9301, name: 'm_a', url: '/a.png', isEnabled: true, error: '' },
-        { upstreamId: 'e3', stickerId: 0, name: '', url: '', isEnabled: false, error: 'blocked' },
+        { upstreamId: 'e1', stickerId: 9301, name: 'm_a', aliases: [], url: '/a.png', isEnabled: true, error: '' },
+        { upstreamId: 'e3', stickerId: 0, name: '', aliases: [], url: '', isEnabled: false, error: 'blocked' },
       ],
     })
     vi.mocked(saveStickerMarketItem).mockResolvedValue(true)
@@ -195,7 +197,45 @@ describe('sticker market management page', () => {
     expect(body.text()).toContain('stickerMarketItemNotImported{"reason":"stickerMarketReasonBlocked"}')
     await body.get('[role="dialog"] [role="switch"]').trigger('click')
     await flushPromises()
-    expect(saveStickerMarketItem).toHaveBeenCalledWith(9301, false)
+    expect(saveStickerMarketItem).toHaveBeenCalledWith({ stickerId: 9301, isEnabled: false })
     expect(adminToast.success).toHaveBeenCalledWith('stickerMarketItemWithdrawn')
+  })
+
+  test('renaming a sticker inline keeps the generated name as a previous name', async () => {
+    const generated = 'm_' + 'a'.repeat(40)
+    vi.mocked(getStickerMarket).mockResolvedValue(marketPage([pack()]))
+    vi.mocked(getStickerMarketPack).mockResolvedValue({
+      pack: pack(),
+      items: [{ upstreamId: 'e1', stickerId: 9301, name: generated, aliases: [], url: '/a.png', isEnabled: true, error: '' }],
+    })
+    vi.mocked(saveStickerMarketItem)
+      .mockRejectedValueOnce(Object.assign(new Error('x'), { messageCode: 'admin.sticker.nameExists' }))
+      .mockResolvedValueOnce(true)
+    const { page, body } = mountPage()
+    await flushPromises()
+    await page.findAll('button').find(button => button.attributes('title') === 'stickerMarketViewStickers')!.trigger('click')
+    await flushPromises()
+
+    await body.get(`[role="dialog"] button[title="${generated}"]`).trigger('click')
+    await flushPromises()
+    const field = body.get<HTMLInputElement>('#sticker-market-name-9301')
+    // A generated token is not a useful starting point; the field starts empty.
+    expect(field.element.value).toBe('')
+    expect(document.activeElement).toBe(field.element)
+
+    await field.setValue('happy_cat')
+    await body.get('[role="dialog"] form').trigger('submit')
+    await flushPromises()
+    expect(saveStickerMarketItem).toHaveBeenLastCalledWith({ stickerId: 9301, name: 'happy_cat', isEnabled: true })
+    expect(body.get('[role="alert"]').text()).toBe('stickerMarketNameExists')
+    expect(field.attributes('aria-invalid')).toBe('true')
+    expect(adminToast.error).not.toHaveBeenCalled()
+
+    await body.get('[role="dialog"] form').trigger('submit')
+    await flushPromises()
+    expect(adminToast.success).toHaveBeenCalledWith('stickerMarketRenamed{"name":"happy_cat"}')
+    expect(body.find('#sticker-market-name-9301').exists()).toBe(false)
+    expect(body.get('[role="dialog"] button[title="happy_cat"]').exists()).toBe(true)
+    expect(body.text()).toContain('stickerMarketPreviousNames')
   })
 })

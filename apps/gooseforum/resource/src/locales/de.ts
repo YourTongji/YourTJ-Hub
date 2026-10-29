@@ -4092,6 +4092,7 @@ export default {
       stickerMarketHidden: "Sticker-Paket „{pack}“ ausgeblendet",
       stickerMarketStickerDisabled: "Markt-Sticker {id} zurückgezogen",
       stickerMarketStickerEnabled: "Markt-Sticker {id} wiederhergestellt",
+      stickerMarketStickerRenamed: "Markt-Sticker {from} in {to} umbenannt",
     },
     status: {
       blocked: 'gesperrt',
