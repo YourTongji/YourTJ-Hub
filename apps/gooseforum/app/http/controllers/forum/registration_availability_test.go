@@ -6,6 +6,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/gin-gonic/gin"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 )
@@ -45,7 +46,7 @@ func TestLoginPagePublishesOnlyRegistrationAvailability(t *testing.T) {
 			}
 			hotdataserve.ClearSecuritySettingsConfigCache()
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
-			c.Request = httptest.NewRequest("GET", "/login?register=true", nil)
+			c.Request = httptest.NewRequest(http.MethodGet, "/login?register=true", nil)
 			encoded, err := json.Marshal(buildLoginPageProps(c))
 			if err != nil {
 				t.Fatal(err)
