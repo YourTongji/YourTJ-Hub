@@ -3,6 +3,7 @@ package controllers
 import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/gin-gonic/gin"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -34,7 +35,7 @@ func TestActivationContinuationBrowserFixtures(t *testing.T) {
 	for _, language := range []string{"zh", "en", "ja", "de"} {
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
-		c.Request = httptest.NewRequest("GET", "/activate?redirect=%2Fpublish%3Fid%3D42", nil)
+		c.Request = httptest.NewRequest(http.MethodGet, "/activate?redirect=%2Fpublish%3Fid%3D42", nil)
 		c.Request.Header.Set("Accept-Language", language)
 		renderActivationSuccess(c, &users.EntityComplete{Username: "verified_student"})
 		if err := os.WriteFile(filepath.Join(dir, language+".html"), rec.Body.Bytes(), 0600); err != nil {
