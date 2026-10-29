@@ -56,7 +56,7 @@ after(async () => { await browser?.close(); await server?.close() })
 async function openFeed({ resync = false } = {}) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
   page.setDefaultTimeout(10000)
-  const state = { firstPageRequests: 0, categoryRequests: 0, cursors: [], viewerId: 12 }
+  const state = { firstPageRequests: 0, categoryRequests: 0, cursors: [], viewerId: 12, removed: [] }
   await page.addInitScript(() => {
     class ControlledIntersectionObserver {
       observe() {}
@@ -76,6 +76,13 @@ async function openFeed({ resync = false } = {}) {
   await page.route('**/*', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
+    if (url.pathname === '/api/forum/feed/reconcile') {
+      const ids = request.postDataJSON().topicIds
+      return route.fulfill({ json: { code: 0, result: {
+        viewerId: state.viewerId, topics: [],
+        removedIds: ids.filter((id) => state.removed.includes(id)), seenProofs: [], available: true,
+      } } })
+    }
     if (!request.headers()['x-goose-page']) return route.continue()
     if (/^\/p\/post\/\d+$/.test(url.pathname)) {
       return route.fulfill({ json: { component: 'topic.detail', props: {}, layout, url: url.pathname, version: '1.0' } })
@@ -224,3 +231,66 @@ test('return after account change discards the previous account feed', async () 
     assert.equal(await page.locator('[data-feed-id="60"]').count(), 0)
   } finally { await page.close() }
 })
+
+test('SSE after an account change replaces rows and resets the old cursor', async () => {
+  const { page, state } = await openFeed()
+  try {
+    await loadThreePages(page)
+    state.viewerId = 13
+    await page.evaluate(() => window.dispatchFeedHello())
+    await page.locator('[data-feed-id="520"]').waitFor()
+    assert.equal(await page.locator('[data-feed-id]').count(), 20)
+    assert.equal(await page.locator('[data-feed-id="60"]').count(), 0)
+    await page.getByRole('button', { name: '加载更多', exact: true }).click()
+    await page.waitForFunction(() => document.querySelectorAll('[data-feed-id]').length > 20)
+    assert.equal(state.cursors.at(-1), 'next-20')
+  } finally { await page.close() }
+})
+
+test('continuation after account change reloads the new account first page', async () => {
+  const { page, state } = await openFeed()
+  try {
+    await loadThreePages(page)
+    state.viewerId = 13
+    await page.getByRole('button', { name: '加载更多', exact: true }).click()
+    await page.locator('[data-feed-id="520"]').waitFor()
+    assert.equal(await page.locator('[data-feed-id]').count(), 20)
+    assert.equal(await page.locator('[data-feed-id="60"]').count(), 0)
+  } finally { await page.close() }
+})
+
+test('an account change observed by a background probe cannot merge old rows on SSE', async () => {
+  const { page, state } = await openFeed()
+  try {
+    await loadThreePages(page)
+    state.viewerId = 13
+    await page.evaluate(async () => {
+      const { fetchPage } = await import('/assets/src/runtime/router.ts')
+      await fetchPage(new URL('/?sort=latest', window.location.origin), true)
+    })
+    await page.evaluate(() => window.dispatchFeedHello())
+    await page.locator('[data-feed-id="520"]').waitFor()
+    assert.equal(await page.locator('[data-feed-id]').count(), 20)
+    assert.equal(await page.locator('[data-feed-id="60"]').count(), 0)
+  } finally { await page.close() }
+})
+
+for (const trigger of ['back', 'SSE']) {
+  test(`a removed cached topic disappears on ${trigger} without discarding later pages`, async () => {
+    const { page, state } = await openFeed()
+    try {
+      await loadThreePages(page)
+      if (trigger === 'back') {
+        await page.locator('[data-feed-id="51"] a[href="/p/post/51"]').first().click()
+        await page.getByTestId('detail').waitFor()
+      }
+      state.removed = [51]
+      if (trigger === 'back') await page.goBack()
+      else await page.evaluate(() => window.dispatchFeedHello())
+      await page.locator('[data-feed-id="60"]').waitFor()
+      await page.waitForFunction(() => !document.querySelector('[data-feed-id="51"]'))
+      assert.equal(await page.locator('[data-feed-id="60"]').count(), 1)
+      assert.equal(await page.locator('[data-feed-id]').count(), 59)
+    } finally { await page.close() }
+  })
+}
