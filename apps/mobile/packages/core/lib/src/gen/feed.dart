@@ -108,9 +108,13 @@ class FeedRefreshRequest {
 }
 
 class FeedReconcileRequest {
-  const FeedReconcileRequest(this.topicIds);
+  const FeedReconcileRequest(this.topicIds, {this.includeOwn = false});
   final List<int> topicIds;
-  Map<String, dynamic> toJson() => {'topicIds': topicIds};
+  final bool includeOwn;
+  Map<String, dynamic> toJson() => {
+    'topicIds': topicIds,
+    if (includeOwn) 'includeOwn': true,
+  };
 }
 
 class FeedSessionResult {

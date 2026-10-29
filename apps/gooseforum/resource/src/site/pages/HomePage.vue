@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { confirmPendingSeen, feedAccount, observeFeedRows, seenConfirmationLost } from "@/runtime/feed-telemetry"
-import { refreshForYou, reconcileForYou } from '@/runtime/feed-session-api'
+import { refreshForYou, reconcileForYou, reconcileRegularTopics } from '@/runtime/feed-session-api'
 import { activeForYouSession, forYouSessionLost, captureFeedAnchor, restoreFeedAnchor, updateForYouSession } from '@/runtime/for-you-sessions'
 import { GooseClientError } from "@gooseforum/client"
 import { useContentUpdates } from '@/runtime/content-updates'
@@ -282,7 +282,7 @@ async function reconcileRegularVisibility(revision: number) {
   try {
     // The existing visibility endpoint accepts at most 120 IDs per request.
     for (let offset = 0; offset < ids.length; offset += 120) {
-      const result = await reconcileForYou(ids.slice(offset, offset + 120), sessionAbort.signal)
+      const result = await reconcileRegularTopics(ids.slice(offset, offset + 120), sessionAbort.signal)
       if (revision !== feedRevision || !sessionActive || feedSwitchInProgress.value) return
       for (const id of result.removedIds) removed.add(id)
     }

@@ -118,7 +118,9 @@ func seenEligibility(ctx context.Context, uid uint64, ids []uint64) (map[uint64]
 
 // Reconcile hydrates only requested survivors, in caller order. Seeing a card
 // cannot remove it from an already loaded browsing session.
-func Reconcile(ctx context.Context, uid uint64, ids []uint64) ([]topics.Entity, []uint64, time.Time, error) {
+// Regular feeds opt into their viewer's public topics; recommendation eligibility
+// still excludes them by default. PublicTopics always enforces content visibility.
+func Reconcile(ctx context.Context, uid uint64, ids []uint64, includeOwn bool) ([]topics.Entity, []uint64, time.Time, error) {
 	contentAt := time.Now()
 	if len(ids) > 120 {
 		return nil, nil, contentAt, ErrInvalidCursor
@@ -137,7 +139,7 @@ func Reconcile(ctx context.Context, uid uint64, ids []uint64) ([]topics.Entity, 
 	}
 	byID := map[uint64]topics.Entity{}
 	for _, row := range rows {
-		if allowed[row.UserId] {
+		if allowed[row.UserId] || (includeOwn && row.UserId == uid) {
 			byID[row.Id] = row
 		}
 	}

@@ -12,7 +12,7 @@ function topic(id, title = `返回测试话题 ${id}`, feedTrace = `trace-${id}`
     id, title,
     description: '这是用于验证详情返回后分页列表与滚动位置的测试话题。'.repeat(2),
     url: `/p/post/${id}`,
-    author: { id: 1000 + id, username: `作者 ${id}`, avatarUrl: '/assets/test/fixtures/browser/topic-feed-art.svg' },
+    author: { id: id === 51 ? 12 : 1000 + id, username: `作者 ${id}`, avatarUrl: '/assets/test/fixtures/browser/topic-feed-art.svg' },
     participants: [], categories: [{ id: 7, name: '校园生活', url: '/c/7', color: '#3b82f6' }],
     replyCount: 3, likeCount: 0, viewCount: 12, activityText: '刚刚', lastUpdateTime: '2026-10-07T00:00:00Z',
     pinWeight: 0, processStatus: 0, contentType: 0, liked: false, bookmarked: false,
@@ -77,10 +77,10 @@ async function openFeed({ resync = false } = {}) {
     const request = route.request()
     const url = new URL(request.url())
     if (url.pathname === '/api/forum/feed/reconcile') {
-      const ids = request.postDataJSON().topicIds
+      const { topicIds: ids, includeOwn } = request.postDataJSON()
       return route.fulfill({ json: { code: 0, result: {
         viewerId: state.viewerId, topics: [],
-        removedIds: ids.filter((id) => state.removed.includes(id)), seenProofs: [], available: true,
+        removedIds: ids.filter((id) => state.removed.includes(id) || (id === 51 && !includeOwn)), seenProofs: [], available: true,
       } } })
     }
     if (!request.headers()['x-goose-page']) return route.continue()

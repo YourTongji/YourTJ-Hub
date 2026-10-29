@@ -336,6 +336,11 @@ export interface FeedRefreshRequest {
   seenPatches?: SeenPatch[]
   replaceSnapshotId?: string
 }
+export interface FeedReconcileRequest {
+  topicIds: number[]
+  /** Regular feeds may retain their viewer's public topics; For You defaults to false. */
+  includeOwn?: boolean
+}
 export interface FeedSessionResponse {
   viewerId: number
   topics: TopicPayload[]

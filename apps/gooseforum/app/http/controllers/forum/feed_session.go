@@ -109,7 +109,8 @@ func FeedReconcile(c *gin.Context) {
 	c.Header("Cache-Control", "private, no-store")
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 4<<10)
 	var req struct {
-		TopicIDs []uint64 `json:"topicIds"`
+		TopicIDs   []uint64 `json:"topicIds"`
+		IncludeOwn bool     `json:"includeOwn"`
 	}
 	if c.ShouldBindJSON(&req) != nil || len(req.TopicIDs) > 120 || len(req.TopicIDs) == 0 {
 		feedSessionFailure(c, feedservice.ErrInvalidCursor)
@@ -132,7 +133,7 @@ func FeedReconcile(c *gin.Context) {
 		feedSessionFailure(c, err)
 		return
 	}
-	rows, removed, at, err := feedservice.Reconcile(ctx, uid, req.TopicIDs)
+	rows, removed, at, err := feedservice.Reconcile(ctx, uid, req.TopicIDs, req.IncludeOwn)
 	if err != nil {
 		feedSessionFailure(c, err)
 		return
