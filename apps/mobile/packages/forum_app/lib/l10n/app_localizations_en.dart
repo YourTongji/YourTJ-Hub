@@ -1231,7 +1231,47 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scheduleOptional => 'Elective';
 
   @override
-  String get scheduleSearchHint => 'Search name/code/teacher';
+  String get scheduleSearchHint => 'Search course name';
+
+  @override
+  String get scheduleSetupTitle => 'Set your course scope first';
+
+  @override
+  String scheduleSetupMissing(String fields) {
+    return 'Select $fields before finding courses or classes.';
+  }
+
+  @override
+  String get scheduleConfigureScope => 'Configure course scope';
+
+  @override
+  String get scheduleNoCompulsory =>
+      'No compulsory courses returned for this scope';
+
+  @override
+  String get scheduleNoOptional => 'No optional courses returned for this term';
+
+  @override
+  String get scheduleEmptyCourseHint =>
+      'Adjust the course scope or search by course name.';
+
+  @override
+  String scheduleCourseScope(String scope) {
+    return 'Current scope: $scope';
+  }
+
+  @override
+  String scheduleSearchScope(String term) {
+    return 'Search course names in $term';
+  }
+
+  @override
+  String get scheduleSearchReady => 'Enter a course name to start';
+
+  @override
+  String scheduleSearchNoMatch(String query) {
+    return 'No course names match “$query”';
+  }
 
   @override
   String get scheduleStaged => 'Staged';

@@ -2319,8 +2319,68 @@ abstract class AppLocalizations {
   /// No description provided for @scheduleSearchHint.
   ///
   /// In en, this message translates to:
-  /// **'Search name/code/teacher'**
+  /// **'Search course name'**
   String get scheduleSearchHint;
+
+  /// No description provided for @scheduleSetupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Set your course scope first'**
+  String get scheduleSetupTitle;
+
+  /// No description provided for @scheduleSetupMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Select {fields} before finding courses or classes.'**
+  String scheduleSetupMissing(String fields);
+
+  /// No description provided for @scheduleConfigureScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure course scope'**
+  String get scheduleConfigureScope;
+
+  /// No description provided for @scheduleNoCompulsory.
+  ///
+  /// In en, this message translates to:
+  /// **'No compulsory courses returned for this scope'**
+  String get scheduleNoCompulsory;
+
+  /// No description provided for @scheduleNoOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'No optional courses returned for this term'**
+  String get scheduleNoOptional;
+
+  /// No description provided for @scheduleEmptyCourseHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjust the course scope or search by course name.'**
+  String get scheduleEmptyCourseHint;
+
+  /// No description provided for @scheduleCourseScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Current scope: {scope}'**
+  String scheduleCourseScope(String scope);
+
+  /// No description provided for @scheduleSearchScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Search course names in {term}'**
+  String scheduleSearchScope(String term);
+
+  /// No description provided for @scheduleSearchReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a course name to start'**
+  String get scheduleSearchReady;
+
+  /// No description provided for @scheduleSearchNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No course names match “{query}”'**
+  String scheduleSearchNoMatch(String query);
 
   /// No description provided for @scheduleStaged.
   ///

@@ -669,7 +669,45 @@
   "schedulePickClass": "选择教学班",
   "scheduleCompulsory": "必修",
   "scheduleOptional": "选修",
-  "scheduleSearchHint": "搜索课名/课号/教师",
+  "scheduleSearchHint": "搜索课程名称",
+  "scheduleSetupTitle": "先设置排课范围",
+  "scheduleSetupMissing": "请选择：{fields}，再查找课程或教学班。",
+  "@scheduleSetupMissing": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleConfigureScope": "配置排课范围",
+  "scheduleNoCompulsory": "当前范围未返回必修课程",
+  "scheduleNoOptional": "当前学期未返回选修课程",
+  "scheduleEmptyCourseHint": "可以调整排课范围，或按课程名称搜索。",
+  "scheduleCourseScope": "当前范围：{scope}",
+  "@scheduleCourseScope": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleSearchScope": "按课程名称搜索：{term}",
+  "@scheduleSearchScope": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleSearchReady": "输入课程名称开始查找",
+  "scheduleSearchNoMatch": "没有找到名称匹配“{query}”的课程",
+  "@scheduleSearchNoMatch": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
   "scheduleStaged": "备选",
   "scheduleSelected": "已选",
   "scheduleRemoveCourse": "退课",

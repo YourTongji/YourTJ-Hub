@@ -1213,7 +1213,45 @@ class AppLocalizationsJa extends AppLocalizations {
   String get scheduleOptional => '選択';
 
   @override
-  String get scheduleSearchHint => '授業名・コード・教員名で検索';
+  String get scheduleSearchHint => '授業名を検索';
+
+  @override
+  String get scheduleSetupTitle => '先に履修範囲を設定してください';
+
+  @override
+  String scheduleSetupMissing(String fields) {
+    return '$fields を選択してから科目や授業クラスを探してください。';
+  }
+
+  @override
+  String get scheduleConfigureScope => '履修範囲を設定';
+
+  @override
+  String get scheduleNoCompulsory => 'この範囲の必修科目は返されませんでした';
+
+  @override
+  String get scheduleNoOptional => 'この学期の選択科目は返されませんでした';
+
+  @override
+  String get scheduleEmptyCourseHint => '履修範囲を変更するか、授業名で検索してください。';
+
+  @override
+  String scheduleCourseScope(String scope) {
+    return '現在の範囲：$scope';
+  }
+
+  @override
+  String scheduleSearchScope(String term) {
+    return '授業名の検索範囲：$term';
+  }
+
+  @override
+  String get scheduleSearchReady => '授業名を入力して検索';
+
+  @override
+  String scheduleSearchNoMatch(String query) {
+    return '「$query」に一致する授業名はありません';
+  }
 
   @override
   String get scheduleStaged => '候補';

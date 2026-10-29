@@ -1020,6 +1020,12 @@ change. The header keeps a small outer margin for its primary action.
   and keyboard submission searches immediately. Clearing resets results without dismissing the
   keyboard. Editing, clearing or switching compulsory/optional/search segments invalidates earlier
   responses; returning to search retains the query. Failed searches offer retry below the field.
+  This input searches course names within the selected term; its hint and empty-state scope reflect
+  that API query. Configuration changes reload the active source and fence previous requests.
+  Missing configuration names the missing fields and scrolls to their controls. Configured empty
+  compulsory/optional results identify their actual scope and offer configuration or name search;
+  a zero-match search shows the keyword and term, with clear-query and configure actions. Empty,
+  loading and retryable failure states do not change existing plans.
 - `Current`: planner and official timetable grids share a responsive seven-day layout with a fixed
   section/time rail during horizontal scrolling. Larger screens expand the columns; narrow screens
   keep readable column widths and explain sideways scrolling. Spanning course blocks show title,

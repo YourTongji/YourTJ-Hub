@@ -698,7 +698,45 @@
   "schedulePickClass": "Pick class",
   "scheduleCompulsory": "Compulsory",
   "scheduleOptional": "Elective",
-  "scheduleSearchHint": "Search name/code/teacher",
+  "scheduleSearchHint": "Search course name",
+  "scheduleSetupTitle": "Set your course scope first",
+  "scheduleSetupMissing": "Select {fields} before finding courses or classes.",
+  "@scheduleSetupMissing": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleConfigureScope": "Configure course scope",
+  "scheduleNoCompulsory": "No compulsory courses returned for this scope",
+  "scheduleNoOptional": "No optional courses returned for this term",
+  "scheduleEmptyCourseHint": "Adjust the course scope or search by course name.",
+  "scheduleCourseScope": "Current scope: {scope}",
+  "@scheduleCourseScope": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleSearchScope": "Search course names in {term}",
+  "@scheduleSearchScope": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleSearchReady": "Enter a course name to start",
+  "scheduleSearchNoMatch": "No course names match “{query}”",
+  "@scheduleSearchNoMatch": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
   "scheduleStaged": "Staged",
   "scheduleSelected": "Selected",
   "scheduleRemoveCourse": "Remove",
