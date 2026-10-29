@@ -351,6 +351,25 @@
   "scheduleTerm": "学期",
   "scheduleGrade": "学年",
   "scheduleMajor": "専攻",
+  "scheduleMajorSearchHint": "専攻名またはコードを検索",
+  "scheduleMajorNoMatch": "一致する専攻はありません",
+  "scheduleChangeMajorTitle": "専攻を変更して計画を消去しますか？",
+  "scheduleChangeMajorBody": "専攻を変更すると、{planCount} 件の計画にある {courseCount} 科目と {eventCount} 件の予定が消去されます。キャンセルすると元の設定と計画を保持します。",
+  "@scheduleChangeMajorBody": {
+    "placeholders": {
+      "planCount": {
+        "type": "int"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleChangeMajorConfirm": "変更して消去",
+  "scheduleChangeMajorUpdated": "計画の内容が更新されました。専攻を選び直してください。",
   "scheduleSyncLatest": "最新に同期",
   "scheduleDataOutdated": "授業データが更新されました。タップで同期",
   "scheduleSyncedTo": "{date}まで同期済み",

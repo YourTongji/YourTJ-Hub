@@ -592,6 +592,25 @@
   "scheduleTerm": "学期",
   "scheduleGrade": "年级",
   "scheduleMajor": "专业",
+  "scheduleMajorSearchHint": "搜索专业名称或代码",
+  "scheduleMajorNoMatch": "没有匹配的专业",
+  "scheduleChangeMajorTitle": "更改专业并清空方案？",
+  "scheduleChangeMajorBody": "更改专业将清空 {planCount} 个方案中的 {courseCount} 门课程和 {eventCount} 个自定义安排。取消会保留原配置与方案。",
+  "@scheduleChangeMajorBody": {
+    "placeholders": {
+      "planCount": {
+        "type": "int"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleChangeMajorConfirm": "更改并清空",
+  "scheduleChangeMajorUpdated": "方案内容已变化，请重新选择专业。",
   "scheduleSyncLatest": "同步最新",
   "scheduleDataOutdated": "教务数据已更新，点击同步",
   "scheduleSyncedTo": "已同步至 {date}",

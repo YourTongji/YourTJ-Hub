@@ -1103,6 +1103,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get scheduleMajor => '专业';
 
   @override
+  String get scheduleMajorSearchHint => '搜索专业名称或代码';
+
+  @override
+  String get scheduleMajorNoMatch => '没有匹配的专业';
+
+  @override
+  String get scheduleChangeMajorTitle => '更改专业并清空方案？';
+
+  @override
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '更改专业将清空 $planCount 个方案中的 $courseCount 门课程和 $eventCount 个自定义安排。取消会保留原配置与方案。';
+  }
+
+  @override
+  String get scheduleChangeMajorConfirm => '更改并清空';
+
+  @override
+  String get scheduleChangeMajorUpdated => '方案内容已变化，请重新选择专业。';
+
+  @override
   String get scheduleSyncLatest => '同步最新';
 
   @override

@@ -621,6 +621,25 @@
   "scheduleTerm": "Term",
   "scheduleGrade": "Grade",
   "scheduleMajor": "Major",
+  "scheduleMajorSearchHint": "Search major name or code",
+  "scheduleMajorNoMatch": "No matching majors",
+  "scheduleChangeMajorTitle": "Change major and clear plans?",
+  "scheduleChangeMajorBody": "Changing the major clears {planCount} plans containing {courseCount} courses and {eventCount} custom events. Cancel to keep your current configuration and plans.",
+  "@scheduleChangeMajorBody": {
+    "placeholders": {
+      "planCount": {
+        "type": "int"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleChangeMajorConfirm": "Change and clear",
+  "scheduleChangeMajorUpdated": "Plan content changed. Please select the major again.",
   "scheduleSyncLatest": "Sync latest",
   "scheduleDataOutdated": "Course data updated, tap to sync",
   "scheduleSyncedTo": "Synced to {date}",
