@@ -994,15 +994,32 @@ class _LoginPageState extends ConsumerState<LoginPage>
     }
   }
 
-  void _switchMode(_AuthMode mode) {
-    if (_authController.busy || _finishingAuthentication) return;
+  Future<void> _switchMode(_AuthMode mode) async {
+    if (mode == _mode ||
+        _authController.busy ||
+        _oidcBusy ||
+        _finishingAuthentication) {
+      return;
+    }
     _authIme.cancel();
     _captchaHandoff.cancel();
     FocusScope.of(context).unfocus();
+    try {
+      await _authController.cancelChallenge();
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _oidcError = AppLocalizations.of(context).authSessionSaveFailed,
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
     if (mode == _AuthMode.register && _registration == null) {
       _loadRegistration();
     }
     _captcha.clear();
+    _totp.clear();
     setState(() {
       _mode = mode;
       _loginCaptchaRevealed = false;
@@ -1606,7 +1623,8 @@ class _LoginPageState extends ConsumerState<LoginPage>
       return;
     }
     if (_captchaCodeMissing) setState(() => _captchaCodeMissing = false);
-    if (_authController.phase == LoginPhase.needsTotp) {
+    if (_mode == _AuthMode.login &&
+        _authController.phase == LoginPhase.needsTotp) {
       await _authController.submitTotp(_totp.text.trim());
       if (mounted && _authController.phase == LoginPhase.authenticated) {
         await _finishAuthentication(saveAutofill: true);

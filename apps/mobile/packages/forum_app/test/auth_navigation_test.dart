@@ -123,7 +123,66 @@ Future<GoRouter> pumpLogin(
   return router;
 }
 
+class _ModeSwitchAuth extends AuthController {
+  _ModeSwitchAuth(GfApiClient client, TokenStorage storage)
+    : super(
+        authRepository: AuthRepository(client),
+        apiClient: client,
+        tokenStorage: storage,
+      );
+
+  LoginPhase currentPhase = LoginPhase.needsTotp;
+  int totpCalls = 0;
+  int registerCalls = 0;
+
+  @override
+  LoginPhase get phase => currentPhase;
+
+  @override
+  Future<void> cancelChallenge() async {
+    currentPhase = LoginPhase.idle;
+    notifyListeners();
+  }
+
+  @override
+  Future<void> submitTotp(String code) async {
+    totpCalls++;
+  }
+
+  @override
+  Future<String?> register({
+    required String username,
+    required String email,
+    required String password,
+    String? captchaId,
+    String? captchaCode,
+  }) async {
+    registerCalls++;
+    return 'auth.register.emailVerify';
+  }
+}
+
 void main() {
+  testWidgets(
+    'leaving TOTP makes the registration button submit registration',
+    (tester) async {
+      late _ModeSwitchAuth auth;
+      await pumpLogin(
+        tester,
+        makeAuth: (client, storage) => auth = _ModeSwitchAuth(client, storage),
+      );
+      await tester.tap(find.text('Sign up'));
+      await tester.pumpAndSettle();
+      final button = find.byWidgetPredicate(
+        (w) => w is GfButton && w.size == GfButtonSize.extraLarge,
+      );
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(auth.totpCalls, 0);
+      expect(auth.registerCalls, 1);
+    },
+  );
   for (final type in ['topic', 'post']) {
     test(
       'guest content management retains the $type filter through login',
