@@ -19,8 +19,7 @@ function freshnessStep() {
   return run[1].replace(/^          /gm, '');
 }
 
-test('localization generation runs after bootstrap/analyze and before filtered build_runner', () => {
-  freshnessStep();
+function assertGenerationOrder(steps) {
   const freshness = steps.findIndex(step => step.startsWith('name: Check generated localizations\n'));
   for (const command of ['dart run melos bootstrap', 'dart run melos run analyze']) {
     const index = steps.findIndex(step => step.includes(command));
@@ -29,11 +28,31 @@ test('localization generation runs after bootstrap/analyze and before filtered b
   // Filtered build_runner can remove unrelated generated files on its first run.
   // If present, it must not run before either analysis or localization generation.
   for (const [index, step] of steps.entries()) {
-    if (step.includes('build_runner')) assert.ok(index > freshness);
+    if (/^\s+dart run build_runner\b/m.test(step)) assert.ok(index > freshness);
   }
+}
+
+test('localization generation runs after bootstrap/analyze and before filtered build_runner', () => {
+  freshnessStep();
+  assertGenerationOrder(steps);
   const config = readFileSync(new URL(`../${packagePath}/l10n.yaml`, import.meta.url), 'utf8');
   assert.match(config, /^arb-dir: lib\/l10n$/m);
   assert.doesNotMatch(config, /^output-dir:/m, 'update the gate when moving generated output');
+});
+
+test('adjacent filtered generation comments do not change command ordering', () => {
+  const filteredGeneration = `      # Filtered build_runner cleanup may remove other generated outputs.
+      # Keep this last so analysis checks the complete committed workspace.
+      - name: Require fresh generated login contract
+        working-directory: apps/mobile/packages/core
+        run: |
+          dart run build_runner build --delete-conflicting-outputs --build-filter='lib/src/gen/auth.*.dart'
+          git diff --exit-code -- lib/src/gen/auth.freezed.dart lib/src/gen/auth.g.dart
+`;
+  const correct = `${analyze}${filteredGeneration}`.split(/^      - /m).slice(1);
+  assertGenerationOrder(correct);
+  const incorrect = analyze.replace('      - name: Check generated localizations', `${filteredGeneration}      - name: Check generated localizations`).split(/^      - /m).slice(1);
+  assert.throws(() => assertGenerationOrder(incorrect));
 });
 
 function git(cwd, ...args) {
