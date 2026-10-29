@@ -101,6 +101,7 @@ class _Auth extends AuthController {
         tokenStorage: storage,
       );
   final emails = <String>[];
+  final registrationLocales = <String?>[];
   int captchaLoads = 0;
   bool? lastPreservePhaseOnError;
   bool? lastSilentOnError;
@@ -162,8 +163,10 @@ class _Auth extends AuthController {
     required String password,
     String? captchaId,
     String? captchaCode,
+    String? locale,
   }) async {
     emails.add(email);
+    registrationLocales.add(locale);
     return null;
   }
 }
@@ -807,6 +810,29 @@ void main() {
     expect(find.byKey(const Key('register-email-domain')), findsOneWidget);
     expect(h.options.headers, [null]);
   });
+  for (final language in ['zh', 'en', 'ja', 'de']) {
+    testWidgets('registration forwards the selected $language locale', (
+      tester,
+    ) async {
+      final h = await pump(tester, locale: Locale(language));
+      final l = AppLocalizations.of(tester.element(find.byType(LoginPage)));
+      for (final entry in {
+        l.authUsername: 'new-user',
+        l.authEmail: 'new@example.test',
+        l.authPassword: 'password123',
+        l.authConfirmPassword: 'password123',
+      }.entries) {
+        await tester.enterText(input(entry.key), entry.value);
+      }
+      await tester.ensureVisible(submit());
+      await tester.tap(submit());
+      await tester.pumpAndSettle();
+      expect(h.auth.registrationLocales, [language]);
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+    });
+  }
+
   testWidgets(
     'registration joins selected domain and requires published policies',
     (tester) async {

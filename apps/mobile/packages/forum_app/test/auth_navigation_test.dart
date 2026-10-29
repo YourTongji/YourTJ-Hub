@@ -285,6 +285,7 @@ class _PendingAuth extends AuthController {
     required String password,
     String? captchaId,
     String? captchaCode,
+    String? locale,
   }) async {
     await _request();
     return null;

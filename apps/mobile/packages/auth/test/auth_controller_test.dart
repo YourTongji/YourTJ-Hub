@@ -477,6 +477,38 @@ void main() {
       expect(await storage.read(), isNull);
     });
 
+    for (final language in <String?>['zh', 'en', 'ja', 'de', null]) {
+      test('registration passes locale through to HTTP: $language', () async {
+        final storage = MemoryTokenStorage();
+        final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'));
+        var requested = false;
+        dio.httpClientAdapter = MockAdapter((request) async {
+          expect(request.path, '/api/register');
+          requested = true;
+          final body = request.data as Map<String, dynamic>;
+          if (language == null) {
+            expect(body, isNot(contains('locale')));
+          } else {
+            expect(body['locale'], language);
+          }
+          return ResponseData(200, {'code': 0, 'result': 'registered'});
+        });
+        final client = GfApiClient(dio: dio, tokenStorage: storage);
+        final controller = AuthController(
+          authRepository: AuthRepository(client),
+          apiClient: client,
+          tokenStorage: storage,
+        );
+        await controller.register(
+          username: 'new-user',
+          email: 'new@example.test',
+          password: 'password123',
+          locale: language,
+        );
+        expect(requested, isTrue);
+      });
+    }
+
     test('init 从存储恢复会话', () async {
       final storage = MemoryTokenStorage()..write('saved-token');
       final controller = _buildController(storage: storage);

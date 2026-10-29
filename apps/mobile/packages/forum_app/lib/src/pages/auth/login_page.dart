@@ -698,6 +698,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
     final String? captchaId = _authController.captcha?.captchaId;
     final String captchaCode = _captcha.text.trim();
     final messageCode = await _authController.register(
+      locale: l10n.localeName,
       username: _username.text.trim(),
       email: email,
       password: _password.text,

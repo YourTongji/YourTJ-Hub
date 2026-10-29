@@ -231,6 +231,7 @@ class AuthController extends ChangeNotifier {
     required String password,
     String? captchaId,
     String? captchaCode,
+    String? locale,
   }) async {
     _busy = true;
     _error = '';
@@ -243,6 +244,7 @@ class AuthController extends ChangeNotifier {
         password: password,
         captchaId: captchaId,
         captchaCode: captchaCode,
+        locale: locale,
       )).messageCode;
       _phase = LoginPhase.idle;
     } on ApiException catch (e) {

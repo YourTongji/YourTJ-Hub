@@ -1241,6 +1241,9 @@ change. The header keeps a small outer margin for its primary action.
   error. Registration API failures use the shared server-message catalog, including daily quotas
   and retry-login instructions. Occupied usernames/emails and creation failures retain the same
   generic registration error, preserving the server's account-enumeration boundary.
+- `Current`: password registration passes the selected App locale through the existing API. The
+  server normalizes the account preference and activation tasks retain it for mail content and
+  action links. Clients omitting locale keep the existing fallback.
 - `Current`: when email verification is enabled, successful registration tells the user to check
   their inbox; when it is disabled, the ordinary registration confirmation remains. Email changes
   tell the user to check the new address for its activation link in both immediate and staged modes.
