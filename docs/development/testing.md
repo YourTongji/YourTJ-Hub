@@ -145,6 +145,16 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   Each package tests on its own runner; `forum_app` has two disjoint Flutter
   shards. All package suites run for a shared-code change, including dependent packages. The local
   `melos run test` remains serial to avoid sharing one SDK's startup lock across Flutter processes.
+  After bootstrap and analysis, the analysis job runs `flutter gen-l10n` in
+  `apps/mobile/packages/forum_app` and rejects tracked or untracked drift in `lib/l10n`.
+  This compares the generated output against the checkout even when bootstrap/analysis already
+  regenerated it; newly generated locale files cannot be missed by a tracked-only diff.
+  To repair a failure, run that command with the workflow's pinned Flutter version and commit the
+  generated files together with their ARB inputs. Keep this check before any filtered
+  `build_runner` invocation, which can clean unrelated generated files on its first run.
+  `node --test scripts/test-mobile-ci-l10n.mjs` exercises the exact workflow shell with a fixture
+  generator and real Git repositories, including tracked/untracked drift and generator failure;
+  the mobile job uses the real Flutter generator.
   Release-tool Python tests run in `ci-automation.yml` on Ubuntu without installing Flutter. Store metadata
   and documentation alone do not run Flutter checks.
 - ci-mobile-native.yml: Android or iOS source/configuration changes build only that platform; shared
