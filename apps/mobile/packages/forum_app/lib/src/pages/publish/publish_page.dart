@@ -428,6 +428,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     if (!mounted) return;
     _markDirty();
     _allowPop = false;
+    if (_error.isNotEmpty) setState(() => _error = '');
     final bool previewVisible =
         _mode == _ComposeMode.preview ||
         _hasWideWorkspace(MediaQuery.sizeOf(context).width);
@@ -445,6 +446,51 @@ class _PublishPageState extends ConsumerState<PublishPage>
     final String markdown = _markdownFromEditor();
     if (markdown == _previewMarkdown) return;
     setState(() => _previewMarkdown = markdown);
+  }
+
+  String _submissionContent(AppLocalizations l10n) {
+    final markdown = _markdownFromEditor();
+    return markdown.isEmpty && _images.isNotEmpty
+        ? l10n.publishImageOnlyTitle
+        : markdown;
+  }
+
+  String _writingValidationError(
+    AppLocalizations l10n, {
+    required String title,
+    required String content,
+    bool includeCategories = false,
+  }) {
+    if (title.isEmpty && _contentType != 2) return l10n.publishTitleRequired;
+    if (includeCategories && _categoryIds.isEmpty) {
+      return l10n.publishCategoryRequired;
+    }
+    if (content.isEmpty) return l10n.publishContentRequired;
+    return '';
+  }
+
+  void _advanceToPreview() {
+    // Articles validate the existing writing rules before leaving the editor;
+    // categories belong to the preview step. Incomplete local drafts stay valid.
+    if (_contentType == 3) {
+      final l10n = AppLocalizations.of(context);
+      final error = _writingValidationError(
+        l10n,
+        title: _title.text.trim(),
+        content: _submissionContent(l10n),
+      );
+      if (error.isNotEmpty) {
+        setState(() {
+          _error = error;
+          _message = '';
+        });
+        (_title.text.trim().isEmpty ? _titleFocusNode : _editorFocusNode)
+            .requestFocus();
+        return;
+      }
+    }
+    setState(() => _error = '');
+    _selectMode(_ComposeMode.preview);
   }
 
   void _selectMode(_ComposeMode mode) {
@@ -1146,19 +1192,14 @@ class _PublishPageState extends ConsumerState<PublishPage>
 
     // 瞬间允许无标题：留空即空标题提交，不从正文首行/图片占位提取（issue #895）。
     final String title = _title.text.trim();
-    final String content = _markdownFromEditor().isEmpty && _images.isNotEmpty
-        ? AppLocalizations.of(context).publishImageOnlyTitle
-        : _markdownFromEditor();
     final AppLocalizations l10n = AppLocalizations.of(context);
-
-    String validationError = '';
-    if (title.isEmpty && _contentType != 2) {
-      validationError = l10n.publishTitleRequired;
-    } else if (_categoryIds.isEmpty) {
-      validationError = l10n.publishCategoryRequired;
-    } else if (content.isEmpty) {
-      validationError = l10n.publishContentRequired;
-    }
+    final String content = _submissionContent(l10n);
+    final validationError = _writingValidationError(
+      l10n,
+      title: title,
+      content: content,
+      includeCategories: true,
+    );
     if (topicStatus == 0 && validationError.isNotEmpty) {
       _markDirty();
       await _saveLocal();
@@ -1403,8 +1444,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
         !_uploading &&
         !_submitting &&
         ((editing && _localRestored) || _loadError.isEmpty);
-    void submit() =>
-        editing ? _selectMode(_ComposeMode.preview) : _submit(topicStatus: 1);
+    void submit() => editing ? _advanceToPreview() : _submit(topicStatus: 1);
     if (compact) {
       return IconButton.filled(
         key: const Key('publish-appbar-submit'),
@@ -1498,6 +1538,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
                         icon: const GfSymbol('refresh-cw', size: 22),
                         label: GfText(l10n.commonRetry),
                       ),
+                    if (_mode == _ComposeMode.edit && _error.isNotEmpty) ...[
+                      GfStatusMessage(message: _error),
+                      const SizedBox(height: 12),
+                    ],
                     // Moments lead with their photos; questions attach them
                     // after the body (below).
                     if (_mode == _ComposeMode.edit &&
@@ -1617,7 +1661,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                       ),
                       const SizedBox(height: 16),
                     ],
-                    if (_error.isNotEmpty)
+                    if (_error.isNotEmpty && _mode != _ComposeMode.edit)
                       GfStatusMessage(message: _error)
                     else if (_message.isNotEmpty)
                       GfStatusMessage(

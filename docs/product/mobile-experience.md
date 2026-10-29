@@ -782,6 +782,10 @@ change. The header keeps a small outer margin for its primary action.
   then. Existing titles remain visible in topic edits and restored drafts. Moment previews show only
   a manually entered title, while title-free publishing/server drafts use the existing body-derived
   API summary. The local save status leads with a small clock, check, history or alert mark.
+- `Current`: article Next checks the existing trimmed title and body requirements before
+  leaving editing, displays the missing field and focuses it without losing input. Local draft
+  saving remains available for incomplete work; categories are selected in preview, and final
+  submission still validates both fields and categories before the server validates the request.
 - `Current`: the preview step reads as the finished post: a card headed by the type's symbol and
   label rises in, followed by one settings group whose rows lead with their own symbols. Category is
   a dropdown the width of its row; each category leads with a soft colour swatch and a picked one is
