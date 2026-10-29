@@ -178,6 +178,14 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.textContaining('stale@example.test'), findsNothing);
+    expect(
+      auth.statusCalls,
+      1,
+      reason: 'epoch cleanup must not read with transitional credentials',
+    );
+    expect(find.textContaining('owner@example.test'), findsNothing);
+    await tester.tap(find.text(AppLocalizationsZh().activationStatusRefresh));
+    await tester.pumpAndSettle();
     expect(find.textContaining('owner@example.test'), findsOneWidget);
     expect(auth.calls, 0);
   });

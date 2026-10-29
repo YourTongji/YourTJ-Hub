@@ -166,14 +166,17 @@ class _ActivationEmailActionState extends ConsumerState<ActivationEmailAction>
   @override
   Widget build(BuildContext context) {
     ref.listen(offlineCacheEpochProvider, (_, _) {
+      // Epoch cleanup can precede committing the next session. Do not start a
+      // read with transitional credentials; a new page or explicit refresh does it.
+      _generation++;
       _request?.cancel();
       _timer?.cancel();
       setState(() {
+        _request = null;
         _feedback = null;
         _statusFailed = false;
         _status = null;
       });
-      _refresh();
     });
     final l10n = AppLocalizations.of(context);
     final status = _status;
