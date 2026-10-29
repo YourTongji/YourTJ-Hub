@@ -339,6 +339,7 @@ func apiRoute(ginApp *gin.Engine) {
 	forumApi.GET("courses/:courseId/related", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpUriQueryReq(forum.CourseRelatedJSON))
 	// 表情包库：公开只读（启用列表供编辑器选择器与客户端 token 替换）。
 	forumApi.GET("stickers", middleware.RateLimit(middleware.RateLimitStickerList), ginUpNP(api.PublicStickerList))
+	forumApi.GET("sticker-packs", middleware.RateLimit(middleware.RateLimitStickerList), ginUpNP(api.PublicStickerPacks))
 	forumApi.POST("stickers/resolve", middleware.RateLimit(middleware.RateLimitStickerList), UpLimitedJsonReq(64<<10, api.ResolveStickers))
 	// 贴纸市场（issue #1429）：公开只读，只列出管理员已上架、已导入的表情包。
 	forumApi.GET("sticker-market", middleware.RateLimit(middleware.RateLimitStickerList), UpQueryReq(api.StickerMarket))
@@ -653,6 +654,10 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("sticker-save", UpButterReq(api.SaveSticker)).
 		POST("sticker-delete", UpButterReq(api.DeleteSticker)).
 		POST("sticker-import", api.ImportStickerPack).
+		GET("sticker-packs", UpButterReq(api.AdminStickerPacks)).
+		POST("sticker-pack-save", UpButterReq(api.AdminStickerPackSave)).
+		POST("sticker-pack-delete", UpButterReq(api.AdminStickerPackDelete)).
+		POST("sticker-batch", UpButterReq(api.AdminStickerBatch)).
 		GET("sticker-market", UpQueryReq(api.AdminStickerMarket)).
 		POST("sticker-market-sync", UpButterReq(api.AdminStickerMarketSync)).
 		GET("sticker-market-pack", UpQueryReq(api.AdminStickerMarketPack)).
@@ -660,6 +665,8 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("sticker-market-import", UpButterReq(api.AdminStickerMarketImport)).
 		POST("sticker-market-pack-save", UpButterReq(api.AdminStickerMarketPackSave)).
 		POST("sticker-market-item-save", UpButterReq(api.AdminStickerMarketItemSave)).
+		POST("sticker-market-pack-create", UpButterReq(api.AdminStickerMarketPackCreate)).
+		POST("sticker-market-upload", api.AdminStickerMarketUpload).
 		GET("terms-of-service", UpButterReq(api.GetTermsOfService)).
 		POST("save-terms-of-service", UpButterReq(api.SaveTermsOfService)).
 		GET("privacy-policy", UpButterReq(api.GetPrivacyPolicy)).

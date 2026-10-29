@@ -3834,6 +3834,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/sticker-packs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List official sticker packs for the picker
+         * @description Public endpoint with no authentication or input, sharing the
+         *     `sticker.list` per-IP quota with the sticker list. Returns official
+         *     packs that hold at least one enabled sticker, in administrator order,
+         *     with a display name, cover and count; pickers group the official list
+         *     by each item's `pack` key. A database failure returns
+         *     `common.operation.failed`.
+         */
+        get: operations["forumStickerPacks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/sticker-market": {
         parameters: {
             query?: never;
@@ -7619,14 +7644,17 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Import a zip pack of sticker images
+         * Import a zip archive or one image into an official pack
          * @description Admin console operation gated by the `SiteManager` role permission;
          *     callers without it fail with HTTP 403 and `permission.denied`. This is
          *     a bare gin handler (not the UpButterReq wrapper), but the response
          *     envelope is still the standard ResultStruct JSON. Accepts a multipart
-         *     zip archive (form field `file`, capped at 32 MiB and 500 entries,
-         *     each image at most 4 MiB, total expanded bytes at most 64 MiB); each
-         *     image entry becomes one enabled sticker named after its file stem
+         *     zip archive or a single image (form field `file`, capped at 32 MiB and
+         *     500 entries, each image at most 4 MiB, total expanded bytes at most
+         *     64 MiB) for the official pack named by the optional `pack` field
+         *     (default `official`; a key no official pack uses fails with
+         *     `common.request.invalidParams`). New stickers append after the pack's
+         *     existing ones. Each image becomes one enabled sticker named after its file stem
          *     (sanitized to a sticker-safe identifier and uniquified server-side
          *     with -2/-3 suffixes on collision). macOS resource forks, dotfiles, and
          *     unsupported extensions are silently skipped; entry-level failures
@@ -7636,10 +7664,116 @@ export interface paths {
          *     `name: "..."` / `reason: "tooManyFiles"` issue and stops. Exceeding
          *     the total expanded-byte budget reports `archiveTooLarge` and stops. Failures
          *     (HTTP 200): missing `file` field → `upload.file.missing`; archive
-         *     over 32MB → `admin.sticker.importTooLarge`; non-zip content →
+         *     over 32MB → `admin.sticker.importTooLarge`; content that is neither a
+         *     zip archive nor a file with an image extension →
          *     `admin.sticker.importInvalidZip`.
          */
         post: operations["adminStickerImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/sticker-packs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List official sticker packs
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Lists every official pack in picker order: the default `official`
+         *     pack, seeded preset packs, packs administrators created (even while
+         *     empty) and any other key official stickers use. Counts include
+         *     disabled stickers. A key without stored metadata shows its default
+         *     name and order. A database failure returns `common.operation.failed`.
+         */
+        get: operations["adminStickerPacks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/sticker-pack-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create or edit an official sticker pack
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     An empty `key` creates a pack with a generated `p-` key; otherwise the
+         *     named pack's name, order and cover are replaced. Stickers keep their
+         *     names, so sent content is unaffected. Validation failures (HTTP 200):
+         *     blank name → `admin.sticker.nameRequired`; unknown key, a name over 64
+         *     characters or a cover outside the pack → `common.request.invalidParams`.
+         */
+        post: operations["adminStickerPackSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/sticker-pack-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove an official sticker pack
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Moves every official sticker of `key` into `moveTo` (default
+         *     `official`) and removes the pack's metadata in one transaction.
+         *     Sticker names and images are unchanged. The default pack cannot be
+         *     removed; that, an unknown key or an unknown or identical target fails
+         *     with `common.request.invalidParams` (HTTP 200).
+         */
+        post: operations["adminStickerPackDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/sticker-batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply one action to selected official stickers
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Enables, disables, moves (`pack`) or deletes up to 500 official
+         *     stickers in one transaction. Ids of missing or non-official stickers
+         *     are ignored; `result.changed` counts only stickers the action changed.
+         *     Deleting releases each image as single deletion does. An empty or
+         *     oversized selection, an unknown action or an unknown target pack fails
+         *     with `common.request.invalidParams` (HTTP 200).
+         */
+        post: operations["adminStickerBatch"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7657,10 +7791,11 @@ export interface paths {
          * List the sticker market catalog with local state
          * @description Admin console operation gated by the `SiteManager` role permission
          *     (Admin role is a superset); callers without it fail with HTTP 403 and
-         *     `permission.denied`. Returns one page of the synchronized market catalog
-         *     (issue #1429) with each pack's import and publication state, plus the source,
-         *     whether the market is enabled and the last successful sync time. Packs keep
-         *     upstream order. Upstream image URLs are never returned; covers are local images.
+         *     `permission.denied`. Returns one page of the market catalog (issue #1429),
+         *     synchronized and uploaded packs alike, with each pack's import and
+         *     publication state, plus the source, whether the market is enabled and
+         *     the last successful sync time. Packs keep upstream order; uploaded
+         *     packs come first. Topics merge upstream and uploaded topics. Upstream image URLs are never returned; covers are local images.
          *     `pageSize` outside 1-100 falls back to 50. A database failure returns
          *     `common.operation.failed`.
          */
@@ -7782,7 +7917,8 @@ export interface paths {
          *     Items that already have a local sticker are never downloaded again and keep
          *     their image. Each stored item becomes a shared sticker with a stable `m_` token.
          *     Importing does not publish. A pack that is already queued or importing fails
-         *     with `admin.sticker.market.busy`; unknown ids fail with `admin.sticker.notFound`.
+         *     with `admin.sticker.market.busy`; unknown ids and uploaded packs, which have
+         *     no upstream, fail with `admin.sticker.notFound`.
          *     Recorded in the operation log.
          */
         post: operations["adminStickerMarketImport"];
@@ -7802,13 +7938,17 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Publish, hide or reorder one market pack
+         * Publish, hide, reorder or rename one market pack
          * @description Admin console operation gated by the `SiteManager` role permission
          *     (Admin role is a superset); callers without it fail with HTTP 403 and
          *     `permission.denied`. Sets whether the pack appears in the market and in
          *     subscribers' pickers, and its order among published packs. Publishing requires at
          *     least one stored sticker and otherwise fails with `admin.sticker.market.notReady`.
          *     Hiding keeps subscriptions and never breaks stickers that were already sent.
+         *     For uploaded packs, `name`, `topic` and `topicLabel` also rename and
+         *     recategorize the pack (blank name → `admin.sticker.nameRequired`, unknown
+         *     topic → `common.request.invalidParams`); synchronized packs ignore them
+         *     because the next sync owns their metadata.
          *     Unknown ids fail with `admin.sticker.notFound`. Recorded in the operation log.
          */
         post: operations["adminStickerMarketPackSave"];
@@ -7843,6 +7983,68 @@ export interface paths {
          *     `admin.sticker.notFound`. Changes are recorded in the operation log.
          */
         post: operations["adminStickerMarketItemSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/sticker-market-pack-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create an uploaded market pack
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Creates an empty, hidden market pack with source `upload`, assembled
+         *     from the administrator's own files instead of the upstream catalog.
+         *     `topicLabel` reuses or creates an uploaded topic of that name; `topic`
+         *     picks an existing topic id. It never contacts the upstream host.
+         *     Failures (HTTP 200): blank name → `admin.sticker.nameRequired`;
+         *     unknown topic id → `common.request.invalidParams`.
+         */
+        post: operations["adminStickerMarketPackCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/sticker-market-upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add images to an uploaded market pack
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Bare gin handler with the standard envelope. Accepts one image or a
+         *     zip archive (multipart `file`, the same limits as official imports)
+         *     for the uploaded pack `packId`. Each image passes the upload image
+         *     policy, AVIF is converted as for imports, and the result is stored
+         *     once by content hash. An image the pack already holds is counted as
+         *     skipped; a pack holds at most 500 stickers (`tooManyFiles`).
+         *     Per-image failures (`tooLarge`, `invalidImage`, `saveFailed`) are
+         *     reported in `result.failed`. New stickers get a generated `m_` token
+         *     and their file stem as label, and append after existing ones; the
+         *     pack summary and cover are recomputed. Failures (HTTP 200): missing
+         *     `file` → `upload.file.missing`; over 32MB →
+         *     `admin.sticker.importTooLarge`; neither image nor zip →
+         *     `admin.sticker.importInvalidZip`; unknown or synchronized pack →
+         *     `admin.sticker.notFound`.
+         */
+        post: operations["adminStickerMarketUpload"];
         delete?: never;
         options?: never;
         head?: never;
@@ -14905,6 +15107,8 @@ export interface components {
             fileName: string;
             /** @description Public access path (`/file/img/<fileName>` or CDN prefix); empty when fileName is empty. */
             url: string;
+            /** @description Key of the official pack holding the sticker (`official` is the default pack). */
+            pack: string;
             /** @description Ascending sort weight (ties break by id ascending). */
             sortOrder: number;
             /** @description Disabled rows stay hidden from the public list but remain editable here. */
@@ -14932,6 +15136,8 @@ export interface components {
             name?: string;
             /** @description An existing image upload owned by the caller, as a storage key or its public URL. Required when id is 0; omission preserves the current image when updating. Missing, unknown, non-image or foreign uploads fail with `upload.file.missing`. The image reference is registered atomically with the sticker. */
             fileName?: string;
+            /** @description Key of the official pack to place the sticker in; empty or omitted keeps the current pack (`official` for a new sticker). A key no official pack uses fails with `common.request.invalidParams` (HTTP 200). */
+            pack?: string;
             /** @description Ascending sort weight. */
             sortOrder?: number;
             /** @description Disabled stickers stay hidden from the public list. */
@@ -15035,7 +15241,12 @@ export interface components {
         AdminStickerMarketPack: {
             /** Format: uint64 */
             id: number;
-            /** @description Upstream group id from the market index. */
+            /**
+             * @description `fluxdo` for packs synchronized from the market index, `upload` for packs administrators assemble from their own files.
+             * @enum {string}
+             */
+            source: "fluxdo" | "upload";
+            /** @description Upstream group id from the market index; a generated id for uploaded packs. */
             upstreamId: string;
             name: string;
             topic: string;
@@ -15125,6 +15336,12 @@ export interface components {
             published?: boolean;
             /** @description Ascending order among published packs. */
             sortOrder?: number;
+            /** @description New name of an uploaded pack; blank fails with `admin.sticker.nameRequired` (HTTP 200). Ignored for synchronized packs. */
+            name?: string;
+            /** @description Existing topic id for an uploaded pack; empty clears it, and an unknown id fails with `common.request.invalidParams` (HTTP 200). Ignored for synchronized packs. */
+            topic?: string;
+            /** @description Topic name for an uploaded pack; an uploaded topic with this name is reused or created. Takes precedence over `topic`. */
+            topicLabel?: string;
         };
         AdminStickerMarketPackSuccess: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["AdminStickerMarketPack"];
@@ -16178,6 +16395,21 @@ export interface components {
         MyStickerDeleteRequest: {
             name: string;
         };
+        StickerOfficialPack: {
+            /** @description Pack key; matches `pack` on the pack's sticker items. */
+            key: string;
+            /** @description Display name chosen by administrators, or the default name of a seeded pack. */
+            name: string;
+            /** @description Image of the chosen cover sticker, or of the pack's first sticker. */
+            coverUrl: string;
+            /** @description Enabled stickers in the pack. */
+            stickerCount: number;
+        };
+        ForumStickerPacksSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @description Official packs with at least one enabled sticker, in administrator order. */
+            result: components["schemas"]["StickerOfficialPack"][];
+        };
+        ForumStickerPacksResponse: components["schemas"]["ForumStickerPacksSuccess"] | components["schemas"]["ApiFailure"];
         ModerationAppealOwnerSummary: {
             /** @enum {string} */
             status: "pending" | "approved" | "rejected" | "stale";
@@ -16531,6 +16763,93 @@ export interface components {
             publicUrlPrefix: string;
             forceProxyUpload: boolean;
         };
+        AdminStickerPack: {
+            /** @description Pack key stored on its stickers. Created packs get a generated `p-` key. */
+            key: string;
+            name: string;
+            /** @description Ascending order in pickers; ties break by key. */
+            sortOrder: number;
+            /**
+             * Format: uint64
+             * @description Chosen cover sticker; 0 uses the first sticker.
+             */
+            coverStickerId: number;
+            /** @description Image of the cover in effect; empty for an empty pack. */
+            coverUrl: string;
+            /** @description Official stickers in the pack, enabled or not. */
+            stickerCount: number;
+            enabledCount: number;
+        };
+        AdminStickerPackListSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @description Every official pack, including the default pack and empty created packs, in picker order. */
+            result: components["schemas"]["AdminStickerPack"][];
+        };
+        AdminStickerPackListResponse: components["schemas"]["AdminStickerPackListSuccess"] | components["schemas"]["ApiFailure"];
+        AdminStickerPackSaveRequest: {
+            /** @description Empty creates a pack with a generated key; otherwise the pack to edit. A key no official pack uses fails with `common.request.invalidParams` (HTTP 200). */
+            key?: string;
+            /** @description Trimmed display name; blank fails with `admin.sticker.nameRequired`, over 64 characters or control characters with `common.request.invalidParams` (HTTP 200). */
+            name?: string;
+            sortOrder?: number;
+            /**
+             * Format: uint64
+             * @description One of the pack's own stickers, or 0 for the first one; any other sticker fails with `common.request.invalidParams` (HTTP 200).
+             */
+            coverStickerId?: number;
+        };
+        AdminStickerPackSaveSuccess: components["schemas"]["ApiSuccess"] & {
+            result: {
+                /** @description Key of the saved pack. */
+                key: string;
+            };
+        };
+        AdminStickerPackSaveResponse: components["schemas"]["AdminStickerPackSaveSuccess"] | components["schemas"]["ApiFailure"];
+        AdminStickerPackDeleteRequest: {
+            /** @description Pack to remove; the default `official` pack cannot be removed. */
+            key?: string;
+            /** @description Pack that receives the stickers; empty means `official`. It must differ from `key`. */
+            moveTo?: string;
+        };
+        AdminStickerPackDeleteSuccess: components["schemas"]["ApiSuccess"] & {
+            result: {
+                /** @description Stickers moved into `moveTo`. */
+                moved: number;
+            };
+        };
+        AdminStickerPackDeleteResponse: components["schemas"]["AdminStickerPackDeleteSuccess"] | components["schemas"]["ApiFailure"];
+        AdminStickerBatchRequest: {
+            /** @description Official sticker ids; duplicates and ids of other stickers are ignored. */
+            ids: number[];
+            /** @enum {string} */
+            action: "enable" | "disable" | "move" | "delete";
+            /** @description Target pack key for `move`. */
+            pack?: string;
+        };
+        AdminStickerBatchSuccess: components["schemas"]["ApiSuccess"] & {
+            result: {
+                /** @description Stickers the action changed; already matching stickers are not counted. */
+                changed: number;
+            };
+        };
+        AdminStickerBatchResponse: components["schemas"]["AdminStickerBatchSuccess"] | components["schemas"]["ApiFailure"];
+        AdminStickerMarketPackCreateRequest: {
+            /** @description Pack name; blank fails with `admin.sticker.nameRequired` (HTTP 200). */
+            name: string;
+            /** @description Existing topic id; an unknown id fails with `common.request.invalidParams` (HTTP 200). */
+            topic?: string;
+            /** @description Topic name; an uploaded topic with this name is reused or created. Takes precedence over `topic`. */
+            topicLabel?: string;
+        };
+        AdminStickerMarketUploadResult: {
+            result: components["schemas"]["AdminStickerImportResult"];
+            pack: components["schemas"]["AdminStickerMarketPack"];
+        };
+        AdminStickerMarketUploadSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminStickerMarketUploadResult"];
+            /** @constant */
+            messageCode: "common.operation.success";
+        };
+        AdminStickerMarketUploadResponse: components["schemas"]["AdminStickerMarketUploadSuccess"] | components["schemas"]["ApiFailure"];
         AdminImportTaskAcceptedResult: {
             /**
              * Format: uint64
@@ -23690,6 +24009,37 @@ export interface operations {
             };
         };
     };
+    forumStickerPacks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Official packs (empty array when none hold stickers). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForumStickerPacksResponse"];
+                };
+            };
+            /** @description Sticker list quota exceeded. */
+            429: {
+                headers: {
+                    /** @description Seconds until the quota resets. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     stickerMarket: {
         parameters: {
             query?: {
@@ -29732,9 +30082,11 @@ export interface operations {
                 "multipart/form-data": {
                     /**
                      * Format: binary
-                     * @description Zip archive of sticker images (≤32MB, ≤500 entries).
+                     * @description One image, or a zip archive of sticker images (≤32MB, ≤500 entries).
                      */
                     file: string;
+                    /** @description Key of the official pack that receives the images; empty means `official`. */
+                    pack?: string;
                 };
             };
         };
@@ -29768,10 +30120,176 @@ export interface operations {
             };
         };
     };
+    adminStickerPacks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Official packs, or a legacy business failure envelope (`common.operation.failed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStickerPackListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStickerPackSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStickerPackSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description Pack saved (`result.key`), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStickerPackSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStickerPackDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStickerPackDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Pack removed (`result.moved` stickers moved), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStickerPackDeleteResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStickerBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStickerBatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Stickers changed (`result.changed`), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStickerBatchResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     adminStickerMarket: {
         parameters: {
             query?: {
-                /** @description Upstream category id; empty lists every category. */
+                /** @description Empty lists every pack; `fluxdo` keeps synchronized packs and `upload` uploaded ones. Other values list every pack. */
+                source?: "" | "fluxdo" | "upload";
+                /** @description Category id; empty lists every category. */
                 topic?: string;
                 /** @description Case-insensitive pack name substring. */
                 q?: string;
@@ -30061,6 +30579,101 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ContentActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStickerMarketPackCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStickerMarketPackCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description The created pack, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStickerMarketPackResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStickerMarketUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: uint64
+                     * @description Uploaded pack that receives the images.
+                     */
+                    packId: number;
+                    /**
+                     * Format: binary
+                     * @description One image, or a zip archive of images (≤32MB, ≤500 entries).
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Upload outcome and the updated pack, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStickerMarketUploadResponse"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */

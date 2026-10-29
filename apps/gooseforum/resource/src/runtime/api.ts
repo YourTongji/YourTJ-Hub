@@ -3,7 +3,7 @@ import type { components, TopicPayload } from '@gooseforum/client'
 // CourseSummaryPayload 以别名导入：本文件 1663 行另有一个同名但形状不同的
 // CourseSummaryPayload（AI 总结：consensus/keywords/pros/cons），二者同名异物。
 // 这里导入的是课程卡片（id/name/ratingAvg/...），故别名为 CourseCatalogItem 避免混淆。
-import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, MentionTarget, ModerationApprovalActionView, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationCategory, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, StickerMarketPack, StickerMarketPackDetail, StickerMarketPage, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
+import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, MentionTarget, ModerationApprovalActionView, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationCategory, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, StickerMarketPack, StickerMarketPackDetail, StickerMarketPage, StickerOfficialPack, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import type { ReviewQueueItem } from '@/admin/types'
 import { resolveApiMessage } from './api-message'
@@ -469,6 +469,13 @@ export async function getForumStickers(): Promise<StickerItem[]> {
   return Array.isArray(stickers) ? stickers : []
 }
 
+/** Official pack names and covers in the order administrators chose; only packs with enabled stickers. */
+export async function getForumStickerPacks(): Promise<StickerOfficialPack[]> {
+  const response = await feedFetch('/api/forum/sticker-packs', { headers: { Accept: 'application/json' } })
+  const packs = await readApiResponse<StickerOfficialPack[]>(response, t('api.stickersLoadFailed'))
+  return Array.isArray(packs) ? packs : []
+}
+
 /** Resolve shared tokens without enumerating anyone's private sticker library. */
 export async function resolveForumStickers(names: string[]): Promise<StickerItem[]> {
   const response = await feedFetch('/api/forum/stickers/resolve', {
@@ -488,6 +495,46 @@ export async function saveMySticker(stickerName: string): Promise<StickerItem> {
     body: JSON.stringify({ stickerName }),
   })
   return readApiResponse<StickerItem>(response, t('stickers.saveFailed'))
+}
+
+/** The viewer's private sticker library in saved order, including pending uploads. */
+export async function getMyStickers(): Promise<StickerItem[]> {
+  const response = await feedFetch('/api/forum/my-stickers', { headers: { Accept: 'application/json' } })
+  const items = await readApiResponse<StickerItem[]>(response, t('api.stickersLoadFailed'))
+  return Array.isArray(items) ? items : []
+}
+
+/**
+ * Add an uploaded image (fileName from /file/img-upload) or relabel a member.
+ * Uploads stay pending until review approves them.
+ */
+export async function saveMyStickerEntry(request: { stickerName?: string, fileName?: string, displayName?: string }): Promise<StickerItem> {
+  const response = await feedFetch('/api/forum/my-sticker-save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(request),
+  })
+  return readApiResponse<StickerItem>(response, t('stickers.saveFailed'))
+}
+
+/** Remove a membership; the asset and anything already sent stay intact. */
+export async function deleteMySticker(name: string): Promise<void> {
+  const response = await feedFetch('/api/forum/my-sticker-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  await readApiResponse<boolean>(response, t('stickers.mine.actionFailed'))
+}
+
+/** Full membership order; a stale list fails instead of dropping concurrent changes. */
+export async function orderMyStickers(names: string[]): Promise<void> {
+  const response = await feedFetch('/api/forum/my-stickers-order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ names }),
+  })
+  await readApiResponse<boolean>(response, t('stickers.mine.actionFailed'))
 }
 
 /** Published market packs (issue #1429); browsing needs no account. */

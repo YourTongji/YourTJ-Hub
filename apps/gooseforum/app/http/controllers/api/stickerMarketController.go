@@ -83,6 +83,7 @@ func DeleteMyStickerPack(req component.BetterRequest[StickerPackReq]) component.
 
 // AdminStickerMarketQuery pages the full synchronized catalog.
 type AdminStickerMarketQuery struct {
+	Source   string `form:"source"`
 	Topic    string `form:"topic"`
 	Keyword  string `form:"q"`
 	Status   string `form:"status"`
@@ -113,13 +114,17 @@ func adminStickerMarketError(err error) component.Response {
 		return component.FailResponseCode(component.MessageAdminStickerMarketNotReady, nil)
 	case errors.Is(err, stickerservice.ErrMarketPackNotFound), errors.Is(err, stickerservice.ErrNotFound):
 		return component.FailResponseCode(component.MessageAdminStickerNotFound, nil)
+	case errors.Is(err, stickerservice.ErrPackNameRequired):
+		return component.FailResponseCode(component.MessageAdminStickerNameRequired, nil)
+	case errors.Is(err, stickerservice.ErrPackInvalid):
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	default:
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 }
 
 func AdminStickerMarket(req component.BetterRequest[AdminStickerMarketQuery]) component.Response {
-	page, err := stickerservice.AdminMarketCatalog(req.Params.Topic, req.Params.Keyword, req.Params.Status, req.Params.Page, req.Params.PageSize)
+	page, err := stickerservice.AdminMarketCatalog(req.Params.Source, req.Params.Topic, req.Params.Keyword, req.Params.Status, req.Params.Page, req.Params.PageSize)
 	if err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
@@ -174,6 +179,50 @@ func AdminStickerMarketPackSave(req component.BetterRequest[stickerservice.SaveM
 		return adminStickerMarketError(err)
 	}
 	return component.SuccessResponse(pack)
+}
+
+// AdminStickerMarketPackCreate starts an empty, hidden uploaded pack.
+func AdminStickerMarketPackCreate(req component.BetterRequest[stickerservice.CreateMarketPackInput]) component.Response {
+	created, err := stickerservice.CreateMarketPack(betterRequestContext(req), req.Params)
+	if err != nil {
+		return adminStickerMarketError(err)
+	}
+	optlogger.UserOptCode(req.UserId, optlogger.ManageStickerMarket, created.Id, "admin.opt.stickerMarket.created", optlogger.MessageParams{"pack": created.Name})
+	pack, err := stickerservice.AdminMarketPackByID(created.Id)
+	if err != nil {
+		return adminStickerMarketError(err)
+	}
+	return component.SuccessResponse(pack)
+}
+
+// AdminStickerMarketUploadResult reports one upload and the updated pack.
+type AdminStickerMarketUploadResult struct {
+	Result stickerservice.ImportResult    `json:"result"`
+	Pack   stickerservice.AdminMarketPack `json:"pack"`
+}
+
+// AdminStickerMarketUpload adds a ZIP archive or one image (multipart `file`)
+// to the uploaded pack named by the `packId` form field.
+func AdminStickerMarketUpload(c *gin.Context) {
+	data, fileName, ok := readStickerUpload(c)
+	if !ok {
+		return
+	}
+	packID, _ := strconv.ParseUint(c.PostForm("packId"), 10, 64)
+	result, err := stickerservice.UploadMarketPackFile(c.Request.Context(), packID, fileName, data)
+	if err != nil {
+		stickerImportFailure(c, err)
+		return
+	}
+	pack, err := stickerservice.AdminMarketPackByID(packID)
+	if err != nil {
+		stickerImportFailure(c, err)
+		return
+	}
+	if result.Imported > 0 {
+		optlogger.UserOptCode(c.GetUint64("userId"), optlogger.ManageStickerMarket, pack.ID, "admin.opt.stickerMarket.uploaded", optlogger.MessageParams{"pack": pack.Name, "count": result.Imported})
+	}
+	c.JSON(http.StatusOK, component.SuccessDataCode(AdminStickerMarketUploadResult{Result: result, Pack: pack}, component.MessageOperationSuccess, nil))
 }
 
 // AdminStickerMarketItemSave withdraws, restores or renames one market sticker.

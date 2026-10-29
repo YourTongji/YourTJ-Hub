@@ -244,7 +244,7 @@ func TestMarketCatalogSyncKeepsUpstreamIcons(t *testing.T) {
 			t.Fatalf("%s icon = (%q, %q), want (%q, %q)", id, pack.IconURL, pack.IconText, want[0], want[1])
 		}
 	}
-	page, err := AdminMarketCatalog("", "", "", 1, 10)
+	page, err := AdminMarketCatalog("", "", "", "", 1, 10)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -52,6 +52,7 @@ import WikiSearchPanel from './WikiSearchPanel.vue'
 import PublishMenu from './PublishMenu.vue'
 import { loadQuickPublishModal, useEverOpenedQuickPublish } from '@/site/composables/useQuickPublish'
 import ModerationBlockedDialog from '@/site/components/ModerationBlockedDialog.vue'
+import { myStickersDialogUsed } from '@/site/composables/useMyStickersDialog'
 
 import { useShellSidebar } from '@/runtime/shell-sidebar'
 import {
@@ -105,6 +106,7 @@ interface SidebarSection {
 }
 
 const MobileDrawer = defineAsyncComponent(() => import('./MobileDrawer.vue'))
+const MyStickersDialog = defineAsyncComponent(() => import('./MyStickersDialog.vue'))
 const QuickPublishModal = defineAsyncComponent(() => loadQuickPublishModal())
 const everOpenedQuickPublish = useEverOpenedQuickPublish()
 const UserCard = shallowRef<typeof UserCardComponent | null>(null)
@@ -1193,6 +1195,7 @@ async function loadUserCard() {
     <WikiSearchPanel v-if="isWikiMode" />
     <QuickPublishModal v-if="layout.viewer.isAuthenticated && everOpenedQuickPublish" :layout="layout" />
     <ModerationBlockedDialog v-if="layout.viewer.isAuthenticated" />
+    <MyStickersDialog v-if="layout.viewer.isAuthenticated && myStickersDialogUsed" />
 
     <!-- 移动端发布 FAB：<sm 显示（navbar 上的发布按钮 sm+ 才渲染）。
          56px 直径（拇指可达），点击向上呼出发布类型菜单，层级低于抽屉 z-[60]。

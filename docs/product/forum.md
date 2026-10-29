@@ -268,6 +268,8 @@ canonical、prev/next 与 `og:`／`twitter:`／`article:` meta 视页面是否�
 [决策 0114](../decisions/0114-sticker-rename-aliases.md)。
 `Current`：表情市场：管理员同步外部目录、导入并发布表情包，导入时图片按内容哈希存入本站存储，渲染不依赖上游；任何人可浏览已发布的表情包，登录后可添加到选择器（每个账号最多 50 个）。管理端在导入前即可预览封面（服务端生成缩略图），并可为单个表情改名，原生成名作为别名继续解析。Web 选择器提供市场入口，悬停、键盘聚焦或长按可放大预览，长按后滑动可切换预览。版权政策与上游在生产网络（含中国大陆）的可达性尚待确认，见
 [决策 0115](../decisions/0115-sticker-market-subscriptions.md)。
+`Current`：官方表情按表情包分组：管理员可新建、命名、排序表情包并设置封面，删除表情包时其中表情移到指定表情包；管理端提供表情包侧栏、卡片网格、搜索筛选与批量启停／移动／删除，可一次上传多张图片或 ZIP 并逐个显示结果。表情市场除同步 FluxDO 外，管理员也可直接上传表情包：填写名称与分类后上传图片或 ZIP，之后可随时补充，上架后与同步来的表情包一样可订阅与改名。Web 与 App 选择器按表情包名称与封面分组；Web 新增「我的」页签、我的表情管理窗口与设置页「我的表情」，可上传、改名、排序和移除。见
+[决策 0116](../decisions/0116-sticker-packs-and-uploaded-market-packs.md)。
 配额、历史素材保留和隐私规则见[移动端表情规范](mobile-experience.md#sticker-library)与
 [个人表情库决策](../decisions/0038-personal-sticker-library.md)及[先审后用决策](../decisions/0080-personal-sticker-pre-review.md)。
 

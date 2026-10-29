@@ -1,6 +1,7 @@
 {
   "result": {
     "id": 9202,
+    "source": "fluxdo",
     "upstreamId": "group-2",
     "name": "Pack Two",
     "topic": "anime",

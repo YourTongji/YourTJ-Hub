@@ -16,7 +16,13 @@ import type {
   AdminTaskRow,
   AdminTopic,
   AdminSticker,
+  AdminStickerBatchRequest,
+  AdminStickerPack,
+  AdminStickerPackSaveRequest,
   AdminStickerMarketItemSaveRequest,
+  AdminStickerMarketPackCreateRequest,
+  AdminStickerMarketPackSaveRequest,
+  AdminStickerMarketUploadResult,
   AdminStickerMarketPack,
   AdminStickerMarketPackDetail,
   AdminStickerMarketPage,
@@ -354,7 +360,7 @@ export function getStickers() {
   return getJson<AdminSticker[]>('/api/admin/stickers', adminText('k00vgc'))
 }
 
-export function saveSticker(data: { id: number, name: string, fileName?: string, sortOrder: number, isEnabled: boolean }) {
+export function saveSticker(data: { id: number, name: string, fileName?: string, pack?: string, sortOrder: number, isEnabled: boolean }) {
   return postJson<unknown>('/api/admin/sticker-save', data, adminText('k00vgd'))
 }
 
@@ -362,13 +368,32 @@ export function deleteSticker(id: number) {
   return postJson<unknown>('/api/admin/sticker-delete', { id }, adminText('k00vge'))
 }
 
-export function importStickerPack(file: File) {
+/** Adds one image or a ZIP archive to an official pack (default `official`). */
+export function importStickerPack(file: File, pack = '') {
   const body = new FormData()
   body.append('file', file)
+  if (pack) body.append('pack', pack)
   return postForm<StickerImportResult>('/api/admin/sticker-import', body, adminText('k001u'))
 }
 
+export function getStickerPacks() {
+  return getJson<AdminStickerPack[]>('/api/admin/sticker-packs', adminText('k00vgc'))
+}
+
+export function saveStickerPack(request: AdminStickerPackSaveRequest) {
+  return postJson<{ key: string }>('/api/admin/sticker-pack-save', request, adminText('k00vgd'))
+}
+
+export function deleteStickerPack(key: string, moveTo = '') {
+  return postJson<{ moved: number }>('/api/admin/sticker-pack-delete', { key, moveTo }, adminText('k00vge'))
+}
+
+export function batchStickers(request: AdminStickerBatchRequest) {
+  return postJson<{ changed: number }>('/api/admin/sticker-batch', request, adminText('k00vgd'))
+}
+
 export interface StickerMarketQuery {
+  source?: string
   topic?: string
   q?: string
   status?: string
@@ -397,8 +422,20 @@ export function importStickerMarketPack(id: number) {
   return postJson<AdminStickerMarketPack>('/api/admin/sticker-market-import', { id }, adminText('stickerMarketSaveFailed'))
 }
 
-export function saveStickerMarketPack(data: { id: number, published: boolean, sortOrder: number }) {
+export function saveStickerMarketPack(data: AdminStickerMarketPackSaveRequest) {
   return postJson<AdminStickerMarketPack>('/api/admin/sticker-market-pack-save', data, adminText('stickerMarketSaveFailed'))
+}
+
+export function createStickerMarketPack(request: AdminStickerMarketPackCreateRequest) {
+  return postJson<AdminStickerMarketPack>('/api/admin/sticker-market-pack-create', request, adminText('stickerMarketSaveFailed'))
+}
+
+/** Adds one image or a ZIP archive to an uploaded market pack. */
+export function uploadStickerMarketFile(packId: number, file: File) {
+  const body = new FormData()
+  body.append('packId', String(packId))
+  body.append('file', file)
+  return postForm<AdminStickerMarketUploadResult>('/api/admin/sticker-market-upload', body, adminText('stickerMarketSaveFailed'))
 }
 
 export function saveStickerMarketItem(request: AdminStickerMarketItemSaveRequest) {

@@ -44,6 +44,27 @@ class StickerItemPayload {
       );
 }
 
+/// 官方表情包分组（GET /api/forum/sticker-packs，按管理端排序，只含有启用表情的包）。
+class StickerOfficialPackPayload {
+  const StickerOfficialPackPayload({
+    required this.key,
+    required this.name,
+    this.coverUrl = '',
+    this.stickerCount = 0,
+  });
+  final String key;
+  final String name;
+  final String coverUrl;
+  final int stickerCount;
+  factory StickerOfficialPackPayload.fromJson(Map<String, dynamic> json) =>
+      StickerOfficialPackPayload(
+        key: json['key'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+        coverUrl: json['coverUrl'] as String? ?? '',
+        stickerCount: (json['stickerCount'] as num?)?.toInt() ?? 0,
+      );
+}
+
 /// 管理端表情包行（GET /api/admin/stickers，含禁用行）。
 class StickerAdminItemPayload {
   const StickerAdminItemPayload({

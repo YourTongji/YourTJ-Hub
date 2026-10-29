@@ -87,6 +87,8 @@ func setupStickerMarketContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	admin.POST("/sticker-market-pack-save", UpButterReq(api.AdminStickerMarketPackSave))
 	admin.POST("/sticker-market-item-save", UpButterReq(api.AdminStickerMarketItemSave))
 	admin.GET("/sticker-market-cover", api.AdminStickerMarketCover)
+	admin.POST("/sticker-market-pack-create", UpButterReq(api.AdminStickerMarketPackCreate))
+	admin.POST("/sticker-market-upload", api.AdminStickerMarketUpload)
 	router.GET("/file/img/*filename", api.GetFileByFileName)
 	return conn, router
 }
@@ -291,6 +293,8 @@ func TestAdminStickerMarketHTTPContract(t *testing.T) {
 		{http.MethodPost, "/api/admin/sticker-market-sync"},
 		{http.MethodPost, "/api/admin/sticker-market-import"},
 		{http.MethodGet, "/api/admin/sticker-market-cover"},
+		{http.MethodPost, "/api/admin/sticker-market-pack-create"},
+		{http.MethodPost, "/api/admin/sticker-market-upload"},
 	} {
 		t.Run(route.path, func(t *testing.T) {
 			adminStickerRouteGuardScenarios(t, setupStickerMarketContractTest, route.method, route.path)

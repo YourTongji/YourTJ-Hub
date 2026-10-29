@@ -54,8 +54,14 @@ class _Repository extends StickerRepository {
   Completer<StickerItemPayload>? pendingSave;
   Completer<List<StickerItemPayload>>? pendingMine;
   List<String>? resolvedNames;
+
+  /// Null behaves like a server without official pack metadata.
+  List<StickerOfficialPackPayload>? packList;
   @override
   Future<List<StickerItemPayload>> list() async => [...officialItems];
+  @override
+  Future<List<StickerOfficialPackPayload>> officialPacks() async =>
+      packList ?? (throw StateError('unsupported'));
   @override
   Future<List<StickerItemPayload>> mine() async {
     final pending = pendingMine;
@@ -481,6 +487,98 @@ void main() {
       expect(library.urlByName, isNot(contains('smile')));
     },
   );
+
+  test(
+    'official groups follow server pack order and keep unnamed keys',
+    () async {
+      final repository = _Repository()
+        ..officialItems = [
+          const StickerItemPayload(name: 'a', url: '/a.png', pack: 'official'),
+          const StickerItemPayload(name: 'b', url: '/b.png', pack: 'memes'),
+          const StickerItemPayload(name: 'c', url: '/c.png', pack: 'loose'),
+          const StickerItemPayload(name: 'd', url: '/d.png', pack: 'memes'),
+        ]
+        ..packList = const [
+          StickerOfficialPackPayload(key: 'memes', name: '程序员梗'),
+          StickerOfficialPackPayload(key: 'empty', name: 'Nothing enabled'),
+          StickerOfficialPackPayload(key: 'official', name: '默认'),
+        ];
+      final state = StickerCollection(repository, StickerLibrary(repository));
+      addTearDown(state.dispose);
+      await state.loadOfficial();
+      await pumpEventQueue();
+
+      expect(state.officialGroups.map((pack) => (pack.key, pack.name)), [
+        ('memes', '程序员梗'),
+        ('official', '默认'),
+        ('loose', 'loose'),
+      ]);
+      expect(state.officialInPackOrder.map((item) => item.name), [
+        'b',
+        'd',
+        'a',
+        'c',
+      ]);
+    },
+  );
+
+  test(
+    'official stickers load even when pack metadata is unavailable',
+    () async {
+      final repository = _Repository();
+      final state = StickerCollection(repository, StickerLibrary(repository));
+      addTearDown(state.dispose);
+      await state.loadOfficial();
+      await pumpEventQueue();
+      expect(state.officialError, isNull);
+      expect(state.official, [official]);
+      expect(state.officialGroups.single.name, 'Faces');
+    },
+  );
+
+  testWidgets('picker labels official pack chips with their names', (
+    tester,
+  ) async {
+    final repository = _Repository()
+      ..officialItems = [
+        official,
+        const StickerItemPayload(
+          name: 'bug',
+          url: '/bug.png',
+          displayName: 'Bug',
+          pack: 'memes',
+        ),
+      ]
+      ..packList = const [
+        StickerOfficialPackPayload(key: 'memes', name: 'Programmer memes'),
+        StickerOfficialPackPayload(key: 'Faces', name: 'Default'),
+      ];
+    final state = StickerCollection(repository, StickerLibrary(repository));
+    await state.loadOfficial();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [stickerCollectionProvider.overrideWith((_) => state)],
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          home: Scaffold(
+            body: SizedBox(height: 360, child: StickerPicker(onInsert: (_) {})),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final chips = tester
+        .widgetList<ChoiceChip>(find.byType(ChoiceChip))
+        .map((chip) => (chip.label as Text).data)
+        .toList();
+    expect(chips.skip(1), ['Programmer memes', 'Default']);
+    expect(find.text('memes'), findsNothing);
+
+    await tester.tap(find.text('Default'));
+    await tester.pumpAndSettle();
+    expect(_pickerSticker('Smile'), findsOneWidget);
+    expect(_pickerSticker('Bug'), findsNothing);
+  });
 
   test('old servers default stickers to approved enabled official items', () {
     final item = StickerItemPayload.fromJson({

@@ -205,7 +205,7 @@ func marketPackItems(packs []sticker.MarketPack) ([]MarketPackItem, error) {
 func MarketCatalog(topic, keyword string, page, pageSize int) (MarketCatalogPage, error) {
 	page, pageSize = normalizePage(page, pageSize, 24)
 	result := MarketCatalogPage{Topics: []MarketTopicItem{}, Packs: []MarketPackItem{}, Page: page, PageSize: pageSize}
-	packs, total, err := sticker.MarketPacks(sticker.MarketPackQuery{Source: MarketSourceID, Topic: topic, Keyword: keyword, PublishedOnly: true, Page: page, PageSize: pageSize})
+	packs, total, err := sticker.MarketPacks(sticker.MarketPackQuery{Topic: topic, Keyword: keyword, PublishedOnly: true, Page: page, PageSize: pageSize})
 	if err != nil {
 		return result, err
 	}
@@ -214,7 +214,7 @@ func MarketCatalog(topic, keyword string, page, pageSize int) (MarketCatalogPage
 	}
 	result.Total = total
 	var used []string
-	if err := db.Connect().Model(&sticker.MarketPack{}).Where("source = ? AND published = ? AND item_count > ?", MarketSourceID, true, 0).
+	if err := db.Connect().Model(&sticker.MarketPack{}).Where("published = ? AND item_count > ?", true, 0).
 		Distinct().Pluck("topic", &used).Error; err != nil {
 		return result, err
 	}
@@ -222,12 +222,14 @@ func MarketCatalog(topic, keyword string, page, pageSize int) (MarketCatalogPage
 	for _, id := range used {
 		inUse[id] = true
 	}
-	topics, err := sticker.MarketTopics(MarketSourceID)
+	topics, err := sticker.MarketTopics("")
 	if err != nil {
 		return result, err
 	}
 	for _, topic := range topics {
 		if inUse[topic.UpstreamID] {
+			// One id listed by two sources shows once.
+			delete(inUse, topic.UpstreamID)
 			result.Topics = append(result.Topics, MarketTopicItem{ID: topic.UpstreamID, Label: topic.Label})
 		}
 	}
@@ -377,11 +379,16 @@ func UnsubscribeMarketPack(ctx context.Context, userID, packID uint64) error {
 	})
 }
 
-// SaveMarketPackInput publishes, hides or reorders one pack.
+// SaveMarketPackInput publishes, hides or reorders one pack. Name, Topic and
+// TopicLabel rename or recategorize an uploaded pack and are ignored for
+// synchronized packs, whose metadata the next sync owns.
 type SaveMarketPackInput struct {
-	ID        uint64 `json:"id"`
-	Published bool   `json:"published"`
-	SortOrder int    `json:"sortOrder"`
+	ID         uint64  `json:"id"`
+	Published  bool    `json:"published"`
+	SortOrder  int     `json:"sortOrder"`
+	Name       *string `json:"name"`
+	Topic      *string `json:"topic"`
+	TopicLabel string  `json:"topicLabel"`
 }
 
 // SaveMarketPack changes administrator-owned pack state. Hiding a pack removes
@@ -399,6 +406,22 @@ func SaveMarketPack(ctx context.Context, input SaveMarketPackInput) (sticker.Mar
 		}
 		if input.Published && pack.ItemCount == 0 {
 			return ErrMarketPackNotReady
+		}
+		if pack.Source == MarketSourceUpload {
+			if input.Name != nil {
+				if pack.Name, err = cleanMarketPackName(*input.Name); err != nil {
+					return err
+				}
+			}
+			if input.Topic != nil || input.TopicLabel != "" {
+				topic := ""
+				if input.Topic != nil {
+					topic = *input.Topic
+				}
+				if pack.Topic, err = resolveUploadTopicTx(tx, topic, input.TopicLabel); err != nil {
+					return err
+				}
+			}
 		}
 		pack.Published = input.Published
 		pack.SortOrder = input.SortOrder

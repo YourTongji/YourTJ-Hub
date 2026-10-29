@@ -6,21 +6,28 @@ adminStickerMarket:
     description: |
       Admin console operation gated by the `SiteManager` role permission
       (Admin role is a superset); callers without it fail with HTTP 403 and
-      `permission.denied`. Returns one page of the synchronized market catalog
-      (issue #1429) with each pack's import and publication state, plus the source,
-      whether the market is enabled and the last successful sync time. Packs keep
-      upstream order. Upstream image URLs are never returned; covers are local images.
+      `permission.denied`. Returns one page of the market catalog (issue #1429),
+      synchronized and uploaded packs alike, with each pack's import and
+      publication state, plus the source, whether the market is enabled and
+      the last successful sync time. Packs keep upstream order; uploaded
+      packs come first. Topics merge upstream and uploaded topics. Upstream image URLs are never returned; covers are local images.
       `pageSize` outside 1-100 falls back to 50. A database failure returns
       `common.operation.failed`.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
     parameters:
+      - name: source
+        in: query
+        schema:
+          type: string
+          enum: ['', fluxdo, upload]
+        description: Empty lists every pack; `fluxdo` keeps synchronized packs and `upload` uploaded ones. Other values list every pack.
       - name: topic
         in: query
         schema:
           type: string
-        description: Upstream category id; empty lists every category.
+        description: Category id; empty lists every category.
       - name: q
         in: query
         schema:
@@ -300,7 +307,8 @@ adminStickerMarketImport:
       Items that already have a local sticker are never downloaded again and keep
       their image. Each stored item becomes a shared sticker with a stable `m_` token.
       Importing does not publish. A pack that is already queued or importing fails
-      with `admin.sticker.market.busy`; unknown ids fail with `admin.sticker.notFound`.
+      with `admin.sticker.market.busy`; unknown ids and uploaded packs, which have
+      no upstream, fail with `admin.sticker.notFound`.
       Recorded in the operation log.
     security:
       - bearerAuth: []
@@ -355,7 +363,7 @@ adminStickerMarketImport:
 adminStickerMarketPackSave:
   post:
     tags: [Admin]
-    summary: Publish, hide or reorder one market pack
+    summary: Publish, hide, reorder or rename one market pack
     operationId: adminStickerMarketPackSave
     description: |
       Admin console operation gated by the `SiteManager` role permission
@@ -364,6 +372,10 @@ adminStickerMarketPackSave:
       subscribers' pickers, and its order among published packs. Publishing requires at
       least one stored sticker and otherwise fails with `admin.sticker.market.notReady`.
       Hiding keeps subscriptions and never breaks stickers that were already sent.
+      For uploaded packs, `name`, `topic` and `topicLabel` also rename and
+      recategorize the pack (blank name → `admin.sticker.nameRequired`, unknown
+      topic → `common.request.invalidParams`); synchronized packs ignore them
+      because the next sync owns their metadata.
       Unknown ids fail with `admin.sticker.notFound`. Recorded in the operation log.
     security:
       - bearerAuth: []
@@ -458,6 +470,155 @@ adminStickerMarketItemSave:
                 externalValue: ../fixtures/admin-sticker-name-exists.json
               nameReserved:
                 externalValue: ../fixtures/admin-sticker-name-reserved.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+adminStickerMarketPackCreate:
+  post:
+    tags: [Admin]
+    summary: Create an uploaded market pack
+    operationId: adminStickerMarketPackCreate
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Creates an empty, hidden market pack with source `upload`, assembled
+      from the administrator's own files instead of the upstream catalog.
+      `topicLabel` reuses or creates an uploaded topic of that name; `topic`
+      picks an existing topic id. It never contacts the upstream host.
+      Failures (HTTP 200): blank name → `admin.sticker.nameRequired`;
+      unknown topic id → `common.request.invalidParams`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminStickerMarketPackCreateRequest
+    responses:
+      '200':
+        description: "The created pack, or a legacy business failure envelope."
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminStickerMarketPackResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-sticker-market-pack-create-success.json
+              nameRequired:
+                externalValue: ../fixtures/admin-sticker-name-required.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+adminStickerMarketUpload:
+  post:
+    tags: [Admin]
+    summary: Add images to an uploaded market pack
+    operationId: adminStickerMarketUpload
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Bare gin handler with the standard envelope. Accepts one image or a
+      zip archive (multipart `file`, the same limits as official imports)
+      for the uploaded pack `packId`. Each image passes the upload image
+      policy, AVIF is converted as for imports, and the result is stored
+      once by content hash. An image the pack already holds is counted as
+      skipped; a pack holds at most 500 stickers (`tooManyFiles`).
+      Per-image failures (`tooLarge`, `invalidImage`, `saveFailed`) are
+      reported in `result.failed`. New stickers get a generated `m_` token
+      and their file stem as label, and append after existing ones; the
+      pack summary and cover are recomputed. Failures (HTTP 200): missing
+      `file` → `upload.file.missing`; over 32MB →
+      `admin.sticker.importTooLarge`; neither image nor zip →
+      `admin.sticker.importInvalidZip`; unknown or synchronized pack →
+      `admin.sticker.notFound`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [packId, file]
+            properties:
+              packId:
+                type: integer
+                format: uint64
+                minimum: 1
+                description: Uploaded pack that receives the images.
+              file:
+                type: string
+                format: binary
+                description: One image, or a zip archive of images (≤32MB, ≤500 entries).
+    responses:
+      '200':
+        description: "Upload outcome and the updated pack, or a legacy business failure envelope."
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminStickerMarketUploadResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-sticker-market-upload-success.json
+              fileMissing:
+                externalValue: ../fixtures/admin-img-upload-file-missing.json
+              importInvalidZip:
+                externalValue: ../fixtures/admin-sticker-import-invalid-zip.json
+              packNotFound:
+                externalValue: ../fixtures/admin-sticker-not-found.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:

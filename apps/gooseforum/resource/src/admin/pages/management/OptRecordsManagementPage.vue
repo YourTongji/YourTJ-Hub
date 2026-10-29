@@ -97,6 +97,8 @@ const optInfoMessageKeyMap: Record<string, string> = {
   'admin.opt.stickerMarket.stickerDisabled': 'adminOptLog.messages.stickerMarketStickerDisabled',
   'admin.opt.stickerMarket.stickerEnabled': 'adminOptLog.messages.stickerMarketStickerEnabled',
   'admin.opt.stickerMarket.stickerRenamed': 'adminOptLog.messages.stickerMarketStickerRenamed',
+  'admin.opt.stickerMarket.created': 'adminOptLog.messages.stickerMarketCreated',
+  'admin.opt.stickerMarket.uploaded': 'adminOptLog.messages.stickerMarketUploaded',
 }
 
 // Review decisions share one code; the approve flag picks the wording.

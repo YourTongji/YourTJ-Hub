@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,6 +27,10 @@ class StickerCollection extends ChangeNotifier {
   final StickerRepository repository;
   final StickerLibrary library;
   List<StickerItemPayload> official = [];
+
+  /// Official pack names and covers; empty until loaded or on servers
+  /// without pack metadata, where the picker falls back to pack keys.
+  List<StickerOfficialPackPayload> officialPacks = [];
   List<StickerItemPayload> mine = [];
   final List<StickerItemPayload> recent = [];
   Object? officialError;
@@ -55,6 +61,9 @@ class StickerCollection extends ChangeNotifier {
     loadingOfficial = true;
     officialError = null;
     _notify();
+    // Pack metadata only names and orders the groups; it loads beside the
+    // stickers and never holds them back.
+    unawaited(_loadOfficialPacks());
     try {
       final items = await library.load(refresh: refresh);
       if (!_active) return;
@@ -72,6 +81,17 @@ class StickerCollection extends ChangeNotifier {
     } finally {
       loadingOfficial = false;
       _notify();
+    }
+  }
+
+  Future<void> _loadOfficialPacks() async {
+    try {
+      final packs = await repository.officialPacks();
+      if (!_active) return;
+      officialPacks = packs;
+      _notify();
+    } catch (_) {
+      // Older servers lack the endpoint; the picker falls back to pack keys.
     }
   }
 
@@ -147,6 +167,35 @@ class StickerCollection extends ChangeNotifier {
       loadingPackStickers.remove(packId);
       _notify();
     }
+  }
+
+  /// Official groups in display order: named packs first, then any pack key
+  /// the metadata does not cover yet, so no enabled sticker becomes unreachable.
+  List<StickerOfficialPackPayload> get officialGroups {
+    final keys = <String>{
+      for (final item in official)
+        if (item.isAvailable && item.pack.isNotEmpty) item.pack,
+    };
+    return [
+      for (final pack in officialPacks)
+        if (keys.remove(pack.key)) pack,
+      for (final key in keys) StickerOfficialPackPayload(key: key, name: key),
+    ];
+  }
+
+  /// Official stickers grouped by [officialGroups], keeping each pack's order.
+  List<StickerItemPayload> get officialInPackOrder {
+    final order = {
+      for (final (index, pack) in officialGroups.indexed) pack.key: index,
+    };
+    final buckets = List.generate(
+      order.length + 1,
+      (_) => <StickerItemPayload>[],
+    );
+    for (final item in official) {
+      buckets[order[item.pack] ?? order.length].add(item);
+    }
+    return [for (final bucket in buckets) ...bucket];
   }
 
   bool hasPack(int packId) => packs.any((pack) => pack.id == packId);

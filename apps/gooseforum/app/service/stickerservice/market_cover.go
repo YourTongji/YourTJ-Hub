@@ -56,6 +56,10 @@ func marketPackIconURL(pack sticker.MarketPack) string {
 	if pack.IconFile != "" {
 		return storageservice.PublicAccessPath(pack.IconFile)
 	}
+	if pack.Source != MarketSourceID {
+		// Uploaded packs only ever show the cover of a stored sticker.
+		return ""
+	}
 	return MarketCoverPreviewPath + "?id=" + strconv.FormatUint(pack.Id, 10)
 }
 
@@ -71,6 +75,9 @@ func MarketCoverPreview(ctx context.Context, packID uint64) (string, error) {
 	}
 	if pack.IconFile != "" {
 		return pack.IconFile, nil
+	}
+	if pack.Source != MarketSourceID {
+		return "", errMarketCoverUnavailable
 	}
 	if failed, ok := marketCoverMisses.Load(packID); ok && time.Since(failed.(time.Time)) < marketCoverRetryAfter {
 		return "", errMarketCoverUnavailable

@@ -2,16 +2,29 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { DOMWrapper, flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import StickersManagementPage from '../src/admin/pages/management/StickersManagementPage.vue'
-import { deleteSticker, getStickers, importStickerPack, saveSticker } from '../src/admin/runtime/api'
+import {
+  batchStickers,
+  deleteSticker,
+  deleteStickerPack,
+  getStickerPacks,
+  getStickers,
+  importStickerPack,
+  saveSticker,
+  saveStickerPack,
+} from '../src/admin/runtime/api'
 import { uploadImageFile } from '../src/runtime/api'
-import type { AdminPayload, AdminSticker } from '../src/admin/types'
+import type { AdminPayload, AdminSticker, AdminStickerPack } from '../src/admin/types'
 
 vi.mock('../src/runtime/api', () => ({ uploadImageFile: vi.fn() }))
 vi.mock('../src/admin/runtime/api', () => ({
+  batchStickers: vi.fn(),
   deleteSticker: vi.fn(),
+  deleteStickerPack: vi.fn(),
+  getStickerPacks: vi.fn(),
   getStickers: vi.fn(),
   importStickerPack: vi.fn(),
   saveSticker: vi.fn(),
+  saveStickerPack: vi.fn(),
 }))
 vi.mock('../src/admin/runtime/i18n-text', () => ({
   adminText: (key: string, params?: Record<string, unknown>) => key + (params ? JSON.stringify(params) : ''),
@@ -22,10 +35,22 @@ const sticker = (overrides: Partial<AdminSticker> = {}): AdminSticker => ({
   name: 'chiikawa',
   fileName: 'stickers/abc.png',
   url: '/f/stickers/abc.png',
+  pack: 'official',
   sortOrder: 1000,
   isEnabled: true,
   createdBy: 7,
   aliases: [],
+  ...overrides,
+})
+
+const pack = (overrides: Partial<AdminStickerPack> = {}): AdminStickerPack => ({
+  key: 'official',
+  name: '默认',
+  sortOrder: 0,
+  coverStickerId: 0,
+  coverUrl: '/f/stickers/abc.png',
+  stickerCount: 1,
+  enabledCount: 1,
   ...overrides,
 })
 
@@ -45,133 +70,215 @@ afterEach(() => {
   vi.resetAllMocks()
 })
 
+function seed(stickers: AdminSticker[], packs: AdminStickerPack[] = [pack({ stickerCount: stickers.length, enabledCount: stickers.length })]) {
+  vi.mocked(getStickers).mockResolvedValue(stickers)
+  vi.mocked(getStickerPacks).mockResolvedValue(packs)
+}
+
 function mountPage() {
-  // reka-ui Dialog 通过 DialogPortal teleport 到 document.body；
-  // 模态内容需用 DOMWrapper(document.body) 断言。
+  // reka-ui Dialog teleports to document.body, so modal content is asserted through DOMWrapper(document.body).
   wrapper = mount(StickersManagementPage, { props: { payload }, attachTo: document.body, global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } } })
   return { page: wrapper, body: new DOMWrapper(document.body) }
 }
 
-async function clickHeaderButton(text: string) {
-  const button = wrapper!.findAll('button').find(item => item.text().includes(text))
-  await button!.trigger('click')
+function buttonWithText(root: { findAll: VueWrapper['findAll'] }, text: string) {
+  return root.findAll('button').find((item) => item.text().includes(text))!
+}
+
+function cardTitles(page: VueWrapper) {
+  return page.findAll('li p.font-medium').map((item) => item.text())
+}
+
+function byLabel(root: { findAll: VueWrapper['findAll'] }, label: string) {
+  return root.findAll('[aria-label]').find((item) => item.attributes('aria-label') === label)!
+}
+
+function pickFiles(input: DOMWrapper<Element>, files: File[]) {
+  Object.defineProperty(input.element, 'files', { value: files, configurable: true })
+  return input.trigger('change')
 }
 
 describe('stickers management page', () => {
-  test('renders sticker rows after loading', async () => {
-    vi.mocked(getStickers).mockResolvedValue([
-      sticker(),
-      sticker({ id: 2, name: '悲伤蛙', sortOrder: 20, isEnabled: false }),
-    ])
+  test('groups stickers by pack and filters by pack, keyword and previous name', async () => {
+    seed(
+      [
+        sticker(),
+        sticker({ id: 2, name: '悲伤蛙', pack: 'memes', isEnabled: false, aliases: ['sad_frog'] }),
+        sticker({ id: 3, name: 'usagi', pack: 'memes' }),
+      ],
+      [pack(), pack({ key: 'memes', name: '程序员梗', coverUrl: '', stickerCount: 2, enabledCount: 1 })],
+    )
     const { page } = mountPage()
     await flushPromises()
 
-    const rows = page.findAll('tbody tr')
-    expect(rows).toHaveLength(2)
-    expect(rows[0].text()).toContain('chiikawa')
-    expect(rows[1].text()).toContain('悲伤蛙')
-    expect(page.get('img[src="/f/stickers/abc.png"]').attributes('alt')).toBe('chiikawa')
-    // 启用状态开关按行渲染（编辑/导入两个模态均未打开）
-    expect(page.findAll('[role="switch"]')).toHaveLength(2)
+    expect(cardTitles(page)).toEqual(['chiikawa', '悲伤蛙', 'usagi'])
+    expect(page.text()).toContain('stickerLibrarySummary{"total":3,"packs":2}')
+    // The sidebar shows enabled / total when they differ.
+    expect(buttonWithText(page, '程序员梗').text()).toContain('1/2')
+
+    await buttonWithText(page, '程序员梗').trigger('click')
+    expect(cardTitles(page)).toEqual(['悲伤蛙', 'usagi'])
+    expect(page.text()).toContain('stickerPackSummary{"total":2,"enabled":1}')
+
+    await page.get('input[aria-label="stickerSearch"]').setValue('sad')
+    expect(cardTitles(page)).toEqual(['悲伤蛙'])
+
+    await page.get('input[aria-label="stickerSearch"]').setValue('nothing')
+    expect(page.text()).toContain('stickerEmptyFiltered')
+    await buttonWithText(page, 'stickerClearFilters').trigger('click')
+    expect(cardTitles(page)).toEqual(['悲伤蛙', 'usagi'])
   })
 
-  test('create dialog submits with id=0 and reloads', async () => {
-    vi.mocked(getStickers).mockResolvedValue([])
+  test('create dialog uploads the image and saves into the current pack', async () => {
+    seed([], [pack({ stickerCount: 0, enabledCount: 0 }), pack({ key: 'memes', name: '程序员梗', stickerCount: 0, enabledCount: 0 })])
     vi.mocked(saveSticker).mockResolvedValue(undefined)
     const { page, body } = mountPage()
     await flushPromises()
-    expect(page.text()).toContain('k002v')
+    expect(page.text()).toContain('stickerEmptyTitle')
 
-    await clickHeaderButton('k00vgb')
+    await buttonWithText(page, '程序员梗').trigger('click')
+    await buttonWithText(page, 'k00vgb').trigger('click')
     const form = body.get('form')
 
-    // 空名称被拦截，不触发保存
+    // An empty name and a missing image are both stopped before saving.
+    await form.trigger('submit')
+    expect(saveSticker).not.toHaveBeenCalled()
+    await form.findAll('input').find((input) => !input.attributes('type'))!.setValue('chiikawa')
     await form.trigger('submit')
     expect(saveSticker).not.toHaveBeenCalled()
 
-    const nameInput = body.findAll('input').find(input => !input.attributes('type') || input.attributes('type') === 'text')
-    await nameInput!.setValue('chiikawa')
-    await form.trigger('submit')
-
-    expect(saveSticker).not.toHaveBeenCalled()
     const image = new File(['png'], 'smile.png', { type: 'image/png' })
-    const input = body.get('input[type="file"][accept="image/*"]')
-    Object.defineProperty(input.element, 'files', { value: [image], configurable: true })
-    await input.trigger('change')
+    await pickFiles(body.get('input[type="file"][accept="image/*"]'), [image])
     vi.mocked(uploadImageFile).mockResolvedValue('/file/img/owned.png')
     await form.trigger('submit')
     await flushPromises()
     expect(uploadImageFile).toHaveBeenCalledWith(image, 'smile.png')
-    expect(saveSticker).toHaveBeenCalledTimes(1)
-    expect(saveSticker).toHaveBeenCalledWith({ id: 0, name: 'chiikawa', fileName: '/file/img/owned.png', sortOrder: 1000, isEnabled: true })
+    expect(saveSticker).toHaveBeenCalledWith({ id: 0, name: 'chiikawa', fileName: '/file/img/owned.png', pack: 'memes', sortOrder: 1000, isEnabled: true })
     expect(getStickers).toHaveBeenCalledTimes(2)
   })
 
-  test('previous names stay visible and a reserved name explains why it is taken', async () => {
-    vi.mocked(getStickers).mockResolvedValue([sticker({ aliases: ['old_smile'] })])
+  test('editing keeps the pack and shows previous names', async () => {
+    seed([sticker({ aliases: ['old_smile'] })])
     vi.mocked(saveSticker).mockRejectedValue(Object.assign(new Error('reserved'), { messageCode: 'admin.sticker.nameReserved' }))
     const { page, body } = mountPage()
     await flushPromises()
-    expect(page.text()).toContain('stickerAliases{"names":"old_smile"}')
 
-    const editButton = page.findAll('button').find(button => button.attributes('title') === 'k005j')
-    await editButton!.trigger('click')
+    await byLabel(page, 'stickerEditOne{"name":"chiikawa"}').trigger('click')
     expect(body.text()).toContain('stickerRenameHint')
+    expect(body.text()).toContain('stickerAliases{"names":"old_smile"}')
     await body.get('form').trigger('submit')
     await flushPromises()
-    expect(saveSticker).toHaveBeenCalledWith({ id: 1, name: 'chiikawa', sortOrder: 1000, isEnabled: true })
+    expect(saveSticker).toHaveBeenCalledWith({ id: 1, name: 'chiikawa', pack: 'official', sortOrder: 1000, isEnabled: true })
   })
 
-  test('row switch toggles enabled state via save', async () => {
-    vi.mocked(getStickers).mockResolvedValue([sticker({ id: 9, name: 'usagi', isEnabled: false })])
+  test('card switch toggles enabled state and the edit dialog deletes', async () => {
+    seed([sticker({ id: 9, name: 'usagi', isEnabled: false })])
     vi.mocked(saveSticker).mockResolvedValue(undefined)
-    const { page } = mountPage()
-    await flushPromises()
-
-    await page.get('[role="switch"]').trigger('click')
-    expect(saveSticker).toHaveBeenCalledWith({ id: 9, name: 'usagi', sortOrder: 1000, isEnabled: true })
-  })
-
-  test('delete confirm flow calls deleteSticker', async () => {
-    vi.mocked(getStickers).mockResolvedValue([sticker()])
     vi.mocked(deleteSticker).mockResolvedValue(undefined)
     const { page, body } = mountPage()
     await flushPromises()
 
-    const dangerButton = page.findAll('button').find(button => button.attributes('title') === 'k005i')
-    await dangerButton!.trigger('click')
-    await body.get('[data-testid="admin-confirm"]').trigger('click')
+    await page.get('[role="switch"]').trigger('click')
+    expect(saveSticker).toHaveBeenCalledWith({ id: 9, name: 'usagi', pack: 'official', sortOrder: 1000, isEnabled: true })
 
-    expect(deleteSticker).toHaveBeenCalledWith(1)
+    await byLabel(page, 'stickerEditOne{"name":"usagi"}').trigger('click')
+    await buttonWithText(body, 'k005i').trigger('click')
+    await body.get('[data-testid="admin-confirm"]').trigger('click')
+    expect(deleteSticker).toHaveBeenCalledWith(9)
   })
 
-  test('import report renders summary and expandable failures', async () => {
-    vi.mocked(getStickers).mockResolvedValue([])
-    vi.mocked(importStickerPack).mockResolvedValue({
-      imported: 3,
-      skipped: 1,
-      failed: [{ name: 'bad.txt', reason: 'invalidImage' }, { name: 'oops.png', reason: 'tooLarge' }],
-    })
-    const { body } = mountPage()
+  test('selection drives the batch toolbar', async () => {
+    seed([sticker(), sticker({ id: 2, name: 'usagi' }), sticker({ id: 3, name: 'hachiware' })])
+    vi.mocked(batchStickers).mockResolvedValue({ changed: 2 })
+    const { page, body } = mountPage()
+    await flushPromises()
+    expect(page.find('[role="toolbar"]').exists()).toBe(false)
+
+    await byLabel(page, 'stickerSelectOne{"name":"chiikawa"}').trigger('click')
+    await byLabel(page, 'stickerSelectOne{"name":"usagi"}').trigger('click')
+    const toolbar = page.get('[role="toolbar"]')
+    expect(toolbar.text()).toContain('stickerSelectedCount{"count":2}')
+
+    await buttonWithText(toolbar, 'stickerBatchDisable').trigger('click')
+    await flushPromises()
+    expect(batchStickers).toHaveBeenCalledWith({ ids: [1, 2], action: 'disable' })
+
+    await buttonWithText(page.get('[role="toolbar"]'), 'stickerBatchDelete').trigger('click')
+    expect(body.text()).toContain('stickerBatchDeleteTitle{"count":2}')
+    await body.get('[data-testid="admin-confirm"]').trigger('click')
+    await flushPromises()
+    expect(batchStickers).toHaveBeenLastCalledWith({ ids: [1, 2], action: 'delete' })
+    expect(page.find('[role="toolbar"]').exists()).toBe(false)
+  })
+
+  test('creating a pack continues into the upload queue for that pack', async () => {
+    seed([sticker()])
+    vi.mocked(saveStickerPack).mockResolvedValue({ key: 'p-1a2b3c4d' })
+    vi.mocked(importStickerPack).mockResolvedValue({ imported: 3, skipped: 1, failed: [{ name: 'bad.png', reason: 'invalidImage' }] })
+    const { page, body } = mountPage()
     await flushPromises()
 
-    await clickHeaderButton('k00vgi')
-    const importButtons = () => body.findAll('button').filter(button => button.text().includes('k00uh'))
+    await page.get('button[aria-label="stickerPackCreate"]').trigger('click')
+    const form = body.get('form')
+    await form.trigger('submit')
+    expect(saveStickerPack).not.toHaveBeenCalled()
 
-    // 无文件时先拦截
-    await importButtons()[0].trigger('click')
-    expect(importStickerPack).not.toHaveBeenCalled()
+    vi.mocked(getStickerPacks).mockResolvedValue([pack(), pack({ key: 'p-1a2b3c4d', name: '校园', sortOrder: 10, stickerCount: 0, enabledCount: 0 })])
+    await body.get('input[maxlength="64"]').setValue('  校园 ')
+    await form.trigger('submit')
+    await flushPromises()
+    expect(saveStickerPack).toHaveBeenCalledWith({ name: '校园', sortOrder: 10 })
+    expect(body.text()).toContain('stickerUploadTitle')
 
-    const fileInput = body.get('input[type="file"]')
-    const file = new File(['zip'], 'pack.zip', { type: 'application/zip' })
-    Object.defineProperty(fileInput.element, 'files', { value: [file], configurable: true })
-    await fileInput.trigger('change')
-    await importButtons()[0].trigger('click')
+    const archive = new File(['zip'], 'pack.zip', { type: 'application/zip' })
+    const image = new File(['png'], 'one.png', { type: 'image/png' })
+    await pickFiles(body.get('[data-testid="sticker-upload-archives"]'), [archive])
+    await pickFiles(body.get('[data-testid="sticker-upload-images"]'), [image])
+    await buttonWithText(body, 'stickerUploadStart').trigger('click')
     await flushPromises()
 
-    expect(importStickerPack).toHaveBeenCalledWith(file)
-    expect(body.text()).toContain('"imported":3,"skipped":1,"failed":2')
-    expect(body.text()).toContain('bad.txt')
+    expect(importStickerPack).toHaveBeenCalledTimes(2)
+    expect(importStickerPack).toHaveBeenCalledWith(archive, 'p-1a2b3c4d')
+    expect(importStickerPack).toHaveBeenCalledWith(image, 'p-1a2b3c4d')
+    expect(body.text()).toContain('stickerUploadSummary{"imported":6,"skipped":2,"failed":2}')
+    expect(body.text()).toContain('bad.png')
     expect(body.text()).toContain('k00vgw')
+  })
+
+  test('the upload queue rejects unsupported and oversized files before uploading', async () => {
+    seed([sticker()])
+    const { page, body } = mountPage()
+    await flushPromises()
+
+    await buttonWithText(page, 'stickerUploadAction').trigger('click')
+    const big = new File([new Uint8Array((4 << 20) + 1)], 'huge.png', { type: 'image/png' })
+    const text = new File(['hello'], 'notes.txt', { type: 'text/plain' })
+    await pickFiles(body.get('[data-testid="sticker-upload-images"]'), [big, text])
+
+    expect(body.text()).toContain('stickerUploadImageTooLarge')
+    expect(body.text()).toContain('stickerUploadUnsupported')
+    expect(buttonWithText(body, 'stickerUploadStart').attributes('disabled')).toBeDefined()
+    expect(importStickerPack).not.toHaveBeenCalled()
+  })
+
+  test('deleting a pack moves its stickers to the default pack', async () => {
+    seed(
+      [sticker(), sticker({ id: 2, name: 'usagi', pack: 'memes' })],
+      [pack(), pack({ key: 'memes', name: '程序员梗', stickerCount: 1, enabledCount: 1 })],
+    )
+    vi.mocked(deleteStickerPack).mockResolvedValue({ moved: 1 })
+    const { page, body } = mountPage()
+    await flushPromises()
+
+    // The default pack cannot be deleted.
+    await buttonWithText(page, '默认').trigger('click')
+    expect(page.findAll('button').some((item) => item.text().includes('stickerPackDelete'))).toBe(false)
+
+    await buttonWithText(page, '程序员梗').trigger('click')
+    await buttonWithText(page, 'stickerPackDelete').trigger('click')
+    expect(body.text()).toContain('stickerPackDeleteDescription{"count":1}')
+    await buttonWithText(body, 'stickerPackDeleteConfirm').trigger('click')
+    await flushPromises()
+    expect(deleteStickerPack).toHaveBeenCalledWith('memes', 'official')
   })
 })

@@ -29,9 +29,12 @@ var (
 	ErrNotFound     = errors.New("sticker not found")
 )
 
+// SaveInput creates (Id 0) or edits one official sticker. An empty Pack keeps
+// the current group, or the default group for a new sticker.
 type SaveInput struct {
 	Id             uint64
 	Name, FileName string
+	Pack           string
 	SortOrder      int
 	IsEnabled      bool
 }
@@ -86,7 +89,7 @@ func Save(ctx context.Context, userID uint64, input SaveInput) error {
 		return ErrNameInvalid
 	}
 	err := db.Connect().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		row := sticker.Entity{CreatedBy: userID, IsOfficial: true, Pack: "official"}
+		row := sticker.Entity{CreatedBy: userID, IsOfficial: true, Pack: sticker.PackOfficial}
 		if input.Id != 0 {
 			existing, err := sticker.GetByIDTx(tx, input.Id)
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -117,6 +120,14 @@ func Save(ctx context.Context, userID uint64, input SaveInput) error {
 		}
 		if row.Id == 0 && fileName == "" {
 			return ErrFileRequired
+		}
+		if pack := strings.TrimSpace(input.Pack); pack != "" && pack != row.Pack {
+			if known, err := knownPackTx(tx, pack); err != nil {
+				return err
+			} else if !known {
+				return ErrPackInvalid
+			}
+			row.Pack = pack
 		}
 		row.Name = input.Name
 		row.FileName = fileName

@@ -54,6 +54,10 @@ func QueueMarketImport(ctx context.Context, packID uint64) (sticker.MarketPack, 
 		if err != nil {
 			return err
 		}
+		if pack.Source != MarketSourceID {
+			// Uploaded packs have no upstream to download from.
+			return ErrMarketPackNotFound
+		}
 		if marketImportBusy(pack) {
 			return ErrMarketBusy
 		}
@@ -198,44 +202,13 @@ func importMarketItem(ctx context.Context, config marketConfig, pack sticker.Mar
 	fileName, err := downloadMarketImage(ctx, config, emoji.URL)
 	if err == nil {
 		err = db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
-			row := sticker.Entity{
+			return linkMarketStickerTx(tx, &item, sticker.Entity{
 				Name:        marketStickerName(pack.Source, pack.UpstreamID, emoji.ID),
 				DisplayName: marketStickerLabel(pack.Name, index),
 				FileName:    fileName,
 				SortOrder:   index,
 				IsEnabled:   true,
-			}
-			// An administrator may have renamed the sticker of an earlier attempt;
-			// its generated token is then an alias of that sticker.
-			if alias, err := sticker.AliasByNameTx(tx, row.Name); err == nil {
-				if row, err = sticker.GetByIDTx(tx, alias.StickerID); err != nil {
-					return err
-				}
-				if row.Pack != sticker.PackMarket {
-					return ErrNameExists
-				}
-				item.StickerID = row.Id
-				return sticker.UpsertMarketItemTx(tx, &item)
-			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return err
-			}
-			inserted, err := sticker.InsertMarketStickerTx(tx, &row)
-			if err != nil {
-				return err
-			}
-			if !inserted {
-				// The token exists from an earlier, interrupted attempt; reuse it.
-				if row, err = sticker.GetByNameTx(tx, row.Name); err != nil {
-					return err
-				}
-				if row.Pack != sticker.PackMarket {
-					return ErrNameExists
-				}
-			} else if err := fileusageservice.SetStickerUsageTx(tx, row.Id, 0, row.FileName, fileUsage.UsageStatusActive); err != nil {
-				return err
-			}
-			item.StickerID = row.Id
-			return sticker.UpsertMarketItemTx(tx, &item)
+			})
 		})
 	}
 	if err == nil {
@@ -249,6 +222,42 @@ func importMarketItem(ctx context.Context, config marketConfig, pack sticker.Mar
 	if writeErr := sticker.UpsertMarketItemTx(db.ConnectContext(ctx), &item); writeErr != nil {
 		slog.Warn("sticker market: record item failure failed", "pack", pack.Id, "err", writeErr)
 	}
+}
+
+// linkMarketStickerTx records item as held by the market sticker row, creating
+// the sticker unless its stable token already exists.
+func linkMarketStickerTx(tx *gorm.DB, item *sticker.MarketItem, row sticker.Entity) error {
+	// An administrator may have renamed the sticker of an earlier attempt;
+	// its generated token is then an alias of that sticker.
+	if alias, err := sticker.AliasByNameTx(tx, row.Name); err == nil {
+		if row, err = sticker.GetByIDTx(tx, alias.StickerID); err != nil {
+			return err
+		}
+		if row.Pack != sticker.PackMarket {
+			return ErrNameExists
+		}
+		item.StickerID = row.Id
+		return sticker.UpsertMarketItemTx(tx, item)
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	inserted, err := sticker.InsertMarketStickerTx(tx, &row)
+	if err != nil {
+		return err
+	}
+	if !inserted {
+		// The token exists from an earlier, interrupted attempt; reuse it.
+		if row, err = sticker.GetByNameTx(tx, row.Name); err != nil {
+			return err
+		}
+		if row.Pack != sticker.PackMarket {
+			return ErrNameExists
+		}
+	} else if err := fileusageservice.SetStickerUsageTx(tx, row.Id, 0, row.FileName, fileUsage.UsageStatusActive); err != nil {
+		return err
+	}
+	item.StickerID = row.Id
+	return sticker.UpsertMarketItemTx(tx, item)
 }
 
 // fetchMarketImageBytes downloads one image from an allowed image host.
@@ -278,6 +287,12 @@ func downloadMarketImage(ctx context.Context, config marketConfig, rawURL string
 	if err != nil {
 		return "", err
 	}
+	return storeMarketImage(ctx, data)
+}
+
+// storeMarketImage validates downloaded or uploaded bytes, transcodes AVIF,
+// and returns the content-addressed object name.
+func storeMarketImage(ctx context.Context, data []byte) (string, error) {
 	// The bytes decide the type, exactly as for member uploads (issue #1393).
 	contentType, err := imagepolicy.DetectContentType(bytes.NewReader(data))
 	if errors.Is(err, imagepolicy.ErrUnsupportedImageFormat) {

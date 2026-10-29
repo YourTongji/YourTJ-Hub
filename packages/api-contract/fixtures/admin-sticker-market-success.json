@@ -12,6 +12,7 @@
     "packs": [
       {
         "id": 9201,
+        "source": "fluxdo",
         "upstreamId": "group-1",
         "name": "Pack One",
         "topic": "anime",
@@ -33,6 +34,7 @@
       },
       {
         "id": 9202,
+        "source": "fluxdo",
         "upstreamId": "group-2",
         "name": "Pack Two",
         "topic": "anime",

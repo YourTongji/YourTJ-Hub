@@ -358,6 +358,8 @@ paths:
     $ref: ./paths/sticker-library.yaml#/orderMyStickers
   /api/forum/stickers:
     $ref: ./paths/forum-read.yaml#/forumStickerList
+  /api/forum/sticker-packs:
+    $ref: ./paths/forum-read.yaml#/forumStickerPacks
   /api/forum/sticker-market:
     $ref: ./paths/sticker-market.yaml#/stickerMarket
   /api/forum/sticker-market/pack:
@@ -655,6 +657,14 @@ paths:
     $ref: ./paths/admin-stickers.yaml#/adminStickerDelete
   /api/admin/sticker-import:
     $ref: ./paths/admin-stickers.yaml#/adminStickerImport
+  /api/admin/sticker-packs:
+    $ref: ./paths/admin-stickers.yaml#/adminStickerPacks
+  /api/admin/sticker-pack-save:
+    $ref: ./paths/admin-stickers.yaml#/adminStickerPackSave
+  /api/admin/sticker-pack-delete:
+    $ref: ./paths/admin-stickers.yaml#/adminStickerPackDelete
+  /api/admin/sticker-batch:
+    $ref: ./paths/admin-stickers.yaml#/adminStickerBatch
   /api/admin/sticker-market:
     $ref: ./paths/admin-sticker-market.yaml#/adminStickerMarket
   /api/admin/sticker-market-sync:
@@ -669,6 +679,10 @@ paths:
     $ref: ./paths/admin-sticker-market.yaml#/adminStickerMarketPackSave
   /api/admin/sticker-market-item-save:
     $ref: ./paths/admin-sticker-market.yaml#/adminStickerMarketItemSave
+  /api/admin/sticker-market-pack-create:
+    $ref: ./paths/admin-sticker-market.yaml#/adminStickerMarketPackCreate
+  /api/admin/sticker-market-upload:
+    $ref: ./paths/admin-sticker-market.yaml#/adminStickerMarketUpload
   /api/admin/review-queue:
     $ref: ./paths/admin-content-ops.yaml#/adminListReviewQueue
   /api/admin/review-action:

@@ -12,7 +12,9 @@ import (
 // upstream metadata and local import state. Upstream URLs are never returned:
 // IconURL is a local thumbnail or the endpoint that creates it.
 type AdminMarketPack struct {
-	ID            uint64     `json:"id"`
+	ID uint64 `json:"id"`
+	// Source is MarketSourceID for synchronized packs or MarketSourceUpload.
+	Source        string     `json:"source"`
 	UpstreamID    string     `json:"upstreamId"`
 	Name          string     `json:"name"`
 	Topic         string     `json:"topic"`
@@ -71,7 +73,7 @@ func adminMarketPacks(packs []sticker.MarketPack) ([]AdminMarketPack, error) {
 	items := make([]AdminMarketPack, 0, len(packs))
 	for _, pack := range packs {
 		items = append(items, AdminMarketPack{
-			ID: pack.Id, UpstreamID: pack.UpstreamID, Name: pack.Name, Topic: pack.Topic,
+			ID: pack.Id, Source: pack.Source, UpstreamID: pack.UpstreamID, Name: pack.Name, Topic: pack.Topic,
 			UpstreamCount: pack.UpstreamCount, Archived: pack.Archived, Missing: pack.Missing,
 			Status: pack.Status, Published: pack.Published, SortOrder: pack.SortOrder,
 			ItemCount: pack.ItemCount, FailedCount: pack.FailedCount, ImportTotal: pack.ImportTotal, LastError: pack.LastError,
@@ -81,9 +83,10 @@ func adminMarketPacks(packs []sticker.MarketPack) ([]AdminMarketPack, error) {
 	return items, nil
 }
 
-// AdminMarketCatalog pages the synchronized catalog with local state.
-// status filters by "imported", "published" or one import state.
-func AdminMarketCatalog(topic, keyword, status string, page, pageSize int) (AdminMarketCatalogPage, error) {
+// AdminMarketCatalog pages the synchronized and uploaded catalog with local
+// state. status filters by "imported", "published" or one import state;
+// source by MarketSourceID or MarketSourceUpload.
+func AdminMarketCatalog(source, topic, keyword, status string, page, pageSize int) (AdminMarketCatalogPage, error) {
 	page, pageSize = normalizePage(page, pageSize, 50)
 	config, configErr := loadMarketConfig()
 	result := AdminMarketCatalogPage{Enabled: configErr == nil && config.Enabled, Source: MarketSourceID, Topics: []MarketTopicItem{}, Packs: []AdminMarketPack{}, Page: page, PageSize: pageSize}
@@ -92,14 +95,21 @@ func AdminMarketCatalog(topic, keyword, status string, page, pageSize int) (Admi
 	} else if !synced.IsZero() {
 		result.LastSyncedAt = &synced
 	}
-	topics, err := sticker.MarketTopics(MarketSourceID)
+	topics, err := sticker.MarketTopics("")
 	if err != nil {
 		return result, err
 	}
+	listed := map[string]bool{}
 	for _, topic := range topics {
-		result.Topics = append(result.Topics, MarketTopicItem{ID: topic.UpstreamID, Label: topic.Label})
+		if !listed[topic.UpstreamID] {
+			listed[topic.UpstreamID] = true
+			result.Topics = append(result.Topics, MarketTopicItem{ID: topic.UpstreamID, Label: topic.Label})
+		}
 	}
-	packs, total, err := sticker.MarketPacks(sticker.MarketPackQuery{Source: MarketSourceID, Topic: topic, Keyword: keyword, Status: status, Page: page, PageSize: pageSize})
+	if source != MarketSourceID && source != MarketSourceUpload {
+		source = ""
+	}
+	packs, total, err := sticker.MarketPacks(sticker.MarketPackQuery{Source: source, Topic: topic, Keyword: keyword, Status: status, Page: page, PageSize: pageSize})
 	if err != nil {
 		return result, err
 	}

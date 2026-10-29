@@ -21,7 +21,7 @@
 | 管理后台外壳 | `Current` | 跟随系统并可手动切换的深色主题、按页面名称、路由词和分组检索后台页面并给出候选列表的命令搜索；表单选择统一使用后台组件库，不使用浏览器原生下拉、复选或单选控件。统计页提供内容贡献统计（板块汇总与按日趋势、用户排行与单用户明细），只读公开内容与点赞关系、仅管理员可见，与「推荐统计」互不相干，见[论坛体验](forum.md#content-contribution-statistics)。 |
 | Web 导航外壳 | `Current` | 桌面侧栏可折叠并记忆状态，窄屏使用抽屉；见[论坛阅读规范](forum.md#feed-and-reading)。 |
 | Markdown 与外链 | `Partial` | 阅读支持 Mermaid、数学与受控链接预览，外链免确认白名单由管理端配置并在 Web／Flutter 一致生效；Vditor 替代数学分隔符预览尚缺，见[论坛体验](forum.md#links-markdown-and-stickers)。 |
-| 表情库 | `Partial` | 官方目录（改名保留别名）、个人素材 API、表情市场订阅、Web token 渲染及 Flutter 管理／输入可用；Web 个人库管理未实现，市场版权政策与上游可达性待确认，见[表情规范](mobile-experience.md#sticker-library)。 |
+| 表情库 | `Partial` | 官方目录（表情包分组、改名保留别名）、个人素材 API、表情市场订阅（含管理员上传的表情包）、Web 我的表情与 token 渲染及 Flutter 管理／输入可用；市场版权政策与上游可达性待确认，见[表情规范](mobile-experience.md#sticker-library)与[决策 0116](../decisions/0116-sticker-packs-and-uploaded-market-packs.md)。 |
 | 内容治理与账号生命周期 | `Current` | 审核（含作者申诉复核）、举报、敏感词、限流、可恢复删除及账号清除；见[论坛体验](forum.md#governance-and-public-exports)与[身份规范](identity-and-access.md)。 |
 | 课程目录、课评与排课 | `Current` | Web／Flutter 目录、评价、收藏、多方案排课和逐方案云同步；匿名边界、沿革及导入规则见[课程规范](courses-and-scheduling.md)。 |
 | Wiki 内容投影 | `Current` | GitHub 为内容源，站内只读页面、搜索与评论，编辑／历史外链 GitHub；见[Wiki 规范](wiki-authoring.md)。 |

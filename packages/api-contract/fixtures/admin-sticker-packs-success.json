@@ -1,0 +1,23 @@
+{
+  "result": [
+    {
+      "key": "official",
+      "name": "默认",
+      "sortOrder": 0,
+      "coverStickerId": 0,
+      "coverUrl": "/file/img/stickers/9f1c2d3e-0000-4000-8000-000000000001.png",
+      "stickerCount": 2,
+      "enabledCount": 1
+    },
+    {
+      "key": "p-1a2b3c4d",
+      "name": "节日",
+      "sortOrder": 1000,
+      "coverStickerId": 0,
+      "coverUrl": "",
+      "stickerCount": 0,
+      "enabledCount": 0
+    }
+  ],
+  "code": 0
+}

@@ -178,6 +178,8 @@ export interface AdminSticker {
   name: string
   fileName: string
   url: string
+  /** Key of the official pack holding the sticker. */
+  pack: string
   sortOrder: number
   isEnabled: boolean
   createdBy: number
@@ -186,6 +188,14 @@ export interface AdminSticker {
 }
 
 export type {
+  AdminStickerBatchAction,
+  AdminStickerBatchRequest,
+  AdminStickerPack,
+  AdminStickerPackSaveRequest,
+  AdminStickerMarketPackCreateRequest,
+  AdminStickerMarketPackSaveRequest,
+  AdminStickerMarketSource,
+  AdminStickerMarketUploadResult,
   AdminStickerMarketItem,
   AdminStickerMarketItemSaveRequest,
   AdminStickerMarketPack,

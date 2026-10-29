@@ -1,3 +1,42 @@
+
+forumStickerPacks:
+  get:
+    tags: [Forum]
+    summary: List official sticker packs for the picker
+    operationId: forumStickerPacks
+    description: |
+      Public endpoint with no authentication or input, sharing the
+      `sticker.list` per-IP quota with the sticker list. Returns official
+      packs that hold at least one enabled sticker, in administrator order,
+      with a display name, cover and count; pickers group the official list
+      by each item's `pack` key. A database failure returns
+      `common.operation.failed`.
+    security: []
+    responses:
+      '200':
+        description: Official packs (empty array when none hold stickers).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ForumStickerPacksResponse
+            examples:
+              success:
+                externalValue: ../fixtures/forum-sticker-packs-success.json
+      '429':
+        description: Sticker list quota exceeded.
+        headers:
+          Retry-After:
+            schema:
+              type: integer
+              minimum: 1
+            description: Seconds until the quota resets.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/forum-sticker-rate-limited.json
 searchForum:
   get:
     tags: [Forum]

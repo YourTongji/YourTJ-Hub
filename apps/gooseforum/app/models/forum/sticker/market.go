@@ -135,13 +135,37 @@ func MarkMissingMarketPacksTx(tx *gorm.DB, source string, syncedBefore time.Time
 	return result.RowsAffected, result.Error
 }
 
+// MarketTopics lists one source's topics, or every source's when source is empty.
 func MarketTopics(source string) ([]MarketTopic, error) {
 	rows := make([]MarketTopic, 0)
-	err := marketDB().Where("source = ?", source).Order("sort_order ASC").Order("id ASC").Find(&rows).Error
+	conn := marketDB()
+	if source != "" {
+		conn = conn.Where("source = ?", source)
+	}
+	err := conn.Order("sort_order ASC").Order("id ASC").Find(&rows).Error
 	return rows, err
 }
 
-// MarketPackQuery filters the administrator and public catalogs.
+// MarketTopicByLabelTx finds one source's topic by its label.
+func MarketTopicByLabelTx(tx *gorm.DB, source, label string) (MarketTopic, error) {
+	var row MarketTopic
+	err := tx.Where("source = ? AND label = ?", source, label).First(&row).Error
+	return row, err
+}
+
+func CreateMarketTopicTx(tx *gorm.DB, row *MarketTopic) error {
+	return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(row).Error
+}
+
+// MarketTopicExists reports whether any source lists the topic id.
+func MarketTopicExists(tx *gorm.DB, id string) (bool, error) {
+	var count int64
+	err := tx.Model(&MarketTopic{}).Where("upstream_id = ?", id).Count(&count).Error
+	return count > 0, err
+}
+
+// MarketPackQuery filters the administrator and public catalogs. An empty
+// Source covers synchronized and uploaded packs alike.
 type MarketPackQuery struct {
 	Source        string
 	Topic         string
@@ -153,7 +177,10 @@ type MarketPackQuery struct {
 }
 
 func (q MarketPackQuery) apply(conn *gorm.DB) *gorm.DB {
-	conn = conn.Model(&MarketPack{}).Where("source = ?", q.Source)
+	conn = conn.Model(&MarketPack{})
+	if q.Source != "" {
+		conn = conn.Where("source = ?", q.Source)
+	}
 	if q.PublishedOnly {
 		conn = conn.Where("published = ? AND item_count > ?", true, 0)
 	}
@@ -215,6 +242,28 @@ func MarketPacksByIDs(ids []uint64) ([]MarketPack, error) {
 }
 
 func SaveMarketPackTx(tx *gorm.DB, pack *MarketPack) error { return tx.Save(pack).Error }
+
+func CreateMarketPackTx(tx *gorm.DB, pack *MarketPack) error { return tx.Create(pack).Error }
+
+// MarketItemTx returns one item of a pack, if recorded.
+func MarketItemTx(tx *gorm.DB, packID uint64, upstreamID string) (MarketItem, error) {
+	var row MarketItem
+	err := tx.Where("pack_id = ? AND upstream_id = ?", packID, upstreamID).First(&row).Error
+	return row, err
+}
+
+// NextMarketItemOrder is one past the pack's last item, so uploads append.
+func NextMarketItemOrder(tx *gorm.DB, packID uint64) (int, int, error) {
+	var stats struct {
+		Count int
+		Last  *int
+	}
+	err := tx.Model(&MarketItem{}).Select("COUNT(*) AS count, MAX(sort_order) AS last").Where("pack_id = ?", packID).Scan(&stats).Error
+	if err != nil || stats.Last == nil {
+		return 0, stats.Count, err
+	}
+	return *stats.Last + 1, stats.Count, nil
+}
 
 // LastMarketSync is the most recent successful catalog refresh, or zero.
 func LastMarketSync(source string) (time.Time, error) {

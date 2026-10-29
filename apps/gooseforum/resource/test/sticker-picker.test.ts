@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { i18n } from '../src/runtime/i18n'
-import type { StickerItem, StickerMarketPack, StickerMarketPackDetail, StickerMarketPage } from '../packages/client/src/contracts/sticker'
+import type { StickerItem, StickerMarketPack, StickerMarketPackDetail, StickerMarketPage, StickerOfficialPack } from '../packages/client/src/contracts/sticker'
 
 const getForumStickers = vi.fn<() => Promise<StickerItem[]>>()
+const getForumStickerPacks = vi.fn<() => Promise<StickerOfficialPack[]>>()
+const getMyStickers = vi.fn<() => Promise<StickerItem[]>>()
 const getMyStickerPacks = vi.fn<() => Promise<StickerMarketPack[]>>()
 const getStickerMarket = vi.fn<(query: unknown) => Promise<StickerMarketPage>>()
 const getStickerMarketPack = vi.fn<(id: number) => Promise<StickerMarketPackDetail>>()
@@ -13,7 +15,14 @@ const saveMyStickerPack = vi.fn<(id: number) => Promise<StickerMarketPack>>()
 const deleteMyStickerPack = vi.fn<(id: number) => Promise<void>>()
 
 vi.mock('@/runtime/api', () => ({
+  ApiResponseError: class ApiResponseError extends Error {},
   getForumStickers: () => getForumStickers(),
+  getForumStickerPacks: () => getForumStickerPacks(),
+  getMyStickers: () => getMyStickers(),
+  saveMyStickerEntry: vi.fn(),
+  deleteMySticker: vi.fn(),
+  orderMyStickers: vi.fn(),
+  uploadImageFile: vi.fn(),
   getMyStickerPacks: () => getMyStickerPacks(),
   getStickerMarket: (query: unknown) => getStickerMarket(query),
   getStickerMarketPack: (id: number) => getStickerMarketPack(id),
@@ -51,6 +60,8 @@ beforeEach(() => {
   i18n.global.locale.value = 'zh'
   vi.clearAllMocks()
   getMyStickerPacks.mockResolvedValue([])
+  getForumStickerPacks.mockRejectedValue(new Error('old server'))
+  getMyStickers.mockResolvedValue([])
 })
 
 describe('StickerPicker 表情包选择面板（MADR 0030）', () => {
@@ -266,6 +277,61 @@ describe('StickerPicker 表情包选择面板（MADR 0030）', () => {
     await wrapper.get('[role="dialog"]').trigger('keydown', { key: 'Escape' })
     expect(wrapper.emitted('close')).toHaveLength(1)
     vi.useRealTimers()
+    wrapper.unmount()
+  })
+
+  test('官方表情包按分组顺序显示名称与封面，点选分组只显示该组', async () => {
+    getForumStickers.mockResolvedValue([
+      { name: 'smile', url: '/smile.png', pack: 'official' },
+      { name: 'bug', url: '/bug.png', pack: 'memes' },
+      { name: 'wave', url: '/wave.png', pack: 'official' },
+      { name: 'loose', url: '/loose.png', pack: 'unnamed' },
+    ])
+    getForumStickerPacks.mockResolvedValue([
+      { key: 'memes', name: '程序员梗', coverUrl: '/bug.png', stickerCount: 1 },
+      { key: 'official', name: '默认', coverUrl: '', stickerCount: 2 },
+    ])
+    const StickerPicker = await importStickerPicker()
+    const wrapper = mountPicker(StickerPicker)
+    await flushPromises()
+
+    const chips = wrapper.findAll('.gf-sticker-chip')
+    expect(chips.map((chip) => chip.text())).toEqual([i18n.global.t('stickers.allTopics'), '程序员梗', '默认', 'unnamed'])
+    expect(chips[1].find('img').attributes('src')).toBe('/bug.png')
+    // "All" keeps each pack together, in pack order.
+    expect(wrapper.findAll('.gf-sticker-cell').map((cell) => cell.attributes('aria-label'))).toEqual(['bug', 'smile', 'wave', 'loose'])
+
+    await chips[2].trigger('click')
+    expect(wrapper.findAll('.gf-sticker-cell').map((cell) => cell.attributes('aria-label'))).toEqual(['smile', 'wave'])
+    wrapper.unmount()
+  })
+
+  test('“我的”页签列出收藏与上传；审核中的不能插入，管理按钮关闭面板并打开管理窗口', async () => {
+    getForumStickers.mockResolvedValue(stickers)
+    getMyStickers.mockResolvedValue([
+      { name: 'smile', url: '/smile.png', displayName: '微笑' },
+      { name: 'u_' + 'a'.repeat(48), url: '/u.png', isOfficial: false, isEnabled: false, reviewStatus: 'pending' },
+    ])
+    const StickerPicker = await importStickerPicker()
+    const { myStickersDialogOpen } = await import('../src/site/composables/useMyStickersDialog')
+    const wrapper = mountPicker(StickerPicker)
+    await flushPromises()
+
+    await wrapper.findAll('.gf-sticker-tab').find((tab) => tab.text() === i18n.global.t('stickers.tabMine'))!.trigger('click')
+    await flushPromises()
+    expect(getMyStickers).toHaveBeenCalledTimes(1)
+    const cells = wrapper.findAll('.gf-sticker-cell')
+    expect(cells).toHaveLength(2)
+    expect(cells[1].attributes('aria-disabled')).toBe('true')
+    expect(cells[1].attributes('aria-label')).toBe(i18n.global.t('stickers.mine.pendingCell', { name: i18n.global.t('stickers.custom') }))
+    await cells[1].trigger('click')
+    expect(wrapper.emitted('select')).toBeUndefined()
+    await cells[0].trigger('click')
+    expect(wrapper.emitted('select')).toEqual([['smile']])
+
+    await wrapper.findAll('.gf-sticker-manage').find((button) => button.text().includes(i18n.global.t('stickers.mine.manage')))!.trigger('click')
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(myStickersDialogOpen.value).toBe(true)
     wrapper.unmount()
   })
 })

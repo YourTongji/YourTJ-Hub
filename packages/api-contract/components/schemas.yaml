@@ -10902,7 +10902,7 @@ ForumStickerListResponse:
 
 AdminStickerItem:
   type: object
-  required: [id, name, fileName, url, sortOrder, isEnabled, createdBy, aliases]
+  required: [id, name, fileName, url, pack, sortOrder, isEnabled, createdBy, aliases]
   properties:
     id:
       type: integer
@@ -10918,6 +10918,9 @@ AdminStickerItem:
     url:
       type: string
       description: Public access path (`/file/img/<fileName>` or CDN prefix); empty when fileName is empty.
+    pack:
+      type: string
+      description: Key of the official pack holding the sticker (`official` is the default pack).
     sortOrder:
       type: integer
       description: Ascending sort weight (ties break by id ascending).
@@ -10968,6 +10971,10 @@ AdminStickerSaveRequest:
     fileName:
       type: string
       description: An existing image upload owned by the caller, as a storage key or its public URL. Required when id is 0; omission preserves the current image when updating. Missing, unknown, non-image or foreign uploads fail with `upload.file.missing`. The image reference is registered atomically with the sticker.
+    pack:
+      type: string
+      maxLength: 64
+      description: Key of the official pack to place the sticker in; empty or omitted keeps the current pack (`official` for a new sticker). A key no official pack uses fails with `common.request.invalidParams` (HTTP 200).
     sortOrder:
       type: integer
       description: Ascending sort weight.
@@ -11051,6 +11058,202 @@ AdminStickerImportSuccess:
 AdminStickerImportResponse:
   oneOf:
     - $ref: '#/AdminStickerImportSuccess'
+    - $ref: '#/ApiFailure'
+
+StickerOfficialPack:
+  type: object
+  required: [key, name, coverUrl, stickerCount]
+  properties:
+    key:
+      type: string
+      description: Pack key; matches `pack` on the pack's sticker items.
+    name:
+      type: string
+      description: Display name chosen by administrators, or the default name of a seeded pack.
+    coverUrl:
+      type: string
+      description: Image of the chosen cover sticker, or of the pack's first sticker.
+    stickerCount:
+      type: integer
+      minimum: 1
+      description: Enabled stickers in the pack.
+  additionalProperties: false
+
+ForumStickerPacksSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/StickerOfficialPack'
+          description: Official packs with at least one enabled sticker, in administrator order.
+
+ForumStickerPacksResponse:
+  oneOf:
+    - $ref: '#/ForumStickerPacksSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminStickerPack:
+  type: object
+  required: [key, name, sortOrder, coverStickerId, coverUrl, stickerCount, enabledCount]
+  properties:
+    key:
+      type: string
+      description: Pack key stored on its stickers. Created packs get a generated `p-` key.
+    name:
+      type: string
+    sortOrder:
+      type: integer
+      description: Ascending order in pickers; ties break by key.
+    coverStickerId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Chosen cover sticker; 0 uses the first sticker.
+    coverUrl:
+      type: string
+      description: Image of the cover in effect; empty for an empty pack.
+    stickerCount:
+      type: integer
+      minimum: 0
+      description: Official stickers in the pack, enabled or not.
+    enabledCount:
+      type: integer
+      minimum: 0
+  additionalProperties: false
+
+AdminStickerPackListSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/AdminStickerPack'
+          description: Every official pack, including the default pack and empty created packs, in picker order.
+
+AdminStickerPackListResponse:
+  oneOf:
+    - $ref: '#/AdminStickerPackListSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminStickerPackSaveRequest:
+  type: object
+  properties:
+    key:
+      type: string
+      maxLength: 64
+      description: Empty creates a pack with a generated key; otherwise the pack to edit. A key no official pack uses fails with `common.request.invalidParams` (HTTP 200).
+    name:
+      type: string
+      maxLength: 64
+      description: Trimmed display name; blank fails with `admin.sticker.nameRequired`, over 64 characters or control characters with `common.request.invalidParams` (HTTP 200).
+    sortOrder:
+      type: integer
+    coverStickerId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: One of the pack's own stickers, or 0 for the first one; any other sticker fails with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+AdminStickerPackSaveSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: object
+          required: [key]
+          properties:
+            key:
+              type: string
+              description: Key of the saved pack.
+          additionalProperties: false
+
+AdminStickerPackSaveResponse:
+  oneOf:
+    - $ref: '#/AdminStickerPackSaveSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminStickerPackDeleteRequest:
+  type: object
+  properties:
+    key:
+      type: string
+      description: Pack to remove; the default `official` pack cannot be removed.
+    moveTo:
+      type: string
+      description: Pack that receives the stickers; empty means `official`. It must differ from `key`.
+  additionalProperties: false
+
+AdminStickerPackDeleteSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: object
+          required: [moved]
+          properties:
+            moved:
+              type: integer
+              minimum: 0
+              description: Stickers moved into `moveTo`.
+          additionalProperties: false
+
+AdminStickerPackDeleteResponse:
+  oneOf:
+    - $ref: '#/AdminStickerPackDeleteSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminStickerBatchRequest:
+  type: object
+  required: [ids, action]
+  properties:
+    ids:
+      type: array
+      minItems: 1
+      maxItems: 500
+      items:
+        type: integer
+        format: uint64
+        minimum: 1
+      description: Official sticker ids; duplicates and ids of other stickers are ignored.
+    action:
+      type: string
+      enum: [enable, disable, move, delete]
+    pack:
+      type: string
+      description: Target pack key for `move`.
+  additionalProperties: false
+
+AdminStickerBatchSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: object
+          required: [changed]
+          properties:
+            changed:
+              type: integer
+              minimum: 0
+              description: Stickers the action changed; already matching stickers are not counted.
+          additionalProperties: false
+
+AdminStickerBatchResponse:
+  oneOf:
+    - $ref: '#/AdminStickerBatchSuccess'
     - $ref: '#/ApiFailure'
 SearchMaintenanceRequest:
   type: object
@@ -13074,15 +13277,19 @@ StickerPackRequest:
 
 AdminStickerMarketPack:
   type: object
-  required: [id, upstreamId, name, topic, upstreamCount, archived, missing, status, published, sortOrder, itemCount, failedCount, importTotal, lastError, coverUrl, iconUrl, iconText, syncedAt, importedAt]
+  required: [id, source, upstreamId, name, topic, upstreamCount, archived, missing, status, published, sortOrder, itemCount, failedCount, importTotal, lastError, coverUrl, iconUrl, iconText, syncedAt, importedAt]
   properties:
     id:
       type: integer
       format: uint64
       minimum: 1
+    source:
+      type: string
+      enum: [fluxdo, upload]
+      description: '`fluxdo` for packs synchronized from the market index, `upload` for packs administrators assemble from their own files.'
     upstreamId:
       type: string
-      description: Upstream group id from the market index.
+      description: Upstream group id from the market index; a generated id for uploaded packs.
     name:
       type: string
     topic:
@@ -13244,7 +13451,62 @@ AdminStickerMarketPackSaveRequest:
     sortOrder:
       type: integer
       description: Ascending order among published packs.
+    name:
+      type: string
+      maxLength: 128
+      description: New name of an uploaded pack; blank fails with `admin.sticker.nameRequired` (HTTP 200). Ignored for synchronized packs.
+    topic:
+      type: string
+      description: Existing topic id for an uploaded pack; empty clears it, and an unknown id fails with `common.request.invalidParams` (HTTP 200). Ignored for synchronized packs.
+    topicLabel:
+      type: string
+      maxLength: 64
+      description: Topic name for an uploaded pack; an uploaded topic with this name is reused or created. Takes precedence over `topic`.
   additionalProperties: false
+
+AdminStickerMarketPackCreateRequest:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+      maxLength: 128
+      description: Pack name; blank fails with `admin.sticker.nameRequired` (HTTP 200).
+    topic:
+      type: string
+      description: Existing topic id; an unknown id fails with `common.request.invalidParams` (HTTP 200).
+    topicLabel:
+      type: string
+      maxLength: 64
+      description: Topic name; an uploaded topic with this name is reused or created. Takes precedence over `topic`.
+  additionalProperties: false
+
+AdminStickerMarketUploadResult:
+  type: object
+  required: [result, pack]
+  properties:
+    result:
+      $ref: '#/AdminStickerImportResult'
+    pack:
+      $ref: '#/AdminStickerMarketPack'
+  additionalProperties: false
+
+AdminStickerMarketUploadSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          $ref: '#/AdminStickerMarketUploadResult'
+        messageCode:
+          type: string
+          const: common.operation.success
+
+AdminStickerMarketUploadResponse:
+  oneOf:
+    - $ref: '#/AdminStickerMarketUploadSuccess'
+    - $ref: '#/ApiFailure'
 
 AdminStickerMarketPackSuccess:
   allOf:

@@ -697,7 +697,7 @@ func SchemaModels() []any {
 		&sticker.Entity{},
 		&sticker.LibraryOwner{},
 		&sticker.LibraryEntry{},
-		&sticker.Alias{},
+		&sticker.Alias{}, &sticker.OfficialPack{},
 		&sticker.MarketTopic{}, &sticker.MarketPack{}, &sticker.MarketItem{}, &sticker.PackSubscription{},
 		&campus.Binding{},
 		&campus.IdentityReservation{},

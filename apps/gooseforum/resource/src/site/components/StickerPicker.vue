@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { ArrowLeft, Loader2, Plus, RotateCcw, Store } from '@lucide/vue'
+import { ArrowLeft, Loader2, Plus, RotateCcw, Settings2, Store } from '@lucide/vue'
 import type { StickerItem, StickerMarketPack } from '@gooseforum/client'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { isStickerUsable, useMyStickers } from '@/site/composables/useMyStickers'
+import { openMyStickers } from '@/site/composables/useMyStickersDialog'
 import { useStickerLibrary } from '@/site/composables/useStickerLibrary'
 import { useStickerMarket } from '@/site/composables/useStickerMarket'
+import { isPersonalStickerName } from '@/site/utils/sticker-token'
 
 /**
  * 表情包选择面板（MADR 0030；市场见 issue #1429）：官方贴纸、已添加的市场
@@ -29,6 +32,7 @@ const emit = defineEmits<{
 
 type PickerView =
   | { kind: 'official' }
+  | { kind: 'mine' }
   | { kind: 'pack', pack: StickerMarketPack }
   | { kind: 'market' }
   | { kind: 'marketPack', pack: StickerMarketPack }
@@ -38,12 +42,15 @@ const LONG_PRESS_MS = 350
 const MOVE_TOLERANCE_PX = 8
 
 const { t } = useI18n()
-const { stickers, ensureStickers, loading, failed } = useStickerLibrary()
+const { stickers, officialPacks, ensureStickers, loading, failed } = useStickerLibrary()
+const mine = useMyStickers()
 const market = useStickerMarket()
 const { myPacks, topics, marketPacks, marketTopic, marketTotal, marketLoading, marketFailed, actionError } = market
 const panelRef = ref<HTMLElement | null>(null)
 const gridRef = ref<HTMLElement | null>(null)
 const view = ref<PickerView>({ kind: 'official' })
+// Official pack filter; '' shows every official sticker grouped by pack.
+const officialPack = ref('')
 const packItems = ref<StickerItem[]>([])
 const packLoading = ref(false)
 const packFailed = ref(false)
@@ -56,9 +63,36 @@ let pressOrigin: { x: number, y: number } | null = null
 let pressPreviewing = false
 let suppressClick = false
 
-const gridStickers = computed(() => (view.value.kind === 'official' ? stickers.value : packItems.value))
-const gridLoading = computed(() => (view.value.kind === 'official' ? loading.value : packLoading.value))
-const gridFailed = computed(() => (view.value.kind === 'official' ? failed.value : packFailed.value))
+// Named packs in the administrators' order, then any pack key the metadata
+// does not cover yet, so no enabled sticker becomes unreachable.
+const officialGroups = computed(() => {
+  const keys = new Set(stickers.value.map((sticker) => sticker.pack || 'official'))
+  const groups = officialPacks.value.filter((pack) => keys.delete(pack.key))
+  return [...groups, ...[...keys].map((key) => ({ key, name: key, coverUrl: '', stickerCount: 0 }))]
+})
+const officialStickers = computed(() => {
+  if (officialPack.value) return stickers.value.filter((sticker) => (sticker.pack || 'official') === officialPack.value)
+  const order = new Map(officialGroups.value.map((pack, index) => [pack.key, index]))
+  return stickers.value
+    .map((sticker, index) => ({ sticker, index, group: order.get(sticker.pack || 'official') ?? order.size }))
+    .sort((a, b) => a.group - b.group || a.index - b.index)
+    .map((entry) => entry.sticker)
+})
+const gridStickers = computed(() => {
+  if (view.value.kind === 'official') return officialStickers.value
+  if (view.value.kind === 'mine') return mine.items.value
+  return packItems.value
+})
+const gridLoading = computed(() => {
+  if (view.value.kind === 'official') return loading.value
+  if (view.value.kind === 'mine') return mine.loading.value && !mine.ready.value
+  return packLoading.value
+})
+const gridFailed = computed(() => {
+  if (view.value.kind === 'official') return failed.value
+  if (view.value.kind === 'mine') return mine.failed.value
+  return packFailed.value
+})
 const viewPack = computed(() => (view.value.kind === 'pack' || view.value.kind === 'marketPack' ? view.value.pack : null))
 const hasMoreMarket = computed(() => marketPacks.value.length < marketTotal.value)
 
@@ -117,6 +151,10 @@ async function showPack(pack: StickerMarketPack, kind: 'pack' | 'marketPack') {
 }
 
 function retryGrid() {
+  if (view.value.kind === 'mine') {
+    void mine.load(true)
+    return
+  }
   if (viewPack.value && view.value.kind !== 'official') {
     void showPack(viewPack.value, view.value.kind === 'pack' ? 'pack' : 'marketPack')
     return
@@ -127,6 +165,23 @@ function retryGrid() {
 function showOfficial() {
   hidePreview()
   view.value = { kind: 'official' }
+}
+
+function showOfficialPack(key: string) {
+  hidePreview()
+  officialPack.value = key
+}
+
+function showMine() {
+  hidePreview()
+  view.value = { kind: 'mine' }
+  // Refresh on every visit: stickers saved from a post or another device appear here.
+  void mine.load(true)
+}
+
+function manageMine() {
+  emit('close')
+  openMyStickers()
 }
 
 function showMarket() {
@@ -157,11 +212,19 @@ function selectSticker(sticker: StickerItem) {
     suppressClick = false
     return
   }
+  if (!isStickerUsable(sticker)) return
   emit('select', sticker.name)
 }
 
 function stickerLabel(sticker: StickerItem) {
-  return sticker.displayName || sticker.name
+  if (sticker.displayName) return sticker.displayName
+  return isPersonalStickerName(sticker.name) ? t('stickers.custom') : sticker.name
+}
+
+function stickerTitle(sticker: StickerItem) {
+  if (sticker.reviewStatus === 'pending') return t('stickers.mine.pendingCell', { name: stickerLabel(sticker) })
+  if (!isStickerUsable(sticker)) return t('stickers.mine.unavailableCell', { name: stickerLabel(sticker) })
+  return stickerLabel(sticker)
 }
 
 function hidePreview() {
@@ -275,6 +338,14 @@ const gridEl = (el: unknown) => {
         {{ t('stickers.tabOfficial') }}
       </button>
       <button
+        type="button"
+        class="gf-sticker-tab gf-sticker-tab-text"
+        :aria-pressed="view.kind === 'mine'"
+        @click="showMine"
+      >
+        {{ t('stickers.tabMine') }}
+      </button>
+      <button
         v-for="pack in myPacks"
         :key="pack.id"
         type="button"
@@ -375,6 +446,29 @@ const gridEl = (el: unknown) => {
             {{ market.isSubscribed(viewPack.id) ? t('stickers.removePack') : t('stickers.addPack') }}
           </button>
         </div>
+        <div v-if="view.kind === 'official' && officialGroups.length > 1" class="gf-sticker-topics" role="toolbar" :aria-label="t('stickers.officialPacks')">
+          <button type="button" class="gf-sticker-chip" :aria-pressed="officialPack === ''" @click="showOfficialPack('')">
+            {{ t('stickers.allTopics') }}
+          </button>
+          <button
+            v-for="pack in officialGroups"
+            :key="pack.key"
+            type="button"
+            class="gf-sticker-chip gf-sticker-chip-cover"
+            :aria-pressed="officialPack === pack.key"
+            @click="showOfficialPack(pack.key)"
+          >
+            <img v-if="pack.coverUrl" :src="pack.coverUrl" alt="" loading="lazy" class="gf-sticker-chip-img" />
+            {{ pack.name }}
+          </button>
+        </div>
+        <div v-if="view.kind === 'mine' && mine.items.value.length > 0" class="gf-sticker-pack-header">
+          <span class="min-w-0 flex-1 truncate text-xs tabular-nums text-base-content/60">{{ t('stickers.mine.short', { count: mine.items.value.length }) }}</span>
+          <button type="button" class="gf-sticker-manage" @click="manageMine">
+            <Settings2 class="h-3.5 w-3.5" />
+            {{ t('stickers.mine.manage') }}
+          </button>
+        </div>
         <div
           :ref="gridEl"
           class="gf-sticker-picker-grid"
@@ -388,9 +482,11 @@ const gridEl = (el: unknown) => {
             :key="sticker.name"
             type="button"
             class="gf-sticker-cell"
+            :class="!isStickerUsable(sticker) && 'gf-sticker-cell-unusable'"
             :data-sticker-index="index"
-            :title="stickerLabel(sticker)"
-            :aria-label="stickerLabel(sticker)"
+            :title="stickerTitle(sticker)"
+            :aria-label="stickerTitle(sticker)"
+            :aria-disabled="!isStickerUsable(sticker) || undefined"
             @click="selectSticker(sticker)"
             @pointerenter="onCellPointerEnter(sticker, $event)"
             @pointerdown="onCellPointerDown(sticker, $event)"
@@ -409,6 +505,16 @@ const gridEl = (el: unknown) => {
           <span>{{ t('api.stickersLoadFailed') }}</span>
           <button type="button" class="gf-icon-button h-7 w-7" :aria-label="t('common.retry')" @click="retryGrid">
             <RotateCcw class="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <div v-else-if="view.kind === 'mine' && mine.signedOut.value" class="px-2 py-4 text-center text-sm text-base-content/55">
+          {{ t('stickers.mine.signedOut') }}
+        </div>
+        <div v-else-if="view.kind === 'mine' && gridStickers.length === 0" class="flex flex-col items-center gap-2 px-2 py-4 text-center">
+          <p class="text-pretty text-sm text-base-content/60">{{ t('stickers.mine.pickerEmpty') }}</p>
+          <button type="button" class="gf-sticker-manage" @click="manageMine">
+            <Plus class="h-3.5 w-3.5" />
+            {{ t('stickers.mine.upload') }}
           </button>
         </div>
         <div v-else-if="gridStickers.length === 0" class="px-2 py-4 text-center text-sm text-base-content/55">
@@ -545,6 +651,63 @@ const gridEl = (el: unknown) => {
 .gf-sticker-chip[aria-pressed='true'] {
   background: var(--gf-color-base-content);
   color: var(--gf-color-base-100);
+}
+
+.gf-sticker-chip-cover {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gf-sticker-chip:has(.gf-sticker-chip-img) {
+  padding-inline-start: 3px;
+}
+
+.gf-sticker-chip-img {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.gf-sticker-manage {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  height: 1.75rem;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--gf-color-base-200);
+  color: var(--gf-color-base-content);
+  transition: background-color 0.15s ease-out, scale 0.15s ease-out;
+}
+
+.gf-sticker-manage:hover {
+  background: var(--gf-color-base-300);
+}
+
+.gf-sticker-manage:active {
+  scale: 0.96;
+}
+
+.gf-sticker-cell-unusable {
+  cursor: default;
+}
+
+.gf-sticker-cell-unusable .gf-sticker-img {
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+
+.gf-sticker-cell-unusable:hover {
+  transform: none;
 }
 
 .gf-sticker-pack-row {

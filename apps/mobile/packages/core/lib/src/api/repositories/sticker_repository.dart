@@ -19,6 +19,18 @@ class StickerRepository {
   Future<List<StickerItemPayload>> list() =>
       _client.get('/api/forum/stickers', parser: _items);
 
+  /// Official pack names and covers, in the order administrators chose.
+  Future<List<StickerOfficialPackPayload>> officialPacks() => _client.get(
+    '/api/forum/sticker-packs',
+    parser: (json) => (json as List? ?? const [])
+        .map(
+          (e) => StickerOfficialPackPayload.fromJson(
+            Map<String, dynamic>.from(e as Map),
+          ),
+        )
+        .toList(growable: false),
+  );
+
   Future<List<StickerItemPayload>> resolve(List<String> names) => _client.post(
     '/api/forum/stickers/resolve',
     body: {'names': names},

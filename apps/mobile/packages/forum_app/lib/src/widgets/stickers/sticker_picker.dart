@@ -241,7 +241,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
         ? _searchPool(state)
         : switch (_tab) {
             1 => state.mine,
-            2 => state.official,
+            2 => _pack == null ? state.officialInPackOrder : state.official,
             3 => state.packStickers[marketPack] ?? const <StickerItemPayload>[],
             _ => state.recent,
           };
@@ -276,20 +276,22 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                 state.loadingPackStickers.contains(marketPack),
           _ => false,
         };
-    final officialPacks = state.official
-        .map((e) => e.pack)
-        .where((e) => e.isNotEmpty)
-        .toSet()
-        .toList();
+    final officialPacks = state.officialGroups;
     final Widget? filters = _searching
         ? null
         : _tab == 2 && officialPacks.length > 1
         ? _filterStrip([
-            for (final pack in [null, ...officialPacks])
+            _filterChip(
+              label: strings.all,
+              selected: _pack == null,
+              onSelected: () => setState(() => _pack = null),
+            ),
+            for (final pack in officialPacks)
               _filterChip(
-                label: pack ?? strings.all,
-                selected: _pack == pack,
-                onSelected: () => setState(() => _pack = pack),
+                label: pack.name,
+                cover: pack.coverUrl,
+                selected: _pack == pack.key,
+                onSelected: () => setState(() => _pack = pack.key),
               ),
           ])
         : _tab == 3 && state.packs.isNotEmpty

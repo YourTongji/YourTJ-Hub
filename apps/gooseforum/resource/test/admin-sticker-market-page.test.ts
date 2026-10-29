@@ -3,23 +3,27 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { DOMWrapper, flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import StickerMarketManagementPage from '../src/admin/pages/management/StickerMarketManagementPage.vue'
 import {
+  createStickerMarketPack,
   getStickerMarket,
   getStickerMarketPack,
   importStickerMarketPack,
   saveStickerMarketItem,
   saveStickerMarketPack,
   syncStickerMarket,
+  uploadStickerMarketFile,
 } from '../src/admin/runtime/api'
 import { adminToast } from '../src/admin/runtime/toast'
 import type { AdminPayload, AdminStickerMarketPack, AdminStickerMarketPage } from '../src/admin/types'
 
 vi.mock('../src/admin/runtime/api', () => ({
+  createStickerMarketPack: vi.fn(),
   getStickerMarket: vi.fn(),
   getStickerMarketPack: vi.fn(),
   importStickerMarketPack: vi.fn(),
   saveStickerMarketItem: vi.fn(),
   saveStickerMarketPack: vi.fn(),
   syncStickerMarket: vi.fn(),
+  uploadStickerMarketFile: vi.fn(),
 }))
 vi.mock('../src/admin/runtime/toast', () => ({
   adminToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
@@ -31,6 +35,7 @@ vi.mock('../src/admin/runtime/i18n-text', () => ({
 const pack = (overrides: Partial<AdminStickerMarketPack> = {}): AdminStickerMarketPack => ({
   id: 9201,
   upstreamId: 'group-1',
+  source: 'fluxdo',
   name: 'Pack One',
   topic: 'anime',
   upstreamCount: 3,
@@ -237,5 +242,73 @@ describe('sticker market management page', () => {
     expect(body.find('#sticker-market-name-9301').exists()).toBe(false)
     expect(body.get('[role="dialog"] button[title="happy_cat"]').exists()).toBe(true)
     expect(body.text()).toContain('stickerMarketPreviousNames')
+  })
+
+  test('an uploaded pack offers uploads and info editing instead of import', async () => {
+    const uploaded = pack({ id: 9401, source: 'upload', upstreamId: 'u0123456789abcdef', name: '校园日常', topic: '', status: 'ready', itemCount: 4, failedCount: 0 })
+    vi.mocked(getStickerMarket).mockResolvedValue(marketPage([uploaded]))
+    vi.mocked(saveStickerMarketPack).mockResolvedValue({ ...uploaded, name: '校园', topic: 'u-abc' })
+    const { page, body } = mountPage()
+    await flushPromises()
+
+    const row = page.get('tbody tr')
+    expect(row.text()).toContain('stickerMarketSourceUpload')
+    expect(row.text()).toContain('stickerMarketUploadedCount{"count":4}')
+    expect(row.text()).not.toContain('u0123456789abcdef')
+    expect(row.text()).not.toContain('stickerMarketImport')
+    expect(row.text()).toContain('stickerMarketUploadImages')
+
+    await row.findAll('button').find((button) => button.attributes('title') === 'stickerMarketEditInfo')!.trigger('click')
+    const form = body.get('[role="dialog"] form')
+    // Without a topic the picker starts on "new category", which needs a label.
+    await form.trigger('submit')
+    expect(adminToast.warning).toHaveBeenCalledWith('stickerMarketTopicRequired')
+    expect(saveStickerMarketPack).not.toHaveBeenCalled()
+
+    const inputs = form.findAll('input')
+    await inputs[0].setValue('校园')
+    await inputs[1].setValue('校园生活')
+    await form.trigger('submit')
+    await flushPromises()
+    expect(saveStickerMarketPack).toHaveBeenCalledWith({ id: 9401, published: true, sortOrder: 0, name: '校园', topicLabel: '校园生活' })
+  })
+
+  test('creating an uploaded pack continues into uploads and can publish from there', async () => {
+    const created = pack({ id: 9402, source: 'upload', upstreamId: 'u1', name: '新包', status: 'new', published: false, itemCount: 0, failedCount: 0, coverUrl: '' })
+    vi.mocked(getStickerMarket).mockResolvedValue(marketPage([]))
+    vi.mocked(createStickerMarketPack).mockResolvedValue(created)
+    vi.mocked(uploadStickerMarketFile).mockResolvedValue({ result: { imported: 2, skipped: 0, failed: [] }, pack: { ...created, status: 'ready', itemCount: 2 } })
+    vi.mocked(saveStickerMarketPack).mockResolvedValue({ ...created, status: 'ready', itemCount: 2, published: true })
+    const { body } = mountPage()
+    await flushPromises()
+
+    await buttonWithText('stickerMarketUploadPack').trigger('click')
+    const form = body.get('[role="dialog"] form')
+    await form.trigger('submit')
+    expect(adminToast.warning).toHaveBeenCalledWith('stickerPackNameRequired')
+    expect(createStickerMarketPack).not.toHaveBeenCalled()
+
+    await form.get('input').setValue('  新包 ')
+    await form.trigger('submit')
+    await flushPromises()
+    expect(createStickerMarketPack).toHaveBeenCalledWith({ name: '新包', topic: 'anime' })
+    expect(body.text()).toContain('stickerMarketUploadTitle{"name":"新包"}')
+    expect(body.text()).toContain('stickerMarketUploadHidden')
+    const publish = body.findAll('[role="dialog"] button').find((button) => button.text().includes('stickerMarketPublishNow'))!
+    expect(publish.attributes('disabled')).toBeDefined()
+
+    const archive = new File(['zip'], 'set.zip', { type: 'application/zip' })
+    const input = body.get('[data-testid="sticker-upload-archives"]')
+    Object.defineProperty(input.element, 'files', { value: [archive], configurable: true })
+    await input.trigger('change')
+    await body.findAll('[role="dialog"] button').find((button) => button.text().includes('stickerUploadStart'))!.trigger('click')
+    await flushPromises()
+    expect(uploadStickerMarketFile).toHaveBeenCalledWith(9402, archive)
+    expect(body.text()).toContain('stickerMarketUploadedCount{"count":2}')
+
+    await body.findAll('[role="dialog"] button').find((button) => button.text().includes('stickerMarketPublishNow'))!.trigger('click')
+    await flushPromises()
+    expect(saveStickerMarketPack).toHaveBeenCalledWith({ id: 9402, published: true, sortOrder: 0 })
+    expect(adminToast.success).toHaveBeenCalledWith('stickerMarketPublished{"name":"新包"}')
   })
 })

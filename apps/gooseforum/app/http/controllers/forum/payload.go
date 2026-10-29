@@ -3386,6 +3386,7 @@ func settingsTabs() []TabPayload {
 		{Key: "binding", URL: "/settings?tab=binding"},
 		{Key: "security", URL: "/settings?tab=security"},
 		{Key: "content", URL: "/settings?tab=content"},
+		{Key: "stickers", URL: "/settings?tab=stickers"},
 		{Key: "deleted", URL: "/settings?tab=deleted"},
 		{Key: "general", URL: "/settings?tab=general"},
 	}

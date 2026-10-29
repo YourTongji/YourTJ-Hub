@@ -26,6 +26,7 @@ func init() {
 func InvalidateCache() {
 	enabledListCache.Clear()
 	stickerURLCache.Clear()
+	officialPackCache.Clear()
 }
 
 // stickerNameRe 限制表情包名：Unicode 字母/数字/下划线/连字符，1-64 字符。

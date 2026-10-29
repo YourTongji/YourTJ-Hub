@@ -63,7 +63,7 @@ func setupAdminStickersContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	if err := conn.AutoMigrate(
 		&rolePermissionRs.Entity{},
 		&sticker.Entity{}, &sticker.Alias{}, &sticker.LibraryOwner{}, &sticker.LibraryEntry{}, &sticker.PackSubscription{},
-		&fileUsage.Entity{},
+		&sticker.OfficialPack{}, &fileUsage.Entity{},
 	); err != nil {
 		t.Fatalf("migrate admin stickers contract tables: %v", err)
 	}
@@ -73,6 +73,7 @@ func setupAdminStickersContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		t.Fatalf("migrate filedata contract table: %v", err)
 	}
 	conn.Where("1 = 1").Delete(&sticker.Entity{})
+	conn.Where("1 = 1").Delete(&sticker.OfficialPack{})
 	conn.Where("1 = 1").Delete(&fileUsage.Entity{})
 	stickerservice.InvalidateCache()
 	t.Cleanup(stickerservice.InvalidateCache)
@@ -88,7 +89,12 @@ func setupAdminStickersContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	stickersAPI.POST("/sticker-save", UpButterReq(api.SaveSticker))
 	stickersAPI.POST("/sticker-delete", UpButterReq(api.DeleteSticker))
 	stickersAPI.POST("/sticker-import", api.ImportStickerPack)
+	stickersAPI.GET("/sticker-packs", UpButterReq(api.AdminStickerPacks))
+	stickersAPI.POST("/sticker-pack-save", UpButterReq(api.AdminStickerPackSave))
+	stickersAPI.POST("/sticker-pack-delete", UpButterReq(api.AdminStickerPackDelete))
+	stickersAPI.POST("/sticker-batch", UpButterReq(api.AdminStickerBatch))
 	router.GET("/api/forum/stickers", middleware.RateLimit(middleware.RateLimitStickerList), ginUpNP(api.PublicStickerList))
+	router.GET("/api/forum/sticker-packs", middleware.RateLimit(middleware.RateLimitStickerList), ginUpNP(api.PublicStickerPacks))
 	return conn, router
 }
 
