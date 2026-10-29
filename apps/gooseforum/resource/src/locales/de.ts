@@ -167,6 +167,7 @@ export default {
     searchClose: "Schließen",
   },
   statsAdmin: {
+    rateLimitExemptionHint: "Die Administrator-Ausnahme gilt nicht für Beitragsstatistiken. Die vier Abfragen teilen sich das Kontingent admin.stats.",
     filterTitle: 'Statistikfilter',
     rangeLabel: 'Zeitraum',
     range7: 'Letzte 7 Tage',

@@ -12264,7 +12264,7 @@ export interface components {
         AdminRateLimitSettingsConfig: {
             /** @description Master switch. */
             enabled: boolean;
-            /** @description Exempt admin-role users. */
+            /** @description Exempt admin-role users from ordinary action limits. The admin.stats aggregate-query budget still applies. */
             skipAdmin: boolean;
             actions: components["schemas"]["AdminRateLimitRule"][];
             /** @description Require a captcha after N posts inside the new-user window; 0 disables. */
@@ -25877,6 +25877,17 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Shared admin.stats query budget exhausted, including admins exempted from other limits. Defaults to 60 requests per 60 seconds per account; configurable through rate-limit settings. */
+            429: {
+                headers: {
+                    /** @description Positive seconds until a retry is permitted. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     adminStatsCategoryTrend: {
@@ -25917,6 +25928,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared admin.stats query budget exhausted, including admins exempted from other limits. Defaults to 60 requests per 60 seconds per account; configurable through rate-limit settings. */
+            429: {
+                headers: {
+                    /** @description Positive seconds until a retry is permitted. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -25961,6 +25983,17 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Shared admin.stats query budget exhausted, including admins exempted from other limits. Defaults to 60 requests per 60 seconds per account; configurable through rate-limit settings. */
+            429: {
+                headers: {
+                    /** @description Positive seconds until a retry is permitted. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     adminStatsUserDetail: {
@@ -26001,6 +26034,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared admin.stats query budget exhausted, including admins exempted from other limits. Defaults to 60 requests per 60 seconds per account; configurable through rate-limit settings. */
+            429: {
+                headers: {
+                    /** @description Positive seconds until a retry is permitted. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };

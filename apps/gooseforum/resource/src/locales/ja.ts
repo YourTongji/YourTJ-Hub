@@ -167,6 +167,7 @@ export default {
     searchClose: "閉じる",
   },
   statsAdmin: {
+    rateLimitExemptionHint: "管理者の除外設定はコンテンツ貢献統計には適用されません。4 つの照会で admin.stats の上限を共有します。",
     filterTitle: '統計フィルター',
     rangeLabel: '期間',
     range7: '過去 7 日間',

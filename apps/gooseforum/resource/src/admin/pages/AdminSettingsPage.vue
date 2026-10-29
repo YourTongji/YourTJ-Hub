@@ -1700,7 +1700,7 @@ onUnmounted(stopSyncPolling)
           <Switch v-model="rateLimitForm.enabled" />
         </div>
         <div class="flex items-center justify-between rounded-lg border bg-muted/10 p-4">
-          <div><div class="text-base font-medium">{{ adminText('k00il') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00ij') }}</p></div>
+          <div><div class="text-base font-medium">{{ adminText('k00il') }}</div><p class="text-sm text-muted-foreground">{{ t('statsAdmin.rateLimitExemptionHint') }}</p></div>
           <Switch v-model="rateLimitForm.skipAdmin" :disabled="!rateLimitForm.enabled" />
         </div>
         <section class="space-y-3">
