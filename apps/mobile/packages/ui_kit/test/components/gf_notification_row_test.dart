@@ -88,4 +88,31 @@ void main() {
     expect((avatar, actor, opens), (1, 2, 1));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('actor name without an actor target falls through to the row tap', (
+    tester,
+  ) async {
+    var opens = 0;
+    await tester.pumpWidget(
+      gfApp(
+        SizedBox(
+          width: 320,
+          child: GfNotificationRow(
+            symbol: 'heart-filled',
+            tone: GfNotificationTone.like,
+            title: 'Alice liked your reply',
+            subtitle: '',
+            time: 'now',
+            unread: false,
+            actorName: 'Alice',
+            onTap: () => opens++,
+          ),
+        ),
+      ),
+    );
+    // 昵称没有独立目标时不得抢手势，点击应冒泡到整行打开通知。
+    await tester.tapOnText(find.textRange.ofSubstring('Alice'));
+    expect(opens, 1);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -23,6 +23,8 @@ class ScheduleStatusSummary extends ConsumerWidget {
         sync.drafts,
       ]),
       builder: (_, _) => ExpansionTile(
+        // ui_kit 暂无折叠面板组件；ExpansionTile 的标题/图标/分割线颜色
+        // 跟随 gfThemeData 的 ColorScheme 与 dividerColor（Gf token），刻意保留。
         title: GfText(l.scheduleStatusHelp),
         subtitle: sync.blocked.value
             ? GfText(

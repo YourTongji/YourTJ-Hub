@@ -64,6 +64,7 @@ class RootSurface extends ConsumerWidget {
     final colors = GfTheme.colorsOf(context);
     final bottom = MediaQuery.paddingOf(context).bottom;
     final hasRail = ReadingWindowScope.hasRailOf(context);
+    final edgeNavigation = ReadingWindowScope.edgeNavigationOf(context);
     final l10n = AppLocalizations.of(context);
     // Mirror the labels of the shell's own bottom bar so the precomputed
     // content insets stay in lockstep with the measured bar height.
@@ -90,11 +91,18 @@ class RootSurface extends ConsumerWidget {
       ref.read(readingChromeProvider).travel = top + 1;
     }
     final contentBottom = hasRail
-        ? 24.0 + bottom
+        ? math.max(
+            24.0 + bottom,
+            MediaQuery.paddingOf(context).horizontal > 0
+                ? ReadingWindowScope.edgeContentBottomInsetOf(context)
+                : 0.0,
+          )
         : navMetrics.contentBottomInset;
     final scaffold = Scaffold(
       body: SafeArea(
         bottom: false,
+        left: !edgeNavigation,
+        right: !edgeNavigation,
         child: ClipRect(
           child: Stack(
             children: [
@@ -145,51 +153,56 @@ class RootSurface extends ConsumerWidget {
                     },
                     child: ColoredBox(
                       color: colors.base100,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            height: 56,
-                            child: Row(
-                              children: [
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  tooltip: AppLocalizations.of(
-                                    context,
-                                  ).navProfile,
-                                  onPressed: () => accountDrawerLayerKey
-                                      .currentState
-                                      ?.open(),
-                                  icon: const AccountAvatar(),
-                                ),
-                                Expanded(
-                                  child: Center(
-                                    child:
-                                        titleWidget ??
-                                        (showLogo || title.isEmpty
-                                            ? const GfLogo(size: 32)
-                                            : GfText(
-                                                title,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: GfTheme.typographyOf(
-                                                  context,
-                                                ).title2,
-                                              )),
+                      child: SafeArea(
+                        top: false,
+                        bottom: false,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              height: 56,
+                              child: Row(
+                                children: [
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    tooltip: AppLocalizations.of(
+                                      context,
+                                    ).navProfile,
+                                    onPressed: () => accountDrawerLayerKey
+                                        .currentState
+                                        ?.open(),
+                                    icon: const AccountAvatar(),
                                   ),
-                                ),
-                                if (actions.isEmpty)
-                                  const SizedBox(width: 48)
-                                else
-                                  ...actions,
-                                const SizedBox(width: 8),
-                              ],
+                                  Expanded(
+                                    child: Center(
+                                      child:
+                                          titleWidget ??
+                                          (showLogo || title.isEmpty
+                                              ? const GfLogo(size: 32)
+                                              : GfText(
+                                                  title,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: GfTheme.typographyOf(
+                                                    context,
+                                                  ).title2,
+                                                )),
+                                    ),
+                                  ),
+                                  if (actions.isEmpty)
+                                    const SizedBox(width: 48)
+                                  else
+                                    ...actions,
+                                  const SizedBox(width: 8),
+                                ],
+                              ),
                             ),
-                          ),
-                          if (toolbar != null)
-                            SizedBox(height: toolbarHeight, child: toolbar),
-                          const Divider(height: 1, thickness: 0),
-                        ],
+                            if (toolbar != null)
+                              SizedBox(height: toolbarHeight, child: toolbar),
+                            const Divider(height: 1, thickness: 0),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -201,7 +214,11 @@ class RootSurface extends ConsumerWidget {
                   builder: (context, reveal, child) => AnimatedPositioned(
                     duration: readingChromeDuration(context, reveal),
                     curve: GfMotion.enterCurve,
-                    right: 16,
+                    right:
+                        16 +
+                        (edgeNavigation
+                            ? MediaQuery.paddingOf(context).right
+                            : 0),
                     bottom:
                         (hasRail
                             ? 16

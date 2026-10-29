@@ -198,6 +198,11 @@ Flutter 的课评与 Wiki 正文走服务端 HTML 渲染，该路径同样无下
 `Planned`：Flutter 正文链接的外链图标与按下高亮。内联富文本把图标做成字符会随选区复制进剪贴板，
 做成控件又会丢掉选择复制文本与链接内的 Emoji 图片，因此当前只有主题色与跳转／外链确认。
 
+`Current`：Flutter 首页公告正文的链接与帖子正文共用同一套跳转规则：同源链接按站内路由映射
+应用内跳转（`/p/post/:id`、`/topics/:id`、`/u/:id`、`/courses/:id`、`/wiki/...`）；映射不到的同站链接
+（如 `/notifications`、`/my-content`、`/chat`）不静默丢弃，与外链一样打开系统浏览器，外链仍先经过
+确认层。这些页面刻意不扩进站内路由映射，因此公告里的它们按外链处理。
+
 `Current`：Web／Flutter 将独占段落的 HTTP(S) URL 渲染为最多五张预览卡片，普通链接、代码、表格和
 图片地址不转换。站内元数据本地读取；第三方请求经过有界 SSRF 防护。校园网域名仅从配置生成卡片，
 不访问私网；失败保留原链接。外链确认显示域名与完整 URL，已识别的风险不继承会话信任，
@@ -256,7 +261,7 @@ canonical、prev/next 与 `og:`／`twitter:`／`article:` meta 视页面是否�
 光标紧跟 token 按一次 Backspace、或在其起点按一次 Delete，即整块删除；粘贴／撤销／逐字输入留下的
 半截 token 同样整块删除，光标落在 token 内部时删除整段。IME 组合、非折叠选区与 Ctrl／Meta／Alt
 组合键保持浏览器默认（Shift 组合键不在排除范围内，Shift+Backspace／Shift+Delete 同样整段删除）。见
-[决策 0107](../decisions/0107-editor-sticker-token-atomic-delete.md)。
+[决策 0106](../decisions/0106-editor-sticker-token-atomic-delete.md)。
 `Planned`：Flutter 输入框的贴纸仍按字符删除，原子删除跟进中。
 `Planned`：Web 个人库管理界面。
 配额、历史素材保留和隐私规则见[移动端表情规范](mobile-experience.md#sticker-library)与

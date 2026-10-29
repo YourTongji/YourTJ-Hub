@@ -16,7 +16,6 @@ const campusTabKeys = <String, List<String>>{
   'academics': ['summary', 'grades', 'cet'],
   'messages': ['messages'],
   'calendars': ['calendar', 'terms'],
-  'connection': [],
 };
 
 class CampusViewState {

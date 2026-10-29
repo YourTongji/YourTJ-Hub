@@ -3696,7 +3696,7 @@ export default {
       image: {
         empty: 'Bildinhalt ist leer. Bitte wähle die Datei erneut',
         unsupported: 'Nicht unterstütztes Bildformat. Zulässig sind JPG, PNG, GIF, WebP und BMP',
-        invalidContent: 'Bildinhalt passt nicht zur Dateiendung oder ist beschädigt',
+        invalidContent: 'Der Bildinhalt ist kein verwendbares Bild oder beschädigt',
       },
       readFailed: 'Lesen der Datei fehlgeschlagen. Versuche es erneut',
       openFailed: 'Öffnen der Datei fehlgeschlagen',

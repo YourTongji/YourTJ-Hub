@@ -841,6 +841,49 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsAppearance => 'Darstellung';
 
   @override
+  String get decorationAppearance => 'Aussehen';
+
+  @override
+  String get decorationTitle => 'Avatarrahmen & farbige Namen';
+
+  @override
+  String get decorationFrame => 'Avatarrahmen';
+
+  @override
+  String get decorationNickname => 'Farbige Namen';
+
+  @override
+  String get decorationGrant => 'Stile werden von Administratoren vergeben.';
+
+  @override
+  String get decorationNone => 'Keine';
+
+  @override
+  String get decorationPreview => 'Vorschau';
+
+  @override
+  String get decorationEquip => 'Diesen Stil verwenden';
+
+  @override
+  String get decorationLocked => 'Nicht erworben';
+
+  @override
+  String get decorationEquipped => 'Angelegt';
+
+  @override
+  String get decorationAvailable => 'Verfügbar';
+
+  @override
+  String get decorationCurrent => 'Aktuelles Aussehen';
+
+  @override
+  String get decorationPreviewOnly => 'Nur Vorschau';
+
+  @override
+  String get decorationLockedHint =>
+      'Nicht erworben. Du kannst diesen Stil ansehen.';
+
+  @override
   String get settingsDarkMode => 'Dunkler Modus';
 
   @override
@@ -1031,6 +1074,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String dateYearMonthDayTime(int year, int month, int day, String time) {
     return '$day.$month.$year $time';
   }
+
+  @override
+  String get topicJumpToFloor => 'Zum Beitrag springen';
 
   @override
   String topicFloorSelected(Object floor) {
@@ -1537,9 +1583,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get profileTrash => 'Papierkorb';
-
-  @override
-  String get profileSecurity => 'Konto, Sicherheit und Datenschutz';
 
   @override
   String get profileAdmin => 'Administration';
@@ -4582,4 +4625,8 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get coursePlannerUnavailable =>
       'Dieser Kurs ist im Semester nicht verfügbar. Wähle ein anderes Angebot in den Kursdetails.';
+
+  @override
+  String get coursePlannerCalendarsFailed =>
+      'Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.';
 }

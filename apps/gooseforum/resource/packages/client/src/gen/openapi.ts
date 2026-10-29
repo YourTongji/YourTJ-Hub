@@ -2853,6 +2853,14 @@ export interface paths {
          * Upload a custom avatar image
          * @description Multipart upload of a custom avatar. The `avatar` file part is required;
          *     `avatarMedium` is an optional pre-cropped medium file stored alongside.
+         *     The declared extension must pass the posting-settings allowlist before the
+         *     body is read, then the bytes decide the stored type: the header must decode
+         *     as a supported image and that detected type must also be allowed. When the
+         *     detected type conflicts with the declared extension the avatar is accepted
+         *     and stored under the detected type's canonical extension (the returned
+         *     `avatarUrl` carries it). `upload.image.invalidContent` means the bytes are
+         *     not a usable image (or its header does not decode), not an extension
+         *     mismatch.
          *     Business failures (HTTP 200): `upload.attachment.disabled`, `upload.cooldown`
          *     (new-account upload cooldown, params minutes/availableAt),
          *     `upload.file.missing`, `upload.filename.required`,
@@ -7623,9 +7631,14 @@ export interface paths {
          *     (SiteManager group); callers without it fail with HTTP 403 and
          *     `permission.denied`. This is a bare gin handler (not the UpButterReq
          *     wrapper), but the request/response envelope is still the standard
-         *     ResultStruct JSON. The multipart field is `file`; the content must
-         *     sniff as a real image (JPEG/PNG/GIF/WebP/BMP signatures) and pass the
-         *     posting-settings extension allowlist and size cap. Role-bearing
+         *     ResultStruct JSON. The multipart field is `file`; the extension passes the
+         *     posting-settings allowlist and size cap first, then the bytes decide the
+         *     stored type: the header must decode as a supported image
+         *     (JPEG/PNG/GIF/WebP/BMP) and that detected type must also be allowed. A
+         *     detected type that conflicts with the declared extension is accepted and
+         *     the object is stored under the detected type's canonical extension, so
+         *     the returned `url` extension is authoritative while `filename` stays the
+         *     original multipart filename. Role-bearing
          *     callers (any admin role, including SiteManager) skip the new-user
          *     cooldown, the daily upload quota and the configured size cap downstep
          *     (the hard 4MB ceiling still applies). On success the image is stored
@@ -8884,7 +8897,9 @@ export interface paths {
          * Initialize a post-image upload (server proxy or presigned direct)
          * @description Starts a post-image upload. The caller declares the original filename, browser MIME type and
          *     byte size; the server validates them against the posting-settings allowlist and size cap
-         *     before returning a mode. With the local storage provider the response is `mode: "proxy"` and
+         *     before returning a mode. Init has only declarations and no bytes, so it pre-checks the
+         *     declared extension allowlist and requires the declared MIME type to match the type its
+         *     extension stands for; the bytes decide the real type at `/file/img-upload/complete`. With the local storage provider the response is `mode: "proxy"` and
          *     the caller must continue with the existing multipart `POST /file/img-upload`; the same applies
          *     to an S3-compatible provider while the storage setting `forceProxyUpload` is enabled (the
          *     server then writes the proxied upload to the bucket). Otherwise, with an S3-compatible
@@ -8919,12 +8934,16 @@ export interface paths {
          * Publish a direct-uploaded post image after the browser uploaded it to the bucket
          * @description Called after the browser uploaded the file to the bucket using the presigned POST policy from
          *     `/file/img-upload/init`. The server verifies the pending object belongs to the caller and
-         *     re-checks ownership, object size, MIME type and the decoded image header before publishing;
-         *     an empty object fails with `upload.image.empty`, a known-but-unsupported format with
-         *     `upload.image.unsupported`, and a forged or mismatched object with
-         *     `upload.image.invalidContent` (HTTP 200). On success the file
-         *     becomes visible and the response carries the final public `url`, the stored object `name` (the
-         *     pending `name` returned by init) and the stored byte `size`. An unknown or foreign `name` fails
+         *     re-checks ownership and object size, then reads a bounded header and decides the real image
+         *     type from those bytes. An empty object fails with `upload.image.empty`, a known-but-unsupported
+         *     format with `upload.image.unsupported`, and bytes that are not a usable image with
+         *     `upload.image.invalidContent` (HTTP 200; this code no longer reports an extension mismatch).
+         *     A detected type outside the posting-settings allowlist fails with
+         *     `upload.extension.unsupported`. When the detected type conflicts with the declared extension
+         *     but both are allowed, the upload is accepted: the object is renamed to the detected type's
+         *     canonical extension under a fresh UUID key in the same directory (`.png` → `.jpg`; `.jpeg`
+         *     and `.jpg` are the same type, so their original name is kept) and the response carries the renamed `filename`/`url`. On success the file becomes visible and the response carries the final public
+         *     `url`, the stored object name and the stored byte `size`. An unknown or foreign `name` fails
          *     with `page.notFound`; storage failures fail with `upload.saveFailed` (params error). Frozen accounts
          *     are rejected by the route-level CheckWritableAccount middleware.
          */
@@ -14485,7 +14504,7 @@ export interface components {
         DirectImageUploadCompleteResult: {
             /** @description Final public URL of the published image. */
             url: string;
-            /** @description Stored object name (the pending `name` returned by `/file/img-upload/init`), not the caller's original file name. */
+            /** @description Stored object name: normally the pending `name` returned by `/file/img-upload/init`, but when the header-decoded type conflicts with the declared extension it is the renamed key with the detected type's canonical extension (for example `.../x.png` becomes `.../x.jpg`). Never the caller's original file name. */
             filename: string;
             /**
              * Format: int64

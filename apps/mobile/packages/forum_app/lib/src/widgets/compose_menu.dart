@@ -22,10 +22,14 @@ Future<void> showComposeMenu(
       : window.size.width;
   // The dialog belongs to the root navigator; anchor it to the reading column
   // that opened it, even when the window has gutters and a navigation rail.
-  final rightInset = (window.size.width - sourceRight).clamp(
-    0.0,
-    window.size.width,
-  );
+  // SafeArea below already consumes the root window's right inset. Measure
+  // only the remaining gutter to the source's safe content edge.
+  final rightInset =
+      (window.size.width -
+              window.padding.right -
+              sourceRight +
+              MediaQuery.paddingOf(context).right)
+          .clamp(0.0, window.size.width);
   final type = await showGeneralDialog<PublishType>(
     context: context,
     barrierDismissible: true,

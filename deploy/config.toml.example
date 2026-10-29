@@ -13,6 +13,15 @@ cdn_url = ""
 # 容器内固定; 对外端口由 compose 的 MAIN_PORT/DEV_PORT 决定
 url = "REPLACE_SERVER_URL"
 port = 5234
+# 会话 Cookie(access_token / goth session)的 Secure 标志策略:
+#   auto(默认) = 由 server.url 推导: https 或回环地址(localhost/127.0.0.1/::1)带 Secure;
+#                 server.url 为空、无 scheme 或无法解析时仍带 Secure(fail-closed, CWE-614);
+#                 只有明文的非回环 host(如 http://192.168.1.5:5234)不带 Secure,
+#                 否则浏览器会丢弃 Cookie 导致 Web 登录失效(issue #1277)。
+#   on          = 强制带 Secure。
+#   off         = 强制不带 Secure; 生产环境会让会话凭证以明文 http 传输(CWE-614),
+#                 仅限内网或临时使用。
+cookieSecure = "auto"
 accessLog = false
 gzip = true
 # 信任的反向代理来源: 1Panel 反代在宿主机本机回源(127.0.0.1/::1),

@@ -59,6 +59,8 @@ export interface LoginPageProps {
   termsOfServiceEnabled: boolean
   privacyPolicyEnabled: boolean
   allowedDomains: string[]
+  // issue #1278: 站点关闭验证码时前端不渲染、不校验验证码；缺省按开启处理。
+  captchaRequired?: boolean
   oauthNotice: boolean
 }
 

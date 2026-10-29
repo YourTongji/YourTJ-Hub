@@ -34,6 +34,21 @@ var contentTypeByDecodedFormat = map[string]string{
 // orderedDefaults 保证 DefaultExtensions 的返回顺序稳定可读。
 var orderedDefaults = []string{".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 
+// canonicalExtByContentType 是 MIME → 规范扩展名（jpeg 取 .jpg），由
+// supportedByExt 按 orderedDefaults 反查生成，避免两张表漂移。
+var canonicalExtByContentType = buildExtByContentType()
+
+func buildExtByContentType() map[string]string {
+	extByContentType := make(map[string]string, len(supportedByExt))
+	for _, ext := range orderedDefaults {
+		contentType := supportedByExt[ext]
+		if _, ok := extByContentType[contentType]; !ok {
+			extByContentType[contentType] = ext
+		}
+	}
+	return extByContentType
+}
+
 // DefaultExtensions 返回内置支持集的副本；上传配置列表为空时它以生效 allowlist 身份出现。
 func DefaultExtensions() []string {
 	return append([]string(nil), orderedDefaults...)
@@ -55,8 +70,16 @@ func ContentTypeForExt(ext string) (string, bool) {
 	return contentType, ok
 }
 
-// ContentTypeForFilename 按文件名末段扩展名返回规范化 MIME，供上传校验与服务端
-// 响应头使用：文件类型由存储对象名的扩展名权威决定，不采信客户端声明。
+// ExtForContentType 返回规范化 MIME 对应的规范扩展名（image/jpeg → .jpg），供
+// 存储名按字节判定的真实类型取扩展名。
+func ExtForContentType(contentType string) (string, bool) {
+	ext, ok := canonicalExtByContentType[strings.ToLower(strings.TrimSpace(contentType))]
+	return ext, ok
+}
+
+// ContentTypeForFilename 按文件名末段扩展名返回规范化 MIME，供上传前置的扩展名
+// allowlist 校验与服务端响应头使用：文件名只是客户端的声明，真实类型以 DetectContentType
+// 读出的字节为准。
 func ContentTypeForFilename(name string) (string, bool) {
 	return ContentTypeForExt(path.Ext(name))
 }
@@ -73,6 +96,19 @@ func IsAllowedExt(ext string, allowed []string) bool {
 	canonical := CanonicalizeToken(ext)
 	for _, entry := range allowed {
 		if CanonicalizeToken(entry) == canonical {
+			return true
+		}
+	}
+	return false
+}
+
+// IsAllowedContentType 报告按字节判定的 MIME 是否落在 allowlist 内：任一条目
+// （大小写/无点宽容）能映射到该类型即命中，因此只配 `.jpeg` 时 `image/jpeg` 仍然允许。
+// 它与命名用的规范扩展名（ExtForContentType → `.jpg`）解耦：allowlist 判定只看类型，
+// 存储名只取一个规范拼写（issue #1393 审查）。
+func IsAllowedContentType(contentType string, allowed []string) bool {
+	for _, entry := range allowed {
+		if mapped, ok := ContentTypeForExt(entry); ok && strings.EqualFold(mapped, contentType) {
 			return true
 		}
 	}

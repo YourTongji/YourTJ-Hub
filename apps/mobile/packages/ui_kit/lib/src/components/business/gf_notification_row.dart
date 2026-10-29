@@ -232,7 +232,10 @@ class _ActorHeadingState extends State<_ActorHeading> {
                             TextSpan(text: title.substring(0, actorStart)),
                             TextSpan(
                               text: actorName,
-                              recognizer: _actorTap..onTap = widget.onActorTap,
+                              // 无独立 actor 目标时不挂 recognizer，避免抢占行点击。
+                              recognizer: widget.onActorTap == null
+                                  ? null
+                                  : (_actorTap..onTap = widget.onActorTap),
                               style: TextStyle(
                                 foreground: nicknameColors.length < 2
                                     ? null

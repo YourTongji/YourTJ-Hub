@@ -23,6 +23,18 @@ configuration and the remaining GPL compatibility verification.
 `Partial`: native push delivery and signed upgrade/device journeys need candidate-specific evidence;
 public availability does not establish the full physical-device acceptance matrix.
 
+## iOS build requirements
+
+`Current`: the Runner, ScheduleWidgets extension and the local home_widget bridge require iOS 15
+or later. CocoaPods builds dependencies with at least that floor, preserving higher dependency
+minimums. iOS 13/14 devices cannot install new builds from this source.
+
+`Partial`: full-screen iPhone Duo support requires Xcode 27.1 and the iOS 27.1 SDK. Before a Duo
+candidate build, verify `xcodebuild -version` and `xcodebuild -showsdks` on the selected host;
+CI/release jobs currently inherit their macOS runner's selected Xcode rather than pinning 27.1.
+A candidate built with an older SDK is not Duo acceptance evidence. Simulator and physical-device
+coverage is recorded with the candidate; see the [Duo compatibility decision](../decisions/0109-ios-15-floor-for-duo.md).
+
 ## Version and activation
 
 Dev-connected TestFlight/Android previews and production configuration rehearsals follow the

@@ -425,6 +425,20 @@
   "settingsThemeDark": "深色",
   "settingsRevokeSession": "吊销此会话",
   "settingsAppearance": "外观",
+  "decorationAppearance": "个人装扮",
+  "decorationTitle": "头像框与多彩昵称",
+  "decorationFrame": "头像框",
+  "decorationNickname": "多彩昵称",
+  "decorationGrant": "装扮由管理员授予。",
+  "decorationNone": "不装备",
+  "decorationPreview": "预览",
+  "decorationEquip": "使用此款",
+  "decorationLocked": "尚未拥有",
+  "decorationEquipped": "已装备",
+  "decorationAvailable": "可使用",
+  "decorationCurrent": "当前装扮",
+  "decorationPreviewOnly": "仅供预览",
+  "decorationLockedHint": "尚未拥有，可以预览效果。",
   "settingsDarkMode": "深色模式",
   "settingsDarkCurrent": "当前:深色",
   "settingsLightCurrent": "当前:浅色",
@@ -560,6 +574,7 @@
       }
     }
   },
+  "topicJumpToFloor": "跳转楼层",
   "topicFloorSelected": "已跳转到 {floor} 楼",
   "sortLatest": "最新",
   "sortHot": "热门",
@@ -778,7 +793,6 @@
   "profileMore": "更多功能",
   "profileContent": "我的内容",
   "profileTrash": "回收站",
-  "profileSecurity": "账户、安全与隐私",
   "profileAdmin": "管理工作台",
   "fabDiscussion": "前往讨论区",
   "fabRefresh": "刷新并回到顶部",
@@ -1876,5 +1890,6 @@
   "scheduleStatusHelp": "方案状态与帮助",
   "courseAddToPlanner": "添加到选课排课",
   "coursePlannerSelectTerm": "请先选择相同学期和专业，再确认教学班；现有方案不会自动更改。",
-  "coursePlannerUnavailable": "这个学期的教学班不可用，请返回课程详情选择其他开课记录。"
+  "coursePlannerUnavailable": "这个学期的教学班不可用，请返回课程详情选择其他开课记录。",
+  "coursePlannerCalendarsFailed": "学期列表加载失败，请检查网络后重试。"
 }

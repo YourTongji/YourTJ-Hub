@@ -6,6 +6,7 @@ library;
 
 export 'src/components/gf_button.dart';
 export 'src/components/gf_bottom_navigation.dart';
+export 'src/components/surfaces/gf_navigation_surface.dart';
 export 'src/components/business/gf_chat_input.dart';
 export 'src/components/business/gf_conversation_row.dart';
 export 'src/components/business/gf_draft_row.dart';

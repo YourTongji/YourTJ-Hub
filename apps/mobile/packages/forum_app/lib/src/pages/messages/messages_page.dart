@@ -697,7 +697,11 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
                 enabled: showDirectory && TickerMode.valuesOf(context).enabled,
                 child: SizedBox(
                   width: _wideLayout ? directoryWidth : constraints.maxWidth,
-                  child: directory,
+                  child: MediaQuery.removePadding(
+                    context: context,
+                    removeRight: _wideLayout,
+                    child: directory,
+                  ),
                 ),
               ),
             ),
@@ -706,32 +710,39 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
               child: ColoredBox(color: GfTheme.colorsOf(context).line),
             ),
             Expanded(
-              child: Offstage(
-                offstage: !_wideLayout && targetConversation == null,
-                child: Padding(
-                  padding: EdgeInsets.only(bottom: bottomInset),
-                  child: targetConversation == null
-                      ? _ChatEmptyState(
-                          title: l10n.messagesStartChat,
-                          description: l10n.messagesEmptyDescription,
-                        )
-                      : _ConversationPage(
-                          key: ValueKey<int>(targetConversation.peerId),
-                          conv: targetConversation,
-                          viewerAvatar: _viewerAvatar,
-                          viewerDecoration: _viewerDecoration,
-                          viewerUsername: _viewerUsername,
-                          onBack:
-                              !_wideLayout &&
-                                  _selectedConversation != null &&
-                                  widget.targetUserId == null
-                              ? () {
-                                  FocusManager.instance.primaryFocus?.unfocus();
-                                  setState(() => _selectedConversation = null);
-                                  unawaited(_load(silent: true));
-                                }
-                              : null,
-                        ),
+              child: MediaQuery.removePadding(
+                context: context,
+                removeLeft: _wideLayout,
+                child: Offstage(
+                  offstage: !_wideLayout && targetConversation == null,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: bottomInset),
+                    child: targetConversation == null
+                        ? _ChatEmptyState(
+                            title: l10n.messagesStartChat,
+                            description: l10n.messagesEmptyDescription,
+                          )
+                        : _ConversationPage(
+                            key: ValueKey<int>(targetConversation.peerId),
+                            conv: targetConversation,
+                            viewerAvatar: _viewerAvatar,
+                            viewerDecoration: _viewerDecoration,
+                            viewerUsername: _viewerUsername,
+                            onBack:
+                                !_wideLayout &&
+                                    _selectedConversation != null &&
+                                    widget.targetUserId == null
+                                ? () {
+                                    FocusManager.instance.primaryFocus
+                                        ?.unfocus();
+                                    setState(
+                                      () => _selectedConversation = null,
+                                    );
+                                    unawaited(_load(silent: true));
+                                  }
+                                : null,
+                          ),
+                  ),
                 ),
               ),
             ),
@@ -2324,11 +2335,16 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                             : ListView.builder(
                                 controller: _scrollController,
                                 physics: const ChatViewportScrollPhysics(),
-                                padding: const EdgeInsets.fromLTRB(
+                                // Only the timeline scrolls clear of the side
+                                // capsule; the input keeps its own safe area.
+                                padding: EdgeInsets.fromLTRB(
                                   12,
                                   12,
                                   12,
-                                  18,
+                                  18 +
+                                      ReadingWindowScope.edgeContentBottomInsetOf(
+                                        context,
+                                      ),
                                 ),
                                 itemCount:
                                     timeline.length +
@@ -2598,7 +2614,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                       ),
                     if (_unseenNewMessages)
                       Positioned(
-                        right: 12,
+                        right:
+                            12 +
+                            (ReadingWindowScope.edgeNavigationOf(context)
+                                ? MediaQuery.paddingOf(context).right
+                                : 0),
                         bottom: 12,
                         child: FloatingActionButton.small(
                           key: const Key('chat-new-messages'),

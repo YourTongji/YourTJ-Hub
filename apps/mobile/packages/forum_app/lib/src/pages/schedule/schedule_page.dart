@@ -98,6 +98,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
 
   List<PkCalendarItem> _calendars = const <PkCalendarItem>[];
   List<SectionTime> _sectionOverrides = const <SectionTime>[];
+  bool _loadingSessionMeta = false;
   final GlobalKey _gridBoundaryKey = GlobalKey();
 
   /// PNG 导出边界（课表 tab 不在树上时为 null）。
@@ -171,6 +172,8 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
 
   /// 会话级元数据：学期字典 + 节次作息 + P11 最新同步日期（不持久化）。
   Future<void> _loadSessionMeta() async {
+    if (_loadingSessionMeta) return;
+    _loadingSessionMeta = true;
     final repository = ref.read(pkRepositoryProvider);
     Future<Object?> attemptCalendars() async {
       try {
@@ -196,11 +199,16 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
       }
     }
 
-    final results = await Future.wait<Object?>([
-      attemptCalendars(),
-      attemptSectionTimes(),
-      attemptLatestUpdate(),
-    ]);
+    final List<Object?> results;
+    try {
+      results = await Future.wait<Object?>([
+        attemptCalendars(),
+        attemptSectionTimes(),
+        attemptLatestUpdate(),
+      ]);
+    } finally {
+      _loadingSessionMeta = false;
+    }
     if (!mounted) return;
     final calendars = results[0] as List<PkCalendarItem>?;
     final sectionTimes = results[1] as SectionTimesPayload?;
@@ -230,6 +238,17 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
     if (_openingOffering || !_notifier.isMajorSelected) return;
     final epoch = ref.read(offlineCacheEpochProvider);
     final calendar = _state.majorSelected.calendarId;
+    if (_calendars.isEmpty) {
+      // 学期字典尚未加载或加载失败（离线时 attemptCalendars 恒返回 null），
+      // 与「学期不匹配」区分提示，并在未在加载时触发一次重试。
+      showGfToast(
+        context,
+        AppLocalizations.of(context).coursePlannerCalendarsFailed,
+        error: true,
+      );
+      unawaited(_loadSessionMeta());
+      return;
+    }
     final current = _calendars.where((c) => c.calendarId == calendar);
     if (current.isEmpty ||
         canonicalPlannerTerm(current.first.calendarName) == null ||
@@ -347,7 +366,12 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         GfText(
-                          '${widget.courseName ?? widget.courseCode} · ${widget.classCode} · ${widget.termCode}',
+                          // 手搓 deep link（course+class 无 term）时不渲染学期段。
+                          <String?>[
+                            widget.courseName ?? widget.courseCode,
+                            widget.classCode,
+                            widget.termCode,
+                          ].nonNulls.join(' · '),
                         ),
                         GfText(l10n.coursePlannerSelectTerm),
                         GfButton(
@@ -2077,7 +2101,11 @@ class _ClassListSheet extends ConsumerWidget {
             ref.watch(offlineCacheEpochProvider) != expectedEpoch) ||
         (expectedCalendar != null &&
             state.majorSelected.calendarId != expectedCalendar)) {
-      return GfEmpty(message: l10n.commonRetry);
+      // 父页面状态已被围栏，重开由用户重新触发交接；点击关闭 sheet 避免死胡同。
+      return InkWell(
+        onTap: () => Navigator.of(context).maybePop(),
+        child: GfEmpty(message: l10n.commonRetry),
+      );
     }
     final PkPlan active = state.plans.firstWhere(
       (PkPlan plan) => plan.id == state.activePlanId,

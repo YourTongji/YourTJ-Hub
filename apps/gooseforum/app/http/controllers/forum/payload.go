@@ -146,6 +146,9 @@ type LoginPageProps struct {
 	TermsOfServiceEnabled bool     `json:"termsOfServiceEnabled"`
 	PrivacyPolicyEnabled  bool     `json:"privacyPolicyEnabled"`
 	AllowedDomains        []string `json:"allowedDomains"`
+	// CaptchaRequired 站点安全设置（issue #1278）：关闭时前端不渲染验证码、
+	// 不做必填校验；服务端 checkCaptchaForRequest 对 !required 也直接放行。
+	CaptchaRequired bool `json:"captchaRequired"`
 	// OAuthNotice 标记本次到达注册页来自 OAuth 回调（纯新号改道，issue #531），
 	// 前端在注册表单上方渲染「先注册、后绑定」提示。
 	OAuthNotice bool `json:"oauthNotice"`
@@ -1127,6 +1130,7 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 		TermsOfServiceEnabled: hotdataserve.GetTermsOfServiceConfigCache().Enabled,
 		PrivacyPolicyEnabled:  hotdataserve.GetPrivacyPolicyConfigCache().Enabled,
 		AllowedDomains:        hotdataserve.GetSecuritySettingsConfigCache().AllowedDomains,
+		CaptchaRequired:       hotdataserve.GetSecuritySettingsConfigCache().CaptchaRequired,
 		OAuthNotice:           c.Query("oauthNotice") == "1",
 	}
 }

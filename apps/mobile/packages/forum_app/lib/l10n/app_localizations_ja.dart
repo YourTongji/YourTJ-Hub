@@ -820,6 +820,48 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsAppearance => '外観';
 
   @override
+  String get decorationAppearance => '外観';
+
+  @override
+  String get decorationTitle => 'アバターフレームとカラーネーム';
+
+  @override
+  String get decorationFrame => 'アバターフレーム';
+
+  @override
+  String get decorationNickname => 'カラーネーム';
+
+  @override
+  String get decorationGrant => '装飾は管理者が付与します。';
+
+  @override
+  String get decorationNone => '装備しない';
+
+  @override
+  String get decorationPreview => 'プレビュー';
+
+  @override
+  String get decorationEquip => 'このスタイルを使う';
+
+  @override
+  String get decorationLocked => '未所有';
+
+  @override
+  String get decorationEquipped => '装備中';
+
+  @override
+  String get decorationAvailable => '使用可能';
+
+  @override
+  String get decorationCurrent => '現在の外観';
+
+  @override
+  String get decorationPreviewOnly => 'プレビューのみ';
+
+  @override
+  String get decorationLockedHint => '未所有です。見た目をプレビューできます。';
+
+  @override
   String get settingsDarkMode => 'ダークモード';
 
   @override
@@ -1005,6 +1047,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String dateYearMonthDayTime(int year, int month, int day, String time) {
     return '$year年$month月$day日 $time';
   }
+
+  @override
+  String get topicJumpToFloor => '階へ移動';
 
   @override
   String topicFloorSelected(Object floor) {
@@ -1493,9 +1538,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get profileTrash => 'ごみ箱';
-
-  @override
-  String get profileSecurity => 'アカウント・セキュリティ・プライバシー';
 
   @override
   String get profileAdmin => '管理ワークスペース';
@@ -4361,4 +4403,8 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get coursePlannerUnavailable =>
       'この学期のクラスは利用できません。講義詳細から別の開講記録を選択してください。';
+
+  @override
+  String get coursePlannerCalendarsFailed =>
+      '学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。';
 }

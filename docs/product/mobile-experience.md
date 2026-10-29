@@ -66,19 +66,22 @@ glyph for the `recent` fallback. Like Web, the app labels every reason the serve
 You topic goes without one; feeds without a server reason stay unstamped.
 
 
-`Current`: root layout uses the available window width. Below 600 logical pixels it retains bottom
+`Current`: ordinary root layout consumes the independent left and right safe areas once, then uses the
+remaining window width. Without a usable side pocket, below 600 logical pixels it retains bottom
 destinations; at 600 and above it uses a persistent, scrollable navigation rail. At 1100 pixels and above with text scale no greater than 1.4, its 220-pixel
 sidebar places destination icons and names in the same row. Smaller windows or larger text use
-a 72–160-pixel rail according to localized label width and system text size. Home, Campus and
-Messages can use 1120 pixels for their workspaces; notifications retain a readable column up to
+an 88–176-pixel rail (including 8-pixel outer margins on each side) according to localized label width and system text size. Campus and Messages can use 1120 pixels for their workspaces; Home and notifications retain a readable column up to
 720 pixels wide. The rail is anchored to the same workspace edge across destinations; narrower
 content starts beside it, so switching pages does not move navigation. Wide layouts reclaim the bottom-navigation inset, keep
 compose actions inside the content column and anchor their menu to that column. Resizing preserves
 the retained branch navigator, inputs and reading position; opening a keyboard does not change the
 width breakpoint.
 
-`Current`: the rail shares destination icons and unread state with the bottom bar and displays each
-localized destination name beside or below its icon. Labels wrap and the rail scrolls when large system text
+`Current`: the rail floats in a rounded glass surface with the same tint, blur, highlight and
+outer-only shadow as the compact Dock. Its height follows the destinations up to the available
+safe height; short windows scroll inside the surface. High contrast, reduced motion and accessible
+navigation use an opaque raised surface. The rail shares destination icons and unread state with the bottom bar and displays each
+localized destination name beside or below its icon in the ordinary width-based layout. Labels wrap and the rail scrolls when large system text
 or a short window needs more space. Each action
 exposes its name, selected state and activation in one semantic node. Persistent navigation is
 ordered after the active route in the accessibility tree so iOS does not hide it behind that route.
@@ -86,7 +89,34 @@ On a hardware keyboard, ⌘1–4 select the four shell destinations and ⌘F ope
 are inactive while a dialog, drawer or pushed page covers the shell; text editing keeps its platform
 shortcuts. The navigation and keyboard patterns draw on [X for iOS](https://help.x.com/en/using-x/x-ios-app).
 
-`Current`: pushed forum, account and information pages keep their complete header and content in a
+`Current`: on iOS 27.1, a clear pocket in the existing right safe-area strip takes priority over
+width-based navigation. A 56-pixel glass capsule with four icon actions sits at the bottom of that
+pocket; reading content extends to the window edge beneath the translucent, blurred capsule,
+and no bottom Dock is overlaid. Headers, search, compose and chat input keep their horizontal
+safe areas. Scrollable root content, including the conversation timeline, has enough trailing space
+to bring its last item fully above the capsule without lifting the chat input. Split-pane headers
+consume only the safe area on their own outside edge. The pocket must
+provide at least 72 pixels of width and 224 pixels of height, including margins and 48-pixel touch
+targets. Tooltips, accessible names, selected states and unread announcements remain available.
+UIKit's active occlusion regions and the scene's status-bar frame keep navigation clear of the
+camera and system controls. Rotation can move the pocket to the left; navigation follows it.
+Missing, stale or insufficient geometry falls back to the ordinary safe-area layout. Keyboard
+insets reduce the available pocket height. Placement uses the current window's geometry, not a
+device-name check or fixed camera coordinates.
+
+`Partial`: iPhone Duo retains reading state across asymmetric safe areas and Split View-sized
+windows. The App and Widget Extension require iOS 15 or later. Native Duo full-screen presentation
+and side-pocket navigation require building with Xcode 27.1 / the iOS 27.1 SDK. On the Duo simulator,
+the production shell with demo content preserves input, scroll position and branch navigation
+through open, rotated and closed windows in both themes; content scrolls under the glass and the
+side rail avoids reported system occlusions.
+Physical-device behavior, keyboard and VoiceOver acceptance on Duo remain unverified.
+The layout model follows [Apple's Duo guidance](https://developer.apple.com/videos/play/tech-talks/111461/),
+[reserved-region guidance](https://developer.apple.com/videos/play/tech-talks/111463/)
+and [Flutter's window-based layout guidance](https://docs.flutter.dev/ui/adaptive-responsive/large-screens),
+consulted 2026-10-26. Generic size/inset tests do not substitute for device acceptance.
+
+`Current`: pushed account and information pages keep their complete header and content in a
 centered column up to 720 logical pixels wide. Course, Wiki, search, settings, publishing, chat, drafts, content management and
 Campus Explore can use 1120 pixels; the scheduler, authenticated management and image viewer use the full viewport.
 Login fills the viewport with one continuous surface while its form stays within 520 pixels.
@@ -94,10 +124,26 @@ Imperative account, message and sticker-library routes share the reading window.
 areas are consumed once and each bounded page receives its actual column width. Resizing leaves the
 route, input and scroll state mounted; the compact route continues to use the iOS edge-swipe transition.
 
+`Current`: topic details use a workspace up to 1120 logical pixels wide. With at least 840 pixels
+available at the default text size, the original post occupies the left pane and its comments occupy
+the right pane (42% of the workspace, capped at 420 pixels). Each pane scrolls independently;
+reply composition and the floor picker stay in the comments pane. Where iOS reports a usable side
+pocket, a glass action capsule contains Back, the floor-picker entry, Like, Bookmark, Watch and Reply.
+The header's Back button and bottom action bar are omitted in that layout. Actions keep 48-pixel
+targets, accessible names and toggle states; the capsule scrolls within a short pocket. Unavailable,
+stale or keyboard-covered geometry restores the header and bottom controls without replacing the
+draft. The same pocket placement works in expanded and folded windows. Narrow windows combine the post
+and comments into one reading column up to 720 pixels. Enlarged text raises the split threshold.
+Folding retains the active pane's relative reading offset and unsent reply draft; unfolding maps that
+position back into the appropriate pane. See [0111](../decisions/0111-topic-content-and-comments-panes.md).
+
 `Current`: tablet workspaces organize navigation beside their content. Home keeps its category
-tabs in a horizontal row above the retained topic feed at every window width. Sufficiently wide Home windows add a
-search entry and up to five topics from the existing Hot feed on the right; their loading, empty and retry states
-remain visible. This right column collapses for narrow windows or enlarged text without resetting the reading position.
+tabs in a horizontal row above one retained topic feed at every window width. Home centers its complete
+header and feed in a reading column up to 720 logical pixels wide, with a neutral canvas outside it.
+Search has one header entry; Hot remains a sort tab with the same loading, empty and retry behavior as
+other streams. Wider windows do not prefetch or display a second topic list. Centering consumes the
+part of each horizontal safe area covered by its outer gutter; controls receive only the remaining inset.
+Folding, rotating and resizing retain the active stream and reading position.
 Settings places its directory beside the
 selected section, so changing sections updates the detail without a full-screen route transition.
 Enlarged text raises the required width, restoring a single pane when labels or content need more
@@ -219,6 +265,8 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   floats over the home indicator; on Android it sits above the system navigation. Content scrolls
   under it and stays tappable beside it. Each destination keeps its localized name for screen
   readers and shows it as a long-press tooltip; unread dots ride above the selection and pop in.
+  Tab and Shift+Tab traverse the destinations and optional compose action, with a visible focus tint;
+  Enter and Space activate the focused control without changing the touch or drag behavior.
   The selection is a lens that springs between destinations and stretches while it travels; the
   icon it covers turns Filled and primary part by part as it passes. A press swells the dock
   slightly. Dragging along the dock lifts the lens into clear glass that magnifies its icon, ticks

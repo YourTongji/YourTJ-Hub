@@ -28,10 +28,27 @@ String pendingReviewMessage(AppLocalizations l10n, {bool checking = false}) {
 String resolveErrorMessage(AppLocalizations l10n, Object error) {
   if (error is! ApiException) return error.toString();
 
+  return resolveApiErrorMessage(
+    l10n.localeName,
+    error,
+    fallbackMessage: l10n.commonLoadFailed,
+  );
+}
+
+/// Resolves a server error using the shared message catalog and parameters.
+///
+/// Feature surfaces that use their own localized fallback can call this
+/// without constructing [AppLocalizations]. Unknown codes never expose the
+/// server's fallback text or internal details.
+String resolveApiErrorMessage(
+  String localeName,
+  ApiException error, {
+  required String fallbackMessage,
+}) {
   final String? code = error.messageCode?.trim();
   if (code != null && code.isNotEmpty) {
     final Map<String, String> catalog =
-        serverMessageCatalog[l10n.localeName] ??
+        serverMessageCatalog[localeName] ??
         serverMessageCatalog['en'] ??
         const <String, String>{};
     final String? localized = catalog[code];
@@ -57,5 +74,5 @@ String resolveErrorMessage(AppLocalizations l10n, Object error) {
     }
   }
 
-  return l10n.commonLoadFailed;
+  return fallbackMessage;
 }

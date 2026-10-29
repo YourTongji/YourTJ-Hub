@@ -11,7 +11,6 @@ import '../../profile_links.dart';
 import '../../server_messages.dart';
 import '../../widgets/confirm_discard_edit.dart';
 import '../../widgets/user_decoration.dart';
-import 'decoration_page.dart' show DecorationStrings;
 
 /// Where a newly picked avatar or cover comes from.
 enum ProfileImageSource { gallery, camera }
@@ -388,8 +387,17 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     if (_busy) return;
     await open();
     if (!mounted) return;
-    final updated = await widget.onReloadUser?.call();
-    if (mounted && updated != null) setState(() => _displayUser = updated);
+    SettingsUserPayload? updated;
+    try {
+      updated = await widget.onReloadUser?.call();
+    } on UnauthorizedException {
+      // 账号已切换（会话 epoch 失效），视为编辑器结果不再属于当前用户。
+      return;
+    }
+    final reloaded = updated;
+    if (mounted && reloaded != null) {
+      setState(() => _displayUser = reloaded);
+    }
   }
 
   Future<void> _chooseLocale() async {
@@ -962,7 +970,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                                 GfSettingRow(
                                   key: const Key('profile-decorations'),
                                   symbol: 'sparkles',
-                                  title: DecorationStrings(context).title,
+                                  title: l.decorationTitle,
                                   onTap: _busy
                                       ? null
                                       : () => _openAccountEditor(

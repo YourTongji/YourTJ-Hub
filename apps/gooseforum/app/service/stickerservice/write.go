@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path"
 	"strconv"
 	"strings"
 
@@ -144,15 +143,20 @@ func ImportImage(ctx context.Context, userID uint64, data []byte, fileName, rawN
 	if len(data) > filedata.MaxFileSize {
 		return false, errors.New("tooLarge")
 	}
-	contentType, ok := imagepolicy.ContentTypeForFilename(fileName)
-	if !ok || imagepolicy.ValidateContent(bytes.NewReader(data), contentType) != nil {
+	// 声明扩展名仍先过支持集（危险扩展在读内容前拒绝）；真实类型只由文件头决定，
+	// 入库名按真实类型取扩展名（issue #1393）。
+	if _, ok := imagepolicy.ContentTypeForFilename(fileName); !ok {
+		return false, errors.New("invalidImage")
+	}
+	contentType, contentErr := imagepolicy.DetectContentType(bytes.NewReader(data))
+	if contentErr != nil {
 		return false, errors.New("invalidImage")
 	}
 	base := SanitizeName(rawName)
 	if base == "" {
 		return false, errors.New("unusableName")
 	}
-	file, err := filedata.SaveFileFromUpload(userID, data, path.Base(fileName), "stickers")
+	file, err := filedata.SaveFileFromUpload(userID, data, contentType, "stickers")
 	if err != nil {
 		return false, fmt.Errorf("saveFailed: %w", err)
 	}

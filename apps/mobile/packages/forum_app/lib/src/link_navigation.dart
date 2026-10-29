@@ -147,8 +147,12 @@ abstract final class LinkNavigation {
         _effectivePort(uri) == _effectivePort(base);
     if (previewKind == 'internal' || relativeInternal || sameOrigin) {
       final String? route = _appRoute(uri);
-      if (route != null && context.mounted) context.push(route);
-      return;
+      if (route != null && context.mounted) {
+        context.push(route);
+        return;
+      }
+      // 映射不到的同站链接（如 /notifications）不静默丢弃：落到下面的外链路径，
+      // 由白名单/会话信任与确认层兜底（issue #1381）。
     }
 
     if (!uri.hasScheme ||
