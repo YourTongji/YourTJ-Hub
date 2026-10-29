@@ -94,7 +94,12 @@ quota retain their dedicated messages; unexpected failures remain generic. Faile
 no partial account or campus binding and keep the proof usable until its original deadline.
 Validation failures allow retry; success consumes the
 proof and resumes the original safe destination, including App OIDC. Restart or expiration requires
-fresh school authentication. See [the decision](../decisions/0034-tongji-registration-completion.md).
+fresh school authentication. If account creation succeeds but the session cannot be
+stored, `auth.tongji.retryLogin` explicitly confirms creation and offers a fresh
+school sign-in through the local `params.restartUrl`, preserving the validated
+continuation. The consumed proof and registration form cannot be reused; username
+validation failures before creation still permit correction with the current proof.
+No session token or internal storage error is returned on this failure. See [the decision](../decisions/0034-tongji-registration-completion.md).
 
 ### Built-in OIDC Provider (first-party clients)
 

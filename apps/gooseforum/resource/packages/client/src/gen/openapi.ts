@@ -18459,7 +18459,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Password hashing or session creation failed. */
+            /** @description Password hashing before account creation returns auth.register.failed. After account creation, session failure returns auth.tongji.retryLogin with params.restartUrl pointing to the local /api/auth/tongji entry and the validated continuation. The account remains created and the proof is consumed; clients must discard the registration form and offer a fresh school sign-in. No session credential is issued and the old proof must not be retried. */
             500: {
                 headers: {
                     [name: string]: unknown;
