@@ -474,20 +474,53 @@ encrypted under the old key can become undecryptable if the key is swapped
 before the first TOTP use. Rotate the key and **restart the process** so all
 surfaces rotate consistently.
 
-### Upgrade note: session Cookie `Secure` is now fail-closed by environment
+### Session Cookie `Secure` policy (`server.cookieSecure`)
 
-Before issue #113, the `access_token` and goth session cookies decided the
-`Secure` flag from the `server.url` scheme: anything `http://` dropped `Secure`
-even under `app.env = "production"`. The template default
-`server.url = "http://localhost"` thus produced a session cookie without
-`Secure` on a production build (CWE-614). Since the issue #113 build, the flag
-is fail-closed by environment via `setting.CookieSecure()`: **any `app.env`
-other than `"local"` forces `Secure` regardless of `server.url`**, and the
-binary logs a startup warning when a non-local `server.url` is non-https and
-non-loopback. No `config.toml` change is required for existing instances, but
-operators who relied on plain-http production access (e.g. 0.0.0.0 without a
-TLS-terminating proxy) should switch `server.url` to the https reverse-proxy
-address so browsers actually return the now-`Secure` cookies.
+The `access_token` and goth session cookies take their `Secure` flag from
+`setting.CookieSecure()`, driven by `server.cookieSecure`:
+
+- `auto` (default; also used for unrecognized values) derives the flag from
+  `server.url`: `https` and loopback hosts (`localhost`, `127.0.0.1`, `::1`)
+  get `Secure`; an empty, scheme-less or unparsable `server.url` keeps `Secure`
+  (fail-closed, CWE-614); a plain-http non-loopback host (e.g.
+  `http://192.168.1.5:5234` or `http://[2001:da8::1]:5234`) drops it, because
+  browsers silently refuse to send `Secure` cookies on an http origin and web
+  login would succeed at the API level yet never authenticate (issue #1277).
+  `app.env = "local"` still forces the flag off so LAN-IP dev access works.
+- `on` forces `Secure` regardless of `server.url`.
+- `off` forces it off; a production deployment then sends session credentials
+  over plaintext http (CWE-614). Use it only for LAN or temporary deployments.
+
+Before deploying, check that `server.url` is the browser-facing public origin,
+including its scheme, rather than the proxy's HTTP upstream address. An HTTPS
+deployment with a legacy `http://` non-loopback `server.url` would otherwise lose
+`Secure` under `auto`. Set that URL to the public `https://` origin, or set
+`server.cookieSecure = "on"` before upgrading, and restart. Only deliberately
+plaintext deployments should choose `auto` with a complete `http://` origin or
+explicit `off`.
+
+The repository's [main instance](../../deploy/instances/main.json) and
+[dev instance](../../deploy/instances/dev.json) declare HTTPS public origins;
+the renderer uses those origins and `verify-instance.sh` checks the deployed
+`server.url` against them. These declared configurations retain `Secure` under
+`auto`; operators of other or manually modified deployments must check their
+actual configuration. At startup the binary warns when a
+non-local `server.url` is non-empty but not a usable https or loopback origin —
+including a scheme-less `10.0.0.5:5234` or an unparsable value — and the message
+reflects the effective flag: with `Secure` on it says browsers will drop the
+session cookie and requires a complete `http://` URL before choosing
+`server.cookieSecure = "auto"`/`"off"` for a deliberate plaintext deployment;
+with `Secure` off it warns that
+credentials travel in clear text. Prefer pointing `server.url` at the https
+reverse-proxy address in production. Note that `auto` needs a scheme in
+`server.url`: `10.0.0.5:5234` cannot be resolved, so it stays `Secure` and
+raises the startup warning.
+
+`access_token` re-reads the decision on every write, but the goth /
+`yourtj_oauth_resume` session store fixes `Options.Secure` on first use
+(`apps/gooseforum/app/bundles/sessionstore/sessionstore.go`), so changing
+`server.cookieSecure` requires a process restart — otherwise OAuth/OIDC web
+login may keep failing with the old flag.
 
 ### Unique-index preflight (user_o_auth provider_uid)
 
