@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import TongjiRegistration from '@/site/components/TongjiRegistration.vue'
-import { computed, onMounted, reactive, ref } from 'vue'
-import { LoaderCircle, Languages, Mail, Moon, ShieldCheck, Sun, UserRound } from '@lucide/vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { LoaderCircle, RefreshCw, Languages, Mail, Moon, ShieldCheck, Sun, UserRound } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import TongjiLoginButton from '@/site/components/TongjiLoginButton.vue'
 import PasswordInput from '@/site/components/PasswordInput.vue'
@@ -38,6 +38,9 @@ const totpCode = ref('')
 const captchaImg = ref('')
 const captchaId = ref('')
 const captchaLoading = ref(false)
+const captchaError = ref('')
+let captchaGeneration = 0
+const captchaUnavailable = computed(() => captchaRequired.value && (captchaLoading.value || !captchaId.value))
 const notice = ref('')
 const error = ref('')
 const passkeyEnabled = ref(false)
@@ -129,22 +132,39 @@ onMounted(() => {
 })
 
 function switchMode(next: Mode) {
+  if (next === mode.value) return
+  captchaGeneration++
+  captchaLoading.value = false
+  captchaError.value = ''
   mode.value = next
   error.value = ''
   notice.value = ''
+  void refreshCaptcha()
 }
 
+onUnmounted(() => { captchaGeneration++ })
+
 async function refreshCaptcha() {
-  if (!captchaRequired.value) return
+  if (!captchaRequired.value || captchaLoading.value) return
+  const generation = ++captchaGeneration
   captchaLoading.value = true
   try {
     const captcha = await getCaptcha()
+    if (generation !== captchaGeneration) return
+    if (!captcha.captchaId || !captcha.captchaImg) throw new Error(t('auth.validation.captchaLoadFailed'))
+    if (captcha.captchaId !== captchaId.value) {
+      loginForm.captcha = ''
+      registerForm.captcha = ''
+      forgotForm.captcha = ''
+    }
     captchaId.value = captcha.captchaId
     captchaImg.value = captcha.captchaImg
+    captchaError.value = ''
   } catch (err) {
-    error.value = errorMessage(err, t('auth.validation.captchaLoadFailed'))
+    if (generation !== captchaGeneration) return
+    captchaError.value = errorMessage(err, t('auth.validation.captchaLoadFailed'))
   } finally {
-    captchaLoading.value = false
+    if (generation === captchaGeneration) captchaLoading.value = false
   }
 }
 
@@ -153,6 +173,7 @@ async function handleLogin() {
     await handleTotpVerify()
     return
   }
+  if (captchaUnavailable.value) return
   if (!loginForm.username || !loginForm.password || (captchaRequired.value && !loginForm.captcha)) {
     error.value = t('auth.validation.loginRequired')
     return
@@ -216,6 +237,7 @@ function backToPasswordLogin() {
 }
 
 async function handleRegister() {
+  if (captchaUnavailable.value) return
   if (!registerForm.username || !registerForm.email || !registerForm.password || (captchaRequired.value && !registerForm.captcha)) {
     error.value = t('auth.validation.registerRequired')
     return
@@ -249,6 +271,7 @@ async function handleRegister() {
 }
 
 async function handleForgot() {
+  if (captchaUnavailable.value) return
   if (!forgotForm.email || (captchaRequired.value && !forgotForm.captcha)) {
     error.value = t('auth.validation.forgotRequired')
     return
@@ -384,7 +407,8 @@ function onToggleTheme() {
           </div>
 
           <p v-if="tongjiNotice" class="gf-status-message gf-status-message-error mb-4">{{ tongjiNotice }}</p>
-          <p v-if="error" class="gf-status-message gf-status-message-error mb-4">{{ error }}</p>
+          <p v-if="error" id="auth-form-error" role="alert" class="gf-status-message gf-status-message-error mb-4">{{ error }}</p>
+          <p v-if="captchaError" id="auth-captcha-error" role="alert" class="gf-status-message gf-status-message-error mb-4">{{ captchaError }}</p>
           <p v-if="notice" class="gf-status-message gf-status-message-success mb-4">{{ notice }}</p>
           <div v-if="page.props.oauthNotice && mode === 'register'" class="gf-status-message gf-status-message-info mb-4">
             <p>{{ t('auth.oauthNoAccount') }}</p>
@@ -430,16 +454,17 @@ function onToggleTheme() {
               <PasswordInput v-model="loginForm.password" :placeholder="t('auth.password')" autocomplete="current-password" :label="t('auth.password')" />
             </label>
             <div v-if="captchaRequired" class="flex gap-3">
-              <input v-model.trim="loginForm.captcha" class="gf-input min-w-0 flex-1" :placeholder="t('auth.captcha')" />
-              <button type="button" class="relative h-10 w-28 overflow-hidden gf-panel" @click="refreshCaptcha">
-                <LoaderCircle v-if="captchaLoading || !captchaImg" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
-                <img v-else :src="captchaImg" :alt="t('auth.captchaAlt')" class="gf-captcha-image h-full w-full object-cover" />
+              <input v-model.trim="loginForm.captcha" class="gf-input min-w-0 flex-1" :placeholder="t('auth.captcha')" :aria-label="t('auth.captcha')" :aria-describedby="captchaError ? 'auth-captcha-error' : error ? 'auth-form-error' : undefined" />
+              <button type="button" class="relative h-10 w-28 overflow-hidden gf-panel" :disabled="captchaLoading" :aria-busy="captchaLoading" :aria-label="t('auth.refreshCaptcha')" @click="refreshCaptcha">
+                <LoaderCircle v-if="captchaLoading" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
+                <img v-else-if="captchaImg" :src="captchaImg" :alt="t('auth.captchaAlt')" class="gf-captcha-image h-full w-full object-cover" />
+                <RefreshCw v-else class="mx-auto h-5 w-5 text-base-content/55" />
               </button>
             </div>
             <div class="flex justify-end">
               <button type="button" class="text-sm font-medium text-primary hover:text-primary" @click="switchMode('forgot')">{{ t('auth.forgotPassword') }}</button>
             </div>
-            <button type="submit" class="gf-button gf-button-xl gf-button-primary w-full" :disabled="loading.login">
+            <button type="submit" class="gf-button gf-button-xl gf-button-primary w-full" :disabled="loading.login || captchaUnavailable">
               <LoaderCircle v-if="loading.login" class="h-4 w-4 animate-spin" />
               {{ t('shell.login') }}
             </button>
@@ -498,11 +523,12 @@ function onToggleTheme() {
             </label>
             <div v-if="captchaRequired" class="flex gap-3">
               <span class="relative min-w-0 flex-1">
-                <input v-model.trim="registerForm.captcha" class="gf-input" :placeholder="t('auth.captcha')" />
+                <input v-model.trim="registerForm.captcha" class="gf-input" :placeholder="t('auth.captcha')" :aria-label="t('auth.captcha')" :aria-describedby="captchaError ? 'auth-captcha-error' : error ? 'auth-form-error' : undefined" />
               </span>
-              <button type="button" class="relative h-10 w-28 overflow-hidden gf-panel" @click="refreshCaptcha">
-                <LoaderCircle v-if="captchaLoading || !captchaImg" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
-                <img v-else :src="captchaImg" :alt="t('auth.captchaAlt')" class="gf-captcha-image h-full w-full object-cover" />
+              <button type="button" class="relative h-10 w-28 overflow-hidden gf-panel" :disabled="captchaLoading" :aria-busy="captchaLoading" :aria-label="t('auth.refreshCaptcha')" @click="refreshCaptcha">
+                <LoaderCircle v-if="captchaLoading" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
+                <img v-else-if="captchaImg" :src="captchaImg" :alt="t('auth.captchaAlt')" class="gf-captcha-image h-full w-full object-cover" />
+                <RefreshCw v-else class="mx-auto h-5 w-5 text-base-content/55" />
               </button>
             </div>
             <label v-if="page.props.termsOfServiceEnabled || page.props.privacyPolicyEnabled" class="flex items-start gap-2 text-sm leading-5 text-base-content/55">
@@ -517,7 +543,7 @@ function onToggleTheme() {
               </span>
             </label>
             <input v-model="registerForm.website" type="text" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true" />
-            <button type="submit" class="gf-button gf-button-xl gf-button-neutral w-full" :disabled="loading.register">
+            <button type="submit" class="gf-button gf-button-xl gf-button-neutral w-full" :disabled="loading.register || captchaUnavailable">
               <LoaderCircle v-if="loading.register" class="h-4 w-4 animate-spin" />
               {{ t('auth.createAccount') }}
             </button>
@@ -531,14 +557,15 @@ function onToggleTheme() {
               </span>
             </label>
             <div v-if="captchaRequired" class="flex gap-3">
-              <input v-model.trim="forgotForm.captcha" class="gf-input min-w-0 flex-1" :placeholder="t('auth.captcha')" />
-              <button type="button" class="relative h-10 w-28 overflow-hidden gf-panel" @click="refreshCaptcha">
-                <LoaderCircle v-if="captchaLoading || !captchaImg" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
-                <img v-else :src="captchaImg" :alt="t('auth.captchaAlt')" class="gf-captcha-image h-full w-full object-cover" />
+              <input v-model.trim="forgotForm.captcha" class="gf-input min-w-0 flex-1" :placeholder="t('auth.captcha')" :aria-label="t('auth.captcha')" :aria-describedby="captchaError ? 'auth-captcha-error' : error ? 'auth-form-error' : undefined" />
+              <button type="button" class="relative h-10 w-28 overflow-hidden gf-panel" :disabled="captchaLoading" :aria-busy="captchaLoading" :aria-label="t('auth.refreshCaptcha')" @click="refreshCaptcha">
+                <LoaderCircle v-if="captchaLoading" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
+                <img v-else-if="captchaImg" :src="captchaImg" :alt="t('auth.captchaAlt')" class="gf-captcha-image h-full w-full object-cover" />
+                <RefreshCw v-else class="mx-auto h-5 w-5 text-base-content/55" />
               </button>
             </div>
             <input v-model="forgotForm.website" type="text" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true" />
-            <button type="submit" class="gf-button gf-button-xl gf-button-primary w-full" :disabled="loading.forgot">
+            <button type="submit" class="gf-button gf-button-xl gf-button-primary w-full" :disabled="loading.forgot || captchaUnavailable">
               <LoaderCircle v-if="loading.forgot" class="h-4 w-4 animate-spin" />
               {{ t('auth.sendResetEmail') }}
             </button>

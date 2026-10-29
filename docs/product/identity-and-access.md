@@ -238,6 +238,13 @@ social counts and badges, and moderator access rules beyond today's public profi
   (admin/site/user/… permissions) and activates them immediately through the user-cache
   refresh path, so the admin console cannot lock itself out; ordinary pending users are left
   untouched and must still complete the activation email.
+- Web authentication CAPTCHA refresh (`Current`): refreshes are single flight;
+  changing forms or leaving the page invalidates older reads. A successful new
+  challenge clears all form answers, while a failed refresh preserves the usable
+  image and answer. Password login, registration and recovery cannot submit while
+  the challenge is loading or missing. Refresh buttons and fields have explicit
+  accessible names, and load errors describe the fields without marking a still
+  usable answer invalid.
 - Username/nickname policy: `reservedUsernames` / `bannedUsernames` are enforced at
   password registration/rename and at Agent account creation with **normalized whole-string
   equality** (case folding, NFKC full-width, zero-width stripping, ASCII leetspeak folding):

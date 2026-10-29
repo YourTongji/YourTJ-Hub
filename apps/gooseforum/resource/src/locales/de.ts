@@ -1449,6 +1449,7 @@ export default {
     showPassword: 'Passwort anzeigen',
     hidePassword: 'Passwort ausblenden',
     captcha: 'Captcha',
+    refreshCaptcha: 'Bestätigungscode aktualisieren',
     captchaAlt: 'Captcha',
     publishCaptchaExplanation: 'Das Forum kann bei vielen Beiträgen und Antworten von neuen Konten ein Captcha verlangen. Bei nachlassender Aktivität oder sobald das Konto das festgelegte Alter erreicht, entfällt diese Anforderung.',
     forgotPassword: 'Passwort vergessen?',

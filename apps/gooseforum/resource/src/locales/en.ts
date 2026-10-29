@@ -1450,6 +1450,7 @@ export default {
     showPassword: 'Show password',
     hidePassword: 'Hide password',
     captcha: 'Captcha',
+    refreshCaptcha: 'Refresh captcha',
     captchaAlt: 'Captcha',
     publishCaptchaExplanation: 'The site may require a captcha for frequent posting by newer accounts. This check lifts as recent activity subsides or the account meets the site’s age condition.',
     forgotPassword: 'Forgot password?',
