@@ -12,6 +12,7 @@ import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:image/image.dart' as img;
 import 'package:ui_kit/ui_kit.dart';
+import 'package:go_router/go_router.dart';
 import 'fixtures/page_fixtures.dart';
 import 'pages_behavior_test.dart' show NoopCache;
 import 'pages_smoke_test.dart' show MemoryTokenStorage;
@@ -51,6 +52,8 @@ class _Options implements HttpClientAdapter {
         200,
         headers: {
           Headers.contentTypeHeader: ['application/json'],
+          if (registrationSuccessMessageCode != null)
+            'New-Token': ['registered-session'],
         },
       );
     }
@@ -212,26 +215,48 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
+    final router = registrationSuccessMessageCode == null
+        ? null
+        : GoRouter(
+            initialLocation: '/login',
+            routes: [
+              GoRoute(
+                path: '/',
+                builder: (_, _) =>
+                    const Scaffold(body: Text('Registration destination')),
+              ),
+              GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
+            ],
+          );
+    if (router != null) addTearDown(router.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp(
-          theme: gfThemeData(Brightness.light),
-          locale: locale,
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: TextScaler.linear(textScale)),
-            child: child!,
-          ),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home:
-              registrationMessageCode == null &&
-                  registrationSuccessMessageCode == null
-              ? LoginPage(authController: auth, authTokenStorage: staged)
-              : const LoginPage(),
-        ),
+        child: router != null
+            ? MaterialApp.router(
+                routerConfig: router,
+                theme: gfThemeData(Brightness.light),
+                locale: locale,
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+              )
+            : MaterialApp(
+                theme: gfThemeData(Brightness.light),
+                locale: locale,
+                builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: TextScaler.linear(textScale)),
+                  child: child!,
+                ),
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                home:
+                    registrationMessageCode == null &&
+                        registrationSuccessMessageCode == null
+                    ? LoginPage(authController: auth, authTokenStorage: staged)
+                    : const LoginPage(),
+              ),
       ),
     );
     await tester.pumpAndSettle();
@@ -867,11 +892,11 @@ void main() {
     tester,
   ) async {
     await pump(tester, registrationSuccessMessageCode: 'auth.login.success');
+    final l10n = AppLocalizations.of(tester.element(find.byType(LoginPage)));
     await fill(tester, 'Email', 'student@tongji.edu.cn');
     await tester.ensureVisible(submit());
     await tester.tap(submit());
     await tester.pumpAndSettle();
-    final l10n = AppLocalizations.of(tester.element(find.byType(LoginPage)));
     expect(find.text(l10n.authRegisterSuccess), findsOneWidget);
     expect(find.text(l10n.authRegisterEmailVerify), findsNothing);
   });

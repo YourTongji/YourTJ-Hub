@@ -237,6 +237,9 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
     String? messageCode;
     try {
+      // Only this request's New-Token may authenticate the new account.
+      await _tokenStorage.clear();
+      _pendingUsername = '';
       messageCode = (await _auth.register(
         username: username,
         email: email,
@@ -244,7 +247,14 @@ class AuthController extends ChangeNotifier {
         captchaId: captchaId,
         captchaCode: captchaCode,
       )).messageCode;
-      _phase = LoginPhase.idle;
+      final token = await _tokenStorage.read();
+      if (token == null || token.isEmpty) {
+        throw const ApiException(
+          fallbackMessage: 'Account created. Please sign in to continue.',
+          messageCode: 'auth.register.retryLogin',
+        );
+      }
+      await _completeLogin(username: username);
     } on ApiException catch (e) {
       final resolved = _resolveAuthError(
         e,

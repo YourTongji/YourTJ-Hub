@@ -615,7 +615,7 @@ abstract class AppLocalizations {
   /// No description provided for @authRegisterEmailVerify.
   ///
   /// In en, this message translates to:
-  /// **'Registration successful. A verification email was sent; check your inbox. No email? Sign in and resend it under Account security.'**
+  /// **'Account created. Check your inbox to verify your email. If no email arrives, resend it or change the address under Account security.'**
   String get authRegisterEmailVerify;
 
   /// No description provided for @authActivationRequired.
@@ -633,7 +633,7 @@ abstract class AppLocalizations {
   /// No description provided for @authRegisterSuccess.
   ///
   /// In en, this message translates to:
-  /// **'Registered successfully, please sign in'**
+  /// **'Account created.'**
   String get authRegisterSuccess;
 
   /// No description provided for @authResetEmailSent.
@@ -8219,6 +8219,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to load the term list. Check your network and try again.'**
   String get coursePlannerCalendarsFailed;
+
+  /// No description provided for @authVerificationPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Email verification pending'**
+  String get authVerificationPending;
+
+  /// No description provided for @authVerificationPendingHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the link in your inbox, then refresh this page. If no email arrives, resend it or change the address. Some actions remain unavailable until verification.'**
+  String get authVerificationPendingHint;
 }
 
 class _AppLocalizationsDelegate

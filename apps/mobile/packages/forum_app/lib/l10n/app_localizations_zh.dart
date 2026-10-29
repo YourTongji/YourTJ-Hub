@@ -281,8 +281,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authOidcLogin => '使用 yourtj 统一登录';
 
   @override
-  String get authRegisterEmailVerify =>
-      '注册成功，验证邮件已发送，请前往邮箱完成验证。未收到邮件？登录后可在账号安全中重发验证邮件。';
+  String get authRegisterEmailVerify => '账号已创建，请查看邮箱完成验证。未收到邮件时可在账号安全页重发或更换邮箱。';
 
   @override
   String get authActivationRequired => '请先到邮箱激活账号';
@@ -291,7 +290,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authResendActivationEmail => '重发验证邮件';
 
   @override
-  String get authRegisterSuccess => '注册成功,请登录';
+  String get authRegisterSuccess => '账号已创建。';
 
   @override
   String get authResetEmailSent => '重置邮件已发送,请查收';
@@ -4352,4 +4351,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get coursePlannerCalendarsFailed => '学期列表加载失败，请检查网络后重试。';
+
+  @override
+  String get authVerificationPending => '等待验证邮箱';
+
+  @override
+  String get authVerificationPendingHint =>
+      '请使用邮箱中的链接完成验证，之后刷新本页。未收到时可重发或更换邮箱；验证前，部分操作暂不可用。';
 }

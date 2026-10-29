@@ -296,7 +296,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get authRegisterEmailVerify =>
-      'Registrierung erfolgreich. Eine Bestätigungs-E-Mail wurde gesendet. Bitte prüfe dein Postfach. Keine E-Mail erhalten? Melde dich an und sende sie unter Kontosicherheit erneut.';
+      'Konto erstellt. Bestätige deine E-Mail über dein Postfach. Kommt keine Nachricht an, kannst du sie unter Kontosicherheit erneut anfordern oder die Adresse ändern.';
 
   @override
   String get authActivationRequired =>
@@ -306,8 +306,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get authResendActivationEmail => 'Bestätigungs-E-Mail erneut senden';
 
   @override
-  String get authRegisterSuccess =>
-      'Registrierung erfolgreich. Bitte anmelden.';
+  String get authRegisterSuccess => 'Konto erstellt.';
 
   @override
   String get authResetEmailSent =>
@@ -4629,4 +4628,11 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       'Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.';
+
+  @override
+  String get authVerificationPending => 'E-Mail-Bestätigung ausstehend';
+
+  @override
+  String get authVerificationPendingHint =>
+      'Nutze den Link in deinem Postfach und aktualisiere diese Seite. Kommt keine Nachricht an, fordere sie erneut an oder ändere die Adresse. Einige Aktionen bleiben bis zur Bestätigung gesperrt.';
 }

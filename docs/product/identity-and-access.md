@@ -108,6 +108,12 @@ fresh school authentication. See [the decision](../decisions/0034-tongji-registr
 
 ### Mobile (Flutter)
 
+`Current`: password registration accepts only its newly issued forum session through the existing
+cache-clearing and secure-storage boundary, then restores a validated native destination.
+Missing session headers cannot reuse a prior challenge. Pending email verification remains a
+server-enforced write restriction; Account security shows the current owner's pending status and
+email from the existing settings response, with resend and change-email recovery.
+
 `Current`: the native login form exposes password, Google, GitHub and Tongji sign-in, plus configured Apple sign-in on iOS; Tongji is also available on registration. Password login retains
 captcha and TOTP. Google follows the public Web provider configuration. Social sign-in supplies
 `login_hint=google|github|tongji` to the existing authorization endpoint. After the OIDC provider validates

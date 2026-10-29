@@ -1231,6 +1231,11 @@ change. The header keeps a small outer margin for its primary action.
 
 ## Registration
 
+- `Current`: successful password registration accepts its newly issued forum session through the
+  same cache cleanup, secure-storage commit and provider invalidation used for sign-in. It restores
+  only the safe native destination; a missing token cannot reuse an earlier challenge or session.
+  A created account without an accepted session offers sign-in recovery instead of showing success.
+
 - `Current`: registration loads the current Web login configuration before submission. Restricted
   email domains use a prefix field and domain selector; unrestricted sites accept the full address.
   Password confirmation is checked locally. Only published terms/privacy policies are linked and
@@ -1634,8 +1639,10 @@ native cleanup is pending.
 
 ## Email activation
 
-`Current`: password registration distinguishes accounts requiring email activation and directs
-users to sign in and open Account security if the email is missing. Account security and the
+`Current`: password registration accepts the issued session and distinguishes accounts requiring
+email activation. Account security keeps an owner-specific pending notice and current email from
+the existing settings response, so it remains available after reopening the app. Refreshing after
+verification removes the notice; a registration toast does not claim actual email delivery. Account security and the
 campus connection's `permission.emailRequired` notice share a resend action with localized success,
 cooldown and daily-limit feedback. The campus notice explicitly asks users to activate their account
 from their inbox; backend start/confirm gates remain authoritative, and unbinding stays available.

@@ -18,6 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../test/fixtures/campus_fixtures.dart';
+import '../test/pages_behavior_test.dart' show settingsPayloadJson;
 
 class _ConnectionController extends CampusController {
   _ConnectionController(super.repository, CampusStatus status) {
@@ -54,6 +55,16 @@ void main() {
       Object? result;
       String? error;
       switch (request.uri.path) {
+        case '/settings':
+          final settings = settingsPayloadJson();
+          ((settings['props'] as Map)['user'] as Map)['email'] =
+              'demo@example.test';
+          ((settings['layout'] as Map)['viewer']
+                  as Map)['requiresEmailVerification'] =
+              !activated;
+          request.response.write(jsonEncode(settings));
+          await request.response.close();
+          return;
         case '/api/resend-activation-email':
           if (resendCode != 'auth.activation.resendSuccess') error = resendCode;
         case '/api/user/sessions':
@@ -181,6 +192,10 @@ void main() {
           tester.element(find.byType(SettingsPage)),
         );
         expect(find.byType(ActivationEmailAction), findsOneWidget);
+        final notice = find.byKey(const ValueKey('account-activation-pending'));
+        expect(notice, findsOneWidget);
+        await tester.ensureVisible(notice);
+        await tester.pumpAndSettle();
         await capture('email-security-${brightness.name}');
         for (final code in [
           'auth.activation.resendSuccess',
@@ -229,7 +244,12 @@ void main() {
         await tester.ensureVisible(find.text(l.campusUnbind));
         await tester.tap(find.text(l.campusUnbind));
         await tester.pumpAndSettle();
-        await tester.tap(find.widgetWithText(TextButton, l.campusUnbind));
+        await tester.tap(
+          find.descendant(
+            of: find.byType(GfAlertDialog),
+            matching: find.widgetWithText(GfButton, l.campusUnbind),
+          ),
+        );
         await tester.pumpAndSettle();
         expect(bound, isFalse);
         expect(find.text(l.campusBind), findsOneWidget);
@@ -248,6 +268,7 @@ void main() {
           final l = AppLocalizations.of(
             tester.element(find.byType(SettingsPage)),
           );
+          await tester.ensureVisible(find.text(l.authResendActivationEmail));
           await tester.tap(find.text(l.authResendActivationEmail));
           await tester.pumpAndSettle();
           expect(
@@ -301,6 +322,15 @@ void main() {
       expect(find.byType(ActivationEmailAction), findsNothing);
       expect(find.text(l.campusUnbind), findsOneWidget);
       await capture('campus-confirm-recovered');
+      await show(
+        const SettingsPage(initialSection: 'security'),
+        'zh',
+        Brightness.light,
+      );
+      expect(
+        find.byKey(const ValueKey('account-activation-pending')),
+        findsNothing,
+      );
       expect(
         requests.where(
           (request) => request == 'POST /api/resend-activation-email',

@@ -92,10 +92,10 @@
   "authCaptchaRequired": "Bitte Captcha eingeben",
   "publishCaptchaExplanation": "Das Forum kann bei vielen Beiträgen und Antworten von neuen Konten ein Captcha verlangen. Bei nachlassender Aktivität oder sobald das Konto das festgelegte Alter erreicht, entfällt diese Anforderung.",
   "authOidcLogin": "Mit YourTJ anmelden",
-  "authRegisterEmailVerify": "Registrierung erfolgreich. Eine Bestätigungs-E-Mail wurde gesendet. Bitte prüfe dein Postfach. Keine E-Mail erhalten? Melde dich an und sende sie unter Kontosicherheit erneut.",
+  "authRegisterEmailVerify": "Konto erstellt. Bestätige deine E-Mail über dein Postfach. Kommt keine Nachricht an, kannst du sie unter Kontosicherheit erneut anfordern oder die Adresse ändern.",
   "authActivationRequired": "Bitte aktiviere zuerst dein Konto über die E-Mail in deinem Postfach.",
   "authResendActivationEmail": "Bestätigungs-E-Mail erneut senden",
-  "authRegisterSuccess": "Registrierung erfolgreich. Bitte anmelden.",
+  "authRegisterSuccess": "Konto erstellt.",
   "authResetEmailSent": "E-Mail zum Zurücksetzen gesendet. Bitte prüfe deinen Posteingang.",
   "authLoading": "Wird verarbeitet …",
   "authCacheClearFailed": "Die Offline-Daten des vorherigen Kontos konnten nicht gelöscht werden. Bitte erneut versuchen.",
@@ -1542,5 +1542,7 @@
   "courseAddToPlanner": "Zum Kursplaner hinzufügen",
   "coursePlannerSelectTerm": "Vor der Bestätigung dasselbe Semester und dein Fach wählen. Bestehende Pläne bleiben unverändert.",
   "coursePlannerUnavailable": "Dieser Kurs ist im Semester nicht verfügbar. Wähle ein anderes Angebot in den Kursdetails.",
-  "coursePlannerCalendarsFailed": "Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut."
+  "coursePlannerCalendarsFailed": "Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.",
+  "authVerificationPending": "E-Mail-Bestätigung ausstehend",
+  "authVerificationPendingHint": "Nutze den Link in deinem Postfach und aktualisiere diese Seite. Kommt keine Nachricht an, fordere sie erneut an oder ändere die Adresse. Einige Aktionen bleiben bis zur Bestätigung gesperrt."
 }

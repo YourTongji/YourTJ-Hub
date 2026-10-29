@@ -284,7 +284,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get authRegisterEmailVerify =>
-      '登録が完了しました。確認メールを送信しました。受信箱を確認してください。メールが届かない場合は、ログイン後にアカウントのセキュリティから再送信できます。';
+      'アカウントを作成しました。受信メールから認証してください。届かない場合はアカウントのセキュリティで再送またはメールアドレスを変更できます。';
 
   @override
   String get authActivationRequired => '先に受信箱からアカウントを有効化してください。';
@@ -293,7 +293,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authResendActivationEmail => '確認メールを再送信';
 
   @override
-  String get authRegisterSuccess => '登録しました。ログインしてください';
+  String get authRegisterSuccess => 'アカウントを作成しました。';
 
   @override
   String get authResetEmailSent => '再設定メールを送信しました。受信箱をご確認ください';
@@ -4407,4 +4407,11 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       '学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。';
+
+  @override
+  String get authVerificationPending => 'メールアドレスの認証待ち';
+
+  @override
+  String get authVerificationPendingHint =>
+      '受信メールのリンクで認証し、このページを更新してください。届かない場合は再送またはアドレスを変更できます。認証前は一部の操作が利用できません。';
 }

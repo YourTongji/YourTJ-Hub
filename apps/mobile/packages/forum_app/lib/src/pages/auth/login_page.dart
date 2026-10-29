@@ -707,7 +707,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
     if (mounted && _authController.phase == LoginPhase.needsCaptcha) {
       await _authController.loadCaptcha();
     }
-    if (mounted && _authController.error.isEmpty) {
+    if (mounted && _authController.phase == LoginPhase.authenticated) {
       final l10n = AppLocalizations.of(context);
       showGfToast(
         context,
@@ -715,7 +715,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
             ? l10n.authRegisterEmailVerify
             : l10n.authRegisterSuccess,
       );
-      setState(() => _mode = _AuthMode.login);
+      await _finishAuthentication(saveAutofill: true);
     }
   }
 

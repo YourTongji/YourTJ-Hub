@@ -92,10 +92,10 @@
   "authCaptchaRequired": "認証コードを入力してください",
   "publishCaptchaExplanation": "新しいアカウントでは、投稿や返信が多い場合に認証コードが必要になることがあります。最近の利用が落ち着くか、アカウントがサイト所定の期間に達すると解除されます。",
   "authOidcLogin": "YourTJでログイン",
-  "authRegisterEmailVerify": "登録が完了しました。確認メールを送信しました。受信箱を確認してください。メールが届かない場合は、ログイン後にアカウントのセキュリティから再送信できます。",
+  "authRegisterEmailVerify": "アカウントを作成しました。受信メールから認証してください。届かない場合はアカウントのセキュリティで再送またはメールアドレスを変更できます。",
   "authActivationRequired": "先に受信箱からアカウントを有効化してください。",
   "authResendActivationEmail": "確認メールを再送信",
-  "authRegisterSuccess": "登録しました。ログインしてください",
+  "authRegisterSuccess": "アカウントを作成しました。",
   "authResetEmailSent": "再設定メールを送信しました。受信箱をご確認ください",
   "authLoading": "処理中…",
   "authCacheClearFailed": "前のアカウントのオフラインデータを削除できませんでした。再試行してください。",
@@ -1542,5 +1542,7 @@
   "courseAddToPlanner": "履修プランナーに追加",
   "coursePlannerSelectTerm": "同じ学期と専攻を選択してからクラスを確認してください。既存プランは自動変更されません。",
   "coursePlannerUnavailable": "この学期のクラスは利用できません。講義詳細から別の開講記録を選択してください。",
-  "coursePlannerCalendarsFailed": "学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。"
+  "coursePlannerCalendarsFailed": "学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。",
+  "authVerificationPending": "メールアドレスの認証待ち",
+  "authVerificationPendingHint": "受信メールのリンクで認証し、このページを更新してください。届かない場合は再送またはアドレスを変更できます。認証前は一部の操作が利用できません。"
 }

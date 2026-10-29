@@ -294,7 +294,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authRegisterEmailVerify =>
-      'Registration successful. A verification email was sent; check your inbox. No email? Sign in and resend it under Account security.';
+      'Account created. Check your inbox to verify your email. If no email arrives, resend it or change the address under Account security.';
 
   @override
   String get authActivationRequired =>
@@ -304,7 +304,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authResendActivationEmail => 'Resend verification email';
 
   @override
-  String get authRegisterSuccess => 'Registered successfully, please sign in';
+  String get authRegisterSuccess => 'Account created.';
 
   @override
   String get authResetEmailSent => 'Reset email sent, please check your inbox';
@@ -4583,4 +4583,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       'Failed to load the term list. Check your network and try again.';
+
+  @override
+  String get authVerificationPending => 'Email verification pending';
+
+  @override
+  String get authVerificationPendingHint =>
+      'Use the link in your inbox, then refresh this page. If no email arrives, resend it or change the address. Some actions remain unavailable until verification.';
 }

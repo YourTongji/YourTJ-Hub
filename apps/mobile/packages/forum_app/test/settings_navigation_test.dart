@@ -30,6 +30,7 @@ class _CountingPageRepository extends PageRepository {
   bool fail = false;
   bool malformed = false;
   String email = 'alice@example.com';
+  bool needsVerification = false;
   Completer<PagePayload>? pending;
   @override
   Future<PagePayload> fetch(String path, {CancelToken? cancelToken}) async {
@@ -37,7 +38,11 @@ class _CountingPageRepository extends PageRepository {
     if (fail) throw StateError('Settings temporarily unavailable');
     if (pending != null) return pending!.future;
     final json = malformed ? homePayloadJson() : settingsPayloadJson();
-    if (!malformed) ((json['props'] as Map)['user'] as Map)['email'] = email;
+    if (!malformed) {
+      ((json['props'] as Map)['user'] as Map)['email'] = email;
+      ((json['layout'] as Map)['viewer'] as Map)['requiresEmailVerification'] =
+          needsVerification;
+    }
     return PagePayload.fromJson(json);
   }
 }
@@ -172,6 +177,7 @@ typedef _Harness = ({
 Future<_Harness> _mount(
   WidgetTester tester, {
   bool signedIn = false,
+  bool needsVerification = false,
   bool pageFails = false,
   String? section,
   bool autoEditProfile = false,
@@ -194,7 +200,9 @@ Future<_Harness> _mount(
     tokenStorage: storage,
     baseUrl: 'http://fake.local',
   );
-  final page = _CountingPageRepository(client)..fail = pageFails;
+  final page = _CountingPageRepository(client)
+    ..fail = pageFails
+    ..needsVerification = needsVerification;
   final user = _CountingUserRepository(client);
   final container = ProviderContainer(
     overrides: [
@@ -261,6 +269,34 @@ Future<_Harness> _mount(
 }
 
 void main() {
+  testWidgets(
+    'account security keeps an owner-specific pending activation notice across visits',
+    (tester) async {
+      for (final pending in [true, false]) {
+        await tester.pumpWidget(const SizedBox());
+        await _mount(
+          tester,
+          signedIn: true,
+          section: 'account',
+          language: 'en',
+          needsVerification: pending,
+        );
+        final notice = find.byKey(const ValueKey('account-activation-pending'));
+        expect(notice, pending ? findsOneWidget : findsNothing);
+        if (pending) {
+          expect(
+            find.descendant(
+              of: notice,
+              matching: find.text('alice@example.com'),
+            ),
+            findsOneWidget,
+          );
+        }
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   testWidgets('account change closes profile link drafts', (tester) async {

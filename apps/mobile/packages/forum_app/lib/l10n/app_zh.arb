@@ -134,10 +134,10 @@
   "authCaptchaRequired": "请输入验证码",
   "publishCaptchaExplanation": "站点通常会对新账号的高频发布互动要求验证码。近期发布或回复较多时，请先完成验证；近期互动减少或账号注册时间达到站点设定条件后，此要求会自动解除。",
   "authOidcLogin": "使用 yourtj 统一登录",
-  "authRegisterEmailVerify": "注册成功，验证邮件已发送，请前往邮箱完成验证。未收到邮件？登录后可在账号安全中重发验证邮件。",
+  "authRegisterEmailVerify": "账号已创建，请查看邮箱完成验证。未收到邮件时可在账号安全页重发或更换邮箱。",
   "authActivationRequired": "请先到邮箱激活账号",
   "authResendActivationEmail": "重发验证邮件",
-  "authRegisterSuccess": "注册成功,请登录",
+  "authRegisterSuccess": "账号已创建。",
   "authResetEmailSent": "重置邮件已发送,请查收",
   "authLoading": "处理中…",
   "authCacheClearFailed": "清除上一账号离线数据失败,请重试",
@@ -1891,5 +1891,7 @@
   "courseAddToPlanner": "添加到选课排课",
   "coursePlannerSelectTerm": "请先选择相同学期和专业，再确认教学班；现有方案不会自动更改。",
   "coursePlannerUnavailable": "这个学期的教学班不可用，请返回课程详情选择其他开课记录。",
-  "coursePlannerCalendarsFailed": "学期列表加载失败，请检查网络后重试。"
+  "coursePlannerCalendarsFailed": "学期列表加载失败，请检查网络后重试。",
+  "authVerificationPending": "等待验证邮箱",
+  "authVerificationPendingHint": "请使用邮箱中的链接完成验证，之后刷新本页。未收到时可重发或更换邮箱；验证前，部分操作暂不可用。"
 }
