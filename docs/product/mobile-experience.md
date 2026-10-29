@@ -747,6 +747,12 @@ retains its open writing canvas; edit tools use the same outline symbols. Keyboa
 panels are mutually exclusive and preserve draft text and selection. Unsupported voice actions
 are not displayed. Chat bubbles use 20-pixel corners and are bounded by the conversation pane.
 
+`Current`: branch pages own software-keyboard avoidance; the retained navigation shell does not
+resize their window a second time. The compact dock and its chat-content clearance disappear while
+the keyboard is open, leaving the input and send action reachable. Empty-conversation guidance can
+scroll when keyboard, preview notice or window height leave little space. Folding and unfolding
+keep the same conversation input controller and unsent text.
+
 `Current`: primary and secondary buttons use pill shapes with state-specific colors and a separate
 48-pixel hit target. Icon actions retain at least 44 pixels, except the compact profile social links,
 whose touch areas are 24 pixels wide and 32 pixels high. Menus, segmented controls and choice
