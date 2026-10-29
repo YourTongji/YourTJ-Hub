@@ -12062,6 +12062,10 @@ FeedReconcileRequest:
   type: object
   required: [topicIds]
   properties:
+    includeOwn:
+      type: boolean
+      default: false
+      description: Regular feeds retain the viewer's public topics. Omitted or false preserves For You author eligibility. Never includes non-public topics.
     topicIds:
       type: array
       minItems: 1

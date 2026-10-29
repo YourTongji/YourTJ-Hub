@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { confirmPendingSeen, feedAccount, observeFeedRows, seenConfirmationLost } from "@/runtime/feed-telemetry"
-import { refreshForYou, reconcileForYou } from '@/runtime/feed-session-api'
+import { refreshForYou, reconcileForYou, reconcileRegularTopics } from '@/runtime/feed-session-api'
 import { activeForYouSession, forYouSessionLost, captureFeedAnchor, restoreFeedAnchor, updateForYouSession } from '@/runtime/for-you-sessions'
 import { GooseClientError } from "@gooseforum/client"
 import { useContentUpdates } from '@/runtime/content-updates'
@@ -68,12 +68,16 @@ let refreshPollTimer: number | undefined
 let refreshPollingActive = false
 let refreshViewportQuery: MediaQueryList | undefined
 let feedRevision = 0
+let feedWasDeactivated = false
+let loadedFeedIdentity = ''
+let loadedFeedOwner: number | undefined = page.layout.viewer.id
 let stopFeedObserver: (() => void) | undefined
 const feedRoot = ref<HTMLElement | null>(null)
 function observeFeed() { stopFeedObserver?.(); if (feedRoot.value) stopFeedObserver = observeFeedRows(feedRoot.value, () => topics.value, () => seenProofs.value) }
 onActivated(() => { sessionActive = true; void nextTick(observeFeed); scheduleReconcile() })
 onMounted(() => void nextTick(observeFeed))
 onDeactivated(() => {
+  feedWasDeactivated = true
   sessionActive = false; feedRevision++; sessionAbort.abort(); sessionAbort = new AbortController()
   loadingMore.value = false; refreshing.value = false
   if (reconcileTimer) clearTimeout(reconcileTimer)
@@ -213,13 +217,26 @@ function selectAnnouncement(index: number) {
 watch(
   () => [page.pageUrl, activeForYouSession.value, page.props],
   () => {
+    const nextFeedIdentity = homeFeedIdentity()
+    const preserveLoadedFeed = feedWasDeactivated
+      && loadedFeedIdentity === nextFeedIdentity
+      && !isForYouFeed.value
+      && page.props.sort !== 'following'
+      && topics.value.length > 0
+    feedWasDeactivated = false
+    loadedFeedIdentity = nextFeedIdentity
+    loadedFeedOwner = page.layout.viewer.id
     feedRevision++
     sessionAbort.abort(); sessionAbort = new AbortController()
-    seenProofs.value = [...(page.props.seenProofs ?? [])]
+    if (preserveLoadedFeed) {
+      topics.value = reconcileFeedTopics(topics.value, page.props.topics)
+    } else {
+      topics.value = [...page.props.topics]
+      pagination.value = page.props.pagination
+      seenProofs.value = [...(page.props.seenProofs ?? [])]
+    }
     snapshotId.value = page.props.snapshotId ?? ""
     cursorExpired.value = Boolean(page.props.sessionCursorExpired)
-    topics.value = [...page.props.topics]
-    pagination.value = page.props.pagination
     announcement.value = page.props.announcement
     requiresEmailVerification.value = page.layout.viewer.requiresEmailVerification
     loadingMore.value = false
@@ -231,9 +248,71 @@ watch(
     loadError.value = ''
     refreshStatusMessage.value = ''
     void nextTick(observeSentinel)
+    if (preserveLoadedFeed) {
+      const revision = feedRevision
+      void nextTick(() => reconcileRegularVisibility(revision))
+    }
   },
   { immediate: true, flush: 'post' },
 )
+
+function homeFeedIdentity(viewerId = page.layout.viewer.id) {
+  const url = new URL(page.pageUrl, window.location.origin)
+  url.searchParams.delete('page')
+  url.searchParams.delete('cursor')
+  url.searchParams.sort()
+  return `${url.pathname}?${url.searchParams.toString()}|${page.props.actualSort ?? page.props.sort}|${viewerId}`
+}
+
+function clearAccountFeed() {
+  topics.value = []
+  seenProofs.value = []
+  snapshotId.value = ''
+  pagination.value = { ...pagination.value, hasNext: false, nextUrl: '' }
+  loadedFeedIdentity = ''
+  loadedFeedOwner = undefined
+}
+
+async function reconcileRegularVisibility(revision: number) {
+  if (isForYouFeed.value || !page.layout.viewer.isAuthenticated || !sessionActive || !topics.value.length) return
+  const owner = loadedFeedOwner
+  if (owner !== feedAccount()) { clearAccountFeed(); return }
+  const ids = topics.value.map((topic) => topic.id)
+  const removed = new Set<number>()
+  try {
+    // The existing visibility endpoint accepts at most 120 IDs per request.
+    for (let offset = 0; offset < ids.length; offset += 120) {
+      const result = await reconcileRegularTopics(ids.slice(offset, offset + 120), sessionAbort.signal)
+      if (revision !== feedRevision || !sessionActive || feedSwitchInProgress.value) return
+      for (const id of result.removedIds) removed.add(id)
+    }
+    if (!removed.size) return
+    const anchor = captureFeedAnchor(feedRoot.value ?? document)
+    topics.value = topics.value.filter((topic) => !removed.has(topic.id))
+    await nextTick()
+    if (revision === feedRevision && sessionActive) { restoreFeedAnchor(anchor); observeFeed() }
+  } catch {
+    if (revision === feedRevision && feedAccount() !== owner) clearAccountFeed()
+    // Keep this account's cached rows on transient failure; activation/SSE retries.
+  }
+}
+
+function reconcileFeedTopics(current: TopicPayload[], incoming: TopicPayload[]) {
+  const incomingByID = new Map(incoming.map((topic) => [topic.id, topic]))
+  const currentIDs = new Set(current.map((topic) => topic.id))
+  const refreshed = current.map((topic) => {
+    const update = incomingByID.get(topic.id)
+    if (!update) return topic
+    return {
+      ...topic,
+      ...update,
+      feedTrace: topic.feedTrace ?? update.feedTrace,
+      feedPosition: topic.feedPosition ?? update.feedPosition,
+      feedReason: topic.feedReason ?? update.feedReason,
+    }
+  })
+  return [...incoming.filter((topic) => !currentIDs.has(topic.id)), ...refreshed]
+}
 
 watch(
   () => page.props.topics,
@@ -312,9 +391,9 @@ async function reconcileLoaded() {
     // Preserve the batch on transient errors; the next activation/SSE retries.
   } finally { reconcileRunning = false; if (reconcileQueued) { reconcileQueued = false; scheduleReconcile() } }
 }
-useContentUpdates(() => { if (isForYouFeed.value) scheduleReconcile(); else void refreshFirstPage('replace') }, () => !!page.layout.viewer?.isAuthenticated)
+useContentUpdates(() => { if (isForYouFeed.value) scheduleReconcile(); else void refreshFirstPage('reconcile') }, () => !!page.layout.viewer?.isAuthenticated)
 
-async function refreshFirstPage(mode: 'prepend' | 'replace') {
+async function refreshFirstPage(mode: 'prepend' | 'replace' | 'reconcile') {
   if (pendingHomeFeedUrl.value || failedHomeFeedUrl.value || refreshing.value) return
   if (loadingMore.value && !isForYouFeed.value) return
   const revision = ++feedRevision
@@ -343,11 +422,23 @@ async function refreshFirstPage(mode: 'prepend' | 'replace') {
     const payload = (await fetchPage(currentFirstPageUrl())) as PagePayload<HomeProps>
     if (revision !== feedRevision || feedSwitchInProgress.value) return
     // Following refreshes replace retained rows so unfollowed authors disappear.
-    topics.value = mode === 'prepend' && page.props.sort !== 'following' && page.props.sort !== 'for_you'
-      ? prependTopics(topics.value, payload.props.topics)
-      : [...payload.props.topics]
-    pagination.value = payload.props.pagination
-    seenProofs.value = payload.props.seenProofs ?? []
+    const accountChanged = payload.layout.viewer.id !== loadedFeedOwner || payload.layout.viewer.id !== requestOwner || feedAccount() !== requestOwner
+    if (accountChanged || mode === 'replace' || page.props.sort === 'following') {
+      topics.value = [...payload.props.topics]
+      pagination.value = payload.props.pagination
+      seenProofs.value = payload.props.seenProofs ?? []
+      loadedFeedIdentity = homeFeedIdentity(payload.layout.viewer.id)
+      loadedFeedOwner = payload.layout.viewer.id
+      if (accountChanged) snapshotId.value = ''
+    } else if (mode === 'prepend') {
+      topics.value = prependTopics(topics.value, payload.props.topics)
+      pagination.value = payload.props.pagination
+      seenProofs.value = payload.props.seenProofs ?? []
+    } else {
+      topics.value = reconcileFeedTopics(topics.value, payload.props.topics)
+      await reconcileRegularVisibility(revision)
+    }
+    if (revision !== feedRevision || feedSwitchInProgress.value) return
     announcement.value = payload.props.announcement
     requiresEmailVerification.value = payload.layout.viewer.requiresEmailVerification
     newTopicCount.value = 0
@@ -356,7 +447,7 @@ async function refreshFirstPage(mode: 'prepend' | 'replace') {
     refreshStatusMessage.value = t('topicList.refreshComplete')
     void nextTick(observeSentinel)
   } catch (error) {
-    if (feedAccount() !== requestOwner) { topics.value = []; seenProofs.value = []; pagination.value = { ...pagination.value, hasNext: false, nextUrl: "" } }
+    if (revision === feedRevision && feedAccount() !== requestOwner) clearAccountFeed()
     if (revision === feedRevision && !feedSwitchInProgress.value) {
       loadError.value = error instanceof Error ? error.message : t('common.loadFailed')
       refreshStatusMessage.value = t('topicList.refreshFailed')
@@ -433,8 +524,14 @@ function stopRefreshPollTimer() {
 
 async function loadMore() {
   if (pendingHomeFeedUrl.value || failedHomeFeedUrl.value || loadingMore.value || refreshing.value || cursorExpired.value || forYouSessionLost.value || !pagination.value.hasNext || !pagination.value.nextUrl) return
+  if (feedAccount() !== loadedFeedOwner) {
+    clearAccountFeed()
+    await refreshFirstPage('replace')
+    return
+  }
 
   const revision = feedRevision
+  const requestOwner = feedAccount()
   loadingMore.value = true
   loadError.value = ''
   try {
@@ -442,6 +539,12 @@ async function loadMore() {
     if (revision !== feedRevision || !sessionActive || feedSwitchInProgress.value) return
     const payload = (await fetchPage(new URL(pagination.value.nextUrl, window.location.origin))) as PagePayload<HomeProps>
     if (revision !== feedRevision || feedSwitchInProgress.value) return
+    if (payload.layout.viewer.id !== requestOwner || feedAccount() !== requestOwner) {
+      clearAccountFeed()
+      loadingMore.value = false
+      await refreshFirstPage('replace')
+      return
+    }
     if ((payload.props.actualSort ?? payload.props.sort) !== (page.props.actualSort ?? page.props.sort)) {
       if (isForYouFeed.value) { cursorExpired.value = true; return }
       topics.value = payload.props.topics

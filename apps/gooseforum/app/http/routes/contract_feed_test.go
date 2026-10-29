@@ -8,12 +8,14 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/feedservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -105,6 +107,45 @@ func TestFeedSessionRoutesAuthBoundsAndDisabledRefresh(t *testing.T) {
 	if response.Code != 400 {
 		t.Fatal("oversized replacement ID accepted")
 	}
+}
+
+func TestRegularFeedReconcileKeepsOwnPublicTopics(t *testing.T) {
+	conn, router := setupHTTPContractTest(t)
+	if err := conn.AutoMigrate(append(feed.Models(), &users.BlockEntity{})...); err != nil {
+		t.Fatal(err)
+	}
+	router.POST("/api/forum/feed/reconcile", middleware.CSRFProtection, middleware.JWTAuthCheck, forum.FeedReconcile)
+	user := createHTTPContractUser(t, conn, contractTestID())
+	const topicID = uint64(9021421001)
+	createContractPublishedTopic(t, conn, topicID, topicID+1, user.Id)
+	token := contractSessionToken(t, user)
+	check := func(body string, wantVisible bool) {
+		t.Helper()
+		response := serveJSON(router, "/api/forum/feed/reconcile", body, token)
+		var envelope struct {
+			Result forum.FeedSessionResponse `json:"result"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
+			t.Fatal(err)
+		}
+		if wantVisible {
+			if len(envelope.Result.Topics) != 1 || envelope.Result.Topics[0].ID != topicID || len(envelope.Result.RemovedIDs) != 0 {
+				t.Fatalf("own public topic dropped: %s", response.Body.String())
+			}
+		} else if len(envelope.Result.Topics) != 0 || len(envelope.Result.RemovedIDs) != 1 {
+			t.Fatalf("ineligible/private own topic returned: %s", response.Body.String())
+		}
+	}
+	check(`{"topicIds":[9021421001]}`, false)
+	body, err := os.ReadFile("../../../../../packages/api-contract/fixtures/feed-reconcile-include-own-request.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	check(string(body), true)
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", topicID).Update("status", 0).Error; err != nil {
+		t.Fatal(err)
+	}
+	check(`{"topicIds":[9021421001],"includeOwn":true}`, false)
 }
 
 func TestFeedSeenACKIsDurableWithMetricsDisabled(t *testing.T) {

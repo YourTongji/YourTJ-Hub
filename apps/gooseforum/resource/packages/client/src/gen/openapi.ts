@@ -3047,8 +3047,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Reconcile only loaded For You cards in caller order
-         * @description Rechecks at most 120 unique IDs and returns current public eligible survivors plus removedIds. Does not recall, rerank, apply seen suppression, create a cursor or record served. available signals whether continuation is enabled. Returns current displayed-content proofs, independent of metrics. A transient failure is not an authoritative deletion.
+         * Reconcile loaded feed cards in caller order
+         * @description Rechecks at most 120 unique IDs and returns current public eligible survivors plus removedIds. includeOwn=true also retains the viewer's public topics for regular feeds; it never includes non-public topics. Omitted or false preserves For You author eligibility. Does not recall, rerank, apply seen suppression, create a cursor or record served. available signals whether For You continuation is enabled. Returns current displayed-content proofs, independent of metrics. A transient failure is not an authoritative deletion.
          */
         post: operations["reconcileForYou"];
         delete?: never;
@@ -15384,6 +15384,11 @@ export interface components {
             messageCode?: string;
         };
         FeedReconcileRequest: {
+            /**
+             * @description Regular feeds retain the viewer's public topics. Omitted or false preserves For You author eligibility. Never includes non-public topics.
+             * @default false
+             */
+            includeOwn: boolean;
             topicIds: number[];
         };
         FeedEventPatch: {
