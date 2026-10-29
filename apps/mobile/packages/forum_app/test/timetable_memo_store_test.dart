@@ -56,20 +56,36 @@ const newBlock = TimetableBlock(
 
 void main() {
   test(
-    'corrupt memo data is preserved instead of replaced by an empty list',
+    'corrupt memo entries drop without blocking the rest of the domain',
     () async {
       final database = UserWorkDatabase.instance;
-      await database.writeBatch('a', kTimetableMemoDomain, {
+      const scope = 'corrupt-memo';
+      await database.writeBatch(scope, kTimetableMemoDomain, {
         'notes': '{broken',
+        'blocks': jsonEncode([
+          newBlock.toJson()..['id'] = 'kept',
+          {'id': 42},
+        ]),
       });
-      final store = TimetableMemoStore(database: database, scope: 'a');
+      final store = TimetableMemoStore(database: database, scope: scope);
       addTearDown(store.dispose);
-      await store.setNote('course', null, 'replacement');
-      expect(store.state.error, isNotNull);
-      expect(
-        (await database.readDomain('a', kTimetableMemoDomain))['notes'],
-        '{broken',
-      );
+      await pumpEventQueue();
+      expect(store.state.loaded, isTrue);
+      expect(store.state.error, isNull);
+      // The bad entry and the unparseable key drop; the good block survives.
+      expect(store.state.notes, isEmpty);
+      expect(store.state.blocks.map((b) => b.id), ['kept']);
+
+      // The domain stays editable and the next write rewrites the cleaned key.
+      expect(await store.setNote('course', null, 'replacement'), isTrue);
+      // Editing one key rewrites only that key; the other keeps its raw
+      // bytes until it is edited, and the loader keeps dropping bad entries.
+      final afterNote = await database.readDomain(scope, kTimetableMemoDomain);
+      expect((jsonDecode(afterNote['notes']!) as List).single, isA<Map>());
+      expect((jsonDecode(afterNote['blocks']!) as List).length, 2);
+      expect(await store.deleteBlock('missing'), isTrue);
+      final afterBlock = await database.readDomain(scope, kTimetableMemoDomain);
+      expect((jsonDecode(afterBlock['blocks']!) as List).single['id'], 'kept');
     },
   );
 

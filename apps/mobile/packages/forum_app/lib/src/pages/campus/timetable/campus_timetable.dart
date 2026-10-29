@@ -92,7 +92,11 @@ class _CampusWeekTimetableState extends ConsumerState<CampusWeekTimetable> {
         ...(e.weeks.isEmpty
             ? [for (var w = 1; w <= widget.maxWeek; w++) w]
             : e.weeks),
-      for (final b in ref.read(timetableMemoProvider).blocks) ...b.weeks,
+      // Empty weeks repeat every week, like a course with no week filter.
+      for (final b in ref.read(timetableMemoProvider).blocks)
+        ...(b.weeks.isEmpty
+            ? [for (var w = 1; w <= widget.maxWeek; w++) w]
+            : b.weeks),
     };
     final picked = await showTimetableWeekPicker(
       context,
@@ -143,11 +147,13 @@ class _CampusWeekTimetableState extends ConsumerState<CampusWeekTimetable> {
 
   /// The focused day (or today) at its first free pair of sections.
   TimetableCellRange _defaultRange(TimetableWeekLayout layout) {
-    final day =
+    var day =
         _focusedDay ??
         (week == widget.week && layout.days.contains(_today)
             ? _today
             : layout.days.first);
+    // The focused weekend may have folded away with its last block.
+    if (!layout.days.contains(day)) day = layout.days.first;
     for (var s = 1; s < layout.rows; s++) {
       if (layout.isFree(day, s) && layout.isFree(day, s + 1)) {
         return TimetableCellRange(days: [day], start: s, end: s + 1);
@@ -174,9 +180,9 @@ class _CampusWeekTimetableState extends ConsumerState<CampusWeekTimetable> {
     final l = AppLocalizations.of(context);
     final memo = ref.watch(timetableMemoProvider);
     final isCurrent = week == widget.week;
-    if (!_appliedFocusPref && memo.loaded) {
+    if (!_appliedFocusPref && memo.loaded && isCurrent) {
       _appliedFocusPref = true;
-      if (memo.prefs.focusToday && isCurrent) _focusedDay = _today;
+      if (memo.prefs.focusToday) _focusedDay = _today;
     }
     final layout = buildTimetableWeek(
       events: widget.data.events,
