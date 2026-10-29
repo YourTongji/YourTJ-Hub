@@ -1000,6 +1000,10 @@ change. The header keeps a small outer margin for its primary action.
   [campus Widget specification](campus.md#home-screen-widgets).
 - `Partial`: native school login on a physical device is not end-to-end verified. Automated tests
   cover navigation policy, session handoff, confirmation, stale responses and native rendering.
+- `Current`: the embedded school authorization browser opens as a full-screen route on the root
+  navigator, covering the retained tab dock and rail. Loading, failure and retry remain inside
+  this route; closing or completing authorization returns to the same campus branch and refreshes
+  its status. Browser content retains its safe-area and keyboard insets.
 - `Current`: the scheduler opens in course selection. Plan preview remains a local planning
   grid, with week filters, conflicts, custom blocks and existing plan operations. Web and mobile
   warn about time conflicts before a teaching class is selected, while keeping the add action
