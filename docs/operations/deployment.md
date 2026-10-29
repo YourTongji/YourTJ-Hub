@@ -491,14 +491,26 @@ The `access_token` and goth session cookies take their `Secure` flag from
 - `off` forces it off; a production deployment then sends session credentials
   over plaintext http (CWE-614). Use it only for LAN or temporary deployments.
 
-No `config.toml` change is required for existing instances: the default is
-`auto`, which keeps https and loopback deployments `Secure`, and additionally
-lets plain-http LAN/IP access log in. At startup the binary warns when a
+Before deploying, check that `server.url` is the browser-facing public origin,
+including its scheme, rather than the proxy's HTTP upstream address. An HTTPS
+deployment with a legacy `http://` non-loopback `server.url` would otherwise lose
+`Secure` under `auto`. Set that URL to the public `https://` origin, or set
+`server.cookieSecure = "on"` before upgrading, and restart. Only deliberately
+plaintext deployments should choose `auto` with a complete `http://` origin or
+explicit `off`.
+
+The repository's [main instance](../../deploy/instances/main.json) and
+[dev instance](../../deploy/instances/dev.json) declare HTTPS public origins;
+the renderer uses those origins and `verify-instance.sh` checks the deployed
+`server.url` against them. These declared configurations retain `Secure` under
+`auto`; operators of other or manually modified deployments must check their
+actual configuration. At startup the binary warns when a
 non-local `server.url` is non-empty but not a usable https or loopback origin —
 including a scheme-less `10.0.0.5:5234` or an unparsable value — and the message
 reflects the effective flag: with `Secure` on it says browsers will drop the
-session cookie and that `server.cookieSecure = "auto"`/`"off"` is the escape
-hatch for a deliberate plaintext deployment; with `Secure` off it warns that
+session cookie and requires a complete `http://` URL before choosing
+`server.cookieSecure = "auto"`/`"off"` for a deliberate plaintext deployment;
+with `Secure` off it warns that
 credentials travel in clear text. Prefer pointing `server.url` at the https
 reverse-proxy address in production. Note that `auto` needs a scheme in
 `server.url`: `10.0.0.5:5234` cannot be resolved, so it stays `Secure` and

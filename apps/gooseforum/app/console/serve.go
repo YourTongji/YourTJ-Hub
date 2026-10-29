@@ -97,7 +97,7 @@ func warnInsecureServerURL() {
 func insecureServerURLMessage(serverURL string, cookieSecure bool) string {
 	if cookieSecure {
 		return fmt.Sprintf(
-			"server.url=%q 在非 local 环境下不是 https，且会话 Cookie 会带 Secure：浏览器不会在明文连接上回传它们，Web 登录将无法保持。请改用 https:// 反向代理地址；若确实是有意的明文部署，设置 server.cookieSecure = \"auto\" 或 \"off\"",
+			"server.url=%q 在非 local 环境下不是 https，且会话 Cookie 会带 Secure：浏览器不会在明文连接上回传它们，Web 登录将无法保持。请改用 https:// 反向代理地址；若确实是有意的明文部署，先将 server.url 设为完整的 http:// 地址，再设置 server.cookieSecure = \"auto\" 或 \"off\"",
 			serverURL,
 		)
 	}

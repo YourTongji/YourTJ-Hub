@@ -45,6 +45,13 @@ func TestInsecureServerURLMessageFollowsCookieSecure(t *testing.T) {
 	}
 }
 
+func TestInsecureServerURLMessageRequiresSchemeBeforeAuto(t *testing.T) {
+	message := insecureServerURLMessage("10.0.0.5:5234", true)
+	if !strings.Contains(message, "完整的 http://") {
+		t.Fatalf("auto cannot repair a scheme-less URL; warning must require a complete http:// URL: %s", message)
+	}
+}
+
 // TestWarnInsecureServerURLGuardsCases focuses on the pure decision function:
 // whether the non-https non-local warning should fire. The slog output itself
 // is captured indirectly; we assert on an extracted helper so logic is decoupled
