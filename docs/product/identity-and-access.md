@@ -238,6 +238,17 @@ social counts and badges, and moderator access rules beyond today's public profi
   (admin/site/user/… permissions) and activates them immediately through the user-cache
   refresh path, so the admin console cannot lock itself out; ordinary pending users are left
   untouched and must still complete the activation email.
+- Activation continuation (`Current`): a successful email link names the verified
+  account. It leaves browser/App login credentials and account freezes unchanged;
+  verification is not sign-in and does not grant unrestricted writes. The result
+  offers explicit browser continuation to an allowed forum page, sign-in with that
+  destination, or `yourtj://account/email-verified`. API/auth/activation destinations
+  and external redirects fall back to account settings. Token-bearing result pages
+  use private/no-store and no-referrer. No unfinished operation is replayed.
+  The App return carries no identity, token or verification proof: it pushes current
+  account settings over the existing page, fetches that session's state, and leaves
+  drafts and credentials intact. Browser and manual App-switch fallbacks remain
+  available if no App handler is installed.
 - Username/nickname policy: `reservedUsernames` / `bannedUsernames` are enforced at
   password registration/rename and at Agent account creation with **normalized whole-string
   equality** (case folding, NFKC full-width, zero-width stripping, ASCII leetspeak folding):

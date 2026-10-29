@@ -10,9 +10,18 @@ class SceneDelegate: FlutterSceneDelegate {
     options connectionOptions: UIScene.ConnectionOptions
   ) {
     super.scene(scene, willConnectTo: session, options: connectionOptions)
+    for context in connectionOptions.urlContexts {
+      (UIApplication.shared.delegate as? AppDelegate)?.accountReturnBridge.handle(context.url)
+    }
     if let controller = window?.rootViewController as? FlutterViewController {
       reservedRegionsBridge = YourTJReservedRegionsBridge(controller: controller)
     }
+  }
+
+  override func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+    let bridge = (UIApplication.shared.delegate as? AppDelegate)?.accountReturnBridge
+    let other = Set(URLContexts.filter { bridge?.handle($0.url) != true })
+    if !other.isEmpty { super.scene(scene, openURLContexts: other) }
   }
 
   override func sceneDidDisconnect(_ scene: UIScene) {
