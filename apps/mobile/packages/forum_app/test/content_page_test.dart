@@ -19,6 +19,7 @@ class _Content extends ContentRepository {
   bool requirePassword = false;
   final passwords = <String?>[];
   final listTypes = <String>[];
+  final failIds = <int>{};
   @override
   Future<List<ContentDeletionResult>> delete({
     required String contentType,
@@ -34,7 +35,12 @@ class _Content extends ContentRepository {
       );
     }
     return [
-      for (final id in ids) ContentDeletionResult(contentId: id, success: true),
+      for (final id in ids)
+        ContentDeletionResult(
+          contentId: id,
+          success: !failIds.contains(id),
+          message: failIds.contains(id) ? 'delete rejected' : '',
+        ),
     ];
   }
 
@@ -503,6 +509,112 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.deletions, 0);
       expect(find.text('Previous account topic'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'successful batch topic deletion tombstones the topic in removedTopicsProvider',
+    (tester) async {
+      final repo = _Content(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemoryTokenStorage(),
+          baseUrl: 'https://example.test',
+        ),
+      );
+      repo.pending.complete(
+        const UserContentPage(
+          items: [
+            UserContentItem(id: 7, contentType: 'topic', title: 'Owned topic'),
+          ],
+          hasMore: false,
+          nextCursorId: 0,
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [contentRepositoryProvider.overrideWithValue(repo)],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ContentPage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pump();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(GfAlertDialog),
+              matching: find.text('Delete'),
+            )
+            .last,
+      );
+      await tester.pumpAndSettle();
+      expect(container.read(removedTopicsProvider), contains(7));
+    },
+  );
+
+  testWidgets(
+    'failed batch topic deletion leaves removedTopicsProvider untouched',
+    (tester) async {
+      final repo = _Content(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemoryTokenStorage(),
+          baseUrl: 'https://example.test',
+        ),
+      )..failIds.add(7);
+      repo.pending.complete(
+        const UserContentPage(
+          items: [
+            UserContentItem(id: 7, contentType: 'topic', title: 'Owned topic'),
+          ],
+          hasMore: false,
+          nextCursorId: 0,
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [contentRepositoryProvider.overrideWithValue(repo)],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ContentPage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pump();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(GfAlertDialog),
+              matching: find.text('Delete'),
+            )
+            .last,
+      );
+      await tester.pumpAndSettle();
+      expect(container.read(removedTopicsProvider), isNot(contains(7)));
     },
   );
 

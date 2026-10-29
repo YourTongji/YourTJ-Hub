@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -17,7 +16,7 @@ import 'course_common.dart';
 
 /// 课程目录页（web CourseCatalogPage.vue 的移动端形态）。
 ///
-/// 搜索（300ms 防抖）+ 院系/学期/校区/教师多值筛选 chip 行（多值并集，
+/// 搜索跳转 /search（scope=courses）+ 院系/学期/校区/教师多值筛选 chip 行（多值并集，
 /// 由仓库按逗号拼接查询）+ 只看有评价开关 + 滚动分页（hasNext）+ 下拉刷新。
 /// 筛选值域（院系/学期/校区）来自页面级数据通道 `/courses` 的 SSR props
 /// （与 web 同源）；教师为自由输入多值（web 亦为文本输入）。

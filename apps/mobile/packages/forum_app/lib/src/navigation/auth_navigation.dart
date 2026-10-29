@@ -54,8 +54,6 @@ String? _parseAuthReturnTo(String? raw) {
   const staticPaths = {
     '/',
     '/campus',
-    '/campus/explore',
-    '/campus/official',
     '/campus/settings',
     '/notifications',
     '/messages',

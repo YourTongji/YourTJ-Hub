@@ -27,8 +27,8 @@ import '../../widgets/skeletons.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/topic_list.dart';
 
-/// A shared submitted query across forum, course and Wiki search scopes.
-/// Wiki uses its existing endpoint; failures remain local to their result group.
+/// 论坛 / 课程 / Wiki 三个搜索范围共享同一个已提交查询。
+/// Wiki 沿用现有接口；失败只影响各自的结果分组。
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({
     super.key,

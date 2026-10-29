@@ -527,6 +527,25 @@ void main() {
     },
   );
 
+  testWidgets(
+    'account editor reload after a session switch is swallowed',
+    (tester) async {
+      await openEditor(
+        tester,
+        ProfileEditPage(
+          user: user(),
+          onSave: (_) async {},
+          onEditUsername: () async {},
+          onReloadUser: () async => throw const UnauthorizedException(),
+        ),
+      );
+      await tester.tap(find.byKey(const Key('profile-username')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ProfileEditPage), findsOneWidget);
+    },
+  );
+
   testWidgets('password validation and server failure retain both fields', (
     tester,
   ) async {

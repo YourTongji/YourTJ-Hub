@@ -9,51 +9,6 @@ import '../../server_messages.dart';
 import '../../asset_url.dart';
 import '../../widgets/user_decoration.dart';
 
-class DecorationStrings {
-  DecorationStrings(BuildContext context)
-    : language = Localizations.localeOf(context).languageCode;
-  final String language;
-  String _s(String zh, String en, String de, String ja) => switch (language) {
-    'zh' => zh,
-    'de' => de,
-    'ja' => ja,
-    _ => en,
-  };
-  String get title => _s(
-    '头像框与多彩昵称',
-    'Avatar frames & colorful names',
-    'Avatarrahmen & farbige Namen',
-    'アバターフレームとカラーネーム',
-  );
-  String get appearance => _s('个人装扮', 'Appearance', 'Aussehen', '外観');
-  String get frame => _s('头像框', 'Avatar frames', 'Avatarrahmen', 'アバターフレーム');
-  String get nickname =>
-      _s('多彩昵称', 'Colorful names', 'Farbige Namen', 'カラーネーム');
-  String get grant => _s(
-    '装扮由管理员授予。',
-    'Styles are granted by administrators.',
-    'Stile werden von Administratoren vergeben.',
-    '装飾は管理者が付与します。',
-  );
-  String get none => _s('不装备', 'None', 'Keine', '装備しない');
-  String get preview => _s('预览', 'Preview', 'Vorschau', 'プレビュー');
-  String get equip =>
-      _s('使用此款', 'Use this style', 'Diesen Stil verwenden', 'このスタイルを使う');
-  String get locked => _s('尚未拥有', 'Not owned', 'Nicht erworben', '未所有');
-  String get equipped => _s('已装备', 'Equipped', 'Angelegt', '装備中');
-  String get available => _s('可使用', 'Available', 'Verfügbar', '使用可能');
-  String get current =>
-      _s('当前装扮', 'Current look', 'Aktuelles Aussehen', '現在の外観');
-  String get previewOnly =>
-      _s('仅供预览', 'Preview only', 'Nur Vorschau', 'プレビューのみ');
-  String get lockedHint => _s(
-    '尚未拥有，可以预览效果。',
-    'Not owned. You can preview this style.',
-    'Nicht erworben. Du kannst diesen Stil ansehen.',
-    '未所有です。見た目をプレビューできます。',
-  );
-}
-
 class DecorationPage extends ConsumerStatefulWidget {
   const DecorationPage({
     super.key,
@@ -169,7 +124,7 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
     return null;
   }
 
-  Widget _choice(DecorationStyle? style, DecorationStrings s) {
+  Widget _choice(DecorationStyle? style, AppLocalizations l) {
     final state = _state!;
     final code = style?.code ?? '';
     final selected = _selected == code;
@@ -182,7 +137,7 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
             colors.surfaceGrouped,
           )
         : colors.surfaceGrouped;
-    final label = style?.name ?? s.none;
+    final label = style?.name ?? l.decorationNone;
     return MergeSemantics(
       child: Semantics(
         selected: selected,
@@ -244,10 +199,10 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
                           const SizedBox(height: 4),
                           GfText(
                             equipped
-                                ? s.equipped
+                                ? l.decorationEquipped
                                 : owned
-                                ? s.available
-                                : '${s.locked} · ${s.previewOnly}',
+                                ? l.decorationAvailable
+                                : '${l.decorationLocked} · ${l.decorationPreviewOnly}',
                             style: GfTheme.typographyOf(
                               context,
                             ).caption.copyWith(color: colors.textSecondary),
@@ -279,7 +234,6 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
   Widget build(BuildContext context) {
     final epoch = ref.watch(offlineCacheEpochProvider);
     if (epoch != _epoch) return const SizedBox.shrink();
-    final s = DecorationStrings(context);
     final l = AppLocalizations.of(context);
     final colors = GfTheme.colorsOf(context);
     final state = _state;
@@ -299,7 +253,7 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
     return Scaffold(
       backgroundColor: colors.canvasGrouped,
       appBar: GfAppBar(
-        title: GfText(s.appearance),
+        title: GfText(l.decorationAppearance),
         backgroundColor: colors.canvasGrouped,
       ),
       bottomNavigationBar: state == null
@@ -315,10 +269,10 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
                     key: const Key('decoration-apply'),
                     size: GfButtonSize.large,
                     label: !_owned
-                        ? s.previewOnly
+                        ? l.decorationPreviewOnly
                         : _selected == _equipped
-                        ? s.equipped
-                        : s.equip,
+                        ? l.decorationEquipped
+                        : l.decorationEquip,
                     expanded: true,
                     loading: _saving,
                     onPressed: _saving || !_owned || _selected == _equipped
@@ -327,7 +281,7 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
                   ),
                   const SizedBox(height: 8),
                   GfText(
-                    !_owned ? s.lockedHint : s.grant,
+                    !_owned ? l.decorationLockedHint : l.decorationGrant,
                     textAlign: TextAlign.center,
                     style: GfTheme.typographyOf(
                       context,
@@ -378,7 +332,7 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
                         if (state != null) ...[
                           const SizedBox(height: 4),
                           GfText(
-                            previewing ? s.preview : s.current,
+                            previewing ? l.decorationPreview : l.decorationCurrent,
                             style: GfTheme.typographyOf(context).caption
                                 .copyWith(
                                   color: previewing
@@ -406,8 +360,8 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
                 enabled: !_saving,
                 child: GfSegmented<String>(
                   segments: [
-                    (s.frame, 'avatarFrame'),
-                    (s.nickname, 'nicknameStyle'),
+                    (l.decorationFrame, 'avatarFrame'),
+                    (l.decorationNickname, 'nicknameStyle'),
                   ],
                   selected: _kind,
                   onSelected: (kind) {
@@ -424,11 +378,11 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
               GfListSection(
                 margin: EdgeInsets.zero,
                 children: [
-                  _choice(null, s),
+                  _choice(null, l),
                   for (final style in state.catalog.where(
                     (style) => style.kind == _kind && style.isEnabled,
                   ))
-                    _choice(style, s),
+                    _choice(style, l),
                 ],
               ),
             ],

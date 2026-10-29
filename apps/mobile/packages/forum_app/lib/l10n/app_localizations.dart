@@ -1602,6 +1602,90 @@ abstract class AppLocalizations {
   /// **'Appearance'**
   String get settingsAppearance;
 
+  /// No description provided for @decorationAppearance.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get decorationAppearance;
+
+  /// No description provided for @decorationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Avatar frames & colorful names'**
+  String get decorationTitle;
+
+  /// No description provided for @decorationFrame.
+  ///
+  /// In en, this message translates to:
+  /// **'Avatar frames'**
+  String get decorationFrame;
+
+  /// No description provided for @decorationNickname.
+  ///
+  /// In en, this message translates to:
+  /// **'Colorful names'**
+  String get decorationNickname;
+
+  /// No description provided for @decorationGrant.
+  ///
+  /// In en, this message translates to:
+  /// **'Styles are granted by administrators.'**
+  String get decorationGrant;
+
+  /// No description provided for @decorationNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get decorationNone;
+
+  /// No description provided for @decorationPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get decorationPreview;
+
+  /// No description provided for @decorationEquip.
+  ///
+  /// In en, this message translates to:
+  /// **'Use this style'**
+  String get decorationEquip;
+
+  /// No description provided for @decorationLocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Not owned'**
+  String get decorationLocked;
+
+  /// No description provided for @decorationEquipped.
+  ///
+  /// In en, this message translates to:
+  /// **'Equipped'**
+  String get decorationEquipped;
+
+  /// No description provided for @decorationAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Available'**
+  String get decorationAvailable;
+
+  /// No description provided for @decorationCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Current look'**
+  String get decorationCurrent;
+
+  /// No description provided for @decorationPreviewOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview only'**
+  String get decorationPreviewOnly;
+
+  /// No description provided for @decorationLockedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Not owned. You can preview this style.'**
+  String get decorationLockedHint;
+
   /// No description provided for @settingsDarkMode.
   ///
   /// In en, this message translates to:
@@ -2849,12 +2933,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Recycle bin'**
   String get profileTrash;
-
-  /// No description provided for @profileSecurity.
-  ///
-  /// In en, this message translates to:
-  /// **'Account, security & privacy'**
-  String get profileSecurity;
 
   /// No description provided for @profileAdmin.
   ///
@@ -8135,6 +8213,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This class is unavailable for the term. Choose another offering from course details.'**
   String get coursePlannerUnavailable;
+
+  /// No description provided for @coursePlannerCalendarsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load the term list. Check your network and try again.'**
+  String get coursePlannerCalendarsFailed;
 }
 
 class _AppLocalizationsDelegate

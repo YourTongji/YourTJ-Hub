@@ -256,7 +256,7 @@ canonical、prev/next 与 `og:`／`twitter:`／`article:` meta 视页面是否�
 光标紧跟 token 按一次 Backspace、或在其起点按一次 Delete，即整块删除；粘贴／撤销／逐字输入留下的
 半截 token 同样整块删除，光标落在 token 内部时删除整段。IME 组合、非折叠选区与 Ctrl／Meta／Alt
 组合键保持浏览器默认（Shift 组合键不在排除范围内，Shift+Backspace／Shift+Delete 同样整段删除）。见
-[决策 0107](../decisions/0107-editor-sticker-token-atomic-delete.md)。
+[决策 0106](../decisions/0106-editor-sticker-token-atomic-delete.md)。
 `Planned`：Flutter 输入框的贴纸仍按字符删除，原子删除跟进中。
 `Planned`：Web 个人库管理界面。
 配额、历史素材保留和隐私规则见[移动端表情规范](mobile-experience.md#sticker-library)与

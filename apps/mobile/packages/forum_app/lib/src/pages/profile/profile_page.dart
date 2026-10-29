@@ -1904,6 +1904,9 @@ class _ProfileBody extends StatelessWidget {
     AppLocalizations l10n,
     Set<int> removed,
   ) {
+    // The likes stream is topic-likes only: unlike merged bookmarks, its
+    // payload carries no reply type/postNo, so a removed topic hides every
+    // like row it owns — there is no reply-like exemption to mirror.
     final likes = props.likes
         .where((item) => !removed.contains(item.topicId))
         .toList();
