@@ -119,7 +119,7 @@ const (
 	MessageUploadReadFailed         MessageCode = "upload.readFailed"            // 文件读取失败。
 	MessageUploadOpenFailed         MessageCode = "upload.openFailed"            // 文件打开失败。
 	MessageUploadEmptyImage         MessageCode = "upload.image.empty"           // 上传内容为空（0 字节）。
-	MessageUploadInvalidImage       MessageCode = "upload.image.invalidContent"  // 图片内容与扩展名不符或已损坏。
+	MessageUploadInvalidImage       MessageCode = "upload.image.invalidContent"  // 字节不是可用图片（或图片头无法解码）；不再表示扩展名不符。
 	MessageUploadContentReadFailed  MessageCode = "upload.contentReadFailed"     // 文件内容读取失败。
 	MessageUploadSaveFailed         MessageCode = "upload.saveFailed"            // 文件保存失败，params.error 可带原始错误。
 	MessageUploadSuccess            MessageCode = "upload.success"               // 上传成功。

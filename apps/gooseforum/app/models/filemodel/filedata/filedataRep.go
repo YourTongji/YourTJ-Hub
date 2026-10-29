@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path"
-	"strings"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
@@ -32,18 +30,6 @@ type FileResourcePageResult struct {
 	Page     int
 	PageSize int
 	MaxId    int64
-}
-
-// CheckImageType returns the canonical image MIME type for a supported
-// filename extension. The authoritative supported set lives in imagepolicy:
-// everything else (svg/html/js/xml/pdf/double extensions) is rejected here too,
-// keeping the storage naming path consistent with the upload gate.
-func CheckImageType(filename string) (string, error) {
-	contentType, ok := imagepolicy.ContentTypeForFilename(filename)
-	if !ok {
-		return "", fmt.Errorf("unsupported image type: %s", path.Ext(filename))
-	}
-	return contentType, nil
 }
 
 func create(entity *Entity) int64 {
@@ -143,6 +129,16 @@ func DeleteByNameContext(ctx context.Context, name string) error {
 // row carries the expected size and content type so the complete step can
 // verify the uploaded object before flipping it to ready.
 func CreateFileMetadata(ctx context.Context, userId uint64, name string, fileType string, size int64) (*Entity, error) {
+	return createFileMetadata(ctx, userId, name, fileType, size, StorageStatusPending)
+}
+
+// CreateFileCopyMetadata reserves an internal copy without charging another
+// user upload. It cannot be completed through the browser pending-upload path.
+func CreateFileCopyMetadata(ctx context.Context, userId uint64, name, fileType string, size int64) (*Entity, error) {
+	return createFileMetadata(ctx, userId, name, fileType, size, StorageStatusCopying)
+}
+
+func createFileMetadata(ctx context.Context, userId uint64, name, fileType string, size int64, status string) (*Entity, error) {
 	var count int64
 	result := builder().WithContext(ctx).Where(queryopt.Eq(fieldName, name)).Count(&count)
 	if result.Error != nil {
@@ -151,7 +147,7 @@ func CreateFileMetadata(ctx context.Context, userId uint64, name string, fileTyp
 	if count > 0 {
 		return nil, fmt.Errorf("file already exists: %s", name)
 	}
-	entity := &Entity{Name: name, Type: fileType, Size: size, StorageStatus: StorageStatusPending, UserId: userId}
+	entity := &Entity{Name: name, Type: fileType, Size: size, StorageStatus: status, UserId: userId}
 	result = builder().WithContext(ctx).Create(entity)
 	if result.Error != nil {
 		return nil, result.Error
@@ -184,6 +180,40 @@ func getFileMetadataByNameAndStatus(ctx context.Context, name string, status str
 	return &entity, nil
 }
 
+// PublishRenamedFileMetadata atomically publishes a reserved copy and leaves
+// its source tracked for cleanup. A source can be consumed by only one copy;
+// errors roll back both state changes, including an invalid copy owner.
+func PublishRenamedFileMetadata(ctx context.Context, oldName, newName string) (*Entity, error) {
+	var published Entity
+	err := builder().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var source Entity
+		if err := tx.Where("name = ? AND storage_status = ?", oldName, StorageStatusPending).Take(&source).Error; err != nil {
+			return err
+		}
+		result := tx.Where("id = ? AND storage_status = ?", source.Id, StorageStatusPending).
+			UpdateColumn("storage_status", StorageStatusCleanup)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("pending source already consumed")
+		}
+		result = tx.Where("name = ? AND storage_status = ? AND user_id = ?", newName, StorageStatusCopying, source.UserId).
+			UpdateColumns(map[string]any{"storage_status": StorageStatusReady, "created_at": source.CreatedAt})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("reserved upload copy not found")
+		}
+		return tx.Where("name = ?", newName).Take(&published).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &published, nil
+}
+
 // MarkFileReady flips a pending metadata row to ready after the uploaded
 // object has been verified.
 func MarkFileReady(ctx context.Context, name string) (*Entity, error) {
@@ -197,7 +227,7 @@ func MarkFileReady(ctx context.Context, name string) (*Entity, error) {
 	return GetFileMetadataByNameContext(ctx, name)
 }
 
-// ListPendingFilesBefore returns pending metadata rows created before the
+// ListPendingFilesBefore returns unpublished or retired metadata rows before the
 // given time, oldest first, capped at limit. Used by the cleanup job to reap
 // interrupted or expired direct uploads.
 func ListPendingFilesBefore(ctx context.Context, before time.Time, limit int) ([]Entity, error) {
@@ -210,7 +240,7 @@ func ListPendingFilesBefore(ctx context.Context, before time.Time, limit int) ([
 	var entities []Entity
 	err := builder().WithContext(ctx).
 		Select("id, name, assert_type, file_size, storage_status, user_id, created_at, updated_at").
-		Where("storage_status = ? AND created_at < ?", StorageStatusPending, before).
+		Where("storage_status IN ? AND created_at < ?", []string{StorageStatusPending, StorageStatusCopying, StorageStatusCleanup}, before).
 		Order("id ASC").Limit(limit).Find(&entities).Error
 	return entities, err
 }
@@ -317,29 +347,25 @@ func CountDailyUploads(userId uint64) int64 {
 	return CountUserUploadsToday(userId)
 }
 
-func SaveFileFromUpload(userId uint64, fileData []byte, filename string, customPath string) (*Entity, error) {
-	return SaveFileFromUploadWithLimit(userId, fileData, filename, customPath, MaxFileSize)
+// SaveFileFromUpload 保存上传字节。对象名扩展名取自 contentType（调用方按字节判定的
+// 真实类型），不再取客户端文件名的扩展名：声明与字节冲突时名字以真实类型为准。
+func SaveFileFromUpload(userId uint64, fileData []byte, contentType, customPath string) (*Entity, error) {
+	return SaveFileFromUploadWithLimit(userId, fileData, contentType, customPath, MaxFileSize)
 }
 
 // SaveFileFromUploadWithLimit 与 SaveFileFromUpload 相同，但允许调用方指定更小/更大的
 // 字节上限（例如管理员上传的头像框动图，见 decorationassetservice）。
-func SaveFileFromUploadWithLimit(userId uint64, fileData []byte, filename string, customPath string, maxBytes int) (*Entity, error) {
+func SaveFileFromUploadWithLimit(userId uint64, fileData []byte, contentType, customPath string, maxBytes int) (*Entity, error) {
 	if len(fileData) > maxBytes {
 		return nil, fmt.Errorf("file size exceeds maximum limit of %dMB", maxBytes/(1024*1024))
 	}
 
-	contentType, err := CheckImageType(filename)
-	if err != nil {
-		return nil, err
+	ext, ok := imagepolicy.ExtForContentType(contentType)
+	if !ok {
+		return nil, fmt.Errorf("unsupported image type: %s", contentType)
 	}
 
-	fileExt := path.Ext(filename)
-	newFilename := fmt.Sprintf("%s/%s%s",
-		customPath,
-		uuid.New().String(),
-		fileExt)
-
-	return SaveFile(userId, newFilename, contentType, fileData)
+	return SaveFile(userId, fmt.Sprintf("%s/%s%s", customPath, uuid.New().String(), ext), contentType, fileData)
 }
 
 const (
@@ -348,18 +374,18 @@ const (
 )
 
 type AvatarUpload struct {
-	Filename string
-	Data     []byte
+	ContentType string
+	Data        []byte
 }
 
-// SaveAvatar stores an uploaded avatar file.
-func SaveAvatar(userId uint64, fileData []byte, filename string) (*Entity, error) {
+// SaveAvatar stores an uploaded avatar file under its byte-detected type.
+func SaveAvatar(userId uint64, fileData []byte, contentType string) (*Entity, error) {
 	avatarPath := fmt.Sprintf("%s/avatar_%d_%d",
 		AvatarPath,
 		userId,
 		time.Now().Unix())
 
-	return SaveFileFromUpload(userId, fileData, filename, avatarPath)
+	return SaveFileFromUpload(userId, fileData, contentType, avatarPath)
 }
 
 func SaveAvatarSet(userId uint64, uploads []AvatarUpload) ([]*Entity, error) {
@@ -379,13 +405,12 @@ func SaveAvatarSet(userId uint64, uploads []AvatarUpload) ([]*Entity, error) {
 			return nil, fmt.Errorf("file size exceeds maximum limit of %dMB", MaxFileSize/(1024*1024))
 		}
 
-		contentType, err := CheckImageType(upload.Filename)
-		if err != nil {
-			return nil, err
+		fileExt, ok := imagepolicy.ExtForContentType(upload.ContentType)
+		if !ok {
+			return nil, fmt.Errorf("unsupported image type: %s", upload.ContentType)
 		}
 
-		fileExt := strings.ToLower(path.Ext(upload.Filename))
-		entity, err := SaveFile(userId, fmt.Sprintf("%s/%s%s", avatarPath, avatarNames[index], fileExt), contentType, upload.Data)
+		entity, err := SaveFile(userId, fmt.Sprintf("%s/%s%s", avatarPath, avatarNames[index], fileExt), upload.ContentType, upload.Data)
 		if err != nil {
 			return nil, err
 		}
@@ -398,7 +423,8 @@ func SaveAvatarSet(userId uint64, uploads []AvatarUpload) ([]*Entity, error) {
 // CountUserUploadsInTimeRange counts uploads for a user within a time range.
 func CountUserUploadsInTimeRange(userId uint64, startTime, endTime time.Time) int64 {
 	var count int64
-	builder().Where("user_id = ? AND created_at >= ? AND created_at <= ?", userId, startTime, endTime).Count(&count)
+	builder().Where("user_id = ? AND created_at >= ? AND created_at <= ?", userId, startTime, endTime).
+		Where("storage_status NOT IN ?", []string{StorageStatusCopying, StorageStatusCleanup}).Count(&count)
 	return count
 }
 

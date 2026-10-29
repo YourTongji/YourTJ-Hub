@@ -281,12 +281,25 @@ func TestAdminImgUploadContentGate(t *testing.T) {
 			t.Fatalf("forged upload envelope = %#v, want upload.image.invalidContent", envelope)
 		}
 	})
-	t.Run("jpg-named png bytes are rejected as invalid content", func(t *testing.T) {
+	// issue #1393 契约变更：扩展名与字节冲突但两者都被允许时受理，存储名/入库类型按
+	// 字节判定的真实类型规范化，响应里的 filename 仍是客户端原始文件名。
+	t.Run("jpg-named png bytes are accepted and stored under the detected type", func(t *testing.T) {
 		conn, router := setupAdminDataContractTest(t)
 		recorder := serveAdminDataMultipartNamed(t, conn, router, path, "mismatch.jpg", contractTinyPNG)
 		envelope := decodeContractEnvelope(t, recorder)
-		if envelope.Code == 0 || envelope.MessageCode != "upload.image.invalidContent" {
-			t.Fatalf("mismatched upload envelope = %#v, want upload.image.invalidContent", envelope)
+		if envelope.Code != 0 || envelope.MessageCode != "upload.success" {
+			t.Fatalf("mismatched upload envelope = %#v, want success", envelope)
+		}
+		result := decodeUploadedFileResult(t, envelope)
+		if result.Filename != "mismatch.jpg" {
+			t.Fatalf("result.filename = %q, want the client filename", result.Filename)
+		}
+		name := storedNameFromURL(t, result.URL)
+		if !strings.HasSuffix(name, ".png") {
+			t.Fatalf("stored name = %q, want the detected type's .png extension", name)
+		}
+		if row := filedata.GetByName(name); row.Type != "image/png" {
+			t.Fatalf("stored assert_type = %q, want image/png", row.Type)
 		}
 	})
 	t.Run("gif webp bmp jpg uploads succeed with canonical extensions", func(t *testing.T) {
@@ -314,8 +327,8 @@ func TestAdminImgUploadContentGate(t *testing.T) {
 
 // TestMultipartImageUploadContentFailureCodes 验证 `/file/img-upload` multipart
 // 路径的稳定码区分（issue 966/969）：空文件 → upload.image.empty；扩展名合法但
-// 字节是已知不支持格式 → upload.image.unsupported；伪造/不匹配仍是
-// upload.image.invalidContent（既有断言见 TestAdminImgUploadContentGate）。
+// 字节是已知不支持格式 → upload.image.unsupported；字节不是可用图片（issue #1393
+// 收窄后的语义，不再包含「与扩展名不符」）仍是 upload.image.invalidContent。
 func TestMultipartImageUploadContentFailureCodes(t *testing.T) {
 	path := "/file/img-upload"
 	t.Run("empty file reports upload.image.empty", func(t *testing.T) {

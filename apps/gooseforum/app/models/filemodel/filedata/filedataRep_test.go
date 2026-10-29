@@ -143,6 +143,68 @@ func TestCreateFileMetadataAndMarkReady(t *testing.T) {
 	}
 }
 
+// The file database must atomically consume the source and publish only its
+// owner's reserved copy. Failed publication leaves both rows pending for retry.
+func TestPublishRenamedFileMetadata(t *testing.T) {
+	setupFileDataTestDB(t)
+	ctx := context.Background()
+	source, err := CreateFileMetadata(ctx, 3, "rename/source.png", "image/png", 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrong, err := CreateFileCopyMetadata(ctx, 7, "rename/foreign.jpg", "image/jpeg", 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PublishRenamedFileMetadata(ctx, source.Name, wrong.Name); err == nil {
+		t.Fatal("foreign copy accepted")
+	}
+	if _, err := GetPendingFileMetadataByNameContext(ctx, source.Name); err != nil {
+		t.Fatalf("source not rolled back: %v", err)
+	}
+	copy, err := CreateFileCopyMetadata(ctx, 3, "rename/copy.jpg", "image/jpeg", 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ready, err := PublishRenamedFileMetadata(ctx, source.Name, copy.Name)
+	if err != nil || ready.StorageStatus != StorageStatusReady {
+		t.Fatalf("publication = %+v, %v", ready, err)
+	}
+	if !ready.CreatedAt.Equal(source.CreatedAt) {
+		t.Fatal("copy changed the original quota date")
+	}
+	if GetByName(source.Name).StorageStatus != StorageStatusCleanup {
+		t.Fatal("source not retained for cleanup")
+	}
+	if _, err := GetPendingFileMetadataByNameContext(ctx, source.Name); err == nil {
+		t.Fatal("cleanup source can be completed again")
+	}
+	loser, err := CreateFileCopyMetadata(ctx, 3, "rename/loser.jpg", "image/jpeg", 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PublishRenamedFileMetadata(ctx, source.Name, loser.Name); err == nil {
+		t.Fatal("source consumed twice")
+	}
+	if GetByName(loser.Name).StorageStatus != StorageStatusCopying {
+		t.Fatal("loser not tracked for cleanup")
+	}
+	if _, err := GetFileMetadataByNameContext(ctx, copy.Name); err != nil {
+		t.Fatal("winner no longer ready")
+	}
+	items, err := ListPendingFilesBefore(ctx, time.Now().Add(time.Hour), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]bool{}
+	for _, item := range items {
+		names[item.Name] = true
+	}
+	if !names[source.Name] || !names[loser.Name] || names[copy.Name] {
+		t.Fatalf("wrong cleanup candidates: %v", names)
+	}
+}
+
 func TestCreateFileMetadataRejectsDuplicateName(t *testing.T) {
 	setupFileDataTestDB(t)
 	ctx := context.Background()
@@ -152,6 +214,24 @@ func TestCreateFileMetadataRejectsDuplicateName(t *testing.T) {
 	}
 	if _, err := CreateFileMetadata(ctx, 2, "2026/09/01/dup.png", "image/png", 10); err == nil {
 		t.Fatal("duplicate CreateFileMetadata() error = nil, want error")
+	}
+}
+
+func TestDirectUploadCopyDoesNotConsumeQuota(t *testing.T) {
+	setupFileDataTestDB(t)
+	ctx := context.Background()
+	if _, err := CreateFileMetadata(ctx, 3, "quota/source.png", "image/png", 4); err != nil {
+		t.Fatal(err)
+	}
+	copy, err := CreateFileMetadata(ctx, 3, "quota/copy.jpg", "image/jpeg", 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := builder().Where("name = ?", copy.Name).UpdateColumn("storage_status", "copying").Error; err != nil {
+		t.Fatal(err)
+	}
+	if got := CountDailyUploads(3); got != 1 {
+		t.Fatalf("internal copy consumed quota: got %d, want 1", got)
 	}
 }
 

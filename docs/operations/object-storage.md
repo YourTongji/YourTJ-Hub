@@ -123,18 +123,29 @@ VPC 内解析（解析结果形如 `100.100.2.136` / `100.100.2.138` 等 100.100
 ## 帖子图片直传流程
 
 1. 浏览器 `POST /file/img-upload/init`（JWT + 可写账号校验 + 上传限流），携带
-   `{ filename, contentType, size }`；服务端先按发布设置做扩展名白名单与大小上限校验。
+   `{ filename, contentType, size }`；此时只有声明信息，服务端先按发布设置做扩展名白名单、
+   声明 MIME 与扩展名的一致性以及大小上限校验，真实类型留到 complete 阶段以文件头为准。
 2. 响应 `mode`：
    - `proxy`（本地提供方）——浏览器继续走既有 multipart `POST /file/img-upload`；
    - `direct`（S3 提供方）——响应携带短时效的预签名 POST 策略（`upload.url` +
      `upload.fields`）与待发布对象名 `name`。
 3. `direct` 模式下浏览器把 `upload.fields` 与文件组装成 FormData，`POST` 到 `upload.url`
    （bucket 端点），随后 `POST /file/img-upload/complete`（`{ name }`）请求发布。
-4. 服务端在发布前重新校验：对象归属（必须属于当前调用者）、对象大小、MIME 类型与
-   **解码后的图片头**；伪造或无效对象以 `upload.invalidImage` 拒绝，绝不直接信任浏览器声明。
-5. 发布成功后返回最终公开 `url`、存储对象名 `filename`（即 init 返回的 `name`，非调用方
-   原始文件名）与字节 `size`；失败或取消时浏览器 `POST /file/img-upload/abort`（`{ name }`）
-   删除待发布对象。
+4. 服务端在发布前重新校验：对象归属（必须属于当前调用者）、对象大小，然后读取有界头部并以
+   **文件头判定的真实类型**为准（客户端声明的扩展名与 MIME 不参与判定）：空对象
+   `upload.image.empty`、已知但不受支持格式（HEIC/AVIF/TIFF 等）`upload.image.unsupported`、
+   字节不是可用图片 `upload.image.invalidContent`；真实类型不在发布设置允许列表时
+   `upload.extension.unsupported`。真实类型与声明扩展名冲突但两者都被允许时受理：对象改名为
+   同目录下新的 UUID 对象名，扩展名跟随真实类型（如 `.png` → `.jpg`；`.jpeg` 与 `.jpg`
+   同类型，保留原名）。写入副本前预留 `copying` 元数据行，再在文件数据库的同一事务中把
+   原 `pending` 行改为 `cleanup`、同一上传者的副本行改为 `ready`。一个原始上传只允许一个
+   complete 成功；并发落后方的副本拥有独立名字，不会覆盖或删除成功对象。删除旧对象失败时
+   保留 cleanup 行供清理重试。响应返回最终名字，客户端必须使用返回值。
+   稳定码只有上述 `upload.image.*` 三个（旧文档中的 `upload.invalidImage` 不是实际码），
+   且 `invalidContent` 不再表示扩展名不符。
+5. 发布成功后返回最终公开 `url`、存储对象名 `filename`（通常是 init 返回的 `name`，发生改名时是
+   改名后的 name；都不是调用方原始文件名）与字节 `size`；失败或取消时浏览器
+   `POST /file/img-upload/abort`（`{ name }`）删除待发布对象。
 
 ### Feed 图像元数据与变体
 
@@ -196,11 +207,20 @@ VPC 内解析（解析结果形如 `100.100.2.136` / `100.100.2.138` 等 100.100
 ## 残余风险与语义
 
 - **下行带宽**：直传只省上传链路；`complete` 发布时服务端仍做一次 `StatObject` 校验与
-  **有界 Range 读头部**（512KB）以核对图片头，不再下载整个对象。若配置了
+  **有界 Range 读头部**（512KB）以按文件头核对图片类型，不再下载整个对象。仅当真实类型与
+  声明扩展名冲突时，改名路径会额外完整读取一次对象（Provider.Get → Save → Delete），这是
+  为「名字跟随字节」付出的唯一整份传输；若提供方将来暴露服务端 copy，应改为 copy。若配置了
   `publicUrlPrefix`，后续读取走 CDN/对象存储直读，不下行应用服务器。
 - **每日上传额度按 pending 行计**：`init` 即创建 pending 行，`CountDailyUploads`
   按 `user_id × created_at` 计数且不区分 storage_status——abort 或 2 小时清理前，该次
   init 计入当日额度（作为反滥用上界，自限、无跨用户影响）。
+- **改名对象有持久清理记录**：写副本前预留 `copying` 行，发布后保留原名的 `cleanup`
+  行直到两小时清理窗口，避免仍有效的预签名 POST 迟到写回旧 key 后失去清理记录。元数据发布失败的副本与旧对象删除失败都由现有两小时清理任务重试；
+  清理只扫描 pending/copying/cleanup，ready 成功对象不在候选中。内部 copying/cleanup
+  行不重复计入用户上传额度，成功副本沿用原上传的创建时间。见
+  [决策 0113](../decisions/0113-upload-header-authority.md)。
+  回滚到不识别 copying/cleanup 状态的旧二进制时，这两类记录暂停自动清理；恢复支持版本后继续回收，
+  不应手动把它们改为 ready。已发布图片的读取不受影响。
 - **发布与归属记录非事务**：`complete` 的 `MarkFileReady` 与控制器里的 `AddUploadOwner`
   是两次独立写，崩溃窗口可能产生「已 ready 但无 owner 记录」的行（对象可读但归属审计
   缺失）；概率极低，归属记录失败时服务端会同时删除对象与元数据行作为回滚。

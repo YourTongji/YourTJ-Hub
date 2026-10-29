@@ -270,7 +270,7 @@ func TestAdminStickerSaveHTTPContract(t *testing.T) {
 	t.Run("success creates the sticker", func(t *testing.T) {
 		conn, router := setupAdminStickersContractTest(t)
 		manager := createContractSiteManager(t, conn)
-		file, err := filedata.SaveFileFromUpload(manager.Id, contractTinyPNG, "single.png", "test")
+		file, err := filedata.SaveFileFromUpload(manager.Id, contractTinyPNG, "image/png", "test")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -509,7 +509,7 @@ func TestStickerReviewPublicQueryFailureIsNotEmptySuccess(t *testing.T) {
 func TestStickerReviewImageOwnershipAndDisabledCreate(t *testing.T) {
 	conn, router := setupAdminStickersContractTest(t)
 	manager := createContractSiteManager(t, conn)
-	file, err := filedata.SaveFileFromUpload(manager.Id, contractTinyPNG, "owned.png", "test")
+	file, err := filedata.SaveFileFromUpload(manager.Id, contractTinyPNG, "image/png", "test")
 	if err != nil {
 		t.Fatal(err)
 	}
