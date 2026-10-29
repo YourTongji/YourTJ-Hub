@@ -49,6 +49,7 @@ node scripts/verify-action-pins.mjs
 
 # /login provider readiness: Go/Web/Dart declarations and generated JSON keys
 node --test scripts/test-login-provider-mirrors.mjs
+# Mobile CI also regenerates auth.freezed.dart/auth.g.dart and rejects a diff.
 
 # Full
 make test

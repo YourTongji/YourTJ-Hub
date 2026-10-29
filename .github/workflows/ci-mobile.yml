@@ -29,6 +29,11 @@ jobs:
         run: |
           flutter pub get
           dart run melos bootstrap
+      - name: Require fresh generated login contract
+        working-directory: apps/mobile/packages/core
+        run: |
+          dart run build_runner build --delete-conflicting-outputs --build-filter='lib/src/gen/auth.*.dart'
+          git diff --exit-code -- lib/src/gen/auth.freezed.dart lib/src/gen/auth.g.dart
       - name: Analyze
         working-directory: apps/mobile
         run: dart run melos run analyze
