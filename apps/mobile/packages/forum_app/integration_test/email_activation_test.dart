@@ -204,7 +204,11 @@ void main() {
           'auth.activation.resendFailed',
         ]) {
           resendCode = code;
-          await tester.ensureVisible(find.text(l.authResendActivationEmail));
+          await tester.scrollUntilVisible(
+            find.text(l.authResendActivationEmail),
+            200,
+            scrollable: find.byType(Scrollable).first,
+          );
           await tester.tap(find.text(l.authResendActivationEmail));
           await tester.pumpAndSettle();
           final message = resolveErrorMessage(
@@ -268,7 +272,11 @@ void main() {
           final l = AppLocalizations.of(
             tester.element(find.byType(SettingsPage)),
           );
-          await tester.ensureVisible(find.text(l.authResendActivationEmail));
+          await tester.scrollUntilVisible(
+            find.text(l.authResendActivationEmail),
+            200,
+            scrollable: find.byType(Scrollable).first,
+          );
           await tester.tap(find.text(l.authResendActivationEmail));
           await tester.pumpAndSettle();
           expect(

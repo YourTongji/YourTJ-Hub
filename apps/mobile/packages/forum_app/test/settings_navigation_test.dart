@@ -274,7 +274,7 @@ void main() {
     (tester) async {
       for (final pending in [true, false]) {
         await tester.pumpWidget(const SizedBox());
-        await _mount(
+        final harness = await _mount(
           tester,
           signedIn: true,
           section: 'account',
@@ -291,6 +291,14 @@ void main() {
             ),
             findsOneWidget,
           );
+        }
+        if (pending) {
+          harness.page.needsVerification = false;
+          await tester
+              .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+              .onRefresh();
+          await tester.pumpAndSettle();
+          expect(notice, findsNothing);
         }
         expect(tester.takeException(), isNull);
       }

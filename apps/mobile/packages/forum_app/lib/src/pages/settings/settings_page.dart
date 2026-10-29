@@ -1369,19 +1369,22 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         if (_requiresEmailVerification && _user.valueOrNull != null) ...[
           _settingsSection(
             context,
-            child: Column(
-              key: const ValueKey('account-activation-pending'),
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.authVerificationPending,
-                  style: GfTheme.typographyOf(context).title3,
-                ),
-                const SizedBox(height: 8),
-                Text(_user.value!.email),
-                const SizedBox(height: 8),
-                Text(l10n.authVerificationPendingHint),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                key: const ValueKey('account-activation-pending'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.authVerificationPending,
+                    style: GfTheme.typographyOf(context).title3,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(_user.value!.email),
+                  const SizedBox(height: 8),
+                  Text(l10n.authVerificationPendingHint),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 12),
