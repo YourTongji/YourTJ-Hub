@@ -1542,5 +1542,7 @@
   "courseAddToPlanner": "履修プランナーに追加",
   "coursePlannerSelectTerm": "同じ学期と専攻を選択してからクラスを確認してください。既存プランは自動変更されません。",
   "coursePlannerUnavailable": "この学期のクラスは利用できません。講義詳細から別の開講記録を選択してください。",
-  "coursePlannerCalendarsFailed": "学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。"
+  "coursePlannerCalendarsFailed": "学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。",
+  "authCheckEmailVerification": "メール確認の状態を確認",
+  "authWriteRecoveryHint": "入力内容は残ります。確認後に戻り、手動で続けてください。"
 }

@@ -4352,4 +4352,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get coursePlannerCalendarsFailed => '学期列表加载失败，请检查网络后重试。';
+
+  @override
+  String get authCheckEmailVerification => '检查邮箱验证';
+
+  @override
+  String get authWriteRecoveryHint => '输入会保留。验证完成后返回，手动继续。';
 }

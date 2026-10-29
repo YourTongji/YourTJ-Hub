@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useWriteRecovery } from '@/site/composables/useWriteRecovery'
+import WriteRecoveryActions from '@/site/components/WriteRecoveryActions.vue'
 import IdentityPicker from '@/site/components/IdentityPicker.vue'
 import GfSwitch from '@/site/components/GfSwitch.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -75,6 +77,7 @@ const uploading = ref(false)
 const uploadTotal = ref(0)
 const uploadDone = ref(0)
 const errorMessage = ref('')
+const { code: writeRecoveryCode, capture: captureWriteFailure } = useWriteRecovery(errorMessage)
 const sensitiveWords = ref<string[]>([])
 const validationAttempted = ref(false)
 const titleInput = ref<HTMLInputElement | null>(null)
@@ -256,6 +259,7 @@ async function saveDraftAndClose() {
     } else {
       sensitiveWords.value = sensitiveWordsFromError(err)
       errorMessage.value = err instanceof Error ? err.message : t('publish.draftSaveFailed')
+      captureWriteFailure(err)
       showModerationBlocked(err)
     }
   } finally {
@@ -549,6 +553,7 @@ async function uploadImageFiles(files: File[]) {
           failed = true
           uploadedImages.value = uploadedImages.value.filter((i) => i.id !== tempId)
           errorMessage.value = err instanceof Error ? err.message : t('api.imageUploadFailed')
+          captureWriteFailure(err)
         }
       }
     }
@@ -647,6 +652,7 @@ async function handleSubmit() {
     } else {
       sensitiveWords.value = sensitiveWordsFromError(err)
       errorMessage.value = err instanceof Error ? err.message : t('publish.saveFailed')
+      captureWriteFailure(err)
       showModerationBlocked(err)
     }
   } finally {
@@ -1001,6 +1007,7 @@ async function handleSubmit() {
           <p v-if="errorMessage && !categoryMissing" class="shrink-0 text-xs text-error font-medium px-1 animate-in fade-in-0 slide-in-from-top-1 duration-150">
             {{ errorMessage }}
           </p>
+          <WriteRecoveryActions v-if="errorMessage" :code="writeRecoveryCode" />
         </div>
 
         <!-- 弹层底部操作栏：弱底色、圆角平滑过渡、主次操作分明 -->

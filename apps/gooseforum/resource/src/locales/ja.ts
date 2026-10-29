@@ -1417,6 +1417,7 @@ export default {
     contentGone: 'コンテンツは完全に削除されました',
   },
   auth: {
+    writeRecovery: {"email": "メール確認の状態を確認", "login": "同じアカウントで再度ログイン", "hint": "入力内容はこのページに残ります。新しいタブで確認またはログインを完了し、ここに戻って手動で続けてください。"},
     passkeyLogin: 'パスキーでログイン',
     passkeyWorking: 'パスキーを確認中…',
     passkeyCancelled: 'パスキーが選択されていないか、利用できません。再試行するか、パスワードでログインしてください。',

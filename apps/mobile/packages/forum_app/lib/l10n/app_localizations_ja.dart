@@ -4407,4 +4407,10 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       '学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。';
+
+  @override
+  String get authCheckEmailVerification => 'メール確認の状態を確認';
+
+  @override
+  String get authWriteRecoveryHint => '入力内容は残ります。確認後に戻り、手動で続けてください。';
 }

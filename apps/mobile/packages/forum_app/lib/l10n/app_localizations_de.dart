@@ -4629,4 +4629,11 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       'Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.';
+
+  @override
+  String get authCheckEmailVerification => 'E-Mail-Bestätigung prüfen';
+
+  @override
+  String get authWriteRecoveryHint =>
+      'Eingaben bleiben erhalten. Kehre nach der Bestätigung zurück und fahre manuell fort.';
 }

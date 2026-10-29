@@ -4583,4 +4583,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       'Failed to load the term list. Check your network and try again.';
+
+  @override
+  String get authCheckEmailVerification => 'Check email verification';
+
+  @override
+  String get authWriteRecoveryHint =>
+      'Your input stays here. Return after verification and continue manually.';
 }

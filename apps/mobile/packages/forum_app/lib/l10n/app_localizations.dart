@@ -8219,6 +8219,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to load the term list. Check your network and try again.'**
   String get coursePlannerCalendarsFailed;
+
+  /// No description provided for @authCheckEmailVerification.
+  ///
+  /// In en, this message translates to:
+  /// **'Check email verification'**
+  String get authCheckEmailVerification;
+
+  /// No description provided for @authWriteRecoveryHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Your input stays here. Return after verification and continue manually.'**
+  String get authWriteRecoveryHint;
 }
 
 class _AppLocalizationsDelegate
