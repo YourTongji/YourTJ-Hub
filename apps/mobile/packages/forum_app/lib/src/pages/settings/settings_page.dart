@@ -1486,6 +1486,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const GfDivider(),
                 GfSettingRow(
+                  key: const ValueKey('settings-chat-permissions'),
+                  symbol: 'message-circle',
+                  title: l10n.chatMessagePolicyTitle,
+                  description: l10n.chatMessagePolicyHint,
+                  onTap: () => context.push('/settings/chat-permissions'),
+                ),
+                const GfDivider(),
+                GfSettingRow(
                   symbol: 'eye-off',
                   title: l10n.userBlocks,
                   onTap: () => showBlockedUsers(context),

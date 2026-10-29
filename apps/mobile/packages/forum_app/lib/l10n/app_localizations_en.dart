@@ -4583,4 +4583,21 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       'Failed to load the term list. Check your network and try again.';
+
+  @override
+  String get chatMessagePolicyTitle => 'Private messages';
+
+  @override
+  String get chatMessagePolicyLabel => 'Who can start a conversation';
+
+  @override
+  String get chatMessagePolicyHint =>
+      'Conversations with actual messages can continue; empty conversations do not count. Blocks take precedence, including for bots.';
+
+  @override
+  String get chatMessagePolicyNobody => 'No new conversations';
+
+  @override
+  String get chatMessagePolicySaved =>
+      'Message permissions saved to your account';
 }

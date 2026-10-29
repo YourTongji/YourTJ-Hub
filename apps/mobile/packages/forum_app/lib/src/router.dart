@@ -641,6 +641,11 @@ final GoRouter appRouter = GoRouter(
       builder: (_, _) => const SettingsPage(initialSection: 'widgets'),
     ),
     _readingPageRoute(
+      path: '/settings/chat-permissions',
+      maxContentWidth: 1120,
+      builder: (_, _) => const ProfilePrivacyPage(chatOnly: true),
+    ),
+    _readingPageRoute(
       path: '/settings/profile-privacy',
       maxContentWidth: 1120,
       builder: (_, _) => const ProfilePrivacyPage(),

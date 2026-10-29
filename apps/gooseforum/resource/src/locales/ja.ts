@@ -3225,6 +3225,11 @@ export default {
       closeConfirmButton: '削除を確定',
     },
     privacy: {
+      chatTitle: "私信の許可",
+      chatLabel: "新しい会話を開始できる人",
+      chatHint: "実際のメッセージがある会話は継続できます。空の会話は対象外です。ボットにも同じ設定が適用され、ブロックが優先されます。",
+      chatNobody: "新しい私信を受け付けない",
+      chatSaved: "私信の設定を保存しました",
       title: 'プライバシー',
       profileTitle: 'プロフィールの公開範囲',
       profileDescription: 'プロフィールの各項目を誰に見せるかを選びます。',
@@ -3781,6 +3786,7 @@ export default {
       },
     },
     chat: {
+      permission: { denied: "相手の私信設定により、このメッセージを送信できません。" },
       send: {
         failed: 'メッセージを送信できません。しばらくしてから再試行してください',
       },

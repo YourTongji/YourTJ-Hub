@@ -4352,4 +4352,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get coursePlannerCalendarsFailed => '学期列表加载失败，请检查网络后重试。';
+
+  @override
+  String get chatMessagePolicyTitle => '私信权限';
+
+  @override
+  String get chatMessagePolicyLabel => '谁可以发起私信';
+
+  @override
+  String get chatMessagePolicyHint => '已有消息的会话可以继续；空会话不算。屏蔽始终优先，机器人也遵守此设置。';
+
+  @override
+  String get chatMessagePolicyNobody => '禁止新私信';
+
+  @override
+  String get chatMessagePolicySaved => '私信权限已保存到你的账号';
 }

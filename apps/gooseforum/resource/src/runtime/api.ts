@@ -1339,7 +1339,8 @@ export async function revokeAllSessions(): Promise<boolean> {
 
 export type UserPrivacySettings = components['schemas']['UserPrivacySettings']
 export type ProfileAudience = components['schemas']['ProfileAudience']
-export type ProfilePrivacySection = keyof UserPrivacySettings
+export type ProfilePrivacySection = Exclude<keyof UserPrivacySettings, 'chatMessagePolicy'>
+export type ChatMessagePolicy = components['schemas']['ChatMessagePolicy']
 
 // Account-level profile privacy (issue #1124): the server is the only source of
 // truth, so callers render a saved value only after the request succeeds.

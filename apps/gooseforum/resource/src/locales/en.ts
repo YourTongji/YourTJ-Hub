@@ -3203,6 +3203,11 @@ export default {
       closeConfirmButton: 'Confirm close',
     },
     privacy: {
+      chatTitle: "Private messages",
+      chatLabel: "Who can start a conversation",
+      chatHint: "Conversations with actual messages can continue; empty conversations do not count. Blocks take precedence, including for bots.",
+      chatNobody: "No new conversations",
+      chatSaved: "Message permissions saved",
       title: 'Privacy',
       profileTitle: 'Profile visibility',
       profileDescription: 'Choose who can see each part of your profile.',
@@ -3782,6 +3787,7 @@ export default {
       },
     },
     chat: {
+      permission: { denied: "This person has restricted private messages. You cannot send this message." },
       send: {
         failed: 'Unable to send this message. Please try again later',
       },

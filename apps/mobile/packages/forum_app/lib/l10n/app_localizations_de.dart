@@ -4629,4 +4629,21 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       'Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.';
+
+  @override
+  String get chatMessagePolicyTitle => 'Private Nachrichten';
+
+  @override
+  String get chatMessagePolicyLabel => 'Wer darf ein Gespräch beginnen';
+
+  @override
+  String get chatMessagePolicyHint =>
+      'Gespräche mit vorhandenen Nachrichten können fortgesetzt werden; leere Gespräche zählen nicht. Sperren haben Vorrang, auch für Bots.';
+
+  @override
+  String get chatMessagePolicyNobody => 'Keine neuen Gespräche';
+
+  @override
+  String get chatMessagePolicySaved =>
+      'Nachrichtenberechtigungen im Konto gespeichert';
 }

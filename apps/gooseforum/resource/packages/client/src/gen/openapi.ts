@@ -2471,9 +2471,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read the caller's profile privacy settings
+         * Read the caller's privacy and message settings
          * @description Owner comes only from the session; another account's raw settings are never readable.
-         *     Each setting chooses who can see one profile aggregate (topic list, activity timeline,
+         *     chatMessagePolicy controls new private conversations (everyone, mutual, nobody),
+         *     defaulting to everyone; real committed-message history is exempt, empty rows are not,
+         *     and blocks take precedence. Profile settings choose who can see each aggregate (topic list, activity timeline,
          *     liked topics, following list, follower list). Accounts without a stored row return the
          *     public defaults that predate the setting. The settings hide profile aggregates only: topics,
          *     replies and relationships keep their ordinary forum visibility. Responses use private, no-store.
@@ -2485,12 +2487,13 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Update the caller's profile privacy settings
+         * Update the caller's privacy and message settings
          * @description Partial update of the caller's own settings; omitted fields keep their value. At least one
          *     field is required. Unknown fields, null, non-string values, trailing JSON documents and
          *     bodies over 4096 bytes fail with common.request.parseFailed. An audience a setting does not
          *     offer fails with common.request.invalidParams. Rejected requests change nothing. The new
-         *     audience applies to the next profile request on every channel. Restricted (frozen) accounts
+         *     profile audience applies to the next profile request on every channel. A changed chatMessagePolicy
+         *     applies to new sends after the save commits; real history is exempt and blocks win. Restricted (frozen) accounts
          *     may still reduce what they disclose. Responses use private, no-store.
          */
         patch: operations["updatePrivacySettings"];
@@ -3420,7 +3423,10 @@ export interface paths {
          *     fails with `common.request.invalidParams` (HTTP 200). Content hitting the
          *     sensitive-word list is blocked outright with `chat.sensitive.blocked`
          *     (params `word` plus all matches in `words`) — chat has no delayed-visibility state. Messaging oneself and
-         *     other service failures surface as `chat.send.failed` (params error). JSON
+         *     other service failures surface as `chat.send.failed`. New conversations obey the
+         *     recipient's chatMessagePolicy; blocks override existing history. Permission denial
+         *     returns `chat.permission.denied` without revealing which restriction applied.
+         *     Committed idempotent retries acknowledge the earlier write. JSON
          *     replyToMessageId is optional for compatibility with older clients and is
          *     stored only when the target belongs to the resulting conversation. JSON
          *     binding is lenient: a malformed body binds to zero values and fails
@@ -3461,7 +3467,9 @@ export interface paths {
          *     transactions; clients explicitly select and acknowledge each recipient.
          *     Individual mode consumes one message.send attempt per selected message;
          *     merged mode consumes one. The request body is limited to 8192 bytes.
-         *     Business failures use HTTP 200 chat.send.failed; field validation uses HTTP 200
+         *     New recipient conversations obey the same chatMessagePolicy as direct sends.
+         *     Blocks or recipient restrictions use HTTP 200 chat.permission.denied; other
+         *     business failures use HTTP 200 chat.send.failed; field validation uses HTTP 200
          *     common.request.invalidParams. Malformed JSON/body limits
          *     use the strict request wrapper. No private source details appear in errors.
          */
@@ -15277,6 +15285,12 @@ export interface components {
             result: components["schemas"]["ModerationApprovalActionView"];
         };
         /**
+         * @description Controls new private conversations only. Existing committed-message history is exempt; empty conversations are not. Blocks always take precedence, with no actor-type exemption.
+         * @default everyone
+         * @enum {string}
+         */
+        ChatMessagePolicy: "everyone" | "mutual" | "nobody";
+        /**
          * @description Who can see a profile aggregate, from the widest to the narrowest audience.
          * @enum {string}
          */
@@ -15286,6 +15300,7 @@ export interface components {
         /** @enum {string} */
         ProfileConnectionsAudience: "everyone" | "followers" | "mutual" | "self";
         UserPrivacySettings: {
+            chatMessagePolicy?: components["schemas"]["ChatMessagePolicy"];
             profileTopics: components["schemas"]["ProfileAudience"];
             profileActivity: components["schemas"]["ProfileAudience"];
             profileLikes: components["schemas"]["ProfileLikesAudience"];
@@ -15296,6 +15311,7 @@ export interface components {
             result?: components["schemas"]["UserPrivacySettings"];
         };
         UserPrivacySettingsUpdateRequest: {
+            chatMessagePolicy?: components["schemas"]["ChatMessagePolicy"];
             profileTopics?: components["schemas"]["ProfileAudience"];
             profileActivity?: components["schemas"]["ProfileAudience"];
             profileLikes?: components["schemas"]["ProfileLikesAudience"];

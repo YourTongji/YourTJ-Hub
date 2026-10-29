@@ -4407,4 +4407,20 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       '学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。';
+
+  @override
+  String get chatMessagePolicyTitle => '私信の許可';
+
+  @override
+  String get chatMessagePolicyLabel => '新しい会話を開始できる人';
+
+  @override
+  String get chatMessagePolicyHint =>
+      '実際のメッセージがある会話は継続できます。空の会話は対象外です。ボットにも同じ設定が適用され、ブロックが優先されます。';
+
+  @override
+  String get chatMessagePolicyNobody => '新しい私信を受け付けない';
+
+  @override
+  String get chatMessagePolicySaved => 'メッセージの権限をアカウントに保存しました';
 }

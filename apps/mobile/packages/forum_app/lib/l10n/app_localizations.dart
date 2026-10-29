@@ -8219,6 +8219,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to load the term list. Check your network and try again.'**
   String get coursePlannerCalendarsFailed;
+
+  /// No description provided for @chatMessagePolicyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Private messages'**
+  String get chatMessagePolicyTitle;
+
+  /// No description provided for @chatMessagePolicyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Who can start a conversation'**
+  String get chatMessagePolicyLabel;
+
+  /// No description provided for @chatMessagePolicyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversations with actual messages can continue; empty conversations do not count. Blocks take precedence, including for bots.'**
+  String get chatMessagePolicyHint;
+
+  /// No description provided for @chatMessagePolicyNobody.
+  ///
+  /// In en, this message translates to:
+  /// **'No new conversations'**
+  String get chatMessagePolicyNobody;
+
+  /// No description provided for @chatMessagePolicySaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Message permissions saved to your account'**
+  String get chatMessagePolicySaved;
 }
 
 class _AppLocalizationsDelegate

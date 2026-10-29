@@ -3205,6 +3205,11 @@ export default {
       closeConfirmButton: '确认注销',
     },
     privacy: {
+      chatTitle: "私信权限",
+      chatLabel: "谁可以发起私信",
+      chatHint: "已有消息的会话可以继续；空会话不算。屏蔽始终优先，机器人也遵守此设置。",
+      chatNobody: "禁止新私信",
+      chatSaved: "私信权限已保存",
       title: '隐私',
       profileTitle: '个人主页可见范围',
       profileDescription: '选择谁能在你的个人主页上看到这些内容。',
@@ -3784,6 +3789,7 @@ export default {
       },
     },
     chat: {
+      permission: { denied: "对方限制了私信，暂时无法发送这条消息。" },
       send: {
         failed: '暂时无法发送这条消息，请稍后重试',
       },

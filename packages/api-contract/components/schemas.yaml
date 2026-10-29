@@ -11495,10 +11495,17 @@ ProfileLikesAudience:
 ProfileConnectionsAudience:
   type: string
   enum: [everyone, followers, mutual, self]
+ChatMessagePolicy:
+  type: string
+  enum: [everyone, mutual, nobody]
+  default: everyone
+  description: Controls new private conversations only. Existing committed-message history is exempt; empty conversations are not. Blocks always take precedence, with no actor-type exemption.
 UserPrivacySettings:
   type: object
   required: [profileTopics, profileActivity, profileLikes, followingList, followersList]
   properties:
+    chatMessagePolicy:
+      $ref: '#/ChatMessagePolicy'
     profileTopics:
       $ref: '#/ProfileAudience'
     profileActivity:
@@ -11521,6 +11528,8 @@ UserPrivacySettingsUpdateRequest:
   type: object
   minProperties: 1
   properties:
+    chatMessagePolicy:
+      $ref: '#/ChatMessagePolicy'
     profileTopics:
       $ref: '#/ProfileAudience'
     profileActivity:

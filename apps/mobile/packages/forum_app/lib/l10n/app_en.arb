@@ -2269,5 +2269,10 @@
   "courseAddToPlanner": "Add to course planner",
   "coursePlannerSelectTerm": "Select the same term and your major before confirming the class. Existing plans stay unchanged.",
   "coursePlannerUnavailable": "This class is unavailable for the term. Choose another offering from course details.",
-  "coursePlannerCalendarsFailed": "Failed to load the term list. Check your network and try again."
+  "coursePlannerCalendarsFailed": "Failed to load the term list. Check your network and try again.",
+  "chatMessagePolicyTitle": "Private messages",
+  "chatMessagePolicyLabel": "Who can start a conversation",
+  "chatMessagePolicyHint": "Conversations with actual messages can continue; empty conversations do not count. Blocks take precedence, including for bots.",
+  "chatMessagePolicyNobody": "No new conversations",
+  "chatMessagePolicySaved": "Message permissions saved to your account"
 }
