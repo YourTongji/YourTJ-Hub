@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "candidateId": "mobile-1.0.17-33-store-39439793116",
+  "sourceSha": "f34e7b04c2880b4ab1eb3ee220291715ba2ec72f",
+  "product": "mobile",
+  "version": "1.0.17",
+  "tag": "mobile-v1.0.17",
+  "buildNumber": 33,
+  "channels": [
+    "ios-app-store"
+  ],
+  "operation": "promote-ios",
+  "existingRelease": {
+    "candidateId": "mobile-1.0.17-33",
+    "buildId": "e382f4dd-6a90-45d8-aec8-e40b5dafde72"
+  },
+  "baselines": {
+    "ios-app-store": {
+      "tag": "mobile-v1.0.16",
+      "sourceSha": "c68e513b876a7ebc10d744be10cf17f27a0778ac",
+      "buildId": "32fbaae5-4712-474e-a8df-d05622b74b98",
+      "state": "READY_FOR_SALE"
+    }
+  },
+  "notes": {
+    "ios-app-store": "ios.zh-Hans.txt"
+  },
+  "serverRequirement": {
+    "sourceSha": "f34e7b04c2880b4ab1eb3ee220291715ba2ec72f",
+    "reason": "正式 App 的匿名身份、主页隐私、通行密钥、通知分类与审核申诉依赖对应服务端接口；Web 0.0.51 已部署此源码，发布前按生产回执复核。"
+  },
+  "requiredDisclosures": []
+}
