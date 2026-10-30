@@ -323,6 +323,11 @@ social counts and badges, and moderator access rules beyond today's public profi
   the original day and expiry instead of extending quota-state retention. A process crash or unavailable quota store during
   compensation can leave the reservation charged until the daily key expires; compensation
   errors are logged rather than treating an unknown outcome as a successful refund.
+- `Current`: before dispatch, the email worker checks the signature-validated expiry of queued
+  activation and password-reset links. A link already expired at that point is retained as a terminal
+  failed delivery, without SMTP dispatch, retry or automatic token renewal. The existing lease fence
+  still owns the final status write. The owner can manually request a fresh link through the existing
+  activation recovery or password-recovery flow; queue acceptance does not guarantee delivery before expiry.
 - Username/nickname policy: `reservedUsernames` / `bannedUsernames` are enforced at
   password registration/rename and at Agent account creation with **normalized whole-string
   equality** (case folding, NFKC full-width, zero-width stripping, ASCII leetspeak folding):
