@@ -94,7 +94,12 @@ quota retain their dedicated messages; unexpected failures remain generic. Faile
 no partial account or campus binding and keep the proof usable until its original deadline.
 Validation failures allow retry; success consumes the
 proof and resumes the original safe destination, including App OIDC. Restart or expiration requires
-fresh school authentication. See [the decision](../decisions/0034-tongji-registration-completion.md).
+fresh school authentication. If account creation succeeds but the session cannot be
+stored, `auth.tongji.retryLogin` explicitly confirms creation and offers a fresh
+school sign-in through the local `params.restartUrl`, preserving the validated
+continuation. The consumed proof and registration form cannot be reused; username
+validation failures before creation still permit correction with the current proof.
+No session token or internal storage error is returned on this failure. See [the decision](../decisions/0034-tongji-registration-completion.md).
 
 ### Built-in OIDC Provider (first-party clients)
 
@@ -106,7 +111,18 @@ fresh school authentication. See [the decision](../decisions/0034-tongji-registr
 - ID tokens are RS256-signed with a persistent provider key (inline PEM or key file, auto-generated
   otherwise); `sub` = numeric `users.id`. Opaque access tokens are stored as token-ID rows only.
 
+`Current`: Web password registration accepts either an email prefix with the published domain
+selector or a complete address at one of the allowed domains. Matching ignores domain case;
+full-address paste selects its matching suffix instead of appending another one. Malformed or
+unlisted addresses remain on the form. The backend remains the admission authority.
+
 ### Mobile (Flutter)
+
+`Current`: password registration accepts only its newly issued forum session through the existing
+cache-clearing and secure-storage boundary, then restores a validated native destination.
+Missing session headers cannot reuse a prior challenge. Pending email verification remains a
+server-enforced write restriction; Account security shows the current owner's pending status and
+email from the existing settings response, with resend and change-email recovery.
 
 `Current`: the native login form exposes password, Google, GitHub and Tongji sign-in, plus configured Apple sign-in on iOS; Tongji is also available on registration. Password login retains
 captcha and TOTP. Google follows the public Web provider configuration. Social sign-in supplies
@@ -212,6 +228,18 @@ social counts and badges, and moderator access rules beyond today's public profi
 
 ## Account lifecycle
 
+- Password registration availability (`Current`): the existing public login-page
+  payload includes `passwordSignupState`: `open`, `disabled`, `daily_limit`,
+  `mail_unavailable` or `unavailable`. It exposes no exact creation count or limit
+  and reserves no quota. Web and App explain unavailable states before collecting
+  registration fields and offer a fresh configuration read; Web retains the selected
+  registration mode and safe return destination. Login remains usable, and App
+  provider failures stay visible with a deliberate retry while password signup is unavailable.
+  A count failure is unavailable, never an empty-day assumption. The payload uses
+  the existing no-store page response. Older clients remain protected by POST,
+  and older servers omitting the field retain the existing client form behavior.
+  Every submission still rechecks signup/mail gates and the transactional quota;
+  a stale open page cannot authorize an account after registration closes or fills.
 - Registration: forum self-service password registration (with email verification when enabled) is
   one account-creation path. Tongji SSO also creates school-verified activated accounts; GitHub/Google OAuth never provisions accounts (issue #531). The built-in
   OIDC provider also never creates accounts — it authenticates existing users.
@@ -238,10 +266,82 @@ social counts and badges, and moderator access rules beyond today's public profi
   (admin/site/user/… permissions) and activates them immediately through the user-cache
   refresh path, so the admin console cannot lock itself out; ordinary pending users are left
   untouched and must still complete the activation email.
+
+  `Current`: when verification is off, registration does not enqueue an activation email or
+  mark an ordinary account verified. Enabling verification later also gates existing ordinary
+  pending accounts. Successful account creation still emits the existing `user.signup` HTTP
+  notification, independently of this switch; administrators can subscribe the same notification
+  endpoint used for reports. No endpoint is enabled or subscribed automatically.
+- Registration outcomes (`Current`): account creation, activation-mail scheduling
+  and session creation are distinct. If mail preparation or queue acknowledgement
+  fails after creation, `auth.register.emailRetry` preserves the new pending account
+  and issued session and directs its owner to retry or change the address in email
+  settings. It does not claim rejection or SMTP delivery. Session-creation failure
+  instead returns `auth.register.retryLogin` without credentials, explaining that
+  the account exists and sign-in can recover it. Neither outcome rolls back or
+  repeats registration; occupied/failed-create cases keep the generic public
+  failure. Pending sessions retain the existing write gates, and asynchronous
+  delivery failure is not inferred from an accepted queue acknowledgement.
+- Activation-link recovery (`Current`): missing, invalid and genuinely expired
+  links have separate localized explanations. Invalid signatures, unavailable
+  accounts and stale targets do not disclose another account's state. Failures
+  offer the fixed same-origin email-settings destination; anonymous users pass
+  through the existing login guard, then may resend or change their own address.
+  The result never adopts a redirect query parameter or automatically sends mail.
+  Contact support uses the configured valid site email; unset, invalid and shipped
+  example addresses are omitted, with the site homepage still available. Result
+  responses are private/no-store and suppress referrers carrying the token URL.
+- Activation continuation (`Current`): a successful email link names the verified
+  account. It leaves browser/App login credentials and account freezes unchanged;
+  verification is not sign-in and does not grant unrestricted writes. The result
+  offers explicit browser continuation to an allowed forum page, sign-in with that
+  destination, or `yourtj://account/email-verified`. API/auth/activation destinations
+  and external redirects fall back to account settings. Token-bearing result pages
+  use private/no-store and no-referrer. No unfinished operation is replayed.
+  The App return carries no identity, token or verification proof: it pushes current
+  account settings over the existing page, fetches that session's state, and leaves
+  drafts and credentials intact. Repeated valid native returns refresh an already
+  open account page without stacking routes or trusting the hint as proof.
+  Browser and manual App-switch fallbacks remain
+  available if no App handler is installed.
+- Activation resend status (`Current`): authenticated owners read
+  `GET /api/resend-activation-email` with `private, no-store`. It returns current,
+  fresh staged and actual target addresses, availability, remaining daily quota
+  and a relative wait rounded up using server time. Reading never reserves quota
+  or queues mail; query parameters cannot select another account. Web and App
+  refresh after attempts, on return and at wait expiry. They do not automatically
+  resend. Failed status reads keep sending unavailable and expose a refresh action;
+  successful email edits immediately refresh the target and cancel the previous
+  read; stale responses are isolated from account changes. Write permissions and the
+  shared daily/interval limits are still checked by POST.
+- Activation-email resend (`Current`): current and staged addresses share one account's
+  three-per-day quota and 60-second interval. A request reserves its slot atomically before
+  token generation and queue insertion; a token-preparation failure or a queue rejection before
+  COMMIT releases only that request's slot and preserves other charged sends and their cooldown.
+  An uncertain COMMIT acknowledgement retains its charge, as do a lost HTTP response or a later
+  SMTP failure after enqueueing. Existing records retain their count and cooldown. Refunds use
+  the original day and expiry instead of extending quota-state retention. A process crash or unavailable quota store during
+  compensation can leave the reservation charged until the daily key expires; compensation
+  errors are logged rather than treating an unknown outcome as a successful refund.
+- `Current`: before dispatch, the email worker checks the signature-validated expiry of queued
+  activation and password-reset links. A link already expired at that point is retained as a terminal
+  failed delivery, without SMTP dispatch, retry or automatic token renewal. The existing lease fence
+  still owns the final status write. The owner can manually request a fresh link through the existing
+  activation recovery or password-recovery flow; queue acceptance does not guarantee delivery before expiry.
+- Web authentication CAPTCHA refresh (`Current`): refreshes are single flight;
+  changing forms or leaving the page invalidates older reads. A successful new
+  challenge clears all form answers, while a failed refresh preserves the usable
+  image and answer. Password login, registration and recovery cannot submit while
+  the challenge is loading or missing. Refresh buttons and fields have explicit
+  accessible names, and load errors describe the fields without marking a still
+  usable answer invalid.
 - `Current`: password registration shows username and password rules before input on Web and App,
   associated with their fields. Usernames allow 6–32 ASCII letters/digits/underscores/hyphens;
   passwords allow 6–64 Unicode characters and require an ASCII letter and digit. Hints do not expose
   account availability or replace server validation. Login and recovery do not show registration rules.
+  The mobile-width Web brand header places decorative figures below its copy when available
+  width is too small relative to text size, preserving readable words at 200% text. The registration
+  email prefix and its fixed/selected domain also stack when necessary so the prefix retains editable space.
 - Username/nickname policy: `reservedUsernames` / `bannedUsernames` are enforced at
   password registration/rename and at Agent account creation with **normalized whole-string
   equality** (case folding, NFKC full-width, zero-width stripping, ASCII leetspeak folding):
@@ -328,6 +428,29 @@ social counts and badges, and moderator access rules beyond today's public profi
   and attachment bytes for moderator forensics via the audited `view-deleted-content` view;
   recovery-window, audit, and evidence-hold behavior remain governed by the corresponding domain
   services and operations documentation.
+
+### Account email content and recovery
+
+`Current`: the existing activation, password-reset, completed-email-change and pending-email-change
+SMTP emails include the configured site name in the subject and carry both UTF-8 plain-text and HTML
+alternatives. Both use the account email task's normalized zh/en/ja/de locale, the same recipient,
+action URL and security guidance. Missing locale retains Chinese body fallback and omits `lang` from
+action links; unknown non-empty locale normalizes to Chinese. These are outbound account emails,
+not the forum's internal messages.
+
+Activation emails explain that an unsolicited registration, verification or email-change request can
+be ignored without opening or sharing the activation link. The 24-hour activation lifetime starts at
+token issuance, before queueing; delayed delivery does not restart it. Expired-link recovery uses the
+existing `/settings?tab=profile` page: sign in to the intended account, then explicitly request another
+email or correct the address. Opening settings neither sends mail nor changes account sessions by
+itself. The queue, token validity, resend limits and account permissions are unchanged.
+
+`Partial`: external delivery and mail-client rendering depend on the provider/client. Message
+serialization tests do not establish inbox delivery. Email URLs use site settings `siteUrl`, falling
+back to `server.url` only when the former is blank. They are not inferred from an incoming request.
+If a link points to the wrong site or cannot open, recipients should independently open their known
+site address and use email settings rather than register again. Operators must correct the public
+URL configuration before asking owners to resend; see [deployment](../operations/deployment.md#account-email-public-urls).
 
 ## Bot personas (Agents)
 
@@ -473,6 +596,13 @@ no additional protection for this deployment shape. SameSite alone is not relied
 check additionally covers same-site cross-origin (subdomain) hosts and browsers without SameSite
 support.
 
+`Current`: Web registration, password recovery/reset and other message-only API calls
+read structured failure codes and parameters even on non-2xx responses. Rate limits
+retain the server's retry duration (`Retry-After` takes precedence); messages use the
+current client locale. Unknown codes, non-JSON errors and raw server `message`/`result`
+text do not reveal internal/provider errors. This preserves the ordinary registration
+anti-enumeration response while allowing published validation and recovery guidance.
+
 ## Security notes
 
 - PKCE S256 required on authorize; nonce prevents replay; state prevents CSRF on the callback; the
@@ -487,7 +617,9 @@ support.
   #1277).
 - Enumeration resistance: login errors do not distinguish "user not found / wrong password", and
   unknown accounts run the same-cost PBKDF2 verification as real ones so response time does not
-  reveal whether a username/email is registered. Password registration collapses username/email-taken into
+  reveal whether a username/email is registered. Password login and recovery normalize email input to
+  the lowercase, trimmed form used at registration; username matching retains its existing case rules.
+  This lookup does not merge or rewrite legacy accounts. Password registration collapses username/email-taken into
   the same generic `auth.register.failed` body as other failures (never `auth.username.exists` /
   `auth.email.exists`) and always runs both existence queries, so the error body no longer reveals
   which field is taken. The registration protocol itself (immediate account creation + session vs.

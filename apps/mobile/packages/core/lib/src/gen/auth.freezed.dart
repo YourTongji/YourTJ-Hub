@@ -21,6 +21,7 @@ LoginPageProps _$LoginPagePropsFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$LoginPageProps {
+  String get passwordSignupState => throw _privateConstructorUsedError;
   bool get tongjiRegistration => throw _privateConstructorUsedError;
   String get initialMode => throw _privateConstructorUsedError;
   String get redirectUrl => throw _privateConstructorUsedError;
@@ -55,6 +56,7 @@ abstract class $LoginPagePropsCopyWith<$Res> {
   ) = _$LoginPagePropsCopyWithImpl<$Res, LoginPageProps>;
   @useResult
   $Res call({
+    String passwordSignupState,
     bool tongjiRegistration,
     String initialMode,
     String redirectUrl,
@@ -86,6 +88,7 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? passwordSignupState = null,
     Object? tongjiRegistration = null,
     Object? initialMode = null,
     Object? redirectUrl = null,
@@ -102,6 +105,10 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
   }) {
     return _then(
       _value.copyWith(
+            passwordSignupState: null == passwordSignupState
+                ? _value.passwordSignupState
+                : passwordSignupState // ignore: cast_nullable_to_non_nullable
+                      as String,
             tongjiRegistration: null == tongjiRegistration
                 ? _value.tongjiRegistration
                 : tongjiRegistration // ignore: cast_nullable_to_non_nullable
@@ -170,6 +177,7 @@ abstract class _$$LoginPagePropsImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    String passwordSignupState,
     bool tongjiRegistration,
     String initialMode,
     String redirectUrl,
@@ -200,6 +208,7 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? passwordSignupState = null,
     Object? tongjiRegistration = null,
     Object? initialMode = null,
     Object? redirectUrl = null,
@@ -216,6 +225,10 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$LoginPagePropsImpl(
+        passwordSignupState: null == passwordSignupState
+            ? _value.passwordSignupState
+            : passwordSignupState // ignore: cast_nullable_to_non_nullable
+                  as String,
         tongjiRegistration: null == tongjiRegistration
             ? _value.tongjiRegistration
             : tongjiRegistration // ignore: cast_nullable_to_non_nullable
@@ -277,6 +290,7 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$LoginPagePropsImpl implements _LoginPageProps {
   const _$LoginPagePropsImpl({
+    this.passwordSignupState = 'open',
     this.tongjiRegistration = false,
     required this.initialMode,
     required this.redirectUrl,
@@ -295,6 +309,9 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
   factory _$LoginPagePropsImpl.fromJson(Map<String, dynamic> json) =>
       _$$LoginPagePropsImplFromJson(json);
 
+  @override
+  @JsonKey()
+  final String passwordSignupState;
   @override
   @JsonKey()
   final bool tongjiRegistration;
@@ -340,7 +357,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
 
   @override
   String toString() {
-    return 'LoginPageProps(tongjiRegistration: $tongjiRegistration, initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, googleReady: $googleReady, appleReady: $appleReady, tongjiReady: $tongjiReady, tongjiUrl: $tongjiUrl, tongjiNotice: $tongjiNotice, termsOfServiceEnabled: $termsOfServiceEnabled, privacyPolicyEnabled: $privacyPolicyEnabled, allowedDomains: $allowedDomains, oauthNotice: $oauthNotice)';
+    return 'LoginPageProps(passwordSignupState: $passwordSignupState, tongjiRegistration: $tongjiRegistration, initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, googleReady: $googleReady, appleReady: $appleReady, tongjiReady: $tongjiReady, tongjiUrl: $tongjiUrl, tongjiNotice: $tongjiNotice, termsOfServiceEnabled: $termsOfServiceEnabled, privacyPolicyEnabled: $privacyPolicyEnabled, allowedDomains: $allowedDomains, oauthNotice: $oauthNotice)';
   }
 
   @override
@@ -348,6 +365,8 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$LoginPagePropsImpl &&
+            (identical(other.passwordSignupState, passwordSignupState) ||
+                other.passwordSignupState == passwordSignupState) &&
             (identical(other.tongjiRegistration, tongjiRegistration) ||
                 other.tongjiRegistration == tongjiRegistration) &&
             (identical(other.initialMode, initialMode) ||
@@ -382,6 +401,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    passwordSignupState,
     tongjiRegistration,
     initialMode,
     redirectUrl,
@@ -416,6 +436,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
 
 abstract class _LoginPageProps implements LoginPageProps {
   const factory _LoginPageProps({
+    final String passwordSignupState,
     final bool tongjiRegistration,
     required final String initialMode,
     required final String redirectUrl,
@@ -434,6 +455,8 @@ abstract class _LoginPageProps implements LoginPageProps {
   factory _LoginPageProps.fromJson(Map<String, dynamic> json) =
       _$LoginPagePropsImpl.fromJson;
 
+  @override
+  String get passwordSignupState;
   @override
   bool get tongjiRegistration;
   @override

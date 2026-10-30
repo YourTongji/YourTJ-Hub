@@ -256,6 +256,50 @@ void main() {
     },
   );
 
+  for (final scale in [1.0, 1.5, 1.51, 2.0]) {
+    testWidgets('content keeps width and text-size boundaries at $scale', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(899, 900);
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final repo = _Content(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemoryTokenStorage(),
+          baseUrl: 'https://example.test',
+        ),
+      );
+      repo.pending.complete(
+        const UserContentPage(items: [], hasMore: false, nextCursorId: 0),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [contentRepositoryProvider.overrideWithValue(repo)],
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ContentPage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final sidebar = find.byKey(const Key('content-type-sidebar'));
+      expect(sidebar, findsNothing);
+      for (final width in [900.0, 1120.0]) {
+        tester.view.physicalSize = Size(width, 900);
+        await tester.pumpAndSettle();
+        expect(sidebar, scale <= 1.5 ? findsOneWidget : findsNothing);
+        expect(repo.listTypes, hasLength(1));
+        expect(tester.takeException(), isNull);
+      }
+    });
+  }
+
   for (final deleted in [false, true]) {
     testWidgets(
       'wide content keeps type, selection and scroll across resizing deleted=$deleted',

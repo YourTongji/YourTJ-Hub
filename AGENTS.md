@@ -35,38 +35,17 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
 - Auth: GitHub OAuth (goth) + **built-in OIDC Provider** (`/api/oauth`, authorization code + PKCE S256,
   RS256 id_token, opaque access tokens, numeric `sub` = users.id); TOTP 2FA and session management
   (`jti` + `user_sessions`) in place.
-- Contract: **Partial** — `packages/api-contract/openapi.yaml` is the controlled contract center for
-  password login, login public-key retrieval, TOTP login verification and account management, logout,
-  mobile OIDC exchange, session management (list/revoke/revoke-all), topic writing, forum core
-  interactions (post create/update/delete/window/revisions, topic status/delete/like/bookmark/watch,
-  post like/bookmark, follow-user, report), user account and identity (captcha, user-card,
-  profile/email/username/avatar/badge settings, upload-avatar, change-password, OAuth
-  bindings/unbind, profile privacy settings), notifications/unread/chat, forum moderation workbench, the admin console
-  (`/api/admin/*`: user/role/category/moderator management, topic/post moderation, agent
-  administration, operation records, traffic overview, content contribution statistics
-  (per-category summary/trend and contributor ranking/account detail), page settings, site settings,
-  data import/export), account
-  registration/password recovery (`/api/register`, `/api/forgot-password`, `/api/reset-password`),
-  the six-operation Agent forum API, course catalog reads + review write/moderation, the Wiki domain
-  (public tree/namespaces/home + admin read-only tree + sync/status|sync|sync/runs +
-  sync/webhook-secret + asset CDN + webhook; the legacy in-forum write/revision/rollback/diff/editor
-  and namespace-CRUD endpoints were retired with the GitHub-SSoT model),
-  and the PK scheduler (14 ops:
-  courses-by-major/optional-types/courses-by-nature/course-details/course-search/courses-by-time/
-  latest-update/course-info-sync/course-review-brief),
-  the user content lifecycle (my-content/deleted-content lists, content-restore/batch-delete/
-  purge/event, account-close), aggregate search (`/api/forum/search`) and public
-  site statistics,
-  the sticker library (`GET /api/forum/stickers` public enabled list + `/api/admin/`
-  `stickers`/`sticker-save`/`sticker-delete`/`sticker-import` admin CRUD and zip pack
-  import; token `[:sticker:name:]` expanded server-side at render for posts/replies, rendered as
-  images in cards/hover previews and as `[name]` text in small-text surfaces (list rows, pinned
-  strip, crawler/no-JS SSR list), and expanded client-side in chat bubbles (web segmented
-  renderer) and mobile (shared plain-text span helper) via the public list API, MADR 0030),
-  with lint/bundle, generated TypeScript types, fixtures, and route-level HTTP tests;
-  paths are split per domain under `paths/`. Route coverage (issue #277) is complete:
-  `route-coverage.json` knownUncovered is empty — every non-excluded `/api` route has a
-  contract operation; new routes must be added to the contract or the exclusion list.
+- Contract: **Partial** — [OpenAPI](packages/api-contract/openapi.yaml) is the controlled
+  HTTP contract center, split by domain under `packages/api-contract/paths/`, with
+  lint/bundle, generated TypeScript types, fixtures, and route-level HTTP tests. Use those
+  sources for the current operation inventory rather than a separate handwritten endpoint list.
+  Route coverage is complete for the registered, non-excluded `/api` routes:
+  [route-coverage.json](packages/api-contract/route-coverage.json) has no `knownUncovered` entries;
+  new routes must be added to the contract or the explicit exclusion list. The
+  [coverage report entry](packages/api-contract/coverage-matrix.md) explains how to generate the
+  current route-by-route inventory. The [contract architecture](docs/architecture/contracts-and-data.md#contract-status)
+  owns coverage semantics and remaining protocol/generation gaps; route coverage does not mean
+  that every product capability or client-generation pipeline is complete.
 - Points: forum-local ledger mechanics are `Current`, durable reward delivery is `Partial`;
   cross-platform credit settlement is `Planned`. See `docs/product/credit-and-escrow.md`.
 

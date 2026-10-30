@@ -22,6 +22,13 @@ class SelectTests(unittest.TestCase):
             self.assertTrue(plan[domain]["run"], domain)
         self.assertFalse(plan["ios"]["run"] or plan["android"]["run"])
 
+    def test_android_entrypoint_checker_runs_against_a_real_native_build(self):
+        for path in ('scripts/ci/check_android_entrypoint.py', 'scripts/ci/test_android_entrypoint.py'):
+            with self.subTest(path=path):
+                plan = select([path])
+                self.assertTrue(plan['android']['run'] and plan['automation']['run'])
+                self.assertFalse(plan['ios']['run'] or plan['deploy']['run'])
+
     def test_missing_skipped_cancelled_fail_closed(self):
         plan = select(["apps/mobile/packages/core/lib/client.dart"])
         good = {k: {"result": "success" if v["run"] else "skipped"} for k, v in plan.items() if k != "deploy"}

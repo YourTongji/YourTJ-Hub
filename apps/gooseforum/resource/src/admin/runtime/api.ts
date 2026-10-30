@@ -580,8 +580,8 @@ export function getReviewQueue(kind: 'topic' | 'post' | 'sticker', page: number,
   )
 }
 
-export function reviewAction(kind: 'topic' | 'post' | 'sticker', id: number, approve: boolean, revisionId = 0) {
-  return postJson<unknown>('/api/admin/review-action', { kind, id, approve, revisionId }, adminText('k00gd'))
+export function reviewAction(kind: 'topic' | 'post' | 'sticker', id: number, approve: boolean, revisionId = 0, reason = '') {
+  return postJson<unknown>('/api/admin/review-action', { kind, id, approve, revisionId, ...(reason ? { reason } : {}) }, adminText('k00gd'))
 }
 
 export function createExportTask(tables: string[], format: 'json' | 'csv') {

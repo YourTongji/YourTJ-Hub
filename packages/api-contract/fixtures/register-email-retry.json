@@ -1,0 +1,5 @@
+{
+  "code": 0,
+  "result": "账号已创建，验证邮件暂时不可用。请在邮箱设置重试或更换邮箱。",
+  "messageCode": "auth.register.emailRetry"
+}

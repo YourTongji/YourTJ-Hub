@@ -706,7 +706,7 @@ func TestAdminSavePostingSettingsHTTPContract(t *testing.T) {
 func TestAdminGetRateLimitSettingsHTTPContract(t *testing.T) {
 	path := "/api/admin/rate-limit-settings"
 
-	t.Run("success returns the stored rate-limit settings", func(t *testing.T) {
+	t.Run("success returns effective rate-limit settings with stored overrides", func(t *testing.T) {
 		conn, router := setupAdminSiteContractTest(t)
 		persistContractPageConfig(t, conn, pageConfig.RateLimitSettings, pageConfig.RateLimitConfig{
 			Enabled:   true,

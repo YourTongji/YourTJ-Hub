@@ -669,7 +669,10 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
         }
         final window = context
             .dependOnInheritedWidgetOfExactType<ReadingWindowScope>();
-        final bottomInset = window != null && !window.hasRail
+        final bottomInset =
+            window != null &&
+                !window.hasRail &&
+                MediaQuery.viewInsetsOf(context).bottom == 0
             ? GfBottomNavigation.metricsOf(
                 context,
                 barHeight: GfBottomNavigation.heightFor(
@@ -3232,7 +3235,7 @@ class _ChatEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(28),
         child: Column(
           mainAxisSize: MainAxisSize.min,

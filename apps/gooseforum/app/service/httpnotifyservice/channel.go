@@ -13,10 +13,10 @@ import (
 // 通道决定请求体、签名与“对方是否真正接收”的判定。新增 Slack/企业微信等通道只需
 // 实现本接口，不改变事件生产者。
 type notifyChannel interface {
-	// supportsEvent 通道能否投递该事件名（卡片通道只渲染审批事件）。
+	// supportsEvent 通道能否投递该事件名。
 	supportsEvent(eventName string) bool
-	// requiresApproval 通道是否只能渲染审批摘要（Message.Approval 为空时跳过）。
-	requiresApproval() bool
+	// requiresApproval 该事件是否必须有审批摘要（Message.Approval 为空时跳过）。
+	requiresApproval(eventName string) bool
 	encode(endpoint pageConfig.HttpNotifyEndpoint, alt Alternative, approval *ApprovalPayload, now time.Time) ([]byte, error)
 	// testBody 管理端「测试发送」的请求体：让管理员在保存前确认地址、签名与展示效果。
 	testBody(endpoint pageConfig.HttpNotifyEndpoint, baseURI string, now time.Time) ([]byte, error)
@@ -41,7 +41,7 @@ type genericChannel struct{}
 
 func (genericChannel) supportsEvent(string) bool { return true }
 
-func (genericChannel) requiresApproval() bool { return false }
+func (genericChannel) requiresApproval(string) bool { return false }
 
 func (genericChannel) encode(_ pageConfig.HttpNotifyEndpoint, alt Alternative, _ *ApprovalPayload, now time.Time) ([]byte, error) {
 	return json.Marshal(Envelope{Event: alt.Event, Timestamp: now.Unix(), Data: alt.Data})

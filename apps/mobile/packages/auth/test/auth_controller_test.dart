@@ -40,7 +40,72 @@ class GatedTokenStorage extends MemoryTokenStorage {
 /// 覆盖:登录成功、twoFactorRequired → TOTP 成功、验证码要求、
 /// 401 错误、登出清理、启动恢复会话。
 void main() {
+  test(
+    'mode reset clears TOTP credentials and ignores an earlier captcha response',
+    () async {
+      final storage = MemoryTokenStorage();
+      await storage.write('challenge-token');
+      final auth = FakeAuthRepository(twoFactorRequired: true)
+        ..captchaGate = Completer<void>();
+      final controller = _buildController(
+        storage: storage,
+        authRepository: auth,
+      );
+      await controller.login(username: 'alice', password: 'secret');
+      expect(controller.phase, LoginPhase.needsTotp);
+      final captcha = controller.loadCaptcha();
+      await controller.cancelChallenge();
+      expect(controller.phase, LoginPhase.idle);
+      expect(await storage.read(), isNull);
+      auth.captchaGate!.complete();
+      await captcha;
+      expect(controller.captcha, isNull);
+      expect(controller.phase, LoginPhase.idle);
+      expect(controller.error, isEmpty);
+    },
+  );
+
   group('AuthController 登录状态机', () {
+    for (final issued in [true, false]) {
+      test(
+        'registration accepts only its newly issued session: $issued',
+        () async {
+          final storage = MemoryTokenStorage();
+          await storage.write('stale-challenge');
+          final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'));
+          dio.httpClientAdapter = MockAdapter((request) async {
+            expect(request.path, '/api/register');
+            return ResponseData(200, {
+              'code': 0,
+              'result': 'registered',
+              'messageCode': 'auth.register.emailVerify',
+            }, headers: issued ? {'New-Token': 'registered-session'} : {});
+          });
+          final client = GfApiClient(
+            dio: dio,
+            tokenStorage: storage,
+            onTokenRenewed: storage.write,
+          );
+          final controller = AuthController(
+            authRepository: AuthRepository(client),
+            apiClient: client,
+            tokenStorage: storage,
+          );
+          await controller.register(
+            username: 'new-user',
+            email: 'new@example.test',
+            password: 'password123',
+          );
+          expect(
+            controller.phase,
+            issued ? LoginPhase.authenticated : LoginPhase.failed,
+          );
+          expect(await storage.read(), issued ? 'registered-session' : null);
+          if (!issued) expect(controller.error, isNotEmpty);
+        },
+      );
+    }
+
     test('空存储等待 New-Token 持久化后才进入 authenticated', () async {
       final storage = GatedTokenStorage();
       final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'));
@@ -413,6 +478,57 @@ void main() {
       // 新验证码不抹掉"验证码错误"的登录提示。
       expect(controller.error, 'Invalid or expired captcha');
     });
+
+    for (final locale in <String?>['zh', 'en', 'ja', 'de', null, '']) {
+      test(
+        'registration forwards locale $locale to the request body',
+        () async {
+          final storage = MemoryTokenStorage();
+          final adapter = MockAdapter((request) async {
+            expect(request.path, '/api/register');
+            return ResponseData(
+              200,
+              {
+                'code': 0,
+                'result': 'registered',
+                'messageCode': 'auth.register.emailVerify',
+              },
+              headers: {'New-Token': 'registered-locale-session'},
+            );
+          });
+          final client = GfApiClient(
+            dio: Dio()..httpClientAdapter = adapter,
+            tokenStorage: storage,
+            baseUrl: 'http://fake.local',
+            onTokenRenewed: storage.write,
+          );
+          final controller = AuthController(
+            authRepository: AuthRepository(client),
+            apiClient: client,
+            tokenStorage: storage,
+          );
+          addTearDown(controller.dispose);
+
+          final messageCode = await controller.register(
+            username: 'mobile',
+            email: 'student@example.com',
+            password: 'secret123',
+            locale: locale,
+          );
+
+          final body = adapter.requests.single.data as Map<String, dynamic>;
+          if (locale == null || locale.isEmpty) {
+            expect(body.containsKey('locale'), isFalse);
+          } else {
+            expect(body['locale'], locale);
+          }
+          expect(messageCode, 'auth.register.emailVerify');
+          expect(controller.phase, LoginPhase.authenticated);
+          expect(await storage.read(), 'registered-locale-session');
+          expect(controller.error, isEmpty);
+        },
+      );
+    }
 
     test('注册遇到 common.captchaRequired 进入 needsCaptcha', () async {
       final controller = _buildController(
