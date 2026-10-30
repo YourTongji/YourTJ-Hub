@@ -304,6 +304,11 @@ resendActivationEmail:
       `auth.activation.resendCooldown` (params retryAfterSeconds),
       `auth.activation.resendDaily` (params limit, daily cap 3) and
       `auth.activation.resendFailed`. The request takes no body.
+      The daily quota and 60-second cooldown reserve an individual send attempt.
+      A token-preparation failure or a queue transaction rejected before COMMIT releases
+      only that reservation. Accepted tasks, lost HTTP replies and uncertain COMMIT
+      outcomes retain quota; a failure never refunds a later successful send. Day changes
+      do not move a refund onto the new day's quota. Storage failures remain conservative.
     security:
       - bearerAuth: []
       - accessTokenCookie: []

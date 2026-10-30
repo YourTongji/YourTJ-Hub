@@ -243,6 +243,15 @@ social counts and badges, and moderator access rules beyond today's public profi
   (admin/site/user/… permissions) and activates them immediately through the user-cache
   refresh path, so the admin console cannot lock itself out; ordinary pending users are left
   untouched and must still complete the activation email.
+- Activation-email resend (`Current`): current and staged addresses share one account's
+  three-per-day quota and 60-second interval. A request reserves its slot atomically before
+  token generation and queue insertion; a token-preparation failure or a queue rejection before
+  COMMIT releases only that request's slot and preserves other charged sends and their cooldown.
+  An uncertain COMMIT acknowledgement retains its charge, as do a lost HTTP response or a later
+  SMTP failure after enqueueing. Existing records retain their count and cooldown. Refunds use
+  the original day and expiry instead of extending quota-state retention. A process crash or unavailable quota store during
+  compensation can leave the reservation charged until the daily key expires; compensation
+  errors are logged rather than treating an unknown outcome as a successful refund.
 - Username/nickname policy: `reservedUsernames` / `bannedUsernames` are enforced at
   password registration/rename and at Agent account creation with **normalized whole-string
   equality** (case folding, NFKC full-width, zero-width stripping, ASCII leetspeak folding):
