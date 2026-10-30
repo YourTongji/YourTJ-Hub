@@ -83,6 +83,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
   final MarkdownConverter _converter = MarkdownConverter();
   late QuillController _editorController;
   late StreamSubscription<DocChange> _editorChanges;
+  late StickerTokenWatcher _stickerTokens;
   String _content = '';
   late int? _offeringId;
   late int _rating;
@@ -137,6 +138,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
     _editorChanges = controller.document.changes.listen(
       (_) => _editorChanged(),
     );
+    _stickerTokens = StickerTokenWatcher(controller);
     return controller;
   }
 
@@ -151,6 +153,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
   @override
   void dispose() {
     unawaited(_editorChanges.cancel());
+    unawaited(_stickerTokens.cancel());
     _editorController.dispose();
     _editorFocusNode.dispose();
     super.dispose();

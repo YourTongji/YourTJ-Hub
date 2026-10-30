@@ -7,6 +7,8 @@ import { isStickerUsable, useMyStickers } from '@/site/composables/useMyStickers
 import { openMyStickers } from '@/site/composables/useMyStickersDialog'
 import { useStickerLibrary } from '@/site/composables/useStickerLibrary'
 import { useStickerMarket } from '@/site/composables/useStickerMarket'
+import { rememberStickerUrls } from '@/site/composables/useResolvedStickers'
+import ScrollStrip from '@/site/components/ScrollStrip.vue'
 import { isPersonalStickerName } from '@/site/utils/sticker-token'
 
 /**
@@ -94,6 +96,8 @@ const gridFailed = computed(() => {
   return packFailed.value
 })
 const viewPack = computed(() => (view.value.kind === 'pack' || view.value.kind === 'marketPack' ? view.value.pack : null))
+// Tab strip key: a market pack opened from the market keeps the market tab active.
+const activeTab = computed(() => (view.value.kind === 'pack' ? `pack-${view.value.pack.id}` : view.value.kind === 'marketPack' ? 'market' : view.value.kind))
 const hasMoreMarket = computed(() => marketPacks.value.length < marketTotal.value)
 
 watch(() => props.open, (open) => {
@@ -213,6 +217,8 @@ function selectSticker(sticker: StickerItem) {
     return
   }
   if (!isStickerUsable(sticker)) return
+  // The editor shows the image at once instead of waiting for a resolve round trip.
+  rememberStickerUrls([sticker])
   emit('select', sticker.name)
 }
 
@@ -328,7 +334,7 @@ const gridEl = (el: unknown) => {
     :aria-label="t('stickers.pickerTitle')"
     @keydown="onPanelKeydown"
   >
-    <div class="gf-sticker-tabs" role="toolbar" :aria-label="t('stickers.pickerTitle')">
+    <ScrollStrip class="gf-sticker-tabs" role="toolbar" :aria-label="t('stickers.pickerTitle')" :active="activeTab">
       <button
         type="button"
         class="gf-sticker-tab gf-sticker-tab-text"
@@ -368,11 +374,11 @@ const gridEl = (el: unknown) => {
       >
         <Store class="h-4 w-4" />
       </button>
-    </div>
+    </ScrollStrip>
 
     <div class="gf-sticker-body">
       <template v-if="view.kind === 'market'">
-        <div v-if="topics.length > 0" class="gf-sticker-topics" role="toolbar" :aria-label="t('stickers.marketTopics')">
+        <ScrollStrip v-if="topics.length > 0" class="gf-sticker-topics" role="toolbar" :aria-label="t('stickers.marketTopics')" :active="marketTopic">
           <button type="button" class="gf-sticker-chip" :aria-pressed="marketTopic === ''" @click="selectTopic('')">
             {{ t('stickers.allTopics') }}
           </button>
@@ -386,7 +392,7 @@ const gridEl = (el: unknown) => {
           >
             {{ topic.label }}
           </button>
-        </div>
+        </ScrollStrip>
         <ul class="flex flex-col gap-1">
           <li v-for="pack in marketPacks" :key="pack.id" class="gf-sticker-pack-row">
             <button type="button" class="gf-sticker-pack-open" @click="showPack(pack, 'marketPack')">
@@ -446,7 +452,7 @@ const gridEl = (el: unknown) => {
             {{ market.isSubscribed(viewPack.id) ? t('stickers.removePack') : t('stickers.addPack') }}
           </button>
         </div>
-        <div v-if="view.kind === 'official' && officialGroups.length > 1" class="gf-sticker-topics" role="toolbar" :aria-label="t('stickers.officialPacks')">
+        <ScrollStrip v-if="view.kind === 'official' && officialGroups.length > 1" class="gf-sticker-topics" role="toolbar" :aria-label="t('stickers.officialPacks')" :active="officialPack">
           <button type="button" class="gf-sticker-chip" :aria-pressed="officialPack === ''" @click="showOfficialPack('')">
             {{ t('stickers.allTopics') }}
           </button>
@@ -461,7 +467,7 @@ const gridEl = (el: unknown) => {
             <img v-if="pack.coverUrl" :src="pack.coverUrl" alt="" loading="lazy" class="gf-sticker-chip-img" />
             {{ pack.name }}
           </button>
-        </div>
+        </ScrollStrip>
         <div v-if="view.kind === 'mine' && mine.items.value.length > 0" class="gf-sticker-pack-header">
           <span class="min-w-0 flex-1 truncate text-xs tabular-nums text-base-content/60">{{ t('stickers.mine.short', { count: mine.items.value.length }) }}</span>
           <button type="button" class="gf-sticker-manage" @click="manageMine">
@@ -548,14 +554,15 @@ const gridEl = (el: unknown) => {
   overflow: hidden;
 }
 
-.gf-sticker-tabs {
-  display: flex;
+/* 页签条：横向滚动、边缘淡出与翻页按钮见 ScrollStrip；分隔线放在条带外层，不随边缘淡出 */
+.gf-scroll-strip:has(> .gf-sticker-tabs) {
   flex-shrink: 0;
+  border-bottom: var(--gf-border) solid var(--gf-color-line);
+}
+
+.gf-sticker-tabs {
   gap: 4px;
   padding: 6px 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  border-bottom: var(--gf-border) solid var(--gf-color-line);
 }
 
 .gf-sticker-tab {
@@ -630,12 +637,12 @@ const gridEl = (el: unknown) => {
   pointer-events: none;
 }
 
-.gf-sticker-topics {
-  display: flex;
-  gap: 4px;
+.gf-scroll-strip:has(> .gf-sticker-topics) {
   margin-bottom: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
+}
+
+.gf-sticker-topics {
+  gap: 4px;
 }
 
 .gf-sticker-chip {

@@ -8,6 +8,7 @@ import {
   saveMyStickerEntry,
   uploadImageFile,
 } from '@/runtime/api'
+import { rememberStickerUrls } from '@/site/composables/useResolvedStickers'
 
 /**
  * The viewer's private sticker library ("My stickers"). Every picker and the
@@ -50,6 +51,7 @@ export function useMyStickers() {
         items.value = next
         ready.value = true
         signedOut.value = false
+        rememberStickerUrls(next.filter(isStickerUsable))
       })
       .catch((error) => {
         if (error instanceof ApiResponseError && error.messageCode === 'auth.required') {

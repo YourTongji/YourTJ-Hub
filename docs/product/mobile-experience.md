@@ -1685,8 +1685,11 @@ servers that omit interaction fields retain read-only content previews.
   current selection; it does not send or publish. Unicode emoji and image stickers remain distinct.
 - `Current`: sticker pickers stay inline below the reply, message or publishing input. Opening one
   dismisses the typing keyboard without covering the editor; the keyboard button resumes typing at
-  the current selection. A bounded live preview renders draft stickers as images and updates after
-  insertion, editing or deletion, using the same Markdown/plain-text rules as the destination.
+  the current selection. Inputs show each resolved sticker inline as the image it publishes as
+  (2.5 × the font size, centred on the line), using the same Markdown/plain-text rules as the
+  destination; one delete removes a whole sticker or a half-typed `[:sticker:` fragment, and the
+  caret never rests inside one. Typing `[:sticker:` shows matching stickers in a strip above the
+  input; tapping one completes it ([0117](../decisions/0117-wysiwyg-sticker-editing.md)).
   Repeated picks keep the panel open and advance the caret. Image uploads and reply-target/image
   removal keep the next insertion aligned with the updated caret. Ordinary typing does not retry
   unavailable sticker resolution; token changes and explicit retry can resolve again.
@@ -1739,7 +1742,7 @@ servers that omit interaction fields retain read-only content previews.
 - `Current`: disabled official stickers stay in personal management for ordering/removal and are
   unavailable for insertion; permanently deleted official stickers leave the collection. Older servers
   without personal-library endpoints show a compatibility message while official stickers remain usable.
-- `Current`: Web post and reply sticker images render inline at 2.5em, centred on the text line,
+- `Current`: Web post and reply sticker images render inline as 2.5em squares, centred on the text line,
   without image borders or paragraph centring; feed-card previews use the same size. They are
   excluded from lightbox clicks and gallery collection. Clicking one opens the same compact sticker
   card (enlarged view, name, Save to my stickers); guests are sent to sign in. Chat stickers are

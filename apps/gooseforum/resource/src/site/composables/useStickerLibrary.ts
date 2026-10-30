@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { getForumStickerPacks, getForumStickers } from '@/runtime/api'
 import type { StickerItem, StickerOfficialPack } from '@gooseforum/client'
+import { rememberStickerUrls } from '@/site/composables/useResolvedStickers'
 
 /**
  * 启用表情包库（MADR 0030）：编辑器选择面板数据源。
@@ -38,6 +39,7 @@ export function useStickerLibrary() {
     try {
       stickers.value = await getForumStickers()
       loaded = true
+      rememberStickerUrls(stickers.value)
     } catch {
       failed.value = true
     } finally {

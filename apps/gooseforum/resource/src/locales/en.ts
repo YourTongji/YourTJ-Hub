@@ -1323,6 +1323,11 @@ export default {
     packActionFailed: "Unable to update your sticker packs. Try again.",
     tabMine: "Mine",
     officialPacks: "Official packs",
+    suggest: {
+      listbox: "Matching stickers",
+      resultCount: "{count} matching sticker | {count} matching stickers",
+      noResults: "No matching stickers",
+    },
     mine: {
       title: "My stickers",
       description: "Stickers you saved or uploaded, available under “Mine” in every editor. Only you see their names.",

@@ -1322,6 +1322,11 @@ export default {
     packActionFailed: "Sticker-Pakete konnten nicht aktualisiert werden. Bitte erneut versuchen.",
     tabMine: "Meine",
     officialPacks: "Offizielle Pakete",
+    suggest: {
+      listbox: "Passende Sticker",
+      resultCount: "{count} passender Sticker | {count} passende Sticker",
+      noResults: "Keine passenden Sticker",
+    },
     mine: {
       title: "Meine Sticker",
       description: "Gespeicherte und hochgeladene Sticker, in jedem Editor unter „Meine“ verfügbar. Nur du siehst ihre Namen.",

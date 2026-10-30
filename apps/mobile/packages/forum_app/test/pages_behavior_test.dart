@@ -3452,9 +3452,9 @@ void main() {
             controller.text,
             'before [:sticker:smile:][:sticker:smile:]after',
           );
-          final preview = find.byKey(const Key('sticker-draft-preview'));
+          // The reply field itself shows both stickers inline.
           expect(
-            find.descendant(of: preview, matching: find.byType(StickerImage)),
+            find.descendant(of: field, matching: find.byType(StickerImage)),
             findsNWidgets(2),
           );
           await tester.drag(find.byType(StickerPicker), const Offset(0, 300));

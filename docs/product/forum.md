@@ -262,7 +262,8 @@ canonical、prev/next 与 `og:`／`twitter:`／`article:` meta 视页面是否�
 半截 token 同样整块删除，光标落在 token 内部时删除整段。IME 组合、非折叠选区与 Ctrl／Meta／Alt
 组合键保持浏览器默认（Shift 组合键不在排除范围内，Shift+Backspace／Shift+Delete 同样整段删除）。见
 [决策 0106](../decisions/0106-editor-sticker-token-atomic-delete.md)。
-`Planned`：Flutter 输入框的贴纸仍按字符删除，原子删除跟进中。
+`Current`：编辑时所见即所得：Web 的发帖、回复、快捷发布、课程评价编辑器，以及 App 的回复、帖子编辑、简易发布、私信输入框和长文／课评富文本编辑器，都把可解析的贴纸直接显示为与发布后同尺寸的图片（正方形，边长为所在文字字号的 2.5 倍，垂直居中于文字行），保存的仍是 `[:sticker:name:]` token；代码、链接内的 token 以及未知、停用贴纸保持文字，与发布结果一致。App 输入框与 Web 一样一次删除整个贴纸或半截 `[:sticker:` 片段，光标不会停在贴纸内部，选区扩展到整个贴纸。手动输入 `[:sticker:` 时按名称与显示名列出匹配的我的、官方及已添加表情包里的贴纸（Web 在光标旁弹出，可用方向键、Enter／Tab 选择，Esc 关闭；App 在输入框上方显示一排），选中即补全为图片；完整输入一个已知 token 也会直接变成图片。Web 选择器的表情包页签与话题标签过多时可用鼠标滚轮横向滚动，有更多内容的一侧渐隐，悬停时显示翻页箭头，当前页签保持可见。见[决策 0117](../decisions/0117-wysiwyg-sticker-editing.md)。
+`Partial`：Web 私信输入框仍是纯文本框，贴纸以 token 文字显示（已支持整块删除）。
 `Planned`：Web 个人库管理界面。
 `Current`：管理员改名官方表情后，旧名作为别名继续解析，已发布内容不受影响；别名占用该名称，其他表情不能再使用，表情删除时别名一并失效。管理端列表显示每个表情的曾用名。见
 [决策 0114](../decisions/0114-sticker-rename-aliases.md)。

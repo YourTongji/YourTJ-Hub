@@ -8,7 +8,8 @@ import '../../images/image_upload.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
 import '../../widgets/moderation_blocked_dialog.dart';
-import '../../widgets/stickers/sticker_draft_preview.dart';
+import '../../widgets/stickers/sticker_suggestion_bar.dart';
+import '../../widgets/stickers/sticker_text_controller.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
 import 'mention_panel.dart';
@@ -40,7 +41,7 @@ class PostEditor extends ConsumerStatefulWidget {
 }
 
 class _PostEditorState extends ConsumerState<PostEditor> {
-  late final TextEditingController _text = TextEditingController(
+  late final StickerTextEditingController _text = StickerTextEditingController(
     text: widget.content,
   )..selection = TextSelection.collapsed(offset: widget.content.length);
   late final FocusNode _focus = FocusNode(onKeyEvent: _mentionKeyEvent);
@@ -269,6 +270,7 @@ class _PostEditorState extends ConsumerState<PostEditor> {
 
   @override
   Widget build(BuildContext context) {
+    _text.library = ref.watch(stickerLibraryProvider);
     final l10n = AppLocalizations.of(context);
     final colors = GfTheme.colorsOf(context);
     final stickers = StickerStrings(context);
@@ -337,9 +339,8 @@ class _PostEditorState extends ConsumerState<PostEditor> {
                               publishing: _busy,
                               uploading: _uploading,
                               canPublish: value.text.trim().isNotEmpty,
-                              preview: StickerDraftPreview(
-                                content: value.text,
-                                markdown: true,
+                              preview: StickerSuggestionBar.text(
+                                controller: _text,
                               ),
                               onPickImage: _image,
                               imageTooltip: l10n.publishToolImage,

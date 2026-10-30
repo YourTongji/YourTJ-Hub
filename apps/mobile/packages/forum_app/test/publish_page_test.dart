@@ -558,9 +558,9 @@ void main() {
           await tester.pumpAndSettle();
           await tester.tap(_pickerSticker('Smile').last);
           await tester.pumpAndSettle();
-          final preview = find.byKey(const Key('sticker-draft-preview'));
+          // Both editors show the inserted stickers inline, as published.
           expect(
-            find.descendant(of: preview, matching: find.byType(StickerImage)),
+            find.descendant(of: editor, matching: find.byType(StickerImage)),
             findsNWidgets(2),
           );
           expect(

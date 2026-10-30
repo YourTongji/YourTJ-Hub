@@ -49,6 +49,14 @@ class StickerStrings {
   String get title =>
       _s('表情库', 'Sticker library', 'Stickerbibliothek', 'ステッカー');
   String get preview => _s('实时预览', 'Live preview', 'Live-Vorschau', 'プレビュー');
+  String get suggestions =>
+      _s('匹配的表情', 'Matching stickers', 'Passende Sticker', '一致するスタンプ');
+  String get noMatches => _s(
+    '没有匹配的表情',
+    'No matching stickers',
+    'Keine passenden Sticker',
+    '一致するスタンプはありません',
+  );
   String get viewLarger => _s('放大预览', 'View larger', 'Groß anzeigen', '拡大表示');
   String actions(String label) => _s(
     '表情操作：$label',

@@ -214,11 +214,13 @@ void main() {
           findsOneWidget,
           reason: '$surface keeps the picker open after repeated insertions',
         );
-        final preview = find.byKey(const Key('sticker-draft-preview'));
-        expect(
-          find.descendant(of: preview, matching: find.byType(StickerImage)),
-          findsNWidgets(2),
+        // The editor shows both stickers inline; the picker's own cells
+        // are not part of the draft.
+        final inline = find.byType(StickerImage).evaluate().where(
+          (element) =>
+              element.findAncestorWidgetOfExactType<StickerPicker>() == null,
         );
+        expect(inline, hasLength(2));
         expect(find.byType(BottomSheet), findsNothing);
         expect(tester.takeException(), isNull);
         if (const bool.fromEnvironment('YOURTJ_TEST_SCREENSHOTS')) {

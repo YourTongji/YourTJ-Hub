@@ -250,9 +250,14 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(_pickerSticker('Smile').last);
       await tester.pumpAndSettle();
+      // Rich editors hold the pick as one sticker embed at the caret.
       expect(
         editor.document.toPlainText(),
-        before.replaceRange(caret, caret, '[:sticker:smile:]'),
+        before.replaceRange(caret, caret, '\uFFFC'),
+      );
+      expect(
+        editor.document.toDelta().toList().map((op) => op.data),
+        contains(equals({stickerEmbedType: 'smile'})),
       );
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(seconds: 1));

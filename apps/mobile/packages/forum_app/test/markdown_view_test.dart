@@ -8,7 +8,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_card.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
-import 'package:forum_app/src/widgets/stickers/sticker_draft_preview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markdown_widget/markdown_widget.dart';
@@ -135,46 +134,6 @@ TapGestureRecognizer? _linkRecognizer(InlineSpan span) {
 }
 
 void main() {
-  for (final markdown in [false, true]) {
-    testWidgets('draft stickers remain compact markdown=$markdown', (
-      tester,
-    ) async {
-      final library = StickerLibrary(_FakeStickerRepository());
-      addTearDown(library.dispose);
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [stickerLibraryProvider.overrideWithValue(library)],
-          child: MaterialApp(
-            theme: gfThemeData(Brightness.light),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(
-              body: StickerDraftPreview(
-                content: '[:sticker:smile:]',
-                markdown: markdown,
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      // Markdown drafts preview the published inline size; chat drafts keep
-      // their bounded thumbnail.
-      expect(
-        tester.getSize(find.byType(StickerImage)),
-        markdown
-            ? const Size.square(
-                GfRichContentTypography.readingBodySize *
-                    StickerImage.inlineScale,
-              )
-            : const Size(56, 56),
-      );
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump(const Duration(milliseconds: 600));
-    });
-  }
-
   testWidgets('stickers sit on the text line at a multiple of its size', (
     tester,
   ) async {

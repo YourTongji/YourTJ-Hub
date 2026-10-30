@@ -1323,6 +1323,11 @@ export default {
     packActionFailed: "表情包未更新，请重试",
     tabMine: "我的",
     officialPacks: "官方表情包",
+    suggest: {
+      listbox: "匹配的表情",
+      resultCount: "{count} 个匹配的表情",
+      noResults: "没有匹配的表情",
+    },
     mine: {
       title: "我的表情",
       description: "收藏的表情和自己上传的图片，在任意编辑器的“我的”中使用。名称只有你能看到。",

@@ -7,6 +7,7 @@ import '../../asset_url.dart';
 import '../markdown_view.dart';
 import 'editor_caret_follow.dart';
 import 'editor_embed_image.dart';
+import 'sticker_embed_builder.dart';
 
 /// Shared Quill editing surface. The caller owns the controller and its
 /// Markdown conversion/draft lifecycle; this widget only presents the editor.
@@ -324,6 +325,7 @@ class _QuillBodyState extends State<_QuillBody> {
           embedBuilders: const <EmbedBuilder>[
             _MarkdownImageBuilder(),
             _MarkdownTableBuilder(),
+            StickerEmbedBuilder(),
           ],
         ),
       ),

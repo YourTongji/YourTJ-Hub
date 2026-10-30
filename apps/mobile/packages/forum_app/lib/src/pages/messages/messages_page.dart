@@ -11,7 +11,8 @@ import '../../messages/forward_messages_page.dart';
 import '../../messages/forwarded_message.dart';
 import '../../report_content.dart';
 import '../../user_blocks.dart';
-import '../../widgets/stickers/sticker_draft_preview.dart';
+import '../../widgets/stickers/sticker_suggestion_bar.dart';
+import '../../widgets/stickers/sticker_text_controller.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
 import '../../widgets/stickers/sticker_library_page.dart';
@@ -779,7 +780,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   late final ChatDrafts _drafts;
   bool _restoringDraft = false;
   final List<ChatMessagePayload> _messages = [];
-  final TextEditingController _input = TextEditingController();
+  // Chat messages are plain text: tokens in backticks still render.
+  final StickerTextEditingController _input = StickerTextEditingController(
+    markdown: false,
+  );
   final FocusNode _composerFocus = FocusNode();
   bool _selecting = false;
   bool _attachingImage = false;
@@ -2100,6 +2104,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
 
   @override
   Widget build(BuildContext context) {
+    _input.library = ref.watch(stickerLibraryProvider);
     ref.listen<int>(
       cacheClearEpochProvider.select(
         (epochs) => epochs[CacheCategory.chat] ?? 0,
@@ -2728,8 +2733,8 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                     GfChatInput(
                       controller: _input,
                       focusNode: _composerFocus,
-                      previewBuilder: (text) =>
-                          StickerDraftPreview(content: text),
+                      previewBuilder: (_) =>
+                          StickerSuggestionBar.text(controller: _input),
                       accessoryBuilder: (insert) =>
                           StickerPicker(onInsert: insert),
                       accessoryMinHeight: StickerPicker.comfortableHeight,

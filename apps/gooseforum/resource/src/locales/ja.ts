@@ -1322,6 +1322,11 @@ export default {
     packActionFailed: "スタンプパックを更新できませんでした。再試行してください",
     tabMine: "マイ",
     officialPacks: "公式パック",
+    suggest: {
+      listbox: "一致するスタンプ",
+      resultCount: "一致するスタンプ {count} 件",
+      noResults: "一致するスタンプはありません",
+    },
     mine: {
       title: "マイスタンプ",
       description: "保存したスタンプやアップロードした画像を、どのエディタの「マイ」からでも使えます。名前は自分だけに表示されます。",

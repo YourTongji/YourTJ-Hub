@@ -175,3 +175,61 @@ export function isPersonalStickerName(name: string): boolean {
 export function maskPersonalStickerTokens(content: string, stickerLabel: string): string {
   return content.replace(GENERATED_STICKER_TOKEN_RE, `[${stickerLabel}]`)
 }
+
+/** 光标前正在手动输入的贴纸 token：`[:sticker:` + 至多 64 个名字字符，尚未闭合。 */
+export interface StickerQuery {
+  /** 片段长度（含 `[:sticker:` 前缀），选中候选时整段替换 */
+  length: number
+  query: string
+}
+
+const STICKER_QUERY_RE = /\[:sticker:([^\s:[\]]{0,64})$/
+
+/** 从光标前文本识别手动输入中的 token 片段；被奇数个反斜杠转义时不算。 */
+export function extractStickerQuery(prefix: string): StickerQuery | null {
+  const match = STICKER_QUERY_RE.exec(prefix)
+  if (!match) return null
+  let slashes = 0
+  for (let i = match.index - 1; i >= 0 && prefix[i] === '\\'; i--) slashes++
+  if (slashes % 2 !== 0) return null
+  return { length: match[0].length, query: match[1] }
+}
+
+export interface StickerSuggestion {
+  name: string
+  url: string
+  label: string
+}
+
+/**
+ * 候选排序：名字/显示名前缀命中优先，其次包含；同级保持来源顺序（我的 → 官方 → 已添加的表情包）。
+ * 空查询按来源顺序取前 limit 个。名字去重，先出现的来源优先。
+ */
+export function rankStickerSuggestions(
+  items: readonly StickerSuggestion[],
+  query: string,
+  limit = 8,
+): StickerSuggestion[] {
+  const q = query.toLowerCase()
+  const seen = new Set<string>()
+  const scored: Array<{ item: StickerSuggestion, score: number, index: number }> = []
+  items.forEach((item, index) => {
+    if (seen.has(item.name)) return
+    seen.add(item.name)
+    if (!q) {
+      scored.push({ item, score: 0, index })
+      return
+    }
+    const name = item.name.toLowerCase()
+    const label = item.label.toLowerCase()
+    const score = name === q ? 4
+      : name.startsWith(q) || label.startsWith(q) ? 3
+        : name.includes(q) || label.includes(q) ? 2
+          : 0
+    if (score > 0) scored.push({ item, score, index })
+  })
+  return scored
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, limit)
+    .map((entry) => entry.item)
+}
