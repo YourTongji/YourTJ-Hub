@@ -325,6 +325,29 @@ social counts and badges, and moderator access rules beyond today's public profi
   recovery-window, audit, and evidence-hold behavior remain governed by the corresponding domain
   services and operations documentation.
 
+### Account email content and recovery
+
+`Current`: the existing activation, password-reset, completed-email-change and pending-email-change
+SMTP emails include the configured site name in the subject and carry both UTF-8 plain-text and HTML
+alternatives. Both use the account email task's normalized zh/en/ja/de locale, the same recipient,
+action URL and security guidance. Missing locale retains Chinese body fallback and omits `lang` from
+action links; unknown non-empty locale normalizes to Chinese. These are outbound account emails,
+not the forum's internal messages.
+
+Activation emails explain that an unsolicited registration, verification or email-change request can
+be ignored without opening or sharing the activation link. The 24-hour activation lifetime starts at
+token issuance, before queueing; delayed delivery does not restart it. Expired-link recovery uses the
+existing `/settings?tab=profile` page: sign in to the intended account, then explicitly request another
+email or correct the address. Opening settings neither sends mail nor changes account sessions by
+itself. The queue, token validity, resend limits and account permissions are unchanged.
+
+`Partial`: external delivery and mail-client rendering depend on the provider/client. Message
+serialization tests do not establish inbox delivery. Email URLs use site settings `siteUrl`, falling
+back to `server.url` only when the former is blank. They are not inferred from an incoming request.
+If a link points to the wrong site or cannot open, recipients should independently open their known
+site address and use email settings rather than register again. Operators must correct the public
+URL configuration before asking owners to resend; see [deployment](../operations/deployment.md#account-email-public-urls).
+
 ## Bot personas (Agents)
 
 - An Agent is exactly one bot persona: a `users` row with `actor_type = bot` plus one `agents` row
