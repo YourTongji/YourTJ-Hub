@@ -695,7 +695,7 @@ onBeforeUnmount(() => {
 
     <Dialog :open="detail !== null" @update:open="(open) => !open && (detail = null)">
       <DialogContent class="sm:max-w-2xl" @escape-key-down="onDialogEscape">
-        <DialogHeader class="flex-row items-center gap-3 space-y-0 text-start">
+        <DialogHeader class="min-w-0 flex-row flex-wrap items-center gap-3 space-y-0 text-start">
           <img
             v-if="detail && coverSource(detail.pack)"
             :src="coverSource(detail.pack)"
@@ -703,11 +703,11 @@ onBeforeUnmount(() => {
             class="size-12 shrink-0 rounded-md object-contain outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
             @error="detail && markCoverBroken(coverSource(detail.pack))"
           />
-          <div class="min-w-0 flex-1 space-y-1.5">
+          <div class="min-w-0 flex-1 basis-40 space-y-1.5">
             <DialogTitle class="truncate">{{ detail?.pack.name }}</DialogTitle>
             <DialogDescription class="text-pretty">{{ adminText('stickerMarketItemsDescription') }}</DialogDescription>
           </div>
-          <Button v-if="detail && isUploaded(detail.pack)" variant="outline" size="sm" type="button" class="me-6 shrink-0" @click="openUpload(detail.pack)">
+          <Button v-if="detail && isUploaded(detail.pack)" variant="outline" size="sm" type="button" class="ms-auto me-6 shrink-0" @click="openUpload(detail.pack)">
             <Upload class="size-4" />
             {{ adminText('stickerMarketUploadMore') }}
           </Button>
