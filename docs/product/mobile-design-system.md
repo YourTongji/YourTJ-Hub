@@ -265,7 +265,12 @@ header keeps the one-physical-pixel `line` hairline instead of a logical-pixel r
 dock separates from content by elevation instead. The floating dock and wide rail share the same
 glass surface — a translucent raised surface over a blurred, saturated backdrop on iOS and Android —
 while high-contrast mode, reduced motion and accessible-navigation mode use the opaque theme
-surface. This does not claim adoption of a native iOS Liquid Glass API. Selecting a destination
+surface. The compose action and its menu are the same glass ([0118](../decisions/0118-glass-compose-action.md)):
+the action is primary-tinted glass dense enough to keep its glyph at 3:1 on any content, menu items
+are dock-tinted capsules over a frosted, lightly dimmed page, and the close button sits exactly over
+the action while its plus turns into the close mark. A press swells the glass around steady content
+and a soft light follows the finger; the same accessibility fallbacks give an opaque surface that
+tints on press. This does not claim adoption of a native iOS Liquid Glass API. Selecting a destination
 springs a lens between destinations, and reduced motion settles it at once; the rail keeps ordinary
 button activation and its selected icon and label. Selected ratings use a filled counterpart. Brand marks and functional radio and
 strikethrough glyphs retain their source artwork, as recorded in the

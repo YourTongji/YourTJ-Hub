@@ -298,7 +298,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('You’re all caught up'), findsOneWidget);
-    expect(find.byType(FloatingActionButton), findsNothing);
+    expect(find.byKey(const ValueKey('root-compose-action')), findsNothing);
     await tester.tap(find.widgetWithText(GfButton, 'All'));
     await tester.pump();
     expect(repo.requests.last.$1, 'all');
