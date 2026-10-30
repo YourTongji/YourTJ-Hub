@@ -240,7 +240,6 @@ export interface SitePayload {
   url?: string
   logo: string
   favicon: string
-  externalLinks?: string
   brandType: string
   brandText: string
   brandImage: string

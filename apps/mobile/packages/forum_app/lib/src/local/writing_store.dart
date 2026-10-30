@@ -207,7 +207,9 @@ class WritingStore {
 }
 
 String _draftIdentity(Object? value) {
-  if (value == null) return "member";
+  // Older /publish payloads sent an empty identity for new topics. Those
+  // saved copies are ordinary member drafts, not damaged records.
+  if (value == null || value == "") return "member";
   if (value == "member" || value == "persona") return value as String;
   throw const FormatException("Invalid draft identity");
 }

@@ -167,6 +167,7 @@ export default {
     searchClose: "关闭",
   },
   statsAdmin: {
+    rateLimitExemptionHint: "管理员豁免不适用于内容贡献统计；四个统计接口共用 admin.stats 配额。",
     filterTitle: '统计筛选',
     rangeLabel: '时间范围',
     range7: '近 7 天',
@@ -588,6 +589,8 @@ export default {
     save: "保存展示徽章"
   },
   tongjiRegistration: {
+    createdTitle: "账号已创建",
+    restartSchool: "重新通过同济登录",
     title: "完成同济账号注册",
     intro: "同济身份已验证。请设置用户名和密码，完成论坛注册，无需再次验证邮箱。",
     expired: "验证已过期，请重新通过同济登录。",
@@ -3017,6 +3020,18 @@ export default {
     },
   },
   settings: {
+    activationStatus: {
+      target: "收件目标：{email}",
+      remaining: "今天还可重发 {count} / {limit} 次",
+      refresh: "刷新状态",
+      cooldown: "请在 {seconds} 秒后重发",
+      daily_limit: "今日额度已用完，请明天再试",
+      disabled: "本站暂未要求邮箱验证",
+      verified: "邮箱已验证，无需重发",
+      frozen: "账号受限，暂不能重发",
+      mail_unavailable: "邮件服务暂不可用，请稍后刷新",
+      missing_email: "请先在账号设置中添加邮箱",
+    },
     editing: '编辑中',
     backToProfile: '返回我的主页',
     savingShort: '保存中',
@@ -4118,6 +4133,7 @@ export default {
     'post.firstPostUndeletable': '话题首楼不可删除，请改为删除整个话题。',
     'auth.csrf.rejected': '请求来源校验未通过（已拒绝跨站请求），请刷新页面后重试。',
     'auth.tongji.accountExists': '该同济身份或其学号邮箱已归属已有账号。请登录或找回已有账号，再到校园页重新绑定。',
+    'auth.tongji.retryLogin': "账号已创建，但自动登录未完成。请重新通过同济登录继续，无需再次注册。",
     'admin.moderator.userRequired': '请输入版主用户。',
     'admin.moderator.userNotFound': '版主用户不存在。',
     'admin.moderator.notFound': '版主记录不存在。',

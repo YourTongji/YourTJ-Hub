@@ -106,3 +106,17 @@ func TestNormalizeSenderUsesLocalDefaultEmailWhenMissing(t *testing.T) {
 		t.Fatalf("sender email = %q, want %q", email, "noreply@localhost")
 	}
 }
+
+func TestActivationMailLanguagesAndLinks(t *testing.T) {
+	for _, locale := range []string{"zh", "en", "ja", "de"} {
+		t.Run(locale, func(t *testing.T) {
+			body, err := generateActivationEmailBody("locale-check", "locale-proof", locale)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(body, `<html lang="`+locale+`">`) || !strings.Contains(body, "lang="+locale+"&amp;token=locale-proof") {
+				t.Fatal("activation document and action link must retain the selected language")
+			}
+		})
+	}
+}
