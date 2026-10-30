@@ -222,24 +222,6 @@ abstract class AppLocalizations {
   /// **'View image {index} of {count}'**
   String imageViewPosition(int index, int count);
 
-  /// No description provided for @imageViewerThumbnails.
-  ///
-  /// In en, this message translates to:
-  /// **'Image thumbnails'**
-  String get imageViewerThumbnails;
-
-  /// No description provided for @imageViewerOriginalSize.
-  ///
-  /// In en, this message translates to:
-  /// **'Original size'**
-  String get imageViewerOriginalSize;
-
-  /// No description provided for @imageViewerFitPreview.
-  ///
-  /// In en, this message translates to:
-  /// **'Fit preview'**
-  String get imageViewerFitPreview;
-
   /// No description provided for @imageSave.
   ///
   /// In en, this message translates to:
@@ -2142,46 +2124,6 @@ abstract class AppLocalizations {
   /// **'Major'**
   String get scheduleMajor;
 
-  /// No description provided for @scheduleMajorSearchHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Search major name or code'**
-  String get scheduleMajorSearchHint;
-
-  /// No description provided for @scheduleMajorNoMatch.
-  ///
-  /// In en, this message translates to:
-  /// **'No matching majors'**
-  String get scheduleMajorNoMatch;
-
-  /// No description provided for @scheduleChangeMajorTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Change major and clear plans?'**
-  String get scheduleChangeMajorTitle;
-
-  /// No description provided for @scheduleChangeMajorBody.
-  ///
-  /// In en, this message translates to:
-  /// **'Changing the major clears {planCount} plans containing {courseCount} courses and {eventCount} custom events. Cancel to keep your current configuration and plans.'**
-  String scheduleChangeMajorBody(
-    int planCount,
-    int courseCount,
-    int eventCount,
-  );
-
-  /// No description provided for @scheduleChangeMajorConfirm.
-  ///
-  /// In en, this message translates to:
-  /// **'Change and clear'**
-  String get scheduleChangeMajorConfirm;
-
-  /// No description provided for @scheduleChangeMajorUpdated.
-  ///
-  /// In en, this message translates to:
-  /// **'Plan content changed. Please select the major again.'**
-  String get scheduleChangeMajorUpdated;
-
   /// No description provided for @scheduleSyncLatest.
   ///
   /// In en, this message translates to:
@@ -2379,66 +2321,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Search course name'**
   String get scheduleSearchHint;
-
-  /// No description provided for @scheduleSetupTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Set your course scope first'**
-  String get scheduleSetupTitle;
-
-  /// No description provided for @scheduleSetupMissing.
-  ///
-  /// In en, this message translates to:
-  /// **'Select {fields} before finding courses or classes.'**
-  String scheduleSetupMissing(String fields);
-
-  /// No description provided for @scheduleConfigureScope.
-  ///
-  /// In en, this message translates to:
-  /// **'Configure course scope'**
-  String get scheduleConfigureScope;
-
-  /// No description provided for @scheduleNoCompulsory.
-  ///
-  /// In en, this message translates to:
-  /// **'No compulsory courses returned for this scope'**
-  String get scheduleNoCompulsory;
-
-  /// No description provided for @scheduleNoOptional.
-  ///
-  /// In en, this message translates to:
-  /// **'No optional courses returned for this term'**
-  String get scheduleNoOptional;
-
-  /// No description provided for @scheduleEmptyCourseHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Adjust the course scope or search by course name.'**
-  String get scheduleEmptyCourseHint;
-
-  /// No description provided for @scheduleCourseScope.
-  ///
-  /// In en, this message translates to:
-  /// **'Current scope: {scope}'**
-  String scheduleCourseScope(String scope);
-
-  /// No description provided for @scheduleSearchScope.
-  ///
-  /// In en, this message translates to:
-  /// **'Search course names in {term}'**
-  String scheduleSearchScope(String term);
-
-  /// No description provided for @scheduleSearchReady.
-  ///
-  /// In en, this message translates to:
-  /// **'Enter a course name to start'**
-  String get scheduleSearchReady;
-
-  /// No description provided for @scheduleSearchNoMatch.
-  ///
-  /// In en, this message translates to:
-  /// **'No course names match “{query}”'**
-  String scheduleSearchNoMatch(String query);
 
   /// No description provided for @scheduleStaged.
   ///
@@ -8338,17 +8220,195 @@ abstract class AppLocalizations {
   /// **'Failed to load the term list. Check your network and try again.'**
   String get coursePlannerCalendarsFailed;
 
+  /// No description provided for @activationStatusTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Send to: {email}'**
+  String activationStatusTarget(String email);
+
+  /// No description provided for @activationStatusRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'Resends left today: {count} / {limit}'**
+  String activationStatusRemaining(int count, int limit);
+
+  /// No description provided for @activationStatusRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh status'**
+  String get activationStatusRefresh;
+
+  /// No description provided for @activationStatusCooldown.
+  ///
+  /// In en, this message translates to:
+  /// **'Resend in {seconds} seconds'**
+  String activationStatusCooldown(int seconds);
+
+  /// No description provided for @activationStatusDailyLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily limit reached. Try again tomorrow.'**
+  String get activationStatusDailyLimit;
+
+  /// No description provided for @activationStatusDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Email verification is currently disabled'**
+  String get activationStatusDisabled;
+
+  /// No description provided for @activationStatusVerified.
+  ///
+  /// In en, this message translates to:
+  /// **'Email verified. No resend needed.'**
+  String get activationStatusVerified;
+
+  /// No description provided for @activationStatusFrozen.
+  ///
+  /// In en, this message translates to:
+  /// **'This account cannot resend email'**
+  String get activationStatusFrozen;
+
+  /// No description provided for @activationStatusMailUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Mail is unavailable. Refresh later.'**
+  String get activationStatusMailUnavailable;
+
+  /// No description provided for @activationStatusMissingEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Add an email address in account settings first'**
+  String get activationStatusMissingEmail;
+
+  /// No description provided for @scheduleSearchNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No course names match “{query}”'**
+  String scheduleSearchNoMatch(String query);
+
+  /// No description provided for @scheduleCourseScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Current scope: {scope}'**
+  String scheduleCourseScope(String scope);
+
+  /// No description provided for @imageViewerFitPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Fit preview'**
+  String get imageViewerFitPreview;
+
+  /// No description provided for @scheduleSearchScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Search course names in {term}'**
+  String scheduleSearchScope(String term);
+
+  /// No description provided for @scheduleChangeMajorBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Changing the major clears {planCount} plans containing {courseCount} courses and {eventCount} custom events. Cancel to keep your current configuration and plans.'**
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  );
+
+  /// No description provided for @scheduleSetupMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Select {fields} before finding courses or classes.'**
+  String scheduleSetupMissing(String fields);
+
   /// No description provided for @campusTimetableNotConnected.
   ///
   /// In en, this message translates to:
   /// **'Tongji identity not connected'**
   String get campusTimetableNotConnected;
 
+  /// No description provided for @scheduleEmptyCourseHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjust the course scope or search by course name.'**
+  String get scheduleEmptyCourseHint;
+
+  /// No description provided for @scheduleNoCompulsory.
+  ///
+  /// In en, this message translates to:
+  /// **'No compulsory courses returned for this scope'**
+  String get scheduleNoCompulsory;
+
+  /// No description provided for @scheduleMajorNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching majors'**
+  String get scheduleMajorNoMatch;
+
   /// No description provided for @campusTimetableConnectBody.
   ///
   /// In en, this message translates to:
   /// **'Connect your Tongji identity to see your personal school timetable here. You can use the course catalog and schedule planner without connecting.'**
   String get campusTimetableConnectBody;
+
+  /// No description provided for @scheduleChangeMajorConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Change and clear'**
+  String get scheduleChangeMajorConfirm;
+
+  /// No description provided for @scheduleChangeMajorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Change major and clear plans?'**
+  String get scheduleChangeMajorTitle;
+
+  /// No description provided for @scheduleMajorSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search major name or code'**
+  String get scheduleMajorSearchHint;
+
+  /// No description provided for @scheduleChangeMajorUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan content changed. Please select the major again.'**
+  String get scheduleChangeMajorUpdated;
+
+  /// No description provided for @imageViewerThumbnails.
+  ///
+  /// In en, this message translates to:
+  /// **'Image thumbnails'**
+  String get imageViewerThumbnails;
+
+  /// No description provided for @scheduleConfigureScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure course scope'**
+  String get scheduleConfigureScope;
+
+  /// No description provided for @scheduleNoOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'No optional courses returned for this term'**
+  String get scheduleNoOptional;
+
+  /// No description provided for @scheduleSetupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Set your course scope first'**
+  String get scheduleSetupTitle;
+
+  /// No description provided for @scheduleSearchReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a course name to start'**
+  String get scheduleSearchReady;
+
+  /// No description provided for @imageViewerOriginalSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Original size'**
+  String get imageViewerOriginalSize;
 }
 
 class _AppLocalizationsDelegate

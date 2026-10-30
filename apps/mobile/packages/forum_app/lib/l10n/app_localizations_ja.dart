@@ -73,15 +73,6 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get imageViewerThumbnails => '画像のサムネイル';
-
-  @override
-  String get imageViewerOriginalSize => '元のサイズ';
-
-  @override
-  String get imageViewerFitPreview => '画面に合わせる';
-
-  @override
   String get imageSave => '画像を保存';
 
   @override
@@ -1114,30 +1105,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get scheduleMajor => '専攻';
 
   @override
-  String get scheduleMajorSearchHint => '専攻名またはコードを検索';
-
-  @override
-  String get scheduleMajorNoMatch => '一致する専攻はありません';
-
-  @override
-  String get scheduleChangeMajorTitle => '専攻を変更して計画を消去しますか？';
-
-  @override
-  String scheduleChangeMajorBody(
-    int planCount,
-    int courseCount,
-    int eventCount,
-  ) {
-    return '専攻を変更すると、$planCount 件の計画にある $courseCount 科目と $eventCount 件の予定が消去されます。キャンセルすると元の設定と計画を保持します。';
-  }
-
-  @override
-  String get scheduleChangeMajorConfirm => '変更して消去';
-
-  @override
-  String get scheduleChangeMajorUpdated => '計画の内容が更新されました。専攻を選び直してください。';
-
-  @override
   String get scheduleSyncLatest => '最新に同期';
 
   @override
@@ -1247,44 +1214,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get scheduleSearchHint => '授業名を検索';
-
-  @override
-  String get scheduleSetupTitle => '先に履修範囲を設定してください';
-
-  @override
-  String scheduleSetupMissing(String fields) {
-    return '$fields を選択してから科目や授業クラスを探してください。';
-  }
-
-  @override
-  String get scheduleConfigureScope => '履修範囲を設定';
-
-  @override
-  String get scheduleNoCompulsory => 'この範囲の必修科目は返されませんでした';
-
-  @override
-  String get scheduleNoOptional => 'この学期の選択科目は返されませんでした';
-
-  @override
-  String get scheduleEmptyCourseHint => '履修範囲を変更するか、授業名で検索してください。';
-
-  @override
-  String scheduleCourseScope(String scope) {
-    return '現在の範囲：$scope';
-  }
-
-  @override
-  String scheduleSearchScope(String term) {
-    return '授業名の検索範囲：$term';
-  }
-
-  @override
-  String get scheduleSearchReady => '授業名を入力して検索';
-
-  @override
-  String scheduleSearchNoMatch(String query) {
-    return '「$query」に一致する授業名はありません';
-  }
 
   @override
   String get scheduleStaged => '候補';
@@ -4480,9 +4409,116 @@ class AppLocalizationsJa extends AppLocalizations {
       '学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。';
 
   @override
+  String activationStatusTarget(String email) {
+    return '送信先：$email';
+  }
+
+  @override
+  String activationStatusRemaining(int count, int limit) {
+    return '本日の再送可能回数：$count / $limit';
+  }
+
+  @override
+  String get activationStatusRefresh => '状態を更新';
+
+  @override
+  String activationStatusCooldown(int seconds) {
+    return '$seconds 秒後に再送できます';
+  }
+
+  @override
+  String get activationStatusDailyLimit => '本日の上限に達しました。明日お試しください';
+
+  @override
+  String get activationStatusDisabled => 'メール確認は現在無効です';
+
+  @override
+  String get activationStatusVerified => 'メールは確認済みです。再送は不要です';
+
+  @override
+  String get activationStatusFrozen => 'このアカウントでは再送できません';
+
+  @override
+  String get activationStatusMailUnavailable => 'メールを利用できません。後で更新してください';
+
+  @override
+  String get activationStatusMissingEmail => '先にアカウント設定でメールを追加してください';
+
+  @override
+  String scheduleSearchNoMatch(String query) {
+    return '「$query」に一致する授業名はありません';
+  }
+
+  @override
+  String scheduleCourseScope(String scope) {
+    return '現在の範囲：$scope';
+  }
+
+  @override
+  String get imageViewerFitPreview => '画面に合わせる';
+
+  @override
+  String scheduleSearchScope(String term) {
+    return '授業名の検索範囲：$term';
+  }
+
+  @override
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '専攻を変更すると、$planCount 件の計画にある $courseCount 科目と $eventCount 件の予定が消去されます。キャンセルすると元の設定と計画を保持します。';
+  }
+
+  @override
+  String scheduleSetupMissing(String fields) {
+    return '$fields を選択してから科目や授業クラスを探してください。';
+  }
+
+  @override
   String get campusTimetableNotConnected => '同済大学の本人認証が未接続です';
+
+  @override
+  String get scheduleEmptyCourseHint => '履修範囲を変更するか、授業名で検索してください。';
+
+  @override
+  String get scheduleNoCompulsory => 'この範囲の必修科目は返されませんでした';
+
+  @override
+  String get scheduleMajorNoMatch => '一致する専攻はありません';
 
   @override
   String get campusTimetableConnectBody =>
       '本人認証を接続すると、大学から提供される個人の時間割を表示できます。接続しなくても、科目一覧と時間割シミュレーターを利用できます。';
+
+  @override
+  String get scheduleChangeMajorConfirm => '変更して消去';
+
+  @override
+  String get scheduleChangeMajorTitle => '専攻を変更して計画を消去しますか？';
+
+  @override
+  String get scheduleMajorSearchHint => '専攻名またはコードを検索';
+
+  @override
+  String get scheduleChangeMajorUpdated => '計画の内容が更新されました。専攻を選び直してください。';
+
+  @override
+  String get imageViewerThumbnails => '画像のサムネイル';
+
+  @override
+  String get scheduleConfigureScope => '履修範囲を設定';
+
+  @override
+  String get scheduleNoOptional => 'この学期の選択科目は返されませんでした';
+
+  @override
+  String get scheduleSetupTitle => '先に履修範囲を設定してください';
+
+  @override
+  String get scheduleSearchReady => '授業名を入力して検索';
+
+  @override
+  String get imageViewerOriginalSize => '元のサイズ';
 }

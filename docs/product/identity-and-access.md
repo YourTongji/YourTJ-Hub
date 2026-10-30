@@ -248,6 +248,16 @@ social counts and badges, and moderator access rules beyond today's public profi
   (admin/site/user/… permissions) and activates them immediately through the user-cache
   refresh path, so the admin console cannot lock itself out; ordinary pending users are left
   untouched and must still complete the activation email.
+- Activation resend status (`Current`): authenticated owners read
+  `GET /api/resend-activation-email` with `private, no-store`. It returns current,
+  fresh staged and actual target addresses, availability, remaining daily quota
+  and a relative wait rounded up using server time. Reading never reserves quota
+  or queues mail; query parameters cannot select another account. Web and App
+  refresh after attempts, on return and at wait expiry. They do not automatically
+  resend. Failed status reads keep sending unavailable and expose a refresh action;
+  successful email edits immediately refresh the target and cancel the previous
+  read; stale responses are isolated from account changes. Write permissions and the
+  shared daily/interval limits are still checked by POST.
 - Activation-email resend (`Current`): current and staged addresses share one account's
   three-per-day quota and 60-second interval. A request reserves its slot atomically before
   token generation and queue insertion; a token-preparation failure or a queue rejection before

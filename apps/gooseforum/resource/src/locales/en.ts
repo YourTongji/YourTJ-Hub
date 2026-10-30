@@ -3016,6 +3016,18 @@ export default {
     },
   },
   settings: {
+    activationStatus: {
+      target: "Send to: {email}",
+      remaining: "Resends left today: {count} / {limit}",
+      refresh: "Refresh status",
+      cooldown: "Resend in {seconds} seconds",
+      daily_limit: "Daily limit reached. Try again tomorrow.",
+      disabled: "Email verification is currently disabled",
+      verified: "Email verified. No resend needed.",
+      frozen: "This account cannot resend email",
+      mail_unavailable: "Mail is unavailable. Refresh later.",
+      missing_email: "Add an email address in account settings first",
+    },
     editing: 'Editing',
     backToProfile: 'Back to my profile',
     savingShort: 'Saving',

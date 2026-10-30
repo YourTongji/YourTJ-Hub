@@ -77,15 +77,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get imageViewerThumbnails => 'Image thumbnails';
-
-  @override
-  String get imageViewerOriginalSize => 'Original size';
-
-  @override
-  String get imageViewerFitPreview => 'Fit preview';
-
-  @override
   String get imageSave => 'Save image';
 
   @override
@@ -1131,31 +1122,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scheduleMajor => 'Major';
 
   @override
-  String get scheduleMajorSearchHint => 'Search major name or code';
-
-  @override
-  String get scheduleMajorNoMatch => 'No matching majors';
-
-  @override
-  String get scheduleChangeMajorTitle => 'Change major and clear plans?';
-
-  @override
-  String scheduleChangeMajorBody(
-    int planCount,
-    int courseCount,
-    int eventCount,
-  ) {
-    return 'Changing the major clears $planCount plans containing $courseCount courses and $eventCount custom events. Cancel to keep your current configuration and plans.';
-  }
-
-  @override
-  String get scheduleChangeMajorConfirm => 'Change and clear';
-
-  @override
-  String get scheduleChangeMajorUpdated =>
-      'Plan content changed. Please select the major again.';
-
-  @override
   String get scheduleSyncLatest => 'Sync latest';
 
   @override
@@ -1266,46 +1232,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get scheduleSearchHint => 'Search course name';
-
-  @override
-  String get scheduleSetupTitle => 'Set your course scope first';
-
-  @override
-  String scheduleSetupMissing(String fields) {
-    return 'Select $fields before finding courses or classes.';
-  }
-
-  @override
-  String get scheduleConfigureScope => 'Configure course scope';
-
-  @override
-  String get scheduleNoCompulsory =>
-      'No compulsory courses returned for this scope';
-
-  @override
-  String get scheduleNoOptional => 'No optional courses returned for this term';
-
-  @override
-  String get scheduleEmptyCourseHint =>
-      'Adjust the course scope or search by course name.';
-
-  @override
-  String scheduleCourseScope(String scope) {
-    return 'Current scope: $scope';
-  }
-
-  @override
-  String scheduleSearchScope(String term) {
-    return 'Search course names in $term';
-  }
-
-  @override
-  String get scheduleSearchReady => 'Enter a course name to start';
-
-  @override
-  String scheduleSearchNoMatch(String query) {
-    return 'No course names match “$query”';
-  }
 
   @override
   String get scheduleStaged => 'Staged';
@@ -4659,9 +4585,123 @@ class AppLocalizationsEn extends AppLocalizations {
       'Failed to load the term list. Check your network and try again.';
 
   @override
+  String activationStatusTarget(String email) {
+    return 'Send to: $email';
+  }
+
+  @override
+  String activationStatusRemaining(int count, int limit) {
+    return 'Resends left today: $count / $limit';
+  }
+
+  @override
+  String get activationStatusRefresh => 'Refresh status';
+
+  @override
+  String activationStatusCooldown(int seconds) {
+    return 'Resend in $seconds seconds';
+  }
+
+  @override
+  String get activationStatusDailyLimit =>
+      'Daily limit reached. Try again tomorrow.';
+
+  @override
+  String get activationStatusDisabled =>
+      'Email verification is currently disabled';
+
+  @override
+  String get activationStatusVerified => 'Email verified. No resend needed.';
+
+  @override
+  String get activationStatusFrozen => 'This account cannot resend email';
+
+  @override
+  String get activationStatusMailUnavailable =>
+      'Mail is unavailable. Refresh later.';
+
+  @override
+  String get activationStatusMissingEmail =>
+      'Add an email address in account settings first';
+
+  @override
+  String scheduleSearchNoMatch(String query) {
+    return 'No course names match “$query”';
+  }
+
+  @override
+  String scheduleCourseScope(String scope) {
+    return 'Current scope: $scope';
+  }
+
+  @override
+  String get imageViewerFitPreview => 'Fit preview';
+
+  @override
+  String scheduleSearchScope(String term) {
+    return 'Search course names in $term';
+  }
+
+  @override
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return 'Changing the major clears $planCount plans containing $courseCount courses and $eventCount custom events. Cancel to keep your current configuration and plans.';
+  }
+
+  @override
+  String scheduleSetupMissing(String fields) {
+    return 'Select $fields before finding courses or classes.';
+  }
+
+  @override
   String get campusTimetableNotConnected => 'Tongji identity not connected';
+
+  @override
+  String get scheduleEmptyCourseHint =>
+      'Adjust the course scope or search by course name.';
+
+  @override
+  String get scheduleNoCompulsory =>
+      'No compulsory courses returned for this scope';
+
+  @override
+  String get scheduleMajorNoMatch => 'No matching majors';
 
   @override
   String get campusTimetableConnectBody =>
       'Connect your Tongji identity to see your personal school timetable here. You can use the course catalog and schedule planner without connecting.';
+
+  @override
+  String get scheduleChangeMajorConfirm => 'Change and clear';
+
+  @override
+  String get scheduleChangeMajorTitle => 'Change major and clear plans?';
+
+  @override
+  String get scheduleMajorSearchHint => 'Search major name or code';
+
+  @override
+  String get scheduleChangeMajorUpdated =>
+      'Plan content changed. Please select the major again.';
+
+  @override
+  String get imageViewerThumbnails => 'Image thumbnails';
+
+  @override
+  String get scheduleConfigureScope => 'Configure course scope';
+
+  @override
+  String get scheduleNoOptional => 'No optional courses returned for this term';
+
+  @override
+  String get scheduleSetupTitle => 'Set your course scope first';
+
+  @override
+  String get scheduleSearchReady => 'Enter a course name to start';
+
+  @override
+  String get imageViewerOriginalSize => 'Original size';
 }

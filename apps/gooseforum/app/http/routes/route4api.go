@@ -258,6 +258,7 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.POST("user/passkeys/revoke", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), passkeyBodyLimit(8<<10), api.PasskeyCredentialRevoke)
 	loginApi.POST("set-user-profile-cover", middleware.CheckWritableAccount, UpButterReq(api.EditUserProfileCover))
 	loginApi.POST("set-user-email", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitEmailChange), UpButterReq(api.EditUserEmail))
+	loginApi.GET("resend-activation-email", UpQueryReq(api.GetActivationStatus))
 	loginApi.POST("resend-activation-email", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.ResendActivationEmail))
 	loginApi.POST("set-user-name", middleware.CheckWritableAccount, UpButterReq(api.EditUsername))
 	loginApi.POST("set-preset-avatar", middleware.CheckWritableAccount, UpButterReq(api.SetPresetAvatar))

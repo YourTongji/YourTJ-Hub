@@ -20,9 +20,6 @@
   "commonCancel": "Abbrechen",
   "commonSave": "Speichern",
   "imageViewPosition": "Bild {index} von {count} ansehen",
-  "imageViewerThumbnails": "Bildminiaturen",
-  "imageViewerOriginalSize": "Originalgröße",
-  "imageViewerFitPreview": "Vorschau einpassen",
   "imageSave": "Bild speichern",
   "imageSaved": "Bild gespeichert",
   "imageSaveFailed": "Bild konnte nicht gespeichert werden. Bitte später erneut versuchen.",
@@ -354,25 +351,6 @@
   "scheduleTerm": "Semester",
   "scheduleGrade": "Jahr",
   "scheduleMajor": "Studiengang",
-  "scheduleMajorSearchHint": "Studiengang oder Code suchen",
-  "scheduleMajorNoMatch": "Keine passenden Studiengänge",
-  "scheduleChangeMajorTitle": "Studiengang ändern und Pläne leeren?",
-  "scheduleChangeMajorBody": "Beim Ändern werden {planCount} Pläne mit {courseCount} Kursen und {eventCount} eigenen Terminen geleert. Abbrechen behält die bisherige Konfiguration und alle Pläne.",
-  "@scheduleChangeMajorBody": {
-    "placeholders": {
-      "planCount": {
-        "type": "int"
-      },
-      "courseCount": {
-        "type": "int"
-      },
-      "eventCount": {
-        "type": "int"
-      }
-    }
-  },
-  "scheduleChangeMajorConfirm": "Ändern und leeren",
-  "scheduleChangeMajorUpdated": "Die Pläne wurden geändert. Bitte wähle den Studiengang erneut.",
   "scheduleSyncLatest": "Synchronisieren",
   "scheduleDataOutdated": "Kursdaten wurden aktualisiert. Zum Synchronisieren tippen.",
   "scheduleSyncedTo": "Stand: {date}",
@@ -423,44 +401,6 @@
   "scheduleCompulsory": "Pflichtkurs",
   "scheduleOptional": "Wahlkurs",
   "scheduleSearchHint": "Kursnamen suchen",
-  "scheduleSetupTitle": "Zuerst den Kursbereich festlegen",
-  "scheduleSetupMissing": "Wähle {fields}, bevor du Kurse oder Lehrveranstaltungen suchst.",
-  "@scheduleSetupMissing": {
-    "placeholders": {
-      "fields": {
-        "type": "String"
-      }
-    }
-  },
-  "scheduleConfigureScope": "Kursbereich festlegen",
-  "scheduleNoCompulsory": "Keine Pflichtkurse für diesen Bereich zurückgegeben",
-  "scheduleNoOptional": "Keine Wahlkurse für dieses Semester zurückgegeben",
-  "scheduleEmptyCourseHint": "Ändere den Kursbereich oder suche nach Kursnamen.",
-  "scheduleCourseScope": "Aktueller Bereich: {scope}",
-  "@scheduleCourseScope": {
-    "placeholders": {
-      "scope": {
-        "type": "String"
-      }
-    }
-  },
-  "scheduleSearchScope": "Kursnamen suchen in {term}",
-  "@scheduleSearchScope": {
-    "placeholders": {
-      "term": {
-        "type": "String"
-      }
-    }
-  },
-  "scheduleSearchReady": "Gib einen Kursnamen ein",
-  "scheduleSearchNoMatch": "Keine Kursnamen passen zu „{query}“",
-  "@scheduleSearchNoMatch": {
-    "placeholders": {
-      "query": {
-        "type": "String"
-      }
-    }
-  },
   "scheduleStaged": "Ausstehend",
   "scheduleSelected": "Ausgewählt",
   "scheduleRemoveCourse": "Entfernen",
@@ -1603,6 +1543,100 @@
   "coursePlannerSelectTerm": "Vor der Bestätigung dasselbe Semester und dein Fach wählen. Bestehende Pläne bleiben unverändert.",
   "coursePlannerUnavailable": "Dieser Kurs ist im Semester nicht verfügbar. Wähle ein anderes Angebot in den Kursdetails.",
   "coursePlannerCalendarsFailed": "Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.",
+  "activationStatusTarget": "Empfänger: {email}",
+  "@activationStatusTarget": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "activationStatusRemaining": "Heute verbleibend: {count} / {limit}",
+  "@activationStatusRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "activationStatusRefresh": "Status aktualisieren",
+  "activationStatusCooldown": "In {seconds} Sekunden erneut senden",
+  "@activationStatusCooldown": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "activationStatusDailyLimit": "Tageslimit erreicht. Morgen erneut versuchen.",
+  "activationStatusDisabled": "E-Mail-Bestätigung ist derzeit deaktiviert",
+  "activationStatusVerified": "E-Mail bestätigt. Erneutes Senden ist nicht nötig.",
+  "activationStatusFrozen": "Dieses Konto kann keine E-Mail erneut senden",
+  "activationStatusMailUnavailable": "E-Mail-Dienst nicht verfügbar. Später aktualisieren.",
+  "activationStatusMissingEmail": "Zuerst in den Kontoeinstellungen eine E-Mail hinzufügen",
+  "scheduleSearchNoMatch": "Keine Kursnamen passen zu „{query}“",
+  "scheduleCourseScope": "Aktueller Bereich: {scope}",
+  "imageViewerFitPreview": "Vorschau einpassen",
+  "scheduleSearchScope": "Kursnamen suchen in {term}",
+  "scheduleChangeMajorBody": "Beim Ändern werden {planCount} Pläne mit {courseCount} Kursen und {eventCount} eigenen Terminen geleert. Abbrechen behält die bisherige Konfiguration und alle Pläne.",
+  "scheduleSetupMissing": "Wähle {fields}, bevor du Kurse oder Lehrveranstaltungen suchst.",
   "campusTimetableNotConnected": "Tongji-Identität noch nicht verbunden",
-  "campusTimetableConnectBody": "Verbinde deine Tongji-Identität, um hier deinen persönlichen Hochschulstundenplan zu sehen. Kurskatalog und Stundenplaner kannst du auch ohne Verbindung nutzen."
+  "scheduleEmptyCourseHint": "Ändere den Kursbereich oder suche nach Kursnamen.",
+  "scheduleNoCompulsory": "Keine Pflichtkurse für diesen Bereich zurückgegeben",
+  "scheduleMajorNoMatch": "Keine passenden Studiengänge",
+  "campusTimetableConnectBody": "Verbinde deine Tongji-Identität, um hier deinen persönlichen Hochschulstundenplan zu sehen. Kurskatalog und Stundenplaner kannst du auch ohne Verbindung nutzen.",
+  "scheduleChangeMajorConfirm": "Ändern und leeren",
+  "scheduleChangeMajorTitle": "Studiengang ändern und Pläne leeren?",
+  "scheduleMajorSearchHint": "Studiengang oder Code suchen",
+  "scheduleChangeMajorUpdated": "Die Pläne wurden geändert. Bitte wähle den Studiengang erneut.",
+  "imageViewerThumbnails": "Bildminiaturen",
+  "scheduleConfigureScope": "Kursbereich festlegen",
+  "scheduleNoOptional": "Keine Wahlkurse für dieses Semester zurückgegeben",
+  "scheduleSetupTitle": "Zuerst den Kursbereich festlegen",
+  "@scheduleSearchNoMatch": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleSearchReady": "Gib einen Kursnamen ein",
+  "@scheduleChangeMajorBody": {
+    "placeholders": {
+      "planCount": {
+        "type": "int"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSetupMissing": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "@scheduleSearchScope": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "@scheduleCourseScope": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "imageViewerOriginalSize": "Originalgröße"
 }

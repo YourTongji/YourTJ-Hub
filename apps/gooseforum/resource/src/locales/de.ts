@@ -3015,6 +3015,18 @@ export default {
     },
   },
   settings: {
+    activationStatus: {
+      target: "Empfänger: {email}",
+      remaining: "Heute verbleibend: {count} / {limit}",
+      refresh: "Status aktualisieren",
+      cooldown: "In {seconds} Sekunden erneut senden",
+      daily_limit: "Tageslimit erreicht. Morgen erneut versuchen.",
+      disabled: "E-Mail-Bestätigung ist derzeit deaktiviert",
+      verified: "E-Mail bestätigt. Erneutes Senden ist nicht nötig.",
+      frozen: "Dieses Konto kann keine E-Mail erneut senden",
+      mail_unavailable: "E-Mail-Dienst nicht verfügbar. Später aktualisieren.",
+      missing_email: "Zuerst in den Kontoeinstellungen eine E-Mail hinzufügen",
+    },
     editing: 'Wird bearbeitet',
     backToProfile: 'Zurück zu meinem Profil',
     savingShort: 'Speichern',

@@ -1699,6 +1699,12 @@ from their inbox; backend start/confirm gates remain authoritative, and unbindin
 After activation, users can retry the original connection action. Resend requests are serialized,
 cancelled on leaving the action or changing sessions, and old-session feedback is discarded.
 Tongji SSO accounts retain automatic activation.
+`Current`: the shared activation action reads the owner's actual target, remaining
+quota and relative cooldown from the server. It displays verified, verification-off,
+restricted-account and mail-unavailable states and offers a read-only refresh after
+errors. Cooldown countdown uses elapsed time, refreshes on App resume or expiry,
+and never sends automatically. Session changes cancel reads and discard old targets.
+
 
 ## Tongji sign-in
 
