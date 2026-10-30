@@ -1067,12 +1067,13 @@ export interface paths {
          *     and are intentionally not covered by the anti-enumeration envelope.
          *
          *     Honeypot: when the hidden `website` field is populated the server treats the
-         *     request as bot traffic, silently returns a success envelope identical to a normal
-         *     successful registration, and creates no account.
+         *     request as bot traffic, silently returns a success envelope matching registration
+         *     with verification disabled, and creates no account or session.
          *
          *     On success the server creates the account, enqueues an activation email task when
-         *     the site enables email verification, and immediately issues a session (Set-Cookie
-         *     `access_token` + `New-Token` header). Consumers must still inspect the envelope:
+         *     the site enables email verification (no automatic activation task when disabled),
+         *     and immediately issues a session (Set-Cookie `access_token` + `New-Token` header).
+         *     Consumers must still inspect the envelope:
          *     the residual observable difference between "account created" and "creation
          *     failed" is intrinsic to the protocol and is not part of this contract's failure
          *     taxonomy.
@@ -2331,7 +2332,10 @@ export interface paths {
          * @description Same semantics as the admin review action. Versioned approval quietly publishes
          *     the candidate and its images; rejection retains any previous public version and
          *     notifies the author with a content-management link. The exact `revisionId` from
-         *     the queue is required for versioned submissions.
+         *     the queue is required for versioned submissions. Manual rejection requires a nonblank
+         *     plain-text `reason` of at most 512 Unicode characters. The reason is visible only through
+         *     the author's existing signed-in content-management view; notifications and push omit it.
+         *     Missing/blank or overlong reasons fail with common.request.invalidParams without deciding.
          *     Callers without moderation access fail with `permission.denied`; targets outside
          *     the caller's category scope fail with `admin.review.notFound` so the content's
          *     state is not revealed. First-post edits require scope over both the current and
@@ -2391,6 +2395,8 @@ export interface paths {
          *     same checks as the preview yield `state=ready`; otherwise the current state
          *     (`processed`, `changed`, `forbidden`, `expired`, `invalid`, `notFound`) is returned
          *     unchanged. Pending topics/posts reuse the workbench review action (`approve`/`reject`);
+         *     rejection requires a nonblank author-visible `reason` of at most 512 Unicode characters.
+         *     Missing/blank or overlong explanations return common.request.invalidParams without deciding;
          *     reports reuse the workbench ban/hide/report-status logic (`ban` for topic/post,
          *     `hide` for course reviews, `dismiss`) and close the report with a compare-and-set, so a
          *     repeated or concurrent click never overwrites the first handler. `handler_id` and the
@@ -7586,8 +7592,11 @@ export interface paths {
          *     by the queue; an omitted or stale revision returns `admin.review.processed`.
          *     Approval publishes the candidate quietly. Rejection sets its `processStatus=1`,
          *     keeps any previous public version and sends an author notification linked to content
-         *     management. `reason` optionally explains a manual rejection. Legacy unversioned
-         *     items retain their compatible review path. Approving a topic also updates its first post,
+         *     management. Manual topic/post rejection requires a nonblank `reason` of at most 512 Unicode
+         *     characters; missing, blank or overlong values fail with `common.request.invalidParams`.
+         *     The reason is plain text visible to the author in content management, never a notification or
+         *     push payload. Legacy unversioned rejection atomically records an immutable decision snapshot
+         *     in the existing revision model while retaining its compatible request path. Approving a topic also updates its first post,
          *     clears the topic-list cache, rebuilds the search document (a rejected new
          *     topic remains excluded; a rejected edit retains the public version), publishes the deferred
          *     publish/update events (statistics, points, notifications) and writes
@@ -12754,7 +12763,7 @@ export interface components {
              * @description Required for versioned submissions. Missing or stale IDs return admin.review.processed without applying a decision.
              */
             revisionId?: number;
-            /** @description Optional author-visible rejection reason. */
+            /** @description Required nonblank author-visible explanation for manual topic/post rejection (approve false or omitted); optional for approval, ignored for personal stickers. Plain text, at most 512 Unicode characters; the server trims surrounding whitespace. */
             reason?: string;
             /** @enum {string} */
             kind: "topic" | "post" | "sticker";
@@ -12762,6 +12771,14 @@ export interface components {
             id: number;
             /** @description True approves (processStatus→0), false rejects (processStatus→1). Wiki-station topics and wiki first posts are rejected with `admin.review.targetInvalid` — they belong to the wiki revision review flow. */
             approve?: boolean;
+        } | {
+            /** @enum {unknown} */
+            approve: true;
+        } | {
+            /** @enum {unknown} */
+            kind?: "sticker";
+        } | {
+            reason: unknown;
         };
         AdminFileResourceItem: {
             /** Format: uint64 */
@@ -15242,9 +15259,11 @@ export interface components {
             /** @description Signed quick-action token from the `token` query parameter of a notification button link (`/moderation/action?token=…`). */
             token: string;
             /**
-             * @description Appeal decisions only (`subject=appeal`): the reviewer's explanation shown to the author,
-             *     at most 512 characters. Required to reject an appeal; optional when approving; ignored for
-             *     other subjects and by the preview.
+             * @description For topic/post rejection (`subject=review.topic|review.post`, action reject) and appeal
+             *     decisions (`subject=appeal`): the reviewer's author-visible plain-text explanation, at most
+             *     512 Unicode characters after trimming. Required to reject content or an appeal; optional
+             *     when approving an appeal; ignored for other actions and by preview. Missing/blank or
+             *     overlong content-rejection explanations return common.request.invalidParams without a decision.
              */
             reason?: string;
         };
@@ -15793,7 +15812,7 @@ export interface components {
         /**
          * @description Notification channel adapter (issue #1049). `generic` posts the structured JSON envelope
          *     with `X-Goose-*` headers and the optional HMAC signature; `feishu` posts a schema 2.0
-         *     interactive card to a Feishu group custom-bot webhook (approval events only), signs it with
+         *     interactive card to a Feishu group custom-bot webhook (approval events and read-only user.signup alerts), signs it with
          *     the bot's signature secret, and counts HTTP 200 responses whose body `code` is non-zero as
          *     failures. `astrbot` posts `{content, umo, message_type: "text"}` to the `/send` endpoint of
          *     the AstrBot push_lite plugin (`/send` is appended when the URL has no path) with

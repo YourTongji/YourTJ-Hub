@@ -139,10 +139,12 @@ func Register(c *gin.Context) {
 	}
 
 	slog.Debug("注册用户创建成功", "userId", userEntity.Id, "username", userEntity.Username, "email", userEntity.Email, "enableEmailVerification", securityConfig.EnableEmailVerification)
-	if err = emailactivationservice.SendActivationEmail(userEntity); err != nil {
-		slog.Error("添加邮件任务到队列失败", "userId", userEntity.Id, "email", userEntity.Email, "error", err)
-	} else {
-		slog.Debug("注册激活邮件任务已提交", "userId", userEntity.Id, "email", userEntity.Email, "enableEmailVerification", securityConfig.EnableEmailVerification)
+	if securityConfig.EnableEmailVerification {
+		if err = emailactivationservice.SendActivationEmail(userEntity); err != nil {
+			slog.Error("添加邮件任务到队列失败", "userId", userEntity.Id, "email", userEntity.Email, "error", err)
+		} else {
+			slog.Debug("注册激活邮件任务已提交", "userId", userEntity.Id, "email", userEntity.Email)
+		}
 	}
 
 	eventbus.Publish(detachedRequestContext(c), &eventhandlers.UserSignUpEvent{

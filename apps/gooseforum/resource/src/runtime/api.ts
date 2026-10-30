@@ -663,11 +663,11 @@ export async function fetchModerationReviewQueue(kind: 'topic' | 'post', page = 
   return readApiResponse<ModerationReviewQueueResult>(response, t('moderation.review.loadFailed'))
 }
 
-export async function moderationReviewAction(kind: 'topic' | 'post', id: number, approve: boolean, revisionId = 0): Promise<unknown> {
+export async function moderationReviewAction(kind: 'topic' | 'post', id: number, approve: boolean, revisionId = 0, reason = ''): Promise<unknown> {
   const response = await feedFetch('/api/forum/moderation/review-action', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ kind, id, approve, revisionId }),
+    body: JSON.stringify({ kind, id, approve, revisionId, ...(reason ? { reason } : {}) }),
   })
   return readApiResponse<unknown>(response, t('moderation.review.actionFailed'))
 }

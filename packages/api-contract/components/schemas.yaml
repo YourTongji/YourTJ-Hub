@@ -8584,7 +8584,7 @@ AdminHttpNotifyChannelType:
   description: |
     Notification channel adapter (issue #1049). `generic` posts the structured JSON envelope
     with `X-Goose-*` headers and the optional HMAC signature; `feishu` posts a schema 2.0
-    interactive card to a Feishu group custom-bot webhook (approval events only), signs it with
+    interactive card to a Feishu group custom-bot webhook (approval events and read-only user.signup alerts), signs it with
     the bot's signature secret, and counts HTTP 200 responses whose body `code` is non-zero as
     failures. `astrbot` posts `{content, umo, message_type: "text"}` to the `/send` endpoint of
     the AstrBot push_lite plugin (`/send` is appended when the URL has no path) with
@@ -8741,9 +8741,11 @@ ModerationApprovalActionRequest:
       type: string
       maxLength: 2048
       description: |
-        Appeal decisions only (`subject=appeal`): the reviewer's explanation shown to the author,
-        at most 512 characters. Required to reject an appeal; optional when approving; ignored for
-        other subjects and by the preview.
+        For topic/post rejection (`subject=review.topic|review.post`, action reject) and appeal
+        decisions (`subject=appeal`): the reviewer's author-visible plain-text explanation, at most
+        512 Unicode characters after trimming. Required to reject content or an appeal; optional
+        when approving an appeal; ignored for other actions and by preview. Missing/blank or
+        overlong content-rejection explanations return common.request.invalidParams without a decision.
   additionalProperties: false
 
 ModerationApprovalActionView:
@@ -9602,6 +9604,19 @@ AdminReviewQueueResponse:
 AdminReviewActionRequest:
   type: object
   required: [kind, id]
+  anyOf:
+    - required: [approve]
+      properties:
+        approve:
+          enum: [true]
+    - properties:
+        kind:
+          enum: [sticker]
+    - required: [reason]
+      properties:
+        reason:
+          minLength: 1
+          pattern: '\S'
   properties:
     revisionId:
       type: integer
@@ -9610,7 +9625,7 @@ AdminReviewActionRequest:
     reason:
       type: string
       maxLength: 512
-      description: Optional author-visible rejection reason.
+      description: Required nonblank author-visible explanation for manual topic/post rejection (approve false or omitted); optional for approval, ignored for personal stickers. Plain text, at most 512 Unicode characters; the server trims surrounding whitespace.
     kind:
       type: string
       enum: [topic, post, sticker]

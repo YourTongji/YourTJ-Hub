@@ -118,6 +118,12 @@ unlisted addresses remain on the form. The backend remains the admission authori
 
 ### Mobile (Flutter)
 
+`Current`: password registration accepts only its newly issued forum session through the existing
+cache-clearing and secure-storage boundary, then restores a validated native destination.
+Missing session headers cannot reuse a prior challenge. Pending email verification remains a
+server-enforced write restriction; Account security shows the current owner's pending status and
+email from the existing settings response, with resend and change-email recovery.
+
 `Current`: the native login form exposes password, Google, GitHub and Tongji sign-in, plus configured Apple sign-in on iOS; Tongji is also available on registration. Password login retains
 captcha and TOTP. Google follows the public Web provider configuration. Social sign-in supplies
 `login_hint=google|github|tongji` to the existing authorization endpoint. After the OIDC provider validates
@@ -260,6 +266,12 @@ social counts and badges, and moderator access rules beyond today's public profi
   (admin/site/user/… permissions) and activates them immediately through the user-cache
   refresh path, so the admin console cannot lock itself out; ordinary pending users are left
   untouched and must still complete the activation email.
+
+  `Current`: when verification is off, registration does not enqueue an activation email or
+  mark an ordinary account verified. Enabling verification later also gates existing ordinary
+  pending accounts. Successful account creation still emits the existing `user.signup` HTTP
+  notification, independently of this switch; administrators can subscribe the same notification
+  endpoint used for reports. No endpoint is enabled or subscribed automatically.
 - Activation continuation (`Current`): a successful email link names the verified
   account. It leaves browser/App login credentials and account freezes unchanged;
   verification is not sign-in and does not grant unrestricted writes. The result

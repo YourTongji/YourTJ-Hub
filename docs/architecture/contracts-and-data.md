@@ -313,6 +313,14 @@ complete operation coverage and the precondition for such a gate is met.
   apply to revision projections and files as well as ordinary posts. Final deletion retains audit bodies
   under [the retention decision](../decisions/0021-deletion-final-state-data-retention.md), while normal
   read/export/review paths cannot expose or republish them.
+- Manual topic/post rejection requires a nonblank author-visible plain-text reason, bounded to 512
+  Unicode characters. The existing revision stores the reason, actor and review time; operation logs
+  reference the revision without duplicating its private explanation. Compatibility rejection of an
+  unversioned row creates this decision snapshot under the post/topic locks in the same transaction as
+  its blocked status, retaining its already registered inline/gallery image references as private
+  revision references. Appeal approval can then publish those same references without losing image
+  read access; it grants no new URL ownership. Rollback removes both, and a later reviewer cannot overwrite it. Author views and
+  appeals reuse this record; notification, push and external HTTP payloads omit the explanation.
 - State machines: business lifecycles use explicit state machines (e.g. topic:
   draft/published/archived/deleted), not ambiguous boolean combinations (product principle 9).
 - Soft/hard delete policy is decided with the database migration decision; record in the note.
