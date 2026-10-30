@@ -150,8 +150,16 @@ PWA standalone 触摸设备在页顶支持下拉刷新，以第一页替换列�
 
 `Current`：服务端从真实文本节点解析精确、大小写敏感的 `@username`，有效人类用户渲染为主页链接。
 转义、代码、链接目标、图片 alt、数学及邮箱／URL 不参与解析；未知或不可用账号保持纯文本。
-Web 与 Flutter 编辑器提供本地上下文候选和防抖用户搜索，插入普通 Markdown；错误及过期请求不能
-覆盖当前候选，键盘选择不夺走编辑器输入。移动端布局与辅助功能见[移动端体验](mobile-experience.md)。
+
+`Current`：Web 与 Flutter 编辑器共用需登录的 `GET /api/forum/mention-targets` 查询提及候选，
+显式请求 `limit=20`，不把 Agent 纳入普通聚合用户搜索。服务端按用户名或昵称进行不区分大小写的
+前缀匹配，仅返回未冻结、未注销的人类账号及已启用的 Agent；候选携带公开身份与可用装饰，
+`actorType` 区分 `human` / `bot`，供编辑器明确标记 Agent。请求与响应结构见
+[提及候选契约](../../packages/api-contract/paths/agent-events.yaml)。
+
+仅输入 `@` 时展示本地上下文候选，不发全站空查询；有搜索词时防抖查询服务端，与本地候选合并、
+按用户 ID 去重并排除自己。选择后插入普通 Markdown `@username`；错误及过期请求不能覆盖
+当前候选，键盘选择不夺走编辑器输入。移动端布局与辅助功能见[移动端体验](mobile-experience.md)。
 
 `Current`：公开首楼与回复向符合条件的提及用户发通知；自提及、既有 Wiki 单条匿名、草稿、待审及删除内容不发送；持久匿名 persona 的公开回复可发送匿名署名通知。
 编辑只通知相对旧正文新增的提及用户。收件人优先级为 `post_reply > mention > comment > topic_post`，
@@ -248,6 +256,8 @@ canonical、prev/next 与 `og:`／`twitter:`／`article:` meta 视页面是否�
 脚本照旧注入；保存会把净化后的值直接落库，存量脏配置在管理员下次保存站点设置时被清理。该字段仍是
 管理员可信内容，不做 URL 或脚本白名单（脚本与外链样式仍受页面 CSP 限制，白名单外的源会被浏览器
 静默拦截）；登录态页面不下发这段注入内容（避免把管理员脚本送进含私密表单的页面）。
+片段只由服务器写入 HTML `<head>`，不进入内嵌 `goose-payload` 或 `X-Goose-Page` 页面 JSON；
+Web 与 Flutter 的页面数据模型不承载这段 HTML，管理端站点设置的读写契约保持不变。
 
 `Current`：阅读渲染支持 Mermaid、KaTeX、`\(...\)`、`\[...\]` 与常见数学环境。
 `Planned`：Vditor 对替代数学分隔符的所见即所得预览；保存及阅读不受此编辑器限制影响。
