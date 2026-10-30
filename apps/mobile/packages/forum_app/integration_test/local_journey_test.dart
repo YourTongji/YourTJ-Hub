@@ -20,6 +20,7 @@ import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/pages/home/home_page.dart';
 import 'package:forum_app/src/pages/publish/publish_page.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/push/push_service.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/pages/settings/profile_image_editor.dart';
 import 'package:forum_app/src/widgets/profile_image_crop.dart';
@@ -28,7 +29,11 @@ import 'package:forum_app/src/pages/settings/oauth_bindings_sheet.dart';
 
 /// Opt-in against an isolated, seeded local server. Never point this journey at
 /// a shared deployment: it signs in, saves a draft, and opens the real console.
-void main() {
+void main() => registerLocalJourney();
+
+/// Optional platform baseline for focused read/layout acceptance. The ordinary
+/// journey retains the real permission driver.
+void registerLocalJourney({PushDriver? pushDriver}) {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
   const username = String.fromEnvironment('YOURTJ_TEST_USERNAME');
@@ -45,7 +50,12 @@ void main() {
       contains(origin!.host),
       reason: 'This test may only mutate an isolated local database',
     );
-    final container = ProviderContainer();
+    final container = ProviderContainer(
+      overrides: [
+        if (pushDriver != null)
+          pushDriverProvider.overrideWithValue(pushDriver),
+      ],
+    );
     await container.read(tokenStorageProvider).clear();
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -317,17 +327,24 @@ void main() {
             ? <String>[]
             : [
                 '/admin/users',
+                '/admin/feed-statistics',
                 '/admin/agents',
+                '/admin/agent-comment-policy',
                 '/admin/roles',
                 '/admin/categories',
                 '/admin/posts',
                 '/admin/links',
                 '/admin/wiki',
                 '/admin/sponsors',
+                '/admin/decorations',
+                '/admin/user-decorations',
                 '/admin/badges',
+                '/admin/stickers',
+                '/admin/sticker-market',
                 '/admin/files/resources',
                 '/admin/opt-records',
                 '/admin/review-queue',
+                '/admin/search',
                 '/admin/data',
                 '/admin/settings/site-chrome',
                 '/admin/settings/site-info',
@@ -344,6 +361,9 @@ void main() {
                 '/admin/settings/privacy',
                 '/admin/settings/onesystem',
                 '/admin/settings/schedule',
+                '/admin/settings/campus-calendar',
+                '/admin/settings/ai-moderation',
+                '/admin/unknown',
               ]) {
       await web.runJavaScript("window.location.assign('$path')");
       var ready = false;
@@ -440,6 +460,17 @@ void main() {
       final fits = await web.runJavaScriptReturningResult(
         'document.documentElement.scrollWidth <= window.innerWidth + 1',
       );
+      if (path == '/admin/badges') {
+        final glyphsFit = await web.runJavaScriptReturningResult(
+          "(()=>{const node=document.querySelector('button[title*=first_post] .truncate'); if(!node)return false; const range=document.createRange(); range.selectNodeContents(node); return range.getBoundingClientRect().width<=parseFloat(getComputedStyle(node).fontSize)*Array.from(node.textContent.trim()).length*1.25;})()",
+        );
+        expect(
+          glyphsFit == true || glyphsFit.toString() == 'true',
+          isTrue,
+          reason:
+              'Chinese badge text uses readable glyphs with normal advances',
+        );
+      }
       await capture(path.replaceAll('/', '-'));
       if (fits != true && fits.toString() != 'true') {
         debugPrint(
