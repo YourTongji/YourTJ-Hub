@@ -53,6 +53,13 @@ Unassigned legacy plans remain recoverable through explicit ownership confirmati
 ID alone cannot identify their original site. `clearAll` is a separate, generation-fenced reset API;
 cache cleanup never calls it.
 
+`Current`: reply-edit recovery copies keep the numeric post ID and original editing baseline in
+`user_work.sqlite` under domain `post-edit`, separately from topic/new-reply `draft` records. This
+prevents older clients, whose unknown-kind fallback is topic editing, from interpreting a reply edit
+as a topic write. The drafts list and local-work usage count both domains; account erasure removes
+both. Every write checkpoint and cleanup uses the captured owner and session epoch. A session
+boundary cancels pending old-session saves instead of rebinding their text to the next account.
+
 `Current`: private-message draft records use the existing secure-storage plugin. iOS uses a distinct
 Keychain service with `AfterFirstUnlockThisDeviceOnly` and synchronization disabled; Android retains
 the token store's native file/cipher configuration with separate draft keys, and excludes the secure

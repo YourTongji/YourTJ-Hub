@@ -127,6 +127,9 @@ func sendMessageWithEffectsAndReply(conn *gorm.DB, senderId, peerId uint64, cont
 			if err := users.CheckInteractionAllowed(tx, senderId, peerId); err != nil {
 				return err
 			}
+			if err := checkNewConversationPolicy(tx, senderId, peerId); err != nil {
+				return err
+			}
 			var senderConfig imUserChatConfigs.Entity
 			findErr := tx.Where("user_id = ? AND peer_id = ?", senderId, peerId).First(&senderConfig).Error
 			if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {

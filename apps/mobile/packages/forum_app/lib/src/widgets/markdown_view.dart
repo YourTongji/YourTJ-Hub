@@ -1,3 +1,4 @@
+import 'image_viewer_labels.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -188,10 +189,11 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
   void _openViewer(BuildContext context, List<String> urls, int index) {
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
-        builder: (_) => Scaffold(
+        builder: (viewerContext) => Scaffold(
           backgroundColor: const Color(0xFF000000),
           body: SafeArea(
             child: GfImageViewer(
+              labels: AppLocalizations.of(viewerContext).imageViewerLabels,
               images: urls,
               initialIndex: index,
               onSaveImage: (String url) => saveImageFromUrl(context, url),

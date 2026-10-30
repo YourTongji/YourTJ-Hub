@@ -474,7 +474,7 @@ class UserWorkDatabase extends GeneratedDatabase {
         final payload = row.read<String>('payload'),
             domain = row.read<String>('domain');
         bytes += utf8.encode(payload).length;
-        if (domain == 'draft') drafts++;
+        if (domain == 'draft' || domain == 'post-edit') drafts++;
         if (domain == 'schedule' || domain == 'schedule-legacy') {
           scopes.putIfAbsent(
             '${row.read<String>('scope')}:$domain',

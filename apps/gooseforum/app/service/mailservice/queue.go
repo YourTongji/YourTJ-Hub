@@ -58,7 +58,7 @@ func AddToQueue(task EmailTask) error {
 		TaskJson: string(taskJson),
 	}
 
-	if err = taskQueue.Create(queueTask); err != nil {
+	if err = taskQueue.CreateWithAcceptance(queueTask); err != nil {
 		slog.Debug("邮件任务写入队列失败", "type", task.Type, "to", task.To, "err", err)
 		return err
 	}

@@ -45,6 +45,7 @@ class _BadgeDisplayDialogState extends State<BadgeDisplayDialog> {
   bool _wearAcknowledged = false;
   bool get _dirty => _worn != _savedWorn || !listEquals(_initial, _codes);
   bool _saving = false, _allowPop = false, _closing = false;
+  bool _wearExpanded = false, _displayExpanded = false;
   String? _error;
   void _move(int from, int to) {
     if (_saving ||
@@ -109,6 +110,12 @@ class _BadgeDisplayDialogState extends State<BadgeDisplayDialog> {
     }
   }
 
+  Widget _preview(UserBadgePayload badge) => GfBadgeMedallion(
+    icon: UserBadgeArtwork.medallion(badge, 40),
+    color: userBadgeColor(badge),
+    size: 40,
+  );
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -118,6 +125,10 @@ class _BadgeDisplayDialogState extends State<BadgeDisplayDialog> {
         widget.badges.firstWhere((b) => b.code == code),
       ...widget.badges.where((b) => !_codes.contains(b.code)),
     ];
+    final worn = [
+      ...widget.wearableBadges,
+      ...widget.badges,
+    ].where((b) => b.code == _worn).firstOrNull;
     return PopScope(
       canPop: _allowPop || (!_saving && !_dirty),
       onPopInvokedWithResult: (didPop, _) {
@@ -152,16 +163,28 @@ class _BadgeDisplayDialogState extends State<BadgeDisplayDialog> {
               child: ReorderableListView.builder(
                 buildDefaultDragHandles: false,
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                header: Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (widget.onWear != null) ...[
-                        GfText(
-                          l.settingsBadgePick,
-                          style: GfTheme.typographyOf(context).title3,
+                header: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (widget.onWear != null) ...[
+                      Semantics(
+                        expanded: _wearExpanded,
+                        child: GfSettingRow(
+                          key: const Key('badge-wear-section'),
+                          title: l.settingsBadgePick,
+                          description: worn?.name ?? l.settingsBadgeNone,
+                          leading: worn == null ? null : _preview(worn),
+                          trailing: GfSymbol(
+                            _wearExpanded ? 'chevron-up' : 'chevron-down',
+                          ),
+                          onTap: _saving
+                              ? null
+                              : () => setState(
+                                  () => _wearExpanded = !_wearExpanded,
+                                ),
                         ),
+                      ),
+                      if (_wearExpanded)
                         RadioGroup<String>(
                           groupValue: _worn,
                           onChanged: (value) {
@@ -178,25 +201,36 @@ class _BadgeDisplayDialogState extends State<BadgeDisplayDialog> {
                               for (final badge in widget.wearableBadges)
                                 GfRadioListTile<String>(
                                   value: badge.code,
-                                  title: GfText(badge.name),
+                                  title: Row(
+                                    children: [
+                                      _preview(badge),
+                                      const SizedBox(width: 10),
+                                      Expanded(child: GfText(badge.name)),
+                                    ],
+                                  ),
                                 ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 20),
-                      ],
-                      GfText(
-                        l.badgeDisplayTitle,
-                        style: GfTheme.typographyOf(context).title3,
+                      const GfDivider(),
+                    ],
+                    Semantics(
+                      expanded: _displayExpanded,
+                      child: GfSettingRow(
+                        key: const Key('badge-display-section'),
+                        title: l.badgeDisplayTitle,
+                        description: l.badgeDisplaySelectedCount(_codes.length),
+                        trailing: GfSymbol(
+                          _displayExpanded ? 'chevron-up' : 'chevron-down',
+                        ),
+                        onTap: _saving
+                            ? null
+                            : () => setState(
+                                () => _displayExpanded = !_displayExpanded,
+                              ),
                       ),
-                      const SizedBox(height: 8),
-                      if (_wearAcknowledged && _error != null)
-                        GfText(l.settingsProfilePartialSave(l.settingsBadge)),
-                      GfText(
-                        l.badgeDisplaySelectedCount(_codes.length),
-                        style: GfTheme.typographyOf(context).title3,
-                      ),
-                      const SizedBox(height: 6),
+                    ),
+                    if (_displayExpanded) ...[
                       GfText(
                         l.badgeDisplayHint,
                         style: GfTheme.typographyOf(
@@ -210,21 +244,24 @@ class _BadgeDisplayDialogState extends State<BadgeDisplayDialog> {
                           context,
                         ).caption.copyWith(color: colors.iconMuted),
                       ),
-                      if (_error != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: Semantics(
-                            liveRegion: true,
-                            child: GfText(
-                              _error!,
-                              style: TextStyle(color: colors.error),
-                            ),
+                      const SizedBox(height: 6),
+                    ],
+                    if (_wearAcknowledged && _error != null)
+                      GfText(l.settingsProfilePartialSave(l.settingsBadge)),
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Semantics(
+                          liveRegion: true,
+                          child: GfText(
+                            _error!,
+                            style: TextStyle(color: colors.error),
                           ),
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
-                itemCount: ordered.length,
+                itemCount: _displayExpanded ? ordered.length : 0,
                 onReorderItem: (from, to) {
                   if (_codes.isNotEmpty) {
                     _move(from, to.clamp(0, _codes.length - 1));

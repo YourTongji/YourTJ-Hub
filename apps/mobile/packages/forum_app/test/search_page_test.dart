@@ -573,6 +573,30 @@ void main() {
     },
   );
 
+  for (final scale in [1.0, 1.5, 1.51, 2.0]) {
+    testWidgets('search keeps width and text-size boundaries at $scale', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(899, 900);
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final repo = await pumpSearch(tester);
+      repo.calls.first.result.complete(_result(repo.calls.first));
+      await tester.pumpAndSettle();
+      final sidebar = find.byKey(const ValueKey('search-sidebar'));
+      expect(sidebar, findsNothing);
+      for (final width in [900.0, 1120.0]) {
+        tester.view.physicalSize = Size(width, 900);
+        await tester.pumpAndSettle();
+        expect(sidebar, scale <= 1.5 ? findsOneWidget : findsNothing);
+        expect(repo.calls, hasLength(1));
+        expect(tester.takeException(), isNull);
+      }
+    });
+  }
+
   testWidgets('tablet search shows the empty discovery panel once', (
     tester,
   ) async {
