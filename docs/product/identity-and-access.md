@@ -577,6 +577,13 @@ no additional protection for this deployment shape. SameSite alone is not relied
 check additionally covers same-site cross-origin (subdomain) hosts and browsers without SameSite
 support.
 
+`Current`: Web registration, password recovery/reset and other message-only API calls
+read structured failure codes and parameters even on non-2xx responses. Rate limits
+retain the server's retry duration (`Retry-After` takes precedence); messages use the
+current client locale. Unknown codes, non-JSON errors and raw server `message`/`result`
+text do not reveal internal/provider errors. This preserves the ordinary registration
+anti-enumeration response while allowing published validation and recovery guidance.
+
 ## Security notes
 
 - PKCE S256 required on authorize; nonce prevents replay; state prevents CSRF on the callback; the
