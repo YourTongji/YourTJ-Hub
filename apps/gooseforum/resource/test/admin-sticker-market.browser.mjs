@@ -34,3 +34,26 @@ for (const lang of ['zh', 'en', 'ja', 'de']) for (const theme of ['gf-light', 'g
     } finally { await page.close() }
   })
 }
+
+for (const lang of ['zh', 'en', 'ja', 'de']) for (const theme of ['gf-light', 'gf-dark']) {
+  test(`uploaded pack details remain inside a 320px viewport ${lang}/${theme}`, async () => {
+    const page = await browser.newPage({ viewport: { width: 320, height: 900 } })
+    try {
+      const pack = { id: 9201, source: 'upload', upstreamId: 'upload-9201', name: 'UI acceptance 1793376869017', topic: 'qa', status: 'ready', published: true, sortOrder: 0, itemCount: 1, failedCount: 0, upstreamCount: 1, coverUrl: '/assets/icon.svg', iconUrl: '' }
+      await page.route('**/api/admin/sticker-market?**', route => route.fulfill({ json: { code: 0, result: { enabled: true, topics: [{id:'qa',label:'QA'}], packs: [pack], total: 1, page: 1, pageSize: 20 } } }))
+      await page.route('**/api/admin/sticker-market-pack?**', route => route.fulfill({ json: { code: 0, result: { pack, items: [{ stickerId: 1, upstreamId: 'one', name: 'qa_sticker', url: '', aliases: [], isEnabled: true }] } } }))
+      await page.goto(`${origin}/assets/test/fixtures/browser/admin-sticker-market.html?lang=${lang}&theme=${theme}`)
+      await page.locator('#app[data-ready="true"]').waitFor()
+      await page.locator('tbody tr').filter({hasText:pack.name}).locator('button[title]').last().click()
+      const dialog = page.getByRole('dialog'); await dialog.waitFor()
+      await page.evaluate(() => document.fonts.ready)
+      await page.waitForTimeout(250)
+      const bounds = await dialog.locator('[data-slot="dialog-header"], [data-slot="dialog-header"] *').evaluateAll(nodes => nodes.filter(n=>n.getBoundingClientRect().width>0).map(n=>({tag:n.tagName,left:n.getBoundingClientRect().left,right:n.getBoundingClientRect().right})))
+      assert.ok(bounds.every(r=>r.left>=0 && r.right<=320.1), JSON.stringify(bounds))
+      if (process.env.YOURTJ_REVIEW_SCREENSHOTS) {
+        await mkdir(process.env.YOURTJ_REVIEW_SCREENSHOTS, { recursive: true })
+        await page.screenshot({path:`${process.env.YOURTJ_REVIEW_SCREENSHOTS}/detail-${lang}-${theme}-320.png`})
+      }
+    } finally {await page.close()}
+  })
+}
