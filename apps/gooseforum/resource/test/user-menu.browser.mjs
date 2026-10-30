@@ -130,7 +130,10 @@ test('touch opens the avatar menu and activates the drafts link', async () => {
     const drafts = page.locator('[data-user-menu-group="personal"] a[href="/drafts"]')
     const draftsBox = await drafts.boundingBox()
     assert.ok(draftsBox)
-    assert.ok(draftsBox.height >= 36, `drafts touch target should retain its 36px menu row, got ${draftsBox.height}px`)
+    // Chromium can report an exact CSS row as 35.99998474121094px after
+    // transforming fractional viewport coordinates. Keep the 36px minimum
+    // with a hundredth-pixel geometry tolerance, below any visible regression.
+    assert.ok(draftsBox.height >= 36 - 0.01, `drafts touch target should retain its 36px menu row, got ${draftsBox.height}px`)
     await page.touchscreen.tap(draftsBox.x + draftsBox.width / 2, draftsBox.y + draftsBox.height / 2)
     await page.waitForFunction(() => document.documentElement.dataset.draftActivated === 'true')
     assert.equal(await page.locator('[data-user-menu]').count(), 1)
