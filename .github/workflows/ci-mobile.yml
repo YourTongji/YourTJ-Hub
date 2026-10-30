@@ -32,6 +32,18 @@ jobs:
       - name: Analyze
         working-directory: apps/mobile
         run: dart run melos run analyze
+      - name: Check generated localizations
+        working-directory: apps/mobile/packages/forum_app
+        run: |
+          flutter gen-l10n
+          # Include new locale files as well as tracked changes from generation
+          # here or during bootstrap/analyze; git diff alone misses new files.
+          drift="$(git status --porcelain --untracked-files=all -- lib/l10n)"
+          if [[ -n "$drift" ]]; then
+            printf '%s\n' "$drift"
+            echo 'Localization output is stale. Run flutter gen-l10n in apps/mobile/packages/forum_app and commit the generated files.' >&2
+            exit 1
+          fi
 
   test:
     name: Test / ${{ matrix.package }} / ${{ matrix.shard }}
