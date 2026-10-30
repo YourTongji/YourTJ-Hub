@@ -4631,17 +4631,19 @@ class AppLocalizationsDe extends AppLocalizations {
       'Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.';
 
   @override
-  String activationStatusTarget(String email) {
-    return 'Empfänger: $email';
-  }
+  String get authRegistrationUnavailable =>
+      'Registrierung ist derzeit nicht verfügbar. Bitte später erneut versuchen.';
 
   @override
-  String activationStatusRemaining(int count, int limit) {
-    return 'Heute verbleibend: $count / $limit';
-  }
+  String get authCheckSignupAvailability => 'Registrierung erneut prüfen';
 
   @override
-  String get activationStatusRefresh => 'Status aktualisieren';
+  String get activationStatusFrozen =>
+      'Dieses Konto kann keine E-Mail erneut senden';
+
+  @override
+  String get scheduleChangeMajorUpdated =>
+      'Die Pläne wurden geändert. Bitte wähle den Studiengang erneut.';
 
   @override
   String activationStatusCooldown(int seconds) {
@@ -4649,28 +4651,20 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get activationStatusDailyLimit =>
-      'Tageslimit erreicht. Morgen erneut versuchen.';
-
-  @override
   String get activationStatusDisabled =>
       'E-Mail-Bestätigung ist derzeit deaktiviert';
 
   @override
-  String get activationStatusVerified =>
-      'E-Mail bestätigt. Erneutes Senden ist nicht nötig.';
+  String activationStatusRemaining(int count, int limit) {
+    return 'Heute verbleibend: $count / $limit';
+  }
 
   @override
-  String get activationStatusFrozen =>
-      'Dieses Konto kann keine E-Mail erneut senden';
+  String get scheduleSearchReady => 'Gib einen Kursnamen ein';
 
   @override
   String get activationStatusMailUnavailable =>
       'E-Mail-Dienst nicht verfügbar. Später aktualisieren.';
-
-  @override
-  String get activationStatusMissingEmail =>
-      'Zuerst in den Kontoeinstellungen eine E-Mail hinzufügen';
 
   @override
   String scheduleSearchNoMatch(String query) {
@@ -4678,17 +4672,64 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String scheduleCourseScope(String scope) {
-    return 'Aktueller Bereich: $scope';
+  String scheduleSearchScope(String term) {
+    return 'Kursnamen suchen in $term';
   }
+
+  @override
+  String get scheduleMajorSearchHint => 'Studiengang oder Code suchen';
+
+  @override
+  String get scheduleChangeMajorTitle => 'Studiengang ändern und Pläne leeren?';
+
+  @override
+  String get imageViewerThumbnails => 'Bildminiaturen';
+
+  @override
+  String get campusTimetableConnectBody =>
+      'Verbinde deine Tongji-Identität, um hier deinen persönlichen Hochschulstundenplan zu sehen. Kurskatalog und Stundenplaner kannst du auch ohne Verbindung nutzen.';
+
+  @override
+  String get scheduleSetupTitle => 'Zuerst den Kursbereich festlegen';
 
   @override
   String get imageViewerFitPreview => 'Vorschau einpassen';
 
   @override
-  String scheduleSearchScope(String term) {
-    return 'Kursnamen suchen in $term';
+  String get scheduleChangeMajorConfirm => 'Ändern und leeren';
+
+  @override
+  String get scheduleEmptyCourseHint =>
+      'Ändere den Kursbereich oder suche nach Kursnamen.';
+
+  @override
+  String get activationStatusMissingEmail =>
+      'Zuerst in den Kontoeinstellungen eine E-Mail hinzufügen';
+
+  @override
+  String get scheduleNoOptional =>
+      'Keine Wahlkurse für dieses Semester zurückgegeben';
+
+  @override
+  String get scheduleNoCompulsory =>
+      'Keine Pflichtkurse für diesen Bereich zurückgegeben';
+
+  @override
+  String get activationStatusDailyLimit =>
+      'Tageslimit erreicht. Morgen erneut versuchen.';
+
+  @override
+  String scheduleSetupMissing(String fields) {
+    return 'Wähle $fields, bevor du Kurse oder Lehrveranstaltungen suchst.';
   }
+
+  @override
+  String activationStatusTarget(String email) {
+    return 'Empfänger: $email';
+  }
+
+  @override
+  String get scheduleConfigureScope => 'Kursbereich festlegen';
 
   @override
   String scheduleChangeMajorBody(
@@ -4700,57 +4741,23 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String scheduleSetupMissing(String fields) {
-    return 'Wähle $fields, bevor du Kurse oder Lehrveranstaltungen suchst.';
+  String get scheduleMajorNoMatch => 'Keine passenden Studiengänge';
+
+  @override
+  String get activationStatusRefresh => 'Status aktualisieren';
+
+  @override
+  String get activationStatusVerified =>
+      'E-Mail bestätigt. Erneutes Senden ist nicht nötig.';
+
+  @override
+  String scheduleCourseScope(String scope) {
+    return 'Aktueller Bereich: $scope';
   }
 
   @override
   String get campusTimetableNotConnected =>
       'Tongji-Identität noch nicht verbunden';
-
-  @override
-  String get scheduleEmptyCourseHint =>
-      'Ändere den Kursbereich oder suche nach Kursnamen.';
-
-  @override
-  String get scheduleNoCompulsory =>
-      'Keine Pflichtkurse für diesen Bereich zurückgegeben';
-
-  @override
-  String get scheduleMajorNoMatch => 'Keine passenden Studiengänge';
-
-  @override
-  String get campusTimetableConnectBody =>
-      'Verbinde deine Tongji-Identität, um hier deinen persönlichen Hochschulstundenplan zu sehen. Kurskatalog und Stundenplaner kannst du auch ohne Verbindung nutzen.';
-
-  @override
-  String get scheduleChangeMajorConfirm => 'Ändern und leeren';
-
-  @override
-  String get scheduleChangeMajorTitle => 'Studiengang ändern und Pläne leeren?';
-
-  @override
-  String get scheduleMajorSearchHint => 'Studiengang oder Code suchen';
-
-  @override
-  String get scheduleChangeMajorUpdated =>
-      'Die Pläne wurden geändert. Bitte wähle den Studiengang erneut.';
-
-  @override
-  String get imageViewerThumbnails => 'Bildminiaturen';
-
-  @override
-  String get scheduleConfigureScope => 'Kursbereich festlegen';
-
-  @override
-  String get scheduleNoOptional =>
-      'Keine Wahlkurse für dieses Semester zurückgegeben';
-
-  @override
-  String get scheduleSetupTitle => 'Zuerst den Kursbereich festlegen';
-
-  @override
-  String get scheduleSearchReady => 'Gib einen Kursnamen ein';
 
   @override
   String get imageViewerOriginalSize => 'Originalgröße';

@@ -1280,7 +1280,11 @@ cannot restore the old challenge. Selecting the same form preserves an active TO
 - `Current`: registration loads the current Web login configuration before submission. Restricted
   email domains use a prefix field and domain selector; unrestricted sites accept the full address.
   Password confirmation is checked locally. Only published terms/privacy policies are linked and
-  require explicit agreement. Configuration failures preserve the form and offer retry.
+  require explicit agreement. Configuration failures retain field controllers and offer retry. Before ordinary
+  registration is known to be available, the page shows loading or an explanation
+  and a recheck action. Closed registration, daily capacity and unavailable email
+  service are explained without collecting registration fields; login remains usable.
+  The public state contains no counts and the backend rechecks every submission.
 - `Current`: the restricted email field accepts either a prefix or a full address at a published
   domain, matching domains without case sensitivity. A full address selects its own domain instead
   of appending another suffix; malformed or unlisted addresses stay on the form with a localized

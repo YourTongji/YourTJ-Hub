@@ -1452,6 +1452,8 @@ export default {
     showPassword: 'Passwort anzeigen',
     hidePassword: 'Passwort ausblenden',
     captcha: 'Captcha',
+    registrationUnavailable: "Registrierung ist derzeit nicht verfügbar. Bitte später erneut versuchen.",
+    checkSignupAvailability: "Registrierung erneut prüfen",
     captchaAlt: 'Captcha',
     publishCaptchaExplanation: 'Das Forum kann bei vielen Beiträgen und Antworten von neuen Konten ein Captcha verlangen. Bei nachlassender Aktivität oder sobald das Konto das festgelegte Alter erreicht, entfällt diese Anforderung.',
     forgotPassword: 'Passwort vergessen?',

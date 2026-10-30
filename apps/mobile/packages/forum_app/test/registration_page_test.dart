@@ -4,6 +4,7 @@ import 'package:auth/auth.dart';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,9 +23,11 @@ class _Options implements HttpClientAdapter {
     required this.policies,
     this.fail = false,
     this.tongji = false,
+    this.passwordSignupState,
     this.registrationMessageCode,
     this.registrationSuccessMessageCode,
   });
+  String? passwordSignupState;
   final headers = <String?>[];
   final registrationBodies = <Map<String, dynamic>>[];
   @override
@@ -71,6 +74,8 @@ class _Options implements HttpClientAdapter {
             'component': 'auth.login',
             'props': {
               'initialMode': 'login',
+              if (passwordSignupState != null)
+                'passwordSignupState': passwordSignupState,
               'redirectUrl': '/',
               'githubUrl': '/api/auth/github',
               'googleReady': false,
@@ -184,6 +189,7 @@ void main() {
     WidgetTester tester, {
     List<String> domains = const [],
     bool policies = false,
+    String? passwordSignupState,
     bool fail = false,
     bool oldSession = false,
     bool register = true,
@@ -208,6 +214,7 @@ void main() {
     final options = _Options(
       domains: domains,
       policies: policies,
+      passwordSignupState: passwordSignupState,
       fail: fail,
       tongji: tongji,
       registrationMessageCode: registrationMessageCode,
@@ -263,6 +270,62 @@ void main() {
     );
   }
 
+  testWidgets(
+    'unavailable password signup still exposes a failed Tongji sign-in and retry',
+    (tester) async {
+      const channel = MethodChannel('crossingthestreams.io/flutter_appauth');
+      var attempts = 0;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        _,
+      ) async {
+        attempts++;
+        throw PlatformException(
+          code: 'sso_review_failure',
+          message: 'SSO review failure',
+        );
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+      await pump(tester, passwordSignupState: 'disabled', tongji: true);
+      for (var i = 1; i <= 2; i++) {
+        await tester.ensureVisible(find.byKey(const Key('login-more-methods')));
+        await tester.tap(find.byKey(const Key('login-more-methods')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Continue with Tongji SSO'));
+        await tester.pumpAndSettle();
+        expect(attempts, i);
+        expect(find.textContaining('SSO review failure'), findsOneWidget);
+        expect(find.byKey(const Key('signup-availability')), findsOneWidget);
+        expect(find.byType(TextField), findsNothing);
+      }
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
+  for (final state in [
+    'disabled',
+    'daily_limit',
+    'mail_unavailable',
+    'unavailable',
+  ]) {
+    testWidgets(
+      'registration $state is explained before collecting credentials',
+      (tester) async {
+        final result = await pump(tester, passwordSignupState: state);
+        expect(find.byType(TextField), findsNothing);
+        expect(find.byKey(const Key('signup-availability')), findsOneWidget);
+        expect(result.auth.emails, isEmpty);
+        final l = AppLocalizations.of(tester.element(find.byType(LoginPage)));
+        await tester.tap(find.text(l.loginModeLogin).first);
+        await tester.pumpAndSettle();
+        expect(find.byType(TextField), findsWidgets);
+      },
+    );
+  }
   Finder input(String label) => find.byWidgetPredicate(
     (widget) => widget is TextField && widget.decoration?.labelText == label,
   );
@@ -1040,11 +1103,14 @@ void main() {
   testWidgets('failed registration options can retry without losing the form', (
     tester,
   ) async {
-    final h = await pump(tester, fail: true);
-    await tester.enterText(input('Username'), 'retained');
-    expect(tester.widget<GfButton>(submit()).onPressed, isNull);
+    final h = await pump(tester, fail: true, register: false);
+    await tester.enterText(input('Username or email'), 'retained');
+    final l = AppLocalizations.of(tester.element(find.byType(LoginPage)));
+    await tester.tap(find.text(l.loginModeRegister).first);
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsNothing);
     h.options.fail = false;
-    await tester.tap(find.text('Retry'));
+    await tester.tap(find.text(l.authCheckSignupAvailability));
     await tester.pumpAndSettle();
     expect(
       tester.widget<TextField>(input('Username')).controller!.text,

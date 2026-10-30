@@ -10,6 +10,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/decorationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/feedservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/registrationservice"
 	"log/slog"
 	"maps"
 	"net/url"
@@ -132,6 +133,7 @@ type ErrorPageProps struct {
 }
 
 type LoginPageProps struct {
+	PasswordSignupState   string   `json:"passwordSignupState"`
 	TongjiRegistration    bool     `json:"tongjiRegistration,omitempty"`
 	InitialMode           string   `json:"initialMode"`
 	RedirectURL           string   `json:"redirectUrl"`
@@ -1119,6 +1121,7 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 		tongjiURL += "?redirect=" + url.QueryEscape(redirectURL)
 	}
 	return LoginPageProps{
+		PasswordSignupState:   registrationservice.PasswordAvailability(hotdataserve.GetSecuritySettingsConfigCache()),
 		InitialMode:           mode,
 		RedirectURL:           redirectURL,
 		GitHubURL:             githubURL,
