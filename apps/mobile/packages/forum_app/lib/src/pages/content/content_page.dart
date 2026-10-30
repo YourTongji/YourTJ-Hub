@@ -11,6 +11,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import '../../widgets/app_refresh_indicator.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../layout_breakpoints.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
@@ -366,7 +367,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final wide =
-              constraints.maxWidth >= 900 &&
+              constraints.maxWidth >= widePageBreakpoint &&
               MediaQuery.textScalerOf(context).scale(17) <= 25.5;
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,

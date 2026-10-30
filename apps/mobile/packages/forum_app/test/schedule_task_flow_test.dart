@@ -30,7 +30,7 @@ openTaskFlow(
   final notifier = ScheduleStoreNotifier();
   await notifier.ready;
   if (configured) {
-    notifier.setMajorSelection(
+    await notifier.setMajorSelection(
       PkMajorSelection(
         calendarId: 119,
         grade: 2025,
@@ -160,7 +160,7 @@ void main() {
     await tester.enterText(find.byType(TextField), '数学');
     await tester.pump(const Duration(milliseconds: 400));
     await selectTask(tester, '筛选');
-    scope.notifier.setMajorSelection(
+    await scope.notifier.setMajorSelection(
       PkMajorSelection(
         calendarId: 119,
         grade: 2024,

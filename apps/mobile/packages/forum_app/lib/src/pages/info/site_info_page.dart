@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../widgets/app_refresh_indicator.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../asset_url.dart';
+import '../../layout_breakpoints.dart';
 import '../../providers.dart';
 import '../../widgets/status_views.dart';
 import '../../updates/update_host.dart';
@@ -147,7 +148,7 @@ class _SiteInfoWorkspaceState extends State<_SiteInfoWorkspace> {
     );
     return LayoutBuilder(
       builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 900 * scale;
+        final wide = constraints.maxWidth >= widePageBreakpoint * scale;
         final showIndex = !wide && !_hasSelection;
         final title = showIndex
             ? l10n.siteInfoTitle

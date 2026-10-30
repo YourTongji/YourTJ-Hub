@@ -274,8 +274,11 @@ adminReviewAction:
       by the queue; an omitted or stale revision returns `admin.review.processed`.
       Approval publishes the candidate quietly. Rejection sets its `processStatus=1`,
       keeps any previous public version and sends an author notification linked to content
-      management. `reason` optionally explains a manual rejection. Legacy unversioned
-      items retain their compatible review path. Approving a topic also updates its first post,
+      management. Manual topic/post rejection requires a nonblank `reason` of at most 512 Unicode
+      characters; missing, blank or overlong values fail with `common.request.invalidParams`.
+      The reason is plain text visible to the author in content management, never a notification or
+      push payload. Legacy unversioned rejection atomically records an immutable decision snapshot
+      in the existing revision model while retaining its compatible request path. Approving a topic also updates its first post,
       clears the topic-list cache, rebuilds the search document (a rejected new
       topic remains excluded; a rejected edit retains the public version), publishes the deferred
       publish/update events (statistics, points, notifications) and writes
@@ -306,6 +309,8 @@ adminReviewAction:
             examples:
               success:
                 externalValue: ../fixtures/admin-agent-disable-success.json
+              reasonRequired:
+                externalValue: ../fixtures/invalid-params.json
               notFound:
                 externalValue: ../fixtures/admin-review-action-not-found.json
               alreadyProcessed:

@@ -132,6 +132,8 @@ func TestPrivacySettingsHTTPContract(t *testing.T) {
 
 	// Invalid writes are rejected before storage: the stored row stays as is.
 	invalid := map[string]string{
+		`{"chatMessagePolicy":"self"}`:        "invalid-params.json",
+		`{"chatMessagePolicy":null}`:          "parse-failed.json",
 		`{}`:                                  "parse-failed.json",
 		`[]`:                                  "parse-failed.json",
 		`{"profileTopics":null}`:              "parse-failed.json",
@@ -505,3 +507,23 @@ func TestProfilePrivacyGivesStaffNoPublicBypass(t *testing.T) {
 }
 
 func ptr[T any](value T) *T { return &value }
+
+func TestChatPermissionSettingsRoundTrip(t *testing.T) {
+	conn, router := setupProfilePrivacyTest(t)
+	owner := createHTTPContractUser(t, conn, contractTestID())
+	for _, policy := range []string{"nobody", "mutual", "everyone"} {
+		rec := servePrivacySettings(router, http.MethodPatch, fmt.Sprintf(`{"chatMessagePolicy":%q}`, policy), contractSessionToken(t, owner))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("update: %d %s", rec.Code, rec.Body)
+		}
+		got, err := users.GetPrivacySettings(owner.Id)
+		if err != nil || got.ChatMessagePolicy != policy || got.ProfileTopics != "everyone" {
+			t.Fatalf("stored %+v err=%v", got, err)
+		}
+		response := decodeContractEnvelope(t, servePrivacySettings(router, http.MethodGet, "", contractSessionToken(t, owner)))
+		var result map[string]string
+		if err := json.Unmarshal(response.Result, &result); err != nil || result["chatMessagePolicy"] != policy {
+			t.Fatalf("read: %s %v", response.Result, err)
+		}
+	}
+}

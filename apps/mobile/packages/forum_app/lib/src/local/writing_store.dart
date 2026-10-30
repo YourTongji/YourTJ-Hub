@@ -21,7 +21,7 @@ final writingStoreProvider = Provider<WritingStore>((ref) {
   return WritingStore(database: ref.watch(userWorkDatabaseProvider));
 });
 
-enum DraftKind { newTopic, serverDraft, topicEdit, reply }
+enum DraftKind { newTopic, serverDraft, topicEdit, reply, postEdit }
 
 /// New writing sessions never share a content-type slot. The v1 storage prefix
 /// remains readable; metadata is additive so existing recovery copies survive.
@@ -33,6 +33,12 @@ String newTopicDraftKey() {
 String topicDraftKey(int topicId, {required bool published}) =>
     '${published ? 'topic-edit' : 'server-draft'}-$topicId';
 String replyDraftKey(int topicId) => 'reply-$topicId';
+String postEditDraftKey(int postId) => 'post-edit-$postId';
+
+// Keep reply edits out of the old draft domain: older apps interpret an
+// unknown kind as topic editing. A reply edit must never become a topic write.
+String _draftDomain(String key) =>
+    RegExp(r'^post-edit-[1-9][0-9]*$').hasMatch(key) ? 'post-edit' : 'draft';
 
 class LocalDraft {
   const LocalDraft({
@@ -48,20 +54,25 @@ class LocalDraft {
     this.agentRepliesDisabled = false,
     this.identity = "member",
     this.replyToPostId = 0,
+    this.postId = 0,
+    this.postOriginalContent,
     this.replyTargetName,
     this.replyMentionPrefix,
   });
   final DraftKind kind;
   final bool agentRepliesDisabled;
   final String identity;
-  final int replyToPostId;
+  final int replyToPostId, postId;
+  final String? postOriginalContent;
   final String? replyTargetName, replyMentionPrefix;
   final String key, title, content;
   final int contentType, topicId, updatedAt;
   final List<int> categories;
   final List<String> images;
   bool get isEmpty =>
-      (kind == DraftKind.reply || title.trim().isEmpty) &&
+      (kind == DraftKind.reply ||
+          kind == DraftKind.postEdit ||
+          title.trim().isEmpty) &&
       content.trim().isEmpty &&
       images.isEmpty &&
       categories.isEmpty &&
@@ -73,6 +84,8 @@ class LocalDraft {
     'kind': kind.name,
     'agentRepliesDisabled': agentRepliesDisabled,
     'replyToPostId': replyToPostId,
+    'postId': postId,
+    'postOriginalContent': postOriginalContent,
     'replyTargetName': replyTargetName,
     'replyMentionPrefix': replyMentionPrefix,
     'key': key,
@@ -95,6 +108,8 @@ class LocalDraft {
             ? DraftKind.topicEdit
             : DraftKind.newTopic),
     replyToPostId: json['replyToPostId'] as int? ?? 0,
+    postId: json['postId'] as int? ?? 0,
+    postOriginalContent: json['postOriginalContent'] as String?,
     replyTargetName: json['replyTargetName'] as String?,
     replyMentionPrefix: json['replyMentionPrefix'] as String?,
     key: json['key'] as String,
@@ -121,9 +136,10 @@ class WritingStore {
     bool Function()? isCurrent,
   }) async {
     if (scope.endsWith(':0')) throw StateError('Draft requires an account');
+    _validateDraftIdentity(draft);
     await _database.writeBatch(
       scope,
-      'draft',
+      _draftDomain(draft.key),
       {draft.key: draft.isEmpty ? null : jsonEncode(draft.toJson())},
       isCurrent: isCurrent,
       generation: _generation,
@@ -133,7 +149,7 @@ class WritingStore {
   Future<void> delete(String scope, String key, {bool Function()? isCurrent}) =>
       _database.writeBatch(
         scope,
-        'draft',
+        _draftDomain(key),
         {key: null},
         isCurrent: isCurrent,
         generation: _generation,
@@ -146,9 +162,10 @@ class WritingStore {
     bool Function()? isCurrent,
   }) async {
     if (scope.endsWith(':0')) throw StateError('Draft requires an account');
+    _validateDraftIdentity(draft);
     return _database.writeIfAbsent(
       scope,
-      'draft',
+      _draftDomain(draft.key),
       draft.key,
       jsonEncode(draft.toJson()),
       isCurrent: isCurrent,
@@ -158,13 +175,18 @@ class WritingStore {
 
   Future<List<LocalDraft>> drafts(String scope) async {
     if (scope.endsWith(':0')) return [];
-    final records = await _database.readDomain(scope, 'draft');
+    final records = {
+      ...await _database.readDomain(scope, 'draft'),
+      ...await _database.readDomain(scope, 'post-edit'),
+    };
     final drafts = <LocalDraft>[];
     for (final raw in records.values) {
       try {
-        drafts.add(
-          LocalDraft.fromJson(jsonDecode(raw) as Map<String, dynamic>),
+        final draft = LocalDraft.fromJson(
+          jsonDecode(raw) as Map<String, dynamic>,
         );
+        _validateDraftIdentity(draft);
+        drafts.add(draft);
       } on FormatException {
         /* Damaged raw records remain in the database for recovery. */
       } on TypeError {
@@ -207,7 +229,9 @@ class WritingStore {
 }
 
 String _draftIdentity(Object? value) {
-  if (value == null) return "member";
+  // Older /publish payloads sent an empty identity for new topics. Those
+  // saved copies are ordinary member drafts, not damaged records.
+  if (value == null || value == "") return "member";
   if (value == "member" || value == "persona") return value as String;
   throw const FormatException("Invalid draft identity");
 }
@@ -224,4 +248,14 @@ List<String> _decodeHistory(String? raw) {
     /* A damaged record must not hide or block search history. */
   }
   return <String>[];
+}
+
+void _validateDraftIdentity(LocalDraft draft) {
+  if (draft.kind == DraftKind.postEdit) {
+    if (draft.postId <= 0 || draft.key != postEditDraftKey(draft.postId)) {
+      throw const FormatException('Invalid reply edit identity');
+    }
+  } else if (_draftDomain(draft.key) != 'draft') {
+    throw const FormatException('Reserved reply edit identity');
+  }
 }
