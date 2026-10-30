@@ -239,6 +239,7 @@ const (
 	MessageOidcStartFailed             MessageCode = "oidc.start.failed"             // OIDC 登录发起失败。
 	MessageOidcCallbackFailed          MessageCode = "oidc.callback.failed"          // OIDC 登录回调失败。
 	MessageChatSendFailed              MessageCode = "chat.send.failed"              // 私信发送失败；不公开底层存储错误。
+	MessageChatPermissionDenied        MessageCode = "chat.permission.denied"        // 私信准入或屏蔽拒绝；不区分原因。
 	MessageChatGetMessagesFailed       MessageCode = "chat.messages.failed"          // 获取私信列表失败。
 	MessageChatMarkReadFailed          MessageCode = "chat.markRead.failed"          // 标记私信已读失败。
 	MessageSessionListFailed           MessageCode = "session.list.failed"           // 获取登录会话列表失败。

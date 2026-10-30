@@ -3266,6 +3266,11 @@ export default {
       closeConfirmButton: 'Schließen bestätigen',
     },
     privacy: {
+      chatTitle: "Private Nachrichten",
+      chatLabel: "Wer darf ein Gespräch beginnen",
+      chatHint: "Gespräche mit vorhandenen Nachrichten können fortgesetzt werden; leere Gespräche zählen nicht. Sperren haben Vorrang, auch für Bots.",
+      chatNobody: "Keine neuen Gespräche",
+      chatSaved: "Nachrichtenberechtigungen gespeichert",
       title: 'Datenschutz',
       profileTitle: 'Profilsichtbarkeit',
       profileDescription: 'Lege fest, wer welche Teile deines Profils sehen kann.',
@@ -3822,6 +3827,7 @@ export default {
       },
     },
     chat: {
+      permission: { denied: "Diese Person schränkt private Nachrichten ein. Diese Nachricht kann nicht gesendet werden." },
       send: {
         failed: 'Diese Nachricht konnte nicht gesendet werden. Bitte versuche es später erneut',
       },

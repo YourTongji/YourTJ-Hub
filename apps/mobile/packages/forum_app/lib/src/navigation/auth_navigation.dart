@@ -62,6 +62,7 @@ String? _parseAuthReturnTo(String? raw) {
     '/publish',
     '/settings',
     '/settings/widgets',
+    '/settings/chat-permissions',
     '/my-course-reviews',
     '/my-content',
     '/recycle-bin',

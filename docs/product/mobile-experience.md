@@ -1359,6 +1359,14 @@ or production push delivery behavior. The shared business and privacy rules are 
 
 ## Profile and privacy
 
+`Current`: Privacy settings include a separate “Private messages” page at
+`/settings/chat-permissions`. Everyone is the default; mutual followers and no new
+conversations are the other choices. Only actual message history exempts an existing
+conversation; empty conversations do not. Blocks take precedence for people and bots.
+A failed save keeps the confirmed value. The same server rule applies to all send types
+and forwarding on Web, App and old clients; see [forum permissions](forum.md#private-message-permissions).
+
+
 - `Current`: Settings separates Account & security (username, email, password, OAuth, two-factor,
   passkeys, sessions and destructive account closure), Privacy (profile visibility, blocks and anonymous
   identity) and Notifications. Appearance, text size, widgets, language and data/storage remain device
