@@ -82,6 +82,7 @@ class _Options implements HttpClientAdapter {
                 'passwordSignupState': passwordSignupState,
               'redirectUrl': '/',
               'githubUrl': '/api/auth/github',
+              'githubReady': true,
               'googleReady': false,
               'tongjiReady': tongji,
               'tongjiUrl': '/api/auth/tongji',

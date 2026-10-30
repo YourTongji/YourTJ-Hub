@@ -49,6 +49,13 @@ jobs:
             echo 'Localization output is stale. Run flutter gen-l10n in apps/mobile/packages/forum_app and commit the generated files.' >&2
             exit 1
           fi
+      # Filtered build_runner cleanup may remove other generated outputs.
+      # Keep this last so analysis checks the complete committed workspace.
+      - name: Require fresh generated login contract
+        working-directory: apps/mobile/packages/core
+        run: |
+          dart run build_runner build --delete-conflicting-outputs --build-filter='lib/src/gen/auth.*.dart'
+          git diff --exit-code -- lib/src/gen/auth.freezed.dart lib/src/gen/auth.g.dart
 
   test:
     name: Test / ${{ matrix.package }} / ${{ matrix.shard }}

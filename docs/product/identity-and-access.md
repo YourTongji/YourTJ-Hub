@@ -125,7 +125,9 @@ server-enforced write restriction; Account security shows the current owner's pe
 email from the existing settings response, with resend and change-email recovery.
 
 `Current`: the native login form exposes password, Google, GitHub and Tongji sign-in, plus configured Apple sign-in on iOS; Tongji is also available on registration. Password login retains
-captcha and TOTP. Google follows the public Web provider configuration. Social sign-in supplies
+captcha and TOTP. Provider choices follow the server's explicit readiness flags; GitHub uses
+`githubReady` (defaulting to false when absent), not the presence of its Web login URL.
+Social sign-in supplies
 `login_hint=google|github|tongji` to the existing authorization endpoint. After the OIDC provider validates
 and persists the request, the server may redirect its own login bridge to the selected existing
 OAuth route. Unknown hints and already-authenticated redirects retain the standard flow; browser

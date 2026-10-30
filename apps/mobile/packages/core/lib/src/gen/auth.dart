@@ -11,6 +11,7 @@ abstract class LoginPageProps with _$LoginPageProps {
     required String initialMode,
     required String redirectUrl,
     required String githubUrl,
+    @Default(false) bool githubReady,
     required bool googleReady,
     @Default(false) bool appleReady,
     @Default(false) bool tongjiReady,

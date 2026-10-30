@@ -25,7 +25,7 @@ List<SignInMethod> availableSignInMethods(
     if (loginMode && options.appleReady && appleAvailable) SignInMethod.apple,
     if (options.tongjiReady) SignInMethod.tongji,
     if (loginMode && options.googleReady) SignInMethod.google,
-    if (loginMode && options.githubUrl.isNotEmpty) SignInMethod.github,
+    if (loginMode && options.githubReady) SignInMethod.github,
   ];
 }
 
