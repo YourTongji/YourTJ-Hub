@@ -31,6 +31,9 @@
       }
     }
   },
+  "imageViewerThumbnails": "Image thumbnails",
+  "imageViewerOriginalSize": "Original size",
+  "imageViewerFitPreview": "Fit preview",
   "imageSave": "Save image",
   "imageSaved": "Image saved",
   "imageSaveFailed": "Couldn’t save the image. Try again later.",

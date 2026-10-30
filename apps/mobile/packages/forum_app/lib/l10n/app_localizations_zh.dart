@@ -71,6 +71,15 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get imageViewerThumbnails => '图片缩略图';
+
+  @override
+  String get imageViewerOriginalSize => '原始尺寸';
+
+  @override
+  String get imageViewerFitPreview => '适配预览';
+
+  @override
   String get imageSave => '保存图片';
 
   @override

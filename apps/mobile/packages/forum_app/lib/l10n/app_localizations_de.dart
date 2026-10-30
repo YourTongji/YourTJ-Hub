@@ -78,6 +78,15 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get imageViewerThumbnails => 'Bildminiaturen';
+
+  @override
+  String get imageViewerOriginalSize => 'Originalgröße';
+
+  @override
+  String get imageViewerFitPreview => 'Vorschau einpassen';
+
+  @override
   String get imageSave => 'Bild speichern';
 
   @override
