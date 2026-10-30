@@ -1,3 +1,4 @@
+import '../../widgets/image_viewer_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -278,10 +279,11 @@ class _WikiPageState extends ConsumerState<WikiPage> {
   void _openImageViewer(String url) {
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
-        builder: (_) => Scaffold(
+        builder: (viewerContext) => Scaffold(
           backgroundColor: const Color(0xFF000000),
           body: SafeArea(
             child: GfImageViewer(
+              labels: AppLocalizations.of(viewerContext).imageViewerLabels,
               images: <String>[url],
               onSaveImage: (String imageUrl) =>
                   saveImageFromUrl(context, imageUrl),

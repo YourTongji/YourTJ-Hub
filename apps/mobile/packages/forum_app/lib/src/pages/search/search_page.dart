@@ -19,6 +19,7 @@ import '../../server_messages.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../format.dart';
+import '../../layout_breakpoints.dart';
 import '../../providers.dart';
 import '../../local/writing_store.dart';
 import '../../navigation/tab_page_transition.dart';
@@ -469,7 +470,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final wide =
-                    constraints.maxWidth >= 900 &&
+                    constraints.maxWidth >= widePageBreakpoint &&
                     MediaQuery.textScalerOf(context).scale(17) <= 25.5;
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,

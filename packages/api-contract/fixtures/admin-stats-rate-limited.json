@@ -1,0 +1,6 @@
+{
+  "code": 1,
+  "messageCode": "common.rateLimited",
+  "params": { "action": "admin.stats", "retryAfterSeconds": 60 },
+  "result": null
+}

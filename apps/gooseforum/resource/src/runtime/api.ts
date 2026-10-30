@@ -3,7 +3,7 @@ import type { components, TopicPayload } from '@gooseforum/client'
 // CourseSummaryPayload 以别名导入：本文件 1663 行另有一个同名但形状不同的
 // CourseSummaryPayload（AI 总结：consensus/keywords/pros/cons），二者同名异物。
 // 这里导入的是课程卡片（id/name/ratingAvg/...），故别名为 CourseCatalogItem 避免混淆。
-import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, MentionTarget, ModerationApprovalActionView, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationCategory, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
+import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, MentionTarget, ModerationApprovalActionView, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationCategory, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import type { ReviewQueueItem } from '@/admin/types'
 import { resolveApiMessage } from './api-message'
@@ -106,7 +106,7 @@ export async function readApiResponse<T>(response: Response, fallback: string): 
 }
 
 // readApiEnvelope 与 readApiResponse 同语义，额外返回成功信封的 messageCode。
-async function readApiEnvelope<T>(response: Response, fallback: string): Promise<{ result: T, messageCode?: string }> {
+async function readApiEnvelope<T>(response: Response, fallback: string): Promise<{ result: T, messageCode?: string, params?: Record<string, unknown> }> {
   const data = await response.json().catch(() => undefined) as ApiResponse<T> | undefined
   if (response.status === 429) {
     const retryHeader = Number(response.headers.get('Retry-After'))
@@ -117,7 +117,7 @@ async function readApiEnvelope<T>(response: Response, fallback: string): Promise
       data?.messageCode ? rateLimitMessage(data, fallback, retryAfterSeconds) : fallback,
       data?.messageCode,
       retryAfterSeconds,
-      data?.params,
+      { ...(data?.params ?? {}), ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }) },
     )
   }
   if (data?.code !== undefined && data.code !== 0) {
@@ -129,17 +129,16 @@ async function readApiEnvelope<T>(response: Response, fallback: string): Promise
   if (!data) {
     throw new Error(fallback)
   }
-  return { result: (data.result ?? data.data) as T, messageCode: data.messageCode }
+  return { result: (data.result ?? data.data) as T, messageCode: data.messageCode, params: data.params }
 }
 
 async function readApiSuccessMessage(response: Response, successFallback: string, errorFallback: string): Promise<string> {
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
-  }
-  const data = (await response.json()) as ApiResponse<unknown>
-  if (data.code !== undefined && data.code !== 0) {
-    throw new ApiResponseError(responseMessage(data, errorFallback), data.messageCode, undefined, data.params)
-  }
+  // Message-only auth/recovery calls use the same structured HTTP/429 parser as
+  // data responses. Never render server result/message text as an error.
+  const data = await readApiEnvelope<unknown>(response, errorFallback).catch(error => {
+    if (error instanceof ApiResponseError) throw error
+    throw new Error(errorFallback)
+  })
   return responseMessage(data, successFallback)
 }
 
@@ -434,19 +433,6 @@ export async function getPostWindow(input: PostWindowInput): Promise<PostWindowP
   return readApiResponse<PostWindowPayload>(response, t('api.repliesLoadFailed'))
 }
 
-/** 用户搜索（@mention 候选，issue #564）：复用公开聚合搜索 users scope，支持 AbortSignal 丢弃过期请求。 */
-export async function searchForumUsers(query: string, signal?: AbortSignal): Promise<UserSearchPayload[]> {
-  const params = new URLSearchParams({ q: query, scope: 'users', page: '1' })
-  const response = await feedFetch(`/api/forum/search?${params.toString()}`, {
-    headers: {
-      Accept: 'application/json',
-    },
-    signal,
-  })
-  const result = await readApiResponse<{ users?: UserSearchPayload[] }>(response, t('api.searchUsersFailed'))
-  return result.users ?? []
-}
-
 /** Dedicated mention candidates include enabled bot personas without changing human search. */
 export async function getMentionTargets(query: string, signal?: AbortSignal): Promise<MentionTarget[]> {
   const params = new URLSearchParams({ q: query, limit: '20' })
@@ -585,20 +571,6 @@ export async function updateTopicAgentReplies(topicId: number, agentRepliesDisab
   return readApiResponse<boolean>(response, t('publish.saveFailed'))
 }
 
-export async function updateTopicStatus(id: number, topicStatus: 0 | 1): Promise<boolean> {
-  const response = await feedFetch('/api/forum/topics/status', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      topicId: id,
-      topicStatus,
-    }),
-  })
-  return readApiResponse<boolean>(response, t('api.topicStatusFailed'))
-}
-
 export async function updateModerationTopicStatus(id: number, action: 'ban' | 'unban'): Promise<boolean> {
   const response = await feedFetch('/api/forum/moderation/topic-status', {
     method: 'POST',
@@ -690,11 +662,11 @@ export async function fetchModerationReviewQueue(kind: 'topic' | 'post', page = 
   return readApiResponse<ModerationReviewQueueResult>(response, t('moderation.review.loadFailed'))
 }
 
-export async function moderationReviewAction(kind: 'topic' | 'post', id: number, approve: boolean, revisionId = 0): Promise<unknown> {
+export async function moderationReviewAction(kind: 'topic' | 'post', id: number, approve: boolean, revisionId = 0, reason = ''): Promise<unknown> {
   const response = await feedFetch('/api/forum/moderation/review-action', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ kind, id, approve, revisionId }),
+    body: JSON.stringify({ kind, id, approve, revisionId, ...(reason ? { reason } : {}) }),
   })
   return readApiResponse<unknown>(response, t('moderation.review.actionFailed'))
 }
@@ -1189,6 +1161,13 @@ export async function saveUserEmail(email: string, password: string): Promise<bo
   return true
 }
 
+export type ActivationStatus = components['schemas']['ActivationStatus']
+
+export async function getActivationStatus(signal?: AbortSignal): Promise<ActivationStatus> {
+  const response = await feedFetch('/api/resend-activation-email', { signal, cache: 'no-store' })
+  return readApiResponse<ActivationStatus>(response, t('api.activationEmailSendFailed'))
+}
+
 export async function resendActivationEmail(): Promise<string> {
   const response = await feedFetch('/api/resend-activation-email', {
     method: 'POST',
@@ -1339,7 +1318,8 @@ export async function revokeAllSessions(): Promise<boolean> {
 
 export type UserPrivacySettings = components['schemas']['UserPrivacySettings']
 export type ProfileAudience = components['schemas']['ProfileAudience']
-export type ProfilePrivacySection = keyof UserPrivacySettings
+export type ProfilePrivacySection = Exclude<keyof UserPrivacySettings, 'chatMessagePolicy'>
+export type ChatMessagePolicy = components['schemas']['ChatMessagePolicy']
 
 // Account-level profile privacy (issue #1124): the server is the only source of
 // truth, so callers render a saved value only after the request succeeds.

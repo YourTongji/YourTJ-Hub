@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NICKNAME_CONTRAST_MIN, decorationVariables, hasNicknameContrast, isSafeDecorationAssetUrl, nicknameContrastFloor } from '../src/site/utils/decoration-style'
+import { NICKNAME_CONTRAST_MIN, decorationVariables, hasNicknameContrast, isSafeDecorationAssetUrl, nicknameContrastFloor } from '../src/runtime/decoration-style'
 import type { DecorationStyle } from '@gooseforum/client'
 const style: DecorationStyle = { code: 'tea', name: 'Tea', kind: 'nicknameStyle', lightColors: ['#166534'], darkColors: ['#86efac'], isEnabled: true, sortOrder: 1 }
 describe('decoration rendering boundary', () => {

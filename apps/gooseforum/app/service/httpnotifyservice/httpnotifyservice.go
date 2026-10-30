@@ -104,7 +104,7 @@ type Alternative struct {
 // Alternatives 按优先级排列同一事件的订阅名（具体事件在前、聚合兼容事件在后）：
 // 每个 Endpoint 只按它订阅的首个事件名投递一次，同时订阅“全部举报”与具体举报
 // 类型的 Endpoint 不会收到两份。Approval 非空表示待人工审批事件，飞书等卡片通道
-// 据此渲染；为空时卡片通道跳过。DedupeKey 非空时，同一 Endpoint 在 dedupeTTL 内对
+// 据此渲染；为空时跳过需要审批摘要的事件，注册提醒仍可投递。DedupeKey 非空时，同一 Endpoint 在 dedupeTTL 内对
 // 同一审批只投递一次（重复发布、相同版本重提不重复提醒）。
 type Message struct {
 	Alternatives []Alternative
@@ -186,10 +186,10 @@ func endpointAccepts(endpoint pageConfig.HttpNotifyEndpoint, eventName string) b
 }
 
 func selectAlternative(endpoint pageConfig.HttpNotifyEndpoint, msg Message) (Alternative, bool) {
-	if channelFor(endpoint).requiresApproval() && msg.Approval == nil {
-		return Alternative{}, false
-	}
 	for _, alt := range msg.Alternatives {
+		if channelFor(endpoint).requiresApproval(alt.Event) && msg.Approval == nil {
+			continue
+		}
 		if endpointAccepts(endpoint, alt.Event) {
 			return alt, true
 		}

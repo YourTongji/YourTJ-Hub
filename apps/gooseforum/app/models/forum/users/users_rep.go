@@ -69,7 +69,7 @@ func Verify(usernameOrEmail string, password string) (*EntityComplete, error) {
 	var user EntityComplete
 	var err error
 	if strings.Contains(usernameOrEmail, "@") {
-		err = builder().Where("email = ?", usernameOrEmail).First(&user).Error
+		err = builder().Where("email = ?", strings.ToLower(strings.TrimSpace(usernameOrEmail))).First(&user).Error
 	} else {
 		err = builder().Where("username = ?", usernameOrEmail).First(&user).Error
 	}
@@ -100,7 +100,7 @@ func Verify(usernameOrEmail string, password string) (*EntityComplete, error) {
 
 // GetByEmail 通过邮箱获取用户
 func GetByEmail(email string) (entity EntityComplete, err error) {
-	err = builder().Where("email = ?", email).First(&entity).Error
+	err = builder().Where("email = ?", strings.ToLower(strings.TrimSpace(email))).First(&entity).Error
 	return
 }
 
@@ -362,11 +362,18 @@ func ExistEmail(email string) bool {
 
 // CountCreatedToday 返回当天新建用户数量，用于注册软限额。
 func CountCreatedToday() int64 {
+	count, _ := CountCreatedTodayWithError()
+	return count
+}
+
+// CountCreatedTodayWithError lets advisory availability fail closed instead of
+// presenting a failed count as zero. Closed accounts still consume the quota.
+func CountCreatedTodayWithError() (int64, error) {
 	var count int64
 	now := time.Now()
 	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	builder().Where("created_at >= ?", start).Count(&count)
-	return count
+	err := builder().Where("created_at >= ?", start).Count(&count).Error
+	return count, err
 }
 
 // IncrementTokenVersionWithDB increments token_version through the supplied database handle.
