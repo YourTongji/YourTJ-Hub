@@ -114,3 +114,28 @@ for (const lang of ['zh', 'en', 'ja', 'de']) for (const theme of ['gf-light', 'g
     } finally { await page.close() }
   })
 }
+
+for (const theme of ['gf-light', 'gf-dark']) {
+  test(`all folded mobile labels refresh after switching language (${theme})`, async () => {
+    const page = await browser.newPage({viewport:{width:320,height:900}})
+    try {
+      await page.goto(`${origin}/assets/test/fixtures/browser/publish-images.html?type=3&lang=zh&theme=${theme}`)
+      const body=page.locator('.vditor [contenteditable="true"]:visible').first();await body.waitFor()
+      await page.locator('.vditor-official').evaluate(e=>{e.style.width='220px'})
+      await page.waitForFunction(()=>document.querySelectorAll('.hub-fold-region [data-type]').length>=2)
+      const more=page.locator('.vditor-toolbar > .vditor-toolbar__item > [data-type="more"]');await more.click()
+      const oldLabels=await page.locator('.hub-fold-region [data-type]').evaluateAll(nodes=>nodes.map(n=>({type:n.dataset.type,label:n.querySelector('.vditor-toolbar-label')?.textContent})))
+      assert.ok(oldLabels.length>=2)
+      for(const language of ['en','de','ja','zh']) {
+        await page.evaluate(language=>window.testSetLocale(language),language)
+        await page.waitForFunction(()=>document.querySelector('.vditor [data-type="bold"]').getAttribute('aria-label').includes(window.VditorI18n.bold))
+        await page.waitForTimeout(200)
+        const labels=await page.locator('.hub-fold-region [data-type]').evaluateAll(nodes=>nodes.map(n=>({type:n.dataset.type,label:n.querySelector('.vditor-toolbar-label')?.textContent,expected:window.testToolbarLabels()[n.dataset.type]})))
+        assert.ok(labels.length>=2)
+        for(const item of labels) if(item.expected)assert.equal(item.label,item.expected,`${language}: ${item.type}`)
+      }
+      if(process.env.YOURTJ_REVIEW_SCREENSHOTS){await mkdir(process.env.YOURTJ_REVIEW_SCREENSHOTS,{recursive:true});await page.screenshot({path:`${process.env.YOURTJ_REVIEW_SCREENSHOTS}/locale-folded-${theme}.png`})}
+      const link=page.locator('.hub-fold-region [data-type="link"]');await link.click();await page.locator('.vditor .vditor-input:visible').first().waitFor()
+    }finally{await page.close()}
+  })
+}

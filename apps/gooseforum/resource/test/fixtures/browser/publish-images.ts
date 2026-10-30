@@ -7,6 +7,8 @@ import { applyThemeTemporary, type SiteTheme } from '../../../src/runtime/site-t
 import '../../../src/styles/resource.css'
 await setLocale((new URLSearchParams(location.search).get('lang') || 'zh') as 'zh' | 'en' | 'ja' | 'de')
 applyThemeTemporary((new URLSearchParams(location.search).get('theme') || 'gf-light') as SiteTheme)
+;(window as unknown as { testSetLocale: typeof setLocale }).testSetLocale = setLocale
+;(window as unknown as { testToolbarLabels: () => Record<string,string> }).testToolbarLabels = () => Object.fromEntries(['code','link','list','quote','italic','bold','upload'].map(type => [type, i18n.global.t('editor.toolbar.' + type)]))
 const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] })
 await router.push('/')
 await router.isReady()

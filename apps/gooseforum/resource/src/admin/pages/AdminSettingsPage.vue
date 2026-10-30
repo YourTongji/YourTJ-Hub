@@ -1762,8 +1762,8 @@ onUnmounted(stopSyncPolling)
         </label>
         <label class="grid gap-2 text-sm font-medium">
           {{ adminText('k00pl') }}
-          <div class="flex items-center gap-2">
-            <Input v-model="aiSummaryForm.model" :disabled="!aiSummaryForm.enabled" :placeholder="adminText('k00pe')" class="flex-1" />
+          <div class="flex min-w-0 flex-wrap items-center gap-2">
+            <Input v-model="aiSummaryForm.model" :disabled="!aiSummaryForm.enabled" :placeholder="adminText('k00pe')" class="min-w-0 flex-1 basis-full sm:basis-0" />
             <Select v-model="aiSummaryForm.model" :disabled="!aiSummaryForm.enabled || aiSummaryModels.length === 0">
               <SelectTrigger class="h-9 w-44 shrink-0">
                 <SelectValue :placeholder="adminText('k00pe')" />
