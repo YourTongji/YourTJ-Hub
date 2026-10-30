@@ -1090,6 +1090,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get scheduleTitle => '履修プランナー';
 
   @override
+  String get scheduleFilters => '条件';
+
+  @override
+  String get scheduleCandidates => '候補';
+
+  @override
   String get scheduleTabTimetable => 'プランのプレビュー';
 
   @override

@@ -616,6 +616,8 @@
   "topicLaterReplies": "Load newer replies",
   "topicNewTopic": "New topic",
   "scheduleTitle": "Course planner",
+  "scheduleFilters": "Filters",
+  "scheduleCandidates": "Candidates",
   "scheduleTabTimetable": "Plan preview",
   "scheduleTabPick": "Pick courses",
   "scheduleTerm": "Term",

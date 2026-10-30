@@ -587,6 +587,8 @@
   "topicLaterReplies": "加载更新回复",
   "topicNewTopic": "新建话题",
   "scheduleTitle": "选课排课",
+  "scheduleFilters": "筛选",
+  "scheduleCandidates": "候选",
   "scheduleTabTimetable": "方案预览",
   "scheduleTabPick": "选课",
   "scheduleTerm": "学期",

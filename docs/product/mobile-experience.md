@@ -1000,7 +1000,12 @@ change. The header keeps a small outer margin for its primary action.
   [campus Widget specification](campus.md#home-screen-widgets).
 - `Partial`: native school login on a physical device is not end-to-end verified. Automated tests
   cover navigation policy, session handoff, confirmation, stale responses and native rendering.
-- `Current`: the scheduler opens in course selection. Plan preview remains a local planning
+- `Current`: the scheduler has page-local Filters, Candidates, Selected and Plan preview tasks.
+  An unconfigured planner opens Filters; an existing context opens Candidates. The same store owns
+  every task. Switching tasks keeps the candidate query/results and selected classes, while dismissing
+  the keyboard. Selected lists complete class codes, teachers, times, rooms, weeks and conflicts,
+  independent of the preview's week filter, and can remove a class directly. Candidate results remain
+  transient; choosing a teaching class updates the existing plan immediately. Plan preview remains a local planning
   grid, with week filters, conflicts, custom blocks and existing plan operations. Web and mobile
   warn about time conflicts before a teaching class is selected, while keeping the add action
   non-blocking. Completed term/grade/major selection collapses into an editable summary; course,

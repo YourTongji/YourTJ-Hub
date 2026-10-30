@@ -346,6 +346,8 @@
   "topicLaterReplies": "新しい返信を読み込む",
   "topicNewTopic": "新規トピック",
   "scheduleTitle": "履修プランナー",
+  "scheduleFilters": "条件",
+  "scheduleCandidates": "候補",
   "scheduleTabTimetable": "プランのプレビュー",
   "scheduleTabPick": "授業を選ぶ",
   "scheduleTerm": "学期",

@@ -1107,6 +1107,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scheduleTitle => 'Course planner';
 
   @override
+  String get scheduleFilters => 'Filters';
+
+  @override
+  String get scheduleCandidates => 'Candidates';
+
+  @override
   String get scheduleTabTimetable => 'Plan preview';
 
   @override
