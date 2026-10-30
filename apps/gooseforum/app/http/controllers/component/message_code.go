@@ -62,6 +62,7 @@ const (
 	MessageAuthRegisterEmailRetry        MessageCode = "auth.register.emailRetry"        // 已建号并发会话，但验证邮件暂不可用。
 	MessageAuthRegisterEmailVerify       MessageCode = "auth.register.emailVerify"       // 注册成功，需要邮箱验证。
 	MessageAuthTongjiAccountExists       MessageCode = "auth.tongji.accountExists"       // 同济身份或其学号邮箱已归属已有账号，需登录/找回后在校园页绑定。
+	MessageAuthTongjiRetryLogin          MessageCode = "auth.tongji.retryLogin"
 	MessageAuthLoginSuccess              MessageCode = "auth.login.success"              // 登录成功。
 	MessageAuthLoginInvalidRequest       MessageCode = "auth.login.invalidRequest"       // 登录请求无效，通常需要刷新页面重试。
 	MessageAuthPasswordInvalidFormat     MessageCode = "auth.password.invalidFormat"     // 登录密码格式不正确。
@@ -239,6 +240,7 @@ const (
 	MessageOidcStartFailed             MessageCode = "oidc.start.failed"             // OIDC 登录发起失败。
 	MessageOidcCallbackFailed          MessageCode = "oidc.callback.failed"          // OIDC 登录回调失败。
 	MessageChatSendFailed              MessageCode = "chat.send.failed"              // 私信发送失败；不公开底层存储错误。
+	MessageChatPermissionDenied        MessageCode = "chat.permission.denied"        // 私信准入或屏蔽拒绝；不区分原因。
 	MessageChatGetMessagesFailed       MessageCode = "chat.messages.failed"          // 获取私信列表失败。
 	MessageChatMarkReadFailed          MessageCode = "chat.markRead.failed"          // 标记私信已读失败。
 	MessageSessionListFailed           MessageCode = "session.list.failed"           // 获取登录会话列表失败。

@@ -6,7 +6,7 @@ import { chromium } from 'playwright'
 import { createServer } from 'vite'
 let server, browser, origin
 before(async () => {
-  server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), server: { host: '127.0.0.1', port: 0 } })
+  server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), optimizeDeps: { entries: ['test/fixtures/browser/registration-outcomes.html'] }, server: { host: '127.0.0.1', port: 0 } })
   await server.listen()
   origin = `http://127.0.0.1:${server.httpServer.address().port}`
   browser = await chromium.launch()
@@ -38,7 +38,7 @@ for (const lang of ['zh', 'en', 'ja', 'de']) for (const width of [320, 1280]) fo
       await passwords.nth(1).fill('password123')
       await form.locator('button[type="submit"]').click()
       // Both the real API resolver and the real page/flash renderer must show the localized outcome.
-      if (outcome === 'emailRetry') await page.waitForURL(url => url.searchParams.has('landed'))
+      if (outcome === 'emailRetry') await page.waitForURL(url => url.searchParams.has('landed')).catch(async error => { throw new Error(`${error.message}; url=${page.url()}; registerPosts=${posts}; visibleText=${await page.locator('body').innerText()}`) })
       const text = page.getByText(new RegExp(phrases[lang][0])).last()
       await text.waitFor()
       assert.ok((await text.textContent()).includes(phrases[lang][0]))

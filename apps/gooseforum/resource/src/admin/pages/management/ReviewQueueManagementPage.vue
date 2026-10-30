@@ -3,9 +3,10 @@ import AdminSelect from '@/admin/components/AdminSelect.vue'
 import { userDisplayName } from '@/runtime/private-notes'
 import { adminText } from '@/admin/runtime/i18n-text'
 
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check, ChevronLeft, ChevronRight, RefreshCw, X } from '@lucide/vue'
+import RejectionReasonDialog from '@/admin/components/RejectionReasonDialog.vue'
 import AdminConfirmDialog from '@/admin/components/AdminConfirmDialog.vue'
 import AdminSection from '@/admin/components/AdminSection.vue'
 import ReviewQueueAiDetails from '@/admin/components/ReviewQueueAiDetails.vue'
@@ -39,7 +40,9 @@ const error = ref('')
 const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
+const reasonError = ref('')
 const actionRow = ref<{ item: ReviewQueueItem, approve: boolean } | null>(null)
+watch(actionRow, () => { reasonError.value = '' })
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
 function formatTime(value: string) {
@@ -84,17 +87,19 @@ function updatePageSize(value: number) {
   void loadQueue()
 }
 
-async function confirmAction() {
+async function confirmAction(reason = '') {
   if (!actionRow.value) return
   const { item, approve } = actionRow.value
   saving.value = true
   try {
-    await reviewAction(kind.value, item.id, approve, item.revisionId)
+    if (!approve && kind.value !== 'sticker') await reviewAction(kind.value, item.id, false, item.revisionId, reason)
+    else await reviewAction(kind.value, item.id, approve, item.revisionId)
     actionRow.value = null
     await loadQueue()
     adminToast.success(approve ? adminText('k00gj') : adminText('k00gk'))
   } catch (err) {
-    adminToast.error(err, adminText('k00gn'))
+    if (!approve && kind.value !== 'sticker') reasonError.value = err instanceof Error ? err.message : adminText('k00gn')
+    else adminToast.error(err, adminText('k00gn'))
   } finally {
     saving.value = false
   }
@@ -257,12 +262,19 @@ onMounted(loadQueue)
     </AdminSection>
 
     <AdminConfirmDialog
-      :open="actionRow !== null"
+      :open="actionRow !== null && (actionRow.approve || kind === 'sticker')"
       :title="actionRow?.approve ? adminText('k00gj') : adminText('k00gk')"
       :description="kind === 'sticker' ? (actionRow?.approve ? t('adminReviewQueue.approveSticker') : t('adminReviewQueue.rejectSticker')) : actionRow?.approve ? adminText('k00gl') : adminText('k00gm')"
       :confirm-text="actionRow?.approve ? adminText('k00gj') : adminText('k00gk')"
       :loading="saving"
       @update:open="(open) => !open && (actionRow = null)"
+      @confirm="confirmAction"
+    />
+    <RejectionReasonDialog
+      :key="`${kind}:${actionRow?.item.id}:${actionRow?.item.revisionId}`"
+      :open="actionRow !== null && !actionRow.approve && kind !== 'sticker'"
+      :busy="saving" :error="reasonError"
+      @update:open="open => !saving && !open && (actionRow = null)"
       @confirm="confirmAction"
     />
   </BasicPage>

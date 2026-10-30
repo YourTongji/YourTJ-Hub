@@ -159,7 +159,7 @@ Manual review approvals carry three more fields: `reason` is `sensitive_word` (a
 Each callback URL can choose a channel type:
 
 - **Generic webhook (JSON)**: the request format above; any HTTP 2xx counts as success.
-- **Feishu group bot**: add a "custom bot" to a Feishu group and enter its webhook URL. The Feishu channel only delivers approval events, rendered as a card with the target, reason, excerpt, and quick-action buttons. A Feishu webhook URL is a credential: it is stored encrypted, never shown after saving, and saving with an empty value keeps the configured URL. A Feishu response with HTTP 200 but a non-zero `code` counts as a failure.
+- **Feishu group bot**: add a "custom bot" to a Feishu group and enter its webhook URL. The Feishu channel delivers approval events and `user.signup` alerts. Approval cards contain the target, reason, excerpt and quick actions; signup cards show public usernames without email, session data or approval actions. A Feishu webhook URL is a credential: it is stored encrypted, never shown after saving, and saving with an empty value keeps the configured URL. A Feishu response with HTTP 200 but a non-zero `code` counts as a failure.
 
 If "signature verification" is enabled on the Feishu bot, enter its secret as the Secret; the system then adds `timestamp` and `sign` to the request body:
 

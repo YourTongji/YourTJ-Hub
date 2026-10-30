@@ -39,7 +39,6 @@ abstract class SitePayload with _$SitePayload {
     required String description,
     required String logo,
     required String favicon,
-    String? externalLinks,
     required String brandType,
     required String brandText,
     required String brandImage,
