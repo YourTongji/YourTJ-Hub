@@ -220,7 +220,27 @@ async function handleRegister() {
     error.value = t('auth.validation.registerRequired')
     return
   }
-  const email = allowedDomains.value.length ? `${registerForm.email}@${selectedEmailDomain.value}` : registerForm.email
+  const enteredEmail = registerForm.email.trim()
+  let email = enteredEmail
+  if (allowedDomains.value.length) {
+    const parts = enteredEmail.split('@')
+    const prefix = parts[0]
+    if (!prefix || parts.length > 2 || /\s/.test(enteredEmail) || (parts.length === 2 && !parts[1])) {
+      error.value = t('server.auth.emailDomain.invalid')
+      return
+    }
+    const requestedDomain = parts.length === 2 ? parts[1] : selectedEmailDomain.value
+    const domain = allowedDomains.value.find(candidate => candidate.toLowerCase() === requestedDomain.toLowerCase())
+    if (!domain) {
+      error.value = t('server.auth.emailDomain.notAllowed')
+      return
+    }
+    // Keep the prefix + selector consistent even when a full address was pasted.
+    // The server still owns domain admission and complete email validation.
+    selectedEmailDomain.value = domain
+    registerForm.email = prefix
+    email = `${prefix}@${domain.toLowerCase()}`
+  }
   if (registerForm.password !== registerForm.confirmPassword) {
     error.value = t('auth.validation.passwordMismatch')
     return

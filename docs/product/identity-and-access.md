@@ -106,6 +106,11 @@ fresh school authentication. See [the decision](../decisions/0034-tongji-registr
 - ID tokens are RS256-signed with a persistent provider key (inline PEM or key file, auto-generated
   otherwise); `sub` = numeric `users.id`. Opaque access tokens are stored as token-ID rows only.
 
+`Current`: Web password registration accepts either an email prefix with the published domain
+selector or a complete address at one of the allowed domains. Matching ignores domain case;
+full-address paste selects its matching suffix instead of appending another one. Malformed or
+unlisted addresses remain on the form. The backend remains the admission authority.
+
 ### Mobile (Flutter)
 
 `Current`: the native login form exposes password, Google, GitHub and Tongji sign-in, plus configured Apple sign-in on iOS; Tongji is also available on registration. Password login retains
