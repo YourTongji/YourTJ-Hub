@@ -222,6 +222,14 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authUsernameOrEmail => 'ユーザー名またはメール';
 
   @override
+  String get authRegistrationUsernameRules =>
+      '6–32 文字。半角英字・数字・アンダースコア（_）・ハイフン（-）が使えます。';
+
+  @override
+  String get authRegistrationPasswordRules =>
+      '6–64 文字。半角英字（A–Z／a–z）と数字（0–9）を含めてください。他の文字も使えます。';
+
+  @override
   String get authUsername => 'ユーザー名';
 
   @override

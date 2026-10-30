@@ -1418,6 +1418,8 @@ export default {
     contentGone: 'Content has been permanently deleted',
   },
   auth: {
+    registrationUsernameRules: "6–32 characters: English letters, digits, underscores (_) and hyphens (-).",
+    registrationPasswordRules: "6–64 characters, including an English letter (A–Z/a–z) and a digit (0–9). Other characters are allowed.",
     passkeyLogin: 'Sign in with a passkey',
     passkeyWorking: 'Checking your passkey…',
     passkeyCancelled: 'No passkey was selected or available. Try again or use your password.',

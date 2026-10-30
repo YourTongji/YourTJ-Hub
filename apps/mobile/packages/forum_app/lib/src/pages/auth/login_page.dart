@@ -1211,6 +1211,12 @@ class _LoginPageState extends ConsumerState<LoginPage>
                 labelText: _mode == _AuthMode.login
                     ? l10n.authUsernameOrEmail
                     : l10n.authUsername,
+                decoration: _mode == _AuthMode.register
+                    ? InputDecoration(
+                        helperText: l10n.authRegistrationUsernameRules,
+                        helperMaxLines: 10,
+                      )
+                    : null,
                 prefixIcon: const GfSymbol('user-round', size: 20),
               ),
             ),
@@ -1297,6 +1303,12 @@ class _LoginPageState extends ConsumerState<LoginPage>
                       // 注册流程显式前进到确认密码。
                       : _confirmPasswordFocusNode.requestFocus,
                   labelText: l10n.authPassword,
+                  decoration: _mode == _AuthMode.register
+                      ? InputDecoration(
+                          helperText: l10n.authRegistrationPasswordRules,
+                          helperMaxLines: 10,
+                        )
+                      : null,
                   prefixIcon: const GfSymbol('key-round', size: 20),
                   suffixIcon: _PasswordVisibilityToggle(
                     key: const Key('login-password-visibility'),

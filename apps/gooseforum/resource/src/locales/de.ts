@@ -1417,6 +1417,8 @@ export default {
     contentGone: 'Der Inhalt wurde endgültig gelöscht',
   },
   auth: {
+    registrationUsernameRules: "6–32 Zeichen: englische Buchstaben, Ziffern, Unterstriche (_) und Bindestriche (-).",
+    registrationPasswordRules: "6–64 Zeichen mit mindestens einem englischen Buchstaben (A–Z/a–z) und einer Ziffer (0–9). Weitere Zeichen sind erlaubt.",
     passkeyLogin: 'Mit Passkey anmelden',
     passkeyWorking: 'Passkey wird geprüft…',
     passkeyCancelled: 'Kein Passkey ausgewählt oder verfügbar. Versuche es erneut oder melde dich mit deinem Passwort an.',

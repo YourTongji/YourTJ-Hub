@@ -298,7 +298,7 @@ function onToggleTheme() {
 
 <template>
   <TongjiRegistration v-if="props.tongjiRegistration" :terms="props.termsOfServiceEnabled" :privacy="props.privacyPolicyEnabled" />
-  <main v-else class="login-main relative min-h-screen overflow-hidden bg-base-100 text-base-content sm:bg-base-200 sm:px-6 sm:py-8 lg:px-8">
+  <main v-else class="login-main relative min-h-screen [overflow-wrap:anywhere] overflow-hidden bg-base-100 text-base-content sm:bg-base-200 sm:px-6 sm:py-8 lg:px-8">
     <!-- 波点静态背景：纯 CSS 点阵，无动画，零 GPU 开销 -->
     <div class="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
       <div class="gf-dot-grid absolute inset-0" />
@@ -352,8 +352,8 @@ function onToggleTheme() {
     </div>
 
     <section class="relative z-10 mx-auto flex min-h-screen w-full max-w-[880px] flex-col items-center justify-center sm:min-h-[calc(100vh-4rem)]">
-      <div class="login-card gf-card grid w-full overflow-hidden border-0 shadow-none sm:border sm:shadow-[0_8px_40px_-24px_rgb(0_0_0/calc(var(--gf-depth)*0.35))] md:grid-cols-2">
-        <div class="login-column flex flex-col justify-center px-4 py-8 sm:min-h-[470px] sm:px-8 sm:py-6">
+      <div class="login-card gf-card grid w-full grid-cols-1 overflow-hidden border-0 shadow-none sm:border sm:shadow-[0_8px_40px_-24px_rgb(0_0_0/calc(var(--gf-depth)*0.35))] md:grid-cols-2">
+        <div class="login-column flex min-w-0 flex-col [overflow-wrap:anywhere] justify-center px-4 py-8 sm:min-h-[470px] sm:px-8 sm:py-6">
           <!-- 移动端品牌区：桌面双栏的右栏品牌内容以顶部品牌头呈现（白龙茶/乌龙茶缩放后置于标语两侧） -->
           <div v-if="showSocial" class="mb-8 md:hidden">
             <div class="flex items-center justify-center gap-2">
@@ -379,8 +379,8 @@ function onToggleTheme() {
           </div>
 
           <div v-if="mode !== 'forgot'" class="gf-segmented mb-6 grid-cols-2">
-            <button type="button" class="gf-segmented-item" :class="mode === 'login' ? 'gf-segmented-item-active' : 'gf-segmented-item-idle'" @click="switchMode('login')">{{ t('shell.login') }}</button>
-            <button type="button" class="gf-segmented-item" :class="mode === 'register' ? 'gf-segmented-item-active' : 'gf-segmented-item-idle'" @click="switchMode('register')">{{ t('shell.register') }}</button>
+            <button type="button" class="gf-segmented-item h-auto min-h-8 whitespace-normal py-1 text-center" :class="mode === 'login' ? 'gf-segmented-item-active' : 'gf-segmented-item-idle'" @click="switchMode('login')">{{ t('shell.login') }}</button>
+            <button type="button" class="gf-segmented-item h-auto min-h-8 whitespace-normal py-1 text-center" :class="mode === 'register' ? 'gf-segmented-item-active' : 'gf-segmented-item-idle'" @click="switchMode('register')">{{ t('shell.register') }}</button>
           </div>
 
           <p v-if="tongjiNotice" class="gf-status-message gf-status-message-error mb-4">{{ tongjiNotice }}</p>
@@ -461,9 +461,10 @@ function onToggleTheme() {
               <span class="sr-only">{{ t('auth.username') }}</span>
               <span class="relative block">
                 <UserRound class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
-                <input v-model.trim="registerForm.username" class="gf-input pl-10" :placeholder="t('auth.username')" autocomplete="username" />
+                <input v-model.trim="registerForm.username" aria-describedby="register-username-rules" class="gf-input pl-10" :placeholder="t('auth.username')" autocomplete="username" />
               </span>
             </label>
+            <p id="register-username-rules" class="text-xs leading-relaxed text-base-content/65 [overflow-wrap:anywhere]">{{ t('auth.registrationUsernameRules') }}</p>
             <div>
               <label for="register-email" class="sr-only">{{ t('auth.email') }}</label>
               <span v-if="allowedDomains.length > 0" class="gf-input flex overflow-hidden !p-0 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/20">
@@ -490,8 +491,9 @@ function onToggleTheme() {
             </div>
             <label class="block">
               <span class="sr-only">{{ t('auth.password') }}</span>
-              <PasswordInput v-model="registerForm.password" :placeholder="t('auth.password')" autocomplete="new-password" :label="t('auth.password')" />
+              <PasswordInput v-model="registerForm.password" description-id="register-password-rules" :placeholder="t('auth.password')" autocomplete="new-password" :label="t('auth.password')" />
             </label>
+            <p id="register-password-rules" class="text-xs leading-relaxed text-base-content/65 [overflow-wrap:anywhere]">{{ t('auth.registrationPasswordRules') }}</p>
             <label class="block">
               <span class="sr-only">{{ t('auth.confirmPassword') }}</span>
               <PasswordInput v-model="registerForm.confirmPassword" :placeholder="t('auth.confirmPassword')" autocomplete="new-password" :label="t('auth.confirmPassword')" />
@@ -636,6 +638,16 @@ function onToggleTheme() {
 </template>
 
 <style scoped>
+/* Form actions grow with their translated label at large text sizes. */
+.login-main :deep(.gf-button) {
+  height: auto;
+  min-height: 2.75rem;
+  padding-block: 0.5rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
 /* 波点静态背景：
    - 纯 CSS radial-gradient 点阵（无图片请求，无动画）
    - 径向遮罩边缘淡出，视觉柔和

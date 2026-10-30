@@ -232,6 +232,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authUsernameOrEmail => 'Username or email';
 
   @override
+  String get authRegistrationUsernameRules =>
+      '6–32 characters: English letters, digits, underscores (_) and hyphens (-).';
+
+  @override
+  String get authRegistrationPasswordRules =>
+      '6–64 characters, including an English letter (A–Z/a–z) and a digit (0–9). Other characters are allowed.';
+
+  @override
   String get authUsername => 'Username';
 
   @override

@@ -238,6 +238,10 @@ social counts and badges, and moderator access rules beyond today's public profi
   (admin/site/user/… permissions) and activates them immediately through the user-cache
   refresh path, so the admin console cannot lock itself out; ordinary pending users are left
   untouched and must still complete the activation email.
+- `Current`: password registration shows username and password rules before input on Web and App,
+  associated with their fields. Usernames allow 6–32 ASCII letters/digits/underscores/hyphens;
+  passwords allow 6–64 Unicode characters and require an ASCII letter and digit. Hints do not expose
+  account availability or replace server validation. Login and recovery do not show registration rules.
 - Username/nickname policy: `reservedUsernames` / `bannedUsernames` are enforced at
   password registration/rename and at Agent account creation with **normalized whole-string
   equality** (case folding, NFKC full-width, zero-width stripping, ASCII leetspeak folding):

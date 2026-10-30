@@ -1418,6 +1418,8 @@ export default {
     contentGone: '内容已永久删除',
   },
   auth: {
+    registrationUsernameRules: "6–32 个字符，仅限英文字母、数字、下划线（_）和连字符（-）。",
+    registrationPasswordRules: "6–64 个字符，须包含英文字母（A–Z／a–z）和数字（0–9），可混合其他字符。",
     passkeyLogin: '使用通行密钥登录',
     passkeyWorking: '正在验证通行密钥…',
     passkeyCancelled: '未选择或没有可用的通行密钥，请重试或使用密码登录。',

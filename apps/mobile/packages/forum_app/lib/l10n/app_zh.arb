@@ -114,6 +114,8 @@
   "authRegisterSubtitle": "创建账号，加入校园里的每一次讨论。",
   "authForgotSubtitle": "输入邮箱，我们会发送一封重置密码邮件。",
   "authUsernameOrEmail": "用户名或邮箱",
+  "authRegistrationUsernameRules": "6–32 个字符，仅限英文字母、数字、下划线（_）和连字符（-）。",
+  "authRegistrationPasswordRules": "6–64 个字符，须包含英文字母（A–Z／a–z）和数字（0–9），可混合其他字符。",
   "authUsername": "用户名",
   "authEmail": "邮箱",
   "authPassword": "密码",

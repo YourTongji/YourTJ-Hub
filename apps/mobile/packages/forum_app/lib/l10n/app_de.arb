@@ -72,6 +72,8 @@
   "authRegisterSubtitle": "Erstelle ein Konto und tausche dich auf dem Campus aus.",
   "authForgotSubtitle": "Gib deine E-Mail ein und wir senden dir eine Nachricht zum Zurücksetzen des Passworts.",
   "authUsernameOrEmail": "Benutzername oder E-Mail",
+  "authRegistrationUsernameRules": "6–32 Zeichen: englische Buchstaben, Ziffern, Unterstriche (_) und Bindestriche (-).",
+  "authRegistrationPasswordRules": "6–64 Zeichen mit mindestens einem englischen Buchstaben (A–Z/a–z) und einer Ziffer (0–9). Weitere Zeichen sind erlaubt.",
   "authUsername": "Benutzername",
   "authEmail": "E-Mail",
   "authPassword": "Passwort",

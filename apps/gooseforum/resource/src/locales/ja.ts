@@ -1417,6 +1417,8 @@ export default {
     contentGone: 'コンテンツは完全に削除されました',
   },
   auth: {
+    registrationUsernameRules: "6–32 文字。半角英字・数字・アンダースコア（_）・ハイフン（-）が使えます。",
+    registrationPasswordRules: "6–64 文字。半角英字（A–Z／a–z）と数字（0–9）を含めてください。他の文字も使えます。",
     passkeyLogin: 'パスキーでログイン',
     passkeyWorking: 'パスキーを確認中…',
     passkeyCancelled: 'パスキーが選択されていないか、利用できません。再試行するか、パスワードでログインしてください。',
