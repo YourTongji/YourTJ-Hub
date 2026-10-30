@@ -120,6 +120,8 @@ separate checks.
 ## CI mapping
 
 `Current`: Web browser CI installs Chromium and WebKit. WebKit regressions cover native-browser layout differences such as long badge names inside grid cards.
+The translated-admin browser suite renders six production pages in four languages and both
+themes at 320 CSS pixels in both engines, including Wiki tab keyboard navigation.
 
 `Current`: Flutter CI installs the checked-in lock with `--enforce-lockfile`, rejects any
 lock changes from Flutter or Melos bootstrap, and uses `--no-pub` for native compilation.

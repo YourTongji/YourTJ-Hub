@@ -1581,7 +1581,7 @@ onUnmounted(stopSyncPolling)
       </form>
 
       <form v-else-if="kind === 'security'" class="max-w-2xl space-y-8" @submit.prevent="save">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-4">
           <div><div class="text-base font-medium">{{ adminText('k008y') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k008z') }}</p></div>
           <Switch v-model="securityForm.enableSignup" />
         </div>
@@ -1590,12 +1590,12 @@ onUnmounted(stopSyncPolling)
           <p class="text-sm text-muted-foreground">{{ adminText('k00ll') }}</p>
           <Input v-model.number="securityForm.maxDailySignups" type="number" min="-1" step="1" class="max-w-sm" />
         </div>
-        <div class="flex items-center justify-between">
-          <div><div class="flex items-center gap-2 text-base font-medium"><MailCheck class="size-4" />{{ adminText('k0090') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k0091') }}</p></div>
+        <div class="flex items-center justify-between gap-4">
+          <div class="min-w-0"><div class="flex flex-wrap items-center gap-2 text-base font-medium"><MailCheck class="size-4" />{{ adminText('k0090') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k0091') }}</p></div>
           <Switch v-model="securityForm.enableEmailVerification" />
         </div>
-        <div class="flex items-center justify-between">
-          <div><div class="flex items-center gap-2 text-base font-medium"><Shield class="size-4" />{{ adminText('k00it') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00iu') }}</p></div>
+        <div class="flex items-center justify-between gap-4">
+          <div class="min-w-0"><div class="flex flex-wrap items-center gap-2 text-base font-medium"><Shield class="size-4" />{{ adminText('k00it') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00iu') }}</p></div>
           <Switch v-model="securityForm.captchaRequired" />
         </div>
         <div class="space-y-4">
@@ -1685,8 +1685,8 @@ onUnmounted(stopSyncPolling)
             </button>
           </div>
         </div>
-        <RouterLink to="/admin/settings/ai-moderation" class="flex items-center justify-between gap-3 rounded-lg border bg-muted/10 p-4 transition-colors hover:bg-muted/30">
-          <span>
+        <RouterLink to="/admin/settings/ai-moderation" class="flex flex-col items-start justify-between gap-3 rounded-lg border bg-muted/10 p-4 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center">
+          <span class="min-w-0">
             <span class="flex items-center gap-2 text-base font-medium"><Sparkles class="size-4" />{{ t('aiModerationAdmin.title') }}</span>
             <span class="mt-1 block text-sm text-muted-foreground">{{ t('aiModerationAdmin.securityEntryHint') }}</span>
           </span>
@@ -2099,7 +2099,7 @@ onUnmounted(stopSyncPolling)
             <CheckCircle2 v-else class="size-4" />
             {{ adminText('k00g6') }}
           </Button>
-          <Button type="button" variant="outline" :disabled="storageForm.provider !== 's3'" @click="migrateConfirm = true">
+          <Button type="button" variant="outline" class="h-auto max-w-full whitespace-normal py-2 text-start" :disabled="storageForm.provider !== 's3'" @click="migrateConfirm = true">
             <HardDrive class="size-4" />
             {{ adminText('k00g9') }}
           </Button>
@@ -2277,7 +2277,7 @@ onUnmounted(stopSyncPolling)
           </div>
 
           <div class="space-y-4 border-t border-border/70 pt-6">
-            <div class="flex items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
               <span class="text-sm font-medium">{{ adminText('k00tl') }}</span>
               <Button type="button" variant="ghost" size="sm" @click="refreshSyncStatus">
                 <RefreshCw class="size-3.5" />

@@ -1642,7 +1642,7 @@ The approved permission/privacy/failure boundaries for optional analytics are re
   normal fallback. The console does not download font files.
 - `Partial`: the complete Web admin console and moderation workspace are reachable in the App.
   The native wrapper and authenticated handoff pass local iOS and Android login/draft/console
-  journeys; all 28 administrative modules fit both viewports, including the link editor.
+  journeys; 38 authorized administrative modules fit both viewports, including the link editor.
   The journey creates and deletes a friend link through the real administrative form.
   Both independent course workspaces also pass authenticated handoff and viewport checks on iOS
   and Android.
@@ -1651,6 +1651,10 @@ The approved permission/privacy/failure boundaries for optional analytics are re
   share sheet, but dismissal/file selection has not completed under the available simulator UI
   automation. Remaining administrative forms and that iOS file round-trip still need device
   validation before claiming complete mobile parity.
+- `Current`: at 320 CSS pixels, translated controls in recommendation statistics, Wiki, sponsors,
+  account security, campus synchronization and storage remain inside the page. Toolbars and Wiki
+  tabs wrap; the campus semester selector can shrink without pushing its card wider, and long
+  storage migration actions wrap their text. Wiki tabs retain arrow-key navigation.
 - `Current`: course management and course-review moderation have separate entries in Profile and
   the course catalog. Only CourseManager or Admin can discover and enter them; forum moderator
   status alone does not grant access.
