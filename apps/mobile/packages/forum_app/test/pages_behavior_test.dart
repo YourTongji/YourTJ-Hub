@@ -1485,6 +1485,20 @@ int nativePushStops = 0;
 class LogoutAuthRepository extends AuthRepository {
   LogoutAuthRepository(super.client);
 
+  @override
+  Future<ActivationStatus> getActivationStatus({
+    CancelToken? cancelToken,
+  }) async => const ActivationStatus(
+    currentEmail: 'alice@example.test',
+    pendingEmail: '',
+    targetEmail: '',
+    targetKind: 'none',
+    state: 'verified',
+    remainingToday: 3,
+    dailyLimit: 3,
+    retryAfterSeconds: 0,
+  );
+
   int logoutCalls = 0;
 
   @override
@@ -1571,15 +1585,36 @@ class EmptySessionsUserRepository extends UserRepository {
 }
 
 class EmailChangeUserRepository extends EmptySessionsUserRepository {
-  EmailChangeUserRepository(super.client, {this.fail = false});
+  EmailChangeUserRepository(super.client, {this.fail = false, this.onChanged});
 
   final bool fail;
+  final void Function(String)? onChanged;
 
   @override
   Future<bool> setUserEmail(String email, String password) async {
     if (fail) throw Exception('email change failed');
+    onChanged?.call(email);
     return true;
   }
+}
+
+class _ChangingEmailAuthRepository extends LogoutAuthRepository {
+  _ChangingEmailAuthRepository(super.client);
+  ActivationStatus status = const ActivationStatus(
+    currentEmail: 'alice@example.com',
+    pendingEmail: '',
+    targetEmail: '',
+    targetKind: 'none',
+    state: 'verified',
+    remainingToday: 3,
+    dailyLimit: 3,
+    retryAfterSeconds: 0,
+  );
+  Completer<ActivationStatus>? pending;
+  @override
+  Future<ActivationStatus> getActivationStatus({
+    CancelToken? cancelToken,
+  }) async => pending?.future ?? status;
 }
 
 /// 可编程 revoke-all 的 UserRepository:记录调用并可注入失败。
@@ -4167,6 +4202,11 @@ void main() {
             )
             .first,
       );
+      await Scrollable.ensureVisible(
+        tester.element(find.byKey(const Key('settings-close-account'))),
+        alignment: .5,
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.text('注销账号'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'password');
@@ -5148,6 +5188,85 @@ void main() {
   });
 
   group('设置页加载与导航', () {
+    testWidgets(
+      'email edits refresh verified and pending targets and fence stale status',
+      (tester) async {
+        tester.view.physicalSize = const Size(600, 2400);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final auth = _ChangingEmailAuthRepository(client);
+        final container = await makeContainer(
+          pageRepo: CountingPageRepository(client),
+          authRepo: auth,
+          userRepo: EmailChangeUserRepository(
+            client,
+            onChanged: (email) {
+              auth.pending = null;
+              auth.status = ActivationStatus(
+                currentEmail: 'alice@example.com',
+                pendingEmail: email,
+                targetEmail: email,
+                targetKind: 'pending',
+                state: 'ready',
+                remainingToday: 3,
+                dailyLimit: 3,
+                retryAfterSeconds: 0,
+              );
+            },
+          ),
+        );
+        await tester.pumpWidget(
+          app(container, const SettingsPage(initialSection: 'account')),
+        );
+        await tester.pumpAndSettle();
+        final l = AppLocalizations.of(
+          tester.element(find.byType(SettingsPage)),
+        );
+        expect(find.text(l.activationStatusVerified), findsOneWidget);
+        Future<void> change(String email) async {
+          await tester.ensureVisible(find.text('alice@example.com'));
+          await tester.tap(find.text('alice@example.com'));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 400));
+          await tester.enterText(find.byType(TextField).at(0), email);
+          await tester.enterText(find.byType(TextField).at(1), 'password');
+          await tester.tap(find.text(l.commonSave));
+          await tester.pumpAndSettle();
+        }
+
+        await change('first@example.test');
+        expect(
+          find.text(l.activationStatusTarget('first@example.test')),
+          findsOneWidget,
+        );
+        expect(find.text(l.activationStatusVerified), findsNothing);
+        final stale = Completer<ActivationStatus>();
+        final oldStatus = auth.status;
+        auth.pending = stale;
+        await tester.ensureVisible(find.text(l.activationStatusRefresh));
+        await tester.tap(find.text(l.activationStatusRefresh));
+        await tester.pump();
+        await change('second@example.test');
+        expect(
+          find.text(l.activationStatusTarget('second@example.test')),
+          findsOneWidget,
+        );
+        stale.complete(oldStatus);
+        await tester.pumpAndSettle();
+        expect(
+          find.text(l.activationStatusTarget('second@example.test')),
+          findsOneWidget,
+        );
+        expect(find.textContaining('first@example.test'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     for (final language in ['zh', 'en', 'ja', 'de']) {
       testWidgets(
         'email change success shows localized inbox guidance ($language)',

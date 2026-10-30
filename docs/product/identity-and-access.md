@@ -94,7 +94,12 @@ quota retain their dedicated messages; unexpected failures remain generic. Faile
 no partial account or campus binding and keep the proof usable until its original deadline.
 Validation failures allow retry; success consumes the
 proof and resumes the original safe destination, including App OIDC. Restart or expiration requires
-fresh school authentication. See [the decision](../decisions/0034-tongji-registration-completion.md).
+fresh school authentication. If account creation succeeds but the session cannot be
+stored, `auth.tongji.retryLogin` explicitly confirms creation and offers a fresh
+school sign-in through the local `params.restartUrl`, preserving the validated
+continuation. The consumed proof and registration form cannot be reused; username
+validation failures before creation still permit correction with the current proof.
+No session token or internal storage error is returned on this failure. See [the decision](../decisions/0034-tongji-registration-completion.md).
 
 ### Built-in OIDC Provider (first-party clients)
 
@@ -105,6 +110,11 @@ fresh school authentication. See [the decision](../decisions/0034-tongji-registr
   follows a client-supplied redirect target (open-redirect safe).
 - ID tokens are RS256-signed with a persistent provider key (inline PEM or key file, auto-generated
   otherwise); `sub` = numeric `users.id`. Opaque access tokens are stored as token-ID rows only.
+
+`Current`: Web password registration accepts either an email prefix with the published domain
+selector or a complete address at one of the allowed domains. Matching ignores domain case;
+full-address paste selects its matching suffix instead of appending another one. Malformed or
+unlisted addresses remain on the form. The backend remains the admission authority.
 
 ### Mobile (Flutter)
 
@@ -238,6 +248,25 @@ social counts and badges, and moderator access rules beyond today's public profi
   (admin/site/user/… permissions) and activates them immediately through the user-cache
   refresh path, so the admin console cannot lock itself out; ordinary pending users are left
   untouched and must still complete the activation email.
+- Activation resend status (`Current`): authenticated owners read
+  `GET /api/resend-activation-email` with `private, no-store`. It returns current,
+  fresh staged and actual target addresses, availability, remaining daily quota
+  and a relative wait rounded up using server time. Reading never reserves quota
+  or queues mail; query parameters cannot select another account. Web and App
+  refresh after attempts, on return and at wait expiry. They do not automatically
+  resend. Failed status reads keep sending unavailable and expose a refresh action;
+  successful email edits immediately refresh the target and cancel the previous
+  read; stale responses are isolated from account changes. Write permissions and the
+  shared daily/interval limits are still checked by POST.
+- Activation-email resend (`Current`): current and staged addresses share one account's
+  three-per-day quota and 60-second interval. A request reserves its slot atomically before
+  token generation and queue insertion; a token-preparation failure or a queue rejection before
+  COMMIT releases only that request's slot and preserves other charged sends and their cooldown.
+  An uncertain COMMIT acknowledgement retains its charge, as do a lost HTTP response or a later
+  SMTP failure after enqueueing. Existing records retain their count and cooldown. Refunds use
+  the original day and expiry instead of extending quota-state retention. A process crash or unavailable quota store during
+  compensation can leave the reservation charged until the daily key expires; compensation
+  errors are logged rather than treating an unknown outcome as a successful refund.
 - Username/nickname policy: `reservedUsernames` / `bannedUsernames` are enforced at
   password registration/rename and at Agent account creation with **normalized whole-string
   equality** (case folding, NFKC full-width, zero-width stripping, ASCII leetspeak folding):
@@ -324,6 +353,29 @@ social counts and badges, and moderator access rules beyond today's public profi
   and attachment bytes for moderator forensics via the audited `view-deleted-content` view;
   recovery-window, audit, and evidence-hold behavior remain governed by the corresponding domain
   services and operations documentation.
+
+### Account email content and recovery
+
+`Current`: the existing activation, password-reset, completed-email-change and pending-email-change
+SMTP emails include the configured site name in the subject and carry both UTF-8 plain-text and HTML
+alternatives. Both use the account email task's normalized zh/en/ja/de locale, the same recipient,
+action URL and security guidance. Missing locale retains Chinese body fallback and omits `lang` from
+action links; unknown non-empty locale normalizes to Chinese. These are outbound account emails,
+not the forum's internal messages.
+
+Activation emails explain that an unsolicited registration, verification or email-change request can
+be ignored without opening or sharing the activation link. The 24-hour activation lifetime starts at
+token issuance, before queueing; delayed delivery does not restart it. Expired-link recovery uses the
+existing `/settings?tab=profile` page: sign in to the intended account, then explicitly request another
+email or correct the address. Opening settings neither sends mail nor changes account sessions by
+itself. The queue, token validity, resend limits and account permissions are unchanged.
+
+`Partial`: external delivery and mail-client rendering depend on the provider/client. Message
+serialization tests do not establish inbox delivery. Email URLs use site settings `siteUrl`, falling
+back to `server.url` only when the former is blank. They are not inferred from an incoming request.
+If a link points to the wrong site or cannot open, recipients should independently open their known
+site address and use email settings rather than register again. Operators must correct the public
+URL configuration before asking owners to resend; see [deployment](../operations/deployment.md#account-email-public-urls).
 
 ## Bot personas (Agents)
 
@@ -483,7 +535,9 @@ support.
   #1277).
 - Enumeration resistance: login errors do not distinguish "user not found / wrong password", and
   unknown accounts run the same-cost PBKDF2 verification as real ones so response time does not
-  reveal whether a username/email is registered. Password registration collapses username/email-taken into
+  reveal whether a username/email is registered. Password login and recovery normalize email input to
+  the lowercase, trimmed form used at registration; username matching retains its existing case rules.
+  This lookup does not merge or rewrite legacy accounts. Password registration collapses username/email-taken into
   the same generic `auth.register.failed` body as other failures (never `auth.username.exists` /
   `auth.email.exists`) and always runs both existence queries, so the error body no longer reveals
   which field is taken. The registration protocol itself (immediate account creation + session vs.

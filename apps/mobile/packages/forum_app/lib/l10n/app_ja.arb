@@ -400,7 +400,7 @@
   "schedulePickClass": "クラスを選択",
   "scheduleCompulsory": "必修",
   "scheduleOptional": "選択",
-  "scheduleSearchHint": "授業名・コード・教員名で検索",
+  "scheduleSearchHint": "授業名を検索",
   "scheduleStaged": "候補",
   "scheduleSelected": "選択済み",
   "scheduleRemoveCourse": "削除",
@@ -1542,5 +1542,101 @@
   "courseAddToPlanner": "履修プランナーに追加",
   "coursePlannerSelectTerm": "同じ学期と専攻を選択してからクラスを確認してください。既存プランは自動変更されません。",
   "coursePlannerUnavailable": "この学期のクラスは利用できません。講義詳細から別の開講記録を選択してください。",
-  "coursePlannerCalendarsFailed": "学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。"
+  "coursePlannerCalendarsFailed": "学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。",
+  "activationStatusTarget": "送信先：{email}",
+  "@activationStatusTarget": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "activationStatusRemaining": "本日の再送可能回数：{count} / {limit}",
+  "@activationStatusRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "activationStatusRefresh": "状態を更新",
+  "activationStatusCooldown": "{seconds} 秒後に再送できます",
+  "@activationStatusCooldown": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "activationStatusDailyLimit": "本日の上限に達しました。明日お試しください",
+  "activationStatusDisabled": "メール確認は現在無効です",
+  "activationStatusVerified": "メールは確認済みです。再送は不要です",
+  "activationStatusFrozen": "このアカウントでは再送できません",
+  "activationStatusMailUnavailable": "メールを利用できません。後で更新してください",
+  "activationStatusMissingEmail": "先にアカウント設定でメールを追加してください",
+  "scheduleSearchNoMatch": "「{query}」に一致する授業名はありません",
+  "scheduleCourseScope": "現在の範囲：{scope}",
+  "imageViewerFitPreview": "画面に合わせる",
+  "scheduleSearchScope": "授業名の検索範囲：{term}",
+  "scheduleChangeMajorBody": "専攻を変更すると、{planCount} 件の計画にある {courseCount} 科目と {eventCount} 件の予定が消去されます。キャンセルすると元の設定と計画を保持します。",
+  "scheduleSetupMissing": "{fields} を選択してから科目や授業クラスを探してください。",
+  "campusTimetableNotConnected": "同済大学の本人認証が未接続です",
+  "scheduleEmptyCourseHint": "履修範囲を変更するか、授業名で検索してください。",
+  "scheduleNoCompulsory": "この範囲の必修科目は返されませんでした",
+  "scheduleMajorNoMatch": "一致する専攻はありません",
+  "campusTimetableConnectBody": "本人認証を接続すると、大学から提供される個人の時間割を表示できます。接続しなくても、科目一覧と時間割シミュレーターを利用できます。",
+  "scheduleChangeMajorConfirm": "変更して消去",
+  "scheduleChangeMajorTitle": "専攻を変更して計画を消去しますか？",
+  "scheduleMajorSearchHint": "専攻名またはコードを検索",
+  "scheduleChangeMajorUpdated": "計画の内容が更新されました。専攻を選び直してください。",
+  "imageViewerThumbnails": "画像のサムネイル",
+  "scheduleConfigureScope": "履修範囲を設定",
+  "scheduleNoOptional": "この学期の選択科目は返されませんでした",
+  "scheduleSetupTitle": "先に履修範囲を設定してください",
+  "@scheduleSearchNoMatch": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleSearchReady": "授業名を入力して検索",
+  "@scheduleChangeMajorBody": {
+    "placeholders": {
+      "planCount": {
+        "type": "int"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSetupMissing": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "@scheduleSearchScope": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "@scheduleCourseScope": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "imageViewerOriginalSize": "元のサイズ"
 }

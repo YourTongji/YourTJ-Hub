@@ -433,6 +433,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/resend-activation-email"
+  },
+  {
+    "method": "GET",
     "path": "/api/site-theme/tokens"
   },
   {

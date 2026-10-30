@@ -71,6 +71,7 @@ func setupAccountContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	loginAPI.POST("/set-user-info", middleware.CheckWritableAccount, UpButterReq(api.EditUserInfo))
 	loginAPI.POST("/set-user-profile-cover", middleware.CheckWritableAccount, UpButterReq(api.EditUserProfileCover))
 	loginAPI.POST("/set-user-email", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitEmailChange), UpButterReq(api.EditUserEmail))
+	loginAPI.GET("/resend-activation-email", UpQueryReq(api.GetActivationStatus))
 	loginAPI.POST("/resend-activation-email", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.ResendActivationEmail))
 	loginAPI.POST("/set-user-name", middleware.CheckWritableAccount, UpButterReq(api.EditUsername))
 	loginAPI.POST("/set-preset-avatar", middleware.CheckWritableAccount, UpButterReq(api.SetPresetAvatar))
