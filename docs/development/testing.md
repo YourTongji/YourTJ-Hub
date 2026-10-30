@@ -99,6 +99,13 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 
 ## CI mapping
 
+`Current`: **CI / Verify** also accepts a manual run on a selected ref and validates every
+CI domain, including PostgreSQL and both native platforms, without using a change-path subset.
+The `ci-plan` artifact records this explicit full-validation reason. Deployment still follows
+its separate source/event eligibility gate. Local Twemoji CLI tests include filesystem aliases;
+the generator uses Node 24's entry-module detection so macOS temporary-directory aliases and
+symlink entry paths execute generation instead of silently exiting.
+
 All CI `push` triggers are limited to `dev` and `main`, so a push to an in-repository
 PR branch is validated once by its `pull_request` run rather than again by a duplicate
 `push` run. CI runs for the same PR or branch supersede older in-progress runs.

@@ -58,6 +58,26 @@ class SelectTests(unittest.TestCase):
 
 
 class ComparisonFallbackTests(unittest.TestCase):
+    def test_manual_dispatch_explicitly_validates_all_domains_without_a_diff(self):
+        import contextlib
+        import io
+        import json
+        import os
+        from pathlib import Path
+        import tempfile
+        from unittest.mock import patch
+        import select_inputs
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / 'plan.json'
+            with patch.dict(os.environ, GITHUB_EVENT_NAME='workflow_dispatch', GITHUB_EVENT_PATH='', GITHUB_OUTPUT=''), \
+                 patch('sys.argv', ['select_inputs.py', '--base', 'a' * 40, '--output', str(output)]), \
+                 patch('select_inputs.changed_paths', side_effect=AssertionError('manual runs must not narrow scope')), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                select_inputs.main()
+            plan = json.loads(output.read_text())
+            self.assertEqual(set(plan), set(select_inputs.DOMAINS))
+            self.assertTrue(all(v['run'] and v['reason'] == 'Explicit manual full validation' for v in plan.values()))
+
     def test_missing_zero_and_unresolvable_bases_run_all_domains(self):
         import contextlib
         import io

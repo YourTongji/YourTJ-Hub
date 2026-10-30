@@ -168,6 +168,7 @@ async function main() {
   )
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Node 24 identifies the entry module after resolving filesystem aliases.
+if (import.meta.main) {
   await main()
 }
