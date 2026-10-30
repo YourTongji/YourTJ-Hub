@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 Class: process
 
 ## Context and Problem Statement

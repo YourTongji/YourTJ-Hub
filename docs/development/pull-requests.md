@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-29
+> Last verified: 2026-10-30
 
 本页是需求准备、Issue、PR 与评审的流程事实源。GitHub 模板负责收集信息，repository skills
 负责执行本页标准；不在各处维护另一套要求。Issue 说明问题与预期结果，PR 说明交付行为与验证证据，
@@ -179,7 +179,7 @@ Issue 条目，reviewer 核对实际实现，不重复挑战该取舍。执行�
 或“特性无 delta”与实际不符。指出具体差异并要求补充/纠正声明，或恢复未声明的旧特性；对账后
 可解除。它不因新设计本身的取舍而阻塞，也不用于羞辱作者。正确性、安全和验收证据仍按 review contract 独立判断。
 
-规则依据见 [MADR 0116](../decisions/0116-visual-change-reconciliation.md)。首个案例是
+规则依据见 [MADR 0121](../decisions/0121-visual-change-reconciliation.md)。首个案例是
 [PR #1170](https://github.com/YourTongji/YourTJ-Hub/pull/1170) 中 Home“显示方式”的
 `ListTile.leading` 图标在迁移为文本菜单项时丢失：即使菜单动作值保持不变，图标“有 → 无”仍须
 声明。共享菜单项的独立 leading 能力由 [Issue #1241](https://github.com/YourTongji/YourTJ-Hub/issues/1241)
