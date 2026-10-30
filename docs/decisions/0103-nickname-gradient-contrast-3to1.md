@@ -47,7 +47,7 @@ picker shows. Because the catalog re-validates every stored definition on read, 
 the old floor kept quietly hidden start being served again without an administrator action. All
 three implementations carry the same named constant:
 `NicknameContrastMin` in `app/service/decorationservice/definitions.go`, `NICKNAME_CONTRAST_MIN` in
-`resource/src/site/utils/decoration-style.ts`, and `nicknameContrastMin` in
+`resource/src/runtime/decoration-style.ts`, and `nicknameContrastMin` in
 `apps/mobile/packages/forum_app/lib/src/widgets/user_decoration.dart`. The web admin console always
 shows the measured lowest stop/background contrast below its live preview and keeps painting the
 entered gradient there; a definition below the floor is flagged in that same spot and cannot be

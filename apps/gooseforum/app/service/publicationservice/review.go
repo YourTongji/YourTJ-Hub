@@ -116,6 +116,13 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 }
 
 func review(ctx context.Context, revisionID uint64, action, reason string, actorID, appealID uint64) error {
+	if actorID != 0 && action == moderationDecision.ActionBlock {
+		var err error
+		reason, err = NormalizeRejectionReason(reason)
+		if err != nil {
+			return err
+		}
+	}
 	var stale bool
 	var topic topics.Entity
 	var post posts.Entity

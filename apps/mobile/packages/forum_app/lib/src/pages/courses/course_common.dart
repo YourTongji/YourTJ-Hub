@@ -315,3 +315,11 @@ Widget reviewAvatar(
     child: ClipOval(child: image),
   );
 }
+
+/// One identity label for public recommendations and catalog rows.
+String courseTeacherLabel(CourseSummaryPayload course, CourseCopy copy) =>
+    (course.teacherName != null && course.teacherName!.isNotEmpty)
+    ? course.teacherName!
+    : (course.instructors?.isNotEmpty ?? false)
+    ? course.instructors!.join('、')
+    : copy.noTeacher;

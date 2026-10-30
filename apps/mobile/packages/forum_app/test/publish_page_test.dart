@@ -1296,6 +1296,10 @@ void main() {
     'writing tools stay above keyboard and format the selected text',
     (tester) async {
       await pumpPublishPage(tester, editing: false, contentType: 3);
+      await tester.enterText(
+        find.byKey(const Key('publish-title')),
+        'Article title',
+      );
       final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
       editor.controller.replaceText(
         0,
@@ -1376,6 +1380,10 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await pumpPublishPage(tester, editing: false, contentType: 3);
+      await tester.enterText(
+        find.byKey(const Key('publish-title')),
+        'Article title',
+      );
       final original = tester.widget<QuillEditor>(find.byType(QuillEditor));
       original.controller.replaceText(
         0,
@@ -1468,6 +1476,20 @@ void main() {
           contentType: 3,
           locale: Locale(language),
         );
+        await tester.enterText(
+          find.byKey(const Key('publish-title')),
+          'Article title',
+        );
+        final controller = tester
+            .widget<QuillEditor>(find.byType(QuillEditor))
+            .controller;
+        controller.replaceText(
+          0,
+          0,
+          'Article body',
+          const TextSelection.collapsed(offset: 12),
+        );
+        await tester.pumpAndSettle();
         final l10n = AppLocalizations.of(
           tester.element(find.byType(PublishPage)),
         );
@@ -2167,19 +2189,119 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
-  testWidgets('空表单在提交动作附近显示明确校验错误', (tester) async {
-    await pumpPublishPage(tester, editing: false);
+  testWidgets(
+    'empty article Next stays in edit and focuses its missing title',
+    (tester) async {
+      usePhoneViewport(tester);
+      final result = await pumpPublishPage(
+        tester,
+        editing: false,
+        contentType: 3,
+      );
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(find.text('标题不能为空'), findsOneWidget);
+      expect(find.byType(QuillEditor), findsOneWidget);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('publish-title')))
+            .focusNode!
+            .hasFocus,
+        isTrue,
+      );
+      final controller = tester
+          .widget<QuillEditor>(find.byType(QuillEditor))
+          .controller;
+      controller.replaceText(
+        0,
+        0,
+        'Body without title',
+        const TextSelection.collapsed(offset: 18),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(find.text('标题不能为空'), findsOneWidget);
+      expect(controller.document.toPlainText(), contains('Body without title'));
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('publish-title')))
+            .focusNode!
+            .hasFocus,
+        isTrue,
+      );
+      expect(result.topicRepository.writes, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    },
+  );
 
-    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
-    await tester.pump();
-
-    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
-    await tester.pump();
-    expect(find.text('标题不能为空'), findsOneWidget);
-    expect(find.byType(GfStatusMessage), findsOneWidget);
-    // Let the preview step's identity request finish before teardown.
-    await tester.pumpAndSettle();
-  });
+  for (final locale in ['zh', 'en', 'ja', 'de']) {
+    testWidgets(
+      'article Next validates whitespace then preserves corrected content $locale',
+      (tester) async {
+        usePhoneViewport(tester);
+        final result = await pumpPublishPage(
+          tester,
+          editing: false,
+          contentType: 3,
+          locale: Locale(locale),
+        );
+        final l = AppLocalizations.of(tester.element(find.byType(PublishPage)));
+        final title = find.byKey(const Key('publish-title'));
+        final controller = tester
+            .widget<QuillEditor>(find.byType(QuillEditor))
+            .controller;
+        await tester.enterText(title, '   ');
+        controller.replaceText(
+          0,
+          0,
+          ' \n\t',
+          const TextSelection.collapsed(offset: 3),
+        );
+        await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+        await tester.pumpAndSettle();
+        expect(find.text(l.publishTitleRequired), findsOneWidget);
+        await tester.enterText(title, '保留标题');
+        await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+        await tester.pumpAndSettle();
+        expect(find.text(l.publishContentRequired), findsOneWidget);
+        expect(
+          tester
+              .widget<QuillEditor>(find.byType(QuillEditor))
+              .focusNode
+              .hasFocus,
+          isTrue,
+        );
+        expect(tester.widget<TextField>(title).controller!.text, '保留标题');
+        controller.replaceText(
+          0,
+          controller.document.length - 1,
+          '保留正文',
+          const TextSelection.collapsed(offset: 4),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('publish-preview')), findsOneWidget);
+        expect(find.text(l.publishContentRequired), findsNothing);
+        expect(result.topicRepository.writes, isEmpty);
+        await tester.tap(find.byTooltip(l.commonBack));
+        await tester.pumpAndSettle();
+        expect(tester.widget<TextField>(title).controller!.text, '保留标题');
+        expect(
+          tester
+              .widget<QuillEditor>(find.byType(QuillEditor))
+              .controller
+              .document
+              .toPlainText(),
+          contains('保留正文'),
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 600));
+      },
+    );
+  }
 
   testWidgets('预览页只保留右上角发布按钮，保存草稿移入 AppBar', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -2443,6 +2565,22 @@ void main() {
           contentType: contentType,
           locale: const Locale('de'),
         );
+        if (contentType == 3) {
+          await tester.enterText(
+            find.byKey(const Key('publish-title')),
+            'Article title',
+          );
+          final controller = tester
+              .widget<QuillEditor>(find.byType(QuillEditor))
+              .controller;
+          controller.replaceText(
+            0,
+            0,
+            'Article body',
+            const TextSelection.collapsed(offset: 12),
+          );
+          await tester.pumpAndSettle();
+        }
         await tester.tap(find.byKey(const Key('publish-appbar-submit')));
         await tester.pumpAndSettle();
         expect(find.byKey(const Key('publish-preview')), findsOneWidget);

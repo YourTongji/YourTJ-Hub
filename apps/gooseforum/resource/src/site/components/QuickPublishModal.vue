@@ -195,6 +195,7 @@ function doClose() {
 }
 
 function requestClose() {
+  stashCurrentDraft()
   if (!dirty.value) {
     doClose()
   } else {
@@ -285,8 +286,9 @@ function saveDraftFromFooter() {
 }
 
 function handleBeforeUnload(event: BeforeUnloadEvent) {
-  if (!quickPublishOpen.value || !dirty.value || forcedNav.value) return
+  if (!quickPublishOpen.value || forcedNav.value) return
   stashCurrentDraft()
+  if (!dirty.value) return
   event.preventDefault()
   event.returnValue = ''
 }
@@ -294,7 +296,9 @@ function handleBeforeUnload(event: BeforeUnloadEvent) {
 onMounted(() => {
   window.addEventListener('beforeunload', handleBeforeUnload)
   removeRouteGuard = router.beforeEach(() => {
-    if (!quickPublishOpen.value || !dirty.value || forcedNav.value) return true
+    if (!quickPublishOpen.value || forcedNav.value) return true
+    stashCurrentDraft()
+    if (!dirty.value) return true
     resolvePendingNav(false)
     leavePromptOpen.value = true
     return new Promise<boolean>((resolve) => {
@@ -393,8 +397,15 @@ watch(
 
 // Flush on page exit as well as the debounce; clearing all fields must not
 // resurrect the last nonempty stash. Capture ownership when the modal opens.
+function captureEditorContent() {
+  // Vditor's input callback is delayed; persistence/leave boundaries need the
+  // editor's current committed document, including an explicit empty value.
+  content.value = editor.value?.syncValue() ?? content.value
+}
+
 function stashCurrentDraft() {
   if (!quickPublishOpen.value || viewerId.value !== draftUserId.value) return
+  captureEditorContent()
   if (stashTimer) window.clearTimeout(stashTimer)
   stashTimer = 0
   if (!hasContent.value) {

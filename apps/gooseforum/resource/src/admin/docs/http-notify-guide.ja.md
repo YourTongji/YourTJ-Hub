@@ -159,7 +159,7 @@ func verify(secret string, timestamp string, rawBody []byte, signature string) b
 各コールバック URL ごとにチャネル種別を選べます：
 
 - **汎用 Webhook（JSON）**：上記のリクエスト形式で、HTTP 2xx を成功とみなします。
-- **Feishu グループボット**：Feishu のグループに「カスタムボット」を追加し、その Webhook URL を入力します。Feishu チャネルは審査イベントのみを配信し、対象・理由・抜粋・クイック操作ボタンを含むカードとして表示します。Feishu の Webhook URL は認証情報として扱われ、暗号化して保存され、保存後は表示されません。空のまま保存すると設定済みの URL を保持します。HTTP 200 でも `code` が 0 以外の応答は失敗とみなします。
+- **Feishu グループボット**：Feishu のグループに「カスタムボット」を追加し、その Webhook URL を入力します。Feishu チャネルは審査イベントと `user.signup` 登録通知を配信します。登録カードは公開ユーザー名のみを表示し、メール・セッション情報・承認ボタンを含みません。Feishu の Webhook URL は認証情報として扱われ、暗号化して保存され、保存後は表示されません。空のまま保存すると設定済みの URL を保持します。HTTP 200 でも `code` が 0 以外の応答は失敗とみなします。
 
 Feishu ボットで「署名検証」を有効にしている場合は、そのシークレットを Secret に入力してください。リクエスト本文に `timestamp` と `sign` が追加されます：
 
