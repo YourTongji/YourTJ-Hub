@@ -99,6 +99,8 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 
 ## CI mapping
 
+`Current`: Web browser CI installs Chromium and WebKit. WebKit regressions cover native-browser layout differences such as long badge names inside grid cards.
+
 `Current`: Flutter CI installs the checked-in lock with `--enforce-lockfile`, rejects any
 lock changes from Flutter or Melos bootstrap, and uses `--no-pub` for native compilation.
 Hosted lock sources use `pub.dev`, matching CI's default registry; normalizing those URLs

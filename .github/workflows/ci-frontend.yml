@@ -46,7 +46,7 @@ jobs:
         run: pnpm build
       - name: Install browser for layout tests
         working-directory: apps/gooseforum/resource
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium webkit
       - name: Browser layout tests
         id: browser
         working-directory: apps/gooseforum/resource
