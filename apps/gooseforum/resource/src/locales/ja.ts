@@ -588,6 +588,8 @@ export default {
     save: "バッジを保存"
   },
   tongjiRegistration: {
+    createdTitle: "アカウントを作成しました",
+    restartSchool: "同済認証で再度ログイン",
     title: "同済アカウント登録の完了",
     intro: "同済の本人確認が完了しました。ユーザー名とパスワードを設定して登録してください。メールの再確認は不要です。",
     expired: "認証の有効期限が切れました。同済で再ログインしてください。",
@@ -4113,6 +4115,7 @@ export default {
     'post.firstPostUndeletable': 'トピックの最初の投稿は削除できません。トピック自体を削除してください。',
     'auth.csrf.rejected': 'リクエスト元を検証できませんでした。ページを再読み込みして、もう一度お試しください。',
     'auth.tongji.accountExists': 'この同済大学IDまたは学籍番号メールは既にアカウントに紐づいています。既存のアカウントにログインまたは復旧し、キャンパスページで再連携してください。',
+    'auth.tongji.retryLogin': "アカウントは作成されましたが、自動ログインを完了できませんでした。同済認証で再度ログインしてください。再登録は不要です。",
     'admin.moderator.userRequired': 'Please enter a moderator user.',
     'admin.moderator.userNotFound': 'Moderator user not found.',
     'admin.moderator.notFound': 'Moderator record not found.',

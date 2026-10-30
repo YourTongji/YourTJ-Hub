@@ -11,6 +11,7 @@ const githubReady = params.get('github') !== 'off'
 const googleReady = params.get('google') !== 'off'
 document.documentElement.dataset.theme = params.get('theme') === 'gf-dark' ? 'gf-dark' : 'gf-light'
 const props: LoginPageProps = {
+  tongjiRegistration: params.get('schoolRegistration') === 'true',
   initialMode: params.get('mode') === 'register' ? 'register' : 'login',
   redirectUrl: '/campus', githubUrl: githubReady ? '/api/auth/github' : '', githubReady,
   googleUrl: googleReady ? '/api/auth/google' : '', googleReady,
