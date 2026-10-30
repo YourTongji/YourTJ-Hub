@@ -224,13 +224,14 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  /// 注册。
+  /// 注册。locale 由调用方提供当前界面语言,省略时保留服务端兜底。
   Future<String?> register({
     required String username,
     required String email,
     required String password,
     String? captchaId,
     String? captchaCode,
+    String? locale,
   }) async {
     _busy = true;
     _error = '';
@@ -243,6 +244,7 @@ class AuthController extends ChangeNotifier {
         password: password,
         captchaId: captchaId,
         captchaCode: captchaCode,
+        locale: locale,
       )).messageCode;
       _phase = LoginPhase.idle;
     } on ApiException catch (e) {
