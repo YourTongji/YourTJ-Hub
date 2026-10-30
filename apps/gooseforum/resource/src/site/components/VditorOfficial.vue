@@ -1105,6 +1105,9 @@ function foldItem(item: HTMLElement) {
   // 原次序内跨组：左邻是分隔符 → 打组分隔标记（region 首个项由 CSS 抑制顶线）
   item.classList.toggle('hub-fold-group-start', !!left?.classList.contains('vditor-toolbar__divider'))
   foldRegion!.insertBefore(item, foldRegion!.firstChild) // 插到最前 → 折叠区保持主行左→右次序
+  // Mobile main-row icons need their translated label once they become menu rows.
+  const button = item.querySelector<HTMLElement>(':scope > [data-type]')
+  if (button) ensureToolbarButtonLabel(button)
   syncAdjacentDividers(item)
 }
 
@@ -1125,7 +1128,8 @@ function unfoldItem(item: HTMLElement) {
 function measureToolbar() {
   foldRaf = 0
   if (destroyed || !toolbarEl?.isConnected || !foldRegion) return
-  if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return
+  // Mobile presets can still exceed a narrow host once the counter grows.
+  // Reuse node-preserving folding so every action remains available in More.
   // 恒覆盖工具栏左 padding（防 vditor setPadding 按「内容 padding + 大纲宽度」
   // 在窄屏/大纲展开时把图标挤到右端）；再按宽度滞回切换标签显隐。
   syncToolbarLeftPadding()
@@ -2728,6 +2732,11 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
 @media (max-width: 640px) {
   .vditor-official .vditor-toolbar {
     overflow: visible !important;
+  }
+  /* Link fields must wrap inside the bounded inline popover. */
+  .vditor-official .vditor-wysiwyg > .vditor-panel {
+    white-space: normal;
+    opacity: 1;
   }
   .vditor-official .vditor-panel {
     padding: 3px 4px !important;
