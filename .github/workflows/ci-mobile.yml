@@ -32,11 +32,14 @@ jobs:
       - name: Bootstrap
         working-directory: apps/mobile
         run: |
-          flutter pub get
+          flutter pub get --enforce-lockfile
           dart run melos bootstrap
+          git diff --exit-code -- ':(top)apps/mobile/pubspec.lock'
       - name: Analyze
         working-directory: apps/mobile
-        run: dart run melos run analyze
+        run: |
+          dart run melos run analyze
+          git diff --exit-code -- ':(top)apps/mobile/pubspec.lock'
       - name: Check generated localizations
         working-directory: apps/mobile/packages/forum_app
         run: |
@@ -55,7 +58,7 @@ jobs:
         working-directory: apps/mobile/packages/core
         run: |
           dart run build_runner build --delete-conflicting-outputs --build-filter='lib/src/gen/auth.*.dart'
-          git diff --exit-code -- lib/src/gen/auth.freezed.dart lib/src/gen/auth.g.dart
+          git diff --exit-code -- lib/src/gen/auth.freezed.dart lib/src/gen/auth.g.dart ':(top)apps/mobile/pubspec.lock'
 
   test:
     name: Test / ${{ matrix.package }} / ${{ matrix.shard }}
@@ -83,9 +86,10 @@ jobs:
       - name: Bootstrap
         working-directory: apps/mobile
         run: |
-          flutter pub get
+          flutter pub get --enforce-lockfile
           dart run melos bootstrap
+          git diff --exit-code -- ':(top)apps/mobile/pubspec.lock'
       - name: Test
         working-directory: apps/mobile/packages/${{ matrix.package }}
         # Each runner owns a Flutter SDK, so package jobs do not contend for its startup lock.
-        run: flutter test --total-shards=${{ matrix.shards }} --shard-index=${{ matrix.shard }}
+        run: flutter test --no-pub --total-shards=${{ matrix.shards }} --shard-index=${{ matrix.shard }}

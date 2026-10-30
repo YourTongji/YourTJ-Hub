@@ -23,6 +23,8 @@ jobs:
           persist-credentials: false
       - name: Check login provider contract mirrors
         run: node --test scripts/test-login-provider-mirrors.mjs
+      - name: Check locked mobile dependency bootstrap
+        run: node --test scripts/test-mobile-ci-lockfile.mjs
       - id: select
         run: python3 scripts/ci/select_inputs.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
