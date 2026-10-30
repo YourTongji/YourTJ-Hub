@@ -59,3 +59,55 @@ for (const theme of ['gf-light', 'gf-dark']) {
     } finally { await page.close() }
   })
 }
+
+for (const lang of ['zh', 'en', 'ja', 'de']) for (const theme of ['gf-light', 'gf-dark']) {
+  test(`article toolbar and counter remain reachable at 320px (${lang}/${theme})`, async () => {
+    const page = await browser.newPage({ viewport: { width: 320, height: 900 } })
+    try {
+      await page.goto(`${origin}/assets/test/fixtures/browser/publish-images.html?type=3&lang=${lang}&theme=${theme}`)
+      const body = page.locator('.vditor [contenteditable="true"]:visible').first()
+      await body.waitFor()
+      const more = page.locator('.vditor-toolbar > .vditor-toolbar__item > [data-type="more"]')
+      await more.waitFor()
+      const within = async () => {
+        await page.waitForTimeout(250)
+        const bounds = await page.evaluate(() => {
+          const root = document.querySelector('.vditor-toolbar').getBoundingClientRect()
+          const items = [...document.querySelectorAll('.vditor-toolbar > .vditor-toolbar__item, .vditor-toolbar > .vditor-counter')]
+          return { width: innerWidth, scroll: document.documentElement.scrollWidth,
+            clipped: items.filter(e => e.getBoundingClientRect().right > root.right + 1).length }
+        })
+        assert.ok(bounds.scroll <= bounds.width, `document must fit: ${JSON.stringify(bounds)}`)
+        assert.equal(bounds.clipped, 0, 'every main-row action and counter fits the toolbar')
+      }
+      await within()
+      await body.click()
+      await page.keyboard.press('ControlOrMeta+A')
+      await page.keyboard.insertText('A'.repeat(1000))
+      await page.keyboard.press('Space')
+      await page.locator('.vditor-counter').filter({ hasText: '1001' }).waitFor()
+      await within()
+      await more.click()
+      const foldedLink = page.locator('.hub-fold-region [data-type="link"]')
+      await foldedLink.waitFor({ state: 'visible' })
+      assert.equal(await foldedLink.locator('.vditor-toolbar-label').count(), 1,
+        'folded icons gain visible translated menu labels')
+      if (process.env.YOURTJ_REVIEW_SCREENSHOTS) {
+        await mkdir(process.env.YOURTJ_REVIEW_SCREENSHOTS, { recursive: true })
+        await page.screenshot({ path: `${process.env.YOURTJ_REVIEW_SCREENSHOTS}/article-more-${lang}-${theme}.png` })
+      }
+      await foldedLink.click()
+      await page.locator('.vditor .vditor-input:visible').first().waitFor()
+      const fields = await page.locator('.vditor .vditor-input:visible').evaluateAll(inputs => inputs.map(input => {
+        const box = input.getBoundingClientRect()
+        return { left: box.left, right: box.right, width: innerWidth }
+      }))
+      assert.ok(fields.every(box => box.left >= 0 && box.right <= box.width),
+        `link fields remain fully visible: ${JSON.stringify(fields)}`)
+      if (process.env.YOURTJ_REVIEW_SCREENSHOTS) {
+        await mkdir(process.env.YOURTJ_REVIEW_SCREENSHOTS, { recursive: true })
+        await page.screenshot({ path: `${process.env.YOURTJ_REVIEW_SCREENSHOTS}/article-toolbar-${lang}-${theme}.png` })
+      }
+    } finally { await page.close() }
+  })
+}
