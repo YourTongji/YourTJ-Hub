@@ -4629,4 +4629,17 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       'Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.';
+
+  @override
+  String get unreadStyleTitle => 'Ungelesen-Anzeige';
+
+  @override
+  String get unreadStyleNumbers => 'Anzahl anzeigen';
+
+  @override
+  String get unreadStyleHint =>
+      'Ausgeschaltet erscheinen nur Punkte. Die Einstellung gilt für dieses Konto im Web und in der App. Lesestatus und Push-Mitteilungen bleiben gleich.';
+
+  @override
+  String get unreadStyleSaving => 'Anzeige wird gespeichert…';
 }

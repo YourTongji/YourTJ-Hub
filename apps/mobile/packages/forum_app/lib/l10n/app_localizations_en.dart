@@ -4583,4 +4583,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       'Failed to load the term list. Check your network and try again.';
+
+  @override
+  String get unreadStyleTitle => 'Unread indicators';
+
+  @override
+  String get unreadStyleNumbers => 'Show unread counts';
+
+  @override
+  String get unreadStyleHint =>
+      'Turn off to show dots. This setting syncs between Web and App for this account without marking anything read or changing push delivery.';
+
+  @override
+  String get unreadStyleSaving => 'Saving indicator style…';
 }

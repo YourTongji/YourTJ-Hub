@@ -1,9 +1,12 @@
 package api
 
 import (
+	"errors"
+
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	forumcontroller "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/notificationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
@@ -15,13 +18,44 @@ type GetUnreadCountReq struct{}
 
 func GetUnreadStatus(req component.BetterRequest[GetUnreadCountReq]) component.Response {
 	status := unreadservice.GetStatus(req.UserId)
-	return component.SuccessResponse(component.DataMap{
+	result := component.DataMap{
 		"notifications":          status.Notifications,
 		"messages":               status.Messages,
 		"moderationReports":      moderationservice.HasOpenReports(req.UserId),
 		"latestNotificationType": status.LatestNotificationType,
 		"latestUnreadId":         status.LatestUnreadId,
-	})
+		"badgeStyle":             status.BadgeStyle,
+	}
+	if status.NotificationCount != nil {
+		result["notificationCount"] = *status.NotificationCount
+	}
+	if status.MessageCount != nil {
+		result["messageCount"] = *status.MessageCount
+	}
+	return component.SuccessResponse(result)
+}
+
+func GetNotificationPreferences(req component.BetterRequest[GetUnreadCountReq]) component.Response {
+	prefs, err := unreadservice.GetPreferences(req.UserId)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	return component.SuccessResponse(prefs)
+}
+
+type NotificationPreferencesUpdate struct {
+	BadgeStyle string `json:"badgeStyle" validate:"required,oneof=number dot"`
+}
+
+func UpdateNotificationPreferences(req component.BetterRequest[NotificationPreferencesUpdate]) component.Response {
+	prefs, err := unreadservice.UpdatePreferences(req.UserId, req.Params.BadgeStyle)
+	if errors.Is(err, users.ErrUnreadBadgeStyle) {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	return component.SuccessResponse(prefs)
 }
 
 type NotificationListReq struct {

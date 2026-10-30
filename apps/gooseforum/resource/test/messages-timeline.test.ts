@@ -30,7 +30,7 @@ vi.mock('@/runtime/private-notes', () => ({
   userDisplayName: (_id: number, username: string, nickname?: string) => nickname || username,
 }))
 vi.mock('@/runtime/unread-status', () => ({
-  useUnreadStatus: () => ({ clearMessages: vi.fn() }),
+  useUnreadStatus: () => ({ badgeStyle: { value: 'number' }, clearMessages: vi.fn() }),
 }))
 
 let wrapper: VueWrapper | undefined

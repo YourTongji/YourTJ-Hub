@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UnreadDisplaySettings from '@/site/components/UnreadDisplaySettings.vue'
 import DecorationEditor from '@/site/components/DecorationEditor.vue'
 import UserNickname from '@/site/components/UserNickname.vue'
 import type { UserDecoration } from '@gooseforum/client'
@@ -2189,6 +2190,7 @@ async function toggleBinding(provider: string) {
           <section v-show="activeTab === 'notifications'">
             <SectionHeader :icon="Bell" :title="t('settings.privacy.notificationsTitle')" />
             <div class="max-w-2xl divide-y divide-line p-4">
+              <UnreadDisplaySettings />
               <div v-if="pushPreferences" class="py-3">
                 <h3 class="text-sm font-semibold">{{ t('notifications.pushGroups.title') }}</h3>
                 <label v-for="group in pushGroups" :key="group" class="flex items-center justify-between gap-4 py-2">

@@ -1542,5 +1542,9 @@
   "courseAddToPlanner": "Zum Kursplaner hinzufügen",
   "coursePlannerSelectTerm": "Vor der Bestätigung dasselbe Semester und dein Fach wählen. Bestehende Pläne bleiben unverändert.",
   "coursePlannerUnavailable": "Dieser Kurs ist im Semester nicht verfügbar. Wähle ein anderes Angebot in den Kursdetails.",
-  "coursePlannerCalendarsFailed": "Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut."
+  "coursePlannerCalendarsFailed": "Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.",
+  "unreadStyleTitle": "Ungelesen-Anzeige",
+  "unreadStyleNumbers": "Anzahl anzeigen",
+  "unreadStyleHint": "Ausgeschaltet erscheinen nur Punkte. Die Einstellung gilt für dieses Konto im Web und in der App. Lesestatus und Push-Mitteilungen bleiben gleich.",
+  "unreadStyleSaving": "Anzeige wird gespeichert…"
 }

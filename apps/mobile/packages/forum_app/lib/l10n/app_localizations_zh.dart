@@ -4352,4 +4352,16 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get coursePlannerCalendarsFailed => '学期列表加载失败，请检查网络后重试。';
+
+  @override
+  String get unreadStyleTitle => '未读提醒';
+
+  @override
+  String get unreadStyleNumbers => '显示未读数量';
+
+  @override
+  String get unreadStyleHint => '关闭后仅显示红点。此设置在该账号的 Web 和 App 间同步，不会标记已读或改变推送。';
+
+  @override
+  String get unreadStyleSaving => '正在保存提醒样式…';
 }

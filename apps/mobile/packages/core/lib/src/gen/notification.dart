@@ -7,6 +7,28 @@ import 'topic.dart';
 part 'notification.freezed.dart';
 part 'notification.g.dart';
 
+/// Account-wide presentation only; unread facts and delivery stay independent.
+enum UnreadBadgeStyle {
+  number,
+  dot;
+
+  static UnreadBadgeStyle parse(Object? value) =>
+      value == 'dot' ? UnreadBadgeStyle.dot : UnreadBadgeStyle.number;
+}
+
+class NotificationPreferences {
+  const NotificationPreferences({this.badgeStyle = UnreadBadgeStyle.number});
+  final UnreadBadgeStyle badgeStyle;
+  factory NotificationPreferences.fromJson(Map<String, dynamic> json) {
+    final style = json['badgeStyle'];
+    if (style != 'number' && style != 'dot') {
+      throw const FormatException('Invalid unread badge style');
+    }
+    return NotificationPreferences(badgeStyle: UnreadBadgeStyle.parse(style));
+  }
+  Map<String, String> toJson() => {'badgeStyle': badgeStyle.name};
+}
+
 // review_pending links to the author's candidate; review_approved is human-only.
 // review_rejected opens content management, with a server-masked subject snapshot.
 @freezed

@@ -1506,6 +1506,11 @@ export default {
     },
   },
   notifications: {
+    summaryWithoutCounts: "Replies, likes, follows, and system messages.",
+    unreadIndicator: "Unread",
+    unreadStyleNumbers: "Show unread counts",
+    unreadStyleHint: "Turn off to show dots. This setting syncs between Web and App for this account without marking anything read or changing push delivery.",
+    unreadStyleSaving: "Saving indicator style…",
     systemPushDefaultDescription: "By default, only moderation results alert you. Turning this back on also enables ordinary system notices and badges.",
     noDirectTarget: "This notification has no directly accessible details.",
     presentation: {

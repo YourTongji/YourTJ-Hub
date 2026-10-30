@@ -1505,6 +1505,11 @@ export default {
     },
   },
   notifications: {
+    summaryWithoutCounts: "Antworten, Likes, neue Follower und Systemnachrichten.",
+    unreadIndicator: "Ungelesen",
+    unreadStyleNumbers: "Ungelesene Anzahl anzeigen",
+    unreadStyleHint: "Ausgeschaltet erscheinen nur Punkte. Die Einstellung gilt für dieses Konto im Web und in der App. Lesestatus und Push-Mitteilungen bleiben gleich.",
+    unreadStyleSaving: "Anzeige wird gespeichert…",
     systemPushDefaultDescription: "Standardmäßig werden nur Prüfergebnisse gemeldet. Erneutes Einschalten aktiviert auch gewöhnliche Systemhinweise und Abzeichen.",
     noDirectTarget: "Diese Benachrichtigung hat keine direkt zugänglichen Details.",
     presentation: {

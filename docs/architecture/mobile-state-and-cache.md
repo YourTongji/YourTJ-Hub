@@ -82,6 +82,15 @@ backgrounding closes the foreground connection. An unavailable stream has visibl
 and bounded fallback behavior. Credentials must not be placed in query strings or event payloads.
 Revoked sessions lose access to the stream, including already-open connections.
 
+`Current`: `users.unread_badge_style` stores the account's `number` (default) or `dot` display preference,
+independently of push delivery. The owner-only notification-preferences API validates the complete body;
+updates invalidate the unread projection and publish the existing private notification/unread hints.
+Unread status carries optional exact notification/message totals plus this style; message totals include
+muted conversations because muting controls delivery. Missing totals retain a dot rather than invent a
+count. The App provider binds requests to the active session/cache epoch and fences older reads after a
+save; Web uses owner-scoped cache keys and equivalent request generations. A failed save restores the
+previous display choice. See [0118](../decisions/0118-account-unread-display.md).
+
 `Planned`: read acknowledgement accepts a bounded set of incoming message IDs actually visible in
 the foreground conversation. It is idempotent, validates membership and message ownership, and
 updates per-message read state plus conversation unread counts in one transaction. It does not

@@ -1505,6 +1505,11 @@ export default {
     },
   },
   notifications: {
+    summaryWithoutCounts: "返信、いいね、フォロー、システムのお知らせ。",
+    unreadIndicator: "未読",
+    unreadStyleNumbers: "未読件数を表示",
+    unreadStyleHint: "オフにすると点のみを表示します。このアカウントの Web と App で同期し、既読状態やプッシュ通知は変更しません。",
+    unreadStyleSaving: "表示方法を保存中…",
     systemPushDefaultDescription: "初期設定では審査結果のみ通知します。再度オンにすると通常のシステム通知とバッジも通知します。",
     noDirectTarget: "この通知には直接開ける詳細がありません。",
     presentation: {

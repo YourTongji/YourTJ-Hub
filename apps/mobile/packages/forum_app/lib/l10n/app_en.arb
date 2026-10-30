@@ -2269,5 +2269,9 @@
   "courseAddToPlanner": "Add to course planner",
   "coursePlannerSelectTerm": "Select the same term and your major before confirming the class. Existing plans stay unchanged.",
   "coursePlannerUnavailable": "This class is unavailable for the term. Choose another offering from course details.",
-  "coursePlannerCalendarsFailed": "Failed to load the term list. Check your network and try again."
+  "coursePlannerCalendarsFailed": "Failed to load the term list. Check your network and try again.",
+  "unreadStyleTitle": "Unread indicators",
+  "unreadStyleNumbers": "Show unread counts",
+  "unreadStyleHint": "Turn off to show dots. This setting syncs between Web and App for this account without marking anything read or changing push delivery.",
+  "unreadStyleSaving": "Saving indicator style…"
 }

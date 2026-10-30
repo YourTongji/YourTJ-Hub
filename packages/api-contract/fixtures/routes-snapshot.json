@@ -317,6 +317,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/forum/notification-preferences"
+  },
+  {
+    "method": "GET",
     "path": "/api/forum/notifications"
   },
   {
@@ -1678,6 +1682,10 @@
   {
     "method": "PUT",
     "path": "/api/forum/course-reviews/:reviewId/helpful"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/forum/notification-preferences"
   },
   {
     "method": "PUT",

@@ -5248,6 +5248,20 @@ UnreadStatusResult:
   type: object
   required: [notifications, messages, moderationReports]
   properties:
+    badgeStyle:
+      type: string
+      enum: [number, dot]
+      description: Account-wide unread indicator preference, default number. Optional for older servers.
+    notificationCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Current unread notifications. Omitted when the count is unavailable; clients must not invent a number.
+    messageCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Sum of unread messages in non-deleted conversations, including muted conversations. Optional for older servers or unavailable counts.
     notifications:
       type: boolean
       description: True when the user has unread notifications.

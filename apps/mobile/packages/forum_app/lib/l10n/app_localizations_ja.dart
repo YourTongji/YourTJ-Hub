@@ -4407,4 +4407,17 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       '学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。';
+
+  @override
+  String get unreadStyleTitle => '未読の表示';
+
+  @override
+  String get unreadStyleNumbers => '未読件数を表示';
+
+  @override
+  String get unreadStyleHint =>
+      'オフにすると点のみを表示します。このアカウントの Web と App で同期し、既読状態やプッシュ通知は変更しません。';
+
+  @override
+  String get unreadStyleSaving => '表示方法を保存中…';
 }

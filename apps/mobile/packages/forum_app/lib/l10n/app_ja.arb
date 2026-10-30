@@ -1542,5 +1542,9 @@
   "courseAddToPlanner": "履修プランナーに追加",
   "coursePlannerSelectTerm": "同じ学期と専攻を選択してからクラスを確認してください。既存プランは自動変更されません。",
   "coursePlannerUnavailable": "この学期のクラスは利用できません。講義詳細から別の開講記録を選択してください。",
-  "coursePlannerCalendarsFailed": "学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。"
+  "coursePlannerCalendarsFailed": "学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。",
+  "unreadStyleTitle": "未読の表示",
+  "unreadStyleNumbers": "未読件数を表示",
+  "unreadStyleHint": "オフにすると点のみを表示します。このアカウントの Web と App で同期し、既読状態やプッシュ通知は変更しません。",
+  "unreadStyleSaving": "表示方法を保存中…"
 }

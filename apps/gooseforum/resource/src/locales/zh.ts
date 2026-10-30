@@ -1506,6 +1506,11 @@ export default {
     },
   },
   notifications: {
+    summaryWithoutCounts: "回复、赞、关注和系统消息。",
+    unreadIndicator: "未读",
+    unreadStyleNumbers: "显示未读数量",
+    unreadStyleHint: "关闭后仅显示红点。此设置在该账号的 Web 和 App 间同步，不会标记已读或改变推送。",
+    unreadStyleSaving: "正在保存提醒样式…",
     systemPushDefaultDescription: "默认仅提醒审核结果；重新开启此项后，也会提醒普通系统消息和徽章。",
     noDirectTarget: "该提醒暂无可直接打开的详情。",
     presentation: {

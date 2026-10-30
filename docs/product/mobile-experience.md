@@ -1298,6 +1298,12 @@ or production push delivery behavior. The shared business and privacy rules are 
   privacy group. `/settings/account` and `/settings/notifications` remain valid. The wide directory uses
   these same groups. The icon-only shell labels its speech-bubble destination Direct messages in
   tooltips and screen readers. Content management is consistently called My content.
+- `Current`: Settings → Notifications includes an account-wide Show unread count switch shared with
+  Web. It defaults to numbers, caps visible counts at `99+`, and changes navigation/rail and conversation
+  indicators to dots when off, including count-free accessibility labels. An older server without
+  exact totals keeps dots. Saving disables the switch; failure restores the previous choice and permits
+  retry. This display preference leaves read state, push delivery and system notification permission
+  unchanged. Counts and preferences refresh through the existing foreground reconciliation.
 - `Current`: `/settings/badges` combines worn-badge choice and ordered profile display in one editor;
   the own profile's badge stream links to it. Choices remain local until Save. Wear and display use
   independent APIs; an acknowledged wear is retained after a display failure, and retry resumes display.

@@ -101,17 +101,34 @@ class GfBadge extends StatelessWidget {
 /// Unread counter: an error-coloured capsule that stays circular for one
 /// digit and caps at [max]+.
 class GfCountBadge extends StatelessWidget {
-  const GfCountBadge({super.key, required this.count, this.max = 99});
+  const GfCountBadge({
+    super.key,
+    required this.count,
+    this.max = 99,
+    this.showCount = true,
+    this.compact = false,
+  });
 
   final int count;
   final int max;
+  final bool showCount, compact;
 
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
+    if (!showCount) {
+      return Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(color: colors.error, shape: BoxShape.circle),
+      );
+    }
     return Container(
-      constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 6),
+      constraints: BoxConstraints(
+        minWidth: compact ? 16 : 20,
+        minHeight: compact ? 16 : 20,
+      ),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 6),
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: colors.error,
@@ -119,9 +136,11 @@ class GfCountBadge extends StatelessWidget {
       ),
       child: GfText(
         count > max ? '$max+' : '$count',
-        style: GfTheme.typographyOf(
-          context,
-        ).label.copyWith(color: Colors.white, height: 1),
+        style: GfTheme.typographyOf(context).label.copyWith(
+          color: colors.errorContent,
+          height: 1,
+          fontSize: compact ? 11 : null,
+        ),
       ),
     );
   }

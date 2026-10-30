@@ -223,9 +223,18 @@ export interface ThemePreviewProps {
   defaults: SiteThemeConfig
 }
 
+export type UnreadBadgeStyle = 'number' | 'dot'
+
+export interface NotificationPreferences {
+  badgeStyle: UnreadBadgeStyle
+}
+
 export interface UnreadStatusPayload {
   notifications: boolean
   messages: boolean
+  badgeStyle?: UnreadBadgeStyle
+  notificationCount?: number
+  messageCount?: number
   moderationReports?: boolean
   latestNotificationType?: string
   /** 最新一条未读通知的 id（单调递增；仅在有未读时存在）。 */
