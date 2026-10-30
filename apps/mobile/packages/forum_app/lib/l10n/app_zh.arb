@@ -2008,5 +2008,9 @@
   "scheduleConfigChangePlan": "{name}：{courseCount} 门课程、{eventCount} 个安排",
   "scheduleConfigChangeSync": "如果这些方案已开启同步，清空内容也会同步到其他设备。",
   "scheduleConfigChangeConfirm": "清空方案并切换",
-  "scheduleConfigChangeUpdated": "方案已发生变化，请重新选择并确认。"
+  "scheduleConfigChangeUpdated": "方案已发生变化，请重新选择并确认。",
+  "unreadStyleTitle": "未读提醒",
+  "unreadStyleNumbers": "显示未读数量",
+  "unreadStyleHint": "关闭后仅显示红点。此设置在该账号的 Web 和 App 间同步，不会标记已读或改变推送。",
+  "unreadStyleSaving": "正在保存提醒样式…"
 }

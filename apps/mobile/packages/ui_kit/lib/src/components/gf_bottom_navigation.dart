@@ -10,6 +10,7 @@ import '../twemoji/twemoji_text.dart';
 import 'gf_motion.dart';
 import 'gf_symbol.dart';
 import 'surfaces/gf_navigation_surface.dart';
+import 'atoms/gf_badge.dart';
 
 class GfBottomNavigationItem {
   const GfBottomNavigationItem({
@@ -18,6 +19,7 @@ class GfBottomNavigationItem {
     required this.selectedSymbol,
     this.badge = false,
     this.badgeSemanticLabel,
+    this.badgeCount,
   });
 
   final String label;
@@ -26,8 +28,11 @@ class GfBottomNavigationItem {
   final bool badge;
   final String? badgeSemanticLabel;
 
+  /// Null keeps the dot, including when an older server has no exact count.
+  final int? badgeCount;
+
   String get semanticsLabel => badge && badgeSemanticLabel != null
-      ? '$label, $badgeSemanticLabel'
+      ? '$label, $badgeSemanticLabel${badgeCount != null && badgeCount! > 0 ? ': $badgeCount' : ''}'
       : label;
 }
 
@@ -731,6 +736,7 @@ class _DockState extends State<_Dock> with TickerProviderStateMixin {
                       focusColor: colors.primary.withValues(alpha: 0.18),
                       child: _UnreadDot(
                         visible: widget.items[i].badge,
+                        count: widget.items[i].badgeCount,
                         showLabel: widget.showLabels,
                         ring: colors.surfaceRaised,
                         color: colors.error,
@@ -822,12 +828,14 @@ class _UnreadDot extends StatelessWidget {
     required this.showLabel,
     required this.ring,
     required this.color,
+    this.count,
   });
 
   final bool visible;
   final bool showLabel;
   final Color ring;
   final Color color;
+  final int? count;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -838,21 +846,26 @@ class _UnreadDot extends StatelessWidget {
       return Stack(
         children: <Widget>[
           Positioned(
-            left: constraints.maxWidth / 2 + 4,
-            top: glyphCenter - 14,
+            left: count != null && count! > 0
+                ? null
+                : constraints.maxWidth / 2 + 4,
+            right: count != null && count! > 0 ? 2 : null,
+            top: count != null && count! > 0 ? 0 : glyphCenter - 14,
             child: AnimatedScale(
               scale: visible ? 1 : 0,
               duration: GfMotion.duration(context, GfMotion.layout),
               curve: visible ? Curves.easeOutBack : GfMotion.exitCurve,
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: ring, width: 2),
-                ),
-              ),
+              child: count != null && count! > 0
+                  ? GfCountBadge(count: count!, compact: true)
+                  : Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: ring, width: 2),
+                      ),
+                    ),
             ),
           ),
         ],

@@ -4837,4 +4837,17 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get scheduleConfigChangeUpdated =>
       'Die Pläne wurden geändert. Bitte erneut auswählen und die Auswirkungen prüfen.';
+
+  @override
+  String get unreadStyleTitle => 'Ungelesen-Anzeige';
+
+  @override
+  String get unreadStyleNumbers => 'Anzahl anzeigen';
+
+  @override
+  String get unreadStyleHint =>
+      'Ausgeschaltet erscheinen nur Punkte. Die Einstellung gilt für dieses Konto im Web und in der App. Lesestatus und Push-Mitteilungen bleiben gleich.';
+
+  @override
+  String get unreadStyleSaving => 'Anzeige wird gespeichert…';
 }

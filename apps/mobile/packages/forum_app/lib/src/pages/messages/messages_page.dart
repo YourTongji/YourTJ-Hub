@@ -21,6 +21,7 @@ import '../../widgets/root_surface.dart';
 import '../../messages/chat_outbox.dart';
 import '../../messages/chat_drafts.dart';
 import '../../messages/chat_reply.dart';
+import '../../notifications/unread_display.dart';
 import '../../messages/chat_timeline.dart';
 import '../../messages/chat_viewport_scroll_physics.dart';
 import '../../messages/visible_chat_reads.dart';
@@ -2762,7 +2763,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   }
 }
 
-class _ConversationList extends StatelessWidget {
+class _ConversationList extends ConsumerWidget {
   const _ConversationList({
     required this.controller,
     this.padding = EdgeInsets.zero,
@@ -2792,7 +2793,8 @@ class _ConversationList extends StatelessWidget {
   final ValueChanged<ChatItemPayload> onOpen;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final style = ref.watch(unreadDisplayProvider.select((s) => s.style));
     final String normalized = query.trim().toLowerCase();
     final List<ChatItemPayload> filtered = items.where((ChatItemPayload item) {
       return normalized.isEmpty ||
@@ -2861,6 +2863,7 @@ class _ConversationList extends StatelessWidget {
             time: formatChatTime(conversation.lastMsgTime, l10n: l10n),
             unreadCount: conversation.unreadCount,
             unreadLabel: l10n.notificationsUnread,
+            showUnreadCount: style == UnreadBadgeStyle.number,
             onTap: conversation.convId == 0 && !canOpenNewConversation
                 ? null
                 : () => onOpen(conversation),

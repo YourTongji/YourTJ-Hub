@@ -296,6 +296,8 @@ paths:
     $ref: ./paths/user-account.yaml#/unbindOAuth
   /api/forum/unread-status:
     $ref: ./paths/forum-notifications.yaml#/getUnreadStatus
+  /api/forum/notification-preferences:
+    $ref: ./paths/forum-notification-preferences.yaml#/preferences
   /api/forum/feed/refresh:
     $ref: ./paths/feed.yaml#/refreshForYou
   /api/forum/feed/reconcile:

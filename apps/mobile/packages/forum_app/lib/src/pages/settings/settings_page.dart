@@ -28,6 +28,7 @@ import '../../widgets/language_picker.dart';
 import '../../site_theme.dart';
 import '../../push/push_service.dart';
 import '../../push/push_preferences_panel.dart';
+import '../../notifications/unread_display_settings.dart';
 import '../../widgets/status_views.dart';
 import '../../current_user.dart';
 import '../../navigation/auth_navigation.dart';
@@ -64,7 +65,7 @@ enum _SettingsTab {
     _SettingsTab.appearance => l10n.settingsAppearance,
     _SettingsTab.textSize => l10n.textSizeTitle,
     _SettingsTab.widgets => l10n.scheduleWidgetSettingsTitle,
-    _SettingsTab.notifications => l10n.settingsPush,
+    _SettingsTab.notifications => l10n.notificationsTitle,
   };
 }
 
@@ -1558,6 +1559,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     controller: controller,
     padding: const EdgeInsets.all(16),
     children: [
+      _settingsSection(
+        context,
+        title: l10n.unreadStyleTitle,
+        child: const UnreadDisplaySettings(),
+      ),
       Consumer(
         builder: (context, ref, _) {
           final push = ref.watch(pushControllerProvider);

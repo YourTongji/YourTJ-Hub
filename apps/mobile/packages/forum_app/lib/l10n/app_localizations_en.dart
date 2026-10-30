@@ -4788,4 +4788,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get scheduleConfigChangeUpdated =>
       'Plans changed. Choose again and review the current impact.';
+
+  @override
+  String get unreadStyleTitle => 'Unread indicators';
+
+  @override
+  String get unreadStyleNumbers => 'Show unread counts';
+
+  @override
+  String get unreadStyleHint =>
+      'Turn off to show dots. This setting syncs between Web and App for this account without marking anything read or changing push delivery.';
+
+  @override
+  String get unreadStyleSaving => 'Saving indicator style…';
 }

@@ -18,6 +18,7 @@ import 'navigation/tab_scroll_registry.dart';
 import 'navigation/route_visibility.dart';
 import 'navigation/reading_chrome.dart';
 import 'navigation/reading_window.dart';
+import 'notifications/unread_display.dart';
 import 'navigation/window_reserved_regions.dart';
 import 'widgets/account_drawer.dart';
 import 'pages/auth/login_page.dart';
@@ -73,6 +74,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
   CancelToken? _unreadCancel;
   bool _unreadNotifications = false;
   bool _unreadMessages = false;
+  int? _unreadNotificationCount, _unreadMessageCount;
   ShortcutRegistryEntry? _shortcuts;
 
   @override
@@ -291,6 +293,8 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
 
   Future<void> _fetchUnread() async {
     final epoch = ref.read(offlineCacheEpochProvider);
+    final display = ref.read(unreadDisplayProvider.notifier);
+    final displayRevision = display.revision;
     final cancel = _unreadCancel = CancelToken();
     try {
       final String? token = await ref.read(tokenStorageProvider).read();
@@ -303,13 +307,21 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
+      display.acceptRemote(
+        UnreadBadgeStyle.parse(status.badgeStyle),
+        expectedRevision: displayRevision,
+      );
       if (_unreadNotifications == status.notifications &&
-          _unreadMessages == status.messages) {
+          _unreadMessages == status.messages &&
+          _unreadNotificationCount == status.notificationCount &&
+          _unreadMessageCount == status.messageCount) {
         return;
       }
       setState(() {
         _unreadNotifications = status.notifications;
         _unreadMessages = status.messages;
+        _unreadNotificationCount = status.notificationCount;
+        _unreadMessageCount = status.messageCount;
       });
     } catch (_) {
       // Unread state is best-effort and never blocks navigation.
@@ -353,6 +365,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
       }
     });
 
+    final unreadStyle = ref.watch(unreadDisplayProvider.select((s) => s.style));
     final destinations = [
       for (final destination in GfShellDestination.values)
         GfBottomNavigationItem(
@@ -362,6 +375,13 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
           badge: destination == GfShellDestination.notifications
               ? _unreadNotifications
               : destination == GfShellDestination.messages && _unreadMessages,
+          badgeCount: unreadStyle == UnreadBadgeStyle.number
+              ? switch (destination) {
+                  GfShellDestination.notifications => _unreadNotificationCount,
+                  GfShellDestination.messages => _unreadMessageCount,
+                  _ => null,
+                }
+              : null,
           badgeSemanticLabel:
               (destination == GfShellDestination.notifications &&
                       _unreadNotifications) ||

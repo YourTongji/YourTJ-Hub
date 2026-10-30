@@ -8539,6 +8539,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Plans changed. Choose again and review the current impact.'**
   String get scheduleConfigChangeUpdated;
+
+  /// No description provided for @unreadStyleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unread indicators'**
+  String get unreadStyleTitle;
+
+  /// No description provided for @unreadStyleNumbers.
+  ///
+  /// In en, this message translates to:
+  /// **'Show unread counts'**
+  String get unreadStyleNumbers;
+
+  /// No description provided for @unreadStyleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn off to show dots. This setting syncs between Web and App for this account without marking anything read or changing push delivery.'**
+  String get unreadStyleHint;
+
+  /// No description provided for @unreadStyleSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving indicator style…'**
+  String get unreadStyleSaving;
 }
 
 class _AppLocalizationsDelegate

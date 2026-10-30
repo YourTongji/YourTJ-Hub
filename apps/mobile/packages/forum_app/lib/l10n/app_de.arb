@@ -1659,5 +1659,9 @@
   "scheduleConfigChangePlan": "{name}: {courseCount} Kurse, {eventCount} Termine",
   "scheduleConfigChangeSync": "Bei bereits synchronisierten Plänen wird das Leeren auch auf andere Geräte übertragen.",
   "scheduleConfigChangeConfirm": "Leeren und wechseln",
-  "scheduleConfigChangeUpdated": "Die Pläne wurden geändert. Bitte erneut auswählen und die Auswirkungen prüfen."
+  "scheduleConfigChangeUpdated": "Die Pläne wurden geändert. Bitte erneut auswählen und die Auswirkungen prüfen.",
+  "unreadStyleTitle": "Ungelesen-Anzeige",
+  "unreadStyleNumbers": "Anzahl anzeigen",
+  "unreadStyleHint": "Ausgeschaltet erscheinen nur Punkte. Die Einstellung gilt für dieses Konto im Web und in der App. Lesestatus und Push-Mitteilungen bleiben gleich.",
+  "unreadStyleSaving": "Anzeige wird gespeichert…"
 }
