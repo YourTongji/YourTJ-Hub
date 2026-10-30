@@ -252,6 +252,9 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
 - **Fixtures are representative wire samples**: committed JSON fixtures capture stable envelope shape,
   message codes, and rate-limit metadata. The route-level Go tests exercise real Gin route chains and
   assert the actual status, envelope, result shape, and `Retry-After` behavior against those fixtures.
+  Push subscription/device writes include missing-session, frozen/pending-account, CSRF and shared
+  `interact` rate-limit responses. Their HTTP fixtures exercise the production `apiRoute` assembly;
+  contract script tests also require the 429 header/schema and the pending-account example.
 - **Mobile/Dart generation is Planned**: no Dart generator or generated mobile artifact is maintained by
   this repository yet. Mobile response mirrors remain hand-maintained, and shared OpenAPI fixtures
   exercise their runtime deserialization where the mobile client consumes a controlled operation.
