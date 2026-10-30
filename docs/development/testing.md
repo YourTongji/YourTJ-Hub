@@ -155,6 +155,10 @@ while required-check settings migrate. Docs/governance and current govulncheck r
 - ci-backend.yml: changed backend or contract-fixture paths run go vet + go test + go build
   (apps/gooseforum/app/**, main.go, go.mod, go.sum, embedded resource Go/GoHTML files,
   markdown compatibility fixtures, packages/api-contract/**).
+  Tests and the deploy build use `nodynamic` for the production AVIF/WASM path. The build also
+  disables cgo and executes the produced binary in Alpine through
+  `deploy/scripts/check-runtime-binary.sh`; a missing ELF interpreter or shared library fails
+  before deployment. The deploy artifact builder runs the same runtime check before upload.
 - ci-backend.yml also runs `ci-backend-pg` for model, migration, service, SQL-connection or Go module
   changes. It uses a disposable `postgres:16-alpine` service, sets both `YOURTJ_TEST_PG_URL` and
   `TEST_PG_DSN`, and runs every app package's tests matching `PostgreSQL|Postgres`. New PG tests

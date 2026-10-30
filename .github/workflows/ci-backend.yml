@@ -46,10 +46,12 @@ jobs:
         run: go vet ./...
       - name: Test
         working-directory: apps/gooseforum
-        run: go test ./...
+        run: go test -tags nodynamic ./...
       - name: Build
         working-directory: apps/gooseforum
-        run: go build .
+        run: CGO_ENABLED=0 go build -tags nodynamic -o ../../bin/yourtj-hub .
+      - name: Start the deploy binary in Alpine
+        run: bash deploy/scripts/check-runtime-binary.sh bin/yourtj-hub
 
       # deploy 运维脚本测试(issue #134): DSN 解析支持 URL/key=value 两种格式,
       # 非法 DSN 在调用侧于任何 DB 操作前报错; 渲染器 fail-closed(配置治理);
