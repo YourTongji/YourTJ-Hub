@@ -126,6 +126,8 @@ before job selection, with shell regressions for resolver failure and lock mutat
 
 `Current`: **CI / Verify** also accepts a manual run on a selected ref and validates every
 CI domain, including PostgreSQL and both native platforms, without using a change-path subset.
+Manual full runs use a separate concurrency group so they can validate the same source without
+cancelling the push checks needed for dev deployment.
 The `ci-plan` artifact records this explicit full-validation reason. Deployment still follows
 its separate source/event eligibility gate. Local Twemoji CLI tests include filesystem aliases;
 the generator uses Node 24's entry-module detection so macOS temporary-directory aliases and

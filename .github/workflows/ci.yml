@@ -9,7 +9,8 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  # A manual full run must not cancel the push validation that deploys dev.
+  group: ci-${{ github.event.pull_request.number || github.ref }}${{ github.event_name == 'workflow_dispatch' && '-full' || '' }}
   cancel-in-progress: true
 jobs:
   inputs:
