@@ -1270,7 +1270,48 @@ class AppLocalizationsDe extends AppLocalizations {
   String get scheduleOptional => 'Wahlkurs';
 
   @override
-  String get scheduleSearchHint => 'Name, Kennung oder Lehrkraft suchen';
+  String get scheduleSearchHint => 'Kursnamen suchen';
+
+  @override
+  String get scheduleSetupTitle => 'Zuerst den Kursbereich festlegen';
+
+  @override
+  String scheduleSetupMissing(String fields) {
+    return 'Wähle $fields, bevor du Kurse oder Lehrveranstaltungen suchst.';
+  }
+
+  @override
+  String get scheduleConfigureScope => 'Kursbereich festlegen';
+
+  @override
+  String get scheduleNoCompulsory =>
+      'Keine Pflichtkurse für diesen Bereich zurückgegeben';
+
+  @override
+  String get scheduleNoOptional =>
+      'Keine Wahlkurse für dieses Semester zurückgegeben';
+
+  @override
+  String get scheduleEmptyCourseHint =>
+      'Ändere den Kursbereich oder suche nach Kursnamen.';
+
+  @override
+  String scheduleCourseScope(String scope) {
+    return 'Aktueller Bereich: $scope';
+  }
+
+  @override
+  String scheduleSearchScope(String term) {
+    return 'Kursnamen suchen in $term';
+  }
+
+  @override
+  String get scheduleSearchReady => 'Gib einen Kursnamen ein';
+
+  @override
+  String scheduleSearchNoMatch(String query) {
+    return 'Keine Kursnamen passen zu „$query“';
+  }
 
   @override
   String get scheduleStaged => 'Ausstehend';

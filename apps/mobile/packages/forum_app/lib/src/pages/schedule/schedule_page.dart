@@ -101,6 +101,8 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
   List<SectionTime> _sectionOverrides = const <SectionTime>[];
   bool _loadingSessionMeta = false;
   final GlobalKey _gridBoundaryKey = GlobalKey();
+  final GlobalKey _configurationKey = GlobalKey();
+  final ScrollController _pageScrollController = ScrollController();
 
   /// PNG 导出边界（课表 tab 不在树上时为 null）。
   RenderRepaintBoundary? get _gridBoundary =>
@@ -132,6 +134,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
   void dispose() {
     unawaited(_syncController.flushPendingUpload());
     WidgetsBinding.instance.removeObserver(this);
+    _pageScrollController.dispose();
     super.dispose();
   }
 
@@ -233,6 +236,24 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
     if (latest != null && latest.isNotEmpty) {
       _notifier.setLatestUpdateTime(latest);
     }
+  }
+
+  Future<void> _configureScope() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _notifier.setConfigCollapsed(false);
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || !_pageScrollController.hasClients) return;
+    // The configuration may be outside ListView's lazy cache on a small screen.
+    if (_configurationKey.currentContext == null) {
+      _pageScrollController.jumpTo(0);
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    final target = _configurationKey.currentContext;
+    if (!mounted || target == null || !target.mounted) return;
+    await Scrollable.ensureVisible(
+      target,
+      duration: GfMotion.duration(target, GfMotion.layout),
+    );
   }
 
   Future<void> _openOffering() async {
@@ -357,6 +378,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
           : !_notifier.storageReady
           ? const ScheduleStoragePanel()
           : ListView(
+              controller: _pageScrollController,
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               children: <Widget>[
                 const ScheduleStatusSummary(),
@@ -387,18 +409,22 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
                   ),
                 _PlanBar(notifier: _notifier, state: state),
                 const SizedBox(height: 8),
-                if (state.isConfigCollapsed)
-                  _CollapsedConfigRow(
-                    calendarName: _calendarName(state.majorSelected.calendarId),
-                    state: state,
-                    onTap: () => _notifier.setConfigCollapsed(false),
-                  )
-                else
-                  _ConfigRow(
-                    calendars: _calendars,
-                    state: state,
-                    notifier: _notifier,
-                  ),
+                KeyedSubtree(
+                  key: _configurationKey,
+                  child: state.isConfigCollapsed
+                      ? _CollapsedConfigRow(
+                          calendarName: _calendarName(
+                            state.majorSelected.calendarId,
+                          ),
+                          state: state,
+                          onTap: () => _notifier.setConfigCollapsed(false),
+                        )
+                      : _ConfigRow(
+                          calendars: _calendars,
+                          state: state,
+                          notifier: _notifier,
+                        ),
+                ),
                 const SizedBox(height: 8),
                 if (outdated)
                   _DataOutdatedBanner(loading: _syncing, onTap: _syncLatest),
@@ -422,7 +448,12 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
                     sectionOverrides: _sectionOverrides,
                   ),
                 ] else
-                  const _PickTab(),
+                  _PickTab(
+                    calendarLabel: _calendarName(
+                      state.majorSelected.calendarId,
+                    ),
+                    onConfigure: _configureScope,
+                  ),
               ],
             ),
     );
@@ -1592,7 +1623,9 @@ class _StatsFooter extends StatelessWidget {
 
 /// 选课 tab：必修 / 选修 / 搜索。
 class _PickTab extends ConsumerStatefulWidget {
-  const _PickTab();
+  const _PickTab({required this.calendarLabel, required this.onConfigure});
+  final String calendarLabel;
+  final VoidCallback onConfigure;
 
   @override
   ConsumerState<_PickTab> createState() => _PickTabState();
@@ -1601,6 +1634,7 @@ class _PickTab extends ConsumerStatefulWidget {
 class _PickTabState extends ConsumerState<_PickTab> {
   int _segment = 0;
   final TextEditingController _searchController = TextEditingController();
+  final GlobalKey _searchAnchor = GlobalKey();
   TextEditingValue _searchValue = TextEditingValue.empty;
   Timer? _debounce;
   int _generation = 0;
@@ -1775,8 +1809,46 @@ class _PickTabState extends ConsumerState<_PickTab> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(
+      scheduleStoreProvider.select(
+        (state) => (
+          state.majorSelected.calendarId,
+          state.majorSelected.grade,
+          state.majorSelected.major,
+        ),
+      ),
+      (_, _) {
+        _debounce?.cancel();
+        final generation = ++_generation;
+        Future<void>.microtask(() {
+          if (!mounted || generation != _generation) return;
+          setState(() {
+            _compulsory = [];
+            _optionalGroups = [];
+            _searchResults = [];
+            _error = null;
+            _loading = false;
+          });
+          unawaited(_loadCurrentSegment());
+        });
+      },
+    );
     final AppLocalizations l10n = AppLocalizations.of(context);
     final ScheduleState state = ref.watch(scheduleStoreProvider);
+    final term = widget.calendarLabel.isNotEmpty
+        ? widget.calendarLabel
+        : '${l10n.scheduleTerm} ${state.majorSelected.calendarId ?? '—'}';
+    final scope = [
+      term,
+      if (state.majorSelected.grade != null)
+        l10n.scheduleGradeYear('${state.majorSelected.grade}'),
+      state.majorSelected.majorName ?? state.majorSelected.major ?? '',
+    ].where((part) => part.isNotEmpty).join(' · ');
+    final missing = [
+      if (state.majorSelected.calendarId == null) l10n.scheduleTerm,
+      if (state.majorSelected.grade == null) l10n.scheduleGrade,
+      if (state.majorSelected.major?.isNotEmpty != true) l10n.scheduleMajor,
+    ].join(' · ');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -1794,14 +1866,21 @@ class _PickTabState extends ConsumerState<_PickTab> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 40),
             child: GfEmpty(
-              message: l10n.schedulePickClass,
-              description:
-                  '${l10n.scheduleTerm} · ${l10n.scheduleGrade} · ${l10n.scheduleMajor}',
+              message: l10n.scheduleSetupTitle,
+              description: l10n.scheduleSetupMissing(missing),
+              action: GfButton(
+                key: const Key('schedule-configure-scope'),
+                label: l10n.scheduleConfigureScope,
+                onPressed: widget.onConfigure,
+              ),
             ),
           )
         else if (_segment == 2)
           // Keep the field mounted while only its results load or fail.
           _SearchPane(
+            key: _searchAnchor,
+            term: term,
+            onConfigure: widget.onConfigure,
             controller: _searchController,
             results: _searchResults,
             loading: _loading,
@@ -1819,7 +1898,7 @@ class _PickTabState extends ConsumerState<_PickTab> {
           GfErrorRetry(message: _error!, onRetry: _loadCurrentSegment)
         else if (_segment == 0)
           _CourseList(
-            emptyHint: l10n.commonEmpty,
+            emptyState: _emptyCourses(l10n, l10n.scheduleNoCompulsory, scope),
             children: <Widget>[
               for (final PkCourseByMajorItem course in _compulsory)
                 _CourseRow(
@@ -1839,10 +1918,11 @@ class _PickTabState extends ConsumerState<_PickTab> {
           )
         else if (_segment == 1)
           _CourseList(
-            emptyHint: l10n.commonEmpty,
+            emptyState: _emptyCourses(l10n, l10n.scheduleNoOptional, term),
             children: <Widget>[
-              for (final PkCourseByNatureItem group
-                  in _optionalGroups) ...<Widget>[
+              for (final PkCourseByNatureItem group in _optionalGroups.where(
+                (group) => group.courses.isNotEmpty,
+              )) ...<Widget>[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
                   child: GfText(
@@ -1876,6 +1956,41 @@ class _PickTabState extends ConsumerState<_PickTab> {
       ],
     );
   }
+
+  Widget _emptyCourses(AppLocalizations l, String title, String scope) =>
+      GfEmpty(
+        message: title,
+        description:
+            '${l.scheduleCourseScope(scope)}\n${l.scheduleEmptyCourseHint}',
+        action: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextButton(
+              key: const Key('schedule-configure-scope'),
+              onPressed: widget.onConfigure,
+              child: GfText(l.scheduleConfigureScope),
+            ),
+            TextButton(
+              key: const Key('schedule-find-by-name'),
+              onPressed: () {
+                _switchSegment(2);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  final target = _searchAnchor.currentContext;
+                  if (mounted && target != null) {
+                    unawaited(
+                      Scrollable.ensureVisible(
+                        target,
+                        duration: GfMotion.duration(target, GfMotion.layout),
+                      ),
+                    );
+                  }
+                });
+              },
+              child: GfText(l.scheduleSearchHint),
+            ),
+          ],
+        ),
+      );
 
   String _majorTeacherText(PkCourseByMajorItem course) {
     final List<String> names = <String>[];
@@ -1946,9 +2061,9 @@ class _PickTabState extends ConsumerState<_PickTab> {
 
 /// 选课列表容器。
 class _CourseList extends StatelessWidget {
-  const _CourseList({required this.emptyHint, required this.children});
+  const _CourseList({required this.emptyState, required this.children});
 
-  final String emptyHint;
+  final Widget emptyState;
   final List<Widget> children;
 
   @override
@@ -1956,7 +2071,7 @@ class _CourseList extends StatelessWidget {
     if (children.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 36),
-        child: GfEmpty(message: emptyHint),
+        child: emptyState,
       );
     }
     return Column(
@@ -2026,7 +2141,10 @@ class _CourseRow extends StatelessWidget {
                     ].join(' · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                    style: TextStyle(
+              fontSize: 12,
+              color: colors.textSecondary,
+            ),
                   ),
                 ],
               ),
@@ -2050,6 +2168,9 @@ class _CourseRow extends StatelessWidget {
 /// 搜索面板。
 class _SearchPane extends StatelessWidget {
   const _SearchPane({
+    super.key,
+    required this.term,
+    required this.onConfigure,
     required this.controller,
     required this.results,
     required this.loading,
@@ -2059,6 +2180,8 @@ class _SearchPane extends StatelessWidget {
     required this.onPick,
   });
 
+  final String term;
+  final VoidCallback onConfigure;
   final TextEditingController controller;
   final List<PkSearchCourseItem> results;
   final bool loading;
@@ -2074,6 +2197,7 @@ class _SearchPane extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         GfSearchField(
+          key: const Key('schedule-course-search'),
           controller: controller,
           hintText: l10n.scheduleSearchHint,
           clearLabel: l10n.courseCopyClearSearch,
@@ -2090,7 +2214,34 @@ class _SearchPane extends StatelessWidget {
         else if (results.isEmpty && controller.text.trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 32),
-            child: GfEmpty(message: l10n.commonEmpty),
+            child: GfEmpty(
+              key: const Key('schedule-search-no-match'),
+              message: l10n.scheduleSearchNoMatch(controller.text.trim()),
+              description: l10n.scheduleSearchScope(term),
+              action: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton(
+                    key: const Key('schedule-clear-query'),
+                    onPressed: () {
+                      controller.clear();
+                      onSubmitted('');
+                    },
+                    child: GfText(l10n.courseCopyClearSearch),
+                  ),
+                  TextButton(
+                    key: const Key('schedule-configure-scope'),
+                    onPressed: onConfigure,
+                    child: GfText(l10n.scheduleConfigureScope),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else if (results.isEmpty)
+          GfEmpty(
+            message: l10n.scheduleSearchReady,
+            description: l10n.scheduleSearchScope(term),
           )
         else
           for (final PkSearchCourseItem course in results)
@@ -2144,7 +2295,10 @@ class _SearchRow extends StatelessWidget {
               ].join(' · '),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              style: TextStyle(
+              fontSize: 12,
+              color: colors.textSecondary,
+            ),
             ),
           ],
         ),

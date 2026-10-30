@@ -1235,7 +1235,45 @@ class AppLocalizationsZh extends AppLocalizations {
   String get scheduleOptional => '选修';
 
   @override
-  String get scheduleSearchHint => '搜索课名/课号/教师';
+  String get scheduleSearchHint => '搜索课程名称';
+
+  @override
+  String get scheduleSetupTitle => '先设置排课范围';
+
+  @override
+  String scheduleSetupMissing(String fields) {
+    return '请选择：$fields，再查找课程或教学班。';
+  }
+
+  @override
+  String get scheduleConfigureScope => '配置排课范围';
+
+  @override
+  String get scheduleNoCompulsory => '当前范围未返回必修课程';
+
+  @override
+  String get scheduleNoOptional => '当前学期未返回选修课程';
+
+  @override
+  String get scheduleEmptyCourseHint => '可以调整排课范围，或按课程名称搜索。';
+
+  @override
+  String scheduleCourseScope(String scope) {
+    return '当前范围：$scope';
+  }
+
+  @override
+  String scheduleSearchScope(String term) {
+    return '按课程名称搜索：$term';
+  }
+
+  @override
+  String get scheduleSearchReady => '输入课程名称开始查找';
+
+  @override
+  String scheduleSearchNoMatch(String query) {
+    return '没有找到名称匹配“$query”的课程';
+  }
 
   @override
   String get scheduleStaged => '备选';

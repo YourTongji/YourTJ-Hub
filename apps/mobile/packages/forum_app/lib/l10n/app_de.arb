@@ -419,7 +419,45 @@
   "schedulePickClass": "Wähle eine Klasse",
   "scheduleCompulsory": "Pflichtkurs",
   "scheduleOptional": "Wahlkurs",
-  "scheduleSearchHint": "Name, Kennung oder Lehrkraft suchen",
+  "scheduleSearchHint": "Kursnamen suchen",
+  "scheduleSetupTitle": "Zuerst den Kursbereich festlegen",
+  "scheduleSetupMissing": "Wähle {fields}, bevor du Kurse oder Lehrveranstaltungen suchst.",
+  "@scheduleSetupMissing": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleConfigureScope": "Kursbereich festlegen",
+  "scheduleNoCompulsory": "Keine Pflichtkurse für diesen Bereich zurückgegeben",
+  "scheduleNoOptional": "Keine Wahlkurse für dieses Semester zurückgegeben",
+  "scheduleEmptyCourseHint": "Ändere den Kursbereich oder suche nach Kursnamen.",
+  "scheduleCourseScope": "Aktueller Bereich: {scope}",
+  "@scheduleCourseScope": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleSearchScope": "Kursnamen suchen in {term}",
+  "@scheduleSearchScope": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleSearchReady": "Gib einen Kursnamen ein",
+  "scheduleSearchNoMatch": "Keine Kursnamen passen zu „{query}“",
+  "@scheduleSearchNoMatch": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
   "scheduleStaged": "Ausstehend",
   "scheduleSelected": "Ausgewählt",
   "scheduleRemoveCourse": "Entfernen",
