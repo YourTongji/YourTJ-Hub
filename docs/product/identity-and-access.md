@@ -483,7 +483,9 @@ support.
   #1277).
 - Enumeration resistance: login errors do not distinguish "user not found / wrong password", and
   unknown accounts run the same-cost PBKDF2 verification as real ones so response time does not
-  reveal whether a username/email is registered. Password registration collapses username/email-taken into
+  reveal whether a username/email is registered. Password login and recovery normalize email input to
+  the lowercase, trimmed form used at registration; username matching retains its existing case rules.
+  This lookup does not merge or rewrite legacy accounts. Password registration collapses username/email-taken into
   the same generic `auth.register.failed` body as other failures (never `auth.username.exists` /
   `auth.email.exists`) and always runs both existence queries, so the error body no longer reveals
   which field is taken. The registration protocol itself (immediate account creation + session vs.
