@@ -23,6 +23,8 @@ const selected = computed(() => {
   const index = props.options.findIndex((option) => option.value === props.modelValue)
   return index < 0 ? undefined : String(index)
 })
+// Render the current option label; the select library caches closed item text.
+const selectedLabel = computed(() => selected.value === undefined ? undefined : props.options[Number(selected.value)]?.label)
 function pick(key: unknown) {
   const option = props.options[Number(key)]
   if (!option || option.value === props.modelValue) return
@@ -34,7 +36,7 @@ function pick(key: unknown) {
 <template>
   <Select :model-value="selected" :disabled="disabled" @update:model-value="pick">
     <SelectTrigger :id="id" :size="size" :aria-label="ariaLabel" :class="props.class">
-      <SelectValue :placeholder="placeholder" />
+      <SelectValue :placeholder="placeholder">{{ selectedLabel ?? placeholder }}</SelectValue>
     </SelectTrigger>
     <SelectContent>
       <SelectItem v-for="(option, index) in options" :key="index" :value="String(index)" :disabled="option.disabled">

@@ -548,7 +548,7 @@ onBeforeUnmount(() => {
 <template>
   <BasicPage :title="adminText('stickerMarketTitle')" :description="adminText('stickerMarketDescription')" sticky>
     <template #actions>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="icon" type="button" :aria-label="adminText('k004q')" :title="adminText('k004q')" @click="refresh()">
           <RefreshCw class="size-4" />
         </Button>
