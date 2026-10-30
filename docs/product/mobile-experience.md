@@ -1436,6 +1436,8 @@ or production push delivery behavior. The shared business and privacy rules are 
 - `Current`: profile editing includes nickname, bio, signature, website name/URL, profile language
   and the six Web social providers. Saving preserves unedited fields and unknown social providers;
   website/social destinations accept HTTP(S), and social usernames expand to provider URLs.
+  The links editor centers single-line website/social inputs against their labels; the website-name
+  length counter sits beside the input. Narrow windows and large text retain the stacked layout.
   Public profiles display website/social links as icon-only controls and open them in the system
   browser. Provider marks use compact, equally sized 24-by-32-pixel touch targets alongside profile dates,
   with their names available to screen readers and long-press tooltips. Worn badges appear on the avatar independently of the badge list;
