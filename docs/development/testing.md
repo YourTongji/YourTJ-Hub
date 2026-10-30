@@ -109,7 +109,11 @@ session against authenticated settings. Both reject non-loopback origins and rem
 The journey waits for the app to resume after any native permission prompt; dismiss it on
 the isolated device. Android captures prepare and paint the real Flutter surface before
 checking foreground state and taking screenshots. Each management module gets a viewport
-check and an optional capture. These journeys
+check and an optional capture. The badge module also checks the rendered Han text's advance
+after the native writing flow: a small standalone HTML WebView does not reproduce the system
+font fallback failure. `local_admin_typography_test.dart` runs the same real-server journey
+with notifications denied by its test driver so font acceptance needs no OS permission prompt;
+it makes no push delivery claim. These journeys
 mutate only their isolated test database; external providers and physical-device delivery are
 separate checks.
 

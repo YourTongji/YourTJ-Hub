@@ -1636,6 +1636,10 @@ The approved permission/privacy/failure boundaries for optional analytics are re
 
 ## Management workspaces
 
+- `Current`: the embedded admin console resolves installed PingFang Han and CJK punctuation
+  directly on Apple platforms, keeping Chinese labels readable after native writing flows.
+  Latin text keeps the existing system font stack; devices without PingFang use that stack's
+  normal fallback. The console does not download font files.
 - `Partial`: the complete Web admin console and moderation workspace are reachable in the App.
   The native wrapper and authenticated handoff pass local iOS and Android login/draft/console
   journeys; all 28 administrative modules fit both viewports, including the link editor.
