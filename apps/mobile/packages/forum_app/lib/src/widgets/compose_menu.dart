@@ -47,59 +47,64 @@ Future<void> showComposeMenu(
         child,
       ],
     ),
-    pageBuilder: (context, animation, secondary) => SafeArea(
-      child: Align(
-        alignment: Alignment.bottomRight,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(24, 16, 16 + rightInset, bottom),
-          child: ConstrainedBox(
-            key: const ValueKey('compose-menu'),
-            constraints: const BoxConstraints(maxWidth: 320),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (final (index, option) in options.indexed)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _RiseFromAction(
-                        animation: animation,
-                        // The item nearest the action arrives first.
-                        order: options.length - 1 - index,
-                        child: GfGlassButton(
-                          key: ValueKey('compose-${option.value}'),
-                          autofocus: option == PublishType.moment,
-                          minSize: const Size(0, 52),
-                          padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
-                          onPressed: () => Navigator.pop(context, option),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(
-                                child: GfText(
-                                  option.label(l10n),
-                                  style: GfTheme.typographyOf(
-                                    context,
-                                  ).bodyStrong,
+    // Glass items carry no Material of their own; this one gives the labels
+    // the theme's text style instead of the missing-Material fallback.
+    pageBuilder: (context, animation, secondary) => Material(
+      type: MaterialType.transparency,
+      child: SafeArea(
+        child: Align(
+          alignment: Alignment.bottomRight,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(24, 16, 16 + rightInset, bottom),
+            child: ConstrainedBox(
+              key: const ValueKey('compose-menu'),
+              constraints: const BoxConstraints(maxWidth: 320),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    for (final (index, option) in options.indexed)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _RiseFromAction(
+                          animation: animation,
+                          // The item nearest the action arrives first.
+                          order: options.length - 1 - index,
+                          child: GfGlassButton(
+                            key: ValueKey('compose-${option.value}'),
+                            autofocus: option == PublishType.moment,
+                            minSize: const Size(0, 52),
+                            padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
+                            onPressed: () => Navigator.pop(context, option),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: GfText(
+                                    option.label(l10n),
+                                    style: GfTheme.typographyOf(
+                                      context,
+                                    ).bodyStrong,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 20),
-                              PublishTypeIcon(option, size: 32),
-                            ],
+                                const SizedBox(width: 20),
+                                PublishTypeIcon(option, size: 32),
+                              ],
+                            ),
                           ),
                         ),
                       ),
+                    // Sits exactly over the action that opened the menu, whose
+                    // plus turns into this close mark.
+                    GfGlassButton(
+                      tone: GfGlassTone.prominent,
+                      tooltip: l10n.commonClose,
+                      onPressed: () => Navigator.pop(context),
+                      child: _PlusToClose(animation: animation),
                     ),
-                  // Sits exactly over the action that opened the menu, whose
-                  // plus turns into this close mark.
-                  GfGlassButton(
-                    tone: GfGlassTone.prominent,
-                    tooltip: l10n.commonClose,
-                    onPressed: () => Navigator.pop(context),
-                    child: _PlusToClose(animation: animation),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

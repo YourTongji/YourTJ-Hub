@@ -138,6 +138,20 @@ Finder _pickerSticker(String label) => find.byWidgetPredicate(
       widget.child is InkWell,
 );
 
+/// Text outside any Material falls back to the debug error style, drawn with
+/// a double underline.
+bool _hasMissingMaterialText(WidgetTester tester) {
+  for (final text in tester.widgetList<RichText>(find.byType(RichText))) {
+    var found = false;
+    text.text.visitChildren((span) {
+      found = span.style?.decorationStyle == TextDecorationStyle.double;
+      return !found;
+    });
+    if (found) return true;
+  }
+  return false;
+}
+
 void main() {
   testWidgets('embedded sticker copies expose a single outer button label', (
     tester,
@@ -327,6 +341,7 @@ void main() {
       await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
       await tester.pump();
       expect(bubbleImage().url, _item.url);
+      expect(_hasMissingMaterialText(tester), isFalse);
       await gesture.up();
       await tester.pumpAndSettle();
       expect(

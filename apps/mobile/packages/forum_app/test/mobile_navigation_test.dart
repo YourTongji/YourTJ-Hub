@@ -107,6 +107,20 @@ Future<({GoRouter router, ProviderContainer container})> pumpNavigation(
   return (router: router, container: container);
 }
 
+/// Text outside any Material falls back to the debug error style, drawn with
+/// a double underline.
+bool _hasMissingMaterialText(WidgetTester tester) {
+  for (final text in tester.widgetList<RichText>(find.byType(RichText))) {
+    var found = false;
+    text.text.visitChildren((span) {
+      found = span.style?.decorationStyle == TextDecorationStyle.double;
+      return !found;
+    });
+    if (found) return true;
+  }
+  return false;
+}
+
 void main() {
   for (final value in [2, 3, 1]) {
     testWidgets('compose first level routes type $value only after choosing', (
@@ -163,6 +177,7 @@ void main() {
 
     await tester.pumpAndSettle();
     expect(opacityOf('x'), 1);
+    expect(_hasMissingMaterialText(tester), isFalse);
     expect(opacityOf('plus'), 0);
     for (final type in [1, 2, 3]) {
       expect(

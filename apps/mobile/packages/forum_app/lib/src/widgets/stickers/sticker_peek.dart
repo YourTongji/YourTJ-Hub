@@ -165,13 +165,18 @@ class StickerPeekScopeState extends State<StickerPeekScope> {
               widget.onCollect != null &&
               widget.collectLabel != null &&
               (widget.canCollect?.call(target.item) ?? true);
-          return _PeekBubbleLayout(
-            anchor: target.anchor,
-            child: _PeekBubbleView(
-              item: target.item,
-              label: widget.labelOf(target.item),
-              collectLabel: collectable ? widget.collectLabel : null,
-              collectArmed: target.collectArmed,
+          // A root overlay entry has no Material above it: without one its
+          // text falls back to the debug error style (double underline).
+          return Material(
+            type: MaterialType.transparency,
+            child: _PeekBubbleLayout(
+              anchor: target.anchor,
+              child: _PeekBubbleView(
+                item: target.item,
+                label: widget.labelOf(target.item),
+                collectLabel: collectable ? widget.collectLabel : null,
+                collectArmed: target.collectArmed,
+              ),
             ),
           );
         },
