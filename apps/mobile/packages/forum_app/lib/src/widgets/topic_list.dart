@@ -642,18 +642,24 @@ Widget buildTopicFeedCard(
   final AppLocalizations l10n = AppLocalizations.of(context);
   final String nickname = topic.author.nickname?.trim() ?? '';
   // 无标题瞬间（#1366 空卡片修复）：标题槽位回退到摘要、描述槽位置空，避免两处重复。
-  // 摘要里的贴纸 token 按 [名字] 纯文本呈现——卡片标题槽没有 span 渲染路径。
+  // 卡片是大字视图，标题槽里的摘要同样把贴纸渲染成图片；摘要剥空（无文本或贴纸
+  // 全未解析）时回退本地化"无标题"，卡片不会空。
   final bool untitled = topic.title.trim().isEmpty;
   final (String description, InlineSpan? descriptionSpan) = untitled
       ? ('', null)
       : _feedExcerpt(topic.description, stickerUrlByName, _cardStickerSize);
+  final bool excerptTitle =
+      untitled &&
+      stickerLabelText(topic.description, stickerUrlByName).trim().isNotEmpty;
+  final (String excerpt, InlineSpan? excerptSpan) = excerptTitle
+      ? _feedExcerpt(topic.description, stickerUrlByName, _cardStickerSize)
+      : ('', null);
   final String cardTitle = untitled
-      ? _stickerLabelOrNoTitle(
-          context,
-          topicDisplayTitle(context, topic),
-          stickerUrlByName,
-        )
+      ? (excerptTitle ? excerpt : l10n.topicNoTitle)
       : topic.title;
+  final String reviewPrefix = topic.processStatus == 2
+      ? '${l10n.contentReviewPending} · '
+      : '';
   final List<String> images = <String>[
     for (final String image in topic.images ?? const <String>[])
       resolveApiAssetUrl(image),
@@ -682,9 +688,10 @@ Widget buildTopicFeedCard(
         topic.author.decoration?.nicknameStyle,
       ),
       key: ValueKey<int>(topic.id),
-      title: topic.processStatus == 2
-          ? "${l10n.contentReviewPending} · $cardTitle"
-          : cardTitle,
+      title: '$reviewPrefix$cardTitle',
+      titleSpan: excerptSpan == null
+          ? null
+          : TextSpan(text: reviewPrefix, children: <InlineSpan>[excerptSpan]),
       description: description,
       descriptionSpan: descriptionSpan,
       authorName: topic.author.publicUid != null

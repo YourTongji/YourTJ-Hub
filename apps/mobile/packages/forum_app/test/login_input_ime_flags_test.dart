@@ -48,7 +48,9 @@ class _LoginOptions implements HttpClientAdapter {
         'meta': {'title': 'Login'},
       }),
       200,
-      headers: {Headers.contentTypeHeader: ['application/json']},
+      headers: {
+        Headers.contentTypeHeader: ['application/json'],
+      },
     );
   }
 }
@@ -61,41 +63,56 @@ class _LoginOptions implements HttpClientAdapter {
 /// to the secure keyboard, hides clipboard entries from the suggestion strip and
 /// blocks pasting. Only real password fields may keep `enableSuggestions: false`;
 /// every other auth field must stay a plain text field.
-void main() {
-  Future<void> pumpLogin(
-    WidgetTester tester, {
-    AuthController? auth,
-  }) async {
-    await tester.binding.setSurfaceSize(const Size(390, 1100));
+Future<void> pumpLoginInputs(
+  WidgetTester tester, {
+  AuthController? auth,
+  String locale = 'en',
+  Brightness brightness = Brightness.light,
+  double width = 390,
+  double scale = 1,
+  bool native = false,
+}) async {
+  if (!native) {
+    await tester.binding.setSurfaceSize(Size(width, 1100));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    final storage = MemoryTokenStorage();
-    final staged = MemoryTokenStorage();
-    final options = _LoginOptions();
-    final container = ProviderContainer(
-      overrides: [
-        dioProvider.overrideWithValue(Dio()..httpClientAdapter = options),
-        authDioProvider.overrideWithValue(Dio()..httpClientAdapter = options),
-        tokenStorageProvider.overrideWithValue(storage),
-        offlineTopicCacheProvider.overrideWithValue(NoopCache()),
-        offlineChatCacheProvider.overrideWithValue(NoopCache()),
-      ],
-    );
-    addTearDown(container.dispose);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: gfThemeData(Brightness.light),
-          locale: const Locale('en'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: LoginPage(authController: auth, authTokenStorage: staged),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
   }
+  final storage = MemoryTokenStorage();
+  final staged = MemoryTokenStorage();
+  final options = _LoginOptions();
+  final container = ProviderContainer(
+    overrides: [
+      dioProvider.overrideWithValue(Dio()..httpClientAdapter = options),
+      authDioProvider.overrideWithValue(Dio()..httpClientAdapter = options),
+      tokenStorageProvider.overrideWithValue(storage),
+      offlineTopicCacheProvider.overrideWithValue(NoopCache()),
+      offlineChatCacheProvider.overrideWithValue(NoopCache()),
+    ],
+  );
+  addTearDown(container.dispose);
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(
+        theme: gfThemeData(brightness),
+        locale: Locale(locale),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(scale)),
+          child: Center(
+            child: SizedBox(width: width, child: child!),
+          ),
+        ),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: LoginPage(authController: auth, authTokenStorage: staged),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
 
+void main() {
   Finder fieldByLabel(String label) => find.byWidgetPredicate(
     (widget) => widget is TextField && widget.decoration?.labelText == label,
   );
@@ -104,9 +121,36 @@ void main() {
       tester.widget<TextField>(field).enableSuggestions;
 
   testWidgets(
+    'registration guidance is present before typing and absent at login',
+    (tester) async {
+      await pumpLoginInputs(tester);
+      final l10n = AppLocalizations.of(tester.element(find.byType(LoginPage)));
+      expect(
+        tester
+            .widget<TextField>(fieldByLabel(l10n.authPassword))
+            .decoration
+            ?.helperText,
+        isNull,
+      );
+      await tester.tap(find.text(l10n.loginModeRegister).first);
+      await tester.pumpAndSettle();
+      final username = tester.widget<TextField>(
+        fieldByLabel(l10n.authUsername),
+      );
+      final password = tester.widget<TextField>(
+        fieldByLabel(l10n.authPassword),
+      );
+      expect(username.controller!.text, isEmpty);
+      expect(password.controller!.text, isEmpty);
+      expect(username.decoration?.helperText, contains('6–32'));
+      expect(password.decoration?.helperText, contains('6–64'));
+    },
+  );
+
+  testWidgets(
     'only password fields keep enableSuggestions off; username stays plain text',
     (tester) async {
-      await pumpLogin(tester);
+      await pumpLoginInputs(tester);
       final l10n = AppLocalizations.of(tester.element(find.byType(LoginPage)));
 
       final username = fieldByLabel(l10n.authUsernameOrEmail);
@@ -170,7 +214,7 @@ void main() {
       tokenStorage: storage,
       baseUrl: 'http://fake.local',
     );
-    await pumpLogin(tester, auth: _CaptchaAuth(client, storage));
+    await pumpLoginInputs(tester, auth: _CaptchaAuth(client, storage));
     final l10n = AppLocalizations.of(tester.element(find.byType(LoginPage)));
 
     final captcha = fieldByLabel(l10n.authCaptcha);

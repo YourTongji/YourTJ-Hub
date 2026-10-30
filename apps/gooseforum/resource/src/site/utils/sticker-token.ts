@@ -159,7 +159,8 @@ export function stickerDeleteRangeAt(
 
 // 个人上传表情名为 u_ + 48 位小写十六进制（服务端生成规则），可被精确识别。
 const PERSONAL_STICKER_NAME_RE = /^u_[0-9a-f]{48}$/
-const PERSONAL_STICKER_TOKEN_RE = /\[:sticker:u_[0-9a-f]{48}:\]/g
+// 市场表情名为 m_ + 40 位小写十六进制（issue #1429）；单张被停用后同样无法解析。
+const GENERATED_STICKER_TOKEN_RE = /\[:sticker:(?:u_[0-9a-f]{48}|m_[0-9a-f]{40}):\]/g
 
 /** 贴纸名（不含 [:sticker:…:] 包裹）是否为服务端生成的个人贴纸名。 */
 export function isPersonalStickerName(name: string): boolean {
@@ -167,10 +168,68 @@ export function isPersonalStickerName(name: string): boolean {
 }
 
 /**
- * 消息正文渲染用的个人表情遮蔽：待审/被拒的个人 token 无法解析，
- * 保持原文会把随机名展示给收件人（issue #1071），统一替换为本地化占位。
- * 官方与可解析 token 不受影响。
+ * 消息正文渲染用的生成名表情遮蔽：待审/被拒的个人 token 与已停用的市场
+ * token 无法解析，保持原文会把随机名展示给收件人（issue #1071），统一替换为
+ * 本地化占位。官方与可解析 token 不受影响。
  */
 export function maskPersonalStickerTokens(content: string, stickerLabel: string): string {
-  return content.replace(PERSONAL_STICKER_TOKEN_RE, `[${stickerLabel}]`)
+  return content.replace(GENERATED_STICKER_TOKEN_RE, `[${stickerLabel}]`)
+}
+
+/** 光标前正在手动输入的贴纸 token：`[:sticker:` + 至多 64 个名字字符，尚未闭合。 */
+export interface StickerQuery {
+  /** 片段长度（含 `[:sticker:` 前缀），选中候选时整段替换 */
+  length: number
+  query: string
+}
+
+const STICKER_QUERY_RE = /\[:sticker:([^\s:[\]]{0,64})$/
+
+/** 从光标前文本识别手动输入中的 token 片段；被奇数个反斜杠转义时不算。 */
+export function extractStickerQuery(prefix: string): StickerQuery | null {
+  const match = STICKER_QUERY_RE.exec(prefix)
+  if (!match) return null
+  let slashes = 0
+  for (let i = match.index - 1; i >= 0 && prefix[i] === '\\'; i--) slashes++
+  if (slashes % 2 !== 0) return null
+  return { length: match[0].length, query: match[1] }
+}
+
+export interface StickerSuggestion {
+  name: string
+  url: string
+  label: string
+}
+
+/**
+ * 候选排序：名字/显示名前缀命中优先，其次包含；同级保持来源顺序（我的 → 官方 → 已添加的表情包）。
+ * 空查询按来源顺序取前 limit 个。名字去重，先出现的来源优先。
+ */
+export function rankStickerSuggestions(
+  items: readonly StickerSuggestion[],
+  query: string,
+  limit = 8,
+): StickerSuggestion[] {
+  const q = query.toLowerCase()
+  const seen = new Set<string>()
+  const scored: Array<{ item: StickerSuggestion, score: number, index: number }> = []
+  items.forEach((item, index) => {
+    if (seen.has(item.name)) return
+    seen.add(item.name)
+    if (!q) {
+      scored.push({ item, score: 0, index })
+      return
+    }
+    const name = item.name.toLowerCase()
+    const label = item.label.toLowerCase()
+    const score = name === q ? 4
+      : name.startsWith(q) || label.startsWith(q) ? 3
+        : name.includes(q) || label.includes(q) ? 2
+          : 0
+    if (score > 0) scored.push({ item, score, index })
+  })
+  return scored
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, limit)
+    .map((entry) => entry.item)
 }

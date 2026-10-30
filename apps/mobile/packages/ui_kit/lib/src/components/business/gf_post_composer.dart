@@ -11,6 +11,7 @@ import '../gf_button.dart';
 import '../gf_media_image.dart';
 import '../gf_motion.dart';
 import '../gf_symbol.dart';
+import 'gf_inline_content.dart';
 
 /// Compact reply surface with a borderless growing editor and one action row.
 /// Optional verification content appears only when supplied by the caller.
@@ -353,7 +354,10 @@ class _GfPostComposerState extends State<GfPostComposer> {
                                                     MediaQuery.textScalerOf(
                                                           context,
                                                         ).scale(16) *
-                                                        1.4 +
+                                                        GfInlineContentController.lineScale(
+                                                          widget.controller,
+                                                          1.4,
+                                                        ) +
                                                     22,
                                               )
                                             : const BoxConstraints(),
@@ -365,6 +369,10 @@ class _GfPostComposerState extends State<GfPostComposer> {
                                           textInputAction:
                                               TextInputAction.newline,
                                           expands: expand,
+                                          strutStyle:
+                                              GfInlineContentController.strutFor(
+                                                widget.controller,
+                                              ),
                                           maxLines: expand ? null : 4,
                                           minLines: expand ? null : 1,
                                           textAlignVertical: expand

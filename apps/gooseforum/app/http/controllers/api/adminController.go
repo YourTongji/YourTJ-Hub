@@ -1659,9 +1659,9 @@ func SavePostingSettings(req component.BetterRequest[SavePostingSettingsReq]) co
 
 // GetRateLimitSettings 获取滥用防护（限流）设置
 func GetRateLimitSettings(req component.BetterRequest[component.Null]) component.Response {
-	defaultSettings := defaultconfig.GetDefaultRateLimitConfig()
-	res := pageConfig.GetConfigByPageType(pageConfig.RateLimitSettings, defaultSettings)
-	return component.SuccessResponse(res)
+	// Show the same effective actions the middleware enforces, including defaults
+	// added after an administrator last saved the configuration.
+	return component.SuccessResponse(hotdataserve.GetRateLimitConfigCache())
 }
 
 type SaveRateLimitSettingsReq struct {
@@ -2632,6 +2632,13 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 // 完全一致。自动结论不回写人工标签、不记操作日志；自动通过不通知作者（发布时
 // 已告知通过后公开），自动拒绝照常通知。
 func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, automatic bool) component.Response {
+	if !automatic && !params.Approve {
+		var err error
+		params.Reason, err = publicationservice.NormalizeRejectionReason(params.Reason)
+		if err != nil {
+			return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+		}
+	}
 	post := posts.Get(params.Id)
 	if params.Kind == "topic" {
 		post = posts.Get(topics.Get(params.Id).FirstPostId)
@@ -2651,7 +2658,7 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 			return component.FailResponseCode(component.MessageOperationFailed, nil)
 		}
 		if !automatic {
-			optlogger.UserOptCode(actorID, optlogger.EditTopic, post.TopicId, "admin.opt.review.post", optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": params.Approve})
+			optlogger.UserOptCode(actorID, optlogger.EditTopic, post.TopicId, "admin.opt.review.post", optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": params.Approve, "revisionId": params.RevisionId})
 		}
 		return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
 	}
@@ -2682,6 +2689,13 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 				if _, err := posts.GetUnscopedTx(tx, topic.FirstPostId); err != nil {
 					return err
 				}
+			}
+			if !params.Approve && !automatic {
+				revisionID, err := publicationservice.RecordLegacyRejectionTx(tx, topic.FirstPostId, actorID, params.Reason)
+				if err != nil {
+					return err
+				}
+				params.RevisionId = revisionID
 			}
 			if err := topics.UpdateProcessStatusTx(tx, topic.Id, targetStatus); err != nil {
 				return err
@@ -2715,6 +2729,9 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 			}
 			return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
 		}); err != nil {
+			if errors.Is(err, publicationservice.ErrUnavailable) {
+				return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+			}
 			return component.FailResponseCode(component.MessageAdminReviewFailed,
 				component.MessageParams{"error": err.Error()})
 		}
@@ -2751,7 +2768,7 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 		}
 		if !automatic {
 			optlogger.UserOptCode(actorID, optlogger.EditTopic, topic.Id, "admin.opt.review.topic",
-				optlogger.MessageParams{"id": topic.Id, "approve": params.Approve})
+				optlogger.MessageParams{"id": topic.Id, "approve": params.Approve, "revisionId": params.RevisionId})
 		}
 	} else {
 		post := posts.Get(params.Id)
@@ -2771,6 +2788,13 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 		var hasPriorPublic bool
 		usePublicationBaseline := agentinstance.Current().ID != "" && agentinstance.Current().Epoch != ""
 		if err := db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
+			if !params.Approve && !automatic {
+				revisionID, err := publicationservice.RecordLegacyRejectionTx(tx, post.Id, actorID, params.Reason)
+				if err != nil {
+					return err
+				}
+				params.RevisionId = revisionID
+			}
 			if err := posts.UpdateProcessStatusTx(tx, post.Id, targetStatus); err != nil {
 				return err
 			}
@@ -2792,6 +2816,9 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 			}
 			return searchservice.EnqueueTopicSearchTask(tx, topicEntity.Id)
 		}); err != nil {
+			if errors.Is(err, publicationservice.ErrUnavailable) {
+				return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+			}
 			return component.FailResponseCode(component.MessageAdminReviewFailed,
 				component.MessageParams{"error": err.Error()})
 		}
@@ -2834,7 +2861,7 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 		}
 		if !automatic {
 			optlogger.UserOptCode(actorID, optlogger.EditTopic, post.TopicId, "admin.opt.review.post",
-				optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": params.Approve})
+				optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": params.Approve, "revisionId": params.RevisionId})
 		}
 	}
 	return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)

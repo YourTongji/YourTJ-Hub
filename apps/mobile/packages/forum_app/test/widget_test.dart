@@ -140,7 +140,7 @@ void main() {
     ]);
     expect(navigation.showLabels, isFalse);
     expect(navigation.onAction, isNull);
-    expect(find.byType(FloatingActionButton), findsOneWidget);
+    expect(find.byKey(const ValueKey('root-compose-action')), findsOneWidget);
 
     navigation.onSelected(1);
     await tester.pumpAndSettle();
@@ -156,7 +156,7 @@ void main() {
       find.text(AppLocalizationsZh().campusOfficialSubtitle),
       findsOneWidget,
     );
-    expect(find.byType(FloatingActionButton), findsNothing);
+    expect(find.byKey(const ValueKey('root-compose-action')), findsNothing);
     expect(find.byTooltip('探索校园'), findsNothing);
     appRouter.go('/campus/explore');
     await tester.pumpAndSettle();

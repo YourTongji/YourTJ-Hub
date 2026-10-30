@@ -130,11 +130,7 @@ class _StickerImageState extends State<StickerImage> {
         !widget.deferLongPress && (widget.collectible || _failed);
     var hasFrame = false;
     final semantics = Semantics(
-      label:
-          widget.label ??
-          (StickerStrings.isPersonalName(widget.name)
-              ? StickerStrings(context).custom
-              : widget.name),
+      label: widget.label ?? StickerStrings(context).fallbackLabel(widget.name),
       button: true,
       hint: StickerStrings(context).viewLarger,
       onLongPress: showActions ? _actions : null,

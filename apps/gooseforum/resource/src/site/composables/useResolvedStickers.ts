@@ -21,6 +21,22 @@ export function resetResolvedStickerCache() {
   sharedPending.clear()
 }
 
+/**
+ * 选择面板与贴纸库里已拿到的启用贴纸直接记入共享缓存：编辑器插入后立刻显示为
+ * 图片，不必等一次 resolve 往返。只应传入可用（启用且已通过审核）的贴纸。
+ */
+export function rememberStickerUrls(items: readonly { name: string, url: string }[]) {
+  const fresh = items.filter((item) => item.url && sharedResolvedUrls.value.get(item.name) !== item.url)
+  const now = Date.now()
+  for (const item of items) {
+    if (item.url) sharedCheckedAt.set(item.name, now)
+  }
+  if (fresh.length === 0) return
+  const next = new Map(sharedResolvedUrls.value)
+  for (const item of fresh) next.set(item.name, item.url)
+  sharedResolvedUrls.value = next
+}
+
 /** Message-only resolution never adds personal assets to the official picker. */
 export function useResolvedStickers() {
   async function ensureContentStickers(contents: readonly string[]) {

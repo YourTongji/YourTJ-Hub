@@ -339,7 +339,10 @@ void main() {
         tester.getRect(find.byKey(const Key('search'))).right,
         lessThanOrEqualTo(382),
       );
-      expect(tester.getRect(find.byType(FloatingActionButton)).right, 366);
+      expect(
+        tester.getRect(find.byKey(const ValueKey('root-compose-action'))).right,
+        366,
+      );
       expect(tester.takeException(), isNull);
     },
   );

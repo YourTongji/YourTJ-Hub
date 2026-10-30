@@ -62,8 +62,8 @@ func setupAdminStickersContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	conn, router := setupHTTPContractTest(t)
 	if err := conn.AutoMigrate(
 		&rolePermissionRs.Entity{},
-		&sticker.Entity{}, &sticker.LibraryOwner{}, &sticker.LibraryEntry{},
-		&fileUsage.Entity{},
+		&sticker.Entity{}, &sticker.Alias{}, &sticker.LibraryOwner{}, &sticker.LibraryEntry{}, &sticker.PackSubscription{},
+		&sticker.OfficialPack{}, &fileUsage.Entity{},
 	); err != nil {
 		t.Fatalf("migrate admin stickers contract tables: %v", err)
 	}
@@ -73,6 +73,7 @@ func setupAdminStickersContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		t.Fatalf("migrate filedata contract table: %v", err)
 	}
 	conn.Where("1 = 1").Delete(&sticker.Entity{})
+	conn.Where("1 = 1").Delete(&sticker.OfficialPack{})
 	conn.Where("1 = 1").Delete(&fileUsage.Entity{})
 	stickerservice.InvalidateCache()
 	t.Cleanup(stickerservice.InvalidateCache)
@@ -88,7 +89,12 @@ func setupAdminStickersContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	stickersAPI.POST("/sticker-save", UpButterReq(api.SaveSticker))
 	stickersAPI.POST("/sticker-delete", UpButterReq(api.DeleteSticker))
 	stickersAPI.POST("/sticker-import", api.ImportStickerPack)
+	stickersAPI.GET("/sticker-packs", UpButterReq(api.AdminStickerPacks))
+	stickersAPI.POST("/sticker-pack-save", UpButterReq(api.AdminStickerPackSave))
+	stickersAPI.POST("/sticker-pack-delete", UpButterReq(api.AdminStickerPackDelete))
+	stickersAPI.POST("/sticker-batch", UpButterReq(api.AdminStickerBatch))
 	router.GET("/api/forum/stickers", middleware.RateLimit(middleware.RateLimitStickerList), ginUpNP(api.PublicStickerList))
+	router.GET("/api/forum/sticker-packs", middleware.RateLimit(middleware.RateLimitStickerList), ginUpNP(api.PublicStickerPacks))
 	return conn, router
 }
 
@@ -113,8 +119,12 @@ func serveAdminStickersOK(t *testing.T, conn *gorm.DB, router *gin.Engine, metho
 // adminStickersGuardScenarios 跑 4 条管理路由公共的中间件守卫场景：
 // 未登录 401 / 冻结账号 403 / 无 SiteManager 权限 403（params.permission="站点管理"）。
 func adminStickersGuardScenarios(t *testing.T, method, path string) {
+	adminStickerRouteGuardScenarios(t, setupAdminStickersContractTest, method, path)
+}
+
+func adminStickerRouteGuardScenarios(t *testing.T, setup func(*testing.T) (*gorm.DB, *gin.Engine), method, path string) {
 	t.Run("missing session returns 401", func(t *testing.T) {
-		_, router := setupAdminStickersContractTest(t)
+		_, router := setup(t)
 		recorder := serveAuthSecurityJSON(router, method, path, `{}`, "")
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated status = %d, want 401: %s", recorder.Code, recorder.Body.String())
@@ -123,7 +133,7 @@ func adminStickersGuardScenarios(t *testing.T, method, path string) {
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
-		conn, router := setupAdminStickersContractTest(t)
+		conn, router := setup(t)
 		user := createHTTPContractUser(t, conn, contractTestID())
 		if err := conn.Model(user).Update("is_frozen", users.StatusFrozen).Error; err != nil {
 			t.Fatalf("freeze contract user: %v", err)
@@ -136,7 +146,7 @@ func adminStickersGuardScenarios(t *testing.T, method, path string) {
 	})
 
 	t.Run("user without SiteManager returns 403", func(t *testing.T) {
-		conn, router := setupAdminStickersContractTest(t)
+		conn, router := setup(t)
 		user := createHTTPContractUser(t, conn, contractTestID())
 		recorder := serveAuthSecurityJSON(router, method, path, `{}`, contractSessionToken(t, user))
 		if recorder.Code != http.StatusForbidden {
@@ -312,6 +322,32 @@ func TestAdminStickerSaveHTTPContract(t *testing.T) {
 			"admin-sticker-name-exists.json")
 	})
 
+	t.Run("renaming keeps the previous name as an alias", func(t *testing.T) {
+		conn, router := setupAdminStickersContractTest(t)
+		conn.Where("1 = 1").Delete(&sticker.Alias{})
+		t.Cleanup(func() { conn.Where("1 = 1").Delete(&sticker.Alias{}) })
+		seedContractSticker(t, conn, contractStickerID, "smile", "stickers/9f1c2d3e-0000-4000-8000-000000000001.png", 1, true)
+		serveAdminStickersOK(t, conn, router, http.MethodPost, path,
+			`{"id":9101,"name":"grin","sortOrder":1,"isEnabled":true}`,
+			"admin-sticker-action-success.json")
+		urls, err := stickerservice.ResolveURLs([]string{"smile", "grin"})
+		if err != nil || urls["smile"] == "" || urls["smile"] != urls["grin"] {
+			t.Fatalf("resolved = %#v, %v; want both names to reach the renamed sticker", urls, err)
+		}
+		serveAdminStickersOK(t, conn, router, http.MethodPost, path,
+			`{"id":0,"name":"smile","sortOrder":0,"isEnabled":true}`,
+			"admin-sticker-name-reserved.json")
+		// Renaming back releases the alias instead of reserving the name twice.
+		serveAdminStickersOK(t, conn, router, http.MethodPost, path,
+			`{"id":9101,"name":"smile","sortOrder":1,"isEnabled":true}`,
+			"admin-sticker-action-success.json")
+		var aliases []string
+		conn.Model(&sticker.Alias{}).Order("name").Pluck("name", &aliases)
+		if strings.Join(aliases, ",") != "grin" {
+			t.Fatalf("aliases = %v, want [grin]", aliases)
+		}
+	})
+
 	t.Run("whitespace-only name returns business failure", func(t *testing.T) {
 		conn, router := setupAdminStickersContractTest(t)
 		serveAdminStickersOK(t, conn, router, http.MethodPost, path,
@@ -355,9 +391,9 @@ func TestAdminStickerImportHTTPContract(t *testing.T) {
 	t.Run("success imports images and reports per-entry failures", func(t *testing.T) {
 		conn, router := setupAdminStickersContractTest(t)
 		archive := contractStickerZip(t, map[string][]byte{
-			"smile.png":  contractTinyPNG,
-			"notes.txt":  []byte("not an image"),
-			"broken.png": []byte("PNG forgery bytes"),
+			"smile.png":         contractTinyPNG,
+			"notes.txt":         []byte("not an image"),
+			"nested/broken.png": []byte("PNG forgery bytes"),
 		})
 		serveAdminStickersImportOK(t, conn, router, archive, "admin-sticker-import-success.json")
 		created, _ := sticker.GetByName("smile")
@@ -575,7 +611,7 @@ func TestAdminStickerListDBFailureHTTPContract(t *testing.T) {
 // 引用目标复用批量就地结果。
 func TestTopicWindowStickerBatchHTTPContract(t *testing.T) {
 	conn, router := setupForumInteractionContractTest(t)
-	if err := conn.AutoMigrate(&sticker.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&sticker.Entity{}, &sticker.Alias{}); err != nil {
 		t.Fatal(err)
 	}
 	conn.Where("1 = 1").Delete(&sticker.Entity{})

@@ -258,6 +258,7 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.POST("user/passkeys/revoke", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), passkeyBodyLimit(8<<10), api.PasskeyCredentialRevoke)
 	loginApi.POST("set-user-profile-cover", middleware.CheckWritableAccount, UpButterReq(api.EditUserProfileCover))
 	loginApi.POST("set-user-email", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitEmailChange), UpButterReq(api.EditUserEmail))
+	loginApi.GET("resend-activation-email", UpQueryReq(api.GetActivationStatus))
 	loginApi.POST("resend-activation-email", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.ResendActivationEmail))
 	loginApi.POST("set-user-name", middleware.CheckWritableAccount, UpButterReq(api.EditUsername))
 	loginApi.POST("set-preset-avatar", middleware.CheckWritableAccount, UpButterReq(api.SetPresetAvatar))
@@ -339,7 +340,11 @@ func apiRoute(ginApp *gin.Engine) {
 	forumApi.GET("courses/:courseId/related", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpUriQueryReq(forum.CourseRelatedJSON))
 	// 表情包库：公开只读（启用列表供编辑器选择器与客户端 token 替换）。
 	forumApi.GET("stickers", middleware.RateLimit(middleware.RateLimitStickerList), ginUpNP(api.PublicStickerList))
+	forumApi.GET("sticker-packs", middleware.RateLimit(middleware.RateLimitStickerList), ginUpNP(api.PublicStickerPacks))
 	forumApi.POST("stickers/resolve", middleware.RateLimit(middleware.RateLimitStickerList), UpLimitedJsonReq(64<<10, api.ResolveStickers))
+	// 贴纸市场（issue #1429）：公开只读，只列出管理员已上架、已导入的表情包。
+	forumApi.GET("sticker-market", middleware.RateLimit(middleware.RateLimitStickerList), UpQueryReq(api.StickerMarket))
+	forumApi.GET("sticker-market/pack", middleware.RateLimit(middleware.RateLimitStickerList), UpQueryReq(api.StickerMarketPack))
 	// wiki 分站：公开读。
 	// wiki 分站：公开读（GitHub SSOT：内容由仓库同步，无站内写）。
 	wikiApi := baseApi.Group("wiki")
@@ -372,7 +377,12 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("my-sticker-save", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.SaveMySticker))
 	forumLoginApi.POST("my-sticker-delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.DeleteMySticker))
 	forumLoginApi.POST("my-stickers-order", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.OrderMyStickers))
+	forumLoginApi.GET("my-sticker-packs", middleware.NoUpdateUserActivity, UpButterReq(api.MyStickerPacks))
+	forumLoginApi.POST("my-sticker-pack-save", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.SaveMyStickerPack))
+	forumLoginApi.POST("my-sticker-pack-delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.DeleteMyStickerPack))
 	forumLoginApi.GET("unread-status", middleware.NoUpdateUserActivity, UpButterReq(api.GetUnreadStatus))
+	forumLoginApi.GET("notification-preferences", middleware.NoUpdateUserActivity, UpButterReq(api.GetNotificationPreferences))
+	forumLoginApi.PUT("notification-preferences", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedStrictJsonReq(4<<10, api.UpdateNotificationPreferences))
 	forumLoginApi.GET("notifications", middleware.NoUpdateUserActivity, UpQueryReq(api.NotificationList))
 	// 未读清理（notification/chat mark-read）用放行变体：pending 用户仅清理自己的
 	// 读状态、不产生内容写（issue #427），未读角标无需等待激活才能清除；冻结
@@ -509,10 +519,7 @@ func apiRoute(ginApp *gin.Engine) {
 	anonymousAdmin.POST("govern", UpButterReq(api.AdminAnonymousGovern))
 	adminApi.POST("traffic-overview", middleware.CheckPermission(permission.Admin), UpButterReq(api.GetTrafficOverview))
 	// 内容贡献统计（issue #1145）：只读内容表的板块/用户维度统计，与推荐遥测无关。
-	adminApi.POST("stats/category-summary", middleware.CheckPermission(permission.Admin), UpButterReq(api.AdminStatsCategorySummary))
-	adminApi.POST("stats/category-trend", middleware.CheckPermission(permission.Admin), UpButterReq(api.AdminStatsCategoryTrend))
-	adminApi.POST("stats/user-ranking", middleware.CheckPermission(permission.Admin), UpButterReq(api.AdminStatsUserRanking))
-	adminApi.POST("stats/user-detail", middleware.CheckPermission(permission.Admin), UpButterReq(api.AdminStatsUserDetail))
+	registerAdminStatsRoutes(adminApi)
 
 	adminApi.
 		Group("", middleware.CheckPermission(permission.UserManager)).
@@ -647,6 +654,19 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("sticker-save", UpButterReq(api.SaveSticker)).
 		POST("sticker-delete", UpButterReq(api.DeleteSticker)).
 		POST("sticker-import", api.ImportStickerPack).
+		GET("sticker-packs", UpButterReq(api.AdminStickerPacks)).
+		POST("sticker-pack-save", UpButterReq(api.AdminStickerPackSave)).
+		POST("sticker-pack-delete", UpButterReq(api.AdminStickerPackDelete)).
+		POST("sticker-batch", UpButterReq(api.AdminStickerBatch)).
+		GET("sticker-market", UpQueryReq(api.AdminStickerMarket)).
+		POST("sticker-market-sync", UpButterReq(api.AdminStickerMarketSync)).
+		GET("sticker-market-pack", UpQueryReq(api.AdminStickerMarketPack)).
+		GET("sticker-market-cover", api.AdminStickerMarketCover).
+		POST("sticker-market-import", UpButterReq(api.AdminStickerMarketImport)).
+		POST("sticker-market-pack-save", UpButterReq(api.AdminStickerMarketPackSave)).
+		POST("sticker-market-item-save", UpButterReq(api.AdminStickerMarketItemSave)).
+		POST("sticker-market-pack-create", UpButterReq(api.AdminStickerMarketPackCreate)).
+		POST("sticker-market-upload", api.AdminStickerMarketUpload).
 		GET("terms-of-service", UpButterReq(api.GetTermsOfService)).
 		POST("save-terms-of-service", UpButterReq(api.SaveTermsOfService)).
 		GET("privacy-policy", UpButterReq(api.GetPrivacyPolicy)).
@@ -683,4 +703,14 @@ func fileServer(ginApp *gin.Engine) {
 	r.POST("/img-upload/complete", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.CompleteDirectImageUpload)
 	r.POST("/img-upload/abort", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.AbortDirectImageUpload)
 	r.GET("/img/*filename", api.GetFileByFileName)
+}
+
+// Shared with HTTP contract tests so permission and aggregate-query budgets stay
+// on the production registration path. Authorization precedes budget charging.
+func registerAdminStatsRoutes(adminAPI *gin.RouterGroup) {
+	stats := adminAPI.Group("/stats", middleware.CheckPermission(permission.Admin), middleware.RateLimit(middleware.RateLimitAdminStats))
+	stats.POST("/category-summary", UpButterReq(api.AdminStatsCategorySummary))
+	stats.POST("/category-trend", UpButterReq(api.AdminStatsCategoryTrend))
+	stats.POST("/user-ranking", UpButterReq(api.AdminStatsUserRanking))
+	stats.POST("/user-detail", UpButterReq(api.AdminStatsUserDetail))
 }

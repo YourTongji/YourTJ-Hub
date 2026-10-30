@@ -22,6 +22,7 @@ import {
   usableLinkPreview,
 } from '../src/runtime/link-preview'
 import { disposeLinkPreviews, enhanceLinkPreviews } from '../src/runtime/content-enhancements/link-preview'
+import { renderTwemojiHtml } from '../src/runtime/twemoji'
 
 const apiMocks = vi.hoisted(() => ({
   resolveLinkPreviews: vi.fn(),
@@ -56,6 +57,43 @@ describe('shared standalone-link fixture', () => {
 })
 
 describe('rendered standalone-link detection', () => {
+  test.each([
+    'https://example.com/👩🏽‍💻',
+    'https://example.com/?q=👍🏽',
+    'https://example.com/#❤️',
+  ])('preserves bare-link detection after Twemoji renders %s', (url) => {
+    const root = document.createElement('div')
+    root.innerHTML = `<p><a href="${new URL(url).href}">${url}</a></p>`
+    expect(findRenderedLinkCandidates(root).map(item => item.url)).toEqual([new URL(url).href])
+
+    renderTwemojiHtml(root)
+    expect(root.querySelector('img.twemoji')).not.toBeNull()
+    const renderedHtml = root.innerHTML
+    const anchor = root.querySelector('a')
+
+    expect(findRenderedLinkCandidates(root).map(item => item.url)).toEqual([new URL(url).href])
+    expect(root.innerHTML).toBe(renderedHtml)
+    expect(findRenderedLinkCandidates(root)[0]?.anchor).toBe(anchor)
+  })
+
+  test('does not discard emoji when comparing the link label with its destination', () => {
+    const root = document.createElement('div')
+    root.innerHTML = '<p><a href="https://example.com/">https://example.com/😀</a></p>'
+    renderTwemojiHtml(root)
+
+    expect(findRenderedLinkCandidates(root)).toEqual([])
+  })
+
+  test('still excludes actual images mixed with a bare-link label and Twemoji', () => {
+    const url = 'https://example.com/😀'
+    const root = document.createElement('div')
+    root.innerHTML = `<p><a href="${new URL(url).href}">${url}<img src="/photo.png" alt="photo"></a></p>`
+    renderTwemojiHtml(root)
+
+    expect(root.querySelectorAll('img')).toHaveLength(2)
+    expect(findRenderedLinkCandidates(root)).toEqual([])
+  })
+
   test('keeps ordinary links and nested content out of the preview pipeline', () => {
     const root = document.createElement('div')
     root.innerHTML = [
@@ -202,12 +240,16 @@ describe('rendered link-preview enhancement', () => {
     document.body.replaceChildren()
   })
 
-  test('mounts one card idempotently and deduplicates the URL request', async () => {
-    const url = 'https://enhancer.example/ready'
+  test.each([
+    'https://enhancer.example/ready',
+    'https://enhancer.example/ready/👩🏽‍💻',
+  ])('mounts one card idempotently and deduplicates the URL request for %s', async (url) => {
     vi.stubGlobal('IntersectionObserver', undefined)
     apiMocks.resolveLinkPreviews.mockResolvedValue([readyPreview(url)])
     const root = document.createElement('div')
     root.innerHTML = `<p><a href="${url}">${url}</a></p>`
+    renderTwemojiHtml(root)
+    const originalHtml = root.innerHTML
     document.body.append(root)
 
     await enhanceLinkPreviews(root)
@@ -217,14 +259,19 @@ describe('rendered link-preview enhancement', () => {
 
     expect(apiMocks.resolveLinkPreviews).toHaveBeenCalledOnce()
     disposeLinkPreviews(root)
+    expect(root.innerHTML).toBe(originalHtml)
   })
 
-  test('keeps the original link when resolution fails', async () => {
-    const url = 'https://enhancer.example/failure'
+  test.each([
+    'https://enhancer.example/failure',
+    'https://enhancer.example/failure/👍🏽',
+  ])('keeps the original link when resolution fails for %s', async (url) => {
     vi.stubGlobal('IntersectionObserver', undefined)
     apiMocks.resolveLinkPreviews.mockRejectedValue(new Error('offline'))
     const root = document.createElement('div')
     root.innerHTML = `<p><a href="${url}">${url}</a></p>`
+    renderTwemojiHtml(root)
+    const originalHtml = root.innerHTML
     document.body.append(root)
 
     await enhanceLinkPreviews(root)
@@ -233,6 +280,7 @@ describe('rendered link-preview enhancement', () => {
     expect(root.querySelector('p')?.hidden).toBe(false)
     expect(root.querySelector('a')?.getAttribute('href')).toBe(url)
     disposeLinkPreviews(root)
+    expect(root.innerHTML).toBe(originalHtml)
   })
 
   test('blocked resolver results prevent a trusted-domain navigation', async () => {

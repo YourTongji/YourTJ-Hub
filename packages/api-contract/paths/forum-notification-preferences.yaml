@@ -1,0 +1,126 @@
+preferences:
+  get:
+    operationId: getNotificationPreferences
+    tags: [Forum]
+    summary: Read the caller's account-wide unread indicator style
+    description: Display preference only; independent of notification delivery and read state.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Account preference; existing and new accounts default to numeric indicators.
+        content:
+          application/json:
+            schema:
+              $ref: '#/response'
+            examples:
+              number:
+                externalValue: ../fixtures/notification-preferences-number.json
+              dot:
+                externalValue: ../fixtures/notification-preferences-dot.json
+      '401':
+        description: Missing, invalid, expired or revoked session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              required:
+                externalValue: ../fixtures/auth-required.json
+  put:
+    operationId: updateNotificationPreferences
+    tags: [Forum]
+    summary: Set the caller's account-wide unread indicator style
+    description: |
+      Changes presentation only; counts, messages, read state and push consent remain unchanged.
+      Applies only to the caller, with last committed write winning across devices. Pending email
+      activation is allowed for this self-service preference; frozen accounts remain blocked.
+      A private existing unread-change hint asks other sessions to refresh. Invalid/missing enum
+      values return HTTP 200 `common.request.invalidParams` without changing the preference.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/value'
+    responses:
+      '200':
+        description: Committed preference, or a legacy validation/storage failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: '#/response'
+            examples:
+              number:
+                externalValue: ../fixtures/notification-preferences-number.json
+              dot:
+                externalValue: ../fixtures/notification-preferences-dot.json
+              invalid:
+                externalValue: ../fixtures/notification-preferences-invalid.json
+      '400':
+        description: Malformed/non-object/null JSON, wrong types, unknown fields, trailing data or body exceeding 4 KiB.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/parse-failed.json
+      '401':
+        description: Missing, invalid, expired or revoked session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              required:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen/unavailable account, or a cookie request rejected by the CSRF gate. Pending activation is allowed.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozen:
+                externalValue: ../fixtures/account-frozen.json
+              csrf:
+                externalValue: ../fixtures/csrf-rejected.json
+      '429':
+        description: Shared interaction limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/account-close-rate-limited.json
+value:
+  type: object
+  required: [badgeStyle]
+  properties:
+    badgeStyle:
+      type: string
+      enum: [number, dot]
+      description: Numeric unread count (capped by the UI), or a dot with no displayed count.
+  additionalProperties: false
+response:
+  oneOf:
+    - allOf:
+        - $ref: ../components/schemas.yaml#/ApiSuccess
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/value'
+    - $ref: ../components/schemas.yaml#/ApiFailure

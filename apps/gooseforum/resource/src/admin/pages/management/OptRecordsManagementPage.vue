@@ -38,6 +38,7 @@ const optTypeCodeMap: Record<number, string> = {
   11: 'revealPostAuthor',
   12: 'materializePk',
   13: 'reviewSticker',
+  14: 'manageStickerMarket',
 }
 
 const targetTypeCodeMap: Record<number, string> = {
@@ -89,6 +90,15 @@ const optInfoMessageKeyMap: Record<string, string> = {
   'review.deleted': 'adminOptLog.messages.reviewDeleted',
   'review.identityRevealed': 'adminOptLog.messages.reviewIdentityRevealed',
   'post.identityRevealed': 'adminOptLog.messages.postIdentityRevealed',
+  'admin.opt.stickerMarket.synced': 'adminOptLog.messages.stickerMarketSynced',
+  'admin.opt.stickerMarket.imported': 'adminOptLog.messages.stickerMarketImported',
+  'admin.opt.stickerMarket.published': 'adminOptLog.messages.stickerMarketPublished',
+  'admin.opt.stickerMarket.hidden': 'adminOptLog.messages.stickerMarketHidden',
+  'admin.opt.stickerMarket.stickerDisabled': 'adminOptLog.messages.stickerMarketStickerDisabled',
+  'admin.opt.stickerMarket.stickerEnabled': 'adminOptLog.messages.stickerMarketStickerEnabled',
+  'admin.opt.stickerMarket.stickerRenamed': 'adminOptLog.messages.stickerMarketStickerRenamed',
+  'admin.opt.stickerMarket.created': 'adminOptLog.messages.stickerMarketCreated',
+  'admin.opt.stickerMarket.uploaded': 'adminOptLog.messages.stickerMarketUploaded',
 }
 
 // Review decisions share one code; the approve flag picks the wording.

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import TongjiRegistration from '@/site/components/TongjiRegistration.vue'
-import { computed, onMounted, reactive, ref } from 'vue'
-import { LoaderCircle, Languages, Mail, Moon, ShieldCheck, Sun, UserRound } from '@lucide/vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { LoaderCircle, RefreshCw, Languages, Mail, Moon, ShieldCheck, Sun, UserRound } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import TongjiLoginButton from '@/site/components/TongjiLoginButton.vue'
 import PasswordInput from '@/site/components/PasswordInput.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
 import { forgotPassword, getCaptcha, getPasskeyStatus, login, loginWithPasskey, register, verifyTotp } from '@/runtime/api'
+import { resolveApiMessage } from '@/runtime/api-message'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
 import { useSiteTheme, setThemePreference } from '@/runtime/site-theme'
@@ -38,6 +39,9 @@ const totpCode = ref('')
 const captchaImg = ref('')
 const captchaId = ref('')
 const captchaLoading = ref(false)
+const captchaError = ref('')
+let captchaGeneration = 0
+const captchaUnavailable = computed(() => captchaRequired.value && (captchaLoading.value || !captchaId.value))
 const notice = ref('')
 const error = ref('')
 const passkeyEnabled = ref(false)
@@ -70,6 +74,17 @@ const forgotForm = reactive({
   captcha: '',
   website: '',
 })
+
+const passwordSignupOpen = computed(() => (page.props.passwordSignupState ?? 'open') === 'open')
+const signupUnavailableMessage = computed(() => {
+  const codes: Record<string, string | undefined> = { disabled: 'auth.signupDisabled', daily_limit: 'auth.register.dailyQuota', mail_unavailable: 'auth.mail.notConfigured' }
+  const code = codes[page.props.passwordSignupState ?? 'unavailable']
+  return code ? resolveApiMessage({ messageCode: code }, t('auth.registrationUnavailable')) : t('auth.registrationUnavailable')
+})
+function reloadSignupAvailability() {
+  const query = new URLSearchParams({ register: 'true', redirect: homeUrl.value, lang: locale.value })
+  window.location.assign(`/login?${query}`)
+}
 
 const title = computed(() => {
   if (mode.value === 'register') return t('auth.registerTitle')
@@ -129,22 +144,39 @@ onMounted(() => {
 })
 
 function switchMode(next: Mode) {
+  if (next === mode.value) return
+  captchaGeneration++
+  captchaLoading.value = false
+  captchaError.value = ''
   mode.value = next
   error.value = ''
   notice.value = ''
+  void refreshCaptcha()
 }
 
+onUnmounted(() => { captchaGeneration++ })
+
 async function refreshCaptcha() {
-  if (!captchaRequired.value) return
+  if (!captchaRequired.value || captchaLoading.value) return
+  const generation = ++captchaGeneration
   captchaLoading.value = true
   try {
     const captcha = await getCaptcha()
+    if (generation !== captchaGeneration) return
+    if (!captcha.captchaId || !captcha.captchaImg) throw new Error(t('auth.validation.captchaLoadFailed'))
+    if (captcha.captchaId !== captchaId.value) {
+      loginForm.captcha = ''
+      registerForm.captcha = ''
+      forgotForm.captcha = ''
+    }
     captchaId.value = captcha.captchaId
     captchaImg.value = captcha.captchaImg
+    captchaError.value = ''
   } catch (err) {
-    error.value = errorMessage(err, t('auth.validation.captchaLoadFailed'))
+    if (generation !== captchaGeneration) return
+    captchaError.value = errorMessage(err, t('auth.validation.captchaLoadFailed'))
   } finally {
-    captchaLoading.value = false
+    if (generation === captchaGeneration) captchaLoading.value = false
   }
 }
 
@@ -153,6 +185,7 @@ async function handleLogin() {
     await handleTotpVerify()
     return
   }
+  if (captchaUnavailable.value) return
   if (!loginForm.username || !loginForm.password || (captchaRequired.value && !loginForm.captcha)) {
     error.value = t('auth.validation.loginRequired')
     return
@@ -216,11 +249,33 @@ function backToPasswordLogin() {
 }
 
 async function handleRegister() {
+  if (captchaUnavailable.value) return
+  if (!passwordSignupOpen.value) return
   if (!registerForm.username || !registerForm.email || !registerForm.password || (captchaRequired.value && !registerForm.captcha)) {
     error.value = t('auth.validation.registerRequired')
     return
   }
-  const email = allowedDomains.value.length ? `${registerForm.email}@${selectedEmailDomain.value}` : registerForm.email
+  const enteredEmail = registerForm.email.trim()
+  let email = enteredEmail
+  if (allowedDomains.value.length) {
+    const parts = enteredEmail.split('@')
+    const prefix = parts[0]
+    if (!prefix || parts.length > 2 || /\s/.test(enteredEmail) || (parts.length === 2 && !parts[1])) {
+      error.value = t('server.auth.emailDomain.invalid')
+      return
+    }
+    const requestedDomain = parts.length === 2 ? parts[1] : selectedEmailDomain.value
+    const domain = allowedDomains.value.find(candidate => candidate.toLowerCase() === requestedDomain.toLowerCase())
+    if (!domain) {
+      error.value = t('server.auth.emailDomain.notAllowed')
+      return
+    }
+    // Keep the prefix + selector consistent even when a full address was pasted.
+    // The server still owns domain admission and complete email validation.
+    selectedEmailDomain.value = domain
+    registerForm.email = prefix
+    email = `${prefix}@${domain.toLowerCase()}`
+  }
   if (registerForm.password !== registerForm.confirmPassword) {
     error.value = t('auth.validation.passwordMismatch')
     return
@@ -249,6 +304,7 @@ async function handleRegister() {
 }
 
 async function handleForgot() {
+  if (captchaUnavailable.value) return
   if (!forgotForm.email || (captchaRequired.value && !forgotForm.captcha)) {
     error.value = t('auth.validation.forgotRequired')
     return
@@ -298,7 +354,7 @@ function onToggleTheme() {
 
 <template>
   <TongjiRegistration v-if="props.tongjiRegistration" :terms="props.termsOfServiceEnabled" :privacy="props.privacyPolicyEnabled" />
-  <main v-else class="login-main relative min-h-screen overflow-hidden bg-base-100 text-base-content sm:bg-base-200 sm:px-6 sm:py-8 lg:px-8">
+  <main v-else class="login-main relative min-h-screen [overflow-wrap:anywhere] overflow-hidden bg-base-100 text-base-content sm:bg-base-200 sm:px-6 sm:py-8 lg:px-8">
     <!-- 波点静态背景：纯 CSS 点阵，无动画，零 GPU 开销 -->
     <div class="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
       <div class="gf-dot-grid absolute inset-0" />
@@ -352,16 +408,16 @@ function onToggleTheme() {
     </div>
 
     <section class="relative z-10 mx-auto flex min-h-screen w-full max-w-[880px] flex-col items-center justify-center sm:min-h-[calc(100vh-4rem)]">
-      <div class="login-card gf-card grid w-full overflow-hidden border-0 shadow-none sm:border sm:shadow-[0_8px_40px_-24px_rgb(0_0_0/calc(var(--gf-depth)*0.35))] md:grid-cols-2">
-        <div class="login-column flex flex-col justify-center px-4 py-8 sm:min-h-[470px] sm:px-8 sm:py-6">
+      <div class="login-card gf-card grid w-full grid-cols-1 overflow-hidden border-0 shadow-none sm:border sm:shadow-[0_8px_40px_-24px_rgb(0_0_0/calc(var(--gf-depth)*0.35))] md:grid-cols-2">
+        <div class="login-column flex min-w-0 flex-col [overflow-wrap:anywhere] justify-center px-4 py-8 sm:min-h-[470px] sm:px-8 sm:py-6">
           <!-- 移动端品牌区：桌面双栏的右栏品牌内容以顶部品牌头呈现（白龙茶/乌龙茶缩放后置于标语两侧） -->
-          <div v-if="showSocial" class="mb-8 md:hidden">
-            <div class="flex items-center justify-center gap-2">
+          <div v-if="showSocial" class="mobile-auth-brand mb-8 md:hidden">
+            <div class="mobile-auth-brand-row flex items-center justify-center gap-2">
               <figure class="mt-8 shrink-0">
                 <img src="/static/pic/tea-white.webp" :alt="t('auth.teaWhite')" class="mx-auto h-20 w-auto -scale-x-100" />
                 <figcaption class="mt-1.5 text-center text-xs font-semibold text-base-content/55">{{ t('auth.teaWhite') }}</figcaption>
               </figure>
-              <div class="flex min-w-0 flex-col items-center text-center">
+              <div class="mobile-auth-brand-copy flex min-w-0 flex-col items-center text-center">
                 <img :src="brandImage" :alt="page.layout.site.name" class="h-10 w-auto object-contain" />
                 <p class="mt-3 text-xl font-bold leading-snug tracking-tight text-base-content">{{ t('auth.panelTagline') }}</p>
                 <p class="mt-1 text-xs leading-5 text-base-content/45">{{ t('auth.panelTaglineSource') }}</p>
@@ -379,12 +435,13 @@ function onToggleTheme() {
           </div>
 
           <div v-if="mode !== 'forgot'" class="gf-segmented mb-6 grid-cols-2">
-            <button type="button" class="gf-segmented-item" :class="mode === 'login' ? 'gf-segmented-item-active' : 'gf-segmented-item-idle'" @click="switchMode('login')">{{ t('shell.login') }}</button>
-            <button type="button" class="gf-segmented-item" :class="mode === 'register' ? 'gf-segmented-item-active' : 'gf-segmented-item-idle'" @click="switchMode('register')">{{ t('shell.register') }}</button>
+            <button type="button" class="gf-segmented-item h-auto min-h-8 whitespace-normal py-1 text-center" :class="mode === 'login' ? 'gf-segmented-item-active' : 'gf-segmented-item-idle'" @click="switchMode('login')">{{ t('shell.login') }}</button>
+            <button type="button" class="gf-segmented-item h-auto min-h-8 whitespace-normal py-1 text-center" :class="mode === 'register' ? 'gf-segmented-item-active' : 'gf-segmented-item-idle'" @click="switchMode('register')">{{ t('shell.register') }}</button>
           </div>
 
           <p v-if="tongjiNotice" class="gf-status-message gf-status-message-error mb-4">{{ tongjiNotice }}</p>
-          <p v-if="error" class="gf-status-message gf-status-message-error mb-4">{{ error }}</p>
+          <p v-if="error" id="auth-form-error" role="alert" class="gf-status-message gf-status-message-error mb-4">{{ error }}</p>
+          <p v-if="captchaError" id="auth-captcha-error" role="alert" class="gf-status-message gf-status-message-error mb-4">{{ captchaError }}</p>
           <p v-if="notice" class="gf-status-message gf-status-message-success mb-4">{{ notice }}</p>
           <div v-if="page.props.oauthNotice && mode === 'register'" class="gf-status-message gf-status-message-info mb-4">
             <p>{{ t('auth.oauthNoAccount') }}</p>
@@ -430,16 +487,17 @@ function onToggleTheme() {
               <PasswordInput v-model="loginForm.password" :placeholder="t('auth.password')" autocomplete="current-password" :label="t('auth.password')" />
             </label>
             <div v-if="captchaRequired" class="flex gap-3">
-              <input v-model.trim="loginForm.captcha" class="gf-input min-w-0 flex-1" :placeholder="t('auth.captcha')" />
-              <button type="button" class="relative h-10 w-28 overflow-hidden gf-panel" @click="refreshCaptcha">
-                <LoaderCircle v-if="captchaLoading || !captchaImg" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
-                <img v-else :src="captchaImg" :alt="t('auth.captchaAlt')" class="gf-captcha-image h-full w-full object-cover" />
+              <input v-model.trim="loginForm.captcha" class="gf-input min-w-0 flex-1" :placeholder="t('auth.captcha')" :aria-label="t('auth.captcha')" :aria-describedby="captchaError ? 'auth-captcha-error' : error ? 'auth-form-error' : undefined" />
+              <button type="button" class="relative h-10 w-28 overflow-hidden gf-panel" :disabled="captchaLoading" :aria-busy="captchaLoading" :aria-label="t('auth.refreshCaptcha')" @click="refreshCaptcha">
+                <LoaderCircle v-if="captchaLoading" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
+                <img v-else-if="captchaImg" :src="captchaImg" :alt="t('auth.captchaAlt')" class="gf-captcha-image h-full w-full object-cover" />
+                <RefreshCw v-else class="mx-auto h-5 w-5 text-base-content/55" />
               </button>
             </div>
             <div class="flex justify-end">
               <button type="button" class="text-sm font-medium text-primary hover:text-primary" @click="switchMode('forgot')">{{ t('auth.forgotPassword') }}</button>
             </div>
-            <button type="submit" class="gf-button gf-button-xl gf-button-primary w-full" :disabled="loading.login">
+            <button type="submit" class="gf-button gf-button-xl gf-button-primary w-full" :disabled="loading.login || captchaUnavailable">
               <LoaderCircle v-if="loading.login" class="h-4 w-4 animate-spin" />
               {{ t('shell.login') }}
             </button>
@@ -456,22 +514,27 @@ function onToggleTheme() {
             </button>
           </form>
 
+          <div v-else-if="mode === 'register' && !passwordSignupOpen" data-testid="signup-availability" class="space-y-3">
+            <p role="status" class="gf-status-message gf-status-message-info">{{ signupUnavailableMessage }}</p>
+            <button type="button" class="gf-button gf-button-lg gf-button-secondary w-full" @click="reloadSignupAvailability">{{ t('auth.checkSignupAvailability') }}</button>
+          </div>
           <form v-else-if="mode === 'register'" class="space-y-3" @submit.prevent="handleRegister">
             <label class="block">
               <span class="sr-only">{{ t('auth.username') }}</span>
               <span class="relative block">
                 <UserRound class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
-                <input v-model.trim="registerForm.username" class="gf-input pl-10" :placeholder="t('auth.username')" autocomplete="username" />
+                <input v-model.trim="registerForm.username" aria-describedby="register-username-rules" class="gf-input pl-10" :placeholder="t('auth.username')" autocomplete="username" />
               </span>
             </label>
-            <div>
+            <p id="register-username-rules" class="text-xs leading-relaxed text-base-content/65 [overflow-wrap:anywhere]">{{ t('auth.registrationUsernameRules') }}</p>
+            <div class="registration-email">
               <label for="register-email" class="sr-only">{{ t('auth.email') }}</label>
-              <span v-if="allowedDomains.length > 0" class="gf-input flex overflow-hidden !p-0 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/20">
+              <span v-if="allowedDomains.length > 0" class="registration-email-control gf-input flex overflow-hidden !p-0 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/20">
                 <span class="relative min-w-0 flex-1">
                   <Mail class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
                   <input id="register-email" v-model.trim="registerForm.email" type="text" inputmode="email" class="h-full w-full bg-transparent pl-10 pr-2 text-base outline-none sm:text-sm" :placeholder="t('auth.emailPrefix')" />
                 </span>
-                <span v-if="allowedDomains.length === 1" class="flex shrink-0 items-center border-l border-line bg-base-200/70 px-3 text-sm font-medium text-base-content/70">
+                <span v-if="allowedDomains.length === 1" class="registration-email-domain flex shrink-0 items-center border-l border-line bg-base-200/70 px-3 text-sm font-medium text-base-content/70">
                   @{{ allowedDomains[0] }}
                 </span>
                 <SiteSelect
@@ -480,7 +543,7 @@ function onToggleTheme() {
                   :options="emailDomainOptions"
                   :label="t('auth.emailDomain')"
                   align="end"
-                  class="!h-full !w-auto min-w-[8.5rem] max-w-[55%] shrink-0 !rounded-none !border-0 !border-l !bg-base-200/70 !px-2.5 font-medium !ring-0"
+                  class="registration-email-domain !h-full !w-auto min-w-[8.5rem] max-w-[55%] shrink-0 !rounded-none !border-0 !border-l !bg-base-200/70 !px-2.5 font-medium !ring-0"
                 />
               </span>
               <span v-else class="relative block">
@@ -490,19 +553,21 @@ function onToggleTheme() {
             </div>
             <label class="block">
               <span class="sr-only">{{ t('auth.password') }}</span>
-              <PasswordInput v-model="registerForm.password" :placeholder="t('auth.password')" autocomplete="new-password" :label="t('auth.password')" />
+              <PasswordInput v-model="registerForm.password" description-id="register-password-rules" :placeholder="t('auth.password')" autocomplete="new-password" :label="t('auth.password')" />
             </label>
+            <p id="register-password-rules" class="text-xs leading-relaxed text-base-content/65 [overflow-wrap:anywhere]">{{ t('auth.registrationPasswordRules') }}</p>
             <label class="block">
               <span class="sr-only">{{ t('auth.confirmPassword') }}</span>
               <PasswordInput v-model="registerForm.confirmPassword" :placeholder="t('auth.confirmPassword')" autocomplete="new-password" :label="t('auth.confirmPassword')" />
             </label>
             <div v-if="captchaRequired" class="flex gap-3">
               <span class="relative min-w-0 flex-1">
-                <input v-model.trim="registerForm.captcha" class="gf-input" :placeholder="t('auth.captcha')" />
+                <input v-model.trim="registerForm.captcha" class="gf-input" :placeholder="t('auth.captcha')" :aria-label="t('auth.captcha')" :aria-describedby="captchaError ? 'auth-captcha-error' : error ? 'auth-form-error' : undefined" />
               </span>
-              <button type="button" class="relative h-10 w-28 overflow-hidden gf-panel" @click="refreshCaptcha">
-                <LoaderCircle v-if="captchaLoading || !captchaImg" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
-                <img v-else :src="captchaImg" :alt="t('auth.captchaAlt')" class="gf-captcha-image h-full w-full object-cover" />
+              <button type="button" class="relative h-10 w-28 overflow-hidden gf-panel" :disabled="captchaLoading" :aria-busy="captchaLoading" :aria-label="t('auth.refreshCaptcha')" @click="refreshCaptcha">
+                <LoaderCircle v-if="captchaLoading" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
+                <img v-else-if="captchaImg" :src="captchaImg" :alt="t('auth.captchaAlt')" class="gf-captcha-image h-full w-full object-cover" />
+                <RefreshCw v-else class="mx-auto h-5 w-5 text-base-content/55" />
               </button>
             </div>
             <label v-if="page.props.termsOfServiceEnabled || page.props.privacyPolicyEnabled" class="flex items-start gap-2 text-sm leading-5 text-base-content/55">
@@ -517,7 +582,7 @@ function onToggleTheme() {
               </span>
             </label>
             <input v-model="registerForm.website" type="text" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true" />
-            <button type="submit" class="gf-button gf-button-xl gf-button-neutral w-full" :disabled="loading.register">
+            <button type="submit" class="gf-button gf-button-xl gf-button-neutral w-full" :disabled="loading.register || captchaUnavailable">
               <LoaderCircle v-if="loading.register" class="h-4 w-4 animate-spin" />
               {{ t('auth.createAccount') }}
             </button>
@@ -531,14 +596,15 @@ function onToggleTheme() {
               </span>
             </label>
             <div v-if="captchaRequired" class="flex gap-3">
-              <input v-model.trim="forgotForm.captcha" class="gf-input min-w-0 flex-1" :placeholder="t('auth.captcha')" />
-              <button type="button" class="relative h-10 w-28 overflow-hidden gf-panel" @click="refreshCaptcha">
-                <LoaderCircle v-if="captchaLoading || !captchaImg" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
-                <img v-else :src="captchaImg" :alt="t('auth.captchaAlt')" class="gf-captcha-image h-full w-full object-cover" />
+              <input v-model.trim="forgotForm.captcha" class="gf-input min-w-0 flex-1" :placeholder="t('auth.captcha')" :aria-label="t('auth.captcha')" :aria-describedby="captchaError ? 'auth-captcha-error' : error ? 'auth-form-error' : undefined" />
+              <button type="button" class="relative h-10 w-28 overflow-hidden gf-panel" :disabled="captchaLoading" :aria-busy="captchaLoading" :aria-label="t('auth.refreshCaptcha')" @click="refreshCaptcha">
+                <LoaderCircle v-if="captchaLoading" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
+                <img v-else-if="captchaImg" :src="captchaImg" :alt="t('auth.captchaAlt')" class="gf-captcha-image h-full w-full object-cover" />
+                <RefreshCw v-else class="mx-auto h-5 w-5 text-base-content/55" />
               </button>
             </div>
             <input v-model="forgotForm.website" type="text" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true" />
-            <button type="submit" class="gf-button gf-button-xl gf-button-primary w-full" :disabled="loading.forgot">
+            <button type="submit" class="gf-button gf-button-xl gf-button-primary w-full" :disabled="loading.forgot || captchaUnavailable">
               <LoaderCircle v-if="loading.forgot" class="h-4 w-4 animate-spin" />
               {{ t('auth.sendResetEmail') }}
             </button>
@@ -636,6 +702,52 @@ function onToggleTheme() {
 </template>
 
 <style scoped>
+/* Keep the central brand copy readable when text growth makes the two
+   decorative figures too wide. At ordinary mobile text sizes it stays inline. */
+.mobile-auth-brand,
+.registration-email {
+  container-type: inline-size;
+}
+@container (width < 17rem) {
+  .mobile-auth-brand-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mobile-auth-brand-copy {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .mobile-auth-brand-row figure {
+    margin-top: 1rem;
+  }
+  .registration-email-control {
+    height: auto;
+    flex-wrap: wrap;
+  }
+  .registration-email-control > span:first-child {
+    flex-basis: 100%;
+    height: 2.75rem;
+  }
+  .registration-email-control :deep(.registration-email-domain) {
+    width: 100% !important;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 2.75rem;
+    height: auto !important;
+    border-left: 0 !important;
+    border-top: var(--gf-border) solid var(--gf-color-line);
+  }
+}
+/* Form actions grow with their translated label at large text sizes. */
+.login-main :deep(.gf-button) {
+  height: auto;
+  min-height: 2.75rem;
+  padding-block: 0.5rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
 /* 波点静态背景：
    - 纯 CSS radial-gradient 点阵（无图片请求，无动画）
    - 径向遮罩边缘淡出，视觉柔和

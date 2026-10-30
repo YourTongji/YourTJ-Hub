@@ -164,6 +164,7 @@ class GfSwitchRow extends StatelessWidget {
     required this.title,
     required this.value,
     required this.onChanged,
+    this.enabled = true,
     this.description,
     this.subtitleWidget,
     this.symbol,
@@ -184,12 +185,13 @@ class GfSwitchRow extends StatelessWidget {
   final Widget? leading;
 
   final bool value;
+  final bool enabled;
   final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
     return GfSettingRow(
-      onTap: () => onChanged(!value),
+      onTap: enabled ? () => onChanged(!value) : null,
       title: title,
       description: description,
       subtitleWidget: subtitleWidget,
@@ -206,7 +208,7 @@ class GfSwitchRow extends StatelessWidget {
           alignment: Alignment.centerRight,
           child: Switch.adaptive(
             value: value,
-            onChanged: onChanged,
+            onChanged: enabled ? onChanged : null,
             activeTrackColor: GfTheme.colorsOf(context).primary,
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),

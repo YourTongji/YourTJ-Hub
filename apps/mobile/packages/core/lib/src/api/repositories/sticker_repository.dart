@@ -19,6 +19,18 @@ class StickerRepository {
   Future<List<StickerItemPayload>> list() =>
       _client.get('/api/forum/stickers', parser: _items);
 
+  /// Official pack names and covers, in the order administrators chose.
+  Future<List<StickerOfficialPackPayload>> officialPacks() => _client.get(
+    '/api/forum/sticker-packs',
+    parser: (json) => (json as List? ?? const [])
+        .map(
+          (e) => StickerOfficialPackPayload.fromJson(
+            Map<String, dynamic>.from(e as Map),
+          ),
+        )
+        .toList(growable: false),
+  );
+
   Future<List<StickerItemPayload>> resolve(List<String> names) => _client.post(
     '/api/forum/stickers/resolve',
     body: {'names': names},
@@ -52,6 +64,56 @@ class StickerRepository {
   Future<void> reorder(List<String> names) => _client.post(
     '/api/forum/my-stickers-order',
     body: {'names': names},
+    parser: (_) {},
+  );
+
+  /// Published market packs (issue #1429); browsing needs no account.
+  Future<StickerMarketPagePayload> market({
+    String topic = '',
+    int page = 1,
+    int pageSize = 24,
+  }) => _client.get(
+    '/api/forum/sticker-market',
+    queryParameters: {
+      if (topic.isNotEmpty) 'topic': topic,
+      'page': '$page',
+      'pageSize': '$pageSize',
+    },
+    parser: (json) => StickerMarketPagePayload.fromJson(
+      Map<String, dynamic>.from(json as Map),
+    ),
+  );
+
+  Future<StickerMarketPackDetailPayload> marketPack(int id) => _client.get(
+    '/api/forum/sticker-market/pack',
+    queryParameters: {'id': '$id'},
+    parser: (json) => StickerMarketPackDetailPayload.fromJson(
+      Map<String, dynamic>.from(json as Map),
+    ),
+  );
+
+  Future<List<StickerMarketPackPayload>> myPacks() => _client.get(
+    '/api/forum/my-sticker-packs',
+    parser: (json) => (json as List? ?? const [])
+        .map(
+          (e) => StickerMarketPackPayload.fromJson(
+            Map<String, dynamic>.from(e as Map),
+          ),
+        )
+        .toList(growable: false),
+  );
+
+  Future<StickerMarketPackPayload> savePack(int packId) => _client.post(
+    '/api/forum/my-sticker-pack-save',
+    body: {'packId': packId},
+    parser: (json) => StickerMarketPackPayload.fromJson(
+      Map<String, dynamic>.from(json as Map),
+    ),
+  );
+
+  Future<void> removePack(int packId) => _client.post(
+    '/api/forum/my-sticker-pack-delete',
+    body: {'packId': packId},
     parser: (_) {},
   );
 }

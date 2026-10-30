@@ -12,6 +12,7 @@ vi.mock('@/runtime/api', () => {
   return {
     ApiResponseError,
     getForumStickers: () => getForumStickers(),
+    getForumStickerPacks: async () => [],
     saveMySticker: (name: string) => saveMySticker(name),
   }
 })

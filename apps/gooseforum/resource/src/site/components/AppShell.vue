@@ -35,6 +35,7 @@ import {
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import GlobalFlash from './GlobalFlash.vue'
+import UnreadIndicator from './UnreadIndicator.vue'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { useSiteTheme, setThemePreference, type ThemePreference } from '@/runtime/site-theme'
@@ -52,6 +53,7 @@ import WikiSearchPanel from './WikiSearchPanel.vue'
 import PublishMenu from './PublishMenu.vue'
 import { loadQuickPublishModal, useEverOpenedQuickPublish } from '@/site/composables/useQuickPublish'
 import ModerationBlockedDialog from '@/site/components/ModerationBlockedDialog.vue'
+import { myStickersDialogUsed } from '@/site/composables/useMyStickersDialog'
 
 import { useShellSidebar } from '@/runtime/shell-sidebar'
 import {
@@ -105,6 +107,7 @@ interface SidebarSection {
 }
 
 const MobileDrawer = defineAsyncComponent(() => import('./MobileDrawer.vue'))
+const MyStickersDialog = defineAsyncComponent(() => import('./MyStickersDialog.vue'))
 const QuickPublishModal = defineAsyncComponent(() => loadQuickPublishModal())
 const everOpenedQuickPublish = useEverOpenedQuickPublish()
 const UserCard = shallowRef<typeof UserCardComponent | null>(null)
@@ -301,10 +304,22 @@ watch(
   },
 )
 
+watch(
+  () => [props.layout.viewer.id, props.layout.viewer.isAuthenticated] as const,
+  ([id, authenticated]) => {
+    if (authenticated) unreadStatus.startPolling(props.layout.unread, id)
+    else unreadStatus.stopPolling(true)
+  },
+  { immediate: true },
+)
+
+function unreadNavLabel(base: string, unread: boolean, count?: number) {
+  if (!unread) return base
+  const number = unreadStatus.badgeStyle.value === 'number' && count !== undefined && count > 0 ? `: ${count}` : ''
+  return `${base}, ${t('notifications.unreadIndicator')}${number}`
+}
+
 onMounted(() => {
-  if (props.layout.viewer.isAuthenticated) {
-    unreadStatus.startPolling(props.layout.unread)
-  }
   updateHeaderElevated()
   window.addEventListener('scroll', updateHeaderElevated, { passive: true })
   window.addEventListener('goose:user-card-show', ensureUserCardForEvent)
@@ -313,6 +328,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  unreadStatus.stopPolling()
   window.removeEventListener('scroll', updateHeaderElevated)
   window.removeEventListener('goose:user-card-show', ensureUserCardForEvent)
   window.removeEventListener('pagehide', onDrawerGestureHintPageHide)
@@ -763,28 +779,20 @@ async function loadUserCard() {
             <a
               href="/notifications"
               class="gf-icon-button relative h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100"
-              :aria-label="t('shell.nav.notifications')"
+              :aria-label="unreadNavLabel(t('shell.nav.notifications'), hasUnreadNotification, unreadStatus.notificationCount.value)"
               :title="notificationTitle || t('shell.nav.notifications')"
             >
               <Bell class="h-5 w-5" />
-              <span
-                v-show="hasUnreadNotification"
-                class="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-error ring-2 ring-base-100"
-                aria-hidden="true"
-              />
+              <UnreadIndicator :unread="hasUnreadNotification" :count="unreadStatus.notificationCount.value" :badge-style="unreadStatus.badgeStyle.value" class="absolute right-0 top-0 ring-2 ring-base-100" aria-hidden="true" />
             </a>
             <a
               href="/messages"
               class="gf-icon-button relative hidden h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100 sm:inline-grid"
-              :aria-label="t('shell.nav.messages')"
+              :aria-label="unreadNavLabel(t('shell.nav.messages'), hasUnreadMessage, unreadStatus.messageCount.value)"
               :title="t('shell.nav.messages')"
             >
               <Inbox class="h-5 w-5" />
-              <span
-                v-show="hasUnreadMessage"
-                class="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-error ring-2 ring-base-100"
-                aria-hidden="true"
-              />
+              <UnreadIndicator :unread="hasUnreadMessage" :count="unreadStatus.messageCount.value" :badge-style="unreadStatus.badgeStyle.value" class="absolute right-0 top-0 ring-2 ring-base-100" aria-hidden="true" />
             </a>
           </template>
 
@@ -924,12 +932,12 @@ async function loadUserCard() {
                       <a href="/notifications" class="gf-menu-item sm:hidden">
                         <Bell class="h-4 w-4 text-icon-muted" />
                         <span class="min-w-0 flex-1">{{ t('shell.nav.notifications') }}</span>
-                        <span v-show="hasUnreadNotification" class="h-2 w-2 rounded-full bg-error" />
+                        <UnreadIndicator :unread="hasUnreadNotification" :count="unreadStatus.notificationCount.value" :badge-style="unreadStatus.badgeStyle.value" />
                       </a>
                       <a href="/messages" class="gf-menu-item sm:hidden">
                         <Inbox class="h-4 w-4 text-icon-muted" />
                         <span class="min-w-0 flex-1">{{ t('shell.nav.messages') }}</span>
-                        <span v-show="hasUnreadMessage" class="h-2 w-2 rounded-full bg-error" />
+                        <UnreadIndicator :unread="hasUnreadMessage" :count="unreadStatus.messageCount.value" :badge-style="unreadStatus.badgeStyle.value" />
                       </a>
                       <a href="/drafts" class="gf-menu-item">
                         <FileText class="h-4 w-4 text-icon-muted" /> {{ t('shell.nav.drafts') }}
@@ -1193,6 +1201,7 @@ async function loadUserCard() {
     <WikiSearchPanel v-if="isWikiMode" />
     <QuickPublishModal v-if="layout.viewer.isAuthenticated && everOpenedQuickPublish" :layout="layout" />
     <ModerationBlockedDialog v-if="layout.viewer.isAuthenticated" />
+    <MyStickersDialog v-if="layout.viewer.isAuthenticated && myStickersDialogUsed" />
 
     <!-- 移动端发布 FAB：<sm 显示（navbar 上的发布按钮 sm+ 才渲染）。
          56px 直径（拇指可达），点击向上呼出发布类型菜单，层级低于抽屉 z-[60]。

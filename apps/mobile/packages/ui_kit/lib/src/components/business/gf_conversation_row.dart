@@ -23,6 +23,7 @@ class GfConversationRow extends StatelessWidget {
     required this.time,
     required this.unreadCount,
     required this.unreadLabel,
+    this.showUnreadCount = true,
     this.active = false,
     this.onTap,
   });
@@ -34,6 +35,7 @@ class GfConversationRow extends StatelessWidget {
   final String time;
   final int unreadCount;
   final String unreadLabel;
+  final bool showUnreadCount;
   final bool active;
   final VoidCallback? onTap;
 
@@ -132,9 +134,14 @@ class GfConversationRow extends StatelessWidget {
                           if (unreadCount > 0) ...[
                             const SizedBox(width: GfSpace.sm),
                             Semantics(
-                              label: '$unreadLabel: $unreadCount',
+                              label: showUnreadCount
+                                  ? '$unreadLabel: $unreadCount'
+                                  : unreadLabel,
                               child: ExcludeSemantics(
-                                child: GfCountBadge(count: unreadCount),
+                                child: GfCountBadge(
+                                  count: unreadCount,
+                                  showCount: showUnreadCount,
+                                ),
                               ),
                             ),
                           ],

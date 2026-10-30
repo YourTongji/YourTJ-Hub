@@ -13,7 +13,7 @@ import { Badge } from '@/admin/components/ui/badge'
 import { Switch } from '@/admin/components/ui/switch'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/admin/components/ui/dialog'
 import ManagementTable from './ManagementTable.vue'
-import { NICKNAME_CONTRAST_MIN, decorationAssetScale, isSafeDecorationAssetUrl, nicknameContrastFloor } from '@/site/utils/decoration-style'
+import { NICKNAME_CONTRAST_MIN, decorationAssetScale, isSafeDecorationAssetUrl, nicknameContrastFloor } from '@/runtime/decoration-style'
 
 const { t } = useI18n()
 const items = ref<DecorationStyle[]>([])

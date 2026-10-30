@@ -10,6 +10,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/decorationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/feedservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/registrationservice"
 	"log/slog"
 	"maps"
 	"net/url"
@@ -132,6 +133,7 @@ type ErrorPageProps struct {
 }
 
 type LoginPageProps struct {
+	PasswordSignupState   string   `json:"passwordSignupState"`
 	TongjiRegistration    bool     `json:"tongjiRegistration,omitempty"`
 	InitialMode           string   `json:"initialMode"`
 	RedirectURL           string   `json:"redirectUrl"`
@@ -189,15 +191,20 @@ type UnreadStatusPayload struct {
 	ModerationReports      bool   `json:"moderationReports"`
 	LatestNotificationType string `json:"latestNotificationType,omitempty"`
 	LatestUnreadId         uint64 `json:"latestUnreadId,omitempty"`
+	NotificationCount      *int64 `json:"notificationCount,omitempty"`
+	MessageCount           *int64 `json:"messageCount,omitempty"`
+	BadgeStyle             string `json:"badgeStyle"`
 }
 
 type SitePayload struct {
-	Name          string `json:"name"`
-	Description   string `json:"description"`
-	URL           string `json:"url,omitempty"`
-	Logo          string `json:"logo"`
-	Favicon       string `json:"favicon"`
-	ExternalLinks string `json:"externalLinks,omitempty"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	URL         string `json:"url,omitempty"`
+	Logo        string `json:"logo"`
+	Favicon     string `json:"favicon"`
+	// ExternalLinks is server-only: the HTML template consumes it, but clients
+	// never render custom head markup and must not receive a duplicate in JSON.
+	ExternalLinks string `json:"-"`
 	BrandType     string `json:"brandType"`
 	BrandText     string `json:"brandText"`
 	BrandImage    string `json:"brandImage"`
@@ -929,6 +936,9 @@ func buildUnreadStatus(userID uint64) UnreadStatusPayload {
 		ModerationReports:      moderationservice.HasOpenReports(userID),
 		LatestNotificationType: status.LatestNotificationType,
 		LatestUnreadId:         status.LatestUnreadId,
+		NotificationCount:      status.NotificationCount,
+		MessageCount:           status.MessageCount,
+		BadgeStyle:             status.BadgeStyle,
 	}
 }
 
@@ -1117,6 +1127,7 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 		tongjiURL += "?redirect=" + url.QueryEscape(redirectURL)
 	}
 	return LoginPageProps{
+		PasswordSignupState:   registrationservice.PasswordAvailability(hotdataserve.GetSecuritySettingsConfigCache()),
 		InitialMode:           mode,
 		RedirectURL:           redirectURL,
 		GitHubURL:             githubURL,
@@ -1798,14 +1809,25 @@ func buildTopicDetailPayload(c *gin.Context, topic *topics.Entity, firstPost *po
 		createdAt = firstPost.CreatedAt
 		updatedAt = firstPost.UpdatedAt
 	}
+	// Detail metadata must follow the first-post gallery policy used by post
+	// windows. A reply used as a fallback cannot authorize the stored gallery.
+	firstImageURL := ""
+	var images []string
+	if firstPost != nil && firstPost.Id == topic.FirstPostId && firstPost.TopicId == topic.Id &&
+		firstPost.PostNo == 1 && firstPost.ProcessStatus == posts.ProcessStatusNormal &&
+		!isAuthorDeletedVisibility(firstPost.VisibilityStatus) && !isModeratorRemovedVisibility(firstPost.VisibilityStatus) &&
+		!isAuthorDeletedVisibility(topic.VisibilityStatus) && !isModeratorRemovedVisibility(topic.VisibilityStatus) {
+		firstImageURL = topic.FirstImageURL
+		images = topic.PublicGallery()
+	}
 
 	return TopicDetailPayload{
 		AgentRepliesDisabled: topic.AgentRepliesDisabled,
 		ID:                   topic.Id,
 		Title:                topic.Title,
 		Description:          topic.Excerpt,
-		FirstImageURL:        topic.FirstImageURL,
-		Images:               topic.ImageUrls,
+		FirstImageURL:        firstImageURL,
+		Images:               images,
 		URL:                  urlconfig.PostDetail(topic.Id),
 		TopicStatus:          topic.Status,
 		ProcessStatus:        topic.ProcessStatus,
@@ -3386,6 +3408,7 @@ func settingsTabs() []TabPayload {
 		{Key: "binding", URL: "/settings?tab=binding"},
 		{Key: "security", URL: "/settings?tab=security"},
 		{Key: "content", URL: "/settings?tab=content"},
+		{Key: "stickers", URL: "/settings?tab=stickers"},
 		{Key: "deleted", URL: "/settings?tab=deleted"},
 		{Key: "general", URL: "/settings?tab=general"},
 	}

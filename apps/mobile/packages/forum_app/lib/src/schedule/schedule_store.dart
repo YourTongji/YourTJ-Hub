@@ -70,7 +70,8 @@ class ScheduleStats {
   final int conflictCount;
 }
 
-/// 加课结果（容忍式：added 恒 true；conflicts 为入表前与已占课程的冲突，
+/// 加课结果（可编辑时容忍式 added=true；配置提交期间拒绝新修改；
+/// conflicts 为入表前与已占课程的冲突，
 /// 同基础课号换班不计）。
 class StageCourseResult {
   const StageCourseResult({required this.added, required this.conflicts});
@@ -189,6 +190,16 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   Map<String, String> _values = {};
   bool _loaded = false;
   final persistenceError = ValueNotifier<Object?>(null);
+
+  /// While changing the global configuration, plan commands and synchronization
+  /// must wait: no old-context snapshot may follow the committed replacement.
+  final configurationSaving = ValueNotifier<bool>(false);
+  Completer<void>? _configurationCompletion;
+  int _configurationRevision = 0;
+  int get configurationRevision => _configurationRevision;
+  bool get isChangingConfiguration => configurationSaving.value;
+  Future<void> get configurationSettled =>
+      _configurationCompletion?.future ?? Future.value();
   late final Future<void> _initial;
   Future<void>? _writeQueue;
 
@@ -234,19 +245,27 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
     _rebuild();
   }
 
-  Map<String, String> _snapshotValues() => {
-    ..._values,
-    ScheduleStorageKeys.plans: jsonEncode(
-      state.plans.map((p) => p.toJson()).toList(),
-    ),
-    ScheduleStorageKeys.activePlanId: jsonEncode(state.activePlanId),
-    ScheduleStorageKeys.majorSelected: jsonEncode(state.majorSelected.toJson()),
-    ScheduleStorageKeys.weekView: jsonEncode({
-      'week': state.weekView.week,
-      'useCurrent': state.weekView.useCurrent,
-    }),
-    ScheduleStorageKeys.updateTime: jsonEncode(state.updateTime),
-  };
+  Map<String, String> _snapshotValues([
+    ScheduleState? snapshot,
+    Map<String, String>? base,
+  ]) {
+    final current = snapshot ?? state;
+    return {
+      ...(base ?? _values),
+      ScheduleStorageKeys.plans: jsonEncode(
+        current.plans.map((p) => p.toJson()).toList(),
+      ),
+      ScheduleStorageKeys.activePlanId: jsonEncode(current.activePlanId),
+      ScheduleStorageKeys.majorSelected: jsonEncode(
+        current.majorSelected.toJson(),
+      ),
+      ScheduleStorageKeys.weekView: jsonEncode({
+        'week': current.weekView.week,
+        'useCurrent': current.weekView.useCurrent,
+      }),
+      ScheduleStorageKeys.updateTime: jsonEncode(current.updateTime),
+    };
+  }
 
   Future<void> _enqueue(Future<void> Function() action) {
     final next =
@@ -263,7 +282,11 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
     Map<String, String> values, {
     String? scope,
     bool Function()? canWrite,
+    bool configurationCommit = false,
   }) {
+    if (isChangingConfiguration && !configurationCommit) {
+      return Future.value(false);
+    }
     final target = scope ?? _scope;
     final copy = Map<String, String>.of(values);
     var saved = false;
@@ -287,6 +310,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   }
 
   void _persist(String key, String value) {
+    if (isChangingConfiguration) {
+      return;
+    }
     if (key == kScheduleConfigCollapsedKey) {
       unawaited(
         _enqueue(() async {
@@ -307,6 +333,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   }
 
   void _persistPlanData() {
+    if (isChangingConfiguration) {
+      return;
+    }
     _values = _snapshotValues();
     unawaited(_saveValues(_values));
     if (!_applyingRemote) scheduleLocalPlansChanged?.call();
@@ -316,6 +345,7 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   /// origin remain quarantined and require a separate explicit recovery flow.
   Future<bool> activateOwner(int owner, {bool Function()? canWrite}) async {
     await ready;
+    await configurationSettled;
     await flush;
     if (canWrite != null && !canWrite()) return false;
     if (_owner == owner) return _loaded;
@@ -346,6 +376,7 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
 
   bool get storageReady => _loaded;
   Future<void> retryPersistence() async {
+    await configurationSettled;
     if (!_loaded) {
       await _initialize();
       return;
@@ -358,6 +389,7 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
     bool Function()? canWrite,
   }) async {
     await ready;
+    await configurationSettled;
     await flush;
     if (!_loaded || (canWrite != null && !canWrite())) return false;
     try {
@@ -386,6 +418,7 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   void dispose() {
     if (!mounted) return;
     persistenceError.dispose();
+    configurationSaving.dispose();
     super.dispose();
   }
 
@@ -758,31 +791,110 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
 
   /// 学期/年级/专业选择变更：持久化三元组并清空全部方案的课程与占位
   /// （防跨学期污染，web 语义）。
-  void setMajorSelection(PkMajorSelection selection) {
-    final PkMajorSelection sanitized = PkMajorSelection(
-      calendarId: selection.calendarId,
-      grade: selection.grade,
-      major: selection.major,
-      majorName: selection.majorName,
-    );
-    state = state.copyWith(
-      majorSelected: sanitized,
-      isConfigCollapsed:
-          sanitized.calendarId != null &&
-          sanitized.grade != null &&
-          sanitized.major != null,
-    );
-    _persist(ScheduleStorageKeys.majorSelected, jsonEncode(sanitized.toJson()));
-    clearPlansData();
+  Future<bool> setMajorSelection(
+    PkMajorSelection selection, {
+    bool Function()? canWrite,
+  }) async {
+    await ready;
+    if (!mounted ||
+        !_loaded ||
+        isChangingConfiguration ||
+        (canWrite != null && !canWrite())) {
+      return false;
+    }
+    final previous = state.majorSelected;
+    if (previous.calendarId == selection.calendarId &&
+        previous.grade == selection.grade &&
+        previous.major == selection.major) {
+      return true;
+    }
+    final completion = Completer<void>();
+    _configurationCompletion = completion;
+    _configurationRevision++;
+    configurationSaving.value = true;
+    final scope = _scope;
+    bool current() =>
+        mounted && _scope == scope && (canWrite == null || canWrite());
+    var committed = false;
+    try {
+      await flush;
+      if (!current()) {
+        return false;
+      }
+      // Use the durable metadata after earlier writes, including sync ancestry;
+      // a late completion of an old metadata write cannot replace this snapshot.
+      final base = await _database.readDomain(scope, 'schedule');
+      if (!current()) {
+        return false;
+      }
+      final sanitized = PkMajorSelection(
+        calendarId: selection.calendarId,
+        grade: selection.grade,
+        major: selection.major,
+        majorName: selection.majorName,
+      );
+      final plans = state.plans
+          .map(
+            (plan) => PkPlan(
+              id: plan.id,
+              name: plan.name,
+              createdAt: plan.createdAt,
+              stagedCourses: const [],
+              selectedCourses: const [],
+              customEvents: const [],
+            ),
+          )
+          .toList();
+      final next = state.copyWith(
+        majorSelected: sanitized,
+        plans: plans,
+        isConfigCollapsed:
+            sanitized.calendarId != null &&
+            sanitized.grade != null &&
+            sanitized.major != null &&
+            sanitized.major!.isNotEmpty,
+      );
+      final values = _snapshotValues(next, base);
+      if (!await _saveValues(
+            values,
+            scope: scope,
+            canWrite: current,
+            configurationCommit: true,
+          ) ||
+          !current()) {
+        return false;
+      }
+      _values = values;
+      state = next;
+      _rebuild();
+      committed = true;
+      return true;
+    } catch (error) {
+      if (current()) persistenceError.value = error;
+      return false;
+    } finally {
+      if (mounted) configurationSaving.value = false;
+      _configurationCompletion = null;
+      completion.complete();
+      if (committed && mounted && _scope == scope && !_applyingRemote) {
+        scheduleLocalPlansChanged?.call();
+      }
+    }
   }
 
   void setConfigCollapsed(bool collapsed) {
+    if (isChangingConfiguration) {
+      return;
+    }
     if (state.isConfigCollapsed == collapsed) return;
     state = state.copyWith(isConfigCollapsed: collapsed);
     _persist(ScheduleStorageKeys.configCollapsed, collapsed ? '1' : '0');
   }
 
   void setWeekView(PkWeekView view) {
+    if (isChangingConfiguration) {
+      return;
+    }
     final PkWeekView sanitized =
         _sanitizeWeekView({'week': view.week, 'useCurrent': view.useCurrent}) ??
         PkWeekView();
@@ -798,12 +910,18 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
 
   /// 记录本地同步日期（web setUpdateTime：首次进入无课程时也推进时间）。
   void setUpdateTime(String date) {
+    if (isChangingConfiguration) {
+      return;
+    }
     if (state.updateTime == date) return;
     state = state.copyWith(updateTime: date);
     _persist(ScheduleStorageKeys.updateTime, jsonEncode(date));
   }
 
   void setLatestUpdateTime(String date) {
+    if (isChangingConfiguration) {
+      return;
+    }
     state = state.copyWith(latestUpdateTime: date);
   }
 
@@ -830,6 +948,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   }
 
   Future<bool> writePlanSyncCache(int owner, Map<String, dynamic> value) async {
+    if (isChangingConfiguration) {
+      return false;
+    }
     if (_owner != owner) return false;
     final next = {
       ..._snapshotValues(),
@@ -857,6 +978,7 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   int? get syncOwner => int.tryParse(_values['pk.syncOwner'] ?? '');
 
   Future<bool> setSyncOwner(int id, {bool Function()? canWrite}) async {
+    await configurationSettled;
     await flush;
     if (!_loaded || (canWrite != null && !canWrite())) return false;
     if (_owner != 0 && _owner != id) return false;
@@ -882,6 +1004,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   }
 
   void markSyncDirty() {
+    if (isChangingConfiguration) {
+      return;
+    }
     _syncDirty = true;
     _syncSeq++;
     _persist('pk.syncDirty', '1');
@@ -889,6 +1014,10 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
 
   /// Persist a complete local snapshot before advancing its synchronization clock.
   Future<bool> markSyncedAt(String updatedAt) async {
+    if (isChangingConfiguration) {
+      return false;
+    }
+    final configurationRevision = _configurationRevision;
     final seq = _syncSeq;
     final next = {
       ..._snapshotValues(),
@@ -896,7 +1025,11 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
       'pk.syncDirty': '0',
     };
     final saved = await _saveValues(next, canWrite: () => seq == _syncSeq);
-    if (!saved || seq != _syncSeq) return false;
+    if (!saved ||
+        seq != _syncSeq ||
+        configurationRevision != _configurationRevision) {
+      return false;
+    }
     _values = next;
     _syncedAt = updatedAt;
     _syncDirty = false;
@@ -917,6 +1050,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   /// 绝不触发本地变更钩子（防回灌），也不走 [setMajorSelection] 的
   /// 「换专业清空」语义。深度消毒与本地加载路径同源（_sanitize*）。
   void applyRemoteSnapshot(PkPlansSnapshot snapshot) {
+    if (isChangingConfiguration) {
+      throw StateError('Schedule configuration is being committed');
+    }
     _applyingRemote = true;
     try {
       List<PkPlan> plans = snapshot.plans
@@ -972,6 +1108,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
     Map<String, List<PkCourseDetail>> detailsByCode, {
     String? syncDate,
   }) {
+    if (isChangingConfiguration) {
+      return state;
+    }
     final List<PkPlan> plans = state.plans.map((plan) {
       return _applySyncToPlan(plan, detailsByCode);
     }).toList();
@@ -1036,6 +1175,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
 
   /// 新建方案并激活；达到上限返回 null（web 同款）。
   PkPlan? createPlan() {
+    if (isChangingConfiguration) {
+      return null;
+    }
     if (state.plans.length >= kMaxPlans) return null;
     final PkPlan plan = _createEmptyPlan(_nextDefaultPlanName(state.plans));
     state = state.copyWith(
@@ -1048,6 +1190,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   }
 
   void switchPlan(String planId) {
+    if (isChangingConfiguration) {
+      return;
+    }
     if (state.activePlanId == planId) return;
     if (_findPlan(planId) == null) return;
     state = state.copyWith(activePlanId: planId);
@@ -1057,6 +1202,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   }
 
   void renamePlan(String planId, String name) {
+    if (isChangingConfiguration) {
+      return;
+    }
     final String trimmed = name.trim();
     if (trimmed.isEmpty) return;
     final PkPlan? target = _findPlan(planId);
@@ -1082,6 +1230,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
 
   /// 删除方案；删除最后一个时自动新建空方案（名称回到「方案 1」）。
   void deletePlan(String planId) {
+    if (isChangingConfiguration) {
+      return;
+    }
     final List<PkPlan> remaining = state.plans
         .where((p) => p.id != planId)
         .toList();
@@ -1102,6 +1253,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
 
   /// 清空当前方案（保留方案壳）。
   void clearActivePlan() {
+    if (isChangingConfiguration) {
+      return;
+    }
     _replaceActivePlan(
       staged: <PkStagedCourse>[],
       selected: <String>[],
@@ -1111,6 +1265,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
 
   /// 清空全部方案的课程与占位（学期/年级/专业变更时调用）。
   void clearPlansData() {
+    if (isChangingConfiguration) {
+      return;
+    }
     final List<PkPlan> cleared = state.plans.map((plan) {
       return PkPlan(
         id: plan.id,
@@ -1130,6 +1287,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
 
   /// 退掉整门课（入参可为基础课号或班级课号；web removeCourseFromSchedule）。
   void removeCourse(String courseCodeOrClassCode) {
+    if (isChangingConfiguration) {
+      return;
+    }
     final PkPlan active = activePlan;
     final String input = courseCodeOrClassCode.trim();
     final bool isBase = active.stagedCourses.any(
@@ -1163,6 +1323,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
     String courseName,
     int status,
   ) {
+    if (isChangingConfiguration) {
+      return const StageCourseResult(added: false, conflicts: []);
+    }
     final PkPlan active = activePlan;
     final String base = getCourseBaseCode(detail.code);
 
@@ -1251,6 +1414,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
 
   /// 移除一个已选/备选班级（班级级反选；课程仍保留在备选池）。
   void deselectClass(String classCode) {
+    if (isChangingConfiguration) {
+      return;
+    }
     final PkPlan active = activePlan;
     final String base = getCourseBaseCode(classCode);
     final List<PkStagedCourse> staged = active.stagedCourses.map((course) {
@@ -1281,6 +1447,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
 
   /// 清空一门课的已选班级（web clearStagedCourseClass：所有 1/2 重置，课程保留）。
   void clearStagedCourseClass(String courseCode) {
+    if (isChangingConfiguration) {
+      return;
+    }
     final PkPlan active = activePlan;
     final List<PkStagedCourse> staged = active.stagedCourses.map((course) {
       if (course.courseCode != courseCode) return course;
@@ -1334,6 +1503,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
     required List<int> sections,
     required List<int> weeks,
   }) {
+    if (isChangingConfiguration) {
+      return null;
+    }
     final PkCustomEvent event = PkCustomEvent(
       id: _genEventId(),
       label: label.trim().isEmpty ? '有事' : label.trim(),
@@ -1355,6 +1527,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   }
 
   void removeCustomEvent(String id) {
+    if (isChangingConfiguration) {
+      return;
+    }
     final PkPlan active = activePlan;
     _replaceActivePlan(
       customEvents: active.customEvents

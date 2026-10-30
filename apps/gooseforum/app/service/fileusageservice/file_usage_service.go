@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
@@ -407,6 +408,32 @@ func fileNameFromPublicURL(value, publicPrefix string) string {
 // PENDING for personal uploads awaiting review (issue #1071).
 func SetStickerUsageTx(tx *gorm.DB, stickerID, userID uint64, fileName, status string) error {
 	return fileUsage.ReplaceStickerTx(tx, stickerID, userID, fileName, status)
+}
+
+// RetainLegacyRevisionImagesTx snapshots already registered inline/gallery refs
+// without re-reading storage configuration or the separate file database while
+// the forum transaction holds content locks. It does not grant new URL ownership.
+func RetainLegacyRevisionImagesTx(tx *gorm.DB, revisionID, topicID, postID, userID uint64, first bool) error {
+	targets := []TargetRef{{TargetType: fileUsage.TargetPost, TargetID: postID}}
+	if first {
+		targets = append(targets, TargetRef{TargetType: fileUsage.TargetTopic, TargetID: topicID})
+	}
+	var usages []Usage
+	seen := make(map[string]bool)
+	for _, target := range targets {
+		refs, err := fileUsage.ListTargetUsagesTx(tx, target.TargetType, target.TargetID, fileUsage.UsageInlineImage)
+		if err != nil {
+			return err
+		}
+		for _, ref := range refs {
+			if ref.UserId != userID || (ref.Status != fileUsage.UsageStatusActive && ref.Status != fileUsage.UsageStatusPending) || (ref.ExpiresAt != nil && !ref.ExpiresAt.After(time.Now())) || seen[ref.FileName] {
+				continue
+			}
+			seen[ref.FileName] = true
+			usages = append(usages, Usage{FileName: ref.FileName, UsageType: ref.UsageType})
+		}
+	}
+	return RegisterRevisionImagesTx(tx, revisionID, userID, usages)
 }
 
 // RegisterRevisionImagesTx retains private candidate images without replacing

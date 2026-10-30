@@ -1075,6 +1075,7 @@ class _ProfileLinksPageState extends State<_ProfileLinksPage> {
         controller: _fields[key]!,
         hint: hint,
         url: true,
+        inlineCounter: true,
         validator: (value) =>
             normalizeProfileLink(value ?? '', prefix: prefix) == null
             ? l.settingsInvalidLink
@@ -1140,6 +1141,7 @@ class _ProfileLinksPageState extends State<_ProfileLinksPage> {
                               fieldKey: 'websiteName',
                               controller: _fields['websiteName']!,
                               maxLength: profileWebsiteNameMaxLength,
+                              inlineCounter: true,
                               hint: l.settingsWebsiteName,
                             ),
                           ),
