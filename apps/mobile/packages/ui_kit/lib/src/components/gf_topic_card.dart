@@ -85,10 +85,16 @@ class GfTopicCard extends StatefulWidget {
     this.hot = false,
     this.feedContext,
     this.descriptionSpan,
+    this.titleSpan,
   });
 
   final String title;
   final String description;
+
+  /// Prebuilt rich title: an untitled moment's excerpt lands in the title slot
+  /// and keeps its sticker images. When present it owns the text and [title]
+  /// is ignored. Inline images are not tappable, like the excerpt.
+  final InlineSpan? titleSpan;
 
   /// Prebuilt rich excerpt (page-level sticker resolution): when present it
   /// owns the text and [description] stays empty. Sticker images inside it are
@@ -289,7 +295,18 @@ class _GfTopicCardState extends State<GfTopicCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       // 无标题瞬间（title 为空串）不渲染标题，未读圆点保持右对齐。
-                      if (widget.title.isNotEmpty)
+                      if (widget.titleSpan case final InlineSpan span)
+                        Expanded(
+                          child: IgnorePointer(
+                            child: GfText.rich(
+                              span,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: GfTheme.typographyOf(context).title3,
+                            ),
+                          ),
+                        )
+                      else if (widget.title.isNotEmpty)
                         Expanded(
                           child: GfText(
                             widget.title,

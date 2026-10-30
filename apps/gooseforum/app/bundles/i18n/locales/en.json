@@ -142,6 +142,8 @@
   "serverMessages.sticker.uploadQuota": "You have reached the limit of {limit} uploaded stickers. Sent assets are retained for message history.",
   "serverMessages.sticker.imageRequired": "Choose an image or GIF you uploaded, up to {maxSizeMb} MB.",
   "serverMessages.sticker.unavailable": "This sticker is unavailable.",
+  "serverMessages.sticker.market.packUnavailable": "This sticker pack is unavailable.",
+  "serverMessages.sticker.market.packLimit": "You can add up to {limit} sticker packs. Remove one before adding another.",
   "permission.revealAnonymousIdentity": "Reveal anonymous identity (restricted audit)",
   "anonymous.profileContentHidden": "This member's posts aren't shown on this page",
   "anonymous.identity": "Anonymous identity",

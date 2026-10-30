@@ -6,6 +6,7 @@ import '../../twemoji/twemoji_text.dart';
 import '../gf_motion.dart';
 import '../gf_symbol.dart';
 import 'gf_composer_panel.dart';
+import 'gf_inline_content.dart';
 
 /// A selection-aware composer with mutually exclusive keyboard/emoji surfaces.
 /// Mobile return inserts a newline; hardware Ctrl/Cmd+Enter sends.
@@ -24,6 +25,7 @@ class GfChatInput extends StatefulWidget {
     this.canSend = true,
     this.clearOnSend = true,
     this.accessoryBuilder,
+    this.accessoryMinHeight = 0,
     this.previewBuilder,
     this.onAttach,
     this.attachLabel,
@@ -47,6 +49,9 @@ class GfChatInput extends StatefulWidget {
 
   /// App-owned stickers use the same selection-preserving insertion callback.
   final Widget Function(ValueChanged<String> insert)? accessoryBuilder;
+
+  /// Content height the accessory needs; see [GfComposerPanel.minHeight].
+  final double accessoryMinHeight;
 
   /// Optional app-owned rendering of the current draft above the input.
   final Widget Function(String text)? previewBuilder;
@@ -187,7 +192,7 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
   /// insertion, which must stay available while a sticker panel is open.
   double _collapsedFieldHeight(BuildContext context) =>
       MediaQuery.textScalerOf(context).scale(_fieldFontSize) *
-          _fieldLineHeight +
+          GfInlineContentController.lineScale(_controller, _fieldLineHeight) +
       _fieldVerticalPadding;
 
   void _insertEmoji(String emoji) {
@@ -328,6 +333,10 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
                                       textInputAction: TextInputAction.newline,
                                       minLines: 1,
                                       maxLines: 4,
+                                      strutStyle:
+                                          GfInlineContentController.strutFor(
+                                            _controller,
+                                          ),
                                       style: TextStyle(
                                         fontSize: _fieldFontSize,
                                         height: _fieldLineHeight,
@@ -420,6 +429,7 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
                           maxHeight: constraints.maxHeight * .5,
                         ),
                         child: GfComposerPanel(
+                          minHeight: widget.accessoryMinHeight,
                           child:
                               widget.accessoryBuilder?.call(_insertEmoji) ??
                               GridView.extent(

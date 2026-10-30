@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -150,6 +151,99 @@ func TestFetchJSONKeepsDocumentPolicy(t *testing.T) {
 	}
 	if dialCalls.Load() != 0 {
 		t.Fatalf("dial calls = %d, want 0", dialCalls.Load())
+	}
+}
+
+// 图片抓取只接受图片媒体类型；DNS 与拨号校验和页面抓取一致。
+func TestFetchImageKeepsDocumentPolicy(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/page" {
+			w.Header().Set("Content-Type", "text/html")
+			_, _ = io.WriteString(w, "<title>Example</title>")
+			return
+		}
+		if accept := r.Header.Get("Accept"); !strings.HasPrefix(accept, "image/") {
+			t.Errorf("Accept header = %q, want an image type", accept)
+		}
+		w.Header().Set("Content-Type", "image/webp")
+		_, _ = io.WriteString(w, "RIFF")
+	}))
+	t.Cleanup(server.Close)
+
+	client := New(Config{
+		Resolver:    fakeResolver{"cdn.example": {publicAddr()}},
+		DialContext: mappedDialer(server.Listener.Addr().String(), &atomic.Int32{}),
+	})
+	result, err := client.FetchImage(t.Context(), "http://cdn.example/a.webp")
+	if err != nil || result.ContentType != "image/webp" || string(result.Body) != "RIFF" {
+		t.Fatalf("FetchImage() = %#v, %v", result, err)
+	}
+	if _, err := client.FetchImage(t.Context(), "http://cdn.example/page"); !IsClass(err, ErrorContentType) {
+		t.Fatalf("FetchImage() on HTML error = %v, want content_type", err)
+	}
+
+	private := New(Config{
+		Resolver: fakeResolver{"private.example": {netip.MustParseAddr("10.0.0.1")}},
+		DialContext: func(context.Context, string, string) (net.Conn, error) {
+			return nil, errors.New("must not dial")
+		},
+	})
+	if _, err := private.FetchImage(t.Context(), "http://private.example/a.webp"); !IsClass(err, ErrorBlocked) {
+		t.Fatalf("FetchImage() private DNS error = %v, want blocked", err)
+	}
+}
+
+// PreferIPv4 只调整已校验地址的拨号顺序：先试 IPv4，拨号失败再换下一个。
+func TestPreferIPv4DialsValidatedAddressesInOrder(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "image/webp")
+		_, _ = io.WriteString(w, "RIFF")
+	}))
+	t.Cleanup(server.Close)
+	v4, v6 := publicAddr(), netip.MustParseAddr("2001:4860:4860::8888")
+
+	newClient := func(prefer bool, addresses []netip.Addr, failing netip.Addr) (*Client, *[]string) {
+		var mu sync.Mutex
+		attempts := []string{}
+		client := New(Config{
+			Resolver: fakeResolver{"cdn.example": addresses},
+			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+				host, _, _ := net.SplitHostPort(address)
+				mu.Lock()
+				attempts = append(attempts, host)
+				mu.Unlock()
+				if host == failing.String() {
+					return nil, errors.New("stalled route")
+				}
+				return (&net.Dialer{}).DialContext(ctx, network, server.Listener.Addr().String())
+			},
+			PreferIPv4: prefer,
+		})
+		return client, &attempts
+	}
+
+	client, attempts := newClient(true, []netip.Addr{v6, v4}, v6)
+	if _, err := client.FetchImage(t.Context(), "http://cdn.example/a.webp"); err != nil {
+		t.Fatalf("FetchImage() with PreferIPv4 = %v", err)
+	}
+	if got := strings.Join(*attempts, ","); got != v4.String() {
+		t.Fatalf("dial attempts = %q, want IPv4 first and only", got)
+	}
+
+	client, attempts = newClient(true, []netip.Addr{v4, v6}, v4)
+	if _, err := client.FetchImage(t.Context(), "http://cdn.example/a.webp"); err != nil {
+		t.Fatalf("FetchImage() after IPv4 dial failure = %v", err)
+	}
+	if got := strings.Join(*attempts, ","); got != v4.String()+","+v6.String() {
+		t.Fatalf("dial attempts = %q, want fallback to the validated IPv6 address", got)
+	}
+
+	client, attempts = newClient(false, []netip.Addr{v6, v4}, v6)
+	if _, err := client.FetchImage(t.Context(), "http://cdn.example/a.webp"); err == nil {
+		t.Fatal("FetchImage() without PreferIPv4 succeeded, want the first address only")
+	}
+	if got := strings.Join(*attempts, ","); got != v6.String() {
+		t.Fatalf("dial attempts = %q, want only the first resolved address", got)
 	}
 }
 
@@ -678,4 +772,42 @@ func port(server *httptest.Server) string {
 		panic(err)
 	}
 	return port
+}
+
+func TestFetchRequestPolicyChecksEveryHop(t *testing.T) {
+	for _, destination := range []string{"https://unapproved.example.com/step", "http://approved.example.com/end", "https://approved.example.com/step"} {
+		t.Run(destination, func(t *testing.T) {
+			var received atomic.Int32
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				received.Add(1)
+				switch r.URL.Path {
+				case "/start":
+					http.Redirect(w, r, destination, http.StatusFound)
+				case "/step":
+					http.Redirect(w, r, "https://approved.example.com/end", http.StatusFound)
+				default:
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{}`))
+				}
+			}))
+			defer server.Close()
+			pool := x509.NewCertPool()
+			pool.AddCert(server.Certificate())
+			client := New(Config{Resolver: fakeResolver{"approved.example.com": {publicAddr()}, "unapproved.example.com": {publicAddr()}}, DialContext: mappedDialer(server.Listener.Addr().String(), &atomic.Int32{})})
+			client.httpClient.Transport.(*http.Transport).TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+			ctx := WithURLPolicy(t.Context(), func(raw string) bool { return strings.HasPrefix(raw, "https://approved.example.com/") })
+			_, err := client.FetchJSON(ctx, "https://approved.example.com/start")
+			if destination == "https://approved.example.com/step" {
+				if err != nil || received.Load() != 3 {
+					t.Fatalf("err=%v requests=%d", err, received.Load())
+				}
+			} else if !IsClass(err, ErrorBlocked) || received.Load() != 1 {
+				t.Fatalf("err=%v requests=%d", err, received.Load())
+			}
+			before := received.Load()
+			if _, err := client.FetchJSON(ctx, "https://unapproved.example.com/start"); !IsClass(err, ErrorBlocked) || received.Load() != before {
+				t.Fatalf("initial target err=%v requests=%d", err, received.Load())
+			}
+		})
+	}
 }

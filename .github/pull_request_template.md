@@ -21,6 +21,18 @@
 <!-- 列出用户可见行为、接口、数据或部署行为的前后变化；无则写「无」。
 说明范围/不包含内容、关键取舍及兼容性；按影响补充迁移、权限隐私与恢复方案。 -->
 
+## Visual change declaration / 视觉变更声明表
+
+<!-- 仅涉及用户可见呈现的 PR 必填；纯逻辑/后端等写“不适用”并说明原因，判断不了算触发。
+规则：https://github.com/YourTongji/YourTJ-Hub/blob/dev/docs/development/pull-requests.md#visual-change-declaration
+一行一个呈现面（界面名 + 入口），不是文件。delta 逐项写“旧 → 新”，标注 Issue 条目或“新增范围”及原因。
+移除/弱化元素确无必须写“无”，不得留空或写“样式微调”。
+纯 1:1 换皮可批量写“特性无 delta”并附完整呈现面/调用点/文件清单，须由 reviewer 独立抽查；
+发现一处 delta，整批按呈现面逐行重填。声明不替代操作与视觉验收。 -->
+
+| 呈现面 | 变更类别 | 特性 delta（旧 → 新；范围来源） | 移除/弱化元素 |
+|---|---|---|---|
+
 ## Acceptance criteria & results / 验收标准与结果
 
 <!-- 沿用 Issue 的 AC-*；无 Issue 则在此定义可观察结果并关联 US-* 或缺陷场景。

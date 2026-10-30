@@ -850,8 +850,9 @@ change. The header keeps a small outer margin for its primary action.
   state sits beside the send action as one muted line, so it never grows or clips the editor; a failed
   local save turns it into a tappable retry in the warning color.
 - `Current`: the topic reply sticker panel replaces the software keyboard in the same slot below the
-  composer and matches the last settled keyboard height. Switching holds the outgoing surface until
-  the incoming one covers it, so the editor stays in place; without a keyboard the panel slides in and
+  composer and matches the last settled keyboard height, but is never shorter than three sticker rows;
+  under a shorter keyboard it rises smoothly from the keyboard's edge. Switching holds the outgoing
+  surface until the incoming one covers it, so the editor stays in place; without a keyboard the panel slides in and
   out in one direction, instantly with reduced motion. The panel keeps its tab, scroll and search state
   while the composer stays open. Searching stickers raises the keyboard below the panel and bounds the
   editor to one line without changing its multiline input. Back closes the panel before leaving the
@@ -1812,16 +1813,21 @@ servers that omit interaction fields retain read-only content previews.
 
 ## Sticker library
 
-- `Current`: messages, replies and publishing share a Recent / My / Official sticker picker. Official
-  packs come from the administrator's enabled library, with a source and license link. Bundled presets
+- `Current`: messages, replies and publishing share a Recent / My / Official / Packs sticker picker.
+  Official packs come from the administrator's enabled library, with a source and license link. Bundled presets
   retain their manifest's source pack; upgrades restore the default grouping on previously seeded
   official entries while preserving custom groups. Recent use
   keeps up to 30 distinct items in the current account/site session. Picking inserts at the caret or replaces the
   current selection; it does not send or publish. Unicode emoji and image stickers remain distinct.
 - `Current`: sticker pickers stay inline below the reply, message or publishing input. Opening one
   dismisses the typing keyboard without covering the editor; the keyboard button resumes typing at
-  the current selection. A bounded live preview renders draft stickers as images and updates after
-  insertion, editing or deletion, using the same Markdown/plain-text rules as the destination.
+  the current selection. Inputs show each resolved sticker inline as the image it publishes as
+  (2.5 × the font size, centred on the line), using the same Markdown/plain-text rules as the
+  destination; a line holding a sticker grows to fit it, so stickers never overlap neighbouring
+  lines, and the one-line composer shown beside an open sticker panel keeps a whole sticker line
+  visible; one delete removes a whole sticker or a half-typed `[:sticker:` fragment, and the
+  caret never rests inside one. Typing `[:sticker:` shows matching stickers in a strip above the
+  input; tapping one completes it ([0119](../decisions/0119-wysiwyg-sticker-editing.md)).
   Repeated picks keep the panel open and advance the caret. Image uploads and reply-target/image
   removal keep the next insertion aligned with the updated caret. Ordinary typing does not retry
   unavailable sticker resolution; token changes and explicit retry can resolve again.
@@ -1867,20 +1873,35 @@ servers that omit interaction fields retain read-only content previews.
   presses keep their existing collection/retry sheet. Library rows open that sticker alone in the
   shared image viewer, with animated GIF playback, pinch/double-tap zoom and actual-size viewing.
   Stickers remain excluded from surrounding attachment galleries. Picker taps still insert without
-  sending; a visible hint and each item’s long-press action expose a separate large preview on all
-  three tabs. Previewing does not insert a token or change recent use. Chat long presses still open
+  sending; a visible hint and each item’s hold preview expose a larger preview on all four tabs.
+  Previewing does not insert a token or change recent use. Chat long presses still open
   the message action menu, including when an image fails to load. Unknown or unavailable tokens
   retain a readable fallback. Library state is isolated by site and account.
 - `Current`: disabled official stickers stay in personal management for ordering/removal and are
   unavailable for insertion; permanently deleted official stickers leave the collection. Older servers
   without personal-library endpoints show a compatibility message while official stickers remain usable.
-- `Current`: Web post and reply sticker images render inline at 2.5em, centred on the text line,
+- `Current`: Web post and reply sticker images render inline as 2.5em squares, centred on the text line,
   without image borders or paragraph centring; feed-card previews use the same size. They are
   excluded from lightbox clicks and gallery collection. Clicking one opens the same compact sticker
   card (enlarged view, name, Save to my stickers); guests are sent to sign in. Chat stickers are
   non-interactive. Ordinary photos retain image preview, and
   images explicitly linked to another page retain their link destination. Sticker recognition uses
   renderer-owned provenance; an ordinary image's author-supplied alt text does not change its behavior.
+- `Current`: the picker header holds the four tabs, a search icon and a gear that opens my-sticker
+  management. Search expands in place of the tabs, covers recent, my, official and added-pack stickers,
+  and Cancel restores the tabs and the previous focus. The grid shows about five stickers per row and
+  three rows at once, without per-item text; names stay available to screen readers and in the preview.
+  Messages and publishing use the same minimum panel height.
+- `Current`: the picker's Packs tab lists the market packs the account has added, with a Sticker
+  market entry; an empty tab points to the market. The market lists published packs by topic; each
+  pack opens a grid with Add/Remove, and an account holds up to 50 packs. Guests can browse; adding
+  requires sign-in. Add and remove wait for the server and report the result. In pickers and pack
+  grids, holding a sticker opens a larger preview above it; sliding switches the preview, releasing
+  over Save collects it into my stickers, and releasing elsewhere closes it without inserting. A
+  secondary click, Shift+F10 or the accessibility long-press action opens the item's action sheet.
+  Web shows the same preview on hover, keyboard focus or touch hold. Market and alias rules are in
+  [0115](../decisions/0115-sticker-market-subscriptions.md) and
+  [0114](../decisions/0114-sticker-rename-aliases.md).
 - `Partial`: Web renders shared personal stickers, but personal-library management is a native App
   surface. Physical-device keyboard transitions and both-platform visual acceptance remain separate
   from widget and simulator coverage.

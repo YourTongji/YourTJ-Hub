@@ -319,7 +319,7 @@ func TestAdminListReviewQueueHTTPContract(t *testing.T) {
 
 	t.Run("sticker queue leaves excerpt localization to the client", func(t *testing.T) {
 		conn, router := setupAdminContentOpsContractTest(t)
-		if err := conn.AutoMigrate(&sticker.Entity{}); err != nil {
+		if err := conn.AutoMigrate(&sticker.Entity{}, &sticker.Alias{}); err != nil {
 			t.Fatalf("migrate sticker table: %v", err)
 		}
 		author := createHTTPContractUser(t, conn, contractTestID())
@@ -461,7 +461,7 @@ func TestAdminReviewActionHTTPContract(t *testing.T) {
 
 	t.Run("approve enables the pending personal sticker and publishes its file usage", func(t *testing.T) {
 		conn, router := setupAdminContentOpsContractTest(t)
-		if err := conn.AutoMigrate(&sticker.Entity{}, &fileUsage.Entity{}, &moderationDecision.Entity{}); err != nil {
+		if err := conn.AutoMigrate(&sticker.Entity{}, &sticker.Alias{}, &fileUsage.Entity{}, &moderationDecision.Entity{}); err != nil {
 			t.Fatalf("migrate sticker tables: %v", err)
 		}
 		author := createHTTPContractUser(t, conn, contractTestID())

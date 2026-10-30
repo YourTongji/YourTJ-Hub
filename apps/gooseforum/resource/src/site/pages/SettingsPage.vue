@@ -35,6 +35,7 @@ import {
   RotateCcw,
   Settings2,
   Shield,
+  Smile,
   Sparkles,
   Sun,
   Trash2,
@@ -97,6 +98,7 @@ import { useAvatarCropUpload } from '@/site/composables/useAvatarCropUpload'
 import { useCoverCropUpload, COVER_ASPECT_RATIO } from '@/site/composables/useCoverCropUpload'
 import AvatarImageEditor from '@/site/components/AvatarImageEditor.vue'
 import CoverImageEditor from '@/site/components/CoverImageEditor.vue'
+import MyStickersManager from '@/site/components/MyStickersManager.vue'
 import SectionHeader from '@/site/components/SectionHeader.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
 import GfSwitch from '@/site/components/GfSwitch.vue'
@@ -132,7 +134,7 @@ const page = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-const tabKeys = ['profile', 'account', 'privacy', 'notifications', 'binding', 'security', 'content', 'deleted', 'general'] as const
+const tabKeys = ['profile', 'account', 'privacy', 'notifications', 'binding', 'security', 'content', 'stickers', 'deleted', 'general'] as const
 type TabKey = (typeof tabKeys)[number]
 
 const activeTab = ref<TabKey>('profile')
@@ -446,6 +448,7 @@ function settingsTabLabel(key: string, fallback?: string) {
   if (key === 'binding') return t('settings.tabs.binding')
   if (key === 'security') return t('settings.tabs.security')
   if (key === 'content') return t('settings.tabs.content')
+  if (key === 'stickers') return t('settings.tabs.stickers')
   if (key === 'deleted') return t('settings.tabs.deleted')
   if (key === 'general') return t('settings.tabs.general')
   return fallback || key
@@ -2414,6 +2417,13 @@ async function toggleBinding(provider: string) {
                 </button>
                 <p class="mt-2 text-xs text-base-content/45">{{ t('settings.security.revokeAllHint') }}</p>
               </div>
+            </div>
+          </section>
+
+          <section v-if="activeTab === 'stickers'">
+            <SectionHeader :icon="Smile" :title="t('stickers.mine.title')" :description="t('stickers.mine.description')" />
+            <div class="p-4">
+              <MyStickersManager />
             </div>
           </section>
 

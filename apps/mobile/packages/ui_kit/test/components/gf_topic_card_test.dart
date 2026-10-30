@@ -747,6 +747,48 @@ void main() {
     },
   );
 
+  testWidgets('a title span owns the title slot with inline widgets', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      gfApp(
+        GfTopicCard(
+          title: 'plain fallback',
+          titleSpan: const TextSpan(
+            text: '瞬间 ',
+            children: <InlineSpan>[
+              WidgetSpan(
+                child: SizedBox(key: Key('inline'), width: 20, height: 20),
+              ),
+            ],
+          ),
+          description: '',
+          authorName: 'Student',
+          authorAvatarUrl: '',
+          activityText: 'now',
+          categories: const <GfTopicCategory>[],
+          imageUrls: const <String>[],
+          replyCount: 0,
+          viewCount: 1,
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('inline')), findsOneWidget);
+    expect(find.text('plain fallback'), findsNothing);
+    final RichText title = tester.widget<RichText>(
+      find
+          .ancestor(
+            of: find.byKey(const Key('inline')),
+            matching: find.byType(RichText),
+          )
+          .first,
+    );
+    expect(title.text.style?.fontWeight, FontWeight.w600);
+    expect(title.maxLines, 2);
+    expect(tester.takeException(), isNull);
+  });
+
   group('feed context', () {
     Widget card({
       GfTopicContext? feedContext,

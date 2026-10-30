@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,6 +27,10 @@ class StickerCollection extends ChangeNotifier {
   final StickerRepository repository;
   final StickerLibrary library;
   List<StickerItemPayload> official = [];
+
+  /// Official pack names and covers; empty until loaded or on servers
+  /// without pack metadata, where the picker falls back to pack keys.
+  List<StickerOfficialPackPayload> officialPacks = [];
   List<StickerItemPayload> mine = [];
   final List<StickerItemPayload> recent = [];
   Object? officialError;
@@ -34,8 +40,18 @@ class StickerCollection extends ChangeNotifier {
   bool officialLoaded = false;
   bool mineLoaded = false;
   bool busy = false;
+
+  /// Subscribed market packs (issue #1429), in the server's subscription order.
+  List<StickerMarketPackPayload> packs = [];
+  Object? packsError;
+  bool loadingPacks = false;
+  bool packsLoaded = false;
+  final Map<int, List<StickerItemPayload>> packStickers = {};
+  final Map<int, Object> packStickerErrors = {};
+  final Set<int> loadingPackStickers = {};
   bool _active = true;
   int _membershipRevision = 0;
+  int _packMembershipRevision = 0;
   bool get active => _active;
   void _notify() {
     if (_active) notifyListeners();
@@ -46,6 +62,9 @@ class StickerCollection extends ChangeNotifier {
     loadingOfficial = true;
     officialError = null;
     _notify();
+    // Pack metadata only names and orders the groups; it loads beside the
+    // stickers and never holds them back.
+    unawaited(_loadOfficialPacks());
     try {
       final items = await library.load(refresh: refresh);
       if (!_active) return;
@@ -63,6 +82,17 @@ class StickerCollection extends ChangeNotifier {
     } finally {
       loadingOfficial = false;
       _notify();
+    }
+  }
+
+  Future<void> _loadOfficialPacks() async {
+    try {
+      final packs = await repository.officialPacks();
+      if (!_active) return;
+      officialPacks = packs;
+      _notify();
+    } catch (_) {
+      // Older servers lack the endpoint; the picker falls back to pack keys.
     }
   }
 
@@ -98,6 +128,102 @@ class StickerCollection extends ChangeNotifier {
       if (_active && changedWhileLoading) await loadMine(refresh: true);
     }
   }
+
+  Future<void> loadPacks({bool refresh = false}) async {
+    if (loadingPacks || (packsLoaded && !refresh)) return;
+    final revision = _packMembershipRevision;
+    var changedWhileLoading = false;
+    loadingPacks = true;
+    packsError = null;
+    _notify();
+    try {
+      final items = await repository.myPacks();
+      if (!_active) return;
+      if (revision != _packMembershipRevision) {
+        changedWhileLoading = true;
+        return;
+      }
+      packs = items;
+      packsLoaded = true;
+    } catch (error) {
+      if (_active) packsError = error;
+    } finally {
+      loadingPacks = false;
+      _notify();
+      if (_active && changedWhileLoading) await loadPacks(refresh: true);
+    }
+  }
+
+  /// Stickers of one published pack; cached for the session and remembered by
+  /// the resolver so inserted tokens render before the server echoes them.
+  Future<void> loadPackStickers(int packId, {bool refresh = false}) async {
+    if (loadingPackStickers.contains(packId) ||
+        (packStickers.containsKey(packId) && !refresh)) {
+      return;
+    }
+    loadingPackStickers.add(packId);
+    packStickerErrors.remove(packId);
+    _notify();
+    try {
+      final detail = await repository.marketPack(packId);
+      if (!_active) return;
+      packStickers[packId] = detail.stickers;
+      library.remember(detail.stickers);
+    } catch (error) {
+      if (_active) packStickerErrors[packId] = error;
+    } finally {
+      loadingPackStickers.remove(packId);
+      _notify();
+    }
+  }
+
+  /// Official groups in display order: named packs first, then any pack key
+  /// the metadata does not cover yet, so no enabled sticker becomes unreachable.
+  List<StickerOfficialPackPayload> get officialGroups {
+    final keys = <String>{
+      for (final item in official)
+        if (item.isAvailable && item.pack.isNotEmpty) item.pack,
+    };
+    return [
+      for (final pack in officialPacks)
+        if (keys.remove(pack.key)) pack,
+      for (final key in keys) StickerOfficialPackPayload(key: key, name: key),
+    ];
+  }
+
+  /// Official stickers grouped by [officialGroups], keeping each pack's order.
+  List<StickerItemPayload> get officialInPackOrder {
+    final order = {
+      for (final (index, pack) in officialGroups.indexed) pack.key: index,
+    };
+    final buckets = List.generate(
+      order.length + 1,
+      (_) => <StickerItemPayload>[],
+    );
+    for (final item in official) {
+      buckets[order[item.pack] ?? order.length].add(item);
+    }
+    return [for (final bucket in buckets) ...bucket];
+  }
+
+  bool hasPack(int packId) => packs.any((pack) => pack.id == packId);
+
+  /// Subscription changes wait for the server: a pack never appears added
+  /// before its stickers are usable on every device.
+  Future<void> addPack(StickerMarketPackPayload pack) => _mutate(() async {
+    final saved = await repository.savePack(pack.id);
+    if (!_active) return;
+    _packMembershipRevision++;
+    if (hasPack(saved.id)) return;
+    packs = [...packs, saved];
+  });
+
+  Future<void> removePack(StickerMarketPackPayload pack) => _mutate(() async {
+    await repository.removePack(pack.id);
+    if (!_active) return;
+    _packMembershipRevision++;
+    packs = packs.where((item) => item.id != pack.id).toList();
+  });
 
   void used(StickerItemPayload item) {
     if (!_active || !item.isAvailable) return;

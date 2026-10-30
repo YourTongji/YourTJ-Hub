@@ -1129,6 +1129,61 @@ void main() {
       );
     });
 
+    // 无标题瞬间的卡片：摘要落在标题位，同样是卡片大字视图——贴纸渲染图片，不出 [名字]/原文。
+    testWidgets('an untitled moment card renders its excerpt sticker as an image', (
+      tester,
+    ) async {
+      await pumpFeed(
+        tester,
+        [topicWith('瞬间 [:sticker:smile:]', title: '')],
+        mode: GfTopicFeedMode.card,
+      );
+
+      expect(find.byType(StickerImage), findsOneWidget);
+      expect(
+        tester.getSize(find.byType(StickerImage)).height,
+        moreOrLessEquals(17 * StickerImage.inlineScale),
+      );
+      expect(find.textContaining('[smile]'), findsNothing);
+      final List<String> texts = _richTexts(tester).toList();
+      expect(texts.where((text) => text.contains('[:sticker:')), isEmpty);
+      // 只出现一次：标题位承载摘要，描述位不重复。
+      expect(texts.where((text) => text.contains('瞬间')), hasLength(1));
+    });
+
+    testWidgets('an untitled pending moment card keeps the review prefix', (
+      tester,
+    ) async {
+      await pumpFeed(
+        tester,
+        [
+          topicWith('瞬间 [:sticker:smile:]', title: '')
+              .copyWith(processStatus: 2),
+        ],
+        mode: GfTopicFeedMode.card,
+      );
+
+      expect(find.byType(StickerImage), findsOneWidget);
+      expect(
+        _richTexts(tester).where((text) => text.startsWith('审核中 · 瞬间')),
+        hasLength(1),
+      );
+    });
+
+    testWidgets('an untitled card whose excerpt is all-unknown tokens shows the no-title label', (
+      tester,
+    ) async {
+      await pumpFeed(
+        tester,
+        [topicWith('[:sticker:ghost:]', title: '')],
+        mode: GfTopicFeedMode.card,
+        catalog: _StickerCatalog(const <StickerItemPayload>[]),
+      );
+
+      expect(find.text('无标题'), findsOneWidget);
+      expect(find.byType(StickerImage), findsNothing);
+    });
+
     testWidgets('unknown and disabled tokens disappear instead of leaking', (
       tester,
     ) async {

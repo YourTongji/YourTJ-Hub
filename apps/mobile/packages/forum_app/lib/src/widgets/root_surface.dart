@@ -230,8 +230,9 @@ class RootSurface extends ConsumerWidget {
                         bottom,
                     child: child!,
                   ),
-                  child: FloatingActionButton(
-                    heroTag: null,
+                  child: GfGlassButton(
+                    key: const ValueKey('root-compose-action'),
+                    tone: GfGlassTone.prominent,
                     tooltip:
                         actionLabel ?? AppLocalizations.of(context).navPublish,
                     onPressed:

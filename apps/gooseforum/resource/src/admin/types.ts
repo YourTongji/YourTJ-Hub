@@ -178,10 +178,32 @@ export interface AdminSticker {
   name: string
   fileName: string
   url: string
+  /** Key of the official pack holding the sticker. */
+  pack: string
   sortOrder: number
   isEnabled: boolean
   createdBy: number
+  /** Previous names that still resolve to this sticker (issue #1428). */
+  aliases: string[]
 }
+
+export type {
+  AdminStickerBatchAction,
+  AdminStickerBatchRequest,
+  AdminStickerPack,
+  AdminStickerPackSaveRequest,
+  AdminStickerMarketPackCreateRequest,
+  AdminStickerMarketPackSaveRequest,
+  AdminStickerMarketSource,
+  AdminStickerMarketUploadResult,
+  AdminStickerMarketItem,
+  AdminStickerMarketItemSaveRequest,
+  AdminStickerMarketPack,
+  AdminStickerMarketPackDetail,
+  AdminStickerMarketPage,
+  AdminStickerMarketStatus,
+  AdminStickerMarketSyncResult,
+} from '@gooseforum/client'
 
 export interface StickerImportIssue {
   name: string
