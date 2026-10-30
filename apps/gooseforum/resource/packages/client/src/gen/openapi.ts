@@ -6388,8 +6388,10 @@ export interface paths {
          * @description Admin console operation gated by the `SiteManager` role permission
          *     (Admin role is a superset); callers without it fail with HTTP 403 and
          *     `permission.denied` (params permission=<localized permission name>,
-         *     `站点管理` in zh). Returns the stored rate-limit settings, or the
-         *     built-in default configuration when nothing has been saved yet.
+         *     `站点管理` in zh). Returns the effective rate-limit settings, merging
+         *     missing built-in actions into saved configurations while preserving saved
+         *     rules (including explicit zero limits) and global switches. When nothing
+         *     has been saved yet, returns the built-in default configuration.
          *     JSON binding is lenient: query string and body are ignored.
          */
         get: operations["adminGetRateLimitSettings"];
@@ -27472,7 +27474,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Rate-limit settings (stored configuration or the built-in default). */
+            /** @description Effective rate-limit settings with missing built-in actions included. */
             200: {
                 headers: {
                     [name: string]: unknown;
