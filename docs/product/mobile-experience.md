@@ -948,6 +948,10 @@ change. The header keeps a small outer margin for its primary action.
 
 ## Campus and sign-in
 
+`Current`: public campus course recommendations show the same teacher/team label and missing-teacher
+fallback as the course catalog, alongside department and each entry's own score. Same-name courses
+retain separate identities and detail links. Identity text wraps with enlarged text.
+
 - `Current`: Campus opens a native private overview with the school teaching week, time-aware
   greeting, today's courses and then recent notices. Weekly timetable, academic records and charts,
   calendars, notice bodies and identity management use the existing campus API. Today’s timetable
