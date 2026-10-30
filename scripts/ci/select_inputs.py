@@ -67,6 +67,8 @@ def select(paths):
                 name = path.split("ci-", 1)[1].split(".")[0]
                 mapping = {"backend": ["backend", "postgres"], "mobile-native": ["android", "ios"], "mobile": ["mobile"], "frontend": ["frontend"], "contract": ["contract"], "status": ["status"]}
                 add(*mapping.get(name, []), reason=path)
+            if path in {"scripts/ci/check_android_entrypoint.py", "scripts/ci/test_android_entrypoint.py"}:
+                add("android", reason=path)
             if path in {".github/workflows/release-android.yml", "scripts/mobile-release/prepare_push.py"}:
                 add("android", reason=path)
             if path in {".github/workflows/release-ios.yml", "scripts/mobile-release/build_ios.py"}:

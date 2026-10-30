@@ -26,6 +26,7 @@ func init() {
 func InvalidateCache() {
 	enabledListCache.Clear()
 	stickerURLCache.Clear()
+	officialPackCache.Clear()
 }
 
 // stickerNameRe 限制表情包名：Unicode 字母/数字/下划线/连字符，1-64 字符。
@@ -141,21 +142,31 @@ func ResolveURLs(names []string) (map[string]string, error) {
 	if err != nil {
 		return urls, err
 	}
-	foundNames := make(map[string]struct{}, len(entities))
+	found := make(map[string]sticker.Entity, len(entities))
 	for _, entity := range entities {
-		foundNames[entity.Name] = struct{}{}
-		if entity.FileName != "" {
-			u := ResolveURLFor(entity)
-			urls[entity.Name] = u
-			stickerURLCache.Set(entity.Name, u, stickerCacheTTL)
-		} else {
-			stickerURLCache.Set(entity.Name, "", stickerCacheTTL)
+		found[entity.Name] = entity
+	}
+	// Tokens written before a rename resolve through the previous name (issue #1428).
+	renamed := make([]string, 0)
+	for _, name := range missing {
+		if _, ok := found[name]; !ok {
+			renamed = append(renamed, name)
 		}
 	}
+	aliased, err := sticker.EnabledByAliases(renamed)
+	if err != nil {
+		return urls, err
+	}
+	for name, entity := range aliased {
+		found[name] = entity
+	}
 	for _, name := range missing {
-		if _, ok := foundNames[name]; !ok {
-			stickerURLCache.Set(name, "", stickerCacheTTL)
+		u := ""
+		if entity, ok := found[name]; ok && entity.FileName != "" {
+			u = ResolveURLFor(entity)
+			urls[name] = u
 		}
+		stickerURLCache.Set(name, u, stickerCacheTTL)
 	}
 	return urls, nil
 }

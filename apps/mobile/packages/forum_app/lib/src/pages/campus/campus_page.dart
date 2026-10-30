@@ -12,6 +12,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../current_user.dart';
+import '../../layout_breakpoints.dart';
 import '../../providers.dart';
 import '../../navigation/tab_scroll_registry.dart';
 import '../../navigation/reading_window.dart';
@@ -836,7 +837,8 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
       1.0,
       double.infinity,
     );
-    final hasDirectory = MediaQuery.sizeOf(context).width >= 900 * layoutScale;
+    final hasDirectory =
+        MediaQuery.sizeOf(context).width >= widePageBreakpoint * layoutScale;
     bool isPending(String tab) {
       if (!privateVisible ||
           (state.status != null && state.status?.binding == null)) {
@@ -889,7 +891,30 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
         );
       }
       if (state.status?.binding == null) {
-        return const CampusConnection(compact: true);
+        if (tab != 'timetable') return const CampusConnection(compact: true);
+        return GfEmpty(
+          message: l.campusTimetableNotConnected,
+          description: l.campusTimetableConnectBody,
+          symbol: 'calendar-days',
+          action: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CampusConnection(compact: true),
+              const SizedBox(height: 12),
+              TextButton(
+                key: const Key('campus-timetable-courses'),
+                onPressed: () => context.push('/courses'),
+                child: GfText(l.coursesTitle, textAlign: TextAlign.center),
+              ),
+              TextButton(
+                key: const Key('campus-timetable-schedule'),
+                onPressed: () => context.push('/schedule'),
+                child: GfText(l.scheduleTitle, textAlign: TextAlign.center),
+              ),
+            ],
+          ),
+        );
       }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -16,7 +16,7 @@ const { unreadSetNotifications, unreadRefresh, unreadClearNotifications } = vi.h
   unreadClearNotifications: vi.fn(),
 }))
 vi.mock('../src/runtime/unread-status', () => ({
-  useUnreadStatus: () => ({ clearNotifications: unreadClearNotifications, setNotifications: unreadSetNotifications, refresh: unreadRefresh }),
+  useUnreadStatus: () => ({ badgeStyle: { value: 'number' }, clearNotifications: unreadClearNotifications, setNotifications: unreadSetNotifications, refresh: unreadRefresh }),
 }))
 import NotificationsPage from '../src/site/pages/NotificationsPage.vue'
 import { markAllNotificationsRead, markNotificationRead } from '../src/runtime/api'

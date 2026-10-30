@@ -95,15 +95,19 @@ class _RecordingTopicRepository extends TopicRepository {
   _RecordingTopicRepository(
     super.client, {
     this.resultId = 99,
+    this.failureCode,
     this.requireCaptcha = false,
     this.pendingReview = false,
     this.captchaAction = 'topic.write',
   });
+  Future<void> Function()? beforeWrite;
   final bool requireCaptcha;
   final bool pendingReview;
   final String captchaAction;
 
   final int resultId;
+  final String? failureCode;
+  int writeAttempts = 0;
   final List<
     ({
       int topicId,
@@ -142,6 +146,15 @@ class _RecordingTopicRepository extends TopicRepository {
     String? captchaCode,
     String? identity,
   }) async {
+    writeAttempts++;
+    await beforeWrite?.call();
+    if (failureCode != null) {
+      throw ApiException(
+        fallbackMessage: 'Write denied',
+        messageCode: failureCode,
+        statusCode: 403,
+      );
+    }
     if (requireCaptcha &&
         (captchaId != 'challenge' ||
             captchaCode == null ||
@@ -270,6 +283,14 @@ PagePayload _publishPayload({
   });
 }
 
+/// Picker cells show only the image; their accessible label names them.
+Finder _pickerSticker(String label) => find.byWidgetPredicate(
+  (widget) =>
+      widget is Semantics &&
+      widget.properties.label == label &&
+      widget.child is InkWell,
+);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -308,6 +329,7 @@ void main() {
     bool viewerAuthenticated = true,
     WritingStore? localStore,
     bool withStickers = false,
+    String? writeFailureCode,
     bool fromContentManagement = false,
     ImageProvider<Object>? imageProvider,
   }) async {
@@ -335,6 +357,7 @@ void main() {
     final _RecordingTopicRepository topicRepository = _RecordingTopicRepository(
       client,
       resultId: resultId,
+      failureCode: writeFailureCode,
       requireCaptcha: requireCaptcha,
       captchaAction: captchaAction,
       pendingReview: fromContentManagement,
@@ -346,6 +369,11 @@ void main() {
           ? '/publish?$editQueryKey=42'
           : '/publish',
       routes: <RouteBase>[
+        GoRoute(
+          path: '/settings/account',
+          builder: (_, _) =>
+              const Scaffold(body: Text('current account email settings')),
+        ),
         GoRoute(
           path: '/my-content',
           builder: (context, state) => const ContentPage(),
@@ -439,6 +467,121 @@ void main() {
       topicRepository: topicRepository,
     );
   }
+
+  testWidgets(
+    'the last input is durable before a write can expire the session',
+    (tester) async {
+      usePhoneViewport(tester);
+      final store = WritingStore();
+      final result = await pumpPublishPage(
+        tester,
+        editing: true,
+        contentType: 2,
+        locale: const Locale('en'),
+        localStore: store,
+      );
+      final field = find.byKey(const Key('publish-editor'));
+      await tester.enterText(field, 'older text');
+      final controller = tester.widget<TextField>(field).controller!;
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      // Change immediately before submitting, without waiting for the debounce.
+      controller.text = 'the final unsent tail';
+      List<LocalDraft>? atRequest;
+      var calls = 0;
+      result.topicRepository.beforeWrite = () async {
+        calls++;
+        atRequest = await store.drafts(writingScope('http://fake.local', 1));
+        throw const UnauthorizedException();
+      };
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(calls, 1);
+      expect(atRequest, hasLength(1));
+      expect(atRequest!.single.content, 'the final unsent tail');
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'pending email recovery preserves input and never retries the write',
+    (tester) async {
+      usePhoneViewport(tester);
+      final store = WritingStore();
+      final result = await pumpPublishPage(
+        tester,
+        editing: true,
+        contentType: 2,
+        locale: const Locale('en'),
+        localStore: store,
+        writeFailureCode: 'permission.emailRequired',
+      );
+      await tester.enterText(
+        find.byKey(const Key('publish-editor')),
+        'unfinished pending-account input',
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(result.topicRepository.writeAttempts, 1);
+      final recovery = find.text('Check email verification');
+      expect(recovery, findsOneWidget);
+      await tester.ensureVisible(recovery);
+      await tester.tap(recovery);
+      await tester.pumpAndSettle();
+      expect(find.text('current account email settings'), findsOneWidget);
+      expect(
+        (await store.drafts(
+          writingScope('http://fake.local', 1),
+        )).single.content,
+        'unfinished pending-account input',
+      );
+      expect(result.topicRepository.writeAttempts, 1);
+      result.router.pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(PublishPage), findsOneWidget);
+      expect(result.topicRepository.writeAttempts, 1);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'failed mandatory draft checkpoint prevents the write and keeps input',
+    (tester) async {
+      usePhoneViewport(tester);
+      final store = _FailingWritingStore();
+      final result = await pumpPublishPage(
+        tester,
+        editing: true,
+        contentType: 2,
+        locale: const Locale('en'),
+        localStore: store,
+        writeFailureCode: 'permission.emailRequired',
+      );
+      await tester.enterText(
+        find.byKey(const Key('publish-editor')),
+        'unsent input',
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(find.text('Check email verification'), findsNothing);
+      expect(find.text('current account email settings'), findsNothing);
+      expect(find.byType(PublishPage), findsOneWidget);
+      expect(find.text('unsent input'), findsOneWidget);
+      expect(result.topicRepository.writeAttempts, 0);
+      expect(result.router.state.uri.path, '/publish');
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   testWidgets(
     'publish body editor keeps the toolbar-free custom builder path',
@@ -542,17 +685,17 @@ void main() {
             tester.getTopLeft(editor).dy,
             lessThan(tester.getTopLeft(find.byType(StickerPicker)).dy),
           );
-          await tester.ensureVisible(find.text('Smile').last);
+          await tester.ensureVisible(_pickerSticker('Smile').last);
           await tester.pumpAndSettle();
-          await tester.tap(find.text('Smile').last);
+          await tester.tap(_pickerSticker('Smile').last);
           await tester.pumpAndSettle();
-          await tester.ensureVisible(find.text('Smile').last);
+          await tester.ensureVisible(_pickerSticker('Smile').last);
           await tester.pumpAndSettle();
-          await tester.tap(find.text('Smile').last);
+          await tester.tap(_pickerSticker('Smile').last);
           await tester.pumpAndSettle();
-          final preview = find.byKey(const Key('sticker-draft-preview'));
+          // Both editors show the inserted stickers inline, as published.
           expect(
-            find.descendant(of: preview, matching: find.byType(StickerImage)),
+            find.descendant(of: editor, matching: find.byType(StickerImage)),
             findsNWidgets(2),
           );
           expect(
@@ -560,6 +703,9 @@ void main() {
             findsOneWidget,
           );
           await tester.drag(find.byType(StickerPicker), const Offset(0, 300));
+          await tester.pumpAndSettle();
+          // Search starts as an icon in the picker's header.
+          await tester.tap(find.byTooltip('搜索全部表情'));
           await tester.pumpAndSettle();
           final search = find.descendant(
             of: find.byType(StickerPicker),
@@ -1197,6 +1343,10 @@ void main() {
     'writing tools stay above keyboard and format the selected text',
     (tester) async {
       await pumpPublishPage(tester, editing: false, contentType: 3);
+      await tester.enterText(
+        find.byKey(const Key('publish-title')),
+        'Article title',
+      );
       final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
       editor.controller.replaceText(
         0,
@@ -1277,6 +1427,10 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await pumpPublishPage(tester, editing: false, contentType: 3);
+      await tester.enterText(
+        find.byKey(const Key('publish-title')),
+        'Article title',
+      );
       final original = tester.widget<QuillEditor>(find.byType(QuillEditor));
       original.controller.replaceText(
         0,
@@ -1369,6 +1523,20 @@ void main() {
           contentType: 3,
           locale: Locale(language),
         );
+        await tester.enterText(
+          find.byKey(const Key('publish-title')),
+          'Article title',
+        );
+        final controller = tester
+            .widget<QuillEditor>(find.byType(QuillEditor))
+            .controller;
+        controller.replaceText(
+          0,
+          0,
+          'Article body',
+          const TextSelection.collapsed(offset: 12),
+        );
+        await tester.pumpAndSettle();
         final l10n = AppLocalizations.of(
           tester.element(find.byType(PublishPage)),
         );
@@ -2068,19 +2236,119 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
-  testWidgets('空表单在提交动作附近显示明确校验错误', (tester) async {
-    await pumpPublishPage(tester, editing: false);
+  testWidgets(
+    'empty article Next stays in edit and focuses its missing title',
+    (tester) async {
+      usePhoneViewport(tester);
+      final result = await pumpPublishPage(
+        tester,
+        editing: false,
+        contentType: 3,
+      );
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(find.text('标题不能为空'), findsOneWidget);
+      expect(find.byType(QuillEditor), findsOneWidget);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('publish-title')))
+            .focusNode!
+            .hasFocus,
+        isTrue,
+      );
+      final controller = tester
+          .widget<QuillEditor>(find.byType(QuillEditor))
+          .controller;
+      controller.replaceText(
+        0,
+        0,
+        'Body without title',
+        const TextSelection.collapsed(offset: 18),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(find.text('标题不能为空'), findsOneWidget);
+      expect(controller.document.toPlainText(), contains('Body without title'));
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('publish-title')))
+            .focusNode!
+            .hasFocus,
+        isTrue,
+      );
+      expect(result.topicRepository.writes, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    },
+  );
 
-    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
-    await tester.pump();
-
-    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
-    await tester.pump();
-    expect(find.text('标题不能为空'), findsOneWidget);
-    expect(find.byType(GfStatusMessage), findsOneWidget);
-    // Let the preview step's identity request finish before teardown.
-    await tester.pumpAndSettle();
-  });
+  for (final locale in ['zh', 'en', 'ja', 'de']) {
+    testWidgets(
+      'article Next validates whitespace then preserves corrected content $locale',
+      (tester) async {
+        usePhoneViewport(tester);
+        final result = await pumpPublishPage(
+          tester,
+          editing: false,
+          contentType: 3,
+          locale: Locale(locale),
+        );
+        final l = AppLocalizations.of(tester.element(find.byType(PublishPage)));
+        final title = find.byKey(const Key('publish-title'));
+        final controller = tester
+            .widget<QuillEditor>(find.byType(QuillEditor))
+            .controller;
+        await tester.enterText(title, '   ');
+        controller.replaceText(
+          0,
+          0,
+          ' \n\t',
+          const TextSelection.collapsed(offset: 3),
+        );
+        await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+        await tester.pumpAndSettle();
+        expect(find.text(l.publishTitleRequired), findsOneWidget);
+        await tester.enterText(title, '保留标题');
+        await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+        await tester.pumpAndSettle();
+        expect(find.text(l.publishContentRequired), findsOneWidget);
+        expect(
+          tester
+              .widget<QuillEditor>(find.byType(QuillEditor))
+              .focusNode
+              .hasFocus,
+          isTrue,
+        );
+        expect(tester.widget<TextField>(title).controller!.text, '保留标题');
+        controller.replaceText(
+          0,
+          controller.document.length - 1,
+          '保留正文',
+          const TextSelection.collapsed(offset: 4),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('publish-preview')), findsOneWidget);
+        expect(find.text(l.publishContentRequired), findsNothing);
+        expect(result.topicRepository.writes, isEmpty);
+        await tester.tap(find.byTooltip(l.commonBack));
+        await tester.pumpAndSettle();
+        expect(tester.widget<TextField>(title).controller!.text, '保留标题');
+        expect(
+          tester
+              .widget<QuillEditor>(find.byType(QuillEditor))
+              .controller
+              .document
+              .toPlainText(),
+          contains('保留正文'),
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 600));
+      },
+    );
+  }
 
   testWidgets('预览页只保留右上角发布按钮，保存草稿移入 AppBar', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -2344,6 +2612,22 @@ void main() {
           contentType: contentType,
           locale: const Locale('de'),
         );
+        if (contentType == 3) {
+          await tester.enterText(
+            find.byKey(const Key('publish-title')),
+            'Article title',
+          );
+          final controller = tester
+              .widget<QuillEditor>(find.byType(QuillEditor))
+              .controller;
+          controller.replaceText(
+            0,
+            0,
+            'Article body',
+            const TextSelection.collapsed(offset: 12),
+          );
+          await tester.pumpAndSettle();
+        }
         await tester.tap(find.byKey(const Key('publish-appbar-submit')));
         await tester.pumpAndSettle();
         expect(find.byKey(const Key('publish-preview')), findsOneWidget);

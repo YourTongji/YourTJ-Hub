@@ -483,7 +483,7 @@ func TestPostRevisionsHidesBlockedVersionFromNonModerator(t *testing.T) {
 
 func TestPostRevisionsUsesCurrentStickerDefinitions(t *testing.T) {
 	conn := setupRevisionTestDB(t)
-	if err := conn.AutoMigrate(&sticker.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&sticker.Entity{}, &sticker.Alias{}); err != nil {
 		t.Fatal(err)
 	}
 	const authorID uint64 = 938801

@@ -1,0 +1,290 @@
+stickerMarket:
+  get:
+    tags: [Forum]
+    summary: Browse published sticker market packs
+    operationId: stickerMarket
+    description: |
+      Public, read-only page of market packs that a site administrator imported and
+      published (issue #1429). Unpublished, empty or never-imported upstream groups are
+      never listed, and no upstream URL is returned: covers and stickers are images the
+      server already downloaded, validated and stored. `topic` filters by upstream
+      category id and `q` matches pack names case-insensitively. `page` starts at 1;
+      `pageSize` outside 1-100 falls back to 24. Uses the public `sticker.list` per-IP
+      quota. A database failure returns `common.operation.failed`.
+    security: []
+    parameters:
+      - name: topic
+        in: query
+        schema:
+          type: string
+        description: Upstream category id from `topics`; empty lists every category.
+      - name: q
+        in: query
+        schema:
+          type: string
+        description: Case-insensitive pack name substring.
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: pageSize
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 24
+    responses:
+      '200':
+        description: Market page or stable business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/StickerMarketPageResponse
+            examples:
+              success:
+                externalValue: ../fixtures/sticker-market-success.json
+      '400':
+        description: A non-numeric `page` or `pageSize` fails query binding.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/parse-failed.json
+      '429':
+        description: Rate quota exceeded.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/forum-sticker-rate-limited.json
+
+stickerMarketPack:
+  get:
+    tags: [Forum]
+    summary: List the stickers of one published market pack
+    operationId: stickerMarketPack
+    description: |
+      Public, read-only. Returns the pack and its enabled stickers in pack order. Each
+      sticker is a shared asset with a stable `m_` token name, `pack` = `market` and
+      `isOfficial` = false; inserting `[:sticker:name:]` works like any other sticker.
+      Hidden, empty or unknown packs fail with `sticker.market.packUnavailable`.
+      Hiding a pack later never breaks tokens that were already sent. Uses the public
+      `sticker.list` per-IP quota.
+    security: []
+    parameters:
+      - name: id
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    responses:
+      '200':
+        description: Pack detail or stable business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/StickerMarketPackDetailResponse
+            examples:
+              success:
+                externalValue: ../fixtures/sticker-market-pack-success.json
+              unavailable:
+                externalValue: ../fixtures/sticker-market-pack-unavailable.json
+      '400':
+        description: A non-numeric `id` fails query binding.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/parse-failed.json
+      '429':
+        description: Rate quota exceeded.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/forum-sticker-rate-limited.json
+
+myStickerPacks:
+  get:
+    tags: [Forum]
+    summary: List the market packs I added
+    operationId: myStickerPacks
+    description: |
+      Lists the account's subscribed packs that are still published, in the order they
+      were added. A pack an administrator hides disappears from this list but stays
+      subscribed, and returns if it is published again. Load stickers per pack with
+      GET /api/forum/sticker-market/pack. Subscriptions are private account state;
+      account closure removes them.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Result or stable business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/StickerMarketPackListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/my-sticker-packs-success.json
+              empty:
+                externalValue: ../fixtures/admin-sticker-list-empty.json
+      '401':
+        description: Authentication required.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+
+saveMyStickerPack:
+  post:
+    tags: [Forum]
+    summary: Add a market pack to my stickers
+    operationId: saveMyStickerPack
+    description: |
+      Idempotently subscribes the account to a published pack and returns it. The pack's
+      stickers are already stored on the server, so it is usable immediately on every
+      device of the account. At most 50 packs per account; the limit fails with
+      `sticker.market.packLimit` and params.limit. Hidden, empty or unknown packs fail
+      with `sticker.market.packUnavailable`; a missing or zero packId fails with
+      `common.request.invalidParams`. Writes serialize per account with the personal
+      sticker library and are fenced by account closure. Body limit 64 KiB.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/StickerPackRequest
+    responses:
+      '200':
+        description: Result or stable business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/StickerMarketPackResponse
+            examples:
+              success:
+                externalValue: ../fixtures/my-sticker-pack-save-success.json
+              limit:
+                externalValue: ../fixtures/my-sticker-pack-limit.json
+              unavailable:
+                externalValue: ../fixtures/sticker-market-pack-unavailable.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '400':
+        description: Malformed JSON or request body larger than 64 KiB.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/parse-failed.json
+      '401':
+        description: Authentication required.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, pending activation or CSRF rejection.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Rate quota exceeded.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+deleteMyStickerPack:
+  post:
+    tags: [Forum]
+    summary: Remove a market pack from my stickers
+    operationId: deleteMyStickerPack
+    description: |
+      Idempotently removes only this account's subscription. Shared stickers, other
+      accounts' subscriptions and tokens that were already sent are unaffected. A
+      missing or zero packId fails with `common.request.invalidParams`. Body limit 64 KiB.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/StickerPackRequest
+    responses:
+      '200':
+        description: Result or stable business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ContentActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/my-sticker-action-success.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '400':
+        description: Malformed JSON or request body larger than 64 KiB.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/parse-failed.json
+      '401':
+        description: Authentication required.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, pending activation or CSRF rejection.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Rate quota exceeded.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure

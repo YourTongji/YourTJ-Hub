@@ -37,6 +37,7 @@ String profilePrivacySectionLabel(AppLocalizations l10n, String key) =>
       'profileActivity' => l10n.profilePrivacyActivity,
       'profileLikes' => l10n.profilePrivacyLikes,
       'followingList' => l10n.profilePrivacyFollowing,
+      'chatMessagePolicy' => l10n.chatMessagePolicyTitle,
       _ => l10n.profilePrivacyFollowers,
     };
 
@@ -53,6 +54,7 @@ String profilePrivacyAudienceLabel(AppLocalizations l10n, String audience) =>
       'members' => l10n.profilePrivacyMembers,
       'followers' => l10n.profilePrivacyFollowersOnly,
       'mutual' => l10n.profilePrivacyMutual,
+      'nobody' => l10n.chatMessagePolicyNobody,
       'self' => l10n.profilePrivacySelf,
       _ => l10n.profilePrivacyEveryone,
     };
@@ -60,7 +62,9 @@ String profilePrivacyAudienceLabel(AppLocalizations l10n, String audience) =>
 /// Choose who can see each profile section. A row shows the saved value
 /// until the server confirms a change, so a failure needs no rollback.
 class ProfilePrivacyPage extends ConsumerStatefulWidget {
-  const ProfilePrivacyPage({super.key});
+  const ProfilePrivacyPage({super.key, this.chatOnly = false});
+
+  final bool chatOnly;
 
   @override
   ConsumerState<ProfilePrivacyPage> createState() => _ProfilePrivacyPageState();
@@ -73,7 +77,9 @@ class _ProfilePrivacyPageState extends ConsumerState<ProfilePrivacyPage> {
   Future<void> _choose(UserPrivacySettingsPayload settings, String key) async {
     if (_saving != null) return;
     final l10n = AppLocalizations.of(context);
-    final current = settings.audienceOf(key);
+    final current = key == 'chatMessagePolicy'
+        ? settings.chatMessagePolicy
+        : settings.audienceOf(key);
     final epoch = ref.read(offlineCacheEpochProvider);
     final picked = await showGfBottomSheet<String>(
       context,
@@ -87,7 +93,8 @@ class _ProfilePrivacyPageState extends ConsumerState<ProfilePrivacyPage> {
       return;
     }
     // Restoring a wider audience re-exposes history, so confirm it first.
-    if (profilePrivacyWidens(current, picked) &&
+    if (key != 'chatMessagePolicy' &&
+        profilePrivacyWidens(current, picked) &&
         !await _confirmWiden(l10n, key, picked)) {
       return;
     }
@@ -99,7 +106,12 @@ class _ProfilePrivacyPageState extends ConsumerState<ProfilePrivacyPage> {
           .updatePrivacySetting(key, picked);
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       setState(() => _confirmed = saved);
-      showGfToast(context, l10n.profilePrivacySaved);
+      showGfToast(
+        context,
+        key == 'chatMessagePolicy'
+            ? l10n.chatMessagePolicySaved
+            : l10n.profilePrivacySaved,
+      );
     } catch (_) {
       if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
         showGfToast(context, l10n.profilePrivacySaveFailed, error: true);
@@ -156,7 +168,11 @@ class _ProfilePrivacyPageState extends ConsumerState<ProfilePrivacyPage> {
     return Scaffold(
       backgroundColor: colors.canvasGrouped,
       appBar: GfAppBar(
-        title: Text(l10n.profilePrivacyTitle),
+        title: Text(
+          widget.chatOnly
+              ? l10n.chatMessagePolicyTitle
+              : l10n.profilePrivacyTitle,
+        ),
         backgroundColor: colors.canvasGrouped,
         showDivider: false,
       ),
@@ -175,7 +191,11 @@ class _ProfilePrivacyPageState extends ConsumerState<ProfilePrivacyPage> {
                   action: GfButton(
                     label: l10n.authLoginTitle,
                     onPressed: () => context.push(
-                      authLoginLocation(returnTo: '/settings/profile-privacy'),
+                      authLoginLocation(
+                        returnTo: widget.chatOnly
+                            ? '/settings/chat-permissions'
+                            : '/settings/profile-privacy',
+                      ),
                     ),
                   ),
                 )
@@ -193,6 +213,31 @@ class _ProfilePrivacyPageState extends ConsumerState<ProfilePrivacyPage> {
     final colors = GfTheme.colorsOf(context);
     final type = GfTheme.typographyOf(context);
     final muted = type.caption.copyWith(color: colors.textSecondary);
+    if (widget.chatOnly) {
+      return ListView(
+        padding: const EdgeInsets.only(top: GfSpace.xs, bottom: GfSpace.xxxl),
+        children: [
+          GfListSection(
+            footer: l10n.chatMessagePolicyHint,
+            children: [
+              GfSettingRow(
+                key: const ValueKey('chat-message-policy'),
+                title: l10n.chatMessagePolicyLabel,
+                value: _saving == null
+                    ? profilePrivacyAudienceLabel(
+                        l10n,
+                        settings.chatMessagePolicy,
+                      )
+                    : l10n.commonLoading,
+                onTap: _saving == null
+                    ? () => _choose(settings, 'chatMessagePolicy')
+                    : null,
+              ),
+            ],
+          ),
+        ],
+      );
+    }
     final keys = profilePrivacyAudiences.keys.toList();
     return ListView(
       padding: const EdgeInsets.only(top: GfSpace.xs, bottom: GfSpace.xxxl),
@@ -305,13 +350,18 @@ class _AudienceSheet extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
               child: Text(
-                l10n.profilePrivacyAudienceTitle(
-                  profilePrivacySectionLabel(l10n, section),
-                ),
+                section == 'chatMessagePolicy'
+                    ? l10n.chatMessagePolicyTitle
+                    : l10n.profilePrivacyAudienceTitle(
+                        profilePrivacySectionLabel(l10n, section),
+                      ),
                 style: type.title3,
               ),
             ),
-            for (final audience in profilePrivacyAudiences[section]!)
+            for (final audience
+                in section == 'chatMessagePolicy'
+                    ? const ['everyone', 'mutual', 'nobody']
+                    : profilePrivacyAudiences[section]!)
               Semantics(
                 selected: audience == selected,
                 child: GfSettingRow(

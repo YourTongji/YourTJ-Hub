@@ -77,7 +77,10 @@ class _Privacy extends UserRepository {
       failLoad = false;
       throw StateError('offline');
     }
-    return UserPrivacySettingsPayload(Map.of(audiences));
+    return UserPrivacySettingsPayload(
+      Map.of(audiences),
+      chatMessagePolicy: audiences['chatMessagePolicy'] ?? 'everyone',
+    );
   }
 
   @override
@@ -88,7 +91,10 @@ class _Privacy extends UserRepository {
     updates.add((section, audience));
     if (failSave) throw StateError('offline');
     audiences[section] = audience;
-    return UserPrivacySettingsPayload(Map.of(audiences));
+    return UserPrivacySettingsPayload(
+      Map.of(audiences),
+      chatMessagePolicy: audiences['chatMessagePolicy'] ?? 'everyone',
+    );
   }
 }
 
@@ -133,7 +139,11 @@ Future<void> _profile(
   await tester.pumpAndSettle();
 }
 
-Future<_Privacy> _settings(WidgetTester tester, {_Privacy? repo}) async {
+Future<_Privacy> _settings(
+  WidgetTester tester, {
+  _Privacy? repo,
+  bool chatOnly = false,
+}) async {
   final privacy = repo ?? _Privacy();
   await tester.pumpWidget(
     _app([
@@ -141,7 +151,7 @@ Future<_Privacy> _settings(WidgetTester tester, {_Privacy? repo}) async {
         (_) async => const CurrentUser(id: 1, username: 'alice'),
       ),
       userRepositoryProvider.overrideWithValue(privacy),
-    ], const ProfilePrivacyPage()),
+    ], ProfilePrivacyPage(chatOnly: chatOnly)),
   );
   await tester.pumpAndSettle();
   return privacy;
@@ -339,6 +349,53 @@ void main() {
   });
 
   group('settings page', () {
+    testWidgets(
+      'chat policy has three choices and failed saves preserve the confirmed value',
+      (tester) async {
+        final repo = await _settings(tester, chatOnly: true);
+        final row = find.byKey(const ValueKey('chat-message-policy'));
+        expect(tester.widget<GfSettingRow>(row).value, 'Everyone');
+        expect(
+          find.byKey(const ValueKey('profile-privacy-row-profileTopics')),
+          findsNothing,
+        );
+        await tester.tap(row);
+        await tester.pumpAndSettle();
+        for (final value in ['everyone', 'mutual', 'nobody']) {
+          expect(
+            find.byKey(ValueKey('profile-privacy-option-$value')),
+            findsOne,
+          );
+        }
+        expect(
+          find.byKey(const ValueKey('profile-privacy-option-self')),
+          findsNothing,
+        );
+        await tester.tap(
+          find.byKey(const ValueKey('profile-privacy-option-nobody')),
+        );
+        await tester.pumpAndSettle();
+        expect(repo.updates, [('chatMessagePolicy', 'nobody')]);
+        expect(tester.widget<GfSettingRow>(row).value, 'No new conversations');
+        repo.failSave = true;
+        await tester.tap(row);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('profile-privacy-option-everyone')),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('profile-privacy-widen')),
+          findsNothing,
+        );
+        expect(repo.updates.last, ('chatMessagePolicy', 'everyone'));
+        expect(tester.widget<GfSettingRow>(row).value, 'No new conversations');
+        expect(find.textContaining('Unable to save.'), findsOne);
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
+      },
+    );
+
     testWidgets('bookmarks show as fixed to the owner and cannot be picked', (
       tester,
     ) async {

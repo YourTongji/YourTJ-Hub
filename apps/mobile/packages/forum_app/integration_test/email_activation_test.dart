@@ -18,6 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../test/fixtures/campus_fixtures.dart';
+import '../test/pages_behavior_test.dart' show settingsPayloadJson;
 
 class _ConnectionController extends CampusController {
   _ConnectionController(super.repository, CampusStatus status) {
@@ -41,6 +42,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final requests = <String>[];
     var resendCode = 'auth.activation.resendSuccess';
+    var statusState = 'ready';
     var activated = false;
     var candidate = false;
     var bound = true;
@@ -54,8 +56,33 @@ void main() {
       Object? result;
       String? error;
       switch (request.uri.path) {
+        case '/settings':
+          final settings = settingsPayloadJson();
+          ((settings['props'] as Map)['user'] as Map)['email'] =
+              'owner@example.test';
+          ((settings['layout'] as Map)['viewer']
+                  as Map)['requiresEmailVerification'] =
+              !activated;
+          request.response.write(jsonEncode(settings));
+          await request.response.close();
+          return;
         case '/api/resend-activation-email':
-          if (resendCode != 'auth.activation.resendSuccess') error = resendCode;
+          if (request.method == 'GET') {
+            result = {
+              'currentEmail': 'owner@example.test',
+              'pendingEmail': '',
+              'targetEmail': statusState == 'verified'
+                  ? ''
+                  : 'owner@example.test',
+              'targetKind': statusState == 'verified' ? 'none' : 'current',
+              'state': statusState,
+              'remainingToday': statusState == 'daily_limit' ? 0 : 2,
+              'dailyLimit': 3,
+              'retryAfterSeconds': statusState == 'cooldown' ? 60 : 0,
+            };
+          } else if (resendCode != 'auth.activation.resendSuccess') {
+            error = resendCode;
+          }
         case '/api/user/sessions':
           result = [];
         case '/api/campus/tongji/start':
@@ -181,6 +208,10 @@ void main() {
           tester.element(find.byType(SettingsPage)),
         );
         expect(find.byType(ActivationEmailAction), findsOneWidget);
+        final notice = find.byKey(const ValueKey('account-activation-pending'));
+        expect(notice, findsOneWidget);
+        await tester.ensureVisible(notice);
+        await tester.pumpAndSettle();
         await capture('email-security-${brightness.name}');
         for (final code in [
           'auth.activation.resendSuccess',
@@ -189,7 +220,16 @@ void main() {
           'auth.activation.resendFailed',
         ]) {
           resendCode = code;
-          await tester.ensureVisible(find.text(l.authResendActivationEmail));
+          await tester.scrollUntilVisible(
+            find.text(l.authResendActivationEmail),
+            200,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await Scrollable.ensureVisible(
+            tester.element(find.byType(ActivationEmailAction)),
+            alignment: .4,
+          );
+          await tester.pumpAndSettle();
           await tester.tap(find.text(l.authResendActivationEmail));
           await tester.pumpAndSettle();
           final message = resolveErrorMessage(
@@ -203,6 +243,32 @@ void main() {
           expect(find.text(message), findsOneWidget);
           await capture('email-${code.split('.').last}-${brightness.name}');
         }
+        final postsBefore = requests
+            .where((r) => r == 'POST /api/resend-activation-email')
+            .length;
+        for (final state in ['cooldown', 'daily_limit', 'verified']) {
+          statusState = state;
+          await show(
+            Scaffold(
+              body: const SingleChildScrollView(
+                padding: EdgeInsets.all(16),
+                child: ActivationEmailAction(),
+              ),
+            ),
+            'zh',
+            brightness,
+          );
+          await tester.tap(find.text(l.authResendActivationEmail));
+          await tester.pumpAndSettle();
+          expect(
+            requests
+                .where((r) => r == 'POST /api/resend-activation-email')
+                .length,
+            postsBefore,
+          );
+          await capture('activation-status-$state-${brightness.name}');
+        }
+        statusState = 'ready';
         resendCode = 'auth.activation.resendSuccess';
         await show(
           Scaffold(
@@ -229,7 +295,12 @@ void main() {
         await tester.ensureVisible(find.text(l.campusUnbind));
         await tester.tap(find.text(l.campusUnbind));
         await tester.pumpAndSettle();
-        await tester.tap(find.widgetWithText(TextButton, l.campusUnbind));
+        await tester.tap(
+          find.descendant(
+            of: find.byType(GfAlertDialog),
+            matching: find.widgetWithText(GfButton, l.campusUnbind),
+          ),
+        );
         await tester.pumpAndSettle();
         expect(bound, isFalse);
         expect(find.text(l.campusBind), findsOneWidget);
@@ -248,6 +319,16 @@ void main() {
           final l = AppLocalizations.of(
             tester.element(find.byType(SettingsPage)),
           );
+          await tester.scrollUntilVisible(
+            find.text(l.authResendActivationEmail),
+            200,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await Scrollable.ensureVisible(
+            tester.element(find.byType(ActivationEmailAction)),
+            alignment: .4,
+          );
+          await tester.pumpAndSettle();
           await tester.tap(find.text(l.authResendActivationEmail));
           await tester.pumpAndSettle();
           expect(
@@ -301,6 +382,15 @@ void main() {
       expect(find.byType(ActivationEmailAction), findsNothing);
       expect(find.text(l.campusUnbind), findsOneWidget);
       await capture('campus-confirm-recovered');
+      await show(
+        const SettingsPage(initialSection: 'security'),
+        'zh',
+        Brightness.light,
+      );
+      expect(
+        find.byKey(const ValueKey('account-activation-pending')),
+        findsNothing,
+      );
       expect(
         requests.where(
           (request) => request == 'POST /api/resend-activation-email',

@@ -6,6 +6,8 @@
 /// 帖子也按 Markdown AST 排除这些上下文；私信按纯文本分段。
 library;
 
+import 'dart:ui' show TextRange;
+
 import 'package:markdown/markdown.dart' as md;
 
 /// token 匹配规则（与 markdown2html.stickerTokenRe 一致）。
@@ -47,9 +49,83 @@ bool containsStickerToken(String content) => content.contains('[:sticker:');
 /// 时原样返回同一字符串。
 String expandStickerTokens(String content, Map<String, String> urlByName) {
   if (!containsStickerToken(content) || urlByName.isEmpty) return content;
-  final matches = stickerTokenPattern.allMatches(content).toList();
-  if (matches.isEmpty) return content;
+  final tokens = stickerTokenRanges(content, markdown: true);
+  if (tokens.isEmpty) return content;
+  final expanded = StringBuffer();
+  int cursor = 0;
+  for (final token in tokens) {
+    final url = urlByName[token.name];
+    if (url == null || url.isEmpty) continue;
+    final safeUrl = url.replaceAllMapped(
+      RegExp(r'[()<>\s\\]'),
+      (m) => Uri.encodeComponent(m[0]!),
+    );
+    // Uri.encodeComponent leaves parentheses unescaped.
+    final destination = safeUrl.replaceAll('(', '%28').replaceAll(')', '%29');
+    expanded
+      ..write(content.substring(cursor, token.start))
+      ..write('![sticker:${token.name}]($destination)');
+    cursor = token.end;
+  }
+  if (cursor == 0) return content;
+  return (expanded..write(content.substring(cursor))).toString();
+}
 
+/// 一个可展开为贴纸图的 token 在文本里的区间 `[start, end)`。
+class StickerTokenRange {
+  const StickerTokenRange(this.start, this.end, this.name);
+  final int start;
+  final int end;
+  final String name;
+
+  @override
+  bool operator ==(Object other) =>
+      other is StickerTokenRange &&
+      other.start == start &&
+      other.end == end &&
+      other.name == name;
+
+  @override
+  int get hashCode => Object.hash(start, end, name);
+
+  @override
+  String toString() => 'StickerTokenRange($start, $end, $name)';
+}
+
+/// 会被渲染为贴纸的 token 区间（不判断贴纸是否存在）。
+///
+/// [markdown] 为真时按帖子规则排除代码、链接、原始 HTML 与公式里的 token
+/// （与服务端 markdown2html 一致）；私信是纯文本，传 false 只排除被反斜杠转义的。
+List<StickerTokenRange> stickerTokenRanges(
+  String content, {
+  required bool markdown,
+}) {
+  if (!containsStickerToken(content)) return const [];
+  final matches = stickerTokenPattern.allMatches(content).toList();
+  if (matches.isEmpty) return const [];
+  final eligible = markdown ? _markdownEligible(content) : null;
+  final math = markdown
+      ? _stickerMathPattern.allMatches(content).toList()
+      : const <RegExpMatch>[];
+  final ranges = <StickerTokenRange>[];
+  for (int i = 0; i < matches.length; i++) {
+    final match = matches[i];
+    if (eligible != null && !eligible.contains(i)) continue;
+    int slashes = 0;
+    for (int j = match.start - 1; j >= 0 && content[j] == r'\'; j--) {
+      slashes++;
+    }
+    if (slashes.isOdd ||
+        math.any((span) => match.start < span.end && span.start < match.end)) {
+      continue;
+    }
+    ranges.add(StickerTokenRange(match.start, match.end, match.group(1)!));
+  }
+  return ranges;
+}
+
+/// Indices of the token matches that sit in Markdown prose.
+Set<int> _markdownEligible(String content) {
   // Parse a shadow copy with unique literal markers, then rewrite the original
   // offsets. Markdown owns code/link/HTML boundaries; underscores in names
   // cannot become emphasis. Preserve the original source formatting.
@@ -94,34 +170,7 @@ String expandStickerTokens(String content, Map<String, String> urlByName) {
   for (final node in document.parse(shadow)) {
     collect(node);
   }
-  final math = _stickerMathPattern.allMatches(content).toList();
-  final expanded = StringBuffer();
-  int cursor = 0;
-  for (int i = 0; i < matches.length; i++) {
-    final match = matches[i];
-    final url = urlByName[match.group(1)];
-    if (!eligible.contains(i) || url == null || url.isEmpty) continue;
-    int slashes = 0;
-    for (int j = match.start - 1; j >= 0 && content[j] == r'\'; j--) {
-      slashes++;
-    }
-    if (slashes.isOdd ||
-        math.any((span) => match.start < span.end && span.start < match.end)) {
-      continue;
-    }
-    final safeUrl = url.replaceAllMapped(
-      RegExp(r'[()<>\s\\]'),
-      (m) => Uri.encodeComponent(m[0]!),
-    );
-    // Uri.encodeComponent leaves parentheses unescaped.
-    final destination = safeUrl.replaceAll('(', '%28').replaceAll(')', '%29');
-    expanded
-      ..write(content.substring(cursor, match.start))
-      ..write('![sticker:${match.group(1)}]($destination)');
-    cursor = match.end;
-  }
-  if (cursor == 0) return content;
-  return (expanded..write(content.substring(cursor))).toString();
+  return eligible;
 }
 
 // The parser normally merges raw HTML into Text. Keep it opaque so attributes
@@ -202,4 +251,126 @@ String stickerPreviewLabel(String content, {String? stickerLabel}) {
     stickerTokenPattern,
     (Match match) => '[${stickerLabel ?? match.group(1)}]',
   );
+}
+
+const String _stickerTokenPrefix = '[:sticker:';
+const int _stickerNameMax = 64;
+
+bool _isStickerNameChar(String content, int index) =>
+    index < content.length && !RegExp(r'[\s:\[\]]').hasMatch(content[index]);
+
+/// 编辑器里应作为一个原子块删除的区间：完整 token 与未闭合片段（对齐 web
+/// sticker-token.ts 的 stickerAtomSpans，issue #1332）。片段 = `[:sticker:` +
+/// 至多 64 个名字字符且未以 `:]` 收尾；名字后紧跟的单个 `:` 也算片段的一部分。
+List<TextRange> stickerAtomRanges(String content) {
+  final ranges = <TextRange>[];
+  for (
+    int start = content.indexOf(_stickerTokenPrefix);
+    start != -1;
+    start = content.indexOf(_stickerTokenPrefix, start + 1)
+  ) {
+    final nameStart = start + _stickerTokenPrefix.length;
+    int end = nameStart;
+    while (end - nameStart < _stickerNameMax &&
+        _isStickerNameChar(content, end)) {
+      end++;
+    }
+    // Longer than a valid name: neither a token nor a fragment.
+    if (_isStickerNameChar(content, end)) continue;
+    final hasName = end > nameStart;
+    if (hasName && content.startsWith(':]', end)) {
+      ranges.add(TextRange(start: start, end: end + 2));
+      continue;
+    }
+    if (hasName && end < content.length && content[end] == ':') {
+      ranges.add(TextRange(start: start, end: end + 1));
+      continue;
+    }
+    if (hasName || end == content.length) {
+      ranges.add(TextRange(start: start, end: end));
+    }
+  }
+  return ranges;
+}
+
+/// 删除了 `[start, end)` 后应实际删除的区间：与之相交但未被完整覆盖的贴纸
+/// token/片段整体并入（一次退格删掉整个贴纸）；不涉及贴纸时原样返回。
+TextRange expandStickerDeletion(String content, int start, int end) {
+  var from = start;
+  var to = end;
+  for (final atom in stickerAtomRanges(content)) {
+    final overlaps = atom.start < end && start < atom.end;
+    if (!overlaps) continue;
+    if (atom.start < from) from = atom.start;
+    if (atom.end > to) to = atom.end;
+  }
+  return TextRange(start: from, end: to);
+}
+
+/// 光标前正在手动输入的贴纸片段（`[:sticker:` + 至多 64 个名字字符）。
+class StickerQuery {
+  const StickerQuery({required this.length, required this.query});
+
+  /// 片段长度（含 `[:sticker:` 前缀），选中候选时整段替换。
+  final int length;
+  final String query;
+
+  @override
+  bool operator ==(Object other) =>
+      other is StickerQuery && other.length == length && other.query == query;
+
+  @override
+  int get hashCode => Object.hash(length, query);
+}
+
+final RegExp _stickerQueryPattern = RegExp(r'\[:sticker:([^\s:\[\]]{0,64})$');
+
+/// 从光标前文本识别手动输入中的片段；被奇数个反斜杠转义时不算（对齐 web）。
+StickerQuery? extractStickerQuery(String prefix) {
+  final match = _stickerQueryPattern.firstMatch(prefix);
+  if (match == null) return null;
+  int slashes = 0;
+  for (int i = match.start - 1; i >= 0 && prefix[i] == r'\'; i--) {
+    slashes++;
+  }
+  if (slashes.isOdd) return null;
+  return StickerQuery(length: match[0]!.length, query: match.group(1)!);
+}
+
+/// 候选排序（对齐 web rankStickerSuggestions）：精确 > 名字/显示名前缀 > 包含；
+/// 同级保持来源顺序，名字去重时先出现的来源优先；空查询按来源顺序取前 [limit] 个。
+List<T> rankStickerSuggestions<T>(
+  Iterable<T> items,
+  String query, {
+  required String Function(T) name,
+  required String Function(T) label,
+  int limit = 8,
+}) {
+  final q = query.toLowerCase();
+  final seen = <String>{};
+  final scored = <({T item, int score, int index})>[];
+  var index = 0;
+  for (final item in items) {
+    final itemName = name(item);
+    final position = index++;
+    if (!seen.add(itemName)) continue;
+    if (q.isEmpty) {
+      scored.add((item: item, score: 0, index: position));
+      continue;
+    }
+    final n = itemName.toLowerCase();
+    final l = label(item).toLowerCase();
+    final score = n == q
+        ? 4
+        : n.startsWith(q) || l.startsWith(q)
+        ? 3
+        : n.contains(q) || l.contains(q)
+        ? 2
+        : 0;
+    if (score > 0) scored.add((item: item, score: score, index: position));
+  }
+  scored.sort(
+    (a, b) => a.score != b.score ? b.score - a.score : a.index - b.index,
+  );
+  return [for (final entry in scored.take(limit)) entry.item];
 }

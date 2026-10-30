@@ -1,3 +1,6 @@
+import 'dart:async';
+import '../../local/writing_store.dart';
+import '../../widgets/email_verification_recovery.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,7 +11,8 @@ import '../../images/image_upload.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
 import '../../widgets/moderation_blocked_dialog.dart';
-import '../../widgets/stickers/sticker_draft_preview.dart';
+import '../../widgets/stickers/sticker_suggestion_bar.dart';
+import '../../widgets/stickers/sticker_text_controller.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
 import 'mention_panel.dart';
@@ -39,8 +43,9 @@ class PostEditor extends ConsumerStatefulWidget {
   ConsumerState<PostEditor> createState() => _PostEditorState();
 }
 
-class _PostEditorState extends ConsumerState<PostEditor> {
-  late final TextEditingController _text = TextEditingController(
+class _PostEditorState extends ConsumerState<PostEditor>
+    with WidgetsBindingObserver {
+  late final StickerTextEditingController _text = StickerTextEditingController(
     text: widget.content,
   )..selection = TextSelection.collapsed(offset: widget.content.length);
   late final FocusNode _focus = FocusNode(onKeyEvent: _mentionKeyEvent);
@@ -55,12 +60,36 @@ class _PostEditorState extends ConsumerState<PostEditor> {
   bool _uploading = false;
   bool _allowPop = false;
   String? _error;
+  String? _localStatus;
+  late final WritingStore _localStore;
+  late final OfflineCacheEpoch _writingSession;
+  late final int _writingEpoch;
+  late final Future<String?> _owner;
+  Timer? _autosave;
+  int _revision = 0, _savedRevision = -1;
+  late String _lastText = widget.content;
+  bool _restoring = false, _finished = false;
+  bool _restoredCopy = false;
+  bool get _sessionCurrent => _writingSession.isCurrent(_writingEpoch);
+  String get _draftKey => postEditDraftKey(widget.postId);
+  ApiException? _writeFailure;
 
   bool get _stickerOpen => _accessory == GfInputAccessory.panel;
 
   @override
   void initState() {
     super.initState();
+    _localStore = ref.read(writingStoreProvider);
+    _writingSession = ref.read(offlineCacheEpochProvider.notifier);
+    _writingEpoch = ref.read(offlineCacheEpochProvider);
+    _owner = ref
+        .read(writingScopeProvider.future)
+        .then<String?>(
+          (scope) => scope.endsWith(':0') ? null : scope,
+          onError: (Object _) => null,
+        );
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_restoreLocal());
     _text.addListener(_valueChanged);
     _focus.addListener(_focusChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -70,6 +99,9 @@ class _PostEditorState extends ConsumerState<PostEditor> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _autosave?.cancel();
+    unawaited(_saveLocal(notify: false));
     _mentions.dispose();
     _focus.dispose();
     _panelFocus.dispose();
@@ -78,6 +110,13 @@ class _PostEditorState extends ConsumerState<PostEditor> {
   }
 
   void _valueChanged() {
+    if (!_restoring && _text.text != _lastText) {
+      _lastText = _text.text;
+      _revision++;
+      _restoredCopy = false;
+      _autosave?.cancel();
+      _autosave = Timer(const Duration(milliseconds: 700), _saveLocal);
+    }
     final TextEditingValue value = _text.value;
     // Typing while the panel is open moves the next sticker's position too.
     if (_stickerOpen && value.selection.isValid) {
@@ -89,6 +128,122 @@ class _PostEditorState extends ConsumerState<PostEditor> {
       return;
     }
     _mentions.handleValue(value.text.substring(0, base));
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) unawaited(_saveLocal());
+  }
+
+  Future<void> _restoreLocal() async {
+    try {
+      final owner = await _owner;
+      if (owner == null || !_sessionCurrent) return;
+      final drafts = await _localStore.drafts(owner);
+      if (!mounted || !_sessionCurrent || _revision != 0) return;
+      final draft = drafts
+          .where(
+            (d) =>
+                d.kind == DraftKind.postEdit &&
+                d.postId == widget.postId &&
+                d.key == _draftKey,
+          )
+          .firstOrNull;
+      if (draft == null) return;
+      _restoring = true;
+      _text.text = draft.content;
+      _lastText = draft.content;
+      _restoring = false;
+      _revision = _savedRevision = 1;
+      _restoredCopy = true;
+      setState(
+        () => _localStatus = AppLocalizations.of(context).draftLocalRestored,
+      );
+    } catch (_) {
+      // Recovery storage must not prevent opening the server's editable text.
+    }
+  }
+
+  Future<bool> _saveLocal({bool notify = true}) async {
+    _autosave?.cancel();
+    if (_finished || _revision == 0) return true;
+    if (!_sessionCurrent) return false;
+    if (_revision == _savedRevision) return true;
+    final revision = _revision;
+    // Capture before identity or disk awaits. A later account cannot adopt this.
+    final draft = LocalDraft(
+      key: _draftKey,
+      kind: DraftKind.postEdit,
+      postId: widget.postId,
+      postOriginalContent: widget.content,
+      title: '',
+      content: _text.text,
+      contentType: 2,
+      topicId: 0,
+      categories: const [],
+      images: const [],
+      updatedAt: DateTime.now().millisecondsSinceEpoch,
+    );
+    try {
+      final owner = await _owner;
+      if (owner == null) {
+        if (_normalized(draft.content) != _normalized(widget.content)) {
+          throw StateError('Draft requires an account');
+        }
+        return true;
+      }
+      if (_normalized(draft.content) == _normalized(widget.content)) {
+        await _localStore.delete(
+          owner,
+          _draftKey,
+          isCurrent: () => _sessionCurrent && !_finished,
+        );
+      } else {
+        await _localStore.save(
+          owner,
+          draft,
+          isCurrent: () => _sessionCurrent && !_finished,
+        );
+      }
+      if (!_sessionCurrent || _finished) return false;
+      _savedRevision = revision;
+      if (mounted && notify && revision == _revision) {
+        setState(
+          () => _localStatus = AppLocalizations.of(context).draftLocalSaved,
+        );
+      }
+      return true;
+    } catch (_) {
+      if (mounted && notify && _sessionCurrent && !_finished) {
+        setState(
+          () => _error = AppLocalizations.of(context).draftLocalSaveFailed,
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<bool> _deleteRecovery() async {
+    _autosave?.cancel();
+    try {
+      final owner = await _owner;
+      if (!_sessionCurrent) return false;
+      if (owner != null) {
+        await _localStore.delete(
+          owner,
+          _draftKey,
+          isCurrent: () => _sessionCurrent,
+        );
+      }
+      return true;
+    } catch (_) {
+      if (mounted && _sessionCurrent) {
+        setState(
+          () => _error = AppLocalizations.of(context).draftLocalSaveFailed,
+        );
+      }
+      return false;
+    }
   }
 
   void _focusChanged() {
@@ -172,13 +327,23 @@ class _PostEditorState extends ConsumerState<PostEditor> {
       );
       if (!mounted || discard != true) return;
     }
+    // Refuse a destructive discard if its tombstone cannot be persisted.
+    if (_revision > 0 && !await _deleteRecovery()) return;
+    if (!mounted || !_sessionCurrent) return;
+    _finished = true;
     _pop(false);
   }
 
   void _pop(bool saved) {
+    final route = ModalRoute.of(context);
+    final navigator = Navigator.of(context);
     setState(() => _allowPop = true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) Navigator.pop(context, saved);
+      // A 401 may replace the stack in the same frame. Never pop its new login
+      // page while this old editor remains mounted during route teardown.
+      if (mounted && route?.isActive == true && route?.isCurrent == true) {
+        navigator.pop(saved);
+      }
     });
   }
 
@@ -188,12 +353,18 @@ class _PostEditorState extends ConsumerState<PostEditor> {
     setState(() {
       _busy = true;
       _error = null;
+      _writeFailure = null;
     });
     try {
+      if (!await _saveLocal() || !mounted || !_sessionCurrent) return;
       final UpdatePostResult updated = await ref
           .read(postRepositoryProvider)
           .updatePost(postId: widget.postId, content: _normalized(_text.text));
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      _finished = true;
+      // A server acknowledgement remains successful even if local cleanup fails.
+      await _deleteRecovery();
+      if (!mounted || !_sessionCurrent) return;
       if (updated.pendingReview) {
         final AppLocalizations l10n = AppLocalizations.of(context);
         showGfToast(
@@ -204,10 +375,10 @@ class _PostEditorState extends ConsumerState<PostEditor> {
       _pop(true);
     } catch (error) {
       if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
-        setState(
-          () =>
-              _error = resolveErrorMessage(AppLocalizations.of(context), error),
-        );
+        setState(() {
+          _error = resolveErrorMessage(AppLocalizations.of(context), error);
+          _writeFailure = error is ApiException ? error : null;
+        });
         // AI 图文审查拦截(issue #975):弹出友好提示,编辑内容保持不变。
         await showModerationBlockedDialog(context, error);
       }
@@ -243,10 +414,10 @@ class _PostEditorState extends ConsumerState<PostEditor> {
       setState(() => _imageUrl = url);
     } catch (error) {
       if (mounted) {
-        setState(
-          () =>
-              _error = resolveErrorMessage(AppLocalizations.of(context), error),
-        );
+        setState(() {
+          _error = resolveErrorMessage(AppLocalizations.of(context), error);
+          _writeFailure = error is ApiException ? error : null;
+        });
       }
     } finally {
       if (mounted) setState(() => _uploading = false);
@@ -269,6 +440,7 @@ class _PostEditorState extends ConsumerState<PostEditor> {
 
   @override
   Widget build(BuildContext context) {
+    _text.library = ref.watch(stickerLibraryProvider);
     final l10n = AppLocalizations.of(context);
     final colors = GfTheme.colorsOf(context);
     final stickers = StickerStrings(context);
@@ -337,9 +509,8 @@ class _PostEditorState extends ConsumerState<PostEditor> {
                               publishing: _busy,
                               uploading: _uploading,
                               canPublish: value.text.trim().isNotEmpty,
-                              preview: StickerDraftPreview(
-                                content: value.text,
-                                markdown: true,
+                              preview: StickerSuggestionBar.text(
+                                controller: _text,
                               ),
                               onPickImage: _image,
                               imageTooltip: l10n.publishToolImage,
@@ -356,17 +527,64 @@ class _PostEditorState extends ConsumerState<PostEditor> {
                               hideKeyboardLabel: l10n.commonHideKeyboard,
                               hidePanelLabel: stickers.hidePanel,
                               onHideAccessory: _hideAccessory,
-                              status: _error == null
+                              toolbar: _error != null || _restoredCopy
+                                  ? Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        Semantics(
+                                          liveRegion: true,
+                                          child: Tooltip(
+                                            message: (_error ?? _localStatus)!,
+                                            child: GfText(
+                                              (_error ?? _localStatus)!,
+                                              maxLines: 3,
+                                              overflow: TextOverflow.ellipsis,
+                                              style:
+                                                  GfTheme.typographyOf(
+                                                    context,
+                                                  ).meta.copyWith(
+                                                    color: _error != null
+                                                        ? colors.error
+                                                        : colors.baseContent
+                                                              .withValues(
+                                                                alpha: .6,
+                                                              ),
+                                                  ),
+                                            ),
+                                          ),
+                                        ),
+                                        if (_error != null &&
+                                            _writeFailure?.messageCode ==
+                                                'permission.emailRequired')
+                                          EmailVerificationRecovery(
+                                            compact: true,
+                                            error: _writeFailure,
+                                            preserveDraft: _saveLocal,
+                                          ),
+                                      ],
+                                    )
+                                  : null,
+                              status:
+                                  _error != null ||
+                                      _restoredCopy ||
+                                      _localStatus == null
                                   ? null
                                   : Tooltip(
-                                      message: _error!,
+                                      message: (_error ?? _localStatus)!,
                                       child: GfText(
-                                        _error!,
+                                        (_error ?? _localStatus)!,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: GfTheme.typographyOf(
-                                          context,
-                                        ).meta.copyWith(color: colors.error),
+                                        style: GfTheme.typographyOf(context)
+                                            .meta
+                                            .copyWith(
+                                              color: _error != null
+                                                  ? colors.error
+                                                  : colors.baseContent
+                                                        .withValues(alpha: .6),
+                                            ),
                                       ),
                                     ),
                             ),
@@ -381,6 +599,7 @@ class _PostEditorState extends ConsumerState<PostEditor> {
                 accessory: _accessory,
                 panelFocusNode: _panelFocus,
                 availableHeight: box.maxHeight,
+                minPanelHeight: StickerPicker.comfortableHeight,
                 panelBuilder: (_) => StickerPicker(onInsert: _insertSticker),
               ),
             ],

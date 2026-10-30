@@ -232,6 +232,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authUsernameOrEmail => 'Username or email';
 
   @override
+  String get authRegistrationUsernameRules =>
+      '6–32 characters: English letters, digits, underscores (_) and hyphens (-).';
+
+  @override
+  String get authRegistrationPasswordRules =>
+      '6–64 characters, including an English letter (A–Z/a–z) and a digit (0–9). Other characters are allowed.';
+
+  @override
   String get authUsername => 'Username';
 
   @override
@@ -294,7 +302,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authRegisterEmailVerify =>
-      'Registration successful. A verification email was sent; check your inbox. No email? Sign in and resend it under Account security.';
+      'Account created. Check your inbox to verify your email. If no email arrives, resend it or change the address under Account security.';
 
   @override
   String get authActivationRequired =>
@@ -304,7 +312,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authResendActivationEmail => 'Resend verification email';
 
   @override
-  String get authRegisterSuccess => 'Registered successfully, please sign in';
+  String get authRegisterSuccess => 'Account created.';
 
   @override
   String get authResetEmailSent => 'Reset email sent, please check your inbox';
@@ -1107,6 +1115,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scheduleTitle => 'Course planner';
 
   @override
+  String get scheduleFilters => 'Filters';
+
+  @override
+  String get scheduleCandidates => 'Candidates';
+
+  @override
   String get scheduleTabTimetable => 'Plan preview';
 
   @override
@@ -1231,7 +1245,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scheduleOptional => 'Elective';
 
   @override
-  String get scheduleSearchHint => 'Search name/code/teacher';
+  String get scheduleSearchHint => 'Search course name';
 
   @override
   String get scheduleStaged => 'Staged';
@@ -4583,4 +4597,208 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get coursePlannerCalendarsFailed =>
       'Failed to load the term list. Check your network and try again.';
+
+  @override
+  String get authCheckEmailVerification => 'Check email verification';
+
+  @override
+  String get authWriteRecoveryHint =>
+      'Your input stays here. Return after verification and continue manually.';
+
+  @override
+  String get activationStatusRefresh => 'Refresh status';
+
+  @override
+  String scheduleSearchNoMatch(String query) {
+    return 'No course names match “$query”';
+  }
+
+  @override
+  String get scheduleNoOptional => 'No optional courses returned for this term';
+
+  @override
+  String get scheduleMajorSearchHint => 'Search major name or code';
+
+  @override
+  String get chatMessagePolicyLabel => 'Who can start a conversation';
+
+  @override
+  String get activationStatusMailUnavailable =>
+      'Mail is unavailable. Refresh later.';
+
+  @override
+  String get activationStatusMissingEmail =>
+      'Add an email address in account settings first';
+
+  @override
+  String get chatMessagePolicyTitle => 'Private messages';
+
+  @override
+  String get campusTimetableNotConnected => 'Tongji identity not connected';
+
+  @override
+  String scheduleSearchScope(String term) {
+    return 'Search course names in $term';
+  }
+
+  @override
+  String get scheduleConfigureScope => 'Configure course scope';
+
+  @override
+  String get chatMessagePolicySaved =>
+      'Message permissions saved to your account';
+
+  @override
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return 'Changing the major clears $planCount plans containing $courseCount courses and $eventCount custom events. Cancel to keep your current configuration and plans.';
+  }
+
+  @override
+  String get activationStatusDailyLimit =>
+      'Daily limit reached. Try again tomorrow.';
+
+  @override
+  String get activationStatusDisabled =>
+      'Email verification is currently disabled';
+
+  @override
+  String get authVerificationPendingHint =>
+      'Use the link in your inbox, then refresh this page. If no email arrives, resend it or change the address. Some actions remain unavailable until verification.';
+
+  @override
+  String get scheduleChangeMajorUpdated =>
+      'Plan content changed. Please select the major again.';
+
+  @override
+  String activationStatusCooldown(int seconds) {
+    return 'Resend in $seconds seconds';
+  }
+
+  @override
+  String get authVerificationPending => 'Email verification pending';
+
+  @override
+  String get activationStatusFrozen => 'This account cannot resend email';
+
+  @override
+  String get authRegistrationUnavailable =>
+      'Registration is unavailable. Please try again later.';
+
+  @override
+  String get imageViewerThumbnails => 'Image thumbnails';
+
+  @override
+  String activationStatusTarget(String email) {
+    return 'Send to: $email';
+  }
+
+  @override
+  String activationStatusRemaining(int count, int limit) {
+    return 'Resends left today: $count / $limit';
+  }
+
+  @override
+  String get chatMessagePolicyNobody => 'No new conversations';
+
+  @override
+  String scheduleCourseScope(String scope) {
+    return 'Current scope: $scope';
+  }
+
+  @override
+  String get activationStatusVerified => 'Email verified. No resend needed.';
+
+  @override
+  String get authCheckSignupAvailability => 'Check registration again';
+
+  @override
+  String scheduleSetupMissing(String fields) {
+    return 'Select $fields before finding courses or classes.';
+  }
+
+  @override
+  String get imageViewerOriginalSize => 'Original size';
+
+  @override
+  String get imageViewerFitPreview => 'Fit preview';
+
+  @override
+  String get scheduleChangeMajorConfirm => 'Change and clear';
+
+  @override
+  String get campusTimetableConnectBody =>
+      'Connect your Tongji identity to see your personal school timetable here. You can use the course catalog and schedule planner without connecting.';
+
+  @override
+  String get chatMessagePolicyHint =>
+      'Conversations with actual messages can continue; empty conversations do not count. Blocks take precedence, including for bots.';
+
+  @override
+  String get scheduleSearchReady => 'Enter a course name to start';
+
+  @override
+  String get scheduleNoCompulsory =>
+      'No compulsory courses returned for this scope';
+
+  @override
+  String get scheduleMajorNoMatch => 'No matching majors';
+
+  @override
+  String get scheduleChangeMajorTitle => 'Change major and clear plans?';
+
+  @override
+  String get scheduleEmptyCourseHint =>
+      'Adjust the course scope or search by course name.';
+
+  @override
+  String get scheduleSetupTitle => 'Set your course scope first';
+
+  @override
+  String get scheduleConfigChangeTitle => 'Change setup?';
+
+  @override
+  String scheduleConfigChangeBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return 'This clears courses and custom blocks from every plan. $planCount plans contain $courseCount courses and $eventCount blocks. Plan names are kept.';
+  }
+
+  @override
+  String scheduleConfigChangePlan(
+    String name,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '$name: $courseCount courses, $eventCount blocks';
+  }
+
+  @override
+  String get scheduleConfigChangeSync =>
+      'If these plans are already synced, the cleared contents also sync to other devices.';
+
+  @override
+  String get scheduleConfigChangeConfirm => 'Clear plans and switch';
+
+  @override
+  String get scheduleConfigChangeUpdated =>
+      'Plans changed. Choose again and review the current impact.';
+
+  @override
+  String get unreadStyleTitle => 'Unread indicators';
+
+  @override
+  String get unreadStyleNumbers => 'Show unread counts';
+
+  @override
+  String get unreadStyleHint =>
+      'Turn off to show dots. This setting syncs between Web and App for this account without marking anything read or changing push delivery.';
+
+  @override
+  String get unreadStyleSaving => 'Saving indicator style…';
 }

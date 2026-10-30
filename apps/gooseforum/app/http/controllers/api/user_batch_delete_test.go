@@ -37,7 +37,7 @@ func setupBatchDeleteTestDB(t *testing.T) *gorm.DB {
 		&contentDeleteEvent.Entity{},
 		&pushSubscription.Entity{},
 		&pk.ScheduleSnapshotEntity{}, &pk.PlanSyncOwner{}, &pk.PlanItem{},
-		&campus.Binding{}, &sticker.LibraryOwner{}, &sticker.LibraryEntry{},
+		&campus.Binding{}, &sticker.LibraryOwner{}, &sticker.LibraryEntry{}, &sticker.PackSubscription{},
 	); err != nil {
 		t.Fatalf("migrate batch delete tables: %v", err)
 	}

@@ -59,8 +59,10 @@ const (
 	MessageAuthCaptchaInvalid            MessageCode = "auth.captcha.invalid"            // 验证码错误或已过期。
 	MessageAuthRegisterFailed            MessageCode = "auth.register.failed"            // 注册失败。
 	MessageAuthRegisterRetryLogin        MessageCode = "auth.register.retryLogin"        // 注册成功但自动登录失败，建议手动登录。
+	MessageAuthRegisterEmailRetry        MessageCode = "auth.register.emailRetry"        // 已建号并发会话，但验证邮件暂不可用。
 	MessageAuthRegisterEmailVerify       MessageCode = "auth.register.emailVerify"       // 注册成功，需要邮箱验证。
 	MessageAuthTongjiAccountExists       MessageCode = "auth.tongji.accountExists"       // 同济身份或其学号邮箱已归属已有账号，需登录/找回后在校园页绑定。
+	MessageAuthTongjiRetryLogin          MessageCode = "auth.tongji.retryLogin"
 	MessageAuthLoginSuccess              MessageCode = "auth.login.success"              // 登录成功。
 	MessageAuthLoginInvalidRequest       MessageCode = "auth.login.invalidRequest"       // 登录请求无效，通常需要刷新页面重试。
 	MessageAuthPasswordInvalidFormat     MessageCode = "auth.password.invalidFormat"     // 登录密码格式不正确。
@@ -238,6 +240,7 @@ const (
 	MessageOidcStartFailed             MessageCode = "oidc.start.failed"             // OIDC 登录发起失败。
 	MessageOidcCallbackFailed          MessageCode = "oidc.callback.failed"          // OIDC 登录回调失败。
 	MessageChatSendFailed              MessageCode = "chat.send.failed"              // 私信发送失败；不公开底层存储错误。
+	MessageChatPermissionDenied        MessageCode = "chat.permission.denied"        // 私信准入或屏蔽拒绝；不区分原因。
 	MessageChatGetMessagesFailed       MessageCode = "chat.messages.failed"          // 获取私信列表失败。
 	MessageChatMarkReadFailed          MessageCode = "chat.markRead.failed"          // 标记私信已读失败。
 	MessageSessionListFailed           MessageCode = "session.list.failed"           // 获取登录会话列表失败。
@@ -363,6 +366,15 @@ const (
 	MessageAdminStickerDeleteFailed     MessageCode = "admin.sticker.deleteFailed"     // 删除表情包失败。
 	MessageAdminStickerImportTooLarge   MessageCode = "admin.sticker.importTooLarge"   // 表情包压缩包超过大小限制，params.maxSizeMb。
 	MessageAdminStickerImportInvalidZip MessageCode = "admin.sticker.importInvalidZip" // 表情包导入仅支持 zip 压缩包。
+
+	// 改名保留曾用名（issue #1428）与贴纸市场（issue #1429）
+	MessageAdminStickerNameReserved      MessageCode = "admin.sticker.nameReserved"       // 名称是另一个表情包的曾用名，旧内容仍引用它。
+	MessageStickerMarketPackUnavailable  MessageCode = "sticker.market.packUnavailable"   // Market pack hidden, unknown or empty.
+	MessageStickerMarketPackLimit        MessageCode = "sticker.market.packLimit"         // Subscribed packs reached params.limit.
+	MessageAdminStickerMarketBusy        MessageCode = "admin.sticker.market.busy"        // 目录正在同步，或该表情包正在导入。
+	MessageAdminStickerMarketDisabled    MessageCode = "admin.sticker.market.disabled"    // 站点配置关闭了表情市场。
+	MessageAdminStickerMarketUnavailable MessageCode = "admin.sticker.market.unavailable" // 上游目录不可用，保留上次同步结果。
+	MessageAdminStickerMarketNotReady    MessageCode = "admin.sticker.market.notReady"    // 表情包还没有已导入的图片，不能上架。
 	// 管理员可配置 URL 校验（issue #409）
 	MessageAdminUrlInvalid MessageCode = "admin.url.invalid" // 链接不符合允许的协议/目标策略（http(s)、站内相对路径，部分字段允许 mailto）。
 

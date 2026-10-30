@@ -74,3 +74,26 @@ test.each(['zh', 'en', 'ja', 'de'] as const)('shows specific username failures a
   wrapper.unmount()
  } finally { await setLocale('zh') }
 })
+
+test('created account stops registration and offers a fresh school login', async () => {
+ const wrapper = render(); await fill(wrapper)
+ const failure = new ApiResponseError('Account created. Sign in again through Tongji.', 'auth.tongji.retryLogin')
+ Object.assign(failure, { params: { restartUrl: '/api/auth/tongji?redirect=%2Fcampus' } })
+ vi.mocked(completeTongjiRegistration).mockRejectedValueOnce(failure)
+ await wrapper.find('form').trigger('submit'); await flushPromises()
+ expect(wrapper.find('form').exists()).toBe(false)
+ expect(wrapper.find('a').attributes('href')).toBe('/api/auth/tongji?redirect=%2Fcampus')
+ expect(wrapper.find('[role=alert]').text()).toContain('Account created')
+ expect(completeTongjiRegistration).toHaveBeenCalledTimes(1)
+ wrapper.unmount()
+})
+
+test.each(['https://evil.test', '//evil.test', '/other', '/api/auth/tongji\\evil'])('school recovery rejects an unexpected restart target %s', async (restartUrl) => {
+ const wrapper = render(); await fill(wrapper)
+ const failure = new ApiResponseError('Account created', 'auth.tongji.retryLogin')
+ Object.assign(failure, { params: { restartUrl } })
+ vi.mocked(completeTongjiRegistration).mockRejectedValueOnce(failure)
+ await wrapper.find('form').trigger('submit'); await flushPromises()
+ expect(wrapper.find('a').attributes('href')).toBe('/api/auth/tongji')
+ wrapper.unmount()
+})

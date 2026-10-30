@@ -33,6 +33,10 @@ YourTJ 移动端设计系统(Flutter):设计 token、`ThemeData` 与 Gf* 组件�
 高光与仅在轮廓外绘制的阴影；调用方提供有界尺寸和圆角。高对比度、减少动态效果和
 无障碍导航模式统一回退到不透明表面；组件不持有导航状态或手势。
 
+`Current`: `GfBottomNavigationItem.badgeCount` 可选；提供正数时显示封顶 `99+` 的计数，
+缺省沿用圆点。`GfCountBadge.showCount` 与 `GfConversationRow.showUnreadCount` 控制数字／圆点，
+业务层提供账号偏好；圆点不在辅助功能标签中泄露数量。`GfSwitchRow.enabled` 同时禁用行点击和原生开关。
+
 ## Token 与主题规则
 
 - 主题数据来自 `lib/src/theme/tokens.json`(light/dark 双主题);`GfThemeData` 生成 `ThemeData`,`GfTheme.colorsOf(context)` 提供语义色。

@@ -45,6 +45,13 @@ newer revision survives. Local write failures remain visible and retain the in-m
 Switching accounts hides another account's drafts without adopting them. Explicit account erasure
 removes its local work according to the account lifecycle. Ordinary cache clearing never deletes it.
 
+`Current`: a scheduler configuration change writes the new term/grade/major and all cleared
+plan bodies in one `schedule` domain transaction. State publication follows the durable commit;
+a failed write retains the previous selection and plan contents. Equal selection codes are a
+no-op. During this short commit, the store rejects other plan mutations and the sync controller
+invalidates its request generation, then resumes existing dirty-plan synchronization afterward.
+Plan IDs, names, creation times and existing merge ancestors survive the clear.
+
 `Current`: ordinary drafts, bounded search history, local schedule snapshots and campus timetable
 memos (domain `campus-timetable`: course notes, user-drawn blocks and display preferences) use
 `user_work.sqlite`, with API origin and numeric account scope. Preference migration commits and
@@ -52,6 +59,13 @@ verifies the new record before legacy cleanup. Tombstones remain authoritative i
 Unassigned legacy plans remain recoverable through explicit ownership confirmation; a numeric account
 ID alone cannot identify their original site. `clearAll` is a separate, generation-fenced reset API;
 cache cleanup never calls it.
+
+`Current`: reply-edit recovery copies keep the numeric post ID and original editing baseline in
+`user_work.sqlite` under domain `post-edit`, separately from topic/new-reply `draft` records. This
+prevents older clients, whose unknown-kind fallback is topic editing, from interpreting a reply edit
+as a topic write. The drafts list and local-work usage count both domains; account erasure removes
+both. Every write checkpoint and cleanup uses the captured owner and session epoch. A session
+boundary cancels pending old-session saves instead of rebinding their text to the next account.
 
 `Current`: private-message draft records use the existing secure-storage plugin. iOS uses a distinct
 Keychain service with `AfterFirstUnlockThisDeviceOnly` and synchronization disabled; Android retains
@@ -81,6 +95,15 @@ and foreground restoration reconcile counts and fetch cursor deltas once. Retrie
 backgrounding closes the foreground connection. An unavailable stream has visible degraded state
 and bounded fallback behavior. Credentials must not be placed in query strings or event payloads.
 Revoked sessions lose access to the stream, including already-open connections.
+
+`Current`: `users.unread_badge_style` stores the account's `number` (default) or `dot` display preference,
+independently of push delivery. The owner-only notification-preferences API validates the complete body;
+updates invalidate the unread projection and publish the existing private notification/unread hints.
+Unread status carries optional exact notification/message totals plus this style; message totals include
+muted conversations because muting controls delivery. Missing totals retain a dot rather than invent a
+count. The App provider binds requests to the active session/cache epoch and fences older reads after a
+save; Web uses owner-scoped cache keys and equivalent request generations. A failed save restores the
+previous display choice. See [0118](../decisions/0118-account-unread-display.md).
 
 `Planned`: read acknowledgement accepts a bounded set of incoming message IDs actually visible in
 the foreground conversation. It is idempotent, validates membership and message ownership, and
