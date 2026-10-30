@@ -1211,7 +1211,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get scheduleOptional => '选修';
 
   @override
-  String get scheduleSearchHint => '搜索课名/课号/教师';
+  String get scheduleSearchHint => '搜索课程名称';
 
   @override
   String get scheduleStaged => '备选';
@@ -4352,4 +4352,118 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get coursePlannerCalendarsFailed => '学期列表加载失败，请检查网络后重试。';
+
+  @override
+  String activationStatusTarget(String email) {
+    return '收件目标：$email';
+  }
+
+  @override
+  String activationStatusRemaining(int count, int limit) {
+    return '今天还可重发 $count / $limit 次';
+  }
+
+  @override
+  String get activationStatusRefresh => '刷新状态';
+
+  @override
+  String activationStatusCooldown(int seconds) {
+    return '请在 $seconds 秒后重发';
+  }
+
+  @override
+  String get activationStatusDailyLimit => '今日额度已用完，请明天再试';
+
+  @override
+  String get activationStatusDisabled => '本站暂未要求邮箱验证';
+
+  @override
+  String get activationStatusVerified => '邮箱已验证，无需重发';
+
+  @override
+  String get activationStatusFrozen => '账号受限，暂不能重发';
+
+  @override
+  String get activationStatusMailUnavailable => '邮件服务暂不可用，请稍后刷新';
+
+  @override
+  String get activationStatusMissingEmail => '请先在账号设置中添加邮箱';
+
+  @override
+  String scheduleSearchNoMatch(String query) {
+    return '没有找到名称匹配“$query”的课程';
+  }
+
+  @override
+  String scheduleCourseScope(String scope) {
+    return '当前范围：$scope';
+  }
+
+  @override
+  String get imageViewerFitPreview => '适配预览';
+
+  @override
+  String scheduleSearchScope(String term) {
+    return '按课程名称搜索：$term';
+  }
+
+  @override
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '更改专业将清空 $planCount 个方案中的 $courseCount 门课程和 $eventCount 个自定义安排。取消会保留原配置与方案。';
+  }
+
+  @override
+  String scheduleSetupMissing(String fields) {
+    return '请选择：$fields，再查找课程或教学班。';
+  }
+
+  @override
+  String get campusTimetableNotConnected => '尚未连接同济身份';
+
+  @override
+  String get scheduleEmptyCourseHint => '可以调整排课范围，或按课程名称搜索。';
+
+  @override
+  String get scheduleNoCompulsory => '当前范围未返回必修课程';
+
+  @override
+  String get scheduleMajorNoMatch => '没有匹配的专业';
+
+  @override
+  String get campusTimetableConnectBody =>
+      '连接同济身份后，这里会显示学校提供的个人课表。暂不连接也可以使用课程目录和模拟排课。';
+
+  @override
+  String get scheduleChangeMajorConfirm => '更改并清空';
+
+  @override
+  String get scheduleChangeMajorTitle => '更改专业并清空方案？';
+
+  @override
+  String get scheduleMajorSearchHint => '搜索专业名称或代码';
+
+  @override
+  String get scheduleChangeMajorUpdated => '方案内容已变化，请重新选择专业。';
+
+  @override
+  String get imageViewerThumbnails => '图片缩略图';
+
+  @override
+  String get scheduleConfigureScope => '配置排课范围';
+
+  @override
+  String get scheduleNoOptional => '当前学期未返回选修课程';
+
+  @override
+  String get scheduleSetupTitle => '先设置排课范围';
+
+  @override
+  String get scheduleSearchReady => '输入课程名称开始查找';
+
+  @override
+  String get imageViewerOriginalSize => '原始尺寸';
 }

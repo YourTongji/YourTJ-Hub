@@ -10,6 +10,9 @@ final accountReturnLinksProvider = StreamProvider<Uri>(
       .map((_) => Uri.parse('yourtj://account/email-verified')),
 );
 
+// A hint invalidates the owner view; it never carries verification authority.
+final accountReturnRefreshProvider = StateProvider<int>((ref) => 0);
+
 bool isAccountReturnLink(Uri uri) =>
     uri.toString() == 'yourtj://account/email-verified';
 
@@ -33,11 +36,15 @@ class _AccountReturnHostState extends ConsumerState<AccountReturnHost> {
     super.initState();
     ref.listenManual(accountReturnLinksProvider, (_, next) {
       final uri = next.valueOrNull;
-      if (uri == null || !isAccountReturnLink(uri) || _opening) return;
-      _opening = true;
+      if (uri == null || !isAccountReturnLink(uri)) return;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        ref.read(accountReturnRefreshProvider.notifier).state++;
+        // Deduplicate navigation only. A new hint still refreshes an open page.
+        if (_opening) return;
+        _opening = true;
         try {
-          if (mounted) await widget.router.push('/settings/account');
+          await widget.router.push('/settings/account');
         } finally {
           _opening = false;
         }

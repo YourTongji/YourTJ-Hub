@@ -917,12 +917,7 @@ class _CourseRow extends StatelessWidget {
     final GfTypography type = GfTheme.typographyOf(context);
 
     final List<String> terms = sortedRecentTerms(course.recentTerms);
-    final String teacher =
-        (course.teacherName != null && course.teacherName!.isNotEmpty)
-        ? course.teacherName!
-        : (course.instructors?.isNotEmpty ?? false)
-        ? course.instructors!.join('、')
-        : copy.noTeacher;
+    final String teacher = courseTeacherLabel(course, copy);
     final String credit = formatCreditText(course.creditX10);
     final int reviewCount = course.reviewCount ?? 0;
     final double? ratingAvg = course.ratingAvg;

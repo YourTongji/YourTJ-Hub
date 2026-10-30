@@ -1,4 +1,5 @@
 import '../../navigation/reading_window.dart';
+import '../../navigation/account_return.dart';
 import 'decoration_page.dart';
 import '../../user_blocks.dart';
 import 'dart:async';
@@ -96,6 +97,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   int _sessionRequest = 0;
   int _userRequest = 0;
   int _sessionsRequest = 0;
+  int _activationRevision = 0;
   AsyncValue<List<UserSessionPayload>> _sessions = const AsyncValue.loading();
   AsyncValue<SettingsUserPayload> _user = const AsyncValue.loading();
   bool _accountClosing = false;
@@ -593,6 +595,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
     if (saved != true || !mounted || !isCurrent()) return;
     showGfToast(context, l10n.settingsEmailChangeStaged);
+    // Recreate the owner status reader immediately: loading /settings alone does
+    // not invalidate its verified/pending snapshot or cancel an old status read.
+    setState(() => _activationRevision++);
     // The API also supports an immediate switch when verification is off.
     await _loadUser(silent: true);
   }
@@ -847,6 +852,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _autoEditSession = _ProfileEditSession();
       });
       unawaited(_loadSession());
+    });
+    ref.listen(accountReturnRefreshProvider, (previous, next) {
+      if (previous == next || _signedIn != true || _tab != _SettingsTab.account) {
+        return;
+      }
+      setState(() => _activationRevision++);
+      unawaited(_refresh());
     });
     final l10n = AppLocalizations.of(context);
     if (_autoEditBadges && _signedIn != false) {
@@ -1363,7 +1375,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             onTap: _manageOAuth,
           ),
         ),
-        const ActivationEmailAction(),
+        ActivationEmailAction(key: ValueKey(_activationRevision)),
         const SizedBox(height: 12),
         _settingsSection(
           context,
