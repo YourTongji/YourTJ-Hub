@@ -1421,6 +1421,8 @@ export default {
     contentGone: '内容已永久删除',
   },
   auth: {
+    registrationUsernameRules: "6–32 个字符，仅限英文字母、数字、下划线（_）和连字符（-）。",
+    registrationPasswordRules: "6–64 个字符，须包含英文字母（A–Z／a–z）和数字（0–9），可混合其他字符。",
     writeRecovery: {
       email: "检查邮箱验证",
       login: "使用同一账号重新登录",

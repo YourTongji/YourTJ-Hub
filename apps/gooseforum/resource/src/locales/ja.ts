@@ -1420,6 +1420,8 @@ export default {
     contentGone: 'コンテンツは完全に削除されました',
   },
   auth: {
+    registrationUsernameRules: "6–32 文字。半角英字・数字・アンダースコア（_）・ハイフン（-）が使えます。",
+    registrationPasswordRules: "6–64 文字。半角英字（A–Z／a–z）と数字（0–9）を含めてください。他の文字も使えます。",
     writeRecovery: {
       email: "メール確認の状態を確認",
       login: "同じアカウントで再度ログイン",

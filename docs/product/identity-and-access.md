@@ -335,6 +335,13 @@ social counts and badges, and moderator access rules beyond today's public profi
   the challenge is loading or missing. Refresh buttons and fields have explicit
   accessible names, and load errors describe the fields without marking a still
   usable answer invalid.
+- `Current`: password registration shows username and password rules before input on Web and App,
+  associated with their fields. Usernames allow 6–32 ASCII letters/digits/underscores/hyphens;
+  passwords allow 6–64 Unicode characters and require an ASCII letter and digit. Hints do not expose
+  account availability or replace server validation. Login and recovery do not show registration rules.
+  The mobile-width Web brand header places decorative figures below its copy when available
+  width is too small relative to text size, preserving readable words at 200% text. The registration
+  email prefix and its fixed/selected domain also stack when necessary so the prefix retains editable space.
 - Username/nickname policy: `reservedUsernames` / `bannedUsernames` are enforced at
   password registration/rename and at Agent account creation with **normalized whole-string
   equality** (case folding, NFKC full-width, zero-width stripping, ASCII leetspeak folding):

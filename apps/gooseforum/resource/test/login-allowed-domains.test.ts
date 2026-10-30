@@ -96,6 +96,16 @@ describe('LoginPage allowedDomains null 容错（issue #643）', () => {
     expect(wrapper.text()).toContain('@tongji.edu.cn')
     wrapper.unmount()
   })
+  test('registration rules are visible and associated before typing', () => {
+    const wrapper=mount(LoginPage,{props:{layout,props:buildProps([])},global:{plugins:[i18n]}})
+    expect(wrapper.get('input[autocomplete="username"]').attributes('aria-describedby')).toBe('register-username-rules')
+    expect(wrapper.get('#register-username-rules').text()).toContain('6–32')
+    expect(wrapper.get('input[autocomplete="new-password"]').attributes('aria-describedby')).toBe('register-password-rules')
+    expect(wrapper.get('#register-password-rules').text()).toContain('6–64')
+    expect(wrapper.findAll('input').every(input=>!input.element.value)).toBe(true)
+    wrapper.unmount()
+  })
+
 })
 
 

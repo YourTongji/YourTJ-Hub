@@ -492,6 +492,18 @@ abstract class AppLocalizations {
   /// **'Username or email'**
   String get authUsernameOrEmail;
 
+  /// No description provided for @authRegistrationUsernameRules.
+  ///
+  /// In en, this message translates to:
+  /// **'6–32 characters: English letters, digits, underscores (_) and hyphens (-).'**
+  String get authRegistrationUsernameRules;
+
+  /// No description provided for @authRegistrationPasswordRules.
+  ///
+  /// In en, this message translates to:
+  /// **'6–64 characters, including an English letter (A–Z/a–z) and a digit (0–9). Other characters are allowed.'**
+  String get authRegistrationPasswordRules;
+
   /// No description provided for @authUsername.
   ///
   /// In en, this message translates to:

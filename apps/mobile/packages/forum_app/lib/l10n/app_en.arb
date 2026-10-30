@@ -125,6 +125,8 @@
   "authRegisterSubtitle": "Create an account and join the campus conversation.",
   "authForgotSubtitle": "Enter your email and we will send a reset link.",
   "authUsernameOrEmail": "Username or email",
+  "authRegistrationUsernameRules": "6–32 characters: English letters, digits, underscores (_) and hyphens (-).",
+  "authRegistrationPasswordRules": "6–64 characters, including an English letter (A–Z/a–z) and a digit (0–9). Other characters are allowed.",
   "authUsername": "Username",
   "authEmail": "Email",
   "authPassword": "Password",

@@ -234,6 +234,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get authUsernameOrEmail => 'Benutzername oder E-Mail';
 
   @override
+  String get authRegistrationUsernameRules =>
+      '6–32 Zeichen: englische Buchstaben, Ziffern, Unterstriche (_) und Bindestriche (-).';
+
+  @override
+  String get authRegistrationPasswordRules =>
+      '6–64 Zeichen mit mindestens einem englischen Buchstaben (A–Z/a–z) und einer Ziffer (0–9). Weitere Zeichen sind erlaubt.';
+
+  @override
   String get authUsername => 'Benutzername';
 
   @override

@@ -220,6 +220,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authUsernameOrEmail => '用户名或邮箱';
 
   @override
+  String get authRegistrationUsernameRules =>
+      '6–32 个字符，仅限英文字母、数字、下划线（_）和连字符（-）。';
+
+  @override
+  String get authRegistrationPasswordRules =>
+      '6–64 个字符，须包含英文字母（A–Z／a–z）和数字（0–9），可混合其他字符。';
+
+  @override
   String get authUsername => '用户名';
 
   @override

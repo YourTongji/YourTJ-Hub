@@ -354,7 +354,11 @@ void main() {
         (widget) =>
             widget is GfButton && widget.size == GfButtonSize.extraLarge,
       );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
       await tester.ensureVisible(submit);
+      await tester.pumpAndSettle();
+      expect(submit.hitTestable(), findsOneWidget);
       await tester.tap(submit);
       await tester.pumpAndSettle();
       expect(
