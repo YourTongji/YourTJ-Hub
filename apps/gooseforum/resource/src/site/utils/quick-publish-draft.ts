@@ -8,7 +8,7 @@ const MAX_DRAFT_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 export interface QuickPublishDraftStash {
   agentRepliesDisabled?: boolean
- identity?: 'member' | 'persona'
+  identity?: 'member' | 'persona'
   title: string
   content: string
   categoryIds: number[]
