@@ -963,7 +963,11 @@ retain separate identities and detail links. Identity text wraps with enlarged t
   The Campus bottom destination opens this page directly. Course reviews, the scheduler and Wiki
   have visible shortcuts at the top of its home view, also available to guests, unbound users and
   when school services fail. Pushed tools return to the Campus destination. Today and the guest
-  landing view include public course previews. The five school-content sections are Today, School
+  landing view include public course previews. An unconnected school-timetable tab explains the
+  required Tongji identity and the personal timetable shown after connection. It retains the existing
+  connection confirmation flow, adds direct catalog/planner paths without school binding, and does
+  not fetch personal datasets in the unconnected state.
+  The five school-content sections are Today, School
   timetable, Academic records, School notices and Calendars. A header gear opens Campus settings
   for identity management and offline-data clearing; `/campus/explore` redirects to `/campus`. See [campus semantics](campus.md) for binding, privacy and provider limits.
 - `Current`: while the app stays in the foreground, Campus remembers its selected section,

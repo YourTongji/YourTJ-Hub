@@ -4352,4 +4352,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get coursePlannerCalendarsFailed => '学期列表加载失败，请检查网络后重试。';
+
+  @override
+  String get campusTimetableNotConnected => '尚未连接同济身份';
+
+  @override
+  String get campusTimetableConnectBody =>
+      '连接同济身份后，这里会显示学校提供的个人课表。暂不连接也可以使用课程目录和模拟排课。';
 }

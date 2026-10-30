@@ -8219,6 +8219,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to load the term list. Check your network and try again.'**
   String get coursePlannerCalendarsFailed;
+
+  /// No description provided for @campusTimetableNotConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Tongji identity not connected'**
+  String get campusTimetableNotConnected;
+
+  /// No description provided for @campusTimetableConnectBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect your Tongji identity to see your personal school timetable here. You can use the course catalog and schedule planner without connecting.'**
+  String get campusTimetableConnectBody;
 }
 
 class _AppLocalizationsDelegate
