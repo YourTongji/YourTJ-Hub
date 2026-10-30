@@ -156,6 +156,7 @@ class _ModeSwitchAuth extends AuthController {
     required String password,
     String? captchaId,
     String? captchaCode,
+    String? locale,
   }) async {
     registerCalls++;
     return 'auth.register.emailVerify';
