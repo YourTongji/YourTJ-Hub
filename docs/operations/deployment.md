@@ -16,6 +16,11 @@ and database snapshot/reset procedure. It does not create another server site.
 
 - **Single binary**: `make build` produces `bin/yourtj-hub` (frontend static/dist + GoHTML templates
   go:embed). The binary runs inside a minimal `alpine` container (`deploy/Dockerfile`).
+  `Current`: Linux deploy builds use both `CGO_ENABLED=0` and `-tags nodynamic`, matching Make
+  and GoReleaser. The AVIF decoder uses its WASM implementation; disabling cgo alone does not
+  prevent its optional shared-library loader from introducing a glibc interpreter. Backend CI
+  and the deploy build execute the artifact's `--help` in Alpine as UID 1000, read-only and
+  without networking before accepting it. This checks runtime loading, not database readiness.
 - Runtime deps: **PostgreSQL 16+ is the default deployment database** (`deploy/config.toml.example`
   `[db.default] connection = "postgres"`); SQLite is the local development/test default; the file
   database `[db.file]` stays SQLite; MySQL is **not supported**; optional Meilisearch; optional
