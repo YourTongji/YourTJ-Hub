@@ -192,12 +192,14 @@ type UnreadStatusPayload struct {
 }
 
 type SitePayload struct {
-	Name          string `json:"name"`
-	Description   string `json:"description"`
-	URL           string `json:"url,omitempty"`
-	Logo          string `json:"logo"`
-	Favicon       string `json:"favicon"`
-	ExternalLinks string `json:"externalLinks,omitempty"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	URL         string `json:"url,omitempty"`
+	Logo        string `json:"logo"`
+	Favicon     string `json:"favicon"`
+	// ExternalLinks is server-only: the HTML template consumes it, but clients
+	// never render custom head markup and must not receive a duplicate in JSON.
+	ExternalLinks string `json:"-"`
 	BrandType     string `json:"brandType"`
 	BrandText     string `json:"brandText"`
 	BrandImage    string `json:"brandImage"`
