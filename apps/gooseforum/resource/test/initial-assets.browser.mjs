@@ -28,8 +28,9 @@ test('initial document discovers the real Vite graph without refetching topics',
   const directory=await mkdtemp(resolve(tmpdir(),'yourtj-initial-assets-'))
   let server,browser
   try {
-    execFileSync('go',['test','./app/http/controllers/forum/','-run','^TestResourceEntryBrowserFixture$','-count=1'],
+    try { execFileSync('go',['test','./app/http/controllers/forum/','-run','^TestResourceEntryBrowserFixture$','-count=1'],
       {cwd:resolve(resource,'..'),env:{...process.env,YOURTJ_ASSET_FIXTURE_OUTPUT:directory},stdio:'pipe'})
+    } catch(error) { throw new Error(`Go asset fixture failed:\n${error.stdout?.toString().slice(-6000)||''}\n${error.stderr?.toString().slice(-6000)||''}`) }
     const head=await readFile(resolve(directory,'head.html'),'utf8')
     const preloadPaths=[...head.matchAll(/rel="modulepreload" href="([^"]+)"/g)].map(m=>m[1])
     assert.ok(preloadPaths.some(path=>/HomePage/.test(path)))
