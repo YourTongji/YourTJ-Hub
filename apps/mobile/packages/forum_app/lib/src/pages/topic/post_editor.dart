@@ -1,3 +1,4 @@
+import '../../widgets/email_verification_recovery.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -55,6 +56,7 @@ class _PostEditorState extends ConsumerState<PostEditor> {
   bool _uploading = false;
   bool _allowPop = false;
   String? _error;
+  ApiException? _writeFailure;
 
   bool get _stickerOpen => _accessory == GfInputAccessory.panel;
 
@@ -188,6 +190,7 @@ class _PostEditorState extends ConsumerState<PostEditor> {
     setState(() {
       _busy = true;
       _error = null;
+      _writeFailure = null;
     });
     try {
       final UpdatePostResult updated = await ref
@@ -204,10 +207,10 @@ class _PostEditorState extends ConsumerState<PostEditor> {
       _pop(true);
     } catch (error) {
       if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
-        setState(
-          () =>
-              _error = resolveErrorMessage(AppLocalizations.of(context), error),
-        );
+        setState(() {
+          _error = resolveErrorMessage(AppLocalizations.of(context), error);
+          _writeFailure = error is ApiException ? error : null;
+        });
         // AI 图文审查拦截(issue #975):弹出友好提示,编辑内容保持不变。
         await showModerationBlockedDialog(context, error);
       }
@@ -243,10 +246,10 @@ class _PostEditorState extends ConsumerState<PostEditor> {
       setState(() => _imageUrl = url);
     } catch (error) {
       if (mounted) {
-        setState(
-          () =>
-              _error = resolveErrorMessage(AppLocalizations.of(context), error),
-        );
+        setState(() {
+          _error = resolveErrorMessage(AppLocalizations.of(context), error);
+          _writeFailure = error is ApiException ? error : null;
+        });
       }
     } finally {
       if (mounted) setState(() => _uploading = false);
@@ -356,6 +359,14 @@ class _PostEditorState extends ConsumerState<PostEditor> {
                               hideKeyboardLabel: l10n.commonHideKeyboard,
                               hidePanelLabel: stickers.hidePanel,
                               onHideAccessory: _hideAccessory,
+                              toolbar:
+                                  _writeFailure?.messageCode ==
+                                      'permission.emailRequired'
+                                  ? EmailVerificationRecovery(
+                                      compact: true,
+                                      error: _writeFailure,
+                                    )
+                                  : null,
                               status: _error == null
                                   ? null
                                   : Tooltip(

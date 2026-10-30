@@ -1727,6 +1727,13 @@ native cleanup is pending.
 
 ## Email activation
 
+`Current`: a writing failure with `permission.emailRequired` offers Account security from topic
+publishing, replies and reply editing. Publishing and new replies save their existing account-scoped
+local recovery copy before opening settings; a failed save keeps the writer visible. Settings is
+pushed above the writer so Back retains its input, including reply edits. This action never resends
+activation mail or retries the write. Frozen-account errors retain their distinct notice and do not
+offer email verification. Session-expiry navigation keeps its existing session cleanup behavior.
+
 `Current`: password registration accepts the issued session and distinguishes accounts requiring
 email activation. Account security keeps an owner-specific pending notice and current email from
 the existing settings response, so it remains available after reopening the app. Refreshing after

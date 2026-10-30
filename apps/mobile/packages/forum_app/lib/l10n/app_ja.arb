@@ -1543,11 +1543,8 @@
   "coursePlannerSelectTerm": "同じ学期と専攻を選択してからクラスを確認してください。既存プランは自動変更されません。",
   "coursePlannerUnavailable": "この学期のクラスは利用できません。講義詳細から別の開講記録を選択してください。",
   "coursePlannerCalendarsFailed": "学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。",
-  "chatMessagePolicyTitle": "私信の許可",
-  "chatMessagePolicyLabel": "新しい会話を開始できる人",
-  "chatMessagePolicyHint": "実際のメッセージがある会話は継続できます。空の会話は対象外です。ボットにも同じ設定が適用され、ブロックが優先されます。",
-  "chatMessagePolicyNobody": "新しい私信を受け付けない",
-  "chatMessagePolicySaved": "メッセージの権限をアカウントに保存しました",
+  "authCheckEmailVerification": "メール確認の状態を確認",
+  "authWriteRecoveryHint": "入力内容は残ります。確認後に戻り、手動で続けてください。",
   "@scheduleChangeMajorBody": {
     "placeholders": {
       "planCount": {
@@ -1561,29 +1558,17 @@
       }
     }
   },
-  "activationStatusRemaining": "本日の再送可能回数：{count} / {limit}",
-  "scheduleChangeMajorTitle": "専攻を変更して計画を消去しますか？",
-  "@scheduleSearchScope": {
+  "@scheduleSetupMissing": {
     "placeholders": {
-      "term": {
+      "fields": {
         "type": "String"
       }
     }
   },
-  "scheduleNoCompulsory": "この範囲の必修科目は返されませんでした",
-  "activationStatusDailyLimit": "本日の上限に達しました。明日お試しください",
-  "scheduleChangeMajorConfirm": "変更して消去",
-  "@scheduleCourseScope": {
-    "placeholders": {
-      "scope": {
-        "type": "String"
-      }
-    }
-  },
+  "activationStatusRefresh": "状態を更新",
   "scheduleSearchNoMatch": "「{query}」に一致する授業名はありません",
-  "scheduleCourseScope": "現在の範囲：{scope}",
-  "activationStatusMissingEmail": "先にアカウント設定でメールを追加してください",
-  "scheduleConfigureScope": "履修範囲を設定",
+  "scheduleNoOptional": "この学期の選択科目は返されませんでした",
+  "scheduleMajorSearchHint": "専攻名またはコードを検索",
   "@scheduleSearchNoMatch": {
     "placeholders": {
       "query": {
@@ -1591,8 +1576,27 @@
       }
     }
   },
-  "authRegistrationUnavailable": "現在登録できません。しばらくしてからお試しください。",
-  "scheduleSetupMissing": "{fields} を選択してから科目や授業クラスを探してください。",
+  "@activationStatusTarget": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "@scheduleSearchScope": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "chatMessagePolicyLabel": "新しい会話を開始できる人",
+  "activationStatusMailUnavailable": "メールを利用できません。後で更新してください",
+  "activationStatusMissingEmail": "先にアカウント設定でメールを追加してください",
+  "chatMessagePolicyTitle": "私信の許可",
+  "campusTimetableNotConnected": "同済大学の本人認証が未接続です",
+  "scheduleSearchScope": "授業名の検索範囲：{term}",
+  "scheduleConfigureScope": "履修範囲を設定",
   "@activationStatusRemaining": {
     "placeholders": {
       "count": {
@@ -1603,22 +1607,32 @@
       }
     }
   },
-  "scheduleMajorSearchHint": "専攻名またはコードを検索",
-  "activationStatusVerified": "メールは確認済みです。再送は不要です",
-  "authVerificationPendingHint": "受信メールのリンクで認証し、このページを更新してください。届かない場合は再送またはアドレスを変更できます。認証前は一部の操作が利用できません。",
-  "activationStatusTarget": "送信先：{email}",
-  "imageViewerThumbnails": "画像のサムネイル",
-  "scheduleNoOptional": "この学期の選択科目は返されませんでした",
-  "activationStatusRefresh": "状態を更新",
-  "imageViewerOriginalSize": "元のサイズ",
-  "authCheckSignupAvailability": "登録状況を再確認",
-  "campusTimetableConnectBody": "本人認証を接続すると、大学から提供される個人の時間割を表示できます。接続しなくても、科目一覧と時間割シミュレーターを利用できます。",
-  "scheduleEmptyCourseHint": "履修範囲を変更するか、授業名で検索してください。",
-  "activationStatusFrozen": "このアカウントでは再送できません",
+  "chatMessagePolicySaved": "メッセージの権限をアカウントに保存しました",
   "scheduleChangeMajorBody": "専攻を変更すると、{planCount} 件の計画にある {courseCount} 科目と {eventCount} 件の予定が消去されます。キャンセルすると元の設定と計画を保持します。",
-  "scheduleSearchReady": "授業名を入力して検索",
-  "imageViewerFitPreview": "画面に合わせる",
+  "activationStatusDailyLimit": "本日の上限に達しました。明日お試しください",
+  "activationStatusDisabled": "メール確認は現在無効です",
+  "authVerificationPendingHint": "受信メールのリンクで認証し、このページを更新してください。届かない場合は再送またはアドレスを変更できます。認証前は一部の操作が利用できません。",
+  "scheduleChangeMajorUpdated": "計画の内容が更新されました。専攻を選び直してください。",
+  "activationStatusCooldown": "{seconds} 秒後に再送できます",
   "authVerificationPending": "メールアドレスの認証待ち",
+  "activationStatusFrozen": "このアカウントでは再送できません",
+  "authRegistrationUnavailable": "現在登録できません。しばらくしてからお試しください。",
+  "imageViewerThumbnails": "画像のサムネイル",
+  "activationStatusTarget": "送信先：{email}",
+  "activationStatusRemaining": "本日の再送可能回数：{count} / {limit}",
+  "chatMessagePolicyNobody": "新しい私信を受け付けない",
+  "scheduleCourseScope": "現在の範囲：{scope}",
+  "activationStatusVerified": "メールは確認済みです。再送は不要です",
+  "authCheckSignupAvailability": "登録状況を再確認",
+  "scheduleSetupMissing": "{fields} を選択してから科目や授業クラスを探してください。",
+  "@scheduleCourseScope": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "imageViewerOriginalSize": "元のサイズ",
   "@activationStatusCooldown": {
     "placeholders": {
       "seconds": {
@@ -1626,26 +1640,14 @@
       }
     }
   },
-  "activationStatusDisabled": "メール確認は現在無効です",
-  "activationStatusCooldown": "{seconds} 秒後に再送できます",
-  "scheduleSearchScope": "授業名の検索範囲：{term}",
-  "@scheduleSetupMissing": {
-    "placeholders": {
-      "fields": {
-        "type": "String"
-      }
-    }
-  },
-  "scheduleSetupTitle": "先に履修範囲を設定してください",
-  "campusTimetableNotConnected": "同済大学の本人認証が未接続です",
-  "activationStatusMailUnavailable": "メールを利用できません。後で更新してください",
-  "scheduleChangeMajorUpdated": "計画の内容が更新されました。専攻を選び直してください。",
-  "@activationStatusTarget": {
-    "placeholders": {
-      "email": {
-        "type": "String"
-      }
-    }
-  },
-  "scheduleMajorNoMatch": "一致する専攻はありません"
+  "imageViewerFitPreview": "画面に合わせる",
+  "scheduleChangeMajorConfirm": "変更して消去",
+  "campusTimetableConnectBody": "本人認証を接続すると、大学から提供される個人の時間割を表示できます。接続しなくても、科目一覧と時間割シミュレーターを利用できます。",
+  "chatMessagePolicyHint": "実際のメッセージがある会話は継続できます。空の会話は対象外です。ボットにも同じ設定が適用され、ブロックが優先されます。",
+  "scheduleSearchReady": "授業名を入力して検索",
+  "scheduleNoCompulsory": "この範囲の必修科目は返されませんでした",
+  "scheduleMajorNoMatch": "一致する専攻はありません",
+  "scheduleChangeMajorTitle": "専攻を変更して計画を消去しますか？",
+  "scheduleEmptyCourseHint": "履修範囲を変更するか、授業名で検索してください。",
+  "scheduleSetupTitle": "先に履修範囲を設定してください"
 }

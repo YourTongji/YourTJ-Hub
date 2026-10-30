@@ -1892,11 +1892,8 @@
   "coursePlannerSelectTerm": "请先选择相同学期和专业，再确认教学班；现有方案不会自动更改。",
   "coursePlannerUnavailable": "这个学期的教学班不可用，请返回课程详情选择其他开课记录。",
   "coursePlannerCalendarsFailed": "学期列表加载失败，请检查网络后重试。",
-  "chatMessagePolicyTitle": "私信权限",
-  "chatMessagePolicyLabel": "谁可以发起私信",
-  "chatMessagePolicyHint": "已有消息的会话可以继续；空会话不算。屏蔽始终优先，机器人也遵守此设置。",
-  "chatMessagePolicyNobody": "禁止新私信",
-  "chatMessagePolicySaved": "私信权限已保存到你的账号",
+  "authCheckEmailVerification": "检查邮箱验证",
+  "authWriteRecoveryHint": "输入会保留。验证完成后返回，手动继续。",
   "@scheduleChangeMajorBody": {
     "placeholders": {
       "planCount": {
@@ -1910,29 +1907,17 @@
       }
     }
   },
-  "activationStatusRemaining": "今天还可重发 {count} / {limit} 次",
-  "scheduleChangeMajorTitle": "更改专业并清空方案？",
-  "@scheduleSearchScope": {
+  "@scheduleSetupMissing": {
     "placeholders": {
-      "term": {
+      "fields": {
         "type": "String"
       }
     }
   },
-  "scheduleNoCompulsory": "当前范围未返回必修课程",
-  "activationStatusDailyLimit": "今日额度已用完，请明天再试",
-  "scheduleChangeMajorConfirm": "更改并清空",
-  "@scheduleCourseScope": {
-    "placeholders": {
-      "scope": {
-        "type": "String"
-      }
-    }
-  },
+  "activationStatusRefresh": "刷新状态",
   "scheduleSearchNoMatch": "没有找到名称匹配“{query}”的课程",
-  "scheduleCourseScope": "当前范围：{scope}",
-  "activationStatusMissingEmail": "请先在账号设置中添加邮箱",
-  "scheduleConfigureScope": "配置排课范围",
+  "scheduleNoOptional": "当前学期未返回选修课程",
+  "scheduleMajorSearchHint": "搜索专业名称或代码",
   "@scheduleSearchNoMatch": {
     "placeholders": {
       "query": {
@@ -1940,8 +1925,27 @@
       }
     }
   },
-  "authRegistrationUnavailable": "注册暂不可用，请稍后再试。",
-  "scheduleSetupMissing": "请选择：{fields}，再查找课程或教学班。",
+  "@activationStatusTarget": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "@scheduleSearchScope": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "chatMessagePolicyLabel": "谁可以发起私信",
+  "activationStatusMailUnavailable": "邮件服务暂不可用，请稍后刷新",
+  "activationStatusMissingEmail": "请先在账号设置中添加邮箱",
+  "chatMessagePolicyTitle": "私信权限",
+  "campusTimetableNotConnected": "尚未连接同济身份",
+  "scheduleSearchScope": "按课程名称搜索：{term}",
+  "scheduleConfigureScope": "配置排课范围",
   "@activationStatusRemaining": {
     "placeholders": {
       "count": {
@@ -1952,22 +1956,32 @@
       }
     }
   },
-  "scheduleMajorSearchHint": "搜索专业名称或代码",
-  "activationStatusVerified": "邮箱已验证，无需重发",
-  "authVerificationPendingHint": "请使用邮箱中的链接完成验证，之后刷新本页。未收到时可重发或更换邮箱；验证前，部分操作暂不可用。",
-  "activationStatusTarget": "收件目标：{email}",
-  "imageViewerThumbnails": "图片缩略图",
-  "scheduleNoOptional": "当前学期未返回选修课程",
-  "activationStatusRefresh": "刷新状态",
-  "imageViewerOriginalSize": "原始尺寸",
-  "authCheckSignupAvailability": "重新检查注册状态",
-  "campusTimetableConnectBody": "连接同济身份后，这里会显示学校提供的个人课表。暂不连接也可以使用课程目录和模拟排课。",
-  "scheduleEmptyCourseHint": "可以调整排课范围，或按课程名称搜索。",
-  "activationStatusFrozen": "账号受限，暂不能重发",
+  "chatMessagePolicySaved": "私信权限已保存到你的账号",
   "scheduleChangeMajorBody": "更改专业将清空 {planCount} 个方案中的 {courseCount} 门课程和 {eventCount} 个自定义安排。取消会保留原配置与方案。",
-  "scheduleSearchReady": "输入课程名称开始查找",
-  "imageViewerFitPreview": "适配预览",
+  "activationStatusDailyLimit": "今日额度已用完，请明天再试",
+  "activationStatusDisabled": "本站暂未要求邮箱验证",
+  "authVerificationPendingHint": "请使用邮箱中的链接完成验证，之后刷新本页。未收到时可重发或更换邮箱；验证前，部分操作暂不可用。",
+  "scheduleChangeMajorUpdated": "方案内容已变化，请重新选择专业。",
+  "activationStatusCooldown": "请在 {seconds} 秒后重发",
   "authVerificationPending": "等待验证邮箱",
+  "activationStatusFrozen": "账号受限，暂不能重发",
+  "authRegistrationUnavailable": "注册暂不可用，请稍后再试。",
+  "imageViewerThumbnails": "图片缩略图",
+  "activationStatusTarget": "收件目标：{email}",
+  "activationStatusRemaining": "今天还可重发 {count} / {limit} 次",
+  "chatMessagePolicyNobody": "禁止新私信",
+  "scheduleCourseScope": "当前范围：{scope}",
+  "activationStatusVerified": "邮箱已验证，无需重发",
+  "authCheckSignupAvailability": "重新检查注册状态",
+  "scheduleSetupMissing": "请选择：{fields}，再查找课程或教学班。",
+  "@scheduleCourseScope": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "imageViewerOriginalSize": "原始尺寸",
   "@activationStatusCooldown": {
     "placeholders": {
       "seconds": {
@@ -1975,26 +1989,14 @@
       }
     }
   },
-  "activationStatusDisabled": "本站暂未要求邮箱验证",
-  "activationStatusCooldown": "请在 {seconds} 秒后重发",
-  "scheduleSearchScope": "按课程名称搜索：{term}",
-  "@scheduleSetupMissing": {
-    "placeholders": {
-      "fields": {
-        "type": "String"
-      }
-    }
-  },
-  "scheduleSetupTitle": "先设置排课范围",
-  "campusTimetableNotConnected": "尚未连接同济身份",
-  "activationStatusMailUnavailable": "邮件服务暂不可用，请稍后刷新",
-  "scheduleChangeMajorUpdated": "方案内容已变化，请重新选择专业。",
-  "@activationStatusTarget": {
-    "placeholders": {
-      "email": {
-        "type": "String"
-      }
-    }
-  },
-  "scheduleMajorNoMatch": "没有匹配的专业"
+  "imageViewerFitPreview": "适配预览",
+  "scheduleChangeMajorConfirm": "更改并清空",
+  "campusTimetableConnectBody": "连接同济身份后，这里会显示学校提供的个人课表。暂不连接也可以使用课程目录和模拟排课。",
+  "chatMessagePolicyHint": "已有消息的会话可以继续；空会话不算。屏蔽始终优先，机器人也遵守此设置。",
+  "scheduleSearchReady": "输入课程名称开始查找",
+  "scheduleNoCompulsory": "当前范围未返回必修课程",
+  "scheduleMajorNoMatch": "没有匹配的专业",
+  "scheduleChangeMajorTitle": "更改专业并清空方案？",
+  "scheduleEmptyCourseHint": "可以调整排课范围，或按课程名称搜索。",
+  "scheduleSetupTitle": "先设置排课范围"
 }

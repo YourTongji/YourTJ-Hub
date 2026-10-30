@@ -95,6 +95,7 @@ class _RecordingTopicRepository extends TopicRepository {
   _RecordingTopicRepository(
     super.client, {
     this.resultId = 99,
+    this.failureCode,
     this.requireCaptcha = false,
     this.pendingReview = false,
     this.captchaAction = 'topic.write',
@@ -104,6 +105,8 @@ class _RecordingTopicRepository extends TopicRepository {
   final String captchaAction;
 
   final int resultId;
+  final String? failureCode;
+  int writeAttempts = 0;
   final List<
     ({
       int topicId,
@@ -142,6 +145,14 @@ class _RecordingTopicRepository extends TopicRepository {
     String? captchaCode,
     String? identity,
   }) async {
+    writeAttempts++;
+    if (failureCode != null) {
+      throw ApiException(
+        fallbackMessage: 'Write denied',
+        messageCode: failureCode,
+        statusCode: 403,
+      );
+    }
     if (requireCaptcha &&
         (captchaId != 'challenge' ||
             captchaCode == null ||
@@ -308,6 +319,7 @@ void main() {
     bool viewerAuthenticated = true,
     WritingStore? localStore,
     bool withStickers = false,
+    String? writeFailureCode,
     bool fromContentManagement = false,
     ImageProvider<Object>? imageProvider,
   }) async {
@@ -335,6 +347,7 @@ void main() {
     final _RecordingTopicRepository topicRepository = _RecordingTopicRepository(
       client,
       resultId: resultId,
+      failureCode: writeFailureCode,
       requireCaptcha: requireCaptcha,
       captchaAction: captchaAction,
       pendingReview: fromContentManagement,
@@ -346,6 +359,11 @@ void main() {
           ? '/publish?$editQueryKey=42'
           : '/publish',
       routes: <RouteBase>[
+        GoRoute(
+          path: '/settings/account',
+          builder: (_, _) =>
+              const Scaffold(body: Text('current account email settings')),
+        ),
         GoRoute(
           path: '/my-content',
           builder: (context, state) => const ContentPage(),
@@ -439,6 +457,87 @@ void main() {
       topicRepository: topicRepository,
     );
   }
+
+  testWidgets(
+    'pending email recovery preserves input and never retries the write',
+    (tester) async {
+      usePhoneViewport(tester);
+      final store = WritingStore();
+      final result = await pumpPublishPage(
+        tester,
+        editing: true,
+        contentType: 2,
+        locale: const Locale('en'),
+        localStore: store,
+        writeFailureCode: 'permission.emailRequired',
+      );
+      await tester.enterText(
+        find.byKey(const Key('publish-editor')),
+        'unfinished pending-account input',
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(result.topicRepository.writeAttempts, 1);
+      final recovery = find.text('Check email verification');
+      expect(recovery, findsOneWidget);
+      await tester.ensureVisible(recovery);
+      await tester.tap(recovery);
+      await tester.pumpAndSettle();
+      expect(find.text('current account email settings'), findsOneWidget);
+      expect(
+        (await store.drafts(
+          writingScope('http://fake.local', 1),
+        )).single.content,
+        'unfinished pending-account input',
+      );
+      expect(result.topicRepository.writeAttempts, 1);
+      result.router.pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(PublishPage), findsOneWidget);
+      expect(result.topicRepository.writeAttempts, 1);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'email recovery stays put when the recovery copy cannot be saved',
+    (tester) async {
+      usePhoneViewport(tester);
+      final store = _FailingWritingStore();
+      final result = await pumpPublishPage(
+        tester,
+        editing: true,
+        contentType: 2,
+        locale: const Locale('en'),
+        localStore: store,
+        writeFailureCode: 'permission.emailRequired',
+      );
+      await tester.enterText(
+        find.byKey(const Key('publish-editor')),
+        'unsent input',
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      final recovery = find.text('Check email verification');
+      await tester.ensureVisible(recovery);
+      await tester.tap(recovery);
+      await tester.pumpAndSettle();
+      expect(find.text('current account email settings'), findsNothing);
+      expect(find.byType(PublishPage), findsOneWidget);
+      expect(find.text('unsent input'), findsOneWidget);
+      expect(result.topicRepository.writeAttempts, 1);
+      expect(result.router.state.uri.path, '/publish');
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   testWidgets(
     'publish body editor keeps the toolbar-free custom builder path',

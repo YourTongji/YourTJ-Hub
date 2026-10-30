@@ -1543,11 +1543,8 @@
   "coursePlannerSelectTerm": "Vor der Bestätigung dasselbe Semester und dein Fach wählen. Bestehende Pläne bleiben unverändert.",
   "coursePlannerUnavailable": "Dieser Kurs ist im Semester nicht verfügbar. Wähle ein anderes Angebot in den Kursdetails.",
   "coursePlannerCalendarsFailed": "Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.",
-  "chatMessagePolicyTitle": "Private Nachrichten",
-  "chatMessagePolicyLabel": "Wer darf ein Gespräch beginnen",
-  "chatMessagePolicyHint": "Gespräche mit vorhandenen Nachrichten können fortgesetzt werden; leere Gespräche zählen nicht. Sperren haben Vorrang, auch für Bots.",
-  "chatMessagePolicyNobody": "Keine neuen Gespräche",
-  "chatMessagePolicySaved": "Nachrichtenberechtigungen im Konto gespeichert",
+  "authCheckEmailVerification": "E-Mail-Bestätigung prüfen",
+  "authWriteRecoveryHint": "Eingaben bleiben erhalten. Kehre nach der Bestätigung zurück und fahre manuell fort.",
   "@scheduleChangeMajorBody": {
     "placeholders": {
       "planCount": {
@@ -1561,29 +1558,17 @@
       }
     }
   },
-  "activationStatusRemaining": "Heute verbleibend: {count} / {limit}",
-  "scheduleChangeMajorTitle": "Studiengang ändern und Pläne leeren?",
-  "@scheduleSearchScope": {
+  "@scheduleSetupMissing": {
     "placeholders": {
-      "term": {
+      "fields": {
         "type": "String"
       }
     }
   },
-  "scheduleNoCompulsory": "Keine Pflichtkurse für diesen Bereich zurückgegeben",
-  "activationStatusDailyLimit": "Tageslimit erreicht. Morgen erneut versuchen.",
-  "scheduleChangeMajorConfirm": "Ändern und leeren",
-  "@scheduleCourseScope": {
-    "placeholders": {
-      "scope": {
-        "type": "String"
-      }
-    }
-  },
+  "activationStatusRefresh": "Status aktualisieren",
   "scheduleSearchNoMatch": "Keine Kursnamen passen zu „{query}“",
-  "scheduleCourseScope": "Aktueller Bereich: {scope}",
-  "activationStatusMissingEmail": "Zuerst in den Kontoeinstellungen eine E-Mail hinzufügen",
-  "scheduleConfigureScope": "Kursbereich festlegen",
+  "scheduleNoOptional": "Keine Wahlkurse für dieses Semester zurückgegeben",
+  "scheduleMajorSearchHint": "Studiengang oder Code suchen",
   "@scheduleSearchNoMatch": {
     "placeholders": {
       "query": {
@@ -1591,8 +1576,27 @@
       }
     }
   },
-  "authRegistrationUnavailable": "Registrierung ist derzeit nicht verfügbar. Bitte später erneut versuchen.",
-  "scheduleSetupMissing": "Wähle {fields}, bevor du Kurse oder Lehrveranstaltungen suchst.",
+  "@activationStatusTarget": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "@scheduleSearchScope": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "chatMessagePolicyLabel": "Wer darf ein Gespräch beginnen",
+  "activationStatusMailUnavailable": "E-Mail-Dienst nicht verfügbar. Später aktualisieren.",
+  "activationStatusMissingEmail": "Zuerst in den Kontoeinstellungen eine E-Mail hinzufügen",
+  "chatMessagePolicyTitle": "Private Nachrichten",
+  "campusTimetableNotConnected": "Tongji-Identität noch nicht verbunden",
+  "scheduleSearchScope": "Kursnamen suchen in {term}",
+  "scheduleConfigureScope": "Kursbereich festlegen",
   "@activationStatusRemaining": {
     "placeholders": {
       "count": {
@@ -1603,22 +1607,32 @@
       }
     }
   },
-  "scheduleMajorSearchHint": "Studiengang oder Code suchen",
-  "activationStatusVerified": "E-Mail bestätigt. Erneutes Senden ist nicht nötig.",
-  "authVerificationPendingHint": "Nutze den Link in deinem Postfach und aktualisiere diese Seite. Kommt keine Nachricht an, fordere sie erneut an oder ändere die Adresse. Einige Aktionen bleiben bis zur Bestätigung gesperrt.",
-  "activationStatusTarget": "Empfänger: {email}",
-  "imageViewerThumbnails": "Bildminiaturen",
-  "scheduleNoOptional": "Keine Wahlkurse für dieses Semester zurückgegeben",
-  "activationStatusRefresh": "Status aktualisieren",
-  "imageViewerOriginalSize": "Originalgröße",
-  "authCheckSignupAvailability": "Registrierung erneut prüfen",
-  "campusTimetableConnectBody": "Verbinde deine Tongji-Identität, um hier deinen persönlichen Hochschulstundenplan zu sehen. Kurskatalog und Stundenplaner kannst du auch ohne Verbindung nutzen.",
-  "scheduleEmptyCourseHint": "Ändere den Kursbereich oder suche nach Kursnamen.",
-  "activationStatusFrozen": "Dieses Konto kann keine E-Mail erneut senden",
+  "chatMessagePolicySaved": "Nachrichtenberechtigungen im Konto gespeichert",
   "scheduleChangeMajorBody": "Beim Ändern werden {planCount} Pläne mit {courseCount} Kursen und {eventCount} eigenen Terminen geleert. Abbrechen behält die bisherige Konfiguration und alle Pläne.",
-  "scheduleSearchReady": "Gib einen Kursnamen ein",
-  "imageViewerFitPreview": "Vorschau einpassen",
+  "activationStatusDailyLimit": "Tageslimit erreicht. Morgen erneut versuchen.",
+  "activationStatusDisabled": "E-Mail-Bestätigung ist derzeit deaktiviert",
+  "authVerificationPendingHint": "Nutze den Link in deinem Postfach und aktualisiere diese Seite. Kommt keine Nachricht an, fordere sie erneut an oder ändere die Adresse. Einige Aktionen bleiben bis zur Bestätigung gesperrt.",
+  "scheduleChangeMajorUpdated": "Die Pläne wurden geändert. Bitte wähle den Studiengang erneut.",
+  "activationStatusCooldown": "In {seconds} Sekunden erneut senden",
   "authVerificationPending": "E-Mail-Bestätigung ausstehend",
+  "activationStatusFrozen": "Dieses Konto kann keine E-Mail erneut senden",
+  "authRegistrationUnavailable": "Registrierung ist derzeit nicht verfügbar. Bitte später erneut versuchen.",
+  "imageViewerThumbnails": "Bildminiaturen",
+  "activationStatusTarget": "Empfänger: {email}",
+  "activationStatusRemaining": "Heute verbleibend: {count} / {limit}",
+  "chatMessagePolicyNobody": "Keine neuen Gespräche",
+  "scheduleCourseScope": "Aktueller Bereich: {scope}",
+  "activationStatusVerified": "E-Mail bestätigt. Erneutes Senden ist nicht nötig.",
+  "authCheckSignupAvailability": "Registrierung erneut prüfen",
+  "scheduleSetupMissing": "Wähle {fields}, bevor du Kurse oder Lehrveranstaltungen suchst.",
+  "@scheduleCourseScope": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "imageViewerOriginalSize": "Originalgröße",
   "@activationStatusCooldown": {
     "placeholders": {
       "seconds": {
@@ -1626,26 +1640,14 @@
       }
     }
   },
-  "activationStatusDisabled": "E-Mail-Bestätigung ist derzeit deaktiviert",
-  "activationStatusCooldown": "In {seconds} Sekunden erneut senden",
-  "scheduleSearchScope": "Kursnamen suchen in {term}",
-  "@scheduleSetupMissing": {
-    "placeholders": {
-      "fields": {
-        "type": "String"
-      }
-    }
-  },
-  "scheduleSetupTitle": "Zuerst den Kursbereich festlegen",
-  "campusTimetableNotConnected": "Tongji-Identität noch nicht verbunden",
-  "activationStatusMailUnavailable": "E-Mail-Dienst nicht verfügbar. Später aktualisieren.",
-  "scheduleChangeMajorUpdated": "Die Pläne wurden geändert. Bitte wähle den Studiengang erneut.",
-  "@activationStatusTarget": {
-    "placeholders": {
-      "email": {
-        "type": "String"
-      }
-    }
-  },
-  "scheduleMajorNoMatch": "Keine passenden Studiengänge"
+  "imageViewerFitPreview": "Vorschau einpassen",
+  "scheduleChangeMajorConfirm": "Ändern und leeren",
+  "campusTimetableConnectBody": "Verbinde deine Tongji-Identität, um hier deinen persönlichen Hochschulstundenplan zu sehen. Kurskatalog und Stundenplaner kannst du auch ohne Verbindung nutzen.",
+  "chatMessagePolicyHint": "Gespräche mit vorhandenen Nachrichten können fortgesetzt werden; leere Gespräche zählen nicht. Sperren haben Vorrang, auch für Bots.",
+  "scheduleSearchReady": "Gib einen Kursnamen ein",
+  "scheduleNoCompulsory": "Keine Pflichtkurse für diesen Bereich zurückgegeben",
+  "scheduleMajorNoMatch": "Keine passenden Studiengänge",
+  "scheduleChangeMajorTitle": "Studiengang ändern und Pläne leeren?",
+  "scheduleEmptyCourseHint": "Ändere den Kursbereich oder suche nach Kursnamen.",
+  "scheduleSetupTitle": "Zuerst den Kursbereich festlegen"
 }

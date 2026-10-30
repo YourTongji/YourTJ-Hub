@@ -4630,40 +4630,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.';
 
   @override
-  String get chatMessagePolicyTitle => 'Private Nachrichten';
+  String get authCheckEmailVerification => 'E-Mail-Bestätigung prüfen';
 
   @override
-  String get chatMessagePolicyLabel => 'Wer darf ein Gespräch beginnen';
+  String get authWriteRecoveryHint =>
+      'Eingaben bleiben erhalten. Kehre nach der Bestätigung zurück und fahre manuell fort.';
 
   @override
-  String get chatMessagePolicyHint =>
-      'Gespräche mit vorhandenen Nachrichten können fortgesetzt werden; leere Gespräche zählen nicht. Sperren haben Vorrang, auch für Bots.';
-
-  @override
-  String get chatMessagePolicyNobody => 'Keine neuen Gespräche';
-
-  @override
-  String get chatMessagePolicySaved =>
-      'Nachrichtenberechtigungen im Konto gespeichert';
-
-  @override
-  String activationStatusRemaining(int count, int limit) {
-    return 'Heute verbleibend: $count / $limit';
-  }
-
-  @override
-  String get scheduleChangeMajorTitle => 'Studiengang ändern und Pläne leeren?';
-
-  @override
-  String get scheduleNoCompulsory =>
-      'Keine Pflichtkurse für diesen Bereich zurückgegeben';
-
-  @override
-  String get activationStatusDailyLimit =>
-      'Tageslimit erreicht. Morgen erneut versuchen.';
-
-  @override
-  String get scheduleChangeMajorConfirm => 'Ändern und leeren';
+  String get activationStatusRefresh => 'Status aktualisieren';
 
   @override
   String scheduleSearchNoMatch(String query) {
@@ -4671,69 +4645,41 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String scheduleCourseScope(String scope) {
-    return 'Aktueller Bereich: $scope';
-  }
+  String get scheduleNoOptional =>
+      'Keine Wahlkurse für dieses Semester zurückgegeben';
+
+  @override
+  String get scheduleMajorSearchHint => 'Studiengang oder Code suchen';
+
+  @override
+  String get chatMessagePolicyLabel => 'Wer darf ein Gespräch beginnen';
+
+  @override
+  String get activationStatusMailUnavailable =>
+      'E-Mail-Dienst nicht verfügbar. Später aktualisieren.';
 
   @override
   String get activationStatusMissingEmail =>
       'Zuerst in den Kontoeinstellungen eine E-Mail hinzufügen';
 
   @override
+  String get chatMessagePolicyTitle => 'Private Nachrichten';
+
+  @override
+  String get campusTimetableNotConnected =>
+      'Tongji-Identität noch nicht verbunden';
+
+  @override
+  String scheduleSearchScope(String term) {
+    return 'Kursnamen suchen in $term';
+  }
+
+  @override
   String get scheduleConfigureScope => 'Kursbereich festlegen';
 
   @override
-  String get authRegistrationUnavailable =>
-      'Registrierung ist derzeit nicht verfügbar. Bitte später erneut versuchen.';
-
-  @override
-  String scheduleSetupMissing(String fields) {
-    return 'Wähle $fields, bevor du Kurse oder Lehrveranstaltungen suchst.';
-  }
-
-  @override
-  String get scheduleMajorSearchHint => 'Studiengang oder Code suchen';
-
-  @override
-  String get activationStatusVerified =>
-      'E-Mail bestätigt. Erneutes Senden ist nicht nötig.';
-
-  @override
-  String get authVerificationPendingHint =>
-      'Nutze den Link in deinem Postfach und aktualisiere diese Seite. Kommt keine Nachricht an, fordere sie erneut an oder ändere die Adresse. Einige Aktionen bleiben bis zur Bestätigung gesperrt.';
-
-  @override
-  String activationStatusTarget(String email) {
-    return 'Empfänger: $email';
-  }
-
-  @override
-  String get imageViewerThumbnails => 'Bildminiaturen';
-
-  @override
-  String get scheduleNoOptional =>
-      'Keine Wahlkurse für dieses Semester zurückgegeben';
-
-  @override
-  String get activationStatusRefresh => 'Status aktualisieren';
-
-  @override
-  String get imageViewerOriginalSize => 'Originalgröße';
-
-  @override
-  String get authCheckSignupAvailability => 'Registrierung erneut prüfen';
-
-  @override
-  String get campusTimetableConnectBody =>
-      'Verbinde deine Tongji-Identität, um hier deinen persönlichen Hochschulstundenplan zu sehen. Kurskatalog und Stundenplaner kannst du auch ohne Verbindung nutzen.';
-
-  @override
-  String get scheduleEmptyCourseHint =>
-      'Ändere den Kursbereich oder suche nach Kursnamen.';
-
-  @override
-  String get activationStatusFrozen =>
-      'Dieses Konto kann keine E-Mail erneut senden';
+  String get chatMessagePolicySaved =>
+      'Nachrichtenberechtigungen im Konto gespeichert';
 
   @override
   String scheduleChangeMajorBody(
@@ -4745,17 +4691,20 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get scheduleSearchReady => 'Gib einen Kursnamen ein';
-
-  @override
-  String get imageViewerFitPreview => 'Vorschau einpassen';
-
-  @override
-  String get authVerificationPending => 'E-Mail-Bestätigung ausstehend';
+  String get activationStatusDailyLimit =>
+      'Tageslimit erreicht. Morgen erneut versuchen.';
 
   @override
   String get activationStatusDisabled =>
       'E-Mail-Bestätigung ist derzeit deaktiviert';
+
+  @override
+  String get authVerificationPendingHint =>
+      'Nutze den Link in deinem Postfach und aktualisiere diese Seite. Kommt keine Nachricht an, fordere sie erneut an oder ändere die Adresse. Einige Aktionen bleiben bis zur Bestätigung gesperrt.';
+
+  @override
+  String get scheduleChangeMajorUpdated =>
+      'Die Pläne wurden geändert. Bitte wähle den Studiengang erneut.';
 
   @override
   String activationStatusCooldown(int seconds) {
@@ -4763,25 +4712,83 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String scheduleSearchScope(String term) {
-    return 'Kursnamen suchen in $term';
+  String get authVerificationPending => 'E-Mail-Bestätigung ausstehend';
+
+  @override
+  String get activationStatusFrozen =>
+      'Dieses Konto kann keine E-Mail erneut senden';
+
+  @override
+  String get authRegistrationUnavailable =>
+      'Registrierung ist derzeit nicht verfügbar. Bitte später erneut versuchen.';
+
+  @override
+  String get imageViewerThumbnails => 'Bildminiaturen';
+
+  @override
+  String activationStatusTarget(String email) {
+    return 'Empfänger: $email';
   }
 
   @override
-  String get scheduleSetupTitle => 'Zuerst den Kursbereich festlegen';
+  String activationStatusRemaining(int count, int limit) {
+    return 'Heute verbleibend: $count / $limit';
+  }
 
   @override
-  String get campusTimetableNotConnected =>
-      'Tongji-Identität noch nicht verbunden';
+  String get chatMessagePolicyNobody => 'Keine neuen Gespräche';
 
   @override
-  String get activationStatusMailUnavailable =>
-      'E-Mail-Dienst nicht verfügbar. Später aktualisieren.';
+  String scheduleCourseScope(String scope) {
+    return 'Aktueller Bereich: $scope';
+  }
 
   @override
-  String get scheduleChangeMajorUpdated =>
-      'Die Pläne wurden geändert. Bitte wähle den Studiengang erneut.';
+  String get activationStatusVerified =>
+      'E-Mail bestätigt. Erneutes Senden ist nicht nötig.';
+
+  @override
+  String get authCheckSignupAvailability => 'Registrierung erneut prüfen';
+
+  @override
+  String scheduleSetupMissing(String fields) {
+    return 'Wähle $fields, bevor du Kurse oder Lehrveranstaltungen suchst.';
+  }
+
+  @override
+  String get imageViewerOriginalSize => 'Originalgröße';
+
+  @override
+  String get imageViewerFitPreview => 'Vorschau einpassen';
+
+  @override
+  String get scheduleChangeMajorConfirm => 'Ändern und leeren';
+
+  @override
+  String get campusTimetableConnectBody =>
+      'Verbinde deine Tongji-Identität, um hier deinen persönlichen Hochschulstundenplan zu sehen. Kurskatalog und Stundenplaner kannst du auch ohne Verbindung nutzen.';
+
+  @override
+  String get chatMessagePolicyHint =>
+      'Gespräche mit vorhandenen Nachrichten können fortgesetzt werden; leere Gespräche zählen nicht. Sperren haben Vorrang, auch für Bots.';
+
+  @override
+  String get scheduleSearchReady => 'Gib einen Kursnamen ein';
+
+  @override
+  String get scheduleNoCompulsory =>
+      'Keine Pflichtkurse für diesen Bereich zurückgegeben';
 
   @override
   String get scheduleMajorNoMatch => 'Keine passenden Studiengänge';
+
+  @override
+  String get scheduleChangeMajorTitle => 'Studiengang ändern und Pläne leeren?';
+
+  @override
+  String get scheduleEmptyCourseHint =>
+      'Ändere den Kursbereich oder suche nach Kursnamen.';
+
+  @override
+  String get scheduleSetupTitle => 'Zuerst den Kursbereich festlegen';
 }

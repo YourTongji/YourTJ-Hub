@@ -4,7 +4,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import PublishPage from '../../../src/site/pages/PublishPage.vue'
 import { i18n, setLocale } from '../../../src/runtime/i18n'
 import '../../../src/styles/resource.css'
-await setLocale('zh')
+await setLocale((new URLSearchParams(location.search).get('lang') || 'zh') as 'zh' | 'en' | 'ja' | 'de')
 document.documentElement.dataset.theme = new URLSearchParams(location.search).get('theme') || 'gf-light'
 const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] })
 await router.push('/')
