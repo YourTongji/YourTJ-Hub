@@ -167,6 +167,7 @@ export default {
     searchClose: "Close",
   },
   statsAdmin: {
+    rateLimitExemptionHint: "Admin exemption does not apply to content contribution statistics. The four queries share the admin.stats budget.",
     filterTitle: 'Statistics filters',
     rangeLabel: 'Date range',
     range7: 'Last 7 days',

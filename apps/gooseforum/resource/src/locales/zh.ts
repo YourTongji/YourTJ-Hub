@@ -167,6 +167,7 @@ export default {
     searchClose: "关闭",
   },
   statsAdmin: {
+    rateLimitExemptionHint: "管理员豁免不适用于内容贡献统计；四个统计接口共用 admin.stats 配额。",
     filterTitle: '统计筛选',
     rangeLabel: '时间范围',
     range7: '近 7 天',
