@@ -157,9 +157,7 @@ class _StickerCardState extends State<StickerCard> {
     for (final item in [...?collection?.mine, ...?collection?.library.items]) {
       if (item.name == widget.name) return strings.displayLabel(item);
     }
-    return StickerStrings.isPersonalName(widget.name)
-        ? strings.custom
-        : widget.name;
+    return strings.fallbackLabel(widget.name);
   }
 
   @override

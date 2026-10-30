@@ -1,0 +1,25 @@
+{
+  "result": {
+    "id": 9211,
+    "source": "upload",
+    "upstreamId": "u0123456789abcdef",
+    "name": "自制表情",
+    "topic": "u-6d1a2b3c4d5e",
+    "upstreamCount": 0,
+    "archived": false,
+    "missing": false,
+    "status": "new",
+    "published": false,
+    "sortOrder": 0,
+    "itemCount": 0,
+    "failedCount": 0,
+    "importTotal": 0,
+    "lastError": "",
+    "coverUrl": "",
+    "iconUrl": "",
+    "iconText": "",
+    "syncedAt": "2026-10-29T08:00:00Z",
+    "importedAt": null
+  },
+  "code": 0
+}

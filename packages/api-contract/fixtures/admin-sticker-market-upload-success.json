@@ -1,0 +1,38 @@
+{
+  "result": {
+    "result": {
+      "imported": 1,
+      "skipped": 1,
+      "failed": [
+        {
+          "name": "nested/broken.png",
+          "reason": "invalidImage"
+        }
+      ]
+    },
+    "pack": {
+      "id": 9211,
+      "source": "upload",
+      "upstreamId": "u0123456789abcdef",
+      "name": "自制表情",
+      "topic": "u-6d1a2b3c4d5e",
+      "upstreamCount": 0,
+      "archived": false,
+      "missing": false,
+      "status": "ready",
+      "published": false,
+      "sortOrder": 0,
+      "itemCount": 1,
+      "failedCount": 0,
+      "importTotal": 0,
+      "lastError": "",
+      "coverUrl": "/file/img/stickers/market/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.png",
+      "iconUrl": "",
+      "iconText": "",
+      "syncedAt": "2026-10-29T08:00:00Z",
+      "importedAt": "2026-10-29T08:05:00Z"
+    }
+  },
+  "code": 0,
+  "messageCode": "common.operation.success"
+}

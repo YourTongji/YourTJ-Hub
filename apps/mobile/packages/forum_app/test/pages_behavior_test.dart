@@ -1765,6 +1765,14 @@ Map<String, dynamic> draftsPayloadJson({required String editUrl}) {
   };
 }
 
+/// Picker cells show only the image; their accessible label names them.
+Finder _pickerSticker(String label) => find.byWidgetPredicate(
+  (widget) =>
+      widget is Semantics &&
+      widget.properties.label == label &&
+      widget.child is InkWell,
+);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -3467,24 +3475,27 @@ void main() {
             tester.getBottomLeft(field).dy,
             lessThan(tester.getTopLeft(find.byType(StickerPicker)).dy),
           );
-          await tester.ensureVisible(find.text('Smile').last);
+          await tester.ensureVisible(_pickerSticker('Smile').last);
           await tester.pumpAndSettle();
-          await tester.tap(find.text('Smile').last);
+          await tester.tap(_pickerSticker('Smile').last);
           await tester.pumpAndSettle();
-          await tester.ensureVisible(find.text('Smile').last);
+          await tester.ensureVisible(_pickerSticker('Smile').last);
           await tester.pumpAndSettle();
-          await tester.tap(find.text('Smile').last);
+          await tester.tap(_pickerSticker('Smile').last);
           await tester.pumpAndSettle();
           expect(
             controller.text,
             'before [:sticker:smile:][:sticker:smile:]after',
           );
-          final preview = find.byKey(const Key('sticker-draft-preview'));
+          // The reply field itself shows both stickers inline.
           expect(
-            find.descendant(of: preview, matching: find.byType(StickerImage)),
+            find.descendant(of: field, matching: find.byType(StickerImage)),
             findsNWidgets(2),
           );
           await tester.drag(find.byType(StickerPicker), const Offset(0, 300));
+          await tester.pumpAndSettle();
+          // Search starts as an icon in the picker's header.
+          await tester.tap(find.byTooltip('搜索全部表情'));
           await tester.pumpAndSettle();
           final search = find.descendant(
             of: find.byType(StickerPicker),
@@ -3684,9 +3695,9 @@ void main() {
       await tester.pumpAndSettle();
       final caret = controller.selection.baseOffset;
       final before = controller.text;
-      await tester.ensureVisible(find.text('Smile').last);
+      await tester.ensureVisible(_pickerSticker('Smile').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Smile').last);
+      await tester.tap(_pickerSticker('Smile').last);
       await tester.pumpAndSettle();
       expect(
         controller.text,

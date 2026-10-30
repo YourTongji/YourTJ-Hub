@@ -69,6 +69,11 @@ describe('maskPersonalStickerTokens', () => {
     expect(maskPersonalStickerTokens('[:sticker:滑稽:] 文本', 'Animated sticker')).toBe('[:sticker:滑稽:] 文本')
   })
 
+  it('隐藏已停用市场 token 的随机名', () => {
+    expect(maskPersonalStickerTokens(`[:sticker:m_${'b2'.repeat(20)}:]`, 'Animated sticker')).toBe('[Animated sticker]')
+    expect(maskPersonalStickerTokens('[:sticker:m_short:]', 'Animated sticker')).toBe('[:sticker:m_short:]')
+  })
+
   it('非 48 位 hex 的 u_ token 不遮蔽', () => {
     expect(maskPersonalStickerTokens('[:sticker:u_92f1a:]', 'Animated sticker')).toBe('[:sticker:u_92f1a:]')
   })

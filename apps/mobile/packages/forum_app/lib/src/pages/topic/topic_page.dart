@@ -3,7 +3,8 @@ import '../../widgets/user_decoration.dart';
 import '../../realtime/realtime_updates.dart';
 import 'agent_reply_setting.dart';
 import '../../report_content.dart';
-import '../../widgets/stickers/sticker_draft_preview.dart';
+import '../../widgets/stickers/sticker_suggestion_bar.dart';
+import '../../widgets/stickers/sticker_text_controller.dart';
 import '../../widgets/identity_picker.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
@@ -128,7 +129,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
   int _likeCount = 0;
 
   // 轻量 Markdown 回复输入。
-  final TextEditingController _replyController = TextEditingController();
+  final StickerTextEditingController _replyController =
+      StickerTextEditingController();
   late final FocusNode _replyFocus = FocusNode(
     onKeyEvent: _replyMentionKeyEvent,
   );
@@ -1757,6 +1759,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
 
   @override
   Widget build(BuildContext context) {
+    _replyController.library = ref.watch(stickerLibraryProvider);
     ref.listen<int>(
       realtimeInvalidationsProvider.select((state) => state.contentRevision),
       (_, _) {
@@ -2261,9 +2264,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                                     context,
                                                   ).keyboard
                                                 : StickerStrings(context).title,
-                                            preview: StickerDraftPreview(
-                                              content: value.text,
-                                              markdown: true,
+                                            preview: StickerSuggestionBar.text(
+                                              controller: _replyController,
                                             ),
                                             imageTooltip: l10n.publishToolImage,
                                             imageUrl: _replyImageUrl == null
@@ -2410,6 +2412,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                 accessory: _replyAccessory,
                                 panelFocusNode: _replyPanelFocus,
                                 availableHeight: box.maxHeight,
+                                minPanelHeight: StickerPicker.comfortableHeight,
                                 panelBuilder: (_) => StickerPicker(
                                   onInsert: _insertReplySticker,
                                 ),

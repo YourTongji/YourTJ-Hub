@@ -1,5 +1,7 @@
+import '../../widgets/editor/sticker_embed_builder.dart';
+import '../../widgets/stickers/sticker_suggestion_bar.dart';
+import '../../widgets/stickers/sticker_text_controller.dart';
 import '../../widgets/email_verification_recovery.dart';
-import '../../widgets/stickers/sticker_draft_preview.dart';
 import '../../widgets/identity_picker.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
@@ -89,7 +91,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
             double.infinity,
           );
 
-  final TextEditingController _simple = TextEditingController();
+  final StickerTextEditingController _simple = StickerTextEditingController();
   final FocusNode _simpleFocusNode = FocusNode(debugLabel: 'simple-body');
   final GlobalKey _bodyEditorContainerKey = GlobalKey();
   bool _stickerOpen = false;
@@ -128,6 +130,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
   final ScrollController _pageScrollController = ScrollController();
   final GlobalKey _pageScrollViewKey = GlobalKey();
   late StreamSubscription<DocChange> _documentChanges;
+  late StickerTokenWatcher _stickerTokens;
   late int _currentTopicId;
   bool _agentRepliesDisabled = false;
 
@@ -404,6 +407,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       );
       _handleEditorChanged();
     });
+    _stickerTokens = StickerTokenWatcher(controller);
     return controller;
   }
 
@@ -414,8 +418,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
     // leave the previous document and its subscription safe to retry/dispose.
     final previousController = _quill;
     final previousChanges = _documentChanges;
+    final previousStickerTokens = _stickerTokens;
     final nextController = _createController(markdown);
     unawaited(previousChanges.cancel());
+    unawaited(previousStickerTokens.cancel());
     previousController.dispose();
     _quill = nextController;
     _previewMarkdown = _markdownFromEditor();
@@ -661,6 +667,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     _titleFocusNode.dispose();
     _simple.dispose();
     unawaited(_documentChanges.cancel());
+    unawaited(_stickerTokens.cancel());
     _quill.dispose();
     super.dispose();
   }
@@ -997,11 +1004,15 @@ class _PublishPageState extends ConsumerState<PublishPage>
       final range = _stickerSelection ?? _quill.selection;
       final start = (range.isValid ? range.start : max).clamp(0, max);
       final end = (range.isValid ? range.end : max).clamp(start, max);
+      final name = stickerTokenPattern.firstMatch(token)?.group(1);
+      // The rich editor holds stickers as embeds: shown as the image at once.
       _quill.replaceText(
         start,
         end - start,
-        token,
-        TextSelection.collapsed(offset: start + token.length),
+        name == null ? token : StickerEmbed(name),
+        TextSelection.collapsed(
+          offset: start + (name == null ? token.length : 1),
+        ),
         // skipRequestKeyboard is consumed by Quill's first request. Every
         // insertion must preserve accessory/search focus, including on Android.
         ignoreFocus: true,
@@ -1327,6 +1338,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     if (ref.watch(offlineCacheEpochProvider) != _epoch) {
       return const SizedBox.shrink();
     }
+    _simple.library = ref.watch(stickerLibraryProvider);
     final AppLocalizations l10n = AppLocalizations.of(context);
 
     final page = PopScope(
@@ -2298,6 +2310,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
         focusNode: _simpleFocusNode,
         keyboardType: TextInputType.multiline,
         textInputAction: TextInputAction.newline,
+        strutStyle: GfInlineContentController.strut,
         style: readingBodyStyle(context),
         decoration: InputDecoration(
           hintText: PublishType.fromValue(_contentType).hint(l10n),
@@ -2374,6 +2387,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                         onDragStarted: _startDragAutoscroll,
                         onDragEnded: _stopDragAutoscroll,
                       ),
+                      const StickerEmbedBuilder(),
                     ],
                   ),
                 ),
@@ -2415,25 +2429,18 @@ class _PublishPageState extends ConsumerState<PublishPage>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Flexible(
-              child: SingleChildScrollView(
-                child: ListenableBuilder(
-                  listenable: _contentType == 3 ? _quill : _simple,
-                  builder: (context, _) {
-                    final text = _contentType == 3
-                        ? _quill.document.toPlainText()
-                        : _simple.text;
-                    if (!containsStickerToken(text)) {
-                      return const SizedBox.shrink();
-                    }
-                    return StickerDraftPreview(
-                      content: _markdownFromEditor(),
-                      markdown: true,
-                    );
-                  },
-                ),
+            // Stickers already show inline in both editors; a typed
+            // `[:sticker:` fragment offers candidates here, above the tools.
+            if (_contentType == 3)
+              StickerSuggestionBar.quill(
+                controller: _quill,
+                margin: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+              )
+            else
+              StickerSuggestionBar.text(
+                controller: _simple,
+                margin: const EdgeInsets.fromLTRB(8, 6, 8, 0),
               ),
-            ),
             if (_contentType == 3 && _uploads.hasPending)
               _buildUploadTray(l10n),
             // One row above the keyboard: media and stickers stay pinned at
@@ -2479,6 +2486,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                     maxHeight: constraints.maxHeight * .6,
                   ),
                   child: GfComposerPanel(
+                    minHeight: StickerPicker.comfortableHeight,
                     child: StickerPicker(onInsert: _insertSticker),
                   ),
                 ),

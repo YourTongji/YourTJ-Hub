@@ -102,6 +102,10 @@ func DeleteTx(tx *gorm.DB, id uint64) error {
 	if err := tx.Where("sticker_id = ?", id).Delete(&LibraryEntry{}).Error; err != nil {
 		return err
 	}
+	// Permanent deletion ends the sticker's identity, previous names included.
+	if err := tx.Where("sticker_id = ?", id).Delete(&Alias{}).Error; err != nil {
+		return err
+	}
 	err := tx.Delete(&Entity{}, id).Error
 	if err == nil {
 		notifyMutation()
@@ -122,4 +126,9 @@ func BackfillPresetPackTx(tx *gorm.DB, pack string, names []string) (int64, erro
 		Where("is_official = ? AND created_by = ? AND pack = ? AND name IN ?", true, 0, "official", names).
 		UpdateColumn("pack", pack)
 	return result.RowsAffected, result.Error
+}
+
+// FindByIDs loads sticker rows by id without locking, for read-only views.
+func FindByIDs(ids []uint64, out *[]Entity) error {
+	return builder().Where("id IN ?", ids).Find(out).Error
 }

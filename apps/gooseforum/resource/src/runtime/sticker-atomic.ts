@@ -1,4 +1,5 @@
 import { readCaretTextWindow } from '@/runtime/caret-text'
+import { stickerInlineAt } from '@/runtime/sticker-inline-editor'
 import { stickerDeleteRangeAt, type StickerDeleteDirection } from '@/site/utils/sticker-token'
 
 /**
@@ -21,6 +22,8 @@ export function stickerDeleteDirection(event: KeyboardEvent): StickerDeleteDirec
  * token 在编辑器里是纯文本，逐字符删除会留下 `[:sticker:na:` 这类残缺原文；
  * 命中时选中整段并走 document.execCommand('delete') 原生 contenteditable 路径：
  * 触发 input 事件，Vditor 重新渲染并同步 modelValue/撤销栈（同 mention 插入的取舍）。
+ * 已显示为贴纸图的 token（sticker-inline-editor）在不可编辑块里，选区扩到整个块，
+ * 否则浏览器拒绝删除不可编辑节点内的文本。
  * 返回 false 表示交回浏览器默认删除。
  */
 export function deleteStickerAtCaret(element: HTMLElement, direction: StickerDeleteDirection): boolean {
@@ -35,6 +38,10 @@ export function deleteStickerAtCaret(element: HTMLElement, direction: StickerDel
   if (!span) return false
   const target = textWindow.range(span.start, span.end)
   if (!target) return false
+  const startInline = stickerInlineAt(target.startContainer)
+  const endInline = stickerInlineAt(target.endContainer)
+  if (startInline && element.contains(startInline)) target.setStartBefore(startInline)
+  if (endInline && element.contains(endInline)) target.setEndAfter(endInline)
 
   selection.removeAllRanges()
   selection.addRange(target)

@@ -1,0 +1,8 @@
+{
+  "result": null,
+  "code": 1,
+  "messageCode": "sticker.market.packLimit",
+  "params": {
+    "limit": 50
+  }
+}

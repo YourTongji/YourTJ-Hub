@@ -145,6 +145,7 @@ function buildProps(canSetPassword: boolean): SettingsPageProps {
       { key: 'binding', url: '/settings?tab=binding', active: false },
       { key: 'security', url: '/settings?tab=security', active: false },
       { key: 'content', url: '/settings?tab=content', active: false },
+      { key: 'stickers', url: '/settings?tab=stickers', active: false },
       { key: 'deleted', url: '/settings?tab=deleted', active: false },
       { key: 'general', url: '/settings?tab=general', active: false },
     ],

@@ -42,7 +42,7 @@ func TestTopicListLabelNeverEmpty(t *testing.T) {
 // 公开口径与列表 API 一致（个人 u_* 与停用/审核中名字不解析），其余文字转义。
 func TestTopicListDescriptionRendersPublicStickersOnly(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&sticker.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&sticker.Entity{}, &sticker.Alias{}); err != nil {
 		t.Fatal(err)
 	}
 	rows := []sticker.Entity{

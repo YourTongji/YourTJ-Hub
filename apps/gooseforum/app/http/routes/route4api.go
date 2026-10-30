@@ -340,7 +340,11 @@ func apiRoute(ginApp *gin.Engine) {
 	forumApi.GET("courses/:courseId/related", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpUriQueryReq(forum.CourseRelatedJSON))
 	// 表情包库：公开只读（启用列表供编辑器选择器与客户端 token 替换）。
 	forumApi.GET("stickers", middleware.RateLimit(middleware.RateLimitStickerList), ginUpNP(api.PublicStickerList))
+	forumApi.GET("sticker-packs", middleware.RateLimit(middleware.RateLimitStickerList), ginUpNP(api.PublicStickerPacks))
 	forumApi.POST("stickers/resolve", middleware.RateLimit(middleware.RateLimitStickerList), UpLimitedJsonReq(64<<10, api.ResolveStickers))
+	// 贴纸市场（issue #1429）：公开只读，只列出管理员已上架、已导入的表情包。
+	forumApi.GET("sticker-market", middleware.RateLimit(middleware.RateLimitStickerList), UpQueryReq(api.StickerMarket))
+	forumApi.GET("sticker-market/pack", middleware.RateLimit(middleware.RateLimitStickerList), UpQueryReq(api.StickerMarketPack))
 	// wiki 分站：公开读。
 	// wiki 分站：公开读（GitHub SSOT：内容由仓库同步，无站内写）。
 	wikiApi := baseApi.Group("wiki")
@@ -373,6 +377,9 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("my-sticker-save", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.SaveMySticker))
 	forumLoginApi.POST("my-sticker-delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.DeleteMySticker))
 	forumLoginApi.POST("my-stickers-order", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.OrderMyStickers))
+	forumLoginApi.GET("my-sticker-packs", middleware.NoUpdateUserActivity, UpButterReq(api.MyStickerPacks))
+	forumLoginApi.POST("my-sticker-pack-save", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.SaveMyStickerPack))
+	forumLoginApi.POST("my-sticker-pack-delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.DeleteMyStickerPack))
 	forumLoginApi.GET("unread-status", middleware.NoUpdateUserActivity, UpButterReq(api.GetUnreadStatus))
 	forumLoginApi.GET("notification-preferences", middleware.NoUpdateUserActivity, UpButterReq(api.GetNotificationPreferences))
 	forumLoginApi.PUT("notification-preferences", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedStrictJsonReq(4<<10, api.UpdateNotificationPreferences))
@@ -647,6 +654,19 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("sticker-save", UpButterReq(api.SaveSticker)).
 		POST("sticker-delete", UpButterReq(api.DeleteSticker)).
 		POST("sticker-import", api.ImportStickerPack).
+		GET("sticker-packs", UpButterReq(api.AdminStickerPacks)).
+		POST("sticker-pack-save", UpButterReq(api.AdminStickerPackSave)).
+		POST("sticker-pack-delete", UpButterReq(api.AdminStickerPackDelete)).
+		POST("sticker-batch", UpButterReq(api.AdminStickerBatch)).
+		GET("sticker-market", UpQueryReq(api.AdminStickerMarket)).
+		POST("sticker-market-sync", UpButterReq(api.AdminStickerMarketSync)).
+		GET("sticker-market-pack", UpQueryReq(api.AdminStickerMarketPack)).
+		GET("sticker-market-cover", api.AdminStickerMarketCover).
+		POST("sticker-market-import", UpButterReq(api.AdminStickerMarketImport)).
+		POST("sticker-market-pack-save", UpButterReq(api.AdminStickerMarketPackSave)).
+		POST("sticker-market-item-save", UpButterReq(api.AdminStickerMarketItemSave)).
+		POST("sticker-market-pack-create", UpButterReq(api.AdminStickerMarketPackCreate)).
+		POST("sticker-market-upload", api.AdminStickerMarketUpload).
 		GET("terms-of-service", UpButterReq(api.GetTermsOfService)).
 		POST("save-terms-of-service", UpButterReq(api.SaveTermsOfService)).
 		GET("privacy-policy", UpButterReq(api.GetPrivacyPolicy)).
