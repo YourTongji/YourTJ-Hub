@@ -97,10 +97,11 @@ jobs:
           shutil.copy2(candidates[-1], artifact_dir / 'android-arm64-apk-size-analysis.json')
           apk = Path('build/app/outputs/flutter-apk/app-arm64-v8a-release.apk')
           metadata = {
-              'gitSha': os.environ['GITHUB_SHA'],
+              'gitSha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
               'flutterVersion': json.loads(subprocess.check_output(['flutter', '--version', '--machine']))['frameworkVersion'],
               'buildMode': 'release',
               'targetPlatform': 'android-arm64',
+              'androidBuildConfigSha256': subprocess.check_output(['python3', '../../../../scripts/ci/check_android_apk_size.py', '--build-config-sha256'], text=True).strip(),
               'apkBytes': apk.stat().st_size,
           }
           (artifact_dir / 'build-metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
@@ -113,6 +114,10 @@ jobs:
           path: ${{ runner.temp }}/mobile-release-size/
           if-no-files-found: error
           retention-days: 90
+      - name: Check Android release APK size budget
+        if: matrix.platform == 'android'
+        run: |
+          python3 scripts/ci/check_android_apk_size.py "$RUNNER_TEMP/mobile-release-size/build-metadata.json"
       - name: Compile iOS APNs bridge
         if: matrix.platform == 'ios'
         working-directory: apps/mobile/packages/forum_app

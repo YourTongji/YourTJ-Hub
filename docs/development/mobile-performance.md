@@ -6,7 +6,7 @@
 >
 > Owner: Mobile maintainers
 >
-> Last verified: 2026-09-25
+> Last verified: 2026-10-30
 
 ## Startup and rendering
 
@@ -34,6 +34,28 @@ Flutter version, build mode and APK size. Its build-only signing key and OEM con
 credentials. It runs for native/dependency changes or manual dispatch, not every Dart change;
 see the [CI mapping](testing.md#ci-mapping). Compare reports with matching toolchain, ABI and build
 configuration.
+
+`Current`: native Android CI rejects APK growth above 3% of the checked-in
+[`android_apk_size_baseline.json`](../../scripts/ci/android_apk_size_baseline.json).
+The ceiling is inclusive and measured in whole bytes. The report is uploaded before the gate runs,
+so a size regression retains its analysis. This is a fixed baseline, not an automatically advancing
+comparison with the previous build. Ordinary builds never rewrite it.
+
+The baseline records the measured source commit, CI run, artifact ID and archive SHA-256.
+Flutter version, ABI and build mode must match. The recorded Android build-configuration hash
+covers the Gradle wrapper, settings, root/app build scripts and Gradle properties; changes fail
+closed rather than compare silently across build settings. This conservative whole-file hash also
+detects native dependency versions and comment-only changes in those files; Dart dependency changes
+alone remain subject to the size comparison. The initial hash was reconstructed
+from its recorded source commit because that older artifact did not contain the hash.
+For a toolchain/configuration change or an accepted size increase, inspect the uploaded report and
+submit a reviewed baseline update with the new measurement and provenance. Do not raise the limit
+or copy a failing size into the baseline merely to make CI green. Build-only signing and OEM inputs
+must remain comparable; changing that workflow setup also requires reviewing the baseline.
+
+`Partial`: this budget covers builds selected by the native CI policy, not every Dart/asset-only PR.
+Budget checker, test and baseline changes select an Android build. It is not a production APK,
+store-download or installed-size budget; distribution signing and configuration can change size.
 
 `Partial`: reproducible physical-device cold/warm startup distributions, frame-time percentiles,
 and production-equivalent size budgets have not been established. Simulator debug timings and
