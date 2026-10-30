@@ -4167,11 +4167,13 @@ RegisterSuccess:
           description: Human-readable success message. The wording is UI copy and not a stable machine contract value; clients must branch on `messageCode`.
         messageCode:
           type: string
-          enum: [auth.login.success, auth.register.emailVerify]
+          enum: [auth.login.success, auth.register.emailVerify, auth.register.emailRetry]
           description: |
             `auth.login.success` when the account is created and a session is issued
             immediately (email verification disabled); `auth.register.emailVerify` when
-            the site requires email verification before the session is usable. The
+            email verification is required before protected writes. `auth.register.emailRetry`
+            means the account and session exist but activation-mail preparation or queue
+            acceptance could not be confirmed; it does not claim delivery. The
             honeypot path returns the same `auth.login.success` envelope without
             creating an account.
 
@@ -8558,7 +8560,7 @@ AdminRateLimitSettingsConfig:
       description: Master switch.
     skipAdmin:
       type: boolean
-      description: Exempt admin-role users.
+      description: Exempt admin-role users from ordinary action limits. The admin.stats aggregate-query budget still applies.
     actions:
       type: array
       items:
@@ -8598,7 +8600,7 @@ AdminHttpNotifyChannelType:
   description: |
     Notification channel adapter (issue #1049). `generic` posts the structured JSON envelope
     with `X-Goose-*` headers and the optional HMAC signature; `feishu` posts a schema 2.0
-    interactive card to a Feishu group custom-bot webhook (approval events only), signs it with
+    interactive card to a Feishu group custom-bot webhook (approval events and read-only user.signup alerts), signs it with
     the bot's signature secret, and counts HTTP 200 responses whose body `code` is non-zero as
     failures. `astrbot` posts `{content, umo, message_type: "text"}` to the `/send` endpoint of
     the AstrBot push_lite plugin (`/send` is appended when the URL has no path) with
@@ -8755,9 +8757,11 @@ ModerationApprovalActionRequest:
       type: string
       maxLength: 2048
       description: |
-        Appeal decisions only (`subject=appeal`): the reviewer's explanation shown to the author,
-        at most 512 characters. Required to reject an appeal; optional when approving; ignored for
-        other subjects and by the preview.
+        For topic/post rejection (`subject=review.topic|review.post`, action reject) and appeal
+        decisions (`subject=appeal`): the reviewer's author-visible plain-text explanation, at most
+        512 Unicode characters after trimming. Required to reject content or an appeal; optional
+        when approving an appeal; ignored for other actions and by preview. Missing/blank or
+        overlong content-rejection explanations return common.request.invalidParams without a decision.
   additionalProperties: false
 
 ModerationApprovalActionView:
@@ -9616,6 +9620,19 @@ AdminReviewQueueResponse:
 AdminReviewActionRequest:
   type: object
   required: [kind, id]
+  anyOf:
+    - required: [approve]
+      properties:
+        approve:
+          enum: [true]
+    - properties:
+        kind:
+          enum: [sticker]
+    - required: [reason]
+      properties:
+        reason:
+          minLength: 1
+          pattern: '\S'
   properties:
     revisionId:
       type: integer
@@ -9624,7 +9641,7 @@ AdminReviewActionRequest:
     reason:
       type: string
       maxLength: 512
-      description: Optional author-visible rejection reason.
+      description: Required nonblank author-visible explanation for manual topic/post rejection (approve false or omitted); optional for approval, ignored for personal stickers. Plain text, at most 512 Unicode characters; the server trims surrounding whitespace.
     kind:
       type: string
       enum: [topic, post, sticker]
@@ -11509,10 +11526,17 @@ ProfileLikesAudience:
 ProfileConnectionsAudience:
   type: string
   enum: [everyone, followers, mutual, self]
+ChatMessagePolicy:
+  type: string
+  enum: [everyone, mutual, nobody]
+  default: everyone
+  description: Controls new private conversations only. Existing committed-message history is exempt; empty conversations are not. Blocks always take precedence, with no actor-type exemption.
 UserPrivacySettings:
   type: object
   required: [profileTopics, profileActivity, profileLikes, followingList, followersList]
   properties:
+    chatMessagePolicy:
+      $ref: '#/ChatMessagePolicy'
     profileTopics:
       $ref: '#/ProfileAudience'
     profileActivity:
@@ -11535,6 +11559,8 @@ UserPrivacySettingsUpdateRequest:
   type: object
   minProperties: 1
   properties:
+    chatMessagePolicy:
+      $ref: '#/ChatMessagePolicy'
     profileTopics:
       $ref: '#/ProfileAudience'
     profileActivity:
@@ -12936,3 +12962,43 @@ ModerationAppealQueueResponse:
             result:
               $ref: '#/ModerationAppealQueueResult'
     - $ref: '#/ApiFailure'
+
+ActivationStatus:
+  type: object
+  required: [currentEmail, pendingEmail, targetEmail, targetKind, state, remainingToday, dailyLimit, retryAfterSeconds]
+  properties:
+    currentEmail:
+      type: string
+    pendingEmail:
+      type: string
+      description: Fresh staged address; empty when absent or expired.
+    targetEmail:
+      type: string
+      description: Address that POST will target; empty when no target exists.
+    targetKind:
+      type: string
+      enum: [none, current, pending]
+    state:
+      type: string
+      enum: [ready, cooldown, daily_limit, disabled, verified, frozen, mail_unavailable, missing_email]
+    remainingToday:
+      type: integer
+      minimum: 0
+      maximum: 3
+    dailyLimit:
+      type: integer
+      const: 3
+    retryAfterSeconds:
+      type: integer
+      minimum: 0
+      description: Relative wait until cooldown or daily quota expires, rounded up; zero otherwise.
+  additionalProperties: false
+
+ActivationStatusResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/ActivationStatus'

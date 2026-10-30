@@ -174,7 +174,7 @@ void main() {
     await sync.syncOnEnter();
     store.switchPlan('q');
     store.setWeekView(PkWeekView(week: 4));
-    store.setMajorSelection(PkMajorSelection(calendarId: 121));
+    await store.setMajorSelection(PkMajorSelection(calendarId: 121));
     await settle();
     expect(transport.writes, isEmpty);
     expect(timers.where((t) => t.active), isEmpty);
@@ -355,6 +355,57 @@ void main() {
     await sync.syncOnEnter();
     expect(store.buildSnapshotPayload().plans.first.name, 'Offline');
   });
+  test(
+    'configuration fences an old cloud response and resumes cleared-plan upload',
+    () async {
+      transport.remote = [
+        item(
+          edit(plan(), {
+            'customEvents': [
+              {
+                'id': 'e',
+                'label': 'Old term block',
+                'day': 1,
+                'sections': [1],
+                'weeks': [1],
+              },
+            ],
+          }),
+        ),
+      ];
+      await sync.syncOnEnter();
+      expect(store.activePlan.customEvents, hasLength(1));
+      final pendingRead = Completer<List<PkPlanItem>>();
+      transport.pendingRead = pendingRead;
+      final oldRun = sync.syncOnEnter();
+      await settle();
+      expect(
+        await store.setMajorSelection(PkMajorSelection(calendarId: 120)),
+        isTrue,
+      );
+      await settle();
+      pendingRead.complete([
+        item(plan('stale-plan', 'From the old request'), 8),
+      ]);
+      await oldRun;
+      await settle();
+      expect(store.activePlan.id, 'p');
+      expect(store.activePlan.customEvents, isEmpty);
+      final cache = store.readPlanSyncCache(tokens.owner)!;
+      expect((cache['bases'] as Map).keys, ['p']);
+      expect((cache['bases'] as Map)['p']['revision'], 1);
+      expect(transport.writes, isEmpty);
+      expect(timers.where((t) => t.active), hasLength(1));
+      transport.pendingRead = null;
+      timers.last.fire();
+      await settle();
+      expect(transport.writes, hasLength(1));
+      expect(transport.writes.single.$1.id, 'p');
+      expect(transport.writes.single.$1.customEvents, isEmpty);
+      expect(transport.writes.single.$2, 1);
+      expect(sync.isDirty, isFalse);
+    },
+  );
   test('old account response cannot replace new account content', () async {
     await sync.syncOnEnter();
     transport.pendingRead = Completer();

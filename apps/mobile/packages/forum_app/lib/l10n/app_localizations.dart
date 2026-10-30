@@ -492,6 +492,18 @@ abstract class AppLocalizations {
   /// **'Username or email'**
   String get authUsernameOrEmail;
 
+  /// No description provided for @authRegistrationUsernameRules.
+  ///
+  /// In en, this message translates to:
+  /// **'6–32 characters: English letters, digits, underscores (_) and hyphens (-).'**
+  String get authRegistrationUsernameRules;
+
+  /// No description provided for @authRegistrationPasswordRules.
+  ///
+  /// In en, this message translates to:
+  /// **'6–64 characters, including an English letter (A–Z/a–z) and a digit (0–9). Other characters are allowed.'**
+  String get authRegistrationPasswordRules;
+
   /// No description provided for @authUsername.
   ///
   /// In en, this message translates to:
@@ -615,7 +627,7 @@ abstract class AppLocalizations {
   /// No description provided for @authRegisterEmailVerify.
   ///
   /// In en, this message translates to:
-  /// **'Registration successful. A verification email was sent; check your inbox. No email? Sign in and resend it under Account security.'**
+  /// **'Account created. Check your inbox to verify your email. If no email arrives, resend it or change the address under Account security.'**
   String get authRegisterEmailVerify;
 
   /// No description provided for @authActivationRequired.
@@ -633,7 +645,7 @@ abstract class AppLocalizations {
   /// No description provided for @authRegisterSuccess.
   ///
   /// In en, this message translates to:
-  /// **'Registered successfully, please sign in'**
+  /// **'Account created.'**
   String get authRegisterSuccess;
 
   /// No description provided for @authResetEmailSent.
@@ -2094,6 +2106,18 @@ abstract class AppLocalizations {
   /// **'Course planner'**
   String get scheduleTitle;
 
+  /// No description provided for @scheduleFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Filters'**
+  String get scheduleFilters;
+
+  /// No description provided for @scheduleCandidates.
+  ///
+  /// In en, this message translates to:
+  /// **'Candidates'**
+  String get scheduleCandidates;
+
   /// No description provided for @scheduleTabTimetable.
   ///
   /// In en, this message translates to:
@@ -2319,7 +2343,7 @@ abstract class AppLocalizations {
   /// No description provided for @scheduleSearchHint.
   ///
   /// In en, this message translates to:
-  /// **'Search name/code/teacher'**
+  /// **'Search course name'**
   String get scheduleSearchHint;
 
   /// No description provided for @scheduleStaged.
@@ -8219,6 +8243,302 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to load the term list. Check your network and try again.'**
   String get coursePlannerCalendarsFailed;
+
+  /// No description provided for @authCheckEmailVerification.
+  ///
+  /// In en, this message translates to:
+  /// **'Check email verification'**
+  String get authCheckEmailVerification;
+
+  /// No description provided for @authWriteRecoveryHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Your input stays here. Return after verification and continue manually.'**
+  String get authWriteRecoveryHint;
+
+  /// No description provided for @activationStatusRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh status'**
+  String get activationStatusRefresh;
+
+  /// No description provided for @scheduleSearchNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No course names match “{query}”'**
+  String scheduleSearchNoMatch(String query);
+
+  /// No description provided for @scheduleNoOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'No optional courses returned for this term'**
+  String get scheduleNoOptional;
+
+  /// No description provided for @scheduleMajorSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search major name or code'**
+  String get scheduleMajorSearchHint;
+
+  /// No description provided for @chatMessagePolicyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Who can start a conversation'**
+  String get chatMessagePolicyLabel;
+
+  /// No description provided for @activationStatusMailUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Mail is unavailable. Refresh later.'**
+  String get activationStatusMailUnavailable;
+
+  /// No description provided for @activationStatusMissingEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Add an email address in account settings first'**
+  String get activationStatusMissingEmail;
+
+  /// No description provided for @chatMessagePolicyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Private messages'**
+  String get chatMessagePolicyTitle;
+
+  /// No description provided for @campusTimetableNotConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Tongji identity not connected'**
+  String get campusTimetableNotConnected;
+
+  /// No description provided for @scheduleSearchScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Search course names in {term}'**
+  String scheduleSearchScope(String term);
+
+  /// No description provided for @scheduleConfigureScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure course scope'**
+  String get scheduleConfigureScope;
+
+  /// No description provided for @chatMessagePolicySaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Message permissions saved to your account'**
+  String get chatMessagePolicySaved;
+
+  /// No description provided for @scheduleChangeMajorBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Changing the major clears {planCount} plans containing {courseCount} courses and {eventCount} custom events. Cancel to keep your current configuration and plans.'**
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  );
+
+  /// No description provided for @activationStatusDailyLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily limit reached. Try again tomorrow.'**
+  String get activationStatusDailyLimit;
+
+  /// No description provided for @activationStatusDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Email verification is currently disabled'**
+  String get activationStatusDisabled;
+
+  /// No description provided for @authVerificationPendingHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the link in your inbox, then refresh this page. If no email arrives, resend it or change the address. Some actions remain unavailable until verification.'**
+  String get authVerificationPendingHint;
+
+  /// No description provided for @scheduleChangeMajorUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan content changed. Please select the major again.'**
+  String get scheduleChangeMajorUpdated;
+
+  /// No description provided for @activationStatusCooldown.
+  ///
+  /// In en, this message translates to:
+  /// **'Resend in {seconds} seconds'**
+  String activationStatusCooldown(int seconds);
+
+  /// No description provided for @authVerificationPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Email verification pending'**
+  String get authVerificationPending;
+
+  /// No description provided for @activationStatusFrozen.
+  ///
+  /// In en, this message translates to:
+  /// **'This account cannot resend email'**
+  String get activationStatusFrozen;
+
+  /// No description provided for @authRegistrationUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Registration is unavailable. Please try again later.'**
+  String get authRegistrationUnavailable;
+
+  /// No description provided for @imageViewerThumbnails.
+  ///
+  /// In en, this message translates to:
+  /// **'Image thumbnails'**
+  String get imageViewerThumbnails;
+
+  /// No description provided for @activationStatusTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Send to: {email}'**
+  String activationStatusTarget(String email);
+
+  /// No description provided for @activationStatusRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'Resends left today: {count} / {limit}'**
+  String activationStatusRemaining(int count, int limit);
+
+  /// No description provided for @chatMessagePolicyNobody.
+  ///
+  /// In en, this message translates to:
+  /// **'No new conversations'**
+  String get chatMessagePolicyNobody;
+
+  /// No description provided for @scheduleCourseScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Current scope: {scope}'**
+  String scheduleCourseScope(String scope);
+
+  /// No description provided for @activationStatusVerified.
+  ///
+  /// In en, this message translates to:
+  /// **'Email verified. No resend needed.'**
+  String get activationStatusVerified;
+
+  /// No description provided for @authCheckSignupAvailability.
+  ///
+  /// In en, this message translates to:
+  /// **'Check registration again'**
+  String get authCheckSignupAvailability;
+
+  /// No description provided for @scheduleSetupMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Select {fields} before finding courses or classes.'**
+  String scheduleSetupMissing(String fields);
+
+  /// No description provided for @imageViewerOriginalSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Original size'**
+  String get imageViewerOriginalSize;
+
+  /// No description provided for @imageViewerFitPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Fit preview'**
+  String get imageViewerFitPreview;
+
+  /// No description provided for @scheduleChangeMajorConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Change and clear'**
+  String get scheduleChangeMajorConfirm;
+
+  /// No description provided for @campusTimetableConnectBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect your Tongji identity to see your personal school timetable here. You can use the course catalog and schedule planner without connecting.'**
+  String get campusTimetableConnectBody;
+
+  /// No description provided for @chatMessagePolicyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversations with actual messages can continue; empty conversations do not count. Blocks take precedence, including for bots.'**
+  String get chatMessagePolicyHint;
+
+  /// No description provided for @scheduleSearchReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a course name to start'**
+  String get scheduleSearchReady;
+
+  /// No description provided for @scheduleNoCompulsory.
+  ///
+  /// In en, this message translates to:
+  /// **'No compulsory courses returned for this scope'**
+  String get scheduleNoCompulsory;
+
+  /// No description provided for @scheduleMajorNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching majors'**
+  String get scheduleMajorNoMatch;
+
+  /// No description provided for @scheduleChangeMajorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Change major and clear plans?'**
+  String get scheduleChangeMajorTitle;
+
+  /// No description provided for @scheduleEmptyCourseHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjust the course scope or search by course name.'**
+  String get scheduleEmptyCourseHint;
+
+  /// No description provided for @scheduleSetupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Set your course scope first'**
+  String get scheduleSetupTitle;
+
+  /// No description provided for @scheduleConfigChangeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Change setup?'**
+  String get scheduleConfigChangeTitle;
+
+  /// No description provided for @scheduleConfigChangeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This clears courses and custom blocks from every plan. {planCount} plans contain {courseCount} courses and {eventCount} blocks. Plan names are kept.'**
+  String scheduleConfigChangeBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  );
+
+  /// No description provided for @scheduleConfigChangePlan.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}: {courseCount} courses, {eventCount} blocks'**
+  String scheduleConfigChangePlan(String name, int courseCount, int eventCount);
+
+  /// No description provided for @scheduleConfigChangeSync.
+  ///
+  /// In en, this message translates to:
+  /// **'If these plans are already synced, the cleared contents also sync to other devices.'**
+  String get scheduleConfigChangeSync;
+
+  /// No description provided for @scheduleConfigChangeConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear plans and switch'**
+  String get scheduleConfigChangeConfirm;
+
+  /// No description provided for @scheduleConfigChangeUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Plans changed. Choose again and review the current impact.'**
+  String get scheduleConfigChangeUpdated;
 
   /// No description provided for @unreadStyleTitle.
   ///

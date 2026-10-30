@@ -4,14 +4,17 @@ import 'package:auth/auth.dart';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/server_messages.dart';
 import 'package:image/image.dart' as img;
 import 'package:ui_kit/ui_kit.dart';
+import 'package:go_router/go_router.dart';
 import 'fixtures/page_fixtures.dart';
 import 'pages_behavior_test.dart' show NoopCache;
 import 'pages_smoke_test.dart' show MemoryTokenStorage;
@@ -22,10 +25,13 @@ class _Options implements HttpClientAdapter {
     required this.policies,
     this.fail = false,
     this.tongji = false,
+    this.passwordSignupState,
     this.registrationMessageCode,
     this.registrationSuccessMessageCode,
   });
+  String? passwordSignupState;
   final headers = <String?>[];
+  final registrationBodies = <Map<String, dynamic>>[];
   @override
   void close({bool force = false}) {}
   final List<String> domains;
@@ -41,6 +47,7 @@ class _Options implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     if (request.path == '/api/register') {
+      registrationBodies.add(Map<String, dynamic>.from(request.data as Map));
       return ResponseBody.fromString(
         jsonEncode({
           'code': registrationSuccessMessageCode == null ? 1 : 0,
@@ -51,6 +58,8 @@ class _Options implements HttpClientAdapter {
         200,
         headers: {
           Headers.contentTypeHeader: ['application/json'],
+          if (registrationSuccessMessageCode != null)
+            'New-Token': ['registered-session'],
         },
       );
     }
@@ -69,6 +78,8 @@ class _Options implements HttpClientAdapter {
             'component': 'auth.login',
             'props': {
               'initialMode': 'login',
+              if (passwordSignupState != null)
+                'passwordSignupState': passwordSignupState,
               'redirectUrl': '/',
               'githubUrl': '/api/auth/github',
               'googleReady': false,
@@ -162,6 +173,7 @@ class _Auth extends AuthController {
     required String password,
     String? captchaId,
     String? captchaCode,
+    String? locale,
   }) async {
     emails.add(email);
     return null;
@@ -169,10 +181,19 @@ class _Auth extends AuthController {
 }
 
 void main() {
-  Future<({_Auth auth, _Options options, ProviderContainer container})> pump(
+  Future<
+    ({
+      _Auth auth,
+      _Options options,
+      ProviderContainer container,
+      Future<void> Function(Locale) changeLocale,
+    })
+  >
+  pump(
     WidgetTester tester, {
     List<String> domains = const [],
     bool policies = false,
+    String? passwordSignupState,
     bool fail = false,
     bool oldSession = false,
     bool register = true,
@@ -197,6 +218,7 @@ void main() {
     final options = _Options(
       domains: domains,
       policies: policies,
+      passwordSignupState: passwordSignupState,
       fail: fail,
       tongji: tongji,
       registrationMessageCode: registrationMessageCode,
@@ -212,37 +234,129 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: gfThemeData(Brightness.light),
-          locale: locale,
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: TextScaler.linear(textScale)),
-            child: child!,
-          ),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home:
-              registrationMessageCode == null &&
-                  registrationSuccessMessageCode == null
-              ? LoginPage(authController: auth, authTokenStorage: staged)
-              : const LoginPage(),
+    final router = registrationSuccessMessageCode == null
+        ? null
+        : GoRouter(
+            initialLocation: '/login',
+            routes: [
+              GoRoute(
+                path: '/',
+                builder: (_, _) =>
+                    const Scaffold(body: Text('Registration destination')),
+              ),
+              GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
+            ],
+          );
+    if (router != null) addTearDown(router.dispose);
+    Future<void> render(Locale currentLocale) async {
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: router != null
+              ? MaterialApp.router(
+                  routerConfig: router,
+                  theme: gfThemeData(Brightness.light),
+                  locale: currentLocale,
+                  localizationsDelegates:
+                      AppLocalizations.localizationsDelegates,
+                  supportedLocales: AppLocalizations.supportedLocales,
+                )
+              : MaterialApp(
+                  theme: gfThemeData(Brightness.light),
+                  locale: currentLocale,
+                  builder: (context, child) => MediaQuery(
+                    data: MediaQuery.of(
+                      context,
+                    ).copyWith(textScaler: TextScaler.linear(textScale)),
+                    child: child!,
+                  ),
+                  localizationsDelegates:
+                      AppLocalizations.localizationsDelegates,
+                  supportedLocales: AppLocalizations.supportedLocales,
+                  home:
+                      registrationMessageCode == null &&
+                          registrationSuccessMessageCode == null
+                      ? LoginPage(
+                          authController: auth,
+                          authTokenStorage: staged,
+                        )
+                      : const LoginPage(),
+                ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await render(locale);
     if (register) {
       final l10n = AppLocalizations.of(tester.element(find.byType(LoginPage)));
       await tester.tap(find.text(l10n.loginModeRegister).first);
     }
     await tester.pumpAndSettle();
-    return (auth: auth, options: options, container: container);
+    return (
+      auth: auth,
+      options: options,
+      container: container,
+      changeLocale: render,
+    );
   }
 
+  testWidgets(
+    'unavailable password signup still exposes a failed Tongji sign-in and retry',
+    (tester) async {
+      const channel = MethodChannel('crossingthestreams.io/flutter_appauth');
+      var attempts = 0;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        _,
+      ) async {
+        attempts++;
+        throw PlatformException(
+          code: 'sso_review_failure',
+          message: 'SSO review failure',
+        );
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+      await pump(tester, passwordSignupState: 'disabled', tongji: true);
+      for (var i = 1; i <= 2; i++) {
+        await tester.ensureVisible(find.byKey(const Key('login-more-methods')));
+        await tester.tap(find.byKey(const Key('login-more-methods')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Continue with Tongji SSO'));
+        await tester.pumpAndSettle();
+        expect(attempts, i);
+        expect(find.textContaining('SSO review failure'), findsOneWidget);
+        expect(find.byKey(const Key('signup-availability')), findsOneWidget);
+        expect(find.byType(TextField), findsNothing);
+      }
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
+  for (final state in [
+    'disabled',
+    'daily_limit',
+    'mail_unavailable',
+    'unavailable',
+  ]) {
+    testWidgets(
+      'registration $state is explained before collecting credentials',
+      (tester) async {
+        final result = await pump(tester, passwordSignupState: state);
+        expect(find.byType(TextField), findsNothing);
+        expect(find.byKey(const Key('signup-availability')), findsOneWidget);
+        expect(result.auth.emails, isEmpty);
+        final l = AppLocalizations.of(tester.element(find.byType(LoginPage)));
+        await tester.tap(find.text(l.loginModeLogin).first);
+        await tester.pumpAndSettle();
+        expect(find.byType(TextField), findsWidgets);
+      },
+    );
+  }
   Finder input(String label) => find.byWidgetPredicate(
     (widget) => widget is TextField && widget.decoration?.labelText == label,
   );
@@ -832,11 +946,11 @@ void main() {
       await tester.pump(const Duration(seconds: 4));
     },
   );
-  testWidgets(
-    'registration verification success toast is localized from success code',
-    (tester) async {
-      for (final language in ['zh', 'en', 'ja', 'de']) {
-        await pump(
+  for (final language in ['zh', 'en', 'ja', 'de']) {
+    testWidgets(
+      '$language registration request and verification toast use the selected language',
+      (tester) async {
+        final h = await pump(
           tester,
           locale: Locale(language),
           registrationSuccessMessageCode: 'auth.register.emailVerify',
@@ -854,9 +968,78 @@ void main() {
         await tester.ensureVisible(submit());
         await tester.tap(submit());
         await tester.pumpAndSettle();
+        expect(h.options.registrationBodies.single['locale'], language);
         expect(find.text(l10n.authRegisterEmailVerify), findsOneWidget);
         expect(find.text(l10n.authRegisterSuccess), findsNothing);
         expect(input(l10n.authEmail), findsNothing);
+        await tester.pump(const Duration(seconds: 4));
+        await tester.pumpAndSettle();
+      },
+    );
+  }
+
+  testWidgets('registration retry uses the current language on the same form', (
+    tester,
+  ) async {
+    final h = await pump(
+      tester,
+      registrationMessageCode: 'auth.register.failed',
+    );
+    await fill(tester, 'Email', 'student@example.com');
+    await tester.ensureVisible(submit());
+    await tester.tap(submit());
+    await tester.pumpAndSettle();
+    expect(h.options.registrationBodies.single['locale'], 'en');
+
+    final form = tester.state(find.byType(LoginPage));
+    await h.changeLocale(const Locale('ja', 'JP'));
+    expect(tester.state(find.byType(LoginPage)), same(form));
+    final l10n = AppLocalizations.of(tester.element(find.byType(LoginPage)));
+    expect(l10n.localeName, 'ja');
+    expect(
+      tester.widget<TextField>(input(l10n.authEmail)).controller!.text,
+      'student@example.com',
+    );
+    await tester.ensureVisible(submit());
+    await tester.tap(submit());
+    await tester.pumpAndSettle();
+    expect(h.options.registrationBodies.map((body) => body['locale']), [
+      'en',
+      'ja',
+    ]);
+  });
+
+  testWidgets(
+    'created-account mail failure uses actionable copy in four locales',
+    (tester) async {
+      for (final language in ['zh', 'en', 'ja', 'de']) {
+        await pump(
+          tester,
+          locale: Locale(language),
+          registrationSuccessMessageCode: 'auth.register.emailRetry',
+        );
+        final l = AppLocalizations.of(tester.element(find.byType(LoginPage)));
+        await tester.enterText(input(l.authUsername), 'mobile');
+        await tester.enterText(input(l.authEmail), 'student@tongji.edu.cn');
+        await tester.enterText(input(l.authPassword), 'test-password');
+        await tester.enterText(input(l.authConfirmPassword), 'test-password');
+        await tester.ensureVisible(submit());
+        await tester.tap(submit());
+        await tester.pumpAndSettle();
+        expect(find.text(l.authRegisterSuccess), findsNothing);
+        expect(find.text(l.authRegisterEmailVerify), findsNothing);
+        expect(
+          find.text(
+            resolveErrorMessage(
+              l,
+              const ApiException(
+                fallbackMessage: '',
+                messageCode: 'auth.register.emailRetry',
+              ),
+            ),
+          ),
+          findsOneWidget,
+        );
         await tester.pump(const Duration(seconds: 4));
         await tester.pumpAndSettle();
       }
@@ -867,11 +1050,11 @@ void main() {
     tester,
   ) async {
     await pump(tester, registrationSuccessMessageCode: 'auth.login.success');
+    final l10n = AppLocalizations.of(tester.element(find.byType(LoginPage)));
     await fill(tester, 'Email', 'student@tongji.edu.cn');
     await tester.ensureVisible(submit());
     await tester.tap(submit());
     await tester.pumpAndSettle();
-    final l10n = AppLocalizations.of(tester.element(find.byType(LoginPage)));
     expect(find.text(l10n.authRegisterSuccess), findsOneWidget);
     expect(find.text(l10n.authRegisterEmailVerify), findsNothing);
   });
@@ -913,7 +1096,7 @@ void main() {
     'auth.register.dailyQuota':
         "Today's registration quota is full. Please try again tomorrow.",
     'auth.register.retryLogin':
-        'Registration had an issue; please try signing in',
+        "Your account was created, but automatic sign-in did not finish. Sign in to continue; do not register again.",
     'auth.register.failed': 'Registration failed',
     'common.request.invalidParams': 'Invalid request parameters',
     'unknown.registration.error': 'Failed to load',
@@ -988,11 +1171,14 @@ void main() {
   testWidgets('failed registration options can retry without losing the form', (
     tester,
   ) async {
-    final h = await pump(tester, fail: true);
-    await tester.enterText(input('Username'), 'retained');
-    expect(tester.widget<GfButton>(submit()).onPressed, isNull);
+    final h = await pump(tester, fail: true, register: false);
+    await tester.enterText(input('Username or email'), 'retained');
+    final l = AppLocalizations.of(tester.element(find.byType(LoginPage)));
+    await tester.tap(find.text(l.loginModeRegister).first);
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsNothing);
     h.options.fail = false;
-    await tester.tap(find.text('Retry'));
+    await tester.tap(find.text(l.authCheckSignupAvailability));
     await tester.pumpAndSettle();
     expect(
       tester.widget<TextField>(input('Username')).controller!.text,

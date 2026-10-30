@@ -5,6 +5,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { defineComponent } from 'vue'
 import { i18n } from '../src/runtime/i18n'
 import PublishPage from '../src/site/pages/PublishPage.vue'
+import { ApiResponseError } from '../src/runtime/api'
 
 const submit = vi.hoisted(() => vi.fn())
 vi.mock('@/runtime/api', async importOriginal => ({
@@ -66,5 +67,24 @@ describe('发布页编辑图片', () => {
     await view.get('[data-test="editor"]').setValue('已经删除所有图片的正文')
     await (view.vm as any).saveDraft()
     expect(submit).toHaveBeenCalledWith(expect.objectContaining({ images: [], topicStatus: 0 }))
+  })
+})
+
+describe('published write-gate recovery', () => {
+  test.each(['permission.emailRequired', 'auth.required', 'permission.userFrozen'])('%s keeps the editor and offers only the appropriate recovery', async messageCode => {
+    const view = await mountPage(2)
+    await view.get('[data-test="editor"]').setValue('尚未提交的完整正文')
+    submit.mockRejectedValueOnce(new ApiResponseError('specific gate message',messageCode))
+    await (view.vm as any).save(); await flushPromises()
+    expect((view.get('[data-test="editor"]').element as HTMLTextAreaElement).value).toBe('尚未提交的完整正文')
+    const recovery=view.find('[data-write-recovery]')
+    expect(recovery.exists()).toBe(messageCode!=='permission.userFrozen')
+    if(recovery.exists()) {
+      const action=recovery.get('a')
+      expect(action.attributes('target')).toBe('_blank')
+      expect(action.attributes('rel')).toContain('noopener')
+      expect(action.attributes('href')).toMatch(messageCode==='permission.emailRequired'?/^\/settings\?tab=profile$/:/^\/login\?redirect=/)
+    }
+    expect(submit).toHaveBeenCalledTimes(1)
   })
 })

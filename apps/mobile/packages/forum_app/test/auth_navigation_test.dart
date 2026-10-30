@@ -123,7 +123,67 @@ Future<GoRouter> pumpLogin(
   return router;
 }
 
+class _ModeSwitchAuth extends AuthController {
+  _ModeSwitchAuth(GfApiClient client, TokenStorage storage)
+    : super(
+        authRepository: AuthRepository(client),
+        apiClient: client,
+        tokenStorage: storage,
+      );
+
+  LoginPhase currentPhase = LoginPhase.needsTotp;
+  int totpCalls = 0;
+  int registerCalls = 0;
+
+  @override
+  LoginPhase get phase => currentPhase;
+
+  @override
+  Future<void> cancelChallenge() async {
+    currentPhase = LoginPhase.idle;
+    notifyListeners();
+  }
+
+  @override
+  Future<void> submitTotp(String code) async {
+    totpCalls++;
+  }
+
+  @override
+  Future<String?> register({
+    required String username,
+    required String email,
+    required String password,
+    String? captchaId,
+    String? captchaCode,
+    String? locale,
+  }) async {
+    registerCalls++;
+    return 'auth.register.emailVerify';
+  }
+}
+
 void main() {
+  testWidgets(
+    'leaving TOTP makes the registration button submit registration',
+    (tester) async {
+      late _ModeSwitchAuth auth;
+      await pumpLogin(
+        tester,
+        makeAuth: (client, storage) => auth = _ModeSwitchAuth(client, storage),
+      );
+      await tester.tap(find.text('Sign up'));
+      await tester.pumpAndSettle();
+      final button = find.byWidgetPredicate(
+        (w) => w is GfButton && w.size == GfButtonSize.extraLarge,
+      );
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(auth.totpCalls, 0);
+      expect(auth.registerCalls, 1);
+    },
+  );
   for (final type in ['topic', 'post']) {
     test(
       'guest content management retains the $type filter through login',
@@ -231,6 +291,87 @@ void main() {
     );
   }
 
+  testWidgets(
+    'registration accepts the staged session and restores the original route',
+    (tester) async {
+      final router = await pumpLogin(
+        tester,
+        returnTo: '/p/42?postNo=7',
+        makeAuth: (_, storage) {
+          final dio = Dio()
+            ..interceptors.add(
+              InterceptorsWrapper(
+                onRequest: (request, handler) {
+                  expect(request.path, '/api/register');
+                  handler.resolve(
+                    Response(
+                      requestOptions: request,
+                      statusCode: 200,
+                      headers: Headers.fromMap({
+                        'New-Token': ['registered-session'],
+                      }),
+                      data: {
+                        'code': 0,
+                        'result': 'registered',
+                        'messageCode': 'auth.register.emailVerify',
+                      },
+                    ),
+                  );
+                },
+              ),
+            );
+          final client = GfApiClient(
+            dio: dio,
+            tokenStorage: storage,
+            onTokenRenewed: storage.write,
+          );
+          return AuthController(
+            authRepository: AuthRepository(client),
+            apiClient: client,
+            tokenStorage: storage,
+          );
+        },
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(LoginPage)),
+      );
+      await tester.tap(find.text('Sign up').first);
+      await tester.pumpAndSettle();
+      for (final entry in {
+        'Username': 'new-user',
+        'Email': 'new@example.test',
+        'Password': 'password123',
+        'Confirm password': 'password123',
+      }.entries) {
+        final field = find.byWidgetPredicate(
+          (widget) =>
+              widget is TextField && widget.decoration?.labelText == entry.key,
+        );
+        await tester.ensureVisible(field);
+        await tester.enterText(field, entry.value);
+      }
+      final submit = find.byWidgetPredicate(
+        (widget) =>
+            widget is GfButton && widget.size == GfButtonSize.extraLarge,
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(submit);
+      await tester.pumpAndSettle();
+      expect(submit.hitTestable(), findsOneWidget);
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+      expect(
+        await container.read(tokenStorageProvider).read(),
+        'registered-session',
+      );
+      expect(router.state.uri.toString(), '/p/42?postNo=7');
+      expect(find.byType(LoginPage), findsNothing);
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+    },
+  );
+
   for (final register in [true, false]) {
     testWidgets(
       'repeated IME submit starts only one ${register ? 'registration' : 'reset'} request',
@@ -285,6 +426,7 @@ class _PendingAuth extends AuthController {
     required String password,
     String? captchaId,
     String? captchaCode,
+    String? locale,
   }) async {
     await _request();
     return null;

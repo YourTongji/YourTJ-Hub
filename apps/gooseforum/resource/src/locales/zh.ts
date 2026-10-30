@@ -167,6 +167,7 @@ export default {
     searchClose: "关闭",
   },
   statsAdmin: {
+    rateLimitExemptionHint: "管理员豁免不适用于内容贡献统计；四个统计接口共用 admin.stats 配额。",
     filterTitle: '统计筛选',
     rangeLabel: '时间范围',
     range7: '近 7 天',
@@ -588,6 +589,8 @@ export default {
     save: "保存展示徽章"
   },
   tongjiRegistration: {
+    createdTitle: "账号已创建",
+    restartSchool: "重新通过同济登录",
     title: "完成同济账号注册",
     intro: "同济身份已验证。请设置用户名和密码，完成论坛注册，无需再次验证邮箱。",
     expired: "验证已过期，请重新通过同济登录。",
@@ -1418,6 +1421,13 @@ export default {
     contentGone: '内容已永久删除',
   },
   auth: {
+    registrationUsernameRules: "6–32 个字符，仅限英文字母、数字、下划线（_）和连字符（-）。",
+    registrationPasswordRules: "6–64 个字符，须包含英文字母（A–Z／a–z）和数字（0–9），可混合其他字符。",
+    writeRecovery: {
+      email: "检查邮箱验证",
+      login: "使用同一账号重新登录",
+      hint: "当前输入保留在此页。请在新标签页完成验证或登录，再返回这里手动继续。",
+    },
     passkeyLogin: '使用通行密钥登录',
     passkeyWorking: '正在验证通行密钥…',
     passkeyCancelled: '未选择或没有可用的通行密钥，请重试或使用密码登录。',
@@ -1450,6 +1460,9 @@ export default {
     showPassword: '显示密码',
     hidePassword: '隐藏密码',
     captcha: '验证码',
+    refreshCaptcha: '刷新验证码',
+    registrationUnavailable: "注册暂不可用，请稍后再试。",
+    checkSignupAvailability: "重新检查注册状态",
     captchaAlt: '验证码',
     publishCaptchaExplanation: '站点通常会对新账号的高频发布互动要求验证码。近期发布或回复较多时，请先完成验证；近期互动减少或账号注册时间达到站点设定条件后，此要求会自动解除。',
     forgotPassword: '忘记密码？',
@@ -2297,6 +2310,30 @@ export default {
       not_recommend: '多数同学不推荐这门课程。',
     },
   },
+  reviewRejection: {
+    title: "拒绝内容",
+    description: "选择作者可以理解和处理的拒绝理由。",
+    reasonLabel: "拒绝理由",
+    choose: "请选择理由",
+    noteLabel: "补充说明（可选）",
+    noteRequired: "补充说明（必填）",
+    hint: "作者将在登录后的内容管理中看到此理由。请勿填写他人隐私或内部审核信息。",
+    required: "请选择理由；选择“其他”时请填写说明。",
+    tooLong: "理由和补充说明合计不得超过 512 字。",
+    options: {
+      rules: "社区规则",
+      spam: "垃圾信息或广告",
+      privacy: "隐私或敏感信息",
+      offtopic: "版块主题不符",
+      other: "其他",
+    },
+    reasons: {
+      rules: "内容不符合社区规则，请修改后重新提交。",
+      spam: "内容包含垃圾信息或广告，请移除后重新提交。",
+      privacy: "内容涉及隐私或敏感信息，请处理后重新提交。",
+      offtopic: "内容与版块主题不符，请调整内容或版块后重新提交。",
+    },
+  },
   moderationAction: {
     title: '处理审核提醒',
     description: '核对内容后再处理。系统会按你现在的版主权限执行。',
@@ -3020,6 +3057,18 @@ export default {
     },
   },
   settings: {
+    activationStatus: {
+      target: "收件目标：{email}",
+      remaining: "今天还可重发 {count} / {limit} 次",
+      refresh: "刷新状态",
+      cooldown: "请在 {seconds} 秒后重发",
+      daily_limit: "今日额度已用完，请明天再试",
+      disabled: "本站暂未要求邮箱验证",
+      verified: "邮箱已验证，无需重发",
+      frozen: "账号受限，暂不能重发",
+      mail_unavailable: "邮件服务暂不可用，请稍后刷新",
+      missing_email: "请先在账号设置中添加邮箱",
+    },
     editing: '编辑中',
     backToProfile: '返回我的主页',
     savingShort: '保存中',
@@ -3210,6 +3259,11 @@ export default {
       closeConfirmButton: '确认注销',
     },
     privacy: {
+      chatTitle: "私信权限",
+      chatLabel: "谁可以发起私信",
+      chatHint: "已有消息的会话可以继续；空会话不算。屏蔽始终优先，机器人也遵守此设置。",
+      chatNobody: "禁止新私信",
+      chatSaved: "私信权限已保存",
       title: '隐私',
       profileTitle: '个人主页可见范围',
       profileDescription: '选择谁能在你的个人主页上看到这些内容。',
@@ -3648,7 +3702,8 @@ export default {
       register: {
         dailyQuota: '今日注册用户名额已满，请明天再来吧~',
         failed: '注册失败',
-        retryLogin: '注册异常，请尝试登录',
+        emailRetry: "账号已创建，验证邮件暂时不可用。请在邮箱设置重试或更换邮箱。",
+        retryLogin: "账号已创建，但自动登录未完成。请直接登录以继续，避免重复注册。",
         emailVerify: '注册成功，请前往邮箱验证您的账号',
       },
       login: {
@@ -3789,6 +3844,7 @@ export default {
       },
     },
     chat: {
+      permission: { denied: "对方限制了私信，暂时无法发送这条消息。" },
       send: {
         failed: '暂时无法发送这条消息，请稍后重试',
       },
@@ -4121,6 +4177,7 @@ export default {
     'post.firstPostUndeletable': '话题首楼不可删除，请改为删除整个话题。',
     'auth.csrf.rejected': '请求来源校验未通过（已拒绝跨站请求），请刷新页面后重试。',
     'auth.tongji.accountExists': '该同济身份或其学号邮箱已归属已有账号。请登录或找回已有账号，再到校园页重新绑定。',
+    'auth.tongji.retryLogin': "账号已创建，但自动登录未完成。请重新通过同济登录继续，无需再次注册。",
     'admin.moderator.userRequired': '请输入版主用户。',
     'admin.moderator.userNotFound': '版主用户不存在。',
     'admin.moderator.notFound': '版主记录不存在。',

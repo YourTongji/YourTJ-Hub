@@ -359,7 +359,7 @@ class ReadingWindow extends StatelessWidget {
                                     ),
                               ),
                             ),
-                            if (!hasRail)
+                            if (!hasRail && media.viewInsets.bottom == 0)
                               Positioned(
                                 left: 0,
                                 right: 0,

@@ -293,7 +293,8 @@ subscribePush:
                 externalValue: ../fixtures/auth-required.json
       '403':
         description: >-
-          Authenticated account is frozen or its account information cannot be resolved.
+          Authenticated account is frozen or its account information cannot be resolved;
+          when email verification is enabled a pending-activation account is also rejected.
           A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
           by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
           is not cleared (issue #406).
@@ -304,8 +305,25 @@ subscribePush:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              emailRequired:
+                externalValue: ../fixtures/permission-email-required.json
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
+      '429':
+        description: Shared interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/account-close-rate-limited.json
 
 unsubscribePush:
   post:
@@ -348,7 +366,8 @@ unsubscribePush:
                 externalValue: ../fixtures/auth-required.json
       '403':
         description: >-
-          Authenticated account is frozen or its account information cannot be resolved.
+          Authenticated account is frozen or its account information cannot be resolved;
+          when email verification is enabled a pending-activation account is also rejected.
           A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
           by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
           is not cleared (issue #406).
@@ -359,8 +378,26 @@ unsubscribePush:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              emailRequired:
+                externalValue: ../fixtures/permission-email-required.json
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
+      '429':
+        description: Shared interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/account-close-rate-limited.json
+
 registerPushDevice:
   post:
     tags: [Forum]
@@ -404,7 +441,8 @@ registerPushDevice:
                 externalValue: ../fixtures/auth-required.json
       '403':
         description: >-
-          Authenticated account is frozen or its account information cannot be resolved.
+          Authenticated account is frozen or its account information cannot be resolved;
+          when email verification is enabled a pending-activation account is also rejected.
           A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
           by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
           is not cleared (issue #406).
@@ -415,8 +453,25 @@ registerPushDevice:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              emailRequired:
+                externalValue: ../fixtures/permission-email-required.json
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
+      '429':
+        description: Shared interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/account-close-rate-limited.json
 
 unregisterPushDevice:
   post:
@@ -458,7 +513,8 @@ unregisterPushDevice:
                 externalValue: ../fixtures/auth-required.json
       '403':
         description: >-
-          Authenticated account is frozen or its account information cannot be resolved.
+          Authenticated account is frozen or its account information cannot be resolved;
+          when email verification is enabled a pending-activation account is also rejected.
           A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
           by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
           is not cleared (issue #406).
@@ -469,5 +525,22 @@ unregisterPushDevice:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              emailRequired:
+                externalValue: ../fixtures/permission-email-required.json
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
+      '429':
+        description: Shared interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/account-close-rate-limited.json

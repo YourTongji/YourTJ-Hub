@@ -23,6 +23,7 @@ export interface PostStreamTopicActions {
 </script>
 
 <script setup lang="ts">
+import { useWriteRecovery } from '@/site/composables/useWriteRecovery'
 import UserNickname from '@/site/components/UserNickname.vue'
 import PersonaTag from './PersonaTag.vue'
 import { authorURL, authorKey } from '@/runtime/anonymous-identity'
@@ -210,6 +211,7 @@ const loadingPostDirection = ref<'before' | 'after' | 'anchor' | null>(null)
 const postWindowError = ref('')
 const deleteErrorMessage = ref('')
 const errorMessage = ref('')
+const { code: writeRecoveryCode, capture: captureWriteFailure } = useWriteRecovery(errorMessage)
 const successMessage = ref('')
 const sensitiveWords = ref<string[]>([])
 const postLoadMoreEl = ref<HTMLElement | null>(null)
@@ -1665,6 +1667,7 @@ async function savePostEdit() {
   } catch (error) {
     sensitiveWords.value = sensitiveWordsFromError(error)
     errorMessage.value = error instanceof Error ? error.message : t('api.replyUpdateFailed')
+    captureWriteFailure(error)
     showModerationBlocked(error)
   } finally {
     savingEditPostId.value = 0
@@ -1726,6 +1729,7 @@ async function submitPost() {
     } else {
       sensitiveWords.value = sensitiveWordsFromError(error)
       errorMessage.value = error instanceof Error ? error.message : t('api.replyFailed')
+      captureWriteFailure(error)
       showModerationBlocked(error)
     }
   } finally {
@@ -2589,6 +2593,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
     :captcha-explanation="showPublishCaptchaExplanation"
     :current-user-id="viewer.id"
     :error-message="errorMessage"
+    :recovery-code="writeRecoveryCode"
     :mention-users="mentionUsers"
     :mode="composerMode"
     :submitting="editingPostId ? savingEditPostId > 0 : submitting"

@@ -44,7 +44,7 @@ describe('moderation workbench review queue (issue #975)', () => {
     expect(wrapper.emitted('changed')).toHaveLength(1)
   })
 
-  test('rejection needs a second click to confirm', async () => {
+  test('rejection needs a reason and explicit confirmation', async () => {
     i18n.global.locale.value = 'zh'
     vi.spyOn(api, 'fetchModerationReviewQueue').mockResolvedValue({ items: [item(3)], total: 1, page: 1, pageSize: 20 })
     const action = vi.spyOn(api, 'moderationReviewAction').mockResolvedValue('success')
@@ -52,9 +52,10 @@ describe('moderation workbench review queue (issue #975)', () => {
     await flushPromises()
     await wrapper.findAll('button').find(b => b.text() === '拒绝')!.trigger('click')
     expect(action).not.toHaveBeenCalled()
-    await wrapper.findAll('button').find(b => b.text() === '确认拒绝')!.trigger('click')
+    await wrapper.find('select').setValue('rules')
+    await wrapper.find('form').trigger('submit')
     await flushPromises()
-    expect(action).toHaveBeenCalledWith('topic', 3, false, 103)
+    expect(action).toHaveBeenCalledWith('topic', 3, false, 103, i18n.global.t('reviewRejection.reasons.rules'))
     expect(wrapper.text()).toContain('没有待审核的内容')
   })
 

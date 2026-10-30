@@ -66,6 +66,12 @@ for (const language of ['zh', 'en', 'ja', 'de']) for (const theme of ['light', '
     assert.equal(countReads, readsBefore, 'changing display style does not fetch counts again')
     assert.equal(markedRead, markedBefore, 'changing style does not mark a message read')
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+    // Capture the settled switch, not a frame during its color/thumb transition.
+    await page.evaluate(async () => {
+      await Promise.all(document.getAnimations()
+        .filter(animation => Number.isFinite(animation.effect?.getComputedTiming().endTime))
+        .map(animation => animation.finished.catch(() => {})))
+    })
     if (process.env.YOURTJ_TEST_ARTIFACTS) await page.screenshot({ path: join(process.env.YOURTJ_TEST_ARTIFACTS, `unread-dot-${language}-${theme}-${width}.png`) })
     await page.reload()
     await page.waitForFunction(() => document.documentElement.dataset.ready === 'true')

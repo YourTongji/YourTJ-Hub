@@ -395,6 +395,9 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
     final GfShellDestination currentDestination =
         GfShellDestination.values[widget.navigationShell.currentIndex];
     return Scaffold(
+      // Branch pages own keyboard avoidance. Resizing here first also changes
+      // their window height, so composers would subtract the keyboard twice.
+      resizeToAvoidBottomInset: false,
       body: AccountDrawerLayer(
         key: accountDrawerLayerKey,
         // The drawer overlays the page; chrome keeps whatever state the
@@ -659,6 +662,11 @@ final GoRouter appRouter = GoRouter(
       path: '/settings/widgets',
       maxContentWidth: 1120,
       builder: (_, _) => const SettingsPage(initialSection: 'widgets'),
+    ),
+    _readingPageRoute(
+      path: '/settings/chat-permissions',
+      maxContentWidth: 1120,
+      builder: (_, _) => const ProfilePrivacyPage(chatOnly: true),
     ),
     _readingPageRoute(
       path: '/settings/profile-privacy',

@@ -60,6 +60,65 @@ void main() {
     updatedAt: 1,
   );
   test(
+    'reply edit has its own identity, old-reader domain and deletion fence',
+    () async {
+      final store = WritingStore();
+      const scope = 'site:1';
+      final edit = LocalDraft(
+        key: postEditDraftKey(42),
+        kind: DraftKind.postEdit,
+        postId: 42,
+        postOriginalContent: 'server original',
+        title: '',
+        content: 'my reply edit',
+        contentType: 2,
+        topicId: 0,
+        categories: const [],
+        images: const [],
+        updatedAt: 7,
+      );
+      await store.save(scope, edit);
+      // An old binary reads only draft, so it cannot interpret this as a topic.
+      expect(
+        await UserWorkDatabase.instance.readDomain(scope, 'draft'),
+        isEmpty,
+      );
+      expect((await store.drafts(scope)).single.toJson(), edit.toJson());
+      expect(await store.drafts('site:2'), isEmpty);
+      expect((await UserWorkDatabase.instance.usage()).draftCount, 1);
+      await store.delete(scope, edit.key);
+      expect(await store.drafts(scope), isEmpty);
+      expect(await store.restoreIfAbsent(scope, edit), isTrue);
+      await store.clearAccount(scope);
+      expect(await store.drafts(scope), isEmpty);
+      await expectLater(
+        store.save(
+          scope,
+          LocalDraft.fromJson({...edit.toJson(), 'postId': 43}),
+        ),
+        throwsFormatException,
+      );
+    },
+  );
+
+  test(
+    'legacy new-composer empty identity drafts remain recoverable',
+    () async {
+      final store = WritingStore();
+      await UserWorkDatabase.instance.writeBatch('site:1', 'draft', {
+        draft.key: jsonEncode({...draft.toJson(), 'identity': ''}),
+      });
+      expect((await store.drafts('site:1')).single.identity, 'member');
+      expect((await store.drafts('site:1')).single.content, draft.content);
+      expect(await store.drafts('site:2'), isEmpty);
+      expect(await store.drafts('site:0'), isEmpty);
+      expect(
+        () => LocalDraft.fromJson({...draft.toJson(), 'identity': 'unknown'}),
+        throwsFormatException,
+      );
+    },
+  );
+  test(
     'robot reply choice survives local recovery and old drafts default allowed',
     () async {
       final old = LocalDraft.fromJson(

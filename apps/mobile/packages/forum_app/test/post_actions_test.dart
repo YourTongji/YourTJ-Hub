@@ -13,6 +13,7 @@ import 'package:forum_app/src/pages/topic/post_history_sheet.dart';
 import 'package:forum_app/src/pages/topic/post_editor.dart';
 import 'package:forum_app/src/widgets/share/share_image_preview.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/private_notes.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_picker.dart';
@@ -22,7 +23,8 @@ import 'fixtures/sticker_fixtures.dart';
 import 'pages_smoke_test.dart' show MemoryTokenStorage;
 
 class _Posts extends PostRepository {
-  _Posts(super.client);
+  _Posts(super.client) : _client = client;
+  final GfApiClient _client;
   final likes = <int>[];
   final bookmarks = <int>[];
   final deleted = <int>[];
@@ -128,7 +130,14 @@ void main() {
     List<Override> overrides = const [],
   }) async {
     final container = ProviderContainer(
-      overrides: [postRepositoryProvider.overrideWithValue(repo), ...overrides],
+      overrides: [
+        apiClientProvider.overrideWithValue(repo._client),
+        currentUserProvider.overrideWith(
+          (ref) async => const CurrentUser(id: 1, username: 'author'),
+        ),
+        postRepositoryProvider.overrideWithValue(repo),
+        ...overrides,
+      ],
     );
     addTearDown(container.dispose);
     await tester.pumpWidget(
@@ -843,16 +852,17 @@ void main() {
     }
     expect(find.byType(StickerPicker), findsNothing);
 
-    // A failed save reports beside Save and keeps the text.
+    // Failure remains readable above the input even when the action row has
+    // too little room for a long status at large text sizes.
     await tester.enterText(editorField, 'Edited once');
     await tester.tap(save);
     await tester.pumpAndSettle();
-    final status = find.byWidget(composer().status!);
-    expect(tester.getCenter(status).dy, closeTo(tester.getCenter(save).dy, 1));
+    final status = find.byWidget(composer().toolbar!);
     expect(
-      tester.getTopRight(status).dx,
-      lessThanOrEqualTo(tester.getTopLeft(save).dx),
+      tester.getBottomLeft(status).dy,
+      lessThan(tester.getTopLeft(editorField).dy),
     );
+    expect(tester.getSize(status).width, greaterThan(100));
     expect(find.text('Edited once'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

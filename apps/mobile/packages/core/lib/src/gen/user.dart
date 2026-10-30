@@ -370,7 +370,12 @@ const Map<String, List<String>> profilePrivacyAudiences = {
 
 /// The owner's saved profile privacy settings (`/api/user/privacy-settings`).
 class UserPrivacySettingsPayload {
-  const UserPrivacySettingsPayload(this.audiences);
+  const UserPrivacySettingsPayload(
+    this.audiences, {
+    this.chatMessagePolicy = 'everyone',
+  });
+
+  final String chatMessagePolicy;
 
   /// Section key → audience, for every key in [profilePrivacyAudiences].
   final Map<String, String> audiences;
@@ -379,7 +384,7 @@ class UserPrivacySettingsPayload {
       UserPrivacySettingsPayload({
         for (final key in profilePrivacyAudiences.keys)
           key: json[key] as String,
-      });
+      }, chatMessagePolicy: json['chatMessagePolicy'] as String? ?? 'everyone');
 
   String audienceOf(String section) => audiences[section]!;
 }
