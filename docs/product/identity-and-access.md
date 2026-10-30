@@ -118,6 +118,12 @@ unlisted addresses remain on the form. The backend remains the admission authori
 
 ### Mobile (Flutter)
 
+`Current`: password registration accepts only its newly issued forum session through the existing
+cache-clearing and secure-storage boundary, then restores a validated native destination.
+Missing session headers cannot reuse a prior challenge. Pending email verification remains a
+server-enforced write restriction; Account security shows the current owner's pending status and
+email from the existing settings response, with resend and change-email recovery.
+
 `Current`: the native login form exposes password, Google, GitHub and Tongji sign-in, plus configured Apple sign-in on iOS; Tongji is also available on registration. Password login retains
 captcha and TOTP. Google follows the public Web provider configuration. Social sign-in supplies
 `login_hint=google|github|tongji` to the existing authorization endpoint. After the OIDC provider validates
@@ -222,6 +228,18 @@ social counts and badges, and moderator access rules beyond today's public profi
 
 ## Account lifecycle
 
+- Password registration availability (`Current`): the existing public login-page
+  payload includes `passwordSignupState`: `open`, `disabled`, `daily_limit`,
+  `mail_unavailable` or `unavailable`. It exposes no exact creation count or limit
+  and reserves no quota. Web and App explain unavailable states before collecting
+  registration fields and offer a fresh configuration read; Web retains the selected
+  registration mode and safe return destination. Login remains usable, and App
+  provider failures stay visible with a deliberate retry while password signup is unavailable.
+  A count failure is unavailable, never an empty-day assumption. The payload uses
+  the existing no-store page response. Older clients remain protected by POST,
+  and older servers omitting the field retain the existing client form behavior.
+  Every submission still rechecks signup/mail gates and the transactional quota;
+  a stale open page cannot authorize an account after registration closes or fills.
 - Registration: forum self-service password registration (with email verification when enabled) is
   one account-creation path. Tongji SSO also creates school-verified activated accounts; GitHub/Google OAuth never provisions accounts (issue #531). The built-in
   OIDC provider also never creates accounts — it authenticates existing users.
@@ -248,6 +266,44 @@ social counts and badges, and moderator access rules beyond today's public profi
   (admin/site/user/… permissions) and activates them immediately through the user-cache
   refresh path, so the admin console cannot lock itself out; ordinary pending users are left
   untouched and must still complete the activation email.
+
+  `Current`: when verification is off, registration does not enqueue an activation email or
+  mark an ordinary account verified. Enabling verification later also gates existing ordinary
+  pending accounts. Successful account creation still emits the existing `user.signup` HTTP
+  notification, independently of this switch; administrators can subscribe the same notification
+  endpoint used for reports. No endpoint is enabled or subscribed automatically.
+- Registration outcomes (`Current`): account creation, activation-mail scheduling
+  and session creation are distinct. If mail preparation or queue acknowledgement
+  fails after creation, `auth.register.emailRetry` preserves the new pending account
+  and issued session and directs its owner to retry or change the address in email
+  settings. It does not claim rejection or SMTP delivery. Session-creation failure
+  instead returns `auth.register.retryLogin` without credentials, explaining that
+  the account exists and sign-in can recover it. Neither outcome rolls back or
+  repeats registration; occupied/failed-create cases keep the generic public
+  failure. Pending sessions retain the existing write gates, and asynchronous
+  delivery failure is not inferred from an accepted queue acknowledgement.
+- Activation-link recovery (`Current`): missing, invalid and genuinely expired
+  links have separate localized explanations. Invalid signatures, unavailable
+  accounts and stale targets do not disclose another account's state. Failures
+  offer the fixed same-origin email-settings destination; anonymous users pass
+  through the existing login guard, then may resend or change their own address.
+  The result never adopts a redirect query parameter or automatically sends mail.
+  Contact support uses the configured valid site email; unset, invalid and shipped
+  example addresses are omitted, with the site homepage still available. Result
+  responses are private/no-store and suppress referrers carrying the token URL.
+- Activation continuation (`Current`): a successful email link names the verified
+  account. It leaves browser/App login credentials and account freezes unchanged;
+  verification is not sign-in and does not grant unrestricted writes. The result
+  offers explicit browser continuation to an allowed forum page, sign-in with that
+  destination, or `yourtj://account/email-verified`. API/auth/activation destinations
+  and external redirects fall back to account settings. Token-bearing result pages
+  use private/no-store and no-referrer. No unfinished operation is replayed.
+  The App return carries no identity, token or verification proof: it pushes current
+  account settings over the existing page, fetches that session's state, and leaves
+  drafts and credentials intact. Repeated valid native returns refresh an already
+  open account page without stacking routes or trusting the hint as proof.
+  Browser and manual App-switch fallbacks remain
+  available if no App handler is installed.
 - Activation resend status (`Current`): authenticated owners read
   `GET /api/resend-activation-email` with `private, no-store`. It returns current,
   fresh staged and actual target addresses, availability, remaining daily quota
@@ -520,6 +576,13 @@ a JS-readable cookie surface and frontend plumbing to every write call while con
 no additional protection for this deployment shape. SameSite alone is not relied on: the Origin
 check additionally covers same-site cross-origin (subdomain) hosts and browsers without SameSite
 support.
+
+`Current`: Web registration, password recovery/reset and other message-only API calls
+read structured failure codes and parameters even on non-2xx responses. Rate limits
+retain the server's retry duration (`Retry-After` takes precedence); messages use the
+current client locale. Unknown codes, non-JSON errors and raw server `message`/`result`
+text do not reveal internal/provider errors. This preserves the ordinary registration
+anti-enumeration response while allowing published validation and recovery guidance.
 
 ## Security notes
 

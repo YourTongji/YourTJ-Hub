@@ -33,11 +33,15 @@
   "account_activation": "Kontoaktivierung",
   "activationTitleSuccess": "Konto aktiviert",
   "activationTitleFail": "Aktivierung fehlgeschlagen",
-  "activationDescSuccess": "Dein Konto wurde aktiviert. Du kannst jetzt alle Funktionen des Forums nutzen, einschließlich Veröffentlichungen, Antworten und deinem Profil.",
+  "activationDescSuccess": "Die E-Mail-Bestätigung ist abgeschlossen. Die aktuelle Anmeldung im Browser und in der App bleibt unverändert; Sperren und andere Kontobeschränkungen gelten weiterhin. Prüfe das richtige Konto und fahre manuell fort. Offene Aktionen werden nie automatisch gesendet.",
+  "activationAppFallback": "Falls die App nicht startet, wechsle manuell zur App und prüfe die Kontoeinstellungen. Du kannst auch im Browser fortfahren oder dich beim bestätigten Konto anmelden.",
+  "activationOpenApp": "Zur YourTJ App zurück",
+  "activationContinue": "Im Browser fortfahren",
+  "activationVerifiedAccount": "Bestätigtes Konto:",
   "activationDescFail": "Die Aktivierung ist fehlgeschlagen. Überprüfe, ob der Aktivierungslink korrekt ist, oder wende dich an einen Administrator.",
   "activationSuccess": "Konto erfolgreich aktiviert",
   "activationInvalidLink": "Ungültiger Aktivierungslink",
-  "activationExpired": "Der Aktivierungslink ist abgelaufen oder ungültig",
+  "activationExpired": "Der Bestätigungslink ist abgelaufen",
   "activationUserNotFound": "Benutzer nicht gefunden",
   "activationLinkInvalid": "Der Aktivierungslink ist ungültig",
   "activationFailed": "Aktivierung fehlgeschlagen",
@@ -148,5 +152,8 @@
   "anonymous.candidateExpired": "Diese Namen sind abgelaufen. Lade neu und wähle erneut.",
   "anonymous.unavailable": "Anonyme Identität ist gerade nicht verfügbar",
   "forYouFeed": "Für dich",
-  "dailyFeed": "Top-Themen heute"
+  "dailyFeed": "Top-Themen heute",
+  "activationMissingLink": "Dem Bestätigungslink fehlen die erforderlichen Angaben",
+  "activationRecoveryDescription": "Melde dich bei dem zu bestätigenden Konto an. In den E-Mail-Einstellungen kannst du die Nachricht erneut senden oder die Adresse ändern.",
+  "activationRecoveryAction": "E-Mail-Einstellungen öffnen"
 }

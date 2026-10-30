@@ -33,11 +33,15 @@
   "account_activation": "アカウントの有効化",
   "activationTitleSuccess": "アカウントを有効化しました",
   "activationTitleFail": "有効化に失敗しました",
-  "activationDescSuccess": "アカウントが有効化されました。投稿・返信・プロフィールなど、すべてのフォーラム機能を利用できます。",
+  "activationDescSuccess": "メール確認が完了しました。ブラウザーや App でログイン中のアカウントは切り替わりません。凍結やその他の権限制限は引き続き適用されます。対象アカウントの状態を確認してから手動で続けてください。未完了の操作は自動送信されません。",
+  "activationAppFallback": "App が開かない場合は手動で App に戻り、アカウント設定を確認してください。このブラウザーで続けるか、確認したアカウントにログインすることもできます。",
+  "activationOpenApp": "YourTJ App に戻る",
+  "activationContinue": "ブラウザーで続ける",
+  "activationVerifiedAccount": "確認済みアカウント：",
   "activationDescFail": "有効化に失敗しました。有効化リンクが正しいかご確認いただくか、管理者にお問い合わせください。",
   "activationSuccess": "アカウントを有効化しました",
   "activationInvalidLink": "無効な有効化リンクです",
-  "activationExpired": "有効化リンクの有効期限が切れているか、無効です",
+  "activationExpired": "確認リンクの有効期限が切れています",
   "activationUserNotFound": "ユーザーが存在しません",
   "activationLinkInvalid": "有効化リンクが無効です",
   "activationFailed": "有効化に失敗しました",
@@ -148,5 +152,8 @@
   "anonymous.candidateExpired": "この候補は期限切れです。再読み込みしてから選んでください。",
   "anonymous.unavailable": "匿名IDは現在利用できません",
   "forYouFeed": "おすすめ",
-  "dailyFeed": "今日の人気"
+  "dailyFeed": "今日の人気",
+  "activationMissingLink": "確認リンクに必要な情報がありません",
+  "activationRecoveryDescription": "確認するアカウントにログインし、メール設定で確認メールの再送またはアドレスの変更を行ってください。",
+  "activationRecoveryAction": "メール設定を開く"
 }

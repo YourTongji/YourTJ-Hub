@@ -106,7 +106,7 @@ export async function readApiResponse<T>(response: Response, fallback: string): 
 }
 
 // readApiEnvelope 与 readApiResponse 同语义，额外返回成功信封的 messageCode。
-async function readApiEnvelope<T>(response: Response, fallback: string): Promise<{ result: T, messageCode?: string }> {
+async function readApiEnvelope<T>(response: Response, fallback: string): Promise<{ result: T, messageCode?: string, params?: Record<string, unknown> }> {
   const data = await response.json().catch(() => undefined) as ApiResponse<T> | undefined
   if (response.status === 429) {
     const retryHeader = Number(response.headers.get('Retry-After'))
@@ -117,7 +117,7 @@ async function readApiEnvelope<T>(response: Response, fallback: string): Promise
       data?.messageCode ? rateLimitMessage(data, fallback, retryAfterSeconds) : fallback,
       data?.messageCode,
       retryAfterSeconds,
-      data?.params,
+      { ...(data?.params ?? {}), ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }) },
     )
   }
   if (data?.code !== undefined && data.code !== 0) {
@@ -129,17 +129,16 @@ async function readApiEnvelope<T>(response: Response, fallback: string): Promise
   if (!data) {
     throw new Error(fallback)
   }
-  return { result: (data.result ?? data.data) as T, messageCode: data.messageCode }
+  return { result: (data.result ?? data.data) as T, messageCode: data.messageCode, params: data.params }
 }
 
 async function readApiSuccessMessage(response: Response, successFallback: string, errorFallback: string): Promise<string> {
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
-  }
-  const data = (await response.json()) as ApiResponse<unknown>
-  if (data.code !== undefined && data.code !== 0) {
-    throw new ApiResponseError(responseMessage(data, errorFallback), data.messageCode, undefined, data.params)
-  }
+  // Message-only auth/recovery calls use the same structured HTTP/429 parser as
+  // data responses. Never render server result/message text as an error.
+  const data = await readApiEnvelope<unknown>(response, errorFallback).catch(error => {
+    if (error instanceof ApiResponseError) throw error
+    throw new Error(errorFallback)
+  })
   return responseMessage(data, successFallback)
 }
 
@@ -751,11 +750,11 @@ export async function fetchModerationReviewQueue(kind: 'topic' | 'post', page = 
   return readApiResponse<ModerationReviewQueueResult>(response, t('moderation.review.loadFailed'))
 }
 
-export async function moderationReviewAction(kind: 'topic' | 'post', id: number, approve: boolean, revisionId = 0): Promise<unknown> {
+export async function moderationReviewAction(kind: 'topic' | 'post', id: number, approve: boolean, revisionId = 0, reason = ''): Promise<unknown> {
   const response = await feedFetch('/api/forum/moderation/review-action', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ kind, id, approve, revisionId }),
+    body: JSON.stringify({ kind, id, approve, revisionId, ...(reason ? { reason } : {}) }),
   })
   return readApiResponse<unknown>(response, t('moderation.review.actionFailed'))
 }
@@ -1407,7 +1406,8 @@ export async function revokeAllSessions(): Promise<boolean> {
 
 export type UserPrivacySettings = components['schemas']['UserPrivacySettings']
 export type ProfileAudience = components['schemas']['ProfileAudience']
-export type ProfilePrivacySection = keyof UserPrivacySettings
+export type ProfilePrivacySection = Exclude<keyof UserPrivacySettings, 'chatMessagePolicy'>
+export type ChatMessagePolicy = components['schemas']['ChatMessagePolicy']
 
 // Account-level profile privacy (issue #1124): the server is the only source of
 // truth, so callers render a saved value only after the request succeeds.

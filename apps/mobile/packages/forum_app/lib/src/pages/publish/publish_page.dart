@@ -1,6 +1,7 @@
 import '../../widgets/editor/sticker_embed_builder.dart';
 import '../../widgets/stickers/sticker_suggestion_bar.dart';
 import '../../widgets/stickers/sticker_text_controller.dart';
+import '../../widgets/email_verification_recovery.dart';
 import '../../widgets/identity_picker.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
@@ -158,6 +159,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
   bool _showPublishCaptchaExplanation = false;
   String _loadError = '';
   String _error = '';
+  ApiException? _writeFailure;
   String _message = '';
   String _previewMarkdown = '';
   Timer? _previewDebounce;
@@ -834,6 +836,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       _markDirty();
       _allowPop = false;
       _error = '';
+      _writeFailure = null;
       _message = '';
       if (!selected) {
         _categoryIds.remove(category.id);
@@ -1176,10 +1179,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
       }
     } catch (error) {
       if (mounted) {
-        setState(
-          () =>
-              _error = resolveErrorMessage(AppLocalizations.of(context), error),
-        );
+        setState(() {
+          _error = resolveErrorMessage(AppLocalizations.of(context), error);
+          _writeFailure = null;
+        });
       }
     } finally {
       if (mounted) setState(() => _captchaLoading = false);
@@ -1222,6 +1225,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       setState(() {
         if (_categoryIds.isEmpty) _mode = _ComposeMode.preview;
         _error = validationError;
+        _writeFailure = null;
         _message = '';
       });
       return;
@@ -1230,6 +1234,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     setState(() {
       _submitting = true;
       _error = '';
+      _writeFailure = null;
       _message = '';
     });
     try {
@@ -1295,7 +1300,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
     } on ApiException catch (error) {
       if (!mounted || !_sessionCurrent) return;
       if (mounted && _sessionCurrent) {
-        setState(() => _error = resolveErrorMessage(l10n, error));
+        setState(() {
+          _error = resolveErrorMessage(l10n, error);
+          _writeFailure = error;
+        });
       }
       // AI 图文审查拦截(issue #975):弹出友好提示,草稿与图片保持不变。
       if (await showModerationBlockedDialog(context, error)) return;
@@ -1311,7 +1319,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
       }
     } catch (error) {
       if (mounted && _sessionCurrent) {
-        setState(() => _error = l10n.publishFailed('$error'));
+        setState(() {
+          _error = l10n.publishFailed('$error');
+          _writeFailure = null;
+        });
       }
     } finally {
       if (mounted && _sessionCurrent) setState(() => _submitting = false);
@@ -1554,6 +1565,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
                       ),
                     if (_mode == _ComposeMode.edit && _error.isNotEmpty) ...[
                       GfStatusMessage(message: _error),
+                      EmailVerificationRecovery(
+                        error: _writeFailure,
+                        preserveDraft: _saveLocal,
+                      ),
                       const SizedBox(height: 12),
                     ],
                     // Moments lead with their photos; questions attach them
@@ -1675,9 +1690,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
                       ),
                       const SizedBox(height: 16),
                     ],
-                    if (_error.isNotEmpty && _mode != _ComposeMode.edit)
-                      GfStatusMessage(message: _error)
-                    else if (_message.isNotEmpty)
+                    if (_error.isNotEmpty && _mode != _ComposeMode.edit) ...[
+                      GfStatusMessage(message: _error),
+                      EmailVerificationRecovery(
+                        error: _writeFailure,
+                        preserveDraft: _saveLocal,
+                      ),
+                    ] else if (_message.isNotEmpty)
                       GfStatusMessage(
                         message: _message,
                         variant: GfStatusMessageVariant.success,
@@ -1737,6 +1756,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
               if (_error.isNotEmpty || _message.isNotEmpty) {
                 setState(() {
                   _error = '';
+                  _writeFailure = null;
                   _message = '';
                 });
               }

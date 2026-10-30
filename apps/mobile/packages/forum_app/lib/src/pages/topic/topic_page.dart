@@ -1,3 +1,4 @@
+import '../../widgets/email_verification_recovery.dart';
 import '../../widgets/user_decoration.dart';
 import '../../realtime/realtime_updates.dart';
 import 'agent_reply_setting.dart';
@@ -134,6 +135,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
     onKeyEvent: _replyMentionKeyEvent,
   );
   bool _replying = false;
+  ApiException? _replyWriteFailure;
   CaptchaPayload? _replyCaptcha;
   final _replyCaptchaCode = TextEditingController();
   bool _replyCaptchaLoading = false;
@@ -1289,7 +1291,10 @@ class _TopicPageState extends ConsumerState<TopicPage>
     final target = _replyToPostId;
     final submittedRevision = _replyRevision;
     final epoch = ref.read(offlineCacheEpochProvider);
-    setState(() => _replying = true);
+    setState(() {
+      _replying = true;
+      _replyWriteFailure = null;
+    });
     try {
       final result = await ref
           .read(postRepositoryProvider)
@@ -1341,6 +1346,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
         return;
       }
       if (error is ApiException) {
+        setState(() => _replyWriteFailure = error);
         if (error.messageCode == 'common.captchaRequired') {
           setState(
             () => _showReplyCaptchaExplanation =
@@ -2281,82 +2287,101 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                                         l10n.commonRetry,
                                                     onRetry: _saveReplyDraft,
                                                   ),
-                                            toolbar: _replyCaptcha == null
+                                            toolbar:
+                                                _replyCaptcha == null &&
+                                                    _replyWriteFailure
+                                                            ?.messageCode !=
+                                                        'permission.emailRequired'
                                                 ? null
                                                 : Column(
                                                     mainAxisSize:
                                                         MainAxisSize.min,
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
                                                     children: [
-                                                      Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          if (_showReplyCaptchaExplanation)
-                                                            Padding(
-                                                              padding:
-                                                                  const EdgeInsets.only(
-                                                                    bottom: 8,
-                                                                  ),
-                                                              child: GfText(
-                                                                l10n.publishCaptchaExplanation,
-                                                                style: Theme.of(
-                                                                  context,
-                                                                ).textTheme.bodySmall,
-                                                              ),
-                                                            ),
-                                                          Row(
-                                                            children: [
-                                                              InkWell(
-                                                                onTap:
-                                                                    _replyCaptchaLoading
-                                                                    ? null
-                                                                    : _loadReplyCaptcha,
-                                                                child: GfCaptchaImage(
-                                                                  imageData:
-                                                                      _replyCaptcha!
-                                                                          .captchaImg,
-                                                                  width: 80,
-                                                                  height: 42,
-                                                                  fit: BoxFit
-                                                                      .contain,
-                                                                ),
-                                                              ),
-                                                              const SizedBox(
-                                                                width: 8,
-                                                              ),
-                                                              Expanded(
-                                                                child: GfInput(
-                                                                  key: const Key(
-                                                                    'reply-captcha',
-                                                                  ),
-                                                                  controller:
-                                                                      _replyCaptchaCode,
-                                                                  labelText: l10n
-                                                                      .authCaptcha,
-                                                                  textCapitalization:
-                                                                      TextCapitalization
-                                                                          .characters,
-                                                                ),
-                                                              ),
-                                                              IconButton(
-                                                                tooltip: l10n
-                                                                    .commonRefresh,
-                                                                onPressed:
-                                                                    _replyCaptchaLoading
-                                                                    ? null
-                                                                    : _loadReplyCaptcha,
-                                                                icon: const GfSymbol(
-                                                                  'refresh-cw',
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ],
+                                                      EmailVerificationRecovery(
+                                                        compact: true,
+                                                        error:
+                                                            _replyWriteFailure,
+                                                        preserveDraft:
+                                                            _saveReplyDraft,
                                                       ),
+                                                      if (_replyCaptcha != null)
+                                                        Column(
+                                                          mainAxisSize:
+                                                              MainAxisSize.min,
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            Column(
+                                                              crossAxisAlignment:
+                                                                  CrossAxisAlignment
+                                                                      .start,
+                                                              children: [
+                                                                if (_showReplyCaptchaExplanation)
+                                                                  Padding(
+                                                                    padding:
+                                                                        const EdgeInsets.only(
+                                                                          bottom:
+                                                                              8,
+                                                                        ),
+                                                                    child: GfText(
+                                                                      l10n.publishCaptchaExplanation,
+                                                                      style: Theme.of(
+                                                                        context,
+                                                                      ).textTheme.bodySmall,
+                                                                    ),
+                                                                  ),
+                                                                Row(
+                                                                  children: [
+                                                                    InkWell(
+                                                                      onTap:
+                                                                          _replyCaptchaLoading
+                                                                          ? null
+                                                                          : _loadReplyCaptcha,
+                                                                      child: GfCaptchaImage(
+                                                                        imageData:
+                                                                            _replyCaptcha!.captchaImg,
+                                                                        width:
+                                                                            80,
+                                                                        height:
+                                                                            42,
+                                                                        fit: BoxFit
+                                                                            .contain,
+                                                                      ),
+                                                                    ),
+                                                                    const SizedBox(
+                                                                      width: 8,
+                                                                    ),
+                                                                    Expanded(
+                                                                      child: GfInput(
+                                                                        key: const Key(
+                                                                          'reply-captcha',
+                                                                        ),
+                                                                        controller:
+                                                                            _replyCaptchaCode,
+                                                                        labelText:
+                                                                            l10n.authCaptcha,
+                                                                        textCapitalization:
+                                                                            TextCapitalization.characters,
+                                                                      ),
+                                                                    ),
+                                                                    IconButton(
+                                                                      tooltip: l10n
+                                                                          .commonRefresh,
+                                                                      onPressed:
+                                                                          _replyCaptchaLoading
+                                                                          ? null
+                                                                          : _loadReplyCaptcha,
+                                                                      icon: const GfSymbol(
+                                                                        'refresh-cw',
+                                                                      ),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ],
+                                                        ),
                                                     ],
                                                   ),
                                           );

@@ -1470,6 +1470,11 @@ export default {
     contentGone: 'Content has been permanently deleted',
   },
   auth: {
+    writeRecovery: {
+      email: "Check email verification",
+      login: "Sign in again with the same account",
+      hint: "Your input stays on this page. Complete verification or sign-in in the new tab, then return here and continue manually.",
+    },
     passkeyLogin: 'Sign in with a passkey',
     passkeyWorking: 'Checking your passkey…',
     passkeyCancelled: 'No passkey was selected or available. Try again or use your password.',
@@ -1502,6 +1507,8 @@ export default {
     showPassword: 'Show password',
     hidePassword: 'Hide password',
     captcha: 'Captcha',
+    registrationUnavailable: "Registration is unavailable. Please try again later.",
+    checkSignupAvailability: "Check registration again",
     captchaAlt: 'Captcha',
     publishCaptchaExplanation: 'The site may require a captcha for frequent posting by newer accounts. This check lifts as recent activity subsides or the account meets the site’s age condition.',
     forgotPassword: 'Forgot password?',
@@ -2340,6 +2347,30 @@ export default {
       neutral: 'Students have mixed opinions about this course.',
       cautious: 'Most students advise caution before choosing this course.',
       not_recommend: 'Most students do not recommend this course.',
+    },
+  },
+  reviewRejection: {
+    title: "Reject content",
+    description: "Choose a reason the author can understand and act on.",
+    reasonLabel: "Reason for rejection",
+    choose: "Choose a reason",
+    noteLabel: "Additional explanation (optional)",
+    noteRequired: "Additional explanation (required)",
+    hint: "The author can read this reason in My content after signing in. Do not include others’ private details or internal moderation information.",
+    required: "Choose a reason. For Other, add an explanation.",
+    tooLong: "The reason and explanation together must be at most 512 characters.",
+    options: {
+      rules: "Community rules",
+      spam: "Spam or advertising",
+      privacy: "Private or sensitive information",
+      offtopic: "Wrong category",
+      other: "Other",
+    },
+    reasons: {
+      rules: "This content does not meet the community rules. Please revise and resubmit.",
+      spam: "This content contains spam or advertising. Please remove it and resubmit.",
+      privacy: "This content includes private or sensitive information. Please address it and resubmit.",
+      offtopic: "This content does not fit the category. Please revise it or choose another category and resubmit.",
     },
   },
   moderationAction: {
@@ -3268,6 +3299,11 @@ export default {
       closeConfirmButton: 'Confirm close',
     },
     privacy: {
+      chatTitle: "Private messages",
+      chatLabel: "Who can start a conversation",
+      chatHint: "Conversations with actual messages can continue; empty conversations do not count. Blocks take precedence, including for bots.",
+      chatNobody: "No new conversations",
+      chatSaved: "Message permissions saved",
       title: 'Privacy',
       profileTitle: 'Profile visibility',
       profileDescription: 'Choose who can see each part of your profile.',
@@ -3706,7 +3742,8 @@ export default {
       register: {
         dailyQuota: 'Today\'s registration quota is full. Please try again tomorrow.',
         failed: 'Registration failed',
-        retryLogin: 'Registration had an issue; please try signing in',
+        emailRetry: "Your account was created, but verification email is temporarily unavailable. Retry or change the address in email settings.",
+        retryLogin: "Your account was created, but automatic sign-in did not finish. Sign in to continue; do not register again.",
         emailVerify: 'Registration successful. Please verify your email',
       },
       login: {
@@ -3847,6 +3884,7 @@ export default {
       },
     },
     chat: {
+      permission: { denied: "This person has restricted private messages. You cannot send this message." },
       send: {
         failed: 'Unable to send this message. Please try again later',
       },

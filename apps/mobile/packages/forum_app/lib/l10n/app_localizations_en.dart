@@ -294,7 +294,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authRegisterEmailVerify =>
-      'Registration successful. A verification email was sent; check your inbox. No email? Sign in and resend it under Account security.';
+      'Account created. Check your inbox to verify your email. If no email arrives, resend it or change the address under Account security.';
 
   @override
   String get authActivationRequired =>
@@ -304,7 +304,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authResendActivationEmail => 'Resend verification email';
 
   @override
-  String get authRegisterSuccess => 'Registered successfully, please sign in';
+  String get authRegisterSuccess => 'Account created.';
 
   @override
   String get authResetEmailSent => 'Reset email sent, please check your inbox';
@@ -4585,36 +4585,28 @@ class AppLocalizationsEn extends AppLocalizations {
       'Failed to load the term list. Check your network and try again.';
 
   @override
-  String activationStatusTarget(String email) {
-    return 'Send to: $email';
-  }
+  String get authCheckEmailVerification => 'Check email verification';
 
   @override
-  String activationStatusRemaining(int count, int limit) {
-    return 'Resends left today: $count / $limit';
-  }
+  String get authWriteRecoveryHint =>
+      'Your input stays here. Return after verification and continue manually.';
 
   @override
   String get activationStatusRefresh => 'Refresh status';
 
   @override
-  String activationStatusCooldown(int seconds) {
-    return 'Resend in $seconds seconds';
+  String scheduleSearchNoMatch(String query) {
+    return 'No course names match “$query”';
   }
 
   @override
-  String get activationStatusDailyLimit =>
-      'Daily limit reached. Try again tomorrow.';
+  String get scheduleNoOptional => 'No optional courses returned for this term';
 
   @override
-  String get activationStatusDisabled =>
-      'Email verification is currently disabled';
+  String get scheduleMajorSearchHint => 'Search major name or code';
 
   @override
-  String get activationStatusVerified => 'Email verified. No resend needed.';
-
-  @override
-  String get activationStatusFrozen => 'This account cannot resend email';
+  String get chatMessagePolicyLabel => 'Who can start a conversation';
 
   @override
   String get activationStatusMailUnavailable =>
@@ -4625,22 +4617,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Add an email address in account settings first';
 
   @override
-  String scheduleSearchNoMatch(String query) {
-    return 'No course names match “$query”';
-  }
+  String get chatMessagePolicyTitle => 'Private messages';
 
   @override
-  String scheduleCourseScope(String scope) {
-    return 'Current scope: $scope';
-  }
-
-  @override
-  String get imageViewerFitPreview => 'Fit preview';
+  String get campusTimetableNotConnected => 'Tongji identity not connected';
 
   @override
   String scheduleSearchScope(String term) {
     return 'Search course names in $term';
   }
+
+  @override
+  String get scheduleConfigureScope => 'Configure course scope';
+
+  @override
+  String get chatMessagePolicySaved =>
+      'Message permissions saved to your account';
 
   @override
   String scheduleChangeMajorBody(
@@ -4652,16 +4644,87 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get activationStatusDailyLimit =>
+      'Daily limit reached. Try again tomorrow.';
+
+  @override
+  String get activationStatusDisabled =>
+      'Email verification is currently disabled';
+
+  @override
+  String get authVerificationPendingHint =>
+      'Use the link in your inbox, then refresh this page. If no email arrives, resend it or change the address. Some actions remain unavailable until verification.';
+
+  @override
+  String get scheduleChangeMajorUpdated =>
+      'Plan content changed. Please select the major again.';
+
+  @override
+  String activationStatusCooldown(int seconds) {
+    return 'Resend in $seconds seconds';
+  }
+
+  @override
+  String get authVerificationPending => 'Email verification pending';
+
+  @override
+  String get activationStatusFrozen => 'This account cannot resend email';
+
+  @override
+  String get authRegistrationUnavailable =>
+      'Registration is unavailable. Please try again later.';
+
+  @override
+  String get imageViewerThumbnails => 'Image thumbnails';
+
+  @override
+  String activationStatusTarget(String email) {
+    return 'Send to: $email';
+  }
+
+  @override
+  String activationStatusRemaining(int count, int limit) {
+    return 'Resends left today: $count / $limit';
+  }
+
+  @override
+  String get chatMessagePolicyNobody => 'No new conversations';
+
+  @override
+  String scheduleCourseScope(String scope) {
+    return 'Current scope: $scope';
+  }
+
+  @override
+  String get activationStatusVerified => 'Email verified. No resend needed.';
+
+  @override
+  String get authCheckSignupAvailability => 'Check registration again';
+
+  @override
   String scheduleSetupMissing(String fields) {
     return 'Select $fields before finding courses or classes.';
   }
 
   @override
-  String get campusTimetableNotConnected => 'Tongji identity not connected';
+  String get imageViewerOriginalSize => 'Original size';
 
   @override
-  String get scheduleEmptyCourseHint =>
-      'Adjust the course scope or search by course name.';
+  String get imageViewerFitPreview => 'Fit preview';
+
+  @override
+  String get scheduleChangeMajorConfirm => 'Change and clear';
+
+  @override
+  String get campusTimetableConnectBody =>
+      'Connect your Tongji identity to see your personal school timetable here. You can use the course catalog and schedule planner without connecting.';
+
+  @override
+  String get chatMessagePolicyHint =>
+      'Conversations with actual messages can continue; empty conversations do not count. Blocks take precedence, including for bots.';
+
+  @override
+  String get scheduleSearchReady => 'Enter a course name to start';
 
   @override
   String get scheduleNoCompulsory =>
@@ -4671,37 +4734,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scheduleMajorNoMatch => 'No matching majors';
 
   @override
-  String get campusTimetableConnectBody =>
-      'Connect your Tongji identity to see your personal school timetable here. You can use the course catalog and schedule planner without connecting.';
-
-  @override
-  String get scheduleChangeMajorConfirm => 'Change and clear';
-
-  @override
   String get scheduleChangeMajorTitle => 'Change major and clear plans?';
 
   @override
-  String get scheduleMajorSearchHint => 'Search major name or code';
-
-  @override
-  String get scheduleChangeMajorUpdated =>
-      'Plan content changed. Please select the major again.';
-
-  @override
-  String get imageViewerThumbnails => 'Image thumbnails';
-
-  @override
-  String get scheduleConfigureScope => 'Configure course scope';
-
-  @override
-  String get scheduleNoOptional => 'No optional courses returned for this term';
+  String get scheduleEmptyCourseHint =>
+      'Adjust the course scope or search by course name.';
 
   @override
   String get scheduleSetupTitle => 'Set your course scope first';
-
-  @override
-  String get scheduleSearchReady => 'Enter a course name to start';
-
-  @override
-  String get imageViewerOriginalSize => 'Original size';
 }

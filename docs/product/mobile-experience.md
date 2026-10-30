@@ -1274,6 +1274,17 @@ retain separate identities and detail links. Identity text wraps with enlarged t
 
 ## Registration
 
+- `Current`: post-creation mail scheduling failures have a dedicated localized
+  warning directing the user to email settings for retry or an address change.
+  They do not become the ordinary “check your inbox” confirmation. A created
+  account whose automatic sign-in failed instead asks the user to sign in without
+  registering again; public occupied-account failures remain generic.
+
+- `Current`: successful password registration accepts its newly issued forum session through the
+  same cache cleanup, secure-storage commit and provider invalidation used for sign-in. It restores
+  only the safe native destination; a missing token cannot reuse an earlier challenge or session.
+  A created account without an accepted session offers sign-in recovery instead of showing success.
+
 `Current`: switching the authentication form from sign-in to registration or password recovery
 clears its TOTP challenge, staged credential, code and previous captcha request. A late captcha response
 cannot restore the old challenge. Selecting the same form preserves an active TOTP retry.
@@ -1281,7 +1292,11 @@ cannot restore the old challenge. Selecting the same form preserves an active TO
 - `Current`: registration loads the current Web login configuration before submission. Restricted
   email domains use a prefix field and domain selector; unrestricted sites accept the full address.
   Password confirmation is checked locally. Only published terms/privacy policies are linked and
-  require explicit agreement. Configuration failures preserve the form and offer retry.
+  require explicit agreement. Configuration failures retain field controllers and offer retry. Before ordinary
+  registration is known to be available, the page shows loading or an explanation
+  and a recheck action. Closed registration, daily capacity and unavailable email
+  service are explained without collecting registration fields; login remains usable.
+  The public state contains no counts and the backend rechecks every submission.
 - `Current`: the restricted email field accepts either a prefix or a full address at a published
   domain, matching domains without case sensitivity. A full address selects its own domain instead
   of appending another suffix; malformed or unlisted addresses stay on the form with a localized
@@ -1296,6 +1311,19 @@ cannot restore the old challenge. Selecting the same form preserves an active TO
 - `Current`: when email verification is enabled, successful registration tells the user to check
   their inbox; when it is disabled, the ordinary registration confirmation remains. Email changes
   tell the user to check the new address for its activation link in both immediate and staged modes.
+
+- `Current`: the fixed `yourtj://account/email-verified` return opens current account
+  settings on the existing navigation stack. It neither verifies the App's account
+  nor switches it to the account named in the browser. Returning with Back retains
+  the unfinished page/draft; continuing an operation remains manual. The handler
+  ignores OIDC callbacks, alternate hosts/paths, and any query/fragment payload.
+  Cold-start links wait for storage/bootstrap readiness. Account data is read using
+  the current session; guests use the ordinary sign-in guard.
+  A narrow native event bridge retains an initial hint until Flutter listens and
+  forwards foreground hints without carrying URL payloads. Flutter's competing iOS
+  navigation handler is disabled, following [Flutter's guidance](https://docs.flutter.dev/cookbook/navigation/set-up-universal-links).
+  Other URLs continue through the existing OIDC and campus-widget native handlers;
+  the bridge neither reads their credentials nor consumes their events.
 
 ## Persistent forum anonymous identity
 
@@ -1337,6 +1365,14 @@ or production push delivery behavior. The shared business and privacy rules are 
 [anonymous identity](anonymous-identity.md).
 
 ## Profile and privacy
+
+`Current`: Privacy settings include a separate “Private messages” page at
+`/settings/chat-permissions`. Everyone is the default; mutual followers and no new
+conversations are the other choices. Only actual message history exempts an existing
+conversation; empty conversations do not. Blocks take precedence for people and bots.
+A failed save keeps the confirmed value. The same server rule applies to all send types
+and forwarding on Web, App and old clients; see [forum permissions](forum.md#private-message-permissions).
+
 
 - `Current`: Settings separates Account & security (username, email, password, OAuth, two-factor,
   passkeys, sessions and destructive account closure), Privacy (profile visibility, blocks and anonymous
@@ -1692,8 +1728,17 @@ native cleanup is pending.
 
 ## Email activation
 
-`Current`: password registration distinguishes accounts requiring email activation and directs
-users to sign in and open Account security if the email is missing. Account security and the
+`Current`: a writing failure with `permission.emailRequired` offers Account security from topic
+publishing, replies and reply editing. Publishing and new replies save their existing account-scoped
+local recovery copy before opening settings; a failed save keeps the writer visible. Settings is
+pushed above the writer so Back retains its input, including reply edits. This action never resends
+activation mail or retries the write. Frozen-account errors retain their distinct notice and do not
+offer email verification. Session-expiry navigation keeps its existing session cleanup behavior.
+
+`Current`: password registration accepts the issued session and distinguishes accounts requiring
+email activation. Account security keeps an owner-specific pending notice and current email from
+the existing settings response, so it remains available after reopening the app. Refreshing after
+verification removes the notice; a registration toast does not claim actual email delivery. Account security and the
 campus connection's `permission.emailRequired` notice share a resend action with localized success,
 cooldown and daily-limit feedback. The campus notice explicitly asks users to activate their account
 from their inbox; backend start/confirm gates remain authoritative, and unbinding stays available.
@@ -1754,7 +1799,7 @@ servers that omit interaction fields retain read-only content previews.
   lines, and the one-line composer shown beside an open sticker panel keeps a whole sticker line
   visible; one delete removes a whole sticker or a half-typed `[:sticker:` fragment, and the
   caret never rests inside one. Typing `[:sticker:` shows matching stickers in a strip above the
-  input; tapping one completes it ([0117](../decisions/0117-wysiwyg-sticker-editing.md)).
+  input; tapping one completes it ([0119](../decisions/0119-wysiwyg-sticker-editing.md)).
   Repeated picks keep the panel open and advance the caret. Image uploads and reply-target/image
   removal keep the next insertion aligned with the updated caret. Ordinary typing does not retry
   unavailable sticker resolution; token changes and explicit retry can resolve again.

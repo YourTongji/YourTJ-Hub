@@ -49,7 +49,7 @@ them reads only the editor root's direct child.
 The Flutter editor is out of scope: its soft keyboard delivers deletion as `TextEditingValue`
 changes, which needs a separate controller/formatter implementation. Issue #1332 tracks it; the
 app controller and decorated Web stickers are decided in
-[0117](0117-wysiwyg-sticker-editing.md).
+[0119](0119-wysiwyg-sticker-editing.md).
 
 ## Pros and Cons of the Options
 

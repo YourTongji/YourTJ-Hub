@@ -428,7 +428,7 @@ func TestAdminReviewActionHTTPContract(t *testing.T) {
 			CreatedAt:        contractTaskCreatedAt,
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			fmt.Sprintf(`{"kind":"post","id":%d,"approve":false}`, post.Id),
+			fmt.Sprintf(`{"kind":"post","id":%d,"approve":false,"reason":"Please revise the content."}`, post.Id),
 			"admin-agent-disable-success.json")
 		if got := posts.Get(post.Id); got.ProcessStatus != posts.ProcessStatusBlocked {
 			t.Fatalf("post processStatus = %d, want blocked after reject", got.ProcessStatus)

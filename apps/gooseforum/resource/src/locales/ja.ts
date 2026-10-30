@@ -1469,6 +1469,11 @@ export default {
     contentGone: 'コンテンツは完全に削除されました',
   },
   auth: {
+    writeRecovery: {
+      email: "メール確認の状態を確認",
+      login: "同じアカウントで再度ログイン",
+      hint: "入力内容はこのページに残ります。新しいタブで確認またはログインを完了し、ここに戻って手動で続けてください。",
+    },
     passkeyLogin: 'パスキーでログイン',
     passkeyWorking: 'パスキーを確認中…',
     passkeyCancelled: 'パスキーが選択されていないか、利用できません。再試行するか、パスワードでログインしてください。',
@@ -1501,6 +1506,8 @@ export default {
     showPassword: 'パスワードを表示',
     hidePassword: 'パスワードを隠す',
     captcha: '認証コード',
+    registrationUnavailable: "現在登録できません。しばらくしてからお試しください。",
+    checkSignupAvailability: "登録状況を再確認",
     captchaAlt: '認証コード',
     publishCaptchaExplanation: '新しいアカウントでは、投稿や返信が多い場合に認証コードが必要になることがあります。最近の利用が落ち着くか、アカウントがサイト所定の期間に達すると解除されます。',
     forgotPassword: 'パスワードを忘れましたか？',
@@ -2339,6 +2346,30 @@ export default {
       neutral: '学生の評価は賛否両論です。',
       cautious: '多くの学生が履修前に慎重な検討をすすめています。',
       not_recommend: '多くの学生がこのコースをおすすめしていません。',
+    },
+  },
+  reviewRejection: {
+    title: "コンテンツを却下",
+    description: "投稿者が理解し、修正できる理由を選んでください。",
+    reasonLabel: "却下理由",
+    choose: "理由を選択",
+    noteLabel: "補足説明（任意）",
+    noteRequired: "補足説明（必須）",
+    hint: "投稿者はログイン後「自分のコンテンツ」で理由を確認できます。他人の個人情報や内部の審査情報は含めないでください。",
+    required: "理由を選択してください。「その他」には説明が必要です。",
+    tooLong: "理由と補足説明の合計は512文字以内にしてください。",
+    options: {
+      rules: "コミュニティルール",
+      spam: "スパム・広告",
+      privacy: "個人情報・機密情報",
+      offtopic: "カテゴリとの不一致",
+      other: "その他",
+    },
+    reasons: {
+      rules: "コミュニティルールに適合していません。修正して再投稿してください。",
+      spam: "スパムや広告が含まれています。削除して再投稿してください。",
+      privacy: "個人情報や機密情報が含まれています。対応して再投稿してください。",
+      offtopic: "カテゴリのテーマに合っていません。内容やカテゴリを変更して再投稿してください。",
     },
   },
   moderationAction: {
@@ -3290,6 +3321,11 @@ export default {
       closeConfirmButton: '削除を確定',
     },
     privacy: {
+      chatTitle: "私信の許可",
+      chatLabel: "新しい会話を開始できる人",
+      chatHint: "実際のメッセージがある会話は継続できます。空の会話は対象外です。ボットにも同じ設定が適用され、ブロックが優先されます。",
+      chatNobody: "新しい私信を受け付けない",
+      chatSaved: "私信の設定を保存しました",
       title: 'プライバシー',
       profileTitle: 'プロフィールの公開範囲',
       profileDescription: 'プロフィールの各項目を誰に見せるかを選びます。',
@@ -3705,7 +3741,8 @@ export default {
       register: {
         dailyQuota: '本日の登録枠がいっぱいです。明日もう一度お試しください。',
         failed: '登録に失敗しました',
-        retryLogin: '登録に問題が発生しました。ログインを試してください',
+        emailRetry: "アカウントは作成されましたが、確認メールを現在利用できません。メール設定で再送またはアドレスの変更を行ってください。",
+        retryLogin: "アカウントは作成されましたが、自動ログインが完了していません。再登録せず、ログインして続行してください。",
         emailVerify: '登録が完了しました。メールを確認してください',
       },
       login: {
@@ -3846,6 +3883,7 @@ export default {
       },
     },
     chat: {
+      permission: { denied: "相手の私信設定により、このメッセージを送信できません。" },
       send: {
         failed: 'メッセージを送信できません。しばらくしてから再試行してください',
       },
