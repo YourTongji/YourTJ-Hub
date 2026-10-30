@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { failedStickerArchive } from '@/admin/runtime/sticker-upload-retry'
 import { adminText } from '@/admin/runtime/i18n-text'
 
 import { computed, onBeforeUnmount, ref } from 'vue'
@@ -147,8 +148,14 @@ function clear() {
 async function runEntry(entry: Entry) {
   entry.state = 'uploading'
   try {
-    entry.result = await props.upload(entry.file)
-    entry.state = entry.result.imported > 0 || entry.result.failed.length === 0 ? 'done' : 'failed'
+    const previous = entry.result
+    const file = entry.archive && previous?.failed.length
+      ? await failedStickerArchive(entry.file, previous.failed.map(issue => issue.name))
+      : entry.file
+    const result = await props.upload(file)
+    entry.result = { ...result, imported: (previous?.imported ?? 0) + result.imported, skipped: (previous?.skipped ?? 0) + result.skipped }
+    if (entry.archive) entry.file = file
+    entry.state = result.failed.length === 0 ? 'done' : 'failed'
     if (entry.state === 'failed') entry.error = reasonText(entry.result.failed[0]?.reason ?? '')
   } catch (err) {
     const key = requestErrorTexts[(err as { messageCode?: string } | null)?.messageCode || '']
@@ -177,7 +184,6 @@ function retryFailed() {
     if (entry.state === 'failed' && !precheck(entry.file, entry.archive)) {
       entry.state = 'waiting'
       entry.error = undefined
-      entry.result = undefined
     }
   }
   void start()

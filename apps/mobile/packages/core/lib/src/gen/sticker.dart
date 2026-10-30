@@ -128,6 +128,7 @@ class StickerSaveRequest {
 /// 压缩包导入的单条失败原因（zip 包内某条目未被导入的原因）。
 class StickerImportIssuePayload {
   const StickerImportIssuePayload({required this.name, required this.reason});
+  /// Complete ZIP entry path, single image filename, or `...` for the entry cap.
   final String name;
   final String reason;
   factory StickerImportIssuePayload.fromJson(Map<String, dynamic> json) =>

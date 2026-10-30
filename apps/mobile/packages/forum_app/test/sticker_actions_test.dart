@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/gestures.dart';
@@ -47,8 +49,14 @@ class _Repository extends StickerRepository {
   bool failSave = false;
   List<StickerMarketPackPayload> packs = [];
   final savedPacks = <int>[];
+  Completer<List<StickerMarketPackPayload>>? pendingPacks;
   @override
-  Future<List<StickerMarketPackPayload>> myPacks() async => [...packs];
+  Future<List<StickerMarketPackPayload>> myPacks() async {
+    final pending = pendingPacks;
+    pendingPacks = null;
+    return pending != null ? await pending.future : [...packs];
+  }
+
   @override
   Future<StickerMarketPackDetailPayload> marketPack(int id) async =>
       const StickerMarketPackDetailPayload(
@@ -487,6 +495,64 @@ void main() {
     expect(repository.saved, ['dance']);
     expect(state.mine.map((item) => item.name), ['dance']);
   });
+
+  testWidgets('leaving the save target for the preview does not collect', (
+    tester,
+  ) async {
+    final repository = _Repository()..members = [];
+    final state = await _pump(
+      tester,
+      repository,
+      child: Scaffold(
+        body: Align(
+          alignment: Alignment.bottomCenter,
+          child: SizedBox(height: 300, child: StickerPicker(onInsert: (_) {})),
+        ),
+      ),
+    );
+    await tester.tap(find.widgetWithText(TextButton, 'Official'));
+    await tester.pumpAndSettle();
+    final gesture = await tester.startGesture(
+      tester.getCenter(_pickerSticker('Dance')),
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    await tester.pump();
+    await gesture.moveTo(tester.getCenter(find.text('Save')));
+    await tester.pump();
+    await gesture.moveTo(
+      tester.getCenter(
+        find.byWidgetPredicate((w) => w is StickerImage && w.size == 120),
+      ),
+    );
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(repository.saved, isEmpty);
+    expect(state.mine, isEmpty);
+  });
+
+  for (final adding in [true, false]) {
+    test(
+      'late pack snapshot cannot undo ${adding ? 'add' : 'remove'}',
+      () async {
+        final repository = _Repository()..packs = adding ? [] : [_pack];
+        final pending = Completer<List<StickerMarketPackPayload>>();
+        repository.pendingPacks = pending;
+        final state = StickerCollection(repository, StickerLibrary(repository));
+        addTearDown(state.dispose);
+        state.packs = [...repository.packs];
+        final loading = state.loadPacks(refresh: true);
+        if (adding) {
+          await state.addPack(_pack);
+        } else {
+          await state.removePack(_pack);
+        }
+        pending.complete(adding ? [] : [_pack]);
+        await loading;
+        expect(state.hasPack(_pack.id), adding);
+      },
+    );
+  }
 
   testWidgets('subscribed packs appear in the picker and insert tokens', (
     tester,

@@ -11017,7 +11017,7 @@ AdminStickerImportIssue:
   properties:
     name:
       type: string
-      description: Offending archive entry base name, or `...` when the 500-entry cap stopped the import.
+      description: Offending ZIP entry path (including parent directories), or the image filename for a single-file upload. `...` indicates the 500-entry cap stopped the import.
     reason:
       type: string
       enum: [entryOpenFailed, tooLarge, invalidImage, unusableName, saveFailed, tooManyFiles, archiveTooLarge]

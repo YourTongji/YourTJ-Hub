@@ -101,3 +101,25 @@ test('official pack chips scroll with the wheel too', async () => {
     assert.deepEqual(errors, [])
   } finally { await page.close() }
 })
+
+test('a failed second market page retries from the picker without losing page one', async () => {
+  const { page, errors } = await openPicker()
+  const requested = []
+  let attempts = 0
+  try {
+    await page.route('**/api/forum/sticker-market?*', async route => {
+      const number = Number(new URL(route.request().url()).searchParams.get('page'))
+      requested.push(number)
+      if (number === 2 && attempts++ === 0) return route.fulfill({ status: 503, json: {} })
+      await route.fulfill({ json: { code: 0, result: { topics: [], packs: [{ ...packs[0], id: 9000 + number, name: `Market page ${number}` }], total: 2 } } })
+    })
+    await page.locator('.gf-sticker-tabs .gf-sticker-tab').last().evaluate(element => element.click())
+    await page.getByText('Market page 1', { exact: true }).waitFor()
+    await page.locator('.gf-sticker-more').click()
+    await page.locator('button[aria-label="重试"]').click()
+    await page.getByText('Market page 2', { exact: true }).waitFor()
+    assert.equal(await page.getByText('Market page 1', { exact: true }).count(), 1)
+    assert.deepEqual(requested, [1, 2, 2])
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})

@@ -158,7 +158,7 @@ func TestUploadedMarketPackHTTPContract(t *testing.T) {
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/sticker-market-pack-create", `{"name":"x","topic":"missing"}`, token)), contractFixture(t, "invalid-params.json"))
 
 	fields := map[string]string{"packId": fmt.Sprint(pack.ID)}
-	archive := contractStickerZip(t, map[string][]byte{"happy.png": contractTinyPNG, "again.png": contractTinyPNG, "broken.png": []byte("not an image")})
+	archive := contractStickerZip(t, map[string][]byte{"happy.png": contractTinyPNG, "again.png": contractTinyPNG, "nested/broken.png": []byte("not an image")})
 	uploaded := decodeContractEnvelope(t, serveStickerUpload(router, "/api/admin/sticker-market-upload", fields, "pack.zip", archive, token))
 	fixture := contractFixture(t, "admin-sticker-market-upload-success.json")
 	assertResultObjectKeysMatchFixture(t, uploaded, fixture)

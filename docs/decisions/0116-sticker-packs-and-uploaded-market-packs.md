@@ -48,7 +48,8 @@ Choose option 1.
   accepts one image or one ZIP per request plus a target `pack`, and appends after the pack's last
   sort order. The admin page shows a pack sidebar, a card grid with search and status filters, a
   bulk toolbar, and an upload queue that sends each file separately (two at a time) with its own
-  result and retry.
+  result and retry. ZIP failures retain their complete entry paths; retry submits only the failed
+  entries, preserving successful totals without creating the successful official stickers again.
 - **Uploaded market packs.** `sticker-market-pack-create` takes a name (up to 128 characters) and
   an existing category or a new category label; the pack starts hidden with `source = upload`.
   `sticker-market-upload` adds one image or ZIP per request; items are keyed by content hash, so

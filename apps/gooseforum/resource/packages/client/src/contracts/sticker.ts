@@ -34,6 +34,7 @@ export interface AdminStickerSaveRequest {
 }
 
 export interface AdminStickerImportIssue {
+  /** Complete ZIP entry path, single image filename, or `...` for the entry cap. */
   name: string
   reason: string
 }

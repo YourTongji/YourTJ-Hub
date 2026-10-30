@@ -89,3 +89,27 @@ func TestUploadedMarketPackLifecycle(t *testing.T) {
 		t.Fatalf("members subscribe to uploaded packs like synced ones: %v", err)
 	}
 }
+
+func TestUploadedMarketAVIFFilenames(t *testing.T) {
+	setupMarketTest(t)
+	for _, archive := range []bool{false, true} {
+		pack, err := CreateMarketPack(t.Context(), CreateMarketPackInput{Name: "AVIF"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		data := readMarketFixture(t, "market-still.avif")
+		name := "still.avif"
+		if archive {
+			var buffer bytes.Buffer
+			writer := zip.NewWriter(&buffer)
+			entry, _ := writer.Create("nested/still.avif")
+			_, _ = entry.Write(data)
+			_ = writer.Close()
+			data, name = buffer.Bytes(), "pack.zip"
+		}
+		result, err := UploadMarketPackFile(t.Context(), pack.Id, name, data)
+		if err != nil || result.Imported != 1 || len(result.Failed) != 0 {
+			t.Fatalf("archive=%v result=%+v err=%v", archive, result, err)
+		}
+	}
+}

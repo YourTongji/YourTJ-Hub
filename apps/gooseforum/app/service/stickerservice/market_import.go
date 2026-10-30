@@ -16,6 +16,7 @@ import (
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/safefetch"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
@@ -265,7 +266,7 @@ func fetchMarketImageBytes(ctx context.Context, config marketConfig, rawURL stri
 	if !config.allowedImageURL(rawURL) {
 		return nil, errMarketHostBlocked
 	}
-	result, err := marketClient.FetchImage(ctx, rawURL)
+	result, err := marketClient.FetchImage(safefetch.WithURLPolicy(ctx, config.allowedImageURL), rawURL)
 	if err != nil {
 		return nil, err
 	}

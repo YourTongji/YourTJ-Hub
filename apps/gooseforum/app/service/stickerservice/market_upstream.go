@@ -104,6 +104,11 @@ func (c marketConfig) allowedImageURL(raw string) bool {
 	return c.ImageHosts[strings.ToLower(u.Hostname())]
 }
 
+func (c marketConfig) allowedIndexURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && u.Scheme == "https" && u.User == nil && strings.EqualFold(u.Host, c.baseHost)
+}
+
 // marketIcon splits the upstream cover into an allow-listed image URL or a
 // short text cover (some packs use one emoji or letter); anything else is dropped.
 func (c marketConfig) marketIcon(raw string) (iconURL, iconText string) {
@@ -199,7 +204,7 @@ var (
 )
 
 func fetchMarketJSON(ctx context.Context, config marketConfig, path string, target any) error {
-	result, err := marketClient.FetchJSON(ctx, config.BaseURL+path)
+	result, err := marketClient.FetchJSON(safefetch.WithURLPolicy(ctx, config.allowedIndexURL), config.BaseURL+path)
 	if err != nil {
 		return err
 	}
@@ -207,7 +212,7 @@ func fetchMarketJSON(ctx context.Context, config marketConfig, path string, targ
 		return errMarketStatus
 	}
 	// Redirects stay on the configured index host.
-	if result.FinalURL != nil && (result.FinalURL.Scheme != "https" || !strings.EqualFold(result.FinalURL.Host, config.baseHost)) {
+	if result.FinalURL != nil && !config.allowedIndexURL(result.FinalURL.String()) {
 		return errMarketHostBlocked
 	}
 	if err := json.Unmarshal(result.Body, target); err != nil {

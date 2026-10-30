@@ -127,7 +127,7 @@ func UploadMarketPackFile(ctx context.Context, packID uint64, fileName string, d
 			count++
 		}
 		return skipped, ""
-	})
+	}, true)
 	if err != nil {
 		return result, err
 	}

@@ -4,7 +4,7 @@
     "skipped": 1,
     "failed": [
       {
-        "name": "broken.png",
+        "name": "nested/broken.png",
         "reason": "invalidImage"
       }
     ]

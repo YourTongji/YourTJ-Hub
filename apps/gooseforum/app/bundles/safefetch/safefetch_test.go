@@ -773,3 +773,41 @@ func port(server *httptest.Server) string {
 	}
 	return port
 }
+
+func TestFetchRequestPolicyChecksEveryHop(t *testing.T) {
+	for _, destination := range []string{"https://unapproved.example.com/step", "http://approved.example.com/end", "https://approved.example.com/step"} {
+		t.Run(destination, func(t *testing.T) {
+			var received atomic.Int32
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				received.Add(1)
+				switch r.URL.Path {
+				case "/start":
+					http.Redirect(w, r, destination, http.StatusFound)
+				case "/step":
+					http.Redirect(w, r, "https://approved.example.com/end", http.StatusFound)
+				default:
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{}`))
+				}
+			}))
+			defer server.Close()
+			pool := x509.NewCertPool()
+			pool.AddCert(server.Certificate())
+			client := New(Config{Resolver: fakeResolver{"approved.example.com": {publicAddr()}, "unapproved.example.com": {publicAddr()}}, DialContext: mappedDialer(server.Listener.Addr().String(), &atomic.Int32{})})
+			client.httpClient.Transport.(*http.Transport).TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+			ctx := WithURLPolicy(t.Context(), func(raw string) bool { return strings.HasPrefix(raw, "https://approved.example.com/") })
+			_, err := client.FetchJSON(ctx, "https://approved.example.com/start")
+			if destination == "https://approved.example.com/step" {
+				if err != nil || received.Load() != 3 {
+					t.Fatalf("err=%v requests=%d", err, received.Load())
+				}
+			} else if !IsClass(err, ErrorBlocked) || received.Load() != 1 {
+				t.Fatalf("err=%v requests=%d", err, received.Load())
+			}
+			before := received.Load()
+			if _, err := client.FetchJSON(ctx, "https://unapproved.example.com/start"); !IsClass(err, ErrorBlocked) || received.Load() != before {
+				t.Fatalf("initial target err=%v requests=%d", err, received.Load())
+			}
+		})
+	}
+}

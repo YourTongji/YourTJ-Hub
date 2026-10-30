@@ -124,7 +124,7 @@ class StickerPeekScopeState extends State<StickerPeekScope> {
       return;
     }
     // Over the bubble body or empty space: keep the current preview.
-    if (current.collectArmed && hit is! _PeekBubble) {
+    if (current.collectArmed) {
       _target.value = _PeekTarget(current.item, current.anchor);
     }
   }

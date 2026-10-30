@@ -51,6 +51,7 @@ class StickerCollection extends ChangeNotifier {
   final Set<int> loadingPackStickers = {};
   bool _active = true;
   int _membershipRevision = 0;
+  int _packMembershipRevision = 0;
   bool get active => _active;
   void _notify() {
     if (_active) notifyListeners();
@@ -130,12 +131,18 @@ class StickerCollection extends ChangeNotifier {
 
   Future<void> loadPacks({bool refresh = false}) async {
     if (loadingPacks || (packsLoaded && !refresh)) return;
+    final revision = _packMembershipRevision;
+    var changedWhileLoading = false;
     loadingPacks = true;
     packsError = null;
     _notify();
     try {
       final items = await repository.myPacks();
       if (!_active) return;
+      if (revision != _packMembershipRevision) {
+        changedWhileLoading = true;
+        return;
+      }
       packs = items;
       packsLoaded = true;
     } catch (error) {
@@ -143,6 +150,7 @@ class StickerCollection extends ChangeNotifier {
     } finally {
       loadingPacks = false;
       _notify();
+      if (_active && changedWhileLoading) await loadPacks(refresh: true);
     }
   }
 
@@ -204,13 +212,16 @@ class StickerCollection extends ChangeNotifier {
   /// before its stickers are usable on every device.
   Future<void> addPack(StickerMarketPackPayload pack) => _mutate(() async {
     final saved = await repository.savePack(pack.id);
-    if (!_active || hasPack(saved.id)) return;
+    if (!_active) return;
+    _packMembershipRevision++;
+    if (hasPack(saved.id)) return;
     packs = [...packs, saved];
   });
 
   Future<void> removePack(StickerMarketPackPayload pack) => _mutate(() async {
     await repository.removePack(pack.id);
     if (!_active) return;
+    _packMembershipRevision++;
     packs = packs.where((item) => item.id != pack.id).toList();
   });
 

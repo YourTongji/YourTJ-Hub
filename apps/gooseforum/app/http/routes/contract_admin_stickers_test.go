@@ -391,9 +391,9 @@ func TestAdminStickerImportHTTPContract(t *testing.T) {
 	t.Run("success imports images and reports per-entry failures", func(t *testing.T) {
 		conn, router := setupAdminStickersContractTest(t)
 		archive := contractStickerZip(t, map[string][]byte{
-			"smile.png":  contractTinyPNG,
-			"notes.txt":  []byte("not an image"),
-			"broken.png": []byte("PNG forgery bytes"),
+			"smile.png":         contractTinyPNG,
+			"notes.txt":         []byte("not an image"),
+			"nested/broken.png": []byte("PNG forgery bytes"),
 		})
 		serveAdminStickersImportOK(t, conn, router, archive, "admin-sticker-import-success.json")
 		created, _ := sticker.GetByName("smile")

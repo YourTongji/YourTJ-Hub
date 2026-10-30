@@ -150,10 +150,25 @@ func New(config Config) *Client {
 			if urlutil.ClassifyLink(req.URL.String()).Kind != urlutil.LinkExternalHTTP {
 				return &FetchError{Class: ErrorBlocked, Err: errors.New("redirect URL rejected")}
 			}
-			return nil
+			return checkURLPolicy(req.Context(), req.URL)
 		},
 	}
 	return client
+}
+
+type urlPolicyKey struct{}
+
+// WithURLPolicy restricts a document request and every redirect before sending.
+// It supplements, and never replaces, the client's URL and public-IP checks.
+func WithURLPolicy(ctx context.Context, allowed func(string) bool) context.Context {
+	return context.WithValue(ctx, urlPolicyKey{}, allowed)
+}
+
+func checkURLPolicy(ctx context.Context, target *url.URL) error {
+	if allowed, ok := ctx.Value(urlPolicyKey{}).(func(string) bool); ok && !allowed(target.String()) {
+		return &FetchError{Class: ErrorBlocked, Err: errors.New("request URL rejected by caller policy")}
+	}
+	return nil
 }
 
 // documentPolicy 描述一次抓取允许请求和接受哪种有界文档。
@@ -212,6 +227,9 @@ func (c *Client) fetchDocument(ctx context.Context, rawURL string, policy docume
 	}
 	target := *classified.URL
 	target.Fragment = ""
+	if err := checkURLPolicy(ctx, &target); err != nil {
+		return Result{}, err
+	}
 
 	select {
 	case c.semaphore <- struct{}{}:

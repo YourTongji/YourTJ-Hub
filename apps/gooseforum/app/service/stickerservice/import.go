@@ -43,12 +43,12 @@ func isZipArchive(data []byte) bool {
 
 // importUpload accepts either a ZIP archive or one image file. Anything else
 // fails as an invalid ZIP, the format the endpoint documents.
-func importUpload(ctx context.Context, fileName string, data []byte, handle importEntry) (ImportResult, error) {
+func importUpload(ctx context.Context, fileName string, data []byte, handle importEntry, allowAVIF bool) (ImportResult, error) {
 	if isZipArchive(data) {
-		return importArchive(ctx, data, handle)
+		return importArchive(ctx, data, handle, allowAVIF)
 	}
 	base := path.Base(strings.ReplaceAll(fileName, `\`, "/"))
-	if _, ok := imagepolicy.ContentTypeForFilename(base); !ok {
+	if !importFilenameAllowed(base, allowAVIF) {
 		return ImportResult{Failed: []ImportIssue{}}, ErrInvalidZip
 	}
 	result := ImportResult{Failed: []ImportIssue{}}
@@ -58,6 +58,12 @@ func importUpload(ctx context.Context, fileName string, data []byte, handle impo
 	}
 	recordImport(&result, base)(handle(ctx, base, data))
 	return result, nil
+}
+
+// AVIF is a market-only input; member and official uploads keep their policy.
+func importFilenameAllowed(name string, allowAVIF bool) bool {
+	_, ok := imagepolicy.ContentTypeForFilename(name)
+	return ok || allowAVIF && strings.EqualFold(path.Ext(name), ".avif")
 }
 
 func recordImport(result *ImportResult, name string) func(skipped bool, reason string) {
@@ -73,7 +79,7 @@ func recordImport(result *ImportResult, name string) func(skipped bool, reason s
 	}
 }
 
-func importArchive(ctx context.Context, archive []byte, handle importEntry) (ImportResult, error) {
+func importArchive(ctx context.Context, archive []byte, handle importEntry, allowAVIF bool) (ImportResult, error) {
 	result := ImportResult{Failed: []ImportIssue{}}
 	reader, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
 	if err != nil {
@@ -85,7 +91,7 @@ func importArchive(ctx context.Context, archive []byte, handle importEntry) (Imp
 			return result, err
 		}
 		fail := func(reason string) {
-			result.Failed = append(result.Failed, ImportIssue{Name: path.Base(entry.Name), Reason: reason})
+			result.Failed = append(result.Failed, ImportIssue{Name: entry.Name, Reason: reason})
 		}
 		if index >= ImportMaxEntries {
 			result.Failed = append(result.Failed, ImportIssue{Name: "...", Reason: "tooManyFiles"})
@@ -99,7 +105,7 @@ func importArchive(ctx context.Context, archive []byte, handle importEntry) (Imp
 			result.Skipped++
 			continue
 		}
-		if _, ok := imagepolicy.ContentTypeForFilename(base); !ok {
+		if !importFilenameAllowed(base, allowAVIF) {
 			result.Skipped++
 			continue
 		}
@@ -129,7 +135,7 @@ func importArchive(ctx context.Context, archive []byte, handle importEntry) (Imp
 			fail("tooLarge")
 			continue
 		}
-		recordImport(&result, base)(handle(ctx, base, data))
+		recordImport(&result, entry.Name)(handle(ctx, base, data))
 	}
 	return result, nil
 }
@@ -172,5 +178,5 @@ func ImportOfficial(ctx context.Context, userID uint64, pack, fileName string, d
 			return false, reason
 		}
 		return false, ""
-	})
+	}, false)
 }

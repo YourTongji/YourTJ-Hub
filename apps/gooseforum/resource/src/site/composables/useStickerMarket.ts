@@ -31,6 +31,7 @@ const marketTopic = ref('')
 const marketTotal = ref(0)
 let marketPage = 0
 let marketRequest: Promise<void> | null = null
+let failedMarketRequest: { topic: string, page: number, more: boolean } | null = null
 
 export function useStickerMarket() {
   const marketLoading = ref(false)
@@ -70,8 +71,10 @@ export function useStickerMarket() {
 
   async function loadMarket(topic = marketTopic.value, more = false) {
     if (marketRequest) return marketRequest
-    if (!more && topic === marketTopic.value && marketPage > 0) return
-    const page = more ? marketPage + 1 : 1
+    const retry = failedMarketRequest?.topic === topic ? failedMarketRequest : null
+    if (!retry && !more && topic === marketTopic.value && marketPage > 0) return
+    const page = retry?.page ?? (more ? marketPage + 1 : 1)
+    more = retry?.more ?? more
     marketLoading.value = true
     marketFailed.value = false
     marketRequest = getStickerMarket({ topic, page, pageSize: MARKET_PAGE_SIZE })
@@ -81,8 +84,10 @@ export function useStickerMarket() {
         marketTotal.value = result.total
         marketTopic.value = topic
         marketPage = page
+        failedMarketRequest = null
       })
       .catch(() => {
+        failedMarketRequest = { topic, page, more }
         marketFailed.value = true
       })
       .finally(() => {
@@ -105,7 +110,7 @@ export function useStickerMarket() {
       await saveMyStickerPack(pack.id)
       return true
     } catch (err) {
-      myPacks.value = previous
+      myPacks.value = myPacks.value.filter((item) => item.id !== pack.id)
       actionError.value = err instanceof Error ? err.message : ''
       return false
     }
@@ -119,7 +124,11 @@ export function useStickerMarket() {
       await deleteMyStickerPack(pack.id)
       return true
     } catch (err) {
-      myPacks.value = previous
+      if (previous.some((item) => item.id === pack.id) && !isSubscribed(pack.id)) {
+        const restored = [...myPacks.value]
+        restored.splice(Math.min(previous.findIndex((item) => item.id === pack.id), restored.length), 0, pack)
+        myPacks.value = restored
+      }
       actionError.value = err instanceof Error ? err.message : ''
       return false
     }

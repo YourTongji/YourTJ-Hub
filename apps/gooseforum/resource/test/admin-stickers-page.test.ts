@@ -1,3 +1,4 @@
+import { inflateRawSync } from 'node:zlib'
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { DOMWrapper, flushPromises, mount, type VueWrapper } from '@vue/test-utils'
@@ -243,6 +244,36 @@ describe('stickers management page', () => {
     expect(body.text()).toContain('stickerUploadSummary{"imported":6,"skipped":2,"failed":2}')
     expect(body.text()).toContain('bad.png')
     expect(body.text()).toContain('k00vgw')
+  })
+
+  test('partial ZIP retry sends only failed entries and retains successful totals', async () => {
+    seed([sticker()])
+    vi.mocked(importStickerPack)
+      .mockResolvedValueOnce({ imported: 1, skipped: 0, failed: [{ name: 'nested/bad.png', reason: 'saveFailed' }] })
+      .mockResolvedValueOnce({ imported: 1, skipped: 0, failed: [] })
+    const { page, body } = mountPage()
+    await flushPromises()
+    await buttonWithText(page, 'stickerUploadAction').trigger('click')
+    const archive = new File([Uint8Array.from(atob('UEsDBBQAAAAIABGWXl2QAxiDBQAAAAMAAAANAAAAb3RoZXIvYmFkLnBuZyvISwcAUEsDBBQAAAAIABGWXl2QAxiDBQAAAAMAAAAOAAAAbmVzdGVkL2JhZC5wbmcryEsHAFBLAQIUAxQAAAAIABGWXl2QAxiDBQAAAAMAAAANAAAAAAAAAAAAAACAAQAAAABvdGhlci9iYWQucG5nUEsBAhQDFAAAAAgAEZZeXZADGIMFAAAAAwAAAA4AAAAAAAAAAAAAAIABMAAAAG5lc3RlZC9iYWQucG5nUEsFBgAAAAACAAIAdwAAAGEAAAAAAA=='), c => c.charCodeAt(0))], 'pack.zip', { type: 'application/zip' })
+    await pickFiles(body.get('[data-testid="sticker-upload-archives"]'), [archive])
+    await buttonWithText(body, 'stickerUploadStart').trigger('click')
+    await flushPromises()
+    await buttonWithText(body, 'stickerUploadRetry').trigger('click')
+    await flushPromises()
+    expect(importStickerPack).toHaveBeenCalledTimes(2)
+    const retry = vi.mocked(importStickerPack).mock.calls[1][0]
+    const bytes = new Uint8Array(await retry.arrayBuffer())
+    const text = new TextDecoder().decode(bytes)
+    expect(text).toContain('nested/bad.png')
+    expect(text).not.toContain('other/bad.png')
+    const view = new DataView(bytes.buffer)
+    const central = view.getUint32(bytes.length - 6, true)
+    expect(view.getUint32(central, true)).toBe(0x02014b50)
+    expect(view.getUint32(central + 42, true)).toBe(0)
+    expect(view.getUint16(bytes.length - 12, true)).toBe(1)
+    const dataStart = 30 + view.getUint16(26, true) + view.getUint16(28, true)
+    expect(inflateRawSync(bytes.subarray(dataStart, dataStart + view.getUint32(18, true))).toString()).toBe('png')
+    expect(body.text()).toContain('stickerUploadSummary{"imported":2,"skipped":0,"failed":0}')
   })
 
   test('the upload queue rejects unsupported and oversized files before uploading', async () => {

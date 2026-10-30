@@ -15158,7 +15158,7 @@ export interface components {
         };
         AdminStickerActionResponse: components["schemas"]["AdminStickerActionSuccess"] | components["schemas"]["ApiFailure"];
         AdminStickerImportIssue: {
-            /** @description Offending archive entry base name, or `...` when the 500-entry cap stopped the import. */
+            /** @description Offending ZIP entry path (including parent directories), or the image filename for a single-file upload. `...` indicates the 500-entry cap stopped the import. */
             name: string;
             /**
              * @description Machine-readable per-entry failure reason.
