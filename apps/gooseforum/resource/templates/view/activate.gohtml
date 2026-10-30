@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-visual">
-    <title>{{.Data.Title}} - YourTJHub</title>
+    <title>{{.Data.Title}} - {{if .Data.SiteName}}{{.Data.SiteName}}{{else}}yourtj{{end}}</title>
     <style>
         :root {
             color-scheme: light;
@@ -142,7 +142,13 @@
             font-size: 14px;
             font-weight: 700;
             text-decoration: none;
+            text-align: center;
+            overflow-wrap: anywhere;
             transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+        }
+
+        .actions.recovery .primary {
+            flex-basis: 100%;
         }
 
         .button.primary {
@@ -206,7 +212,7 @@
     <section class="card" aria-labelledby="activation-title">
         <div class="content">
             <div class="topline">
-                <a class="brand" href="/" aria-label="YourTJHub">YourTJ<span>Hub</span></a>
+                <a class="brand" href="/">{{if .Data.SiteName}}{{.Data.SiteName}}{{else}}yourtj{{end}}</a>
 
                 <div class="status {{if .Data.Success}}success{{else}}fail{{end}}" aria-hidden="true">
                     {{if .Data.Success}}
@@ -232,15 +238,16 @@
             <p class="message">{{call .T "activationVerifiedAccount"}} <strong>{{.Data.Account}}</strong></p>
             <p class="message">{{call .T "activationAppFallback"}}</p>
             {{end}}
-            <div class="actions">
+            <div class="actions{{if not .Data.Success}} recovery{{end}}">
                 {{if .Data.Success}}
                 <a href="{{.Data.ContinueURL}}" class="button primary">{{call .T "activationContinue"}}</a>
                 <a href="yourtj://account/email-verified" class="button secondary">{{call .T "activationOpenApp"}}</a>
                 <a href="{{.Data.LoginURL}}" class="button secondary">{{call .T "login_now"}}</a>
                 <a href="/" class="button secondary">{{call .T "back_home"}}</a>
                 {{else}}
-                <a href="/" class="button primary">{{call .T "back_home"}}</a>
-                <a href="mailto:support@gooseforum.online" class="button secondary">{{call .T "contact_support"}}</a>
+                <a href="{{.Data.RecoveryURL}}" class="button primary">{{call .T "activationRecoveryAction"}}</a>
+                <a href="/" class="button secondary">{{call .T "back_home"}}</a>
+                {{if .Data.SupportURL}}<a href="{{.Data.SupportURL}}" class="button secondary">{{call .T "contact_support"}}</a>{{end}}
                 {{end}}
             </div>
         </div>

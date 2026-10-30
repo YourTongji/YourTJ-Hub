@@ -41,7 +41,7 @@
   "activationDescFail": "Die Aktivierung ist fehlgeschlagen. Überprüfe, ob der Aktivierungslink korrekt ist, oder wende dich an einen Administrator.",
   "activationSuccess": "Konto erfolgreich aktiviert",
   "activationInvalidLink": "Ungültiger Aktivierungslink",
-  "activationExpired": "Der Aktivierungslink ist abgelaufen oder ungültig",
+  "activationExpired": "Der Bestätigungslink ist abgelaufen",
   "activationUserNotFound": "Benutzer nicht gefunden",
   "activationLinkInvalid": "Der Aktivierungslink ist ungültig",
   "activationFailed": "Aktivierung fehlgeschlagen",
@@ -150,5 +150,8 @@
   "anonymous.candidateExpired": "Diese Namen sind abgelaufen. Lade neu und wähle erneut.",
   "anonymous.unavailable": "Anonyme Identität ist gerade nicht verfügbar",
   "forYouFeed": "Für dich",
-  "dailyFeed": "Top-Themen heute"
+  "dailyFeed": "Top-Themen heute",
+  "activationMissingLink": "Dem Bestätigungslink fehlen die erforderlichen Angaben",
+  "activationRecoveryDescription": "Melde dich bei dem zu bestätigenden Konto an. In den E-Mail-Einstellungen kannst du die Nachricht erneut senden oder die Adresse ändern.",
+  "activationRecoveryAction": "E-Mail-Einstellungen öffnen"
 }

@@ -41,7 +41,7 @@
   "activationDescFail": "Activation failed. Please check that your activation link is correct, or contact an administrator.",
   "activationSuccess": "Account activated successfully",
   "activationInvalidLink": "Invalid activation link",
-  "activationExpired": "The activation link has expired or is invalid",
+  "activationExpired": "The activation link has expired",
   "activationUserNotFound": "User not found",
   "activationLinkInvalid": "The activation link is invalid",
   "activationFailed": "Activation failed",
@@ -150,5 +150,8 @@
   "anonymous.candidateExpired": "These names have expired. Reload and pick again.",
   "anonymous.unavailable": "Anonymous identity is unavailable right now",
   "forYouFeed": "For You",
-  "dailyFeed": "Today's top"
+  "dailyFeed": "Today's top",
+  "activationMissingLink": "The activation link is missing its verification information",
+  "activationRecoveryDescription": "Sign in to the account you want to verify, then resend the email or change its address in email settings.",
+  "activationRecoveryAction": "Open email settings"
 }
