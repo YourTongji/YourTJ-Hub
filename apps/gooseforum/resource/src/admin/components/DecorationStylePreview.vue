@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { DecorationStyle } from '@gooseforum/client'
 import UserAvatar from '@/site/components/UserAvatar.vue'
-import { decorationVariables } from '@/site/utils/decoration-style'
+import { decorationVariables } from '@/runtime/decoration-style'
 
 const props = defineProps<{ style: DecorationStyle; compact?: boolean }>()
 const { t } = useI18n()

@@ -167,6 +167,7 @@ export default {
     searchClose: "Schließen",
   },
   statsAdmin: {
+    rateLimitExemptionHint: "Die Administrator-Ausnahme gilt nicht für Beitragsstatistiken. Die vier Abfragen teilen sich das Kontingent admin.stats.",
     filterTitle: 'Statistikfilter',
     rangeLabel: 'Zeitraum',
     range7: 'Letzte 7 Tage',
@@ -588,6 +589,8 @@ export default {
     save: "Profilabzeichen speichern"
   },
   tongjiRegistration: {
+    createdTitle: "Konto erstellt",
+    restartSchool: "Erneut über Tongji anmelden",
     title: "Tongji-Registrierung abschließen",
     intro: "Deine Tongji-Identität ist bestätigt. Wähle einen Benutzernamen und ein Passwort. Eine weitere E-Mail-Bestätigung ist nicht erforderlich.",
     expired: "Die Bestätigung ist abgelaufen. Bitte erneut mit Tongji anmelden.",
@@ -1449,6 +1452,8 @@ export default {
     showPassword: 'Passwort anzeigen',
     hidePassword: 'Passwort ausblenden',
     captcha: 'Captcha',
+    registrationUnavailable: "Registrierung ist derzeit nicht verfügbar. Bitte später erneut versuchen.",
+    checkSignupAvailability: "Registrierung erneut prüfen",
     captchaAlt: 'Captcha',
     publishCaptchaExplanation: 'Das Forum kann bei vielen Beiträgen und Antworten von neuen Konten ein Captcha verlangen. Bei nachlassender Aktivität oder sobald das Konto das festgelegte Alter erreicht, entfällt diese Anforderung.',
     forgotPassword: 'Passwort vergessen?',
@@ -3036,6 +3041,18 @@ export default {
     },
   },
   settings: {
+    activationStatus: {
+      target: "Empfänger: {email}",
+      remaining: "Heute verbleibend: {count} / {limit}",
+      refresh: "Status aktualisieren",
+      cooldown: "In {seconds} Sekunden erneut senden",
+      daily_limit: "Tageslimit erreicht. Morgen erneut versuchen.",
+      disabled: "E-Mail-Bestätigung ist derzeit deaktiviert",
+      verified: "E-Mail bestätigt. Erneutes Senden ist nicht nötig.",
+      frozen: "Dieses Konto kann keine E-Mail erneut senden",
+      mail_unavailable: "E-Mail-Dienst nicht verfügbar. Später aktualisieren.",
+      missing_email: "Zuerst in den Kontoeinstellungen eine E-Mail hinzufügen",
+    },
     editing: 'Wird bearbeitet',
     backToProfile: 'Zurück zu meinem Profil',
     savingShort: 'Speichern',
@@ -4137,6 +4154,7 @@ export default {
     'post.alreadyDeleted': 'Diese Antwort wurde bereits gelöscht. Kein erneutes Löschen nötig.',
     'post.firstPostUndeletable': 'Der erste Beitrag eines Themas kann nicht gelöscht werden. Lösche stattdessen das Thema.',
     'auth.tongji.accountExists': 'Diese Tongji-Identität oder ihre Studierenden-E-Mail gehört bereits zu einem Konto. Melden Sie sich beim bestehenden Konto an oder stellen Sie es wieder her und verknüpfen Sie die Identität auf der Campus-Seite.',
+    'auth.tongji.retryLogin': "Dein Konto wurde erstellt, aber die automatische Anmeldung wurde nicht abgeschlossen. Melde dich erneut über Tongji an; registriere dich nicht erneut.",
     'admin.moderator.userRequired': 'Gib einen Moderator-Benutzer ein.',
     'admin.moderator.userNotFound': 'Moderator-Benutzer nicht gefunden.',
     'admin.moderator.notFound': 'Moderator-Datensatz nicht gefunden.',

@@ -698,7 +698,7 @@
   "schedulePickClass": "Pick class",
   "scheduleCompulsory": "Compulsory",
   "scheduleOptional": "Elective",
-  "scheduleSearchHint": "Search name/code/teacher",
+  "scheduleSearchHint": "Search course name",
   "scheduleStaged": "Staged",
   "scheduleSelected": "Selected",
   "scheduleRemoveCourse": "Remove",
@@ -2269,5 +2269,103 @@
   "courseAddToPlanner": "Add to course planner",
   "coursePlannerSelectTerm": "Select the same term and your major before confirming the class. Existing plans stay unchanged.",
   "coursePlannerUnavailable": "This class is unavailable for the term. Choose another offering from course details.",
-  "coursePlannerCalendarsFailed": "Failed to load the term list. Check your network and try again."
+  "coursePlannerCalendarsFailed": "Failed to load the term list. Check your network and try again.",
+  "authRegistrationUnavailable": "Registration is unavailable. Please try again later.",
+  "authCheckSignupAvailability": "Check registration again",
+  "activationStatusFrozen": "This account cannot resend email",
+  "@scheduleSetupMissing": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "@scheduleSearchScope": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleChangeMajorUpdated": "Plan content changed. Please select the major again.",
+  "@scheduleCourseScope": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "@activationStatusTarget": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "activationStatusCooldown": "Resend in {seconds} seconds",
+  "activationStatusDisabled": "Email verification is currently disabled",
+  "activationStatusRemaining": "Resends left today: {count} / {limit}",
+  "@activationStatusRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleChangeMajorBody": {
+    "placeholders": {
+      "planCount": {
+        "type": "int"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleSearchReady": "Enter a course name to start",
+  "activationStatusMailUnavailable": "Mail is unavailable. Refresh later.",
+  "scheduleSearchNoMatch": "No course names match “{query}”",
+  "scheduleSearchScope": "Search course names in {term}",
+  "scheduleMajorSearchHint": "Search major name or code",
+  "scheduleChangeMajorTitle": "Change major and clear plans?",
+  "imageViewerThumbnails": "Image thumbnails",
+  "campusTimetableConnectBody": "Connect your Tongji identity to see your personal school timetable here. You can use the course catalog and schedule planner without connecting.",
+  "scheduleSetupTitle": "Set your course scope first",
+  "imageViewerFitPreview": "Fit preview",
+  "@scheduleSearchNoMatch": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleChangeMajorConfirm": "Change and clear",
+  "scheduleEmptyCourseHint": "Adjust the course scope or search by course name.",
+  "activationStatusMissingEmail": "Add an email address in account settings first",
+  "scheduleNoOptional": "No optional courses returned for this term",
+  "@activationStatusCooldown": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleNoCompulsory": "No compulsory courses returned for this scope",
+  "activationStatusDailyLimit": "Daily limit reached. Try again tomorrow.",
+  "scheduleSetupMissing": "Select {fields} before finding courses or classes.",
+  "activationStatusTarget": "Send to: {email}",
+  "scheduleConfigureScope": "Configure course scope",
+  "scheduleChangeMajorBody": "Changing the major clears {planCount} plans containing {courseCount} courses and {eventCount} custom events. Cancel to keep your current configuration and plans.",
+  "scheduleMajorNoMatch": "No matching majors",
+  "activationStatusRefresh": "Refresh status",
+  "activationStatusVerified": "Email verified. No resend needed.",
+  "scheduleCourseScope": "Current scope: {scope}",
+  "campusTimetableNotConnected": "Tongji identity not connected",
+  "imageViewerOriginalSize": "Original size"
 }

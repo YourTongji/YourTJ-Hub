@@ -7,7 +7,7 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/settings/badge_display_dialog.dart';
 import 'package:ui_kit/ui_kit.dart';
 
-UserBadgePayload badge(int i) => UserBadgePayload(
+UserBadgePayload badge(int i, {String iconUrl = ''}) => UserBadgePayload(
   code: 'b$i',
   type: 'system',
   grantMode: 'manual',
@@ -15,7 +15,7 @@ UserBadgePayload badge(int i) => UserBadgePayload(
   description: '',
   iconType: 'image',
   iconKey: '',
-  iconUrl: '',
+  iconUrl: iconUrl,
   color: 'blue',
   level: 'normal',
   isEnabled: true,
@@ -32,13 +32,23 @@ void main() {
     Future<void> Function(List<String>) save, {
     String worn = '',
     Future<void> Function(String)? wear,
+    bool expandSections = true,
+    Locale locale = const Locale('en'),
+    Brightness brightness = Brightness.light,
+    double scale = 1,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
-        theme: gfThemeData(Brightness.light),
-        locale: const Locale('en'),
+        theme: gfThemeData(brightness),
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(scale)),
+          child: child!,
+        ),
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(
@@ -62,6 +72,122 @@ void main() {
     );
     await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
+    if (expandSections) {
+      for (final section in ['badge-wear-section', 'badge-display-section']) {
+        final header = find.byKey(Key(section));
+        if (header.evaluate().isNotEmpty) {
+          await tester.ensureVisible(header);
+          await tester.pumpAndSettle();
+          await tester.tap(header);
+          await tester.pumpAndSettle();
+        }
+      }
+    }
+  }
+
+  testWidgets(
+    'badge sections collapse with previews and preserve unsaved choices',
+    (tester) async {
+      final worn = <String>[];
+      final displays = <List<String>>[];
+      await pump(
+        tester,
+        [badge(0)],
+        (codes) async => displays.add(codes),
+        worn: 'b0',
+        wear: (code) async => worn.add(code),
+        expandSections: false,
+      );
+      expect(find.byType(RadioListTile<String>), findsNothing);
+      expect(find.byType(Checkbox), findsNothing);
+      expect(find.byType(GfBadgeMedallion), findsOneWidget);
+      final wearHeader = find.byKey(const Key('badge-wear-section'));
+      final displayHeader = find.byKey(const Key('badge-display-section'));
+      await tester.tap(wearHeader);
+      await tester.pumpAndSettle();
+      final choice = find.byWidgetPredicate(
+        (w) => w is RadioListTile<String> && w.value == 'b1',
+      );
+      expect(
+        find.descendant(of: choice, matching: find.byType(GfBadgeMedallion)),
+        findsOneWidget,
+      );
+      await tester.tap(choice);
+      await tester.tap(wearHeader);
+      await tester.pumpAndSettle();
+      await tester.tap(displayHeader);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('badge-select-b1')));
+      await tester.tap(displayHeader);
+      await tester.pumpAndSettle();
+      expect(find.byType(Checkbox), findsNothing);
+      expect(worn, isEmpty);
+      expect(displays, isEmpty);
+      await tester.tap(wearHeader);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<RadioGroup<String>>(find.byType(RadioGroup<String>))
+            .groupValue,
+        'b1',
+      );
+      await tester.tap(wearHeader);
+      await tester.tap(displayHeader);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<Checkbox>(find.byKey(const Key('badge-select-b1'))).value,
+        isTrue,
+      );
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(worn, ['b1']);
+      expect(displays, [
+        ['b0', 'b1'],
+      ]);
+    },
+  );
+
+  for (final language in ['zh', 'en', 'ja', 'de']) {
+    for (final brightness in Brightness.values) {
+      testWidgets('badge sections fit 320px 200% $language $brightness', (
+        tester,
+      ) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(320, 844);
+        addTearDown(tester.view.reset);
+        await pump(
+          tester,
+          [badge(0)],
+          (_) async {},
+          worn: 'b0',
+          wear: (_) async {},
+          expandSections: false,
+          locale: Locale(language),
+          brightness: brightness,
+          scale: 2,
+        );
+        for (final key in ['badge-wear-section', 'badge-display-section']) {
+          final header = find.byKey(Key(key));
+          await tester.ensureVisible(header);
+          await tester.pumpAndSettle();
+          expect(tester.getRect(header).width, lessThanOrEqualTo(320));
+          await tester.tap(header);
+          await tester.pumpAndSettle();
+          await tester.drag(
+            find.byType(Scrollable).first,
+            const Offset(0, -1200),
+          );
+          await tester.pumpAndSettle();
+          await tester.ensureVisible(header);
+          await tester.pumpAndSettle();
+          await tester.tap(header);
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+        }
+        expect(find.byType(RadioListTile<String>), findsNothing);
+        expect(find.byType(Checkbox), findsNothing);
+      });
+    }
   }
 
   testWidgets('wear-only edits preserve the automatic profile display choice', (

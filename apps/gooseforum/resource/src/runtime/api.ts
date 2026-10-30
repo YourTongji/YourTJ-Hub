@@ -3,7 +3,7 @@ import type { components, TopicPayload } from '@gooseforum/client'
 // CourseSummaryPayload 以别名导入：本文件 1663 行另有一个同名但形状不同的
 // CourseSummaryPayload（AI 总结：consensus/keywords/pros/cons），二者同名异物。
 // 这里导入的是课程卡片（id/name/ratingAvg/...），故别名为 CourseCatalogItem 避免混淆。
-import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, MentionTarget, ModerationApprovalActionView, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationCategory, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
+import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, MentionTarget, ModerationApprovalActionView, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationCategory, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import type { ReviewQueueItem } from '@/admin/types'
 import { resolveApiMessage } from './api-message'
@@ -434,19 +434,6 @@ export async function getPostWindow(input: PostWindowInput): Promise<PostWindowP
   return readApiResponse<PostWindowPayload>(response, t('api.repliesLoadFailed'))
 }
 
-/** 用户搜索（@mention 候选，issue #564）：复用公开聚合搜索 users scope，支持 AbortSignal 丢弃过期请求。 */
-export async function searchForumUsers(query: string, signal?: AbortSignal): Promise<UserSearchPayload[]> {
-  const params = new URLSearchParams({ q: query, scope: 'users', page: '1' })
-  const response = await feedFetch(`/api/forum/search?${params.toString()}`, {
-    headers: {
-      Accept: 'application/json',
-    },
-    signal,
-  })
-  const result = await readApiResponse<{ users?: UserSearchPayload[] }>(response, t('api.searchUsersFailed'))
-  return result.users ?? []
-}
-
 /** Dedicated mention candidates include enabled bot personas without changing human search. */
 export async function getMentionTargets(query: string, signal?: AbortSignal): Promise<MentionTarget[]> {
   const params = new URLSearchParams({ q: query, limit: '20' })
@@ -583,20 +570,6 @@ export async function updateTopicAgentReplies(topicId: number, agentRepliesDisab
     body: JSON.stringify({ topicId, agentRepliesDisabled }),
   })
   return readApiResponse<boolean>(response, t('publish.saveFailed'))
-}
-
-export async function updateTopicStatus(id: number, topicStatus: 0 | 1): Promise<boolean> {
-  const response = await feedFetch('/api/forum/topics/status', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      topicId: id,
-      topicStatus,
-    }),
-  })
-  return readApiResponse<boolean>(response, t('api.topicStatusFailed'))
 }
 
 export async function updateModerationTopicStatus(id: number, action: 'ban' | 'unban'): Promise<boolean> {
@@ -1187,6 +1160,13 @@ export async function saveUserEmail(email: string, password: string): Promise<bo
   })
   await readApiResponse<unknown>(response, t('api.emailSaveFailed'))
   return true
+}
+
+export type ActivationStatus = components['schemas']['ActivationStatus']
+
+export async function getActivationStatus(signal?: AbortSignal): Promise<ActivationStatus> {
+  const response = await feedFetch('/api/resend-activation-email', { signal, cache: 'no-store' })
+  return readApiResponse<ActivationStatus>(response, t('api.activationEmailSendFailed'))
 }
 
 export async function resendActivationEmail(): Promise<string> {

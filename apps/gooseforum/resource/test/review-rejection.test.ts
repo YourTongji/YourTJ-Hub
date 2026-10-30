@@ -106,3 +106,29 @@ test('webhook confirmation requires an explanation and keeps it after a failed e
   expect(execute).toHaveBeenCalledTimes(2)
   expect(wrapper.find('select').exists()).toBe(false)
 })
+
+for (const state of ['ready','changed'] as const) test(`business failed execution retains the draft and checks fresh authority before retry (${state})`, async () => {
+ i18n.global.locale.value = 'en'
+ window.history.replaceState({}, '', '/moderation/action?token=synthetic-action')
+ const ready = { state:'ready' as const, subject:'review.topic' as const, action:'reject' as const, targetType:'topic' as const, targetId:7, title:'Candidate', workbenchUrl:'/moderation' }
+ const preview=vi.spyOn(api,'previewModerationApprovalAction').mockResolvedValueOnce(ready).mockResolvedValue({...ready,state})
+ const execute=vi.spyOn(api,'executeModerationApprovalAction').mockResolvedValueOnce({...ready,state:'failed'}).mockResolvedValue({...ready,state:'done'})
+ wrapper=mount(ModerationActionPage,{props:{layout:{} as never,props:{} as never},global:{plugins:[i18n,twemojiVuePlugin]}})
+ await flushPromises()
+ await wrapper.get('select').setValue('privacy')
+ await wrapper.get('textarea').setValue('Keep this precise explanation.')
+ await wrapper.findAll('button').find(b=>b.text()===i18n.global.t('moderationAction.actions.reject'))!.trigger('click')
+ await flushPromises()
+ expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('Keep this precise explanation.')
+ expect(wrapper.get('textarea').attributes('disabled')).toBeDefined()
+ await wrapper.get('[data-testid="moderation-recheck"]').trigger('click')
+ await flushPromises()
+ expect(preview).toHaveBeenCalledTimes(2)
+ expect(execute).toHaveBeenCalledTimes(1)
+ if(state==='ready'){
+  expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('Keep this precise explanation.')
+  await wrapper.findAll('button').find(b=>b.text()===i18n.global.t('moderationAction.actions.reject'))!.trigger('click')
+  await flushPromises()
+  expect(execute).toHaveBeenLastCalledWith('synthetic-action',`${i18n.global.t('reviewRejection.reasons.privacy')}\nKeep this precise explanation.`)
+ }else{expect(wrapper.find('textarea').exists()).toBe(false)}
+})

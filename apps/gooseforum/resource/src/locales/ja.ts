@@ -167,6 +167,7 @@ export default {
     searchClose: "閉じる",
   },
   statsAdmin: {
+    rateLimitExemptionHint: "管理者の除外設定はコンテンツ貢献統計には適用されません。4 つの照会で admin.stats の上限を共有します。",
     filterTitle: '統計フィルター',
     rangeLabel: '期間',
     range7: '過去 7 日間',
@@ -588,6 +589,8 @@ export default {
     save: "バッジを保存"
   },
   tongjiRegistration: {
+    createdTitle: "アカウントを作成しました",
+    restartSchool: "同済認証で再度ログイン",
     title: "同済アカウント登録の完了",
     intro: "同済の本人確認が完了しました。ユーザー名とパスワードを設定して登録してください。メールの再確認は不要です。",
     expired: "認証の有効期限が切れました。同済で再ログインしてください。",
@@ -1449,6 +1452,8 @@ export default {
     showPassword: 'パスワードを表示',
     hidePassword: 'パスワードを隠す',
     captcha: '認証コード',
+    registrationUnavailable: "現在登録できません。しばらくしてからお試しください。",
+    checkSignupAvailability: "登録状況を再確認",
     captchaAlt: '認証コード',
     publishCaptchaExplanation: '新しいアカウントでは、投稿や返信が多い場合に認証コードが必要になることがあります。最近の利用が落ち着くか、アカウントがサイト所定の期間に達すると解除されます。',
     forgotPassword: 'パスワードを忘れましたか？',
@@ -3036,6 +3041,18 @@ export default {
     },
   },
   settings: {
+    activationStatus: {
+      target: "送信先：{email}",
+      remaining: "本日の再送可能回数：{count} / {limit}",
+      refresh: "状態を更新",
+      cooldown: "{seconds} 秒後に再送できます",
+      daily_limit: "本日の上限に達しました。明日お試しください",
+      disabled: "メール確認は現在無効です",
+      verified: "メールは確認済みです。再送は不要です",
+      frozen: "このアカウントでは再送できません",
+      mail_unavailable: "メールを利用できません。後で更新してください",
+      missing_email: "先にアカウント設定でメールを追加してください",
+    },
     editing: '編集中',
     backToProfile: 'マイページに戻る',
     savingShort: '保存中',
@@ -4137,6 +4154,7 @@ export default {
     'post.firstPostUndeletable': 'トピックの最初の投稿は削除できません。トピック自体を削除してください。',
     'auth.csrf.rejected': 'リクエスト元を検証できませんでした。ページを再読み込みして、もう一度お試しください。',
     'auth.tongji.accountExists': 'この同済大学IDまたは学籍番号メールは既にアカウントに紐づいています。既存のアカウントにログインまたは復旧し、キャンパスページで再連携してください。',
+    'auth.tongji.retryLogin': "アカウントは作成されましたが、自動ログインを完了できませんでした。同済認証で再度ログインしてください。再登録は不要です。",
     'admin.moderator.userRequired': 'Please enter a moderator user.',
     'admin.moderator.userNotFound': 'Moderator user not found.',
     'admin.moderator.notFound': 'Moderator record not found.',

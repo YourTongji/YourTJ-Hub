@@ -9,6 +9,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -52,6 +53,9 @@ func RecordLegacyRejectionTx(tx *gorm.DB, postID, actorID uint64, reason string)
 	now := time.Now()
 	revision.ReviewedAt = &now
 	if err := tx.Create(&revision).Error; err != nil {
+		return 0, err
+	}
+	if err := fileusageservice.RetainLegacyRevisionImagesTx(tx, revision.Id, topic.Id, post.Id, post.UserId, post.PostNo == 1); err != nil {
 		return 0, err
 	}
 	if err := tx.Model(&post).Update("latest_revision_id", revision.Id).Error; err != nil {

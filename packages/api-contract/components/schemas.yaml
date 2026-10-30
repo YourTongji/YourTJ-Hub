@@ -8544,7 +8544,7 @@ AdminRateLimitSettingsConfig:
       description: Master switch.
     skipAdmin:
       type: boolean
-      description: Exempt admin-role users.
+      description: Exempt admin-role users from ordinary action limits. The admin.stats aggregate-query budget still applies.
     actions:
       type: array
       items:
@@ -12937,3 +12937,43 @@ ModerationAppealQueueResponse:
             result:
               $ref: '#/ModerationAppealQueueResult'
     - $ref: '#/ApiFailure'
+
+ActivationStatus:
+  type: object
+  required: [currentEmail, pendingEmail, targetEmail, targetKind, state, remainingToday, dailyLimit, retryAfterSeconds]
+  properties:
+    currentEmail:
+      type: string
+    pendingEmail:
+      type: string
+      description: Fresh staged address; empty when absent or expired.
+    targetEmail:
+      type: string
+      description: Address that POST will target; empty when no target exists.
+    targetKind:
+      type: string
+      enum: [none, current, pending]
+    state:
+      type: string
+      enum: [ready, cooldown, daily_limit, disabled, verified, frozen, mail_unavailable, missing_email]
+    remainingToday:
+      type: integer
+      minimum: 0
+      maximum: 3
+    dailyLimit:
+      type: integer
+      const: 3
+    retryAfterSeconds:
+      type: integer
+      minimum: 0
+      description: Relative wait until cooldown or daily quota expires, rounded up; zero otherwise.
+  additionalProperties: false
+
+ActivationStatusResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/ActivationStatus'

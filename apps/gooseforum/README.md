@@ -109,6 +109,11 @@ cd resource && pnpm dev
 
 The admin console is served by the same Vue app under `/admin`; it does not require a separate frontend service.
 
+For frontend dependency maintenance, run `pnpm audit --registry=https://registry.npmjs.org`
+inside `resource`. Audit findings describe affected dependencies; assess the actual call path
+separately. `resource/test/login-encryption.test.ts` verifies password-login interoperability
+with RSA-OAEP/SHA-256 through WebCrypto and the dynamically loaded forge fallback.
+
 Open `http://localhost:5234`; the backend proxies `/assets` to the Vite resource server on port 3010.
 
 ## Project Structure

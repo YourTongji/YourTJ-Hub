@@ -18,7 +18,7 @@ for (const mode of ['moderator', 'admin', 'quick', 'owner']) for (const lang of 
     page.setDefaultTimeout(10000)
     const errors = [], unexpected = []
     page.on('pageerror', error => errors.push(error.message))
-    let writes = 0, fail = true, decided = false
+    let writes = 0, previews = 0, fail = true, decided = false
     const item = { id: 7, revisionId: 19, title: 'Candidate', content: 'Private candidate', excerpt: 'Candidate excerpt', userId: 9, username: 'author', processStatus: 2, createdAt: '2026-10-30T00:00:00Z', images: ['/fixture/preview.svg'] }
     const reason = 'Please remove the private address. <script>window.reasonExecuted=true</script>'
     const ready = { state: 'ready', subject: 'review.topic', action: 'reject', targetType: 'topic', targetId: 7, title: 'Candidate', excerpt: 'Private candidate', workbenchUrl: '/moderation' }
@@ -27,13 +27,13 @@ for (const mode of ['moderator', 'admin', 'quick', 'owner']) for (const lang of 
       await page.route('**/api/**', async route => {
         const request = route.request(), path = new URL(request.url()).pathname
         if (path.endsWith('/review-queue')) return route.fulfill({ json: { code: 0, result: { items: decided ? [] : [item], total: decided ? 0 : 1, page: 1, pageSize: 10 } } })
-        if (path.endsWith('/approval-action/preview')) return route.fulfill({ json: { code: 0, result: ready } })
+        if (path.endsWith('/approval-action/preview')) { previews++; return route.fulfill({ json: { code: 0, result: ready } }) }
         if (path.endsWith('/content/appeals')) return route.fulfill({ json: { code: 0, result: { items: [] } } })
         if (path.endsWith('/review-action') || path.endsWith('/approval-action/execute')) {
           writes++
           const body = request.postDataJSON()
           assert.deepEqual(body, mode === 'quick' ? { token: 'synthetic-action', reason } : { kind: 'topic', id: 7, revisionId: 19, approve: false, reason })
-          if (fail) { fail = false; return route.fulfill({ status: 500, json: { code: 1, messageCode: 'common.operation.failed', result: null } }) }
+          if (fail) { fail = false; return mode === 'quick' ? route.fulfill({json:{code:0,result:{...ready,state:'failed'}}}) : route.fulfill({ status: 500, json: { code: 1, messageCode: 'common.operation.failed', result: null } }) }
           decided = true
           return route.fulfill({ json: { code: 0, result: mode === 'quick' ? { ...ready, state: 'done' } : 'success' } })
         }
@@ -87,6 +87,22 @@ for (const mode of ['moderator', 'admin', 'quick', 'owner']) for (const lang of 
         assert.equal(writes, 1)
         assert.equal(await note.inputValue(), reason)
         assert.equal(await select.inputValue(), 'other')
+        if (mode === 'quick') {
+          const recheck = page.getByTestId('moderation-recheck')
+          await recheck.waitFor()
+          assert.ok(await recheck.evaluate(el => el.scrollHeight <= el.clientHeight + 1), 'recheck label fits at large text')
+          assert.equal(await note.isDisabled(), true)
+          assert.equal(previews, 1)
+          if (process.env.YOURTJ_TEST_ARTIFACTS) {
+            await mkdir(process.env.YOURTJ_TEST_ARTIFACTS, { recursive: true })
+            await page.screenshot({ path: `${process.env.YOURTJ_TEST_ARTIFACTS}/failed-quick-${lang}-${theme}-${width}-${scale}x.png`, fullPage: true })
+          }
+          await page.getByTestId('moderation-recheck').click()
+          await confirm().waitFor()
+          assert.equal(previews, 2)
+          assert.equal(writes, 1, 'rechecking never executes a decision')
+          assert.equal(await note.inputValue(), reason)
+        }
         assert.equal(await page.evaluate(() => window.reasonExecuted), undefined)
         if (mode === 'admin') {
           const bg = await page.getByRole('dialog').evaluate(el => getComputedStyle(el).backgroundColor)

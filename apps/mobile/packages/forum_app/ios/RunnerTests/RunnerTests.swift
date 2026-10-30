@@ -4,6 +4,21 @@ import XCTest
 @testable import Runner
 
 class RunnerTests: XCTestCase {
+  func testAccountReturnRetainsOnlyTheFixedColdAndForegroundHint() {
+    let bridge = YourTJAccountReturnBridge()
+    XCTAssertFalse(bridge.handle(URL(string: "yourtj://callback?code=secret")!))
+    XCTAssertFalse(bridge.handle(URL(string: "yourtj://account/email-verified?token=secret")!))
+    XCTAssertTrue(bridge.handle(URL(string: YourTJAccountReturnBridge.link)!))
+    var received: [String] = []
+    XCTAssertNil(bridge.onListen(withArguments: nil) { if let value = $0 as? String { received.append(value) } })
+    XCTAssertEqual(received, [YourTJAccountReturnBridge.link])
+    XCTAssertTrue(bridge.handle(URL(string: YourTJAccountReturnBridge.link)!))
+    XCTAssertEqual(received.count, 2)
+    XCTAssertNil(bridge.onCancel(withArguments: nil))
+    XCTAssertTrue(bridge.handle(URL(string: YourTJAccountReturnBridge.link)!))
+    XCTAssertEqual(received.count, 2)
+  }
+
 
   func testPushPresentationSuppressesOnlyVisibleConversationAndWrongAccount() {
     let message: [AnyHashable: Any] = ["route": "/chat?userId=7&recipientId=9",

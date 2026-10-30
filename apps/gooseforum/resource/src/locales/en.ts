@@ -167,6 +167,7 @@ export default {
     searchClose: "Close",
   },
   statsAdmin: {
+    rateLimitExemptionHint: "Admin exemption does not apply to content contribution statistics. The four queries share the admin.stats budget.",
     filterTitle: 'Statistics filters',
     rangeLabel: 'Date range',
     range7: 'Last 7 days',
@@ -588,6 +589,8 @@ export default {
     save: "Save profile badges"
   },
   tongjiRegistration: {
+    createdTitle: "Account created",
+    restartSchool: "Sign in again through Tongji",
     title: "Complete Tongji registration",
     intro: "Your Tongji identity is verified. Choose a username and password to create your forum account. No further email verification is needed.",
     expired: "Verification expired. Please sign in with Tongji again.",
@@ -1450,6 +1453,8 @@ export default {
     showPassword: 'Show password',
     hidePassword: 'Hide password',
     captcha: 'Captcha',
+    registrationUnavailable: "Registration is unavailable. Please try again later.",
+    checkSignupAvailability: "Check registration again",
     captchaAlt: 'Captcha',
     publishCaptchaExplanation: 'The site may require a captcha for frequent posting by newer accounts. This check lifts as recent activity subsides or the account meets the site’s age condition.',
     forgotPassword: 'Forgot password?',
@@ -3037,6 +3042,18 @@ export default {
     },
   },
   settings: {
+    activationStatus: {
+      target: "Send to: {email}",
+      remaining: "Resends left today: {count} / {limit}",
+      refresh: "Refresh status",
+      cooldown: "Resend in {seconds} seconds",
+      daily_limit: "Daily limit reached. Try again tomorrow.",
+      disabled: "Email verification is currently disabled",
+      verified: "Email verified. No resend needed.",
+      frozen: "This account cannot resend email",
+      mail_unavailable: "Mail is unavailable. Refresh later.",
+      missing_email: "Add an email address in account settings first",
+    },
     editing: 'Editing',
     backToProfile: 'Back to my profile',
     savingShort: 'Saving',
@@ -4138,6 +4155,7 @@ export default {
     'post.firstPostUndeletable': 'The topic first post cannot be deleted. Delete the topic instead.',
     'auth.csrf.rejected': 'The request origin could not be verified. Refresh the page and try again.',
     'auth.tongji.accountExists': 'This Tongji identity or its student email already belongs to an account. Sign in to or recover the existing account, then link the identity on the Campus page.',
+    'auth.tongji.retryLogin': "Your account was created, but automatic sign-in did not finish. Sign in again through Tongji; do not register again.",
     'admin.moderator.userRequired': 'Please enter a moderator user.',
     'admin.moderator.userNotFound': 'Moderator user not found.',
     'admin.moderator.notFound': 'Moderator record not found.',

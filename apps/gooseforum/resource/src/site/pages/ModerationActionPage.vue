@@ -66,6 +66,13 @@ onMounted(async () => {
     loading.value = false
     return
   }
+  await refreshPreview()
+})
+
+async function refreshPreview() {
+  if (executing.value) return
+  loading.value = true
+  error.value = ''
   try {
     view.value = await previewModerationApprovalAction(token.value)
   } catch (err) {
@@ -73,7 +80,7 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
 
 async function confirmAction() {
   if (executing.value || view.value?.state !== 'ready') return
@@ -147,14 +154,15 @@ async function confirmAction() {
             </template>
           </dl>
 
-          <RejectionReasonFields v-if="contentReject && view.state === 'ready'" v-model="rejectDraft" id-prefix="moderation-content-rejection" :disabled="executing" :error="reasonError" />
-          <div v-if="appeal && view.state === 'ready'" class="space-y-1.5">
+          <RejectionReasonFields v-if="contentReject && (view.state === 'ready' || view.state === 'failed')" v-model="rejectDraft" id-prefix="moderation-content-rejection" :disabled="executing || view.state !== 'ready'" :error="reasonError" />
+          <div v-if="appeal && (view.state === 'ready' || view.state === 'failed')" class="space-y-1.5">
             <label for="moderation-action-reason" class="text-sm font-medium">
               {{ t(reasonRequired ? 'moderationAction.appealRejectReasonLabel' : 'moderationAction.appealApproveReasonLabel') }}
             </label>
             <textarea
               id="moderation-action-reason"
               v-model="reason"
+              :disabled="view.state !== 'ready'"
               rows="3"
               maxlength="512"
               class="gf-textarea w-full text-base sm:text-sm"
@@ -170,6 +178,7 @@ async function confirmAction() {
           </div>
 
           <div class="flex flex-wrap items-center gap-2 pt-2">
+            <button v-if="view.state === 'failed'" data-testid="moderation-recheck" type="button" class="gf-button gf-button-md h-auto max-w-full whitespace-normal py-2 text-center [overflow-wrap:anywhere] gf-button-secondary" @click="refreshPreview">{{ t('common.retry') }}</button>
             <button
               v-if="view.state === 'ready'"
               type="button"

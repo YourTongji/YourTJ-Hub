@@ -3,7 +3,8 @@
 // 配置行缺键会把 allowedDomains 序列化为 null；LoginPage setup 曾直接解引用
 // 导致整页白屏。修复后页面必须容错挂载，注册表单退化为自由邮箱输入。
 import { describe, expect, test, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
+import { register } from '../src/runtime/api'
 import { i18n } from '../src/runtime/i18n'
 import type { LayoutPayload, LoginPageProps } from '@gooseforum/client'
 
@@ -94,4 +95,68 @@ describe('LoginPage allowedDomains null 容错（issue #643）', () => {
     expect(wrapper.text()).toContain('@tongji.edu.cn')
     wrapper.unmount()
   })
+})
+
+
+describe('password registration availability (#1220 F12)', () => {
+  for (const state of ['disabled', 'daily_limit', 'mail_unavailable', 'unavailable'] as const) {
+    test(`shows ${state} before collecting a registration`, async () => {
+      const w = mount(LoginPage, { props: { layout, props: { ...buildProps([]), passwordSignupState: state } }, global: { plugins: [i18n] } })
+      await flushPromises()
+      expect(w.find('input[type="email"]').exists()).toBe(false)
+      expect(w.find('form button[type="submit"]').exists()).toBe(false)
+      expect(w.find('[data-testid="signup-availability"]').exists()).toBe(true)
+      expect(w.findAll('.gf-segmented-item')).toHaveLength(2)
+      w.unmount()
+    })
+  }
+})
+
+// #1220 F04: exercise the actual form, including a domain that differs from
+// the selector's initial value. Abort after the request so no navigation occurs.
+describe('registration email paste', () => {
+  for (const { input, domains, expected } of [
+    { input: 'student', domains: ['tongji.edu.cn'], expected: 'student@tongji.edu.cn' },
+    { input: 'student@TONGJI.EDU.CN', domains: ['tongji.edu.cn'], expected: 'student@tongji.edu.cn' },
+    { input: '  student@s.TONGJI.edu.cn  ', domains: ['tongji.edu.cn', 's.tongji.edu.cn'], expected: 'student@s.tongji.edu.cn' },
+    { input: 'student@example.test', domains: [], expected: 'student@example.test' },
+    ...['student@example.test', 'student@@tongji.edu.cn', '@tongji.edu.cn', 'student@', 'stu dent@tongji.edu.cn'].map(input => ({ input, domains: ['tongji.edu.cn'], expected: null })),
+  ]) test(`${input} with ${domains.length} allowed domains`, async () => {
+    vi.mocked(register).mockClear().mockRejectedValue(new Error('request observed'))
+    const wrapper = mount(LoginPage, {
+      props: { layout, props: { ...buildProps(domains), captchaRequired: false } },
+      global: { plugins: [i18n] },
+    })
+    try {
+      await flushPromises()
+      await wrapper.get('input[autocomplete="username"]').setValue('new-user')
+      await wrapper.get('#register-email').setValue(input)
+      for (const password of wrapper.findAll('input[autocomplete="new-password"]')) await password.setValue('password123')
+      await wrapper.get('form').trigger('submit')
+      await flushPromises()
+      if (expected == null) {
+        expect(register).not.toHaveBeenCalled()
+        expect((wrapper.get('#register-email').element as HTMLInputElement).value).toBe(input.trim())
+      } else {
+        expect(register).toHaveBeenCalledOnce()
+        expect(vi.mocked(register).mock.calls[0][1]).toBe(expected)
+        if (domains.length) expect((wrapper.get('#register-email').element as HTMLInputElement).value).toBe(expected.split('@')[0])
+      }
+    } finally { wrapper.unmount() }
+  })
+})
+
+for (const redirect of ['/publish?id=42', '//evil.test']) test(`availability recheck preserves a locally selected register mode and safe destination ${redirect}`, async () => {
+  const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => {})
+  const w = mount(LoginPage, { props: { layout, props: { ...buildProps([]), initialMode: 'login', passwordSignupState: 'disabled', redirectUrl: redirect } }, global: { plugins: [i18n] } })
+  try {
+    await flushPromises()
+    await w.findAll('.gf-segmented-item')[1].trigger('click')
+    await w.get('[data-testid="signup-availability"] button').trigger('click')
+    expect(assign).toHaveBeenCalledOnce()
+    const url = new URL(assign.mock.calls[0][0], 'https://forum.example.test')
+    expect(url.pathname).toBe('/login')
+    expect(url.searchParams.get('register')).toBe('true')
+    expect(url.searchParams.get('redirect')).toBe(redirect.startsWith('//') ? '/' : redirect)
+  } finally { w.unmount(); assign.mockRestore() }
 })

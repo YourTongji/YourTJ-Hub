@@ -1659,9 +1659,9 @@ func SavePostingSettings(req component.BetterRequest[SavePostingSettingsReq]) co
 
 // GetRateLimitSettings 获取滥用防护（限流）设置
 func GetRateLimitSettings(req component.BetterRequest[component.Null]) component.Response {
-	defaultSettings := defaultconfig.GetDefaultRateLimitConfig()
-	res := pageConfig.GetConfigByPageType(pageConfig.RateLimitSettings, defaultSettings)
-	return component.SuccessResponse(res)
+	// Show the same effective actions the middleware enforces, including defaults
+	// added after an administrator last saved the configuration.
+	return component.SuccessResponse(hotdataserve.GetRateLimitConfigCache())
 }
 
 type SaveRateLimitSettingsReq struct {
