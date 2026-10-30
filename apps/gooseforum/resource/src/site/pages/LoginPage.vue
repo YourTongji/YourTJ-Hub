@@ -7,6 +7,7 @@ import TongjiLoginButton from '@/site/components/TongjiLoginButton.vue'
 import PasswordInput from '@/site/components/PasswordInput.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
 import { forgotPassword, getCaptcha, getPasskeyStatus, login, loginWithPasskey, register, verifyTotp } from '@/runtime/api'
+import { resolveApiMessage } from '@/runtime/api-message'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
 import { useSiteTheme, setThemePreference } from '@/runtime/site-theme'
@@ -70,6 +71,17 @@ const forgotForm = reactive({
   captcha: '',
   website: '',
 })
+
+const passwordSignupOpen = computed(() => (page.props.passwordSignupState ?? 'open') === 'open')
+const signupUnavailableMessage = computed(() => {
+  const codes: Record<string, string | undefined> = { disabled: 'auth.signupDisabled', daily_limit: 'auth.register.dailyQuota', mail_unavailable: 'auth.mail.notConfigured' }
+  const code = codes[page.props.passwordSignupState ?? 'unavailable']
+  return code ? resolveApiMessage({ messageCode: code }, t('auth.registrationUnavailable')) : t('auth.registrationUnavailable')
+})
+function reloadSignupAvailability() {
+  const query = new URLSearchParams({ register: 'true', redirect: homeUrl.value, lang: locale.value })
+  window.location.assign(`/login?${query}`)
+}
 
 const title = computed(() => {
   if (mode.value === 'register') return t('auth.registerTitle')
@@ -216,11 +228,32 @@ function backToPasswordLogin() {
 }
 
 async function handleRegister() {
+  if (!passwordSignupOpen.value) return
   if (!registerForm.username || !registerForm.email || !registerForm.password || (captchaRequired.value && !registerForm.captcha)) {
     error.value = t('auth.validation.registerRequired')
     return
   }
-  const email = allowedDomains.value.length ? `${registerForm.email}@${selectedEmailDomain.value}` : registerForm.email
+  const enteredEmail = registerForm.email.trim()
+  let email = enteredEmail
+  if (allowedDomains.value.length) {
+    const parts = enteredEmail.split('@')
+    const prefix = parts[0]
+    if (!prefix || parts.length > 2 || /\s/.test(enteredEmail) || (parts.length === 2 && !parts[1])) {
+      error.value = t('server.auth.emailDomain.invalid')
+      return
+    }
+    const requestedDomain = parts.length === 2 ? parts[1] : selectedEmailDomain.value
+    const domain = allowedDomains.value.find(candidate => candidate.toLowerCase() === requestedDomain.toLowerCase())
+    if (!domain) {
+      error.value = t('server.auth.emailDomain.notAllowed')
+      return
+    }
+    // Keep the prefix + selector consistent even when a full address was pasted.
+    // The server still owns domain admission and complete email validation.
+    selectedEmailDomain.value = domain
+    registerForm.email = prefix
+    email = `${prefix}@${domain.toLowerCase()}`
+  }
   if (registerForm.password !== registerForm.confirmPassword) {
     error.value = t('auth.validation.passwordMismatch')
     return
@@ -456,6 +489,10 @@ function onToggleTheme() {
             </button>
           </form>
 
+          <div v-else-if="mode === 'register' && !passwordSignupOpen" data-testid="signup-availability" class="space-y-3">
+            <p role="status" class="gf-status-message gf-status-message-info">{{ signupUnavailableMessage }}</p>
+            <button type="button" class="gf-button gf-button-lg gf-button-secondary w-full" @click="reloadSignupAvailability">{{ t('auth.checkSignupAvailability') }}</button>
+          </div>
           <form v-else-if="mode === 'register'" class="space-y-3" @submit.prevent="handleRegister">
             <label class="block">
               <span class="sr-only">{{ t('auth.username') }}</span>

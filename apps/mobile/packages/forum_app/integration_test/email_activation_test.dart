@@ -42,6 +42,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final requests = <String>[];
     var resendCode = 'auth.activation.resendSuccess';
+    var statusState = 'ready';
     var activated = false;
     var candidate = false;
     var bound = true;
@@ -58,7 +59,7 @@ void main() {
         case '/settings':
           final settings = settingsPayloadJson();
           ((settings['props'] as Map)['user'] as Map)['email'] =
-              'demo@example.test';
+              'owner@example.test';
           ((settings['layout'] as Map)['viewer']
                   as Map)['requiresEmailVerification'] =
               !activated;
@@ -66,7 +67,22 @@ void main() {
           await request.response.close();
           return;
         case '/api/resend-activation-email':
-          if (resendCode != 'auth.activation.resendSuccess') error = resendCode;
+          if (request.method == 'GET') {
+            result = {
+              'currentEmail': 'owner@example.test',
+              'pendingEmail': '',
+              'targetEmail': statusState == 'verified'
+                  ? ''
+                  : 'owner@example.test',
+              'targetKind': statusState == 'verified' ? 'none' : 'current',
+              'state': statusState,
+              'remainingToday': statusState == 'daily_limit' ? 0 : 2,
+              'dailyLimit': 3,
+              'retryAfterSeconds': statusState == 'cooldown' ? 60 : 0,
+            };
+          } else if (resendCode != 'auth.activation.resendSuccess') {
+            error = resendCode;
+          }
         case '/api/user/sessions':
           result = [];
         case '/api/campus/tongji/start':
@@ -227,6 +243,32 @@ void main() {
           expect(find.text(message), findsOneWidget);
           await capture('email-${code.split('.').last}-${brightness.name}');
         }
+        final postsBefore = requests
+            .where((r) => r == 'POST /api/resend-activation-email')
+            .length;
+        for (final state in ['cooldown', 'daily_limit', 'verified']) {
+          statusState = state;
+          await show(
+            Scaffold(
+              body: const SingleChildScrollView(
+                padding: EdgeInsets.all(16),
+                child: ActivationEmailAction(),
+              ),
+            ),
+            'zh',
+            brightness,
+          );
+          await tester.tap(find.text(l.authResendActivationEmail));
+          await tester.pumpAndSettle();
+          expect(
+            requests
+                .where((r) => r == 'POST /api/resend-activation-email')
+                .length,
+            postsBefore,
+          );
+          await capture('activation-status-$state-${brightness.name}');
+        }
+        statusState = 'ready';
         resendCode = 'auth.activation.resendSuccess';
         await show(
           Scaffold(

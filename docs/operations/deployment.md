@@ -1258,3 +1258,23 @@ Agent instance identity and stream epoch are deployment state outside business d
 Database restore rotates the epoch before reopening; dev snapshot synchronization also revokes copied
 Agent credentials/secrets, clears Agent-derived rows and disables ingress/production/outbound switches.
 See the [Agent runbook](agents.md#retention-restore-and-rollback) for activation and reconciliation.
+
+
+## Account email public URLs
+
+`Current`: account-email action and recovery links use the non-blank site setting `siteUrl`; only a
+blank value falls back to `server.url`. Configure the actual browser-facing public HTTP(S) site URL,
+without credentials, query parameters or fragments. Do not assume a production host from the
+repository, a copied database or SMTP settings. A non-empty incorrect `siteUrl` overrides a correct
+`server.url`; an SMTP configuration test alone does not validate account-email links.
+
+If an account email contains a wrong or unusable origin, correct `siteUrl` in site settings (or the
+`server.url` fallback and restart when applicable), allow the settings cache to refresh, then ask the
+owner to sign in through the known site address and explicitly resend from email settings. Already
+delivered messages are not rewritten. Activation validity still starts at issuance and expires after
+24 hours even if the queue or provider delayed delivery; requesting another message does not extend
+an old token. Do not edit tokens or user activation data to compensate for URL configuration.
+
+`Partial`: the existing URL selection is not an origin-health or deliverability check. Operators must
+verify their own host/configuration; this content recovery does not introduce a new URL validator,
+queue expiry policy or delivery guarantee. See [account email recovery](../product/identity-and-access.md#account-email-content-and-recovery).

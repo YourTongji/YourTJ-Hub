@@ -296,7 +296,10 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   position, and both author targets have at least 44-by-44 logical-pixel touch areas.
 - `Current`: topic bodies, Markdown and Wiki reading surfaces open the shared image viewer. It
   supports swipe navigation, pinch and double-tap zoom, actual-size viewing, long-press save and
-  system sharing. Multi-image viewers show a horizontally scrolling thumbnail rail with a centered
+  system sharing. The host supplies four-language labels for original-size/fit controls,
+  the thumbnail rail and each image position across Markdown, Wiki, course review, chat and
+  sticker entry points; thumbnail buttons retain their selected state in Semantics.
+  Multi-image viewers show a horizontally scrolling thumbnail rail with a centered
   focus; selecting a thumbnail changes the image and resets zoom and actual-size mode. Distant
   selections jump directly; adjacent selections use the shared media cadence. Tapping
   toggles the viewer controls and rail together; a vertical drag dismisses at minimum scale, moving
@@ -747,6 +750,12 @@ retains its open writing canvas; edit tools use the same outline symbols. Keyboa
 panels are mutually exclusive and preserve draft text and selection. Unsupported voice actions
 are not displayed. Chat bubbles use 20-pixel corners and are bounded by the conversation pane.
 
+`Current`: branch pages own software-keyboard avoidance; the retained navigation shell does not
+resize their window a second time. The compact dock and its chat-content clearance disappear while
+the keyboard is open, leaving the input and send action reachable. Empty-conversation guidance can
+scroll when keyboard, preview notice or window height leave little space. Folding and unfolding
+keep the same conversation input controller and unsent text.
+
 `Current`: primary and secondary buttons use pill shapes with state-specific colors and a separate
 48-pixel hit target. Icon actions retain at least 44 pixels, except the compact profile social links,
 whose touch areas are 24 pixels wide and 32 pixels high. Menus, segmented controls and choice
@@ -782,6 +791,10 @@ change. The header keeps a small outer margin for its primary action.
   then. Existing titles remain visible in topic edits and restored drafts. Moment previews show only
   a manually entered title, while title-free publishing/server drafts use the existing body-derived
   API summary. The local save status leads with a small clock, check, history or alert mark.
+- `Current`: article Next checks the existing trimmed title and body requirements before
+  leaving editing, displays the missing field and focuses it without losing input. Local draft
+  saving remains available for incomplete work; categories are selected in preview, and final
+  submission still validates both fields and categories before the server validates the request.
 - `Current`: the preview step reads as the finished post: a card headed by the type's symbol and
   label rises in, followed by one settings group whose rows lead with their own symbols. Category is
   a dropdown the width of its row; each category leads with a soft colour swatch and a picked one is
@@ -936,8 +949,15 @@ change. The header keeps a small outer margin for its primary action.
   resets obsolete pagination and updates the reply count used when returning to the feed.
   Reading a topic without editing creates no draft. Session invalidation prevents queued writing from
   crossing the account boundary; cache clearing does not delete writing recovery copies.
+  New-topic copies normalize an empty server identity to `member`; existing device drafts saved with
+  that legacy empty value remain readable in their original account/site scope. Unsupported identity
+  values remain rejected.
 
 ## Campus and sign-in
+
+`Current`: public campus course recommendations show the same teacher/team label and missing-teacher
+fallback as the course catalog, alongside department and each entry's own score. Same-name courses
+retain separate identities and detail links. Identity text wraps with enlarged text.
 
 - `Current`: Campus opens a native private overview with the school teaching week, time-aware
   greeting, today's courses and then recent notices. Weekly timetable, academic records and charts,
@@ -950,7 +970,11 @@ change. The header keeps a small outer margin for its primary action.
   The Campus bottom destination opens this page directly. Course reviews, the scheduler and Wiki
   have visible shortcuts at the top of its home view, also available to guests, unbound users and
   when school services fail. Pushed tools return to the Campus destination. Today and the guest
-  landing view include public course previews. The five school-content sections are Today, School
+  landing view include public course previews. An unconnected school-timetable tab explains the
+  required Tongji identity and the personal timetable shown after connection. It retains the existing
+  connection confirmation flow, adds direct catalog/planner paths without school binding, and does
+  not fetch personal datasets in the unconnected state.
+  The five school-content sections are Today, School
   timetable, Academic records, School notices and Calendars. A header gear opens Campus settings
   for identity management and offline-data clearing; `/campus/explore` redirects to `/campus`. See [campus semantics](campus.md) for binding, privacy and provider limits.
 - `Current`: while the app stays in the foreground, Campus remembers its selected section,
@@ -1000,6 +1024,10 @@ change. The header keeps a small outer margin for its primary action.
   [campus Widget specification](campus.md#home-screen-widgets).
 - `Partial`: native school login on a physical device is not end-to-end verified. Automated tests
   cover navigation policy, session handoff, confirmation, stale responses and native rendering.
+- `Current`: the embedded school authorization browser opens as a full-screen route on the root
+  navigator, covering the retained tab dock and rail. Loading, failure and retry remain inside
+  this route; closing or completing authorization returns to the same campus branch and refreshes
+  its status. Browser content retains its safe-area and keyboard insets.
 - `Current`: the scheduler opens in course selection. Plan preview remains a local planning
   grid, with week filters, conflicts, custom blocks and existing plan operations. Web and mobile
   warn about time conflicts before a teaching class is selected, while keeping the add action
@@ -1020,6 +1048,12 @@ change. The header keeps a small outer margin for its primary action.
   and keyboard submission searches immediately. Clearing resets results without dismissing the
   keyboard. Editing, clearing or switching compulsory/optional/search segments invalidates earlier
   responses; returning to search retains the query. Failed searches offer retry below the field.
+  This input searches course names within the selected term; its hint and empty-state scope reflect
+  that API query. Configuration changes reload the active source and fence previous requests.
+  Missing configuration names the missing fields and scrolls to their controls. Configured empty
+  compulsory/optional results identify their actual scope and offer configuration or name search;
+  a zero-match search shows the keyword and term, with clear-query and configure actions. Empty,
+  loading and retryable failure states do not change existing plans.
 - `Current`: planner and official timetable grids share a responsive seven-day layout with a fixed
   section/time rail during horizontal scrolling. Larger screens expand the columns; narrow screens
   keep readable column widths and explain sideways scrolling. Spanning course blocks show title,
@@ -1040,6 +1074,14 @@ change. The header keeps a small outer margin for its primary action.
   edits, and focus reads are throttled to 30 seconds. Clean state has no polling timer.
   Existing cloud snapshots migrate intact on first use; legacy clients receive 410 afterward.
   Account closure erases cloud content and prevents in-flight requests from recreating it.
+- `Current`: the single-select major chooser searches names and codes, preserving code strings and
+  the current plan while typing. It shows term/grade context, separate name/code rows, the current
+  selection and a clearable no-match state. A recognized PK year/code wrapper is removed only from
+  the displayed name, retaining nested name parentheses and the original selection payload.
+  The panel accommodates the keyboard and enlarged text. Changing major with non-empty plans names
+  the affected plan/course/event counts and requires confirmation before clearing them. Cancel,
+  reselecting the current major, account/context changes, or plan changes during confirmation preserve
+  existing data. Term/grade change protection remains `Planned` under issue #550.
 - `Current`: the course catalog debounces keyword search and captures filters for each request
   generation, so late responses and pages cannot replace a newer search. Short lists load the next
   page automatically while visible. Paging errors keep existing courses and offer explicit retry;
@@ -1236,19 +1278,45 @@ change. The header keeps a small outer margin for its primary action.
   only the safe native destination; a missing token cannot reuse an earlier challenge or session.
   A created account without an accepted session offers sign-in recovery instead of showing success.
 
+`Current`: switching the authentication form from sign-in to registration or password recovery
+clears its TOTP challenge, staged credential, code and previous captcha request. A late captcha response
+cannot restore the old challenge. Selecting the same form preserves an active TOTP retry.
+
 - `Current`: registration loads the current Web login configuration before submission. Restricted
   email domains use a prefix field and domain selector; unrestricted sites accept the full address.
   Password confirmation is checked locally. Only published terms/privacy policies are linked and
-  require explicit agreement. Configuration failures preserve the form and offer retry.
+  require explicit agreement. Configuration failures retain field controllers and offer retry. Before ordinary
+  registration is known to be available, the page shows loading or an explanation
+  and a recheck action. Closed registration, daily capacity and unavailable email
+  service are explained without collecting registration fields; login remains usable.
+  The public state contains no counts and the backend rechecks every submission.
 - `Current`: the restricted email field accepts either a prefix or a full address at a published
   domain, matching domains without case sensitivity. A full address selects its own domain instead
   of appending another suffix; malformed or unlisted addresses stay on the form with a localized
   error. Registration API failures use the shared server-message catalog, including daily quotas
   and retry-login instructions. Occupied usernames/emails and creation failures retain the same
   generic registration error, preserving the server's account-enumeration boundary.
+- `Current`: native password registration submits the current resolved UI language (`zh`, `en`,
+  `ja` or `de`) as the account's initial locale, including after a language change on the same form.
+  Following the system uses the existing supported-language resolution and Chinese fallback.
+  Activation email content and its link language use that stored locale; later device-language
+  changes do not silently rewrite the account's profile language.
 - `Current`: when email verification is enabled, successful registration tells the user to check
   their inbox; when it is disabled, the ordinary registration confirmation remains. Email changes
   tell the user to check the new address for its activation link in both immediate and staged modes.
+
+- `Current`: the fixed `yourtj://account/email-verified` return opens current account
+  settings on the existing navigation stack. It neither verifies the App's account
+  nor switches it to the account named in the browser. Returning with Back retains
+  the unfinished page/draft; continuing an operation remains manual. The handler
+  ignores OIDC callbacks, alternate hosts/paths, and any query/fragment payload.
+  Cold-start links wait for storage/bootstrap readiness. Account data is read using
+  the current session; guests use the ordinary sign-in guard.
+  A narrow native event bridge retains an initial hint until Flutter listens and
+  forwards foreground hints without carrying URL payloads. Flutter's competing iOS
+  navigation handler is disabled, following [Flutter's guidance](https://docs.flutter.dev/cookbook/navigation/set-up-universal-links).
+  Other URLs continue through the existing OIDC and campus-widget native handlers;
+  the bridge neither reads their credentials nor consumes their events.
 
 ## Persistent forum anonymous identity
 
@@ -1308,6 +1376,10 @@ or production push delivery behavior. The shared business and privacy rules are 
   independent APIs; an acknowledged wear is retained after a display failure, and retry resumes display.
   A wear-only save leaves automatic profile display selection untouched. Display inclusion, ordering
   and the five-badge limit retain their existing rules.
+  Wear and profile-display choices start in separate collapsed sections on this same page. The wear
+  summary and each wear option show the shared medallion artwork; the display summary names the selected
+  count. Expanding, scrolling and collapsing preserve unsaved choices. One reorderable list owns page
+  scrolling; errors and acknowledged partial saves remain visible even when both sections are closed.
 
 
 - `Current`: Settings → Privacy → Profile visibility lists the five profile sections with
@@ -1390,6 +1462,8 @@ or production push delivery behavior. The shared business and privacy rules are 
 - `Current`: profile editing includes nickname, bio, signature, website name/URL, profile language
   and the six Web social providers. Saving preserves unedited fields and unknown social providers;
   website/social destinations accept HTTP(S), and social usernames expand to provider URLs.
+  The links editor centers single-line website/social inputs against their labels; the website-name
+  length counter sits beside the input. Narrow windows and large text retain the stacked layout.
   Public profiles display website/social links as icon-only controls and open them in the system
   browser. Provider marks use compact, equally sized 24-by-32-pixel touch targets alongside profile dates,
   with their names available to screen readers and long-press tooltips. Worn badges appear on the avatar independently of the badge list;
@@ -1649,6 +1723,12 @@ from their inbox; backend start/confirm gates remain authoritative, and unbindin
 After activation, users can retry the original connection action. Resend requests are serialized,
 cancelled on leaving the action or changing sessions, and old-session feedback is discarded.
 Tongji SSO accounts retain automatic activation.
+`Current`: the shared activation action reads the owner's actual target, remaining
+quota and relative cooldown from the server. It displays verified, verification-off,
+restricted-account and mail-unavailable states and offers a read-only refresh after
+errors. Cooldown countdown uses elapsed time, refreshes on App resume or expiry,
+and never sends automatically. Session changes cancel reads and discard old targets.
+
 
 ## Tongji sign-in
 

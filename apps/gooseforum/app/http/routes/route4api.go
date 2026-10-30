@@ -258,6 +258,7 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.POST("user/passkeys/revoke", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), passkeyBodyLimit(8<<10), api.PasskeyCredentialRevoke)
 	loginApi.POST("set-user-profile-cover", middleware.CheckWritableAccount, UpButterReq(api.EditUserProfileCover))
 	loginApi.POST("set-user-email", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitEmailChange), UpButterReq(api.EditUserEmail))
+	loginApi.GET("resend-activation-email", UpQueryReq(api.GetActivationStatus))
 	loginApi.POST("resend-activation-email", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.ResendActivationEmail))
 	loginApi.POST("set-user-name", middleware.CheckWritableAccount, UpButterReq(api.EditUsername))
 	loginApi.POST("set-preset-avatar", middleware.CheckWritableAccount, UpButterReq(api.SetPresetAvatar))
@@ -509,10 +510,7 @@ func apiRoute(ginApp *gin.Engine) {
 	anonymousAdmin.POST("govern", UpButterReq(api.AdminAnonymousGovern))
 	adminApi.POST("traffic-overview", middleware.CheckPermission(permission.Admin), UpButterReq(api.GetTrafficOverview))
 	// 内容贡献统计（issue #1145）：只读内容表的板块/用户维度统计，与推荐遥测无关。
-	adminApi.POST("stats/category-summary", middleware.CheckPermission(permission.Admin), UpButterReq(api.AdminStatsCategorySummary))
-	adminApi.POST("stats/category-trend", middleware.CheckPermission(permission.Admin), UpButterReq(api.AdminStatsCategoryTrend))
-	adminApi.POST("stats/user-ranking", middleware.CheckPermission(permission.Admin), UpButterReq(api.AdminStatsUserRanking))
-	adminApi.POST("stats/user-detail", middleware.CheckPermission(permission.Admin), UpButterReq(api.AdminStatsUserDetail))
+	registerAdminStatsRoutes(adminApi)
 
 	adminApi.
 		Group("", middleware.CheckPermission(permission.UserManager)).
@@ -683,4 +681,14 @@ func fileServer(ginApp *gin.Engine) {
 	r.POST("/img-upload/complete", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.CompleteDirectImageUpload)
 	r.POST("/img-upload/abort", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.AbortDirectImageUpload)
 	r.GET("/img/*filename", api.GetFileByFileName)
+}
+
+// Shared with HTTP contract tests so permission and aggregate-query budgets stay
+// on the production registration path. Authorization precedes budget charging.
+func registerAdminStatsRoutes(adminAPI *gin.RouterGroup) {
+	stats := adminAPI.Group("/stats", middleware.CheckPermission(permission.Admin), middleware.RateLimit(middleware.RateLimitAdminStats))
+	stats.POST("/category-summary", UpButterReq(api.AdminStatsCategorySummary))
+	stats.POST("/category-trend", UpButterReq(api.AdminStatsCategoryTrend))
+	stats.POST("/user-ranking", UpButterReq(api.AdminStatsUserRanking))
+	stats.POST("/user-detail", UpButterReq(api.AdminStatsUserDetail))
 }

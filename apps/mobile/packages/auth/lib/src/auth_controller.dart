@@ -63,6 +63,8 @@ class AuthController extends ChangeNotifier {
 
   /// 当前验证码请求;焦点回弹或多个兜底路径同时触发时共享同一请求。
   Future<void>? _captchaLoadFuture;
+  int _challengeGeneration = 0;
+  bool _disposed = false;
 
   /// 当前登录用户名(跨 TOTP 阶段保留)。
   String _pendingUsername = '';
@@ -107,17 +109,48 @@ class AuthController extends ChangeNotifier {
     required bool preservePhaseOnError,
     required bool silentOnError,
   }) async {
+    final generation = _challengeGeneration;
     try {
-      _captcha = await _auth.getCaptcha();
+      final captcha = await _auth.getCaptcha();
+      if (generation != _challengeGeneration) return;
+      _captcha = captcha;
       // 仅清除本方法写入的验证码提示,不覆盖登录流程自身的错误文案。
       if (_error == _captchaLoadError) _error = '';
       notifyListeners();
     } catch (_) {
+      if (generation != _challengeGeneration) return;
       if (silentOnError) return;
       _error = _captchaLoadError;
       if (!preservePhaseOnError) _phase = LoginPhase.failed;
       notifyListeners();
     }
+  }
+
+  /// Leave the current form without carrying its challenge into another mode.
+  /// Clearing staged credentials completes before the next form can submit.
+  Future<void> cancelChallenge() async {
+    if (_busy) return;
+    _busy = true;
+    _challengeGeneration++;
+    _captchaLoadFuture = null;
+    _captcha = null;
+    _pendingUsername = '';
+    _phase = LoginPhase.idle;
+    _error = '';
+    notifyListeners();
+    try {
+      await _tokenStorage.clear();
+    } finally {
+      _busy = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _challengeGeneration++;
+    super.dispose();
   }
 
   /// 密码登录。传 captchaId/captchaCode 时携带验证码。
@@ -224,13 +257,14 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  /// 注册。
+  /// 注册。locale 由调用方提供当前界面语言,省略时保留服务端兜底。
   Future<String?> register({
     required String username,
     required String email,
     required String password,
     String? captchaId,
     String? captchaCode,
+    String? locale,
   }) async {
     _busy = true;
     _error = '';
@@ -246,6 +280,7 @@ class AuthController extends ChangeNotifier {
         password: password,
         captchaId: captchaId,
         captchaCode: captchaCode,
+        locale: locale,
       )).messageCode;
       final token = await _tokenStorage.read();
       if (token == null || token.isEmpty) {
