@@ -44,7 +44,9 @@ jobs:
       - name: Bootstrap
         working-directory: apps/mobile/packages/forum_app
         # Generate Flutter plugin/SwiftPM files on a clean checkout before --no-pub.
-        run: flutter pub get
+        run: |
+          flutter pub get --enforce-lockfile
+          git diff --exit-code -- ':(top)apps/mobile/pubspec.lock'
       - name: Check effective iOS distribution signing settings
         if: matrix.platform == 'ios'
         run: python3 -m unittest discover -s scripts/mobile-release -p test_ios_signing_settings.py
@@ -73,7 +75,7 @@ jobs:
           from pathlib import Path
           Path('android/key.properties').write_text('storeFile=' + os.environ['RUNNER_TEMP'] + '/build-only.jks\nstorePassword=android\nkeyPassword=android\nkeyAlias=build-only\n')
           PYTHON
-          flutter build apk --release --target-platform android-arm64 --split-per-abi --analyze-size --code-size-directory "$RUNNER_TEMP/mobile-code-size"
+          flutter build apk --no-pub --release --target-platform android-arm64 --split-per-abi --analyze-size --code-size-directory "$RUNNER_TEMP/mobile-code-size"
           python3 ../../../../scripts/ci/check_android_entrypoint.py build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
       - name: Collect Android release size analysis
         if: matrix.platform == 'android'

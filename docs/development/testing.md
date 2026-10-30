@@ -99,6 +99,13 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 
 ## CI mapping
 
+`Current`: Flutter CI installs the checked-in lock with `--enforce-lockfile`, rejects any
+lock changes from Flutter or Melos bootstrap, and uses `--no-pub` for native compilation.
+Hosted lock sources use `pub.dev`, matching CI's default registry; normalizing those URLs
+preserves package versions and hashes. This prevents a registry mismatch from silently
+resolving newer dependencies than the ones tested locally. A bootstrap-policy gate runs
+before job selection, with shell regressions for resolver failure and lock mutation.
+
 `Current`: **CI / Verify** also accepts a manual run on a selected ref and validates every
 CI domain, including PostgreSQL and both native platforms, without using a change-path subset.
 The `ci-plan` artifact records this explicit full-validation reason. Deployment still follows
