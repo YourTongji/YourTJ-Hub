@@ -1296,6 +1296,19 @@ cannot restore the old challenge. Selecting the same form preserves an active TO
   their inbox; when it is disabled, the ordinary registration confirmation remains. Email changes
   tell the user to check the new address for its activation link in both immediate and staged modes.
 
+- `Current`: the fixed `yourtj://account/email-verified` return opens current account
+  settings on the existing navigation stack. It neither verifies the App's account
+  nor switches it to the account named in the browser. Returning with Back retains
+  the unfinished page/draft; continuing an operation remains manual. The handler
+  ignores OIDC callbacks, alternate hosts/paths, and any query/fragment payload.
+  Cold-start links wait for storage/bootstrap readiness. Account data is read using
+  the current session; guests use the ordinary sign-in guard.
+  A narrow native event bridge retains an initial hint until Flutter listens and
+  forwards foreground hints without carrying URL payloads. Flutter's competing iOS
+  navigation handler is disabled, following [Flutter's guidance](https://docs.flutter.dev/cookbook/navigation/set-up-universal-links).
+  Other URLs continue through the existing OIDC and campus-widget native handlers;
+  the bridge neither reads their credentials nor consumes their events.
+
 ## Persistent forum anonymous identity
 
 `Current`: persona profiles reuse the member profile's collapsing cover/avatar/navigation,

@@ -1,4 +1,5 @@
 import '../../navigation/reading_window.dart';
+import '../../navigation/account_return.dart';
 import 'decoration_page.dart';
 import '../../user_blocks.dart';
 import 'dart:async';
@@ -851,6 +852,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _autoEditSession = _ProfileEditSession();
       });
       unawaited(_loadSession());
+    });
+    ref.listen(accountReturnRefreshProvider, (previous, next) {
+      if (previous == next || _signedIn != true || _tab != _SettingsTab.account) {
+        return;
+      }
+      setState(() => _activationRevision++);
+      unawaited(_refresh());
     });
     final l10n = AppLocalizations.of(context);
     if (_autoEditBadges && _signedIn != false) {
