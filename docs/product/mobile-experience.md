@@ -1231,6 +1231,10 @@ change. The header keeps a small outer margin for its primary action.
 
 ## Registration
 
+`Current`: switching the authentication form from sign-in to registration or password recovery
+clears its TOTP challenge, staged credential, code and previous captcha request. A late captcha response
+cannot restore the old challenge. Selecting the same form preserves an active TOTP retry.
+
 - `Current`: registration loads the current Web login configuration before submission. Restricted
   email domains use a prefix field and domain selector; unrestricted sites accept the full address.
   Password confirmation is checked locally. Only published terms/privacy policies are linked and

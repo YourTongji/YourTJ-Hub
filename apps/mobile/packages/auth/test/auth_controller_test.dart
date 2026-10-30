@@ -40,6 +40,31 @@ class GatedTokenStorage extends MemoryTokenStorage {
 /// 覆盖:登录成功、twoFactorRequired → TOTP 成功、验证码要求、
 /// 401 错误、登出清理、启动恢复会话。
 void main() {
+  test(
+    'mode reset clears TOTP credentials and ignores an earlier captcha response',
+    () async {
+      final storage = MemoryTokenStorage();
+      await storage.write('challenge-token');
+      final auth = FakeAuthRepository(twoFactorRequired: true)
+        ..captchaGate = Completer<void>();
+      final controller = _buildController(
+        storage: storage,
+        authRepository: auth,
+      );
+      await controller.login(username: 'alice', password: 'secret');
+      expect(controller.phase, LoginPhase.needsTotp);
+      final captcha = controller.loadCaptcha();
+      await controller.cancelChallenge();
+      expect(controller.phase, LoginPhase.idle);
+      expect(await storage.read(), isNull);
+      auth.captchaGate!.complete();
+      await captcha;
+      expect(controller.captcha, isNull);
+      expect(controller.phase, LoginPhase.idle);
+      expect(controller.error, isEmpty);
+    },
+  );
+
   group('AuthController 登录状态机', () {
     test('空存储等待 New-Token 持久化后才进入 authenticated', () async {
       final storage = GatedTokenStorage();
