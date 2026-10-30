@@ -1057,6 +1057,14 @@ retain separate identities and detail links. Identity text wraps with enlarged t
   edits, and focus reads are throttled to 30 seconds. Clean state has no polling timer.
   Existing cloud snapshots migrate intact on first use; legacy clients receive 410 afterward.
   Account closure erases cloud content and prevents in-flight requests from recreating it.
+- `Current`: the single-select major chooser searches names and codes, preserving code strings and
+  the current plan while typing. It shows term/grade context, separate name/code rows, the current
+  selection and a clearable no-match state. A recognized PK year/code wrapper is removed only from
+  the displayed name, retaining nested name parentheses and the original selection payload.
+  The panel accommodates the keyboard and enlarged text. Changing major with non-empty plans names
+  the affected plan/course/event counts and requires confirmation before clearing them. Cancel,
+  reselecting the current major, account/context changes, or plan changes during confirmation preserve
+  existing data. Term/grade change protection remains `Planned` under issue #550.
 - `Current`: the course catalog debounces keyword search and captures filters for each request
   generation, so late responses and pages cannot replace a newer search. Short lists load the next
   page automatically while visible. Paging errors keep existing courses and offer explicit retry;

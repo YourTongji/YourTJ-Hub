@@ -1133,6 +1133,31 @@ class AppLocalizationsDe extends AppLocalizations {
   String get scheduleMajor => 'Studiengang';
 
   @override
+  String get scheduleMajorSearchHint => 'Studiengang oder Code suchen';
+
+  @override
+  String get scheduleMajorNoMatch => 'Keine passenden Studiengänge';
+
+  @override
+  String get scheduleChangeMajorTitle => 'Studiengang ändern und Pläne leeren?';
+
+  @override
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return 'Beim Ändern werden $planCount Pläne mit $courseCount Kursen und $eventCount eigenen Terminen geleert. Abbrechen behält die bisherige Konfiguration und alle Pläne.';
+  }
+
+  @override
+  String get scheduleChangeMajorConfirm => 'Ändern und leeren';
+
+  @override
+  String get scheduleChangeMajorUpdated =>
+      'Die Pläne wurden geändert. Bitte wähle den Studiengang erneut.';
+
+  @override
   String get scheduleSyncLatest => 'Synchronisieren';
 
   @override

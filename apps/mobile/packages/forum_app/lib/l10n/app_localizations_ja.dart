@@ -1105,6 +1105,30 @@ class AppLocalizationsJa extends AppLocalizations {
   String get scheduleMajor => '専攻';
 
   @override
+  String get scheduleMajorSearchHint => '専攻名またはコードを検索';
+
+  @override
+  String get scheduleMajorNoMatch => '一致する専攻はありません';
+
+  @override
+  String get scheduleChangeMajorTitle => '専攻を変更して計画を消去しますか？';
+
+  @override
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '専攻を変更すると、$planCount 件の計画にある $courseCount 科目と $eventCount 件の予定が消去されます。キャンセルすると元の設定と計画を保持します。';
+  }
+
+  @override
+  String get scheduleChangeMajorConfirm => '変更して消去';
+
+  @override
+  String get scheduleChangeMajorUpdated => '計画の内容が更新されました。専攻を選び直してください。';
+
+  @override
   String get scheduleSyncLatest => '最新に同期';
 
   @override

@@ -2124,6 +2124,46 @@ abstract class AppLocalizations {
   /// **'Major'**
   String get scheduleMajor;
 
+  /// No description provided for @scheduleMajorSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search major name or code'**
+  String get scheduleMajorSearchHint;
+
+  /// No description provided for @scheduleMajorNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching majors'**
+  String get scheduleMajorNoMatch;
+
+  /// No description provided for @scheduleChangeMajorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Change major and clear plans?'**
+  String get scheduleChangeMajorTitle;
+
+  /// No description provided for @scheduleChangeMajorBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Changing the major clears {planCount} plans containing {courseCount} courses and {eventCount} custom events. Cancel to keep your current configuration and plans.'**
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  );
+
+  /// No description provided for @scheduleChangeMajorConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Change and clear'**
+  String get scheduleChangeMajorConfirm;
+
+  /// No description provided for @scheduleChangeMajorUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan content changed. Please select the major again.'**
+  String get scheduleChangeMajorUpdated;
+
   /// No description provided for @scheduleSyncLatest.
   ///
   /// In en, this message translates to:

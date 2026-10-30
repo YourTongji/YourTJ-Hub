@@ -351,6 +351,25 @@
   "scheduleTerm": "Semester",
   "scheduleGrade": "Jahr",
   "scheduleMajor": "Studiengang",
+  "scheduleMajorSearchHint": "Studiengang oder Code suchen",
+  "scheduleMajorNoMatch": "Keine passenden Studiengänge",
+  "scheduleChangeMajorTitle": "Studiengang ändern und Pläne leeren?",
+  "scheduleChangeMajorBody": "Beim Ändern werden {planCount} Pläne mit {courseCount} Kursen und {eventCount} eigenen Terminen geleert. Abbrechen behält die bisherige Konfiguration und alle Pläne.",
+  "@scheduleChangeMajorBody": {
+    "placeholders": {
+      "planCount": {
+        "type": "int"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleChangeMajorConfirm": "Ändern und leeren",
+  "scheduleChangeMajorUpdated": "Die Pläne wurden geändert. Bitte wähle den Studiengang erneut.",
   "scheduleSyncLatest": "Synchronisieren",
   "scheduleDataOutdated": "Kursdaten wurden aktualisiert. Zum Synchronisieren tippen.",
   "scheduleSyncedTo": "Stand: {date}",

@@ -1122,6 +1122,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scheduleMajor => 'Major';
 
   @override
+  String get scheduleMajorSearchHint => 'Search major name or code';
+
+  @override
+  String get scheduleMajorNoMatch => 'No matching majors';
+
+  @override
+  String get scheduleChangeMajorTitle => 'Change major and clear plans?';
+
+  @override
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return 'Changing the major clears $planCount plans containing $courseCount courses and $eventCount custom events. Cancel to keep your current configuration and plans.';
+  }
+
+  @override
+  String get scheduleChangeMajorConfirm => 'Change and clear';
+
+  @override
+  String get scheduleChangeMajorUpdated =>
+      'Plan content changed. Please select the major again.';
+
+  @override
   String get scheduleSyncLatest => 'Sync latest';
 
   @override

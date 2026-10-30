@@ -1,4 +1,5 @@
 import 'schedule_status_summary.dart';
+import 'major_picker.dart';
 import 'planner_term.dart';
 import 'schedule_storage_panel.dart';
 import '../../widgets/schedule_time_grid.dart';
@@ -1065,6 +1066,17 @@ class _ConfigRow extends ConsumerWidget {
     AppLocalizations l10n,
     PkMajorSelection sel,
   ) async {
+    final epoch = ref.read(offlineCacheEpochProvider);
+    bool isCurrent() {
+      if (epoch != ref.read(offlineCacheEpochProvider)) {
+        return false;
+      }
+      final current = ref.read(scheduleStoreProvider).majorSelected;
+      return current.calendarId == sel.calendarId &&
+          current.grade == sel.grade &&
+          current.major == sel.major;
+    }
+
     final List<PkMajor> majors;
     try {
       majors = await ref
@@ -1076,17 +1088,79 @@ class _ConfigRow extends ConsumerWidget {
       }
       return;
     }
-    if (!context.mounted) return;
+    if (!context.mounted || !isCurrent()) return;
     final PkMajor? picked = await showGfBottomSheet<PkMajor>(
       context,
-      builder: (BuildContext sheetContext) => _ListPickerSheet<PkMajor>(
-        title: l10n.scheduleMajor,
+      keyboardAware: true,
+      builder: (BuildContext sheetContext) => ScheduleMajorPicker(
         items: majors,
-        labelOf: (PkMajor major) => major.name,
-        selectedOf: (PkMajor major) => major.code == sel.major,
+        selectedCode: sel.major,
+        contextLabel: [
+          _calendarName(sel.calendarId),
+          l10n.scheduleGradeYear('${sel.grade}'),
+        ].where((value) => value.isNotEmpty).join(' · '),
       ),
     );
-    if (picked == null || !context.mounted) return;
+    if (picked == null ||
+        !context.mounted ||
+        picked.code == sel.major ||
+        !isCurrent()) {
+      return;
+    }
+    final plans = ref.read(scheduleStoreProvider).plans;
+    final affected = plans
+        .where(
+          (plan) =>
+              plan.stagedCourses.isNotEmpty ||
+              plan.selectedCourses.isNotEmpty ||
+              plan.customEvents.isNotEmpty,
+        )
+        .toList();
+    if (affected.isNotEmpty) {
+      final snapshot = jsonEncode(plans.map((plan) => plan.toJson()).toList());
+      final courses = affected.fold<int>(
+        0,
+        (sum, plan) => sum + plan.stagedCourses.length,
+      );
+      final events = affected.fold<int>(
+        0,
+        (sum, plan) => sum + plan.customEvents.length,
+      );
+      final confirmed = await showGfAlertDialog<bool>(
+        context,
+        builder: (dialogContext) => GfAlertDialog(
+          title: GfText(l10n.scheduleChangeMajorTitle),
+          content: SingleChildScrollView(
+            child: GfText(
+              l10n.scheduleChangeMajorBody(affected.length, courses, events),
+            ),
+          ),
+          actions: [
+            GfDialogAction(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: GfText(l10n.commonCancel),
+            ),
+            GfDialogAction(
+              destructive: true,
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: GfText(l10n.scheduleChangeMajorConfirm),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !context.mounted || !isCurrent()) return;
+      if (snapshot !=
+          jsonEncode(
+            ref
+                .read(scheduleStoreProvider)
+                .plans
+                .map((plan) => plan.toJson())
+                .toList(),
+          )) {
+        showGfToast(context, l10n.scheduleChangeMajorUpdated, error: true);
+        return;
+      }
+    }
     ref
         .read(scheduleStoreProvider.notifier)
         .setMajorSelection(
@@ -2737,10 +2811,7 @@ class _ReviewBriefPanelState extends ConsumerState<_ReviewBriefPanel> {
         children: [
           GfText(
             text,
-            style: TextStyle(
-              fontSize: 12,
-              color: colors.textSecondary,
-            ),
+            style: TextStyle(fontSize: 12, color: colors.textSecondary),
           ),
           if (brief != null && brief.courseId > 0)
             TextButton(
