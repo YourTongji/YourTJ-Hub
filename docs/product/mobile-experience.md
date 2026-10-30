@@ -942,6 +942,9 @@ change. The header keeps a small outer margin for its primary action.
   resets obsolete pagination and updates the reply count used when returning to the feed.
   Reading a topic without editing creates no draft. Session invalidation prevents queued writing from
   crossing the account boundary; cache clearing does not delete writing recovery copies.
+  New-topic copies normalize an empty server identity to `member`; existing device drafts saved with
+  that legacy empty value remain readable in their original account/site scope. Unsupported identity
+  values remain rejected.
 
 ## Campus and sign-in
 
