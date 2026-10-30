@@ -99,6 +99,8 @@ for (const lang of ['zh', 'en', 'ja', 'de']) for (const theme of ['gf-light', 'g
       await foldedLink.click()
       await page.locator('.vditor .vditor-input:visible').first().waitFor()
       await page.waitForTimeout(300) // Capture the finished popover fade, not its first frame.
+      assert.equal(await page.locator('.vditor .vditor-input:visible').first().evaluate(input =>
+        getComputedStyle(input.closest('.vditor-panel')).opacity), '1', 'inline forms must not show body text through their fields')
       const fields = await page.locator('.vditor .vditor-input:visible').evaluateAll(inputs => inputs.map(input => {
         const box = input.getBoundingClientRect()
         return { left: box.left, right: box.right, width: innerWidth }

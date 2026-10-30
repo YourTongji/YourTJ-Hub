@@ -2736,6 +2736,7 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
   /* Link fields must wrap inside the bounded inline popover. */
   .vditor-official .vditor-wysiwyg > .vditor-panel {
     white-space: normal;
+    opacity: 1;
   }
   .vditor-official .vditor-panel {
     padding: 3px 4px !important;
