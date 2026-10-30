@@ -92,10 +92,10 @@
   "authCaptchaRequired": "Bitte Captcha eingeben",
   "publishCaptchaExplanation": "Das Forum kann bei vielen Beiträgen und Antworten von neuen Konten ein Captcha verlangen. Bei nachlassender Aktivität oder sobald das Konto das festgelegte Alter erreicht, entfällt diese Anforderung.",
   "authOidcLogin": "Mit YourTJ anmelden",
-  "authRegisterEmailVerify": "Registrierung erfolgreich. Eine Bestätigungs-E-Mail wurde gesendet. Bitte prüfe dein Postfach. Keine E-Mail erhalten? Melde dich an und sende sie unter Kontosicherheit erneut.",
+  "authRegisterEmailVerify": "Konto erstellt. Bestätige deine E-Mail über dein Postfach. Kommt keine Nachricht an, kannst du sie unter Kontosicherheit erneut anfordern oder die Adresse ändern.",
   "authActivationRequired": "Bitte aktiviere zuerst dein Konto über die E-Mail in deinem Postfach.",
   "authResendActivationEmail": "Bestätigungs-E-Mail erneut senden",
-  "authRegisterSuccess": "Registrierung erfolgreich. Bitte anmelden.",
+  "authRegisterSuccess": "Konto erstellt.",
   "authResetEmailSent": "E-Mail zum Zurücksetzen gesendet. Bitte prüfe deinen Posteingang.",
   "authLoading": "Wird verarbeitet …",
   "authCacheClearFailed": "Die Offline-Daten des vorherigen Kontos konnten nicht gelöscht werden. Bitte erneut versuchen.",
@@ -400,7 +400,7 @@
   "schedulePickClass": "Wähle eine Klasse",
   "scheduleCompulsory": "Pflichtkurs",
   "scheduleOptional": "Wahlkurs",
-  "scheduleSearchHint": "Name, Kennung oder Lehrkraft suchen",
+  "scheduleSearchHint": "Kursnamen suchen",
   "scheduleStaged": "Ausstehend",
   "scheduleSelected": "Ausgewählt",
   "scheduleRemoveCourse": "Entfernen",
@@ -1542,5 +1542,105 @@
   "courseAddToPlanner": "Zum Kursplaner hinzufügen",
   "coursePlannerSelectTerm": "Vor der Bestätigung dasselbe Semester und dein Fach wählen. Bestehende Pläne bleiben unverändert.",
   "coursePlannerUnavailable": "Dieser Kurs ist im Semester nicht verfügbar. Wähle ein anderes Angebot in den Kursdetails.",
-  "coursePlannerCalendarsFailed": "Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut."
+  "coursePlannerCalendarsFailed": "Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.",
+  "authVerificationPending": "E-Mail-Bestätigung ausstehend",
+  "authVerificationPendingHint": "Nutze den Link in deinem Postfach und aktualisiere diese Seite. Kommt keine Nachricht an, fordere sie erneut an oder ändere die Adresse. Einige Aktionen bleiben bis zur Bestätigung gesperrt.",
+  "@scheduleSearchScope": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleChangeMajorBody": "Beim Ändern werden {planCount} Pläne mit {courseCount} Kursen und {eventCount} eigenen Terminen geleert. Abbrechen behält die bisherige Konfiguration und alle Pläne.",
+  "scheduleConfigureScope": "Kursbereich festlegen",
+  "@scheduleChangeMajorBody": {
+    "placeholders": {
+      "planCount": {
+        "type": "int"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "activationStatusTarget": "Empfänger: {email}",
+  "scheduleChangeMajorTitle": "Studiengang ändern und Pläne leeren?",
+  "@activationStatusCooldown": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleSearchScope": "Kursnamen suchen in {term}",
+  "scheduleSetupTitle": "Zuerst den Kursbereich festlegen",
+  "@activationStatusRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSetupMissing": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "@scheduleSearchNoMatch": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "@activationStatusTarget": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "campusTimetableConnectBody": "Verbinde deine Tongji-Identität, um hier deinen persönlichen Hochschulstundenplan zu sehen. Kurskatalog und Stundenplaner kannst du auch ohne Verbindung nutzen.",
+  "@scheduleCourseScope": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "activationStatusRefresh": "Status aktualisieren",
+  "scheduleEmptyCourseHint": "Ändere den Kursbereich oder suche nach Kursnamen.",
+  "authRegistrationUnavailable": "Registrierung ist derzeit nicht verfügbar. Bitte später erneut versuchen.",
+  "imageViewerThumbnails": "Bildminiaturen",
+  "activationStatusDisabled": "E-Mail-Bestätigung ist derzeit deaktiviert",
+  "imageViewerOriginalSize": "Originalgröße",
+  "campusTimetableNotConnected": "Tongji-Identität noch nicht verbunden",
+  "scheduleChangeMajorUpdated": "Die Pläne wurden geändert. Bitte wähle den Studiengang erneut.",
+  "scheduleSearchReady": "Gib einen Kursnamen ein",
+  "scheduleMajorNoMatch": "Keine passenden Studiengänge",
+  "activationStatusCooldown": "In {seconds} Sekunden erneut senden",
+  "scheduleMajorSearchHint": "Studiengang oder Code suchen",
+  "scheduleCourseScope": "Aktueller Bereich: {scope}",
+  "activationStatusDailyLimit": "Tageslimit erreicht. Morgen erneut versuchen.",
+  "scheduleNoOptional": "Keine Wahlkurse für dieses Semester zurückgegeben",
+  "scheduleSearchNoMatch": "Keine Kursnamen passen zu „{query}“",
+  "activationStatusMissingEmail": "Zuerst in den Kontoeinstellungen eine E-Mail hinzufügen",
+  "scheduleChangeMajorConfirm": "Ändern und leeren",
+  "activationStatusMailUnavailable": "E-Mail-Dienst nicht verfügbar. Später aktualisieren.",
+  "activationStatusFrozen": "Dieses Konto kann keine E-Mail erneut senden",
+  "scheduleSetupMissing": "Wähle {fields}, bevor du Kurse oder Lehrveranstaltungen suchst.",
+  "activationStatusVerified": "E-Mail bestätigt. Erneutes Senden ist nicht nötig.",
+  "scheduleNoCompulsory": "Keine Pflichtkurse für diesen Bereich zurückgegeben",
+  "imageViewerFitPreview": "Vorschau einpassen",
+  "activationStatusRemaining": "Heute verbleibend: {count} / {limit}",
+  "authCheckSignupAvailability": "Registrierung erneut prüfen"
 }

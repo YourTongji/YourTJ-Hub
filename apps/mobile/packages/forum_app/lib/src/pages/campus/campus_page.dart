@@ -889,7 +889,30 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
         );
       }
       if (state.status?.binding == null) {
-        return const CampusConnection(compact: true);
+        if (tab != 'timetable') return const CampusConnection(compact: true);
+        return GfEmpty(
+          message: l.campusTimetableNotConnected,
+          description: l.campusTimetableConnectBody,
+          symbol: 'calendar-days',
+          action: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CampusConnection(compact: true),
+              const SizedBox(height: 12),
+              TextButton(
+                key: const Key('campus-timetable-courses'),
+                onPressed: () => context.push('/courses'),
+                child: GfText(l.coursesTitle, textAlign: TextAlign.center),
+              ),
+              TextButton(
+                key: const Key('campus-timetable-schedule'),
+                onPressed: () => context.push('/schedule'),
+                child: GfText(l.scheduleTitle, textAlign: TextAlign.center),
+              ),
+            ],
+          ),
+        );
       }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

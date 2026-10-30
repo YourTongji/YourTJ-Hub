@@ -145,10 +145,10 @@
   "authCaptchaRequired": "Please enter the captcha",
   "publishCaptchaExplanation": "The site may require a captcha for frequent posting by newer accounts. This check lifts as recent activity subsides or the account meets the site's age condition.",
   "authOidcLogin": "Sign in with yourtj",
-  "authRegisterEmailVerify": "Registration successful. A verification email was sent; check your inbox. No email? Sign in and resend it under Account security.",
+  "authRegisterEmailVerify": "Account created. Check your inbox to verify your email. If no email arrives, resend it or change the address under Account security.",
   "authActivationRequired": "Please activate your account from your inbox first.",
   "authResendActivationEmail": "Resend verification email",
-  "authRegisterSuccess": "Registered successfully, please sign in",
+  "authRegisterSuccess": "Account created.",
   "authResetEmailSent": "Reset email sent, please check your inbox",
   "authLoading": "Processing…",
   "authCacheClearFailed": "Failed to clear the previous account's offline data. Please retry.",
@@ -698,7 +698,7 @@
   "schedulePickClass": "Pick class",
   "scheduleCompulsory": "Compulsory",
   "scheduleOptional": "Elective",
-  "scheduleSearchHint": "Search name/code/teacher",
+  "scheduleSearchHint": "Search course name",
   "scheduleStaged": "Staged",
   "scheduleSelected": "Selected",
   "scheduleRemoveCourse": "Remove",
@@ -2269,5 +2269,105 @@
   "courseAddToPlanner": "Add to course planner",
   "coursePlannerSelectTerm": "Select the same term and your major before confirming the class. Existing plans stay unchanged.",
   "coursePlannerUnavailable": "This class is unavailable for the term. Choose another offering from course details.",
-  "coursePlannerCalendarsFailed": "Failed to load the term list. Check your network and try again."
+  "coursePlannerCalendarsFailed": "Failed to load the term list. Check your network and try again.",
+  "authVerificationPending": "Email verification pending",
+  "authVerificationPendingHint": "Use the link in your inbox, then refresh this page. If no email arrives, resend it or change the address. Some actions remain unavailable until verification.",
+  "@scheduleSearchScope": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleChangeMajorBody": "Changing the major clears {planCount} plans containing {courseCount} courses and {eventCount} custom events. Cancel to keep your current configuration and plans.",
+  "scheduleConfigureScope": "Configure course scope",
+  "@scheduleChangeMajorBody": {
+    "placeholders": {
+      "planCount": {
+        "type": "int"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "activationStatusTarget": "Send to: {email}",
+  "scheduleChangeMajorTitle": "Change major and clear plans?",
+  "@activationStatusCooldown": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleSearchScope": "Search course names in {term}",
+  "scheduleSetupTitle": "Set your course scope first",
+  "@activationStatusRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSetupMissing": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "@scheduleSearchNoMatch": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "@activationStatusTarget": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "campusTimetableConnectBody": "Connect your Tongji identity to see your personal school timetable here. You can use the course catalog and schedule planner without connecting.",
+  "@scheduleCourseScope": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "activationStatusRefresh": "Refresh status",
+  "scheduleEmptyCourseHint": "Adjust the course scope or search by course name.",
+  "authRegistrationUnavailable": "Registration is unavailable. Please try again later.",
+  "imageViewerThumbnails": "Image thumbnails",
+  "activationStatusDisabled": "Email verification is currently disabled",
+  "imageViewerOriginalSize": "Original size",
+  "campusTimetableNotConnected": "Tongji identity not connected",
+  "scheduleChangeMajorUpdated": "Plan content changed. Please select the major again.",
+  "scheduleSearchReady": "Enter a course name to start",
+  "scheduleMajorNoMatch": "No matching majors",
+  "activationStatusCooldown": "Resend in {seconds} seconds",
+  "scheduleMajorSearchHint": "Search major name or code",
+  "scheduleCourseScope": "Current scope: {scope}",
+  "activationStatusDailyLimit": "Daily limit reached. Try again tomorrow.",
+  "scheduleNoOptional": "No optional courses returned for this term",
+  "scheduleSearchNoMatch": "No course names match “{query}”",
+  "activationStatusMissingEmail": "Add an email address in account settings first",
+  "scheduleChangeMajorConfirm": "Change and clear",
+  "activationStatusMailUnavailable": "Mail is unavailable. Refresh later.",
+  "activationStatusFrozen": "This account cannot resend email",
+  "scheduleSetupMissing": "Select {fields} before finding courses or classes.",
+  "activationStatusVerified": "Email verified. No resend needed.",
+  "scheduleNoCompulsory": "No compulsory courses returned for this scope",
+  "imageViewerFitPreview": "Fit preview",
+  "activationStatusRemaining": "Resends left today: {count} / {limit}",
+  "authCheckSignupAvailability": "Check registration again"
 }

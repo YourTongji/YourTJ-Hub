@@ -109,6 +109,55 @@ void main() {
     expect(find.text('3/64'), findsOneWidget);
   });
   testWidgets(
+    'links editor labels and single-line values share their vertical center',
+    (tester) async {
+      tester.view.physicalSize = const Size(393, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await openEditor(
+        tester,
+        ProfileEditPage(
+          user: user().copyWith(websiteName: 'Campus'),
+          onSave: (_) async {},
+        ),
+      );
+      await openProfileLinks(tester);
+      final l = AppLocalizations.of(
+        tester.element(find.byKey(const Key('profile-links-done'))),
+      );
+      for (final entry in {
+        'websiteName': l.settingsWebsiteName,
+        'website': l.profileEditWebsiteUrl,
+        'github': 'GitHub',
+      }.entries) {
+        final field = find.byKey(ValueKey('profile-${entry.key}'));
+        await tester.ensureVisible(field);
+        await tester.pumpAndSettle();
+        final input = find.descendant(
+          of: field,
+          matching: find.byType(EditableText),
+        );
+        expect(
+          tester.getCenter(input).dy,
+          closeTo(
+            tester
+                .getCenter(
+                  find
+                      .byWidgetPredicate(
+                        (w) => w is GfText && w.data == entry.value,
+                      )
+                      .last,
+                )
+                .dy,
+            1,
+          ),
+          reason: entry.key,
+        );
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
     'valid long stored profile fields can be edited without truncation',
     (tester) async {
       final original = user().copyWith(
@@ -527,24 +576,23 @@ void main() {
     },
   );
 
-  testWidgets(
-    'account editor reload after a session switch is swallowed',
-    (tester) async {
-      await openEditor(
-        tester,
-        ProfileEditPage(
-          user: user(),
-          onSave: (_) async {},
-          onEditUsername: () async {},
-          onReloadUser: () async => throw const UnauthorizedException(),
-        ),
-      );
-      await tester.tap(find.byKey(const Key('profile-username')));
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-      expect(find.byType(ProfileEditPage), findsOneWidget);
-    },
-  );
+  testWidgets('account editor reload after a session switch is swallowed', (
+    tester,
+  ) async {
+    await openEditor(
+      tester,
+      ProfileEditPage(
+        user: user(),
+        onSave: (_) async {},
+        onEditUsername: () async {},
+        onReloadUser: () async => throw const UnauthorizedException(),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('profile-username')));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(ProfileEditPage), findsOneWidget);
+  });
 
   testWidgets('password validation and server failure retain both fields', (
     tester,
