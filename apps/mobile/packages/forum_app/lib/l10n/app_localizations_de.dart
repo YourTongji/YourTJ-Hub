@@ -4791,4 +4791,36 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get scheduleSetupTitle => 'Zuerst den Kursbereich festlegen';
+
+  @override
+  String get scheduleConfigChangeTitle => 'Planung ändern?';
+
+  @override
+  String scheduleConfigChangeBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return 'Kurse und eigene Termine werden aus allen Plänen entfernt. $planCount Pläne enthalten $courseCount Kurse und $eventCount Termine. Die Plannamen bleiben erhalten.';
+  }
+
+  @override
+  String scheduleConfigChangePlan(
+    String name,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '$name: $courseCount Kurse, $eventCount Termine';
+  }
+
+  @override
+  String get scheduleConfigChangeSync =>
+      'Bei bereits synchronisierten Plänen wird das Leeren auch auf andere Geräte übertragen.';
+
+  @override
+  String get scheduleConfigChangeConfirm => 'Leeren und wechseln';
+
+  @override
+  String get scheduleConfigChangeUpdated =>
+      'Die Pläne wurden geändert. Bitte erneut auswählen und die Auswirkungen prüfen.';
 }

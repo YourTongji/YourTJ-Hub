@@ -67,7 +67,7 @@ void main() {
       await tester.pumpWidget(wrapApp(container));
       await tester.pumpAndSettle();
       expect(repo.loads, 0);
-      notifier.setMajorSelection(
+      await notifier.setMajorSelection(
         PkMajorSelection(
           calendarId: 119,
           grade: 2025,
@@ -113,7 +113,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final notifier = ScheduleStoreNotifier();
     await notifier.ready;
-    notifier.setMajorSelection(
+    await notifier.setMajorSelection(
       PkMajorSelection(
         calendarId: 119,
         grade: 2025,
@@ -129,7 +129,7 @@ void main() {
     await tester.pumpWidget(wrapApp(container));
     await tester.pump();
     expect(repo.loads, 1);
-    notifier.setMajorSelection(
+    await notifier.setMajorSelection(
       PkMajorSelection(
         calendarId: 119,
         grade: 2025,
@@ -167,7 +167,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final notifier = ScheduleStoreNotifier();
       await notifier.ready;
-      notifier.setMajorSelection(
+      await notifier.setMajorSelection(
         PkMajorSelection(
           calendarId: 119,
           grade: 2025,
@@ -233,7 +233,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final notifier = ScheduleStoreNotifier();
     await notifier.ready;
-    notifier.setMajorSelection(
+    await notifier.setMajorSelection(
       PkMajorSelection(
         calendarId: 119,
         grade: 2025,
@@ -268,7 +268,7 @@ void main() {
           SharedPreferences.setMockInitialValues({});
           final notifier = ScheduleStoreNotifier();
           await notifier.ready;
-          notifier.setMajorSelection(
+          await notifier.setMajorSelection(
             PkMajorSelection(
               calendarId: 119,
               grade: 2025,

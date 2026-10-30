@@ -135,7 +135,7 @@ void main() {
             .setMode(
               brightness == Brightness.dark ? ThemeMode.dark : ThemeMode.light,
             );
-        store.setMajorSelection(
+        await store.setMajorSelection(
           PkMajorSelection(
             calendarId: term.calendarId,
             grade: grade,
@@ -169,7 +169,7 @@ void main() {
         await tester.tap(await queryTarget());
         await until(
           () =>
-              find.text(l.scheduleChangeMajorTitle).evaluate().isNotEmpty &&
+              find.text(l.scheduleConfigChangeTitle).evaluate().isNotEmpty &&
               tester.view.viewInsets.bottom == 0,
         );
         await capture('1440-confirm-${brightness.name}');
@@ -181,10 +181,10 @@ void main() {
         await tester.tap(await queryTarget());
         await until(
           () =>
-              find.text(l.scheduleChangeMajorTitle).evaluate().isNotEmpty &&
+              find.text(l.scheduleConfigChangeTitle).evaluate().isNotEmpty &&
               tester.view.viewInsets.bottom == 0,
         );
-        await tester.tap(find.text(l.scheduleChangeMajorConfirm));
+        await tester.tap(find.text(l.scheduleConfigChangeConfirm));
         await tester.pumpAndSettle();
         await store.flush;
         expect(store.state.majorSelected.major, target.code);

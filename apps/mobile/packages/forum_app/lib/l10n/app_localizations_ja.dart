@@ -4556,4 +4556,34 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get scheduleSetupTitle => '先に履修範囲を設定してください';
+
+  @override
+  String get scheduleConfigChangeTitle => '時間割の設定を切り替えますか？';
+
+  @override
+  String scheduleConfigChangeBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return 'すべてのプランの科目と予定を空にします。内容のある $planCount 件のプランに、科目 $courseCount 件と予定 $eventCount 件があります。プラン名は残ります。';
+  }
+
+  @override
+  String scheduleConfigChangePlan(
+    String name,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '$name：科目 $courseCount 件、予定 $eventCount 件';
+  }
+
+  @override
+  String get scheduleConfigChangeSync => '同期済みのプランでは、内容の消去も他の端末に同期されます。';
+
+  @override
+  String get scheduleConfigChangeConfirm => 'プランを空にして切り替える';
+
+  @override
+  String get scheduleConfigChangeUpdated => 'プランが変更されました。再度選択して影響を確認してください。';
 }

@@ -8475,6 +8475,46 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Set your course scope first'**
   String get scheduleSetupTitle;
+
+  /// No description provided for @scheduleConfigChangeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Change setup?'**
+  String get scheduleConfigChangeTitle;
+
+  /// No description provided for @scheduleConfigChangeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This clears courses and custom blocks from every plan. {planCount} plans contain {courseCount} courses and {eventCount} blocks. Plan names are kept.'**
+  String scheduleConfigChangeBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  );
+
+  /// No description provided for @scheduleConfigChangePlan.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}: {courseCount} courses, {eventCount} blocks'**
+  String scheduleConfigChangePlan(String name, int courseCount, int eventCount);
+
+  /// No description provided for @scheduleConfigChangeSync.
+  ///
+  /// In en, this message translates to:
+  /// **'If these plans are already synced, the cleared contents also sync to other devices.'**
+  String get scheduleConfigChangeSync;
+
+  /// No description provided for @scheduleConfigChangeConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear plans and switch'**
+  String get scheduleConfigChangeConfirm;
+
+  /// No description provided for @scheduleConfigChangeUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Plans changed. Choose again and review the current impact.'**
+  String get scheduleConfigChangeUpdated;
 }
 
 class _AppLocalizationsDelegate

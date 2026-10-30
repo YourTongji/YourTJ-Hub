@@ -1998,5 +1998,11 @@
   "scheduleMajorNoMatch": "没有匹配的专业",
   "scheduleChangeMajorTitle": "更改专业并清空方案？",
   "scheduleEmptyCourseHint": "可以调整排课范围，或按课程名称搜索。",
-  "scheduleSetupTitle": "先设置排课范围"
+  "scheduleSetupTitle": "先设置排课范围",
+  "scheduleConfigChangeTitle": "切换排课配置？",
+  "scheduleConfigChangeBody": "将清空全部方案的课程和自定义安排，其中 {planCount} 个方案有内容（{courseCount} 门课程、{eventCount} 个安排）。方案名称保留。",
+  "scheduleConfigChangePlan": "{name}：{courseCount} 门课程、{eventCount} 个安排",
+  "scheduleConfigChangeSync": "如果这些方案已开启同步，清空内容也会同步到其他设备。",
+  "scheduleConfigChangeConfirm": "清空方案并切换",
+  "scheduleConfigChangeUpdated": "方案已发生变化，请重新选择并确认。"
 }

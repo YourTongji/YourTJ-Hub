@@ -2376,5 +2376,37 @@
   "scheduleMajorNoMatch": "No matching majors",
   "scheduleChangeMajorTitle": "Change major and clear plans?",
   "scheduleEmptyCourseHint": "Adjust the course scope or search by course name.",
-  "scheduleSetupTitle": "Set your course scope first"
+  "scheduleSetupTitle": "Set your course scope first",
+  "scheduleConfigChangeTitle": "Change setup?",
+  "scheduleConfigChangeBody": "This clears courses and custom blocks from every plan. {planCount} plans contain {courseCount} courses and {eventCount} blocks. Plan names are kept.",
+  "scheduleConfigChangePlan": "{name}: {courseCount} courses, {eventCount} blocks",
+  "scheduleConfigChangeSync": "If these plans are already synced, the cleared contents also sync to other devices.",
+  "scheduleConfigChangeConfirm": "Clear plans and switch",
+  "scheduleConfigChangeUpdated": "Plans changed. Choose again and review the current impact.",
+  "@scheduleConfigChangeBody": {
+    "placeholders": {
+      "planCount": {
+        "type": "int"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleConfigChangePlan": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  }
 }

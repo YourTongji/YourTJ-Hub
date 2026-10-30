@@ -1649,5 +1649,11 @@
   "scheduleMajorNoMatch": "Keine passenden Studiengänge",
   "scheduleChangeMajorTitle": "Studiengang ändern und Pläne leeren?",
   "scheduleEmptyCourseHint": "Ändere den Kursbereich oder suche nach Kursnamen.",
-  "scheduleSetupTitle": "Zuerst den Kursbereich festlegen"
+  "scheduleSetupTitle": "Zuerst den Kursbereich festlegen",
+  "scheduleConfigChangeTitle": "Planung ändern?",
+  "scheduleConfigChangeBody": "Kurse und eigene Termine werden aus allen Plänen entfernt. {planCount} Pläne enthalten {courseCount} Kurse und {eventCount} Termine. Die Plannamen bleiben erhalten.",
+  "scheduleConfigChangePlan": "{name}: {courseCount} Kurse, {eventCount} Termine",
+  "scheduleConfigChangeSync": "Bei bereits synchronisierten Plänen wird das Leeren auch auf andere Geräte übertragen.",
+  "scheduleConfigChangeConfirm": "Leeren und wechseln",
+  "scheduleConfigChangeUpdated": "Die Pläne wurden geändert. Bitte erneut auswählen und die Auswirkungen prüfen."
 }

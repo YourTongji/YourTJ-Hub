@@ -4499,4 +4499,34 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get scheduleSetupTitle => '先设置排课范围';
+
+  @override
+  String get scheduleConfigChangeTitle => '切换排课配置？';
+
+  @override
+  String scheduleConfigChangeBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '将清空全部方案的课程和自定义安排，其中 $planCount 个方案有内容（$courseCount 门课程、$eventCount 个安排）。方案名称保留。';
+  }
+
+  @override
+  String scheduleConfigChangePlan(
+    String name,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '$name：$courseCount 门课程、$eventCount 个安排';
+  }
+
+  @override
+  String get scheduleConfigChangeSync => '如果这些方案已开启同步，清空内容也会同步到其他设备。';
+
+  @override
+  String get scheduleConfigChangeConfirm => '清空方案并切换';
+
+  @override
+  String get scheduleConfigChangeUpdated => '方案已发生变化，请重新选择并确认。';
 }
