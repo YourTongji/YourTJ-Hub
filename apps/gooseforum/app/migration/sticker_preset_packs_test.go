@@ -91,7 +91,7 @@ func assertPresetPacks(t *testing.T, conn *gorm.DB, rows []sticker.Entity) {
 
 func TestVersionedPresetPackMigrationFailureDoesNotAdvance(t *testing.T) {
 	conn := dbconnect.Connect()
-	if err := conn.AutoMigrate(&topics.Entity{}, &pageConfig.Entity{}, &sticker.Entity{}, &posts.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&topics.Entity{}, &pageConfig.Entity{}, &sticker.Entity{}, &sticker.Alias{}, &posts.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	rows := seedLegacyPresetPacks(t, conn)
@@ -136,7 +136,7 @@ func TestSchemaPresetPacksOnPostgreSQL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := conn.AutoMigrate(&sticker.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&sticker.Entity{}, &sticker.Alias{}); err != nil {
 		t.Fatal(err)
 	}
 	rows := seedLegacyPresetPacks(t, conn)

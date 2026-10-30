@@ -93,7 +93,7 @@ func TestRenderPostHTMLWithMention(t *testing.T) {
 
 func TestStickerReviewCurrentDefinitionsOverridePersistedHTML(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&sticker.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&sticker.Entity{}, &sticker.Alias{}); err != nil {
 		t.Fatal(err)
 	}
 	row := sticker.Entity{Name: "render_fresh", FileName: "stickers/fresh.png", IsEnabled: true}
@@ -141,7 +141,7 @@ func countStickerQueries(t *testing.T, conn *gorm.DB) func() int {
 // token 原样；贴纸帖读时渲染不落库，普通帖照常重渲染并落库。
 func TestEnsureRenderedHTMLBatchResolvesStickersOncePerPayload(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&posts.Entity{}, &sticker.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&posts.Entity{}, &sticker.Entity{}, &sticker.Alias{}); err != nil {
 		t.Fatalf("migrate batch render tables: %v", err)
 	}
 	conn.Unscoped().Where("1 = 1").Delete(&posts.Entity{})

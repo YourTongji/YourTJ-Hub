@@ -9,6 +9,7 @@ Widget _page(
   FocusNode panelFocus, {
   bool reduceMotion = false,
   Widget? panel,
+  double minPanelHeight = 0,
 }) => MaterialApp(
   theme: gfThemeData(Brightness.light),
   builder: (context, child) => MediaQuery(
@@ -30,6 +31,7 @@ Widget _page(
             accessory: accessory,
             panelFocusNode: panelFocus,
             availableHeight: box.maxHeight,
+            minPanelHeight: minPanelHeight,
             panelBuilder: (_) =>
                 panel ?? const SizedBox.expand(key: Key('panel')),
           ),
@@ -108,6 +110,35 @@ void main() {
     await settle(tester);
     expect(find.byKey(const Key('panel')), findsNothing);
     expect(editorBottom(tester), anchor);
+  });
+
+  testWidgets('a panel taller than a short keyboard rises from its edge', (
+    tester,
+  ) async {
+    useScreen(tester);
+    await tester.pumpWidget(_page(GfInputAccessory.keyboard, panelFocus));
+    await animateKeyboard(tester, 0, 240);
+    await settle(tester);
+    final anchor = editorBottom(tester);
+    expect(anchor, 844 - 240);
+
+    await tester.pumpWidget(
+      _page(GfInputAccessory.panel, panelFocus, minPanelHeight: 300),
+    );
+    final trace = await animateKeyboard(tester, 240, 0);
+    await settle(tester);
+    trace.add(editorBottom(tester));
+    // No frame drops the editor or jumps it straight to the final height.
+    expect(trace.first, moreOrLessEquals(anchor, epsilon: 1));
+    for (var i = 1; i < trace.length; i++) {
+      expect(trace[i], lessThanOrEqualTo(trace[i - 1]));
+      expect(trace[i - 1] - trace[i], lessThan(40));
+    }
+    expect(trace.last, 844 - 300);
+    expect(
+      tester.getSize(find.byKey(const Key('input-accessory-slot'))).height,
+      300,
+    );
   });
 
   testWidgets('a reserved keyboard space holds the editor until it returns', (

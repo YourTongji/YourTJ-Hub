@@ -147,9 +147,7 @@ func TestTwoPhaseEmailChangeConfirmationSwitchesAtomically(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("activate page status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 	}
-	if !strings.Contains(recorder.Body.String(), "activationSuccess") &&
-		!strings.Contains(recorder.Body.String(), "已成功激活") &&
-		!strings.Contains(recorder.Body.String(), "activated") {
+	if !strings.Contains(recorder.Body.String(), `class="result success"`) {
 		t.Fatalf("activate page should render success state, got: %s", recorder.Body.String()[:min(len(recorder.Body.String()), 400)])
 	}
 	row, err := users.Get(user.Id)

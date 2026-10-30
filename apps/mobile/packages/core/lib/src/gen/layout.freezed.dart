@@ -622,7 +622,6 @@ mixin _$SitePayload {
   String get description => throw _privateConstructorUsedError;
   String get logo => throw _privateConstructorUsedError;
   String get favicon => throw _privateConstructorUsedError;
-  String? get externalLinks => throw _privateConstructorUsedError;
   String get brandType => throw _privateConstructorUsedError;
   String get brandText => throw _privateConstructorUsedError;
   String get brandImage => throw _privateConstructorUsedError;
@@ -649,7 +648,6 @@ abstract class $SitePayloadCopyWith<$Res> {
     String description,
     String logo,
     String favicon,
-    String? externalLinks,
     String brandType,
     String brandText,
     String brandImage,
@@ -675,7 +673,6 @@ class _$SitePayloadCopyWithImpl<$Res, $Val extends SitePayload>
     Object? description = null,
     Object? logo = null,
     Object? favicon = null,
-    Object? externalLinks = freezed,
     Object? brandType = null,
     Object? brandText = null,
     Object? brandImage = null,
@@ -698,10 +695,6 @@ class _$SitePayloadCopyWithImpl<$Res, $Val extends SitePayload>
                 ? _value.favicon
                 : favicon // ignore: cast_nullable_to_non_nullable
                       as String,
-            externalLinks: freezed == externalLinks
-                ? _value.externalLinks
-                : externalLinks // ignore: cast_nullable_to_non_nullable
-                      as String?,
             brandType: null == brandType
                 ? _value.brandType
                 : brandType // ignore: cast_nullable_to_non_nullable
@@ -734,7 +727,6 @@ abstract class _$$SitePayloadImplCopyWith<$Res>
     String description,
     String logo,
     String favicon,
-    String? externalLinks,
     String brandType,
     String brandText,
     String brandImage,
@@ -759,7 +751,6 @@ class __$$SitePayloadImplCopyWithImpl<$Res>
     Object? description = null,
     Object? logo = null,
     Object? favicon = null,
-    Object? externalLinks = freezed,
     Object? brandType = null,
     Object? brandText = null,
     Object? brandImage = null,
@@ -782,10 +773,6 @@ class __$$SitePayloadImplCopyWithImpl<$Res>
             ? _value.favicon
             : favicon // ignore: cast_nullable_to_non_nullable
                   as String,
-        externalLinks: freezed == externalLinks
-            ? _value.externalLinks
-            : externalLinks // ignore: cast_nullable_to_non_nullable
-                  as String?,
         brandType: null == brandType
             ? _value.brandType
             : brandType // ignore: cast_nullable_to_non_nullable
@@ -811,7 +798,6 @@ class _$SitePayloadImpl implements _SitePayload {
     required this.description,
     required this.logo,
     required this.favicon,
-    this.externalLinks,
     required this.brandType,
     required this.brandText,
     required this.brandImage,
@@ -829,8 +815,6 @@ class _$SitePayloadImpl implements _SitePayload {
   @override
   final String favicon;
   @override
-  final String? externalLinks;
-  @override
   final String brandType;
   @override
   final String brandText;
@@ -839,7 +823,7 @@ class _$SitePayloadImpl implements _SitePayload {
 
   @override
   String toString() {
-    return 'SitePayload(name: $name, description: $description, logo: $logo, favicon: $favicon, externalLinks: $externalLinks, brandType: $brandType, brandText: $brandText, brandImage: $brandImage)';
+    return 'SitePayload(name: $name, description: $description, logo: $logo, favicon: $favicon, brandType: $brandType, brandText: $brandText, brandImage: $brandImage)';
   }
 
   @override
@@ -852,8 +836,6 @@ class _$SitePayloadImpl implements _SitePayload {
                 other.description == description) &&
             (identical(other.logo, logo) || other.logo == logo) &&
             (identical(other.favicon, favicon) || other.favicon == favicon) &&
-            (identical(other.externalLinks, externalLinks) ||
-                other.externalLinks == externalLinks) &&
             (identical(other.brandType, brandType) ||
                 other.brandType == brandType) &&
             (identical(other.brandText, brandText) ||
@@ -870,7 +852,6 @@ class _$SitePayloadImpl implements _SitePayload {
     description,
     logo,
     favicon,
-    externalLinks,
     brandType,
     brandText,
     brandImage,
@@ -896,7 +877,6 @@ abstract class _SitePayload implements SitePayload {
     required final String description,
     required final String logo,
     required final String favicon,
-    final String? externalLinks,
     required final String brandType,
     required final String brandText,
     required final String brandImage,
@@ -913,8 +893,6 @@ abstract class _SitePayload implements SitePayload {
   String get logo;
   @override
   String get favicon;
-  @override
-  String? get externalLinks;
   @override
   String get brandType;
   @override
@@ -2921,6 +2899,9 @@ UnreadStatusPayload _$UnreadStatusPayloadFromJson(Map<String, dynamic> json) {
 mixin _$UnreadStatusPayload {
   bool get notifications => throw _privateConstructorUsedError;
   bool get messages => throw _privateConstructorUsedError;
+  String? get badgeStyle => throw _privateConstructorUsedError;
+  int? get notificationCount => throw _privateConstructorUsedError;
+  int? get messageCount => throw _privateConstructorUsedError;
   bool? get moderationReports => throw _privateConstructorUsedError;
   String? get latestNotificationType => throw _privateConstructorUsedError;
   int? get latestUnreadId => throw _privateConstructorUsedError;
@@ -2945,6 +2926,9 @@ abstract class $UnreadStatusPayloadCopyWith<$Res> {
   $Res call({
     bool notifications,
     bool messages,
+    String? badgeStyle,
+    int? notificationCount,
+    int? messageCount,
     bool? moderationReports,
     String? latestNotificationType,
     int? latestUnreadId,
@@ -2968,6 +2952,9 @@ class _$UnreadStatusPayloadCopyWithImpl<$Res, $Val extends UnreadStatusPayload>
   $Res call({
     Object? notifications = null,
     Object? messages = null,
+    Object? badgeStyle = freezed,
+    Object? notificationCount = freezed,
+    Object? messageCount = freezed,
     Object? moderationReports = freezed,
     Object? latestNotificationType = freezed,
     Object? latestUnreadId = freezed,
@@ -2982,6 +2969,18 @@ class _$UnreadStatusPayloadCopyWithImpl<$Res, $Val extends UnreadStatusPayload>
                 ? _value.messages
                 : messages // ignore: cast_nullable_to_non_nullable
                       as bool,
+            badgeStyle: freezed == badgeStyle
+                ? _value.badgeStyle
+                : badgeStyle // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            notificationCount: freezed == notificationCount
+                ? _value.notificationCount
+                : notificationCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            messageCount: freezed == messageCount
+                ? _value.messageCount
+                : messageCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
             moderationReports: freezed == moderationReports
                 ? _value.moderationReports
                 : moderationReports // ignore: cast_nullable_to_non_nullable
@@ -3012,6 +3011,9 @@ abstract class _$$UnreadStatusPayloadImplCopyWith<$Res>
   $Res call({
     bool notifications,
     bool messages,
+    String? badgeStyle,
+    int? notificationCount,
+    int? messageCount,
     bool? moderationReports,
     String? latestNotificationType,
     int? latestUnreadId,
@@ -3034,6 +3036,9 @@ class __$$UnreadStatusPayloadImplCopyWithImpl<$Res>
   $Res call({
     Object? notifications = null,
     Object? messages = null,
+    Object? badgeStyle = freezed,
+    Object? notificationCount = freezed,
+    Object? messageCount = freezed,
     Object? moderationReports = freezed,
     Object? latestNotificationType = freezed,
     Object? latestUnreadId = freezed,
@@ -3048,6 +3053,18 @@ class __$$UnreadStatusPayloadImplCopyWithImpl<$Res>
             ? _value.messages
             : messages // ignore: cast_nullable_to_non_nullable
                   as bool,
+        badgeStyle: freezed == badgeStyle
+            ? _value.badgeStyle
+            : badgeStyle // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        notificationCount: freezed == notificationCount
+            ? _value.notificationCount
+            : notificationCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        messageCount: freezed == messageCount
+            ? _value.messageCount
+            : messageCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
         moderationReports: freezed == moderationReports
             ? _value.moderationReports
             : moderationReports // ignore: cast_nullable_to_non_nullable
@@ -3071,6 +3088,9 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
   const _$UnreadStatusPayloadImpl({
     required this.notifications,
     required this.messages,
+    this.badgeStyle,
+    this.notificationCount,
+    this.messageCount,
     this.moderationReports,
     this.latestNotificationType,
     this.latestUnreadId,
@@ -3084,6 +3104,12 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
   @override
   final bool messages;
   @override
+  final String? badgeStyle;
+  @override
+  final int? notificationCount;
+  @override
+  final int? messageCount;
+  @override
   final bool? moderationReports;
   @override
   final String? latestNotificationType;
@@ -3092,7 +3118,7 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
 
   @override
   String toString() {
-    return 'UnreadStatusPayload(notifications: $notifications, messages: $messages, moderationReports: $moderationReports, latestNotificationType: $latestNotificationType, latestUnreadId: $latestUnreadId)';
+    return 'UnreadStatusPayload(notifications: $notifications, messages: $messages, badgeStyle: $badgeStyle, notificationCount: $notificationCount, messageCount: $messageCount, moderationReports: $moderationReports, latestNotificationType: $latestNotificationType, latestUnreadId: $latestUnreadId)';
   }
 
   @override
@@ -3104,6 +3130,12 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
                 other.notifications == notifications) &&
             (identical(other.messages, messages) ||
                 other.messages == messages) &&
+            (identical(other.badgeStyle, badgeStyle) ||
+                other.badgeStyle == badgeStyle) &&
+            (identical(other.notificationCount, notificationCount) ||
+                other.notificationCount == notificationCount) &&
+            (identical(other.messageCount, messageCount) ||
+                other.messageCount == messageCount) &&
             (identical(other.moderationReports, moderationReports) ||
                 other.moderationReports == moderationReports) &&
             (identical(other.latestNotificationType, latestNotificationType) ||
@@ -3118,6 +3150,9 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
     runtimeType,
     notifications,
     messages,
+    badgeStyle,
+    notificationCount,
+    messageCount,
     moderationReports,
     latestNotificationType,
     latestUnreadId,
@@ -3144,6 +3179,9 @@ abstract class _UnreadStatusPayload implements UnreadStatusPayload {
   const factory _UnreadStatusPayload({
     required final bool notifications,
     required final bool messages,
+    final String? badgeStyle,
+    final int? notificationCount,
+    final int? messageCount,
     final bool? moderationReports,
     final String? latestNotificationType,
     final int? latestUnreadId,
@@ -3156,6 +3194,12 @@ abstract class _UnreadStatusPayload implements UnreadStatusPayload {
   bool get notifications;
   @override
   bool get messages;
+  @override
+  String? get badgeStyle;
+  @override
+  int? get notificationCount;
+  @override
+  int? get messageCount;
   @override
   bool? get moderationReports;
   @override

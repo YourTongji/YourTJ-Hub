@@ -133,6 +133,14 @@ class _Pages extends PageRepository {
       });
 }
 
+/// Picker cells show only the image; their accessible label names them.
+Finder _pickerSticker(String label) => find.byWidgetPredicate(
+  (widget) =>
+      widget is Semantics &&
+      widget.properties.label == label &&
+      widget.child is InkWell,
+);
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
   late ProviderContainer container;
@@ -238,13 +246,18 @@ void main() {
       final caret = editor.selection.baseOffset;
       expect(caret, greaterThan(7));
       final before = editor.document.toPlainText();
-      await tester.ensureVisible(find.text('Smile').last);
+      await tester.ensureVisible(_pickerSticker('Smile').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Smile').last);
+      await tester.tap(_pickerSticker('Smile').last);
       await tester.pumpAndSettle();
+      // Rich editors hold the pick as one sticker embed at the caret.
       expect(
         editor.document.toPlainText(),
-        before.replaceRange(caret, caret, '[:sticker:smile:]'),
+        before.replaceRange(caret, caret, '\uFFFC'),
+      );
+      expect(
+        editor.document.toDelta().toList().map((op) => op.data),
+        contains(equals({stickerEmbedType: 'smile'})),
       );
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(seconds: 1));

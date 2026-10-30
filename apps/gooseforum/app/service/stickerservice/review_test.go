@@ -26,7 +26,7 @@ func stickerReviewDB(t *testing.T) *gorm.DB {
 	}
 	sqlDB.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	if err := conn.AutoMigrate(&sticker.Entity{}, &moderationDecision.Entity{}, &taskQueue.Entity{}, &fileUsage.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&sticker.Entity{}, &sticker.Alias{}, &moderationDecision.Entity{}, &taskQueue.Entity{}, &fileUsage.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	return conn

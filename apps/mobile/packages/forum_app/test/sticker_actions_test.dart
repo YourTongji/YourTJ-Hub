@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +12,7 @@ import 'package:forum_app/src/widgets/stickers/sticker_card.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_library_page.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_market_page.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_picker.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -20,6 +24,20 @@ const _item = StickerItemPayload(
   url: 'https://example.test/dance.gif',
 );
 
+const _pack = StickerMarketPackPayload(
+  id: 9201,
+  name: 'Pack One',
+  topic: 'anime',
+  stickerCount: 1,
+);
+const _marketItem = StickerItemPayload(
+  name: 'm_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  displayName: 'Pack One 1',
+  url: 'https://example.test/m.png',
+  pack: 'market',
+  isOfficial: false,
+);
+
 class _Repository extends StickerRepository {
   _Repository()
     : super(GfApiClient(dio: Dio(), tokenStorage: MemTokenStorage()));
@@ -29,6 +47,42 @@ class _Repository extends StickerRepository {
   int mineCalls = 0;
   bool failRemove = false;
   bool failSave = false;
+  List<StickerMarketPackPayload> packs = [];
+  final savedPacks = <int>[];
+  Completer<List<StickerMarketPackPayload>>? pendingPacks;
+  @override
+  Future<List<StickerMarketPackPayload>> myPacks() async {
+    final pending = pendingPacks;
+    pendingPacks = null;
+    return pending != null ? await pending.future : [...packs];
+  }
+
+  @override
+  Future<StickerMarketPackDetailPayload> marketPack(int id) async =>
+      const StickerMarketPackDetailPayload(
+        pack: _pack,
+        stickers: [_marketItem],
+      );
+  @override
+  Future<StickerMarketPagePayload> market({
+    String topic = '',
+    int page = 1,
+    int pageSize = 24,
+  }) async => const StickerMarketPagePayload(
+    topics: [StickerMarketTopicPayload(id: 'anime', label: 'Anime')],
+    packs: [_pack],
+    total: 1,
+  );
+  @override
+  Future<StickerMarketPackPayload> savePack(int packId) async {
+    savedPacks.add(packId);
+    packs.add(_pack);
+    return _pack;
+  }
+
+  @override
+  Future<void> removePack(int packId) async =>
+      packs.removeWhere((pack) => pack.id == packId);
   @override
   Future<List<StickerItemPayload>> list() async => [_item];
   @override
@@ -36,6 +90,7 @@ class _Repository extends StickerRepository {
     mineCalls++;
     return [...members];
   }
+
   @override
   Future<StickerItemPayload> save({
     String? stickerName,
@@ -83,6 +138,28 @@ Future<StickerCollection> _pump(
   return state;
 }
 
+/// Picker cells show only the image; their accessible label names them.
+Finder _pickerSticker(String label) => find.byWidgetPredicate(
+  (widget) =>
+      widget is Semantics &&
+      widget.properties.label == label &&
+      widget.child is InkWell,
+);
+
+/// Text outside any Material falls back to the debug error style, drawn with
+/// a double underline.
+bool _hasMissingMaterialText(WidgetTester tester) {
+  for (final text in tester.widgetList<RichText>(find.byType(RichText))) {
+    var found = false;
+    text.text.visitChildren((span) {
+      found = span.style?.decorationStyle == TextDecorationStyle.double;
+      return !found;
+    });
+    if (found) return true;
+  }
+  return false;
+}
+
 void main() {
   testWidgets('embedded sticker copies expose a single outer button label', (
     tester,
@@ -105,7 +182,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Official'));
     await tester.pumpAndSettle();
     expect(
-      tester.getSemantics(find.text('Dance')),
+      tester.getSemantics(_pickerSticker('Dance')),
       matchesSemantics(
         isButton: true,
         isFocusable: true,
@@ -246,7 +323,7 @@ void main() {
     expect(state.mine, isEmpty);
   });
 
-  testWidgets('picker previews without inserting or changing recent use', (
+  testWidgets('holding a picker sticker previews it without inserting', (
     tester,
   ) async {
     final inserted = <String>[];
@@ -260,29 +337,30 @@ void main() {
         ),
       ),
     );
+    StickerImage bubbleImage() => tester.widget<StickerImage>(
+      find.byWidgetPredicate((w) => w is StickerImage && w.size == 120),
+    );
     for (final tab in ['Official', 'Mine']) {
       await tester.tap(find.widgetWithText(TextButton, tab));
       await tester.pumpAndSettle();
-      await tester.longPress(find.text('Dance'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('View larger'));
+      final gesture = await tester.startGesture(
+        tester.getCenter(_pickerSticker('Dance')),
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-      expect(tester.widget<GfImageViewer>(find.byType(GfImageViewer)).images, [
-        _item.url,
-      ]);
+      expect(bubbleImage().url, _item.url);
+      expect(_hasMissingMaterialText(tester), isFalse);
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(
+        find.byWidgetPredicate((w) => w is StickerImage && w.size == 120),
+        findsNothing,
+      );
       expect(inserted, isEmpty);
       expect(state.recent, isEmpty);
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
     }
-    await tester.tap(find.text('Dance'));
-    await tester.pumpAndSettle();
-    expect(inserted, [_item.token]);
-    expect(state.recent, [_item]);
-    await tester.tap(find.widgetWithText(TextButton, 'Recent'));
-    await tester.pumpAndSettle();
-    await tester.longPress(find.text('Dance'));
+    // Pointer and assistive users keep the preview and save menu.
+    await tester.tap(_pickerSticker('Dance'), buttons: kSecondaryButton);
     await tester.pumpAndSettle();
     await tester.tap(find.text('View larger'));
     await tester.pump();
@@ -290,10 +368,249 @@ void main() {
     expect(tester.widget<GfImageViewer>(find.byType(GfImageViewer)).images, [
       _item.url,
     ]);
-    expect(inserted, [_item.token]);
-    expect(state.recent, [_item]);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
+    await tester.tap(_pickerSticker('Dance'));
+    await tester.pumpAndSettle();
+    expect(inserted, [_item.token]);
+    expect(state.recent, [_item]);
+  });
+
+  testWidgets('search opens from an icon and covers every tab and pack', (
+    tester,
+  ) async {
+    const wave = StickerItemPayload(
+      name: 'wave',
+      displayName: 'Wave',
+      url: 'https://example.test/wave.gif',
+    );
+    final inserted = <String>[];
+    await _pump(
+      tester,
+      _Repository()
+        ..members = [_item, wave]
+        ..packs = [_pack],
+      child: Scaffold(
+        body: SizedBox(
+          height: StickerPicker.comfortableHeight,
+          child: StickerPicker(onInsert: inserted.add),
+        ),
+      ),
+    );
+    expect(find.byType(GfSearchField), findsNothing);
+    expect(find.byTooltip('Manage my stickers'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Search all stickers'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextButton, 'Official'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'pack one');
+    await tester.pumpAndSettle();
+    // A subscribed pack is searchable without opening its tab first.
+    await tester.tap(_pickerSticker('Pack One 1'));
+    expect(inserted, [_marketItem.token]);
+
+    await tester.enterText(find.byType(TextField), 'wav');
+    await tester.pumpAndSettle();
+    expect(_pickerSticker('Wave'), findsOneWidget);
+    expect(_pickerSticker('Dance'), findsNothing);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.byType(GfSearchField), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Official'), findsOneWidget);
+  });
+
+  testWidgets('sliding while holding switches the previewed sticker', (
+    tester,
+  ) async {
+    const wave = StickerItemPayload(
+      name: 'wave',
+      displayName: 'Wave',
+      url: 'https://example.test/wave.gif',
+    );
+    final inserted = <String>[];
+    await _pump(
+      tester,
+      _Repository()..members = [_item, wave],
+      child: Scaffold(
+        body: Align(
+          alignment: Alignment.bottomCenter,
+          child: SizedBox(
+            height: 300,
+            child: StickerPicker(onInsert: inserted.add),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.widgetWithText(TextButton, 'Mine'));
+    await tester.pumpAndSettle();
+    String previewed() => tester
+        .widget<StickerImage>(
+          find.byWidgetPredicate((w) => w is StickerImage && w.size == 120),
+        )
+        .url;
+    final gesture = await tester.startGesture(
+      tester.getCenter(_pickerSticker('Dance')),
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    await tester.pump();
+    expect(previewed(), _item.url);
+    await gesture.moveTo(tester.getCenter(_pickerSticker('Wave')));
+    await tester.pump();
+    expect(previewed(), wave.url);
+    await gesture.cancel();
+    await tester.pumpAndSettle();
+    expect(
+      find.byWidgetPredicate((w) => w is StickerImage && w.size == 120),
+      findsNothing,
+    );
+    expect(inserted, isEmpty);
+  });
+
+  testWidgets('releasing over the bubble save target collects the sticker', (
+    tester,
+  ) async {
+    final repository = _Repository()..members = [];
+    final state = await _pump(
+      tester,
+      repository,
+      child: Scaffold(
+        body: Align(
+          alignment: Alignment.bottomCenter,
+          child: SizedBox(height: 300, child: StickerPicker(onInsert: (_) {})),
+        ),
+      ),
+    );
+    await tester.tap(find.widgetWithText(TextButton, 'Official'));
+    await tester.pumpAndSettle();
+    final gesture = await tester.startGesture(
+      tester.getCenter(_pickerSticker('Dance')),
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    await tester.pump();
+    await gesture.moveTo(tester.getCenter(find.text('Save')));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(repository.saved, ['dance']);
+    expect(state.mine.map((item) => item.name), ['dance']);
+  });
+
+  testWidgets('leaving the save target for the preview does not collect', (
+    tester,
+  ) async {
+    final repository = _Repository()..members = [];
+    final state = await _pump(
+      tester,
+      repository,
+      child: Scaffold(
+        body: Align(
+          alignment: Alignment.bottomCenter,
+          child: SizedBox(height: 300, child: StickerPicker(onInsert: (_) {})),
+        ),
+      ),
+    );
+    await tester.tap(find.widgetWithText(TextButton, 'Official'));
+    await tester.pumpAndSettle();
+    final gesture = await tester.startGesture(
+      tester.getCenter(_pickerSticker('Dance')),
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    await tester.pump();
+    await gesture.moveTo(tester.getCenter(find.text('Save')));
+    await tester.pump();
+    await gesture.moveTo(
+      tester.getCenter(
+        find.byWidgetPredicate((w) => w is StickerImage && w.size == 120),
+      ),
+    );
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(repository.saved, isEmpty);
+    expect(state.mine, isEmpty);
+  });
+
+  for (final adding in [true, false]) {
+    test(
+      'late pack snapshot cannot undo ${adding ? 'add' : 'remove'}',
+      () async {
+        final repository = _Repository()..packs = adding ? [] : [_pack];
+        final pending = Completer<List<StickerMarketPackPayload>>();
+        repository.pendingPacks = pending;
+        final state = StickerCollection(repository, StickerLibrary(repository));
+        addTearDown(state.dispose);
+        state.packs = [...repository.packs];
+        final loading = state.loadPacks(refresh: true);
+        if (adding) {
+          await state.addPack(_pack);
+        } else {
+          await state.removePack(_pack);
+        }
+        pending.complete(adding ? [] : [_pack]);
+        await loading;
+        expect(state.hasPack(_pack.id), adding);
+      },
+    );
+  }
+
+  testWidgets('subscribed packs appear in the picker and insert tokens', (
+    tester,
+  ) async {
+    final inserted = <String>[];
+    final repository = _Repository()..packs = [_pack];
+    await _pump(
+      tester,
+      repository,
+      child: Scaffold(
+        body: SizedBox(
+          height: 400,
+          child: StickerPicker(onInsert: inserted.add),
+        ),
+      ),
+    );
+    await tester.tap(find.widgetWithText(TextButton, 'Packs'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(ChoiceChip, 'Pack One'), findsOneWidget);
+    await tester.tap(_pickerSticker('Pack One 1'));
+    await tester.pumpAndSettle();
+    expect(inserted, [_marketItem.token]);
+  });
+
+  testWidgets('the market adds a pack only after the server confirms', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    final state = await _pump(
+      tester,
+      repository,
+      child: Builder(
+        builder: (context) => Scaffold(
+          body: Center(
+            child: TextButton(
+              onPressed: () => openStickerMarket(context),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pack One'), findsOneWidget);
+    expect(find.text('1 sticker'), findsOneWidget);
+    await tester.tap(find.widgetWithText(GfButton, 'Add'));
+    await tester.pumpAndSettle();
+    expect(repository.savedPacks, [9201]);
+    expect(state.packs.map((pack) => pack.id), [9201]);
+    expect(find.widgetWithText(GfButton, 'Remove'), findsOneWidget);
+
+    await tester.tap(find.text('Pack One'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pack One 1'), findsOneWidget);
+    await tester.tap(find.widgetWithText(GfButton, 'Remove sticker pack'));
+    await tester.pumpAndSettle();
+    expect(state.packs, isEmpty);
   });
 
   testWidgets('library row tap opens a single-sticker preview', (tester) async {

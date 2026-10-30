@@ -77,6 +77,7 @@ func setupHTTPContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	conn := dbconnect.Connect()
 	if err := conn.AutoMigrate(
 		&users.EntityComplete{},
+		&users.PrivacySettingsEntity{},
 		&userStatistics.Entity{},
 		&userSessions.Entity{},
 		&userTotp.Entity{},

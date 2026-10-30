@@ -63,7 +63,7 @@ func TestStemName(t *testing.T) {
 
 func TestStickerCacheAndInvalidation(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&sticker.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&sticker.Entity{}, &sticker.Alias{}); err != nil {
 		t.Fatal(err)
 	}
 	InvalidateCache()

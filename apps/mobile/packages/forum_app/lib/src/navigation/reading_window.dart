@@ -140,6 +140,18 @@ class ReadingNavigationRail extends StatelessWidget {
                                         children: [
                                           Badge(
                                             isLabelVisible: items[i].badge,
+                                            label:
+                                                items[i].badgeCount != null &&
+                                                    items[i].badgeCount! > 0
+                                                ? Text(
+                                                    items[i].badgeCount! > 99
+                                                        ? '99+'
+                                                        : '${items[i].badgeCount}',
+                                                    style: const TextStyle(
+                                                      fontSize: 11,
+                                                    ),
+                                                  )
+                                                : null,
                                             backgroundColor: colors.primary,
                                             child: GfSymbol(
                                               currentIndex == i
@@ -347,7 +359,7 @@ class ReadingWindow extends StatelessWidget {
                                     ),
                               ),
                             ),
-                            if (!hasRail)
+                            if (!hasRail && media.viewInsets.bottom == 0)
                               Positioned(
                                 left: 0,
                                 right: 0,

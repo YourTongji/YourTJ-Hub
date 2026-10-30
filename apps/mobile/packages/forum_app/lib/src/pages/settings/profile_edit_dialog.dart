@@ -165,18 +165,12 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     return GfPopupMenuItem(
       value: value,
       destructive: destructive,
-      child: Row(
-        key: ValueKey('profile-sheet-$value'),
-        children: [
-          GfSymbol(
-            symbol,
-            size: 22,
-            color: destructive ? colors.error : colors.baseContent,
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: GfText(label)),
-        ],
+      leading: GfSymbol(
+        symbol,
+        size: 22,
+        color: destructive ? colors.error : colors.baseContent,
       ),
+      child: GfText(label, key: ValueKey('profile-sheet-$value')),
     );
   }
 
@@ -1081,6 +1075,7 @@ class _ProfileLinksPageState extends State<_ProfileLinksPage> {
         controller: _fields[key]!,
         hint: hint,
         url: true,
+        inlineCounter: true,
         validator: (value) =>
             normalizeProfileLink(value ?? '', prefix: prefix) == null
             ? l.settingsInvalidLink
@@ -1146,6 +1141,7 @@ class _ProfileLinksPageState extends State<_ProfileLinksPage> {
                               fieldKey: 'websiteName',
                               controller: _fields['websiteName']!,
                               maxLength: profileWebsiteNameMaxLength,
+                              inlineCounter: true,
                               hint: l.settingsWebsiteName,
                             ),
                           ),

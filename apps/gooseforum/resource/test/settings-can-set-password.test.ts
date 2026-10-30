@@ -28,6 +28,7 @@ vi.mock('../src/runtime/api', () => ({
   listSessions: vi.fn(async () => []),
   logout: vi.fn(async () => true),
   purgeDeletedContent: vi.fn(async () => true),
+  getActivationStatus: vi.fn(async () => ({ targetEmail: 'new@example.test', state: 'ready', remainingToday: 3, dailyLimit: 3, retryAfterSeconds: 0 })),
   resendActivationEmail: vi.fn(async () => ''),
   restoreDeletedContent: vi.fn(async () => true),
   revokeAllSessions: vi.fn(async () => true),
@@ -144,6 +145,7 @@ function buildProps(canSetPassword: boolean): SettingsPageProps {
       { key: 'binding', url: '/settings?tab=binding', active: false },
       { key: 'security', url: '/settings?tab=security', active: false },
       { key: 'content', url: '/settings?tab=content', active: false },
+      { key: 'stickers', url: '/settings?tab=stickers', active: false },
       { key: 'deleted', url: '/settings?tab=deleted', active: false },
       { key: 'general', url: '/settings?tab=general', active: false },
     ],
@@ -261,7 +263,8 @@ describe('SettingsPage public and private profile fields (issue #665)', () => {
     const section = wrapper.findAll('section').reverse().find(section => section.text().includes('pending@example.com'))!
     expect(section.find('section-header-stub').attributes('title')).toBe(i18n.global.t('settings.privateAccount.title'))
     expect(section.text()).toContain(i18n.global.t('settings.emailVerification.title'))
-    const resend = section.findAll('button').find(button => button.text() === i18n.global.t('settings.emailChangePending.resend'))!
+    await flushPromises()
+    const resend = section.findAll('button').find(button => button.text() === i18n.global.t('settings.emailVerification.action'))!
     await resend.trigger('click')
     await flushPromises()
     expect(resendActivationEmail).toHaveBeenCalled()

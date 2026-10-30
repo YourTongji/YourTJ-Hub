@@ -200,12 +200,13 @@
     text-align: center;
   }
 
-  /* 正文贴纸内联在文字行上：字号的 2.5 倍、垂直居中于文字（与 App 同一倍率）。 */
+  /* 正文贴纸内联在文字行上：边长为字号 2.5 倍的方框（宽图在框内等比缩放）、垂直居中于文字。
+     与 App 和编辑区（.gf-sticker-inline）同一个方框，任何设备上换行位置都一致。 */
   .gf-prose img[data-gf-sticker] {
     display: inline-block;
-    width: auto;
+    width: 2.5em;
     height: 2.5em;
-    max-width: 5em;
+    max-width: none;
     margin: 0 0.1em;
     vertical-align: -0.87em;
     object-fit: contain;

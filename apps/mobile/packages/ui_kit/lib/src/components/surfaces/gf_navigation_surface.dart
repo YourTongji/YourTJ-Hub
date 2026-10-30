@@ -16,17 +16,31 @@ List<double> _saturation(double amount) {
   ];
 }
 
-/// Shared dock/rail background. Place in a bounded box behind controls.
+/// How strongly a glass surface is tinted.
+enum GfGlassTone {
+  /// The dock, the rail and secondary floating controls: a translucent
+  /// raised-surface tint.
+  regular,
+
+  /// The floating primary action: the same glass tinted with the primary
+  /// colour, dense enough to keep its glyph legible on any content.
+  prominent,
+}
+
+/// Shared floating-layer glass: the dock, the rail, the compose action and its
+/// menu. Place in a bounded box behind controls.
 /// On glass, content under it is blurred and its colour
-/// lifted, as frosted glass reads, under a translucent raised-surface tint
-/// with a lit rim. High contrast keeps the opaque raised surface.
+/// lifted, as frosted glass reads, under a translucent tint with a lit rim.
+/// High contrast keeps the opaque surface.
 class GfNavigationSurface extends StatelessWidget {
   const GfNavigationSurface({
     super.key,
     this.borderRadius = const BorderRadius.all(Radius.circular(GfRadius.full)),
+    this.tone = GfGlassTone.regular,
   });
 
   final BorderRadius borderRadius;
+  final GfGlassTone tone;
 
   static bool usesGlass(BuildContext context) =>
       !MediaQuery.highContrastOf(context) &&
@@ -37,7 +51,16 @@ class GfNavigationSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
     final radius = borderRadius;
+    final bool prominent = tone == GfGlassTone.prominent;
     if (!usesGlass(context)) {
+      if (prominent) {
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color: colors.primary,
+            borderRadius: radius,
+          ),
+        );
+      }
       return DecoratedBox(
         decoration: BoxDecoration(
           color: colors.surfaceRaised,
@@ -57,7 +80,9 @@ class GfNavigationSurface extends StatelessWidget {
             inner: ColorFilter.matrix(_saturation(colors.isDark ? 1.4 : 1.7)),
           ),
           child: CustomPaint(
-            painter: _GlassPainter(colors, gfHairline(context), radius),
+            painter: prominent
+                ? _ProminentGlassPainter(colors, gfHairline(context), radius)
+                : _GlassPainter(colors, gfHairline(context), radius),
             child: const SizedBox.expand(),
           ),
         ),
@@ -160,6 +185,88 @@ class _GlassPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_GlassPainter oldDelegate) =>
+      oldDelegate.colors != colors ||
+      oldDelegate.hairline != hairline ||
+      oldDelegate.radius != radius;
+}
+
+/// Primary-tinted glass, read as a thick lens: light from above lights the
+/// top of the rim and pools again along the bottom inside edge, where a real
+/// lens focuses it.
+class _ProminentGlassPainter extends CustomPainter {
+  const _ProminentGlassPainter(this.colors, this.hairline, this.radius);
+
+  final GfColors colors;
+  final double hairline;
+  final BorderRadius radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bool dark = colors.isDark;
+    final Rect bounds = Offset.zero & size;
+    final RRect pill = radius.toRRect(bounds).scaleRadii();
+    // Dense enough that the glyph keeps 3:1 over white or black content.
+    canvas.drawRRect(
+      pill,
+      Paint()..color = colors.primary.withValues(alpha: dark ? 0.84 : 0.88),
+    );
+    canvas.drawRRect(
+      pill,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.center,
+          colors: <Color>[
+            Colors.white.withValues(alpha: dark ? 0.14 : 0.24),
+            Colors.white.withValues(alpha: 0),
+          ],
+        ).createShader(bounds),
+    );
+    canvas.drawRRect(
+      pill,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: const Alignment(0, 0.3),
+          colors: <Color>[
+            Colors.white.withValues(alpha: dark ? 0.1 : 0.14),
+            Colors.white.withValues(alpha: 0),
+          ],
+        ).createShader(bounds),
+    );
+    canvas.drawRRect(
+      pill.deflate(0.75),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          stops: const <double>[0, 0.55, 1],
+          colors: <Color>[
+            Colors.white.withValues(alpha: dark ? 0.34 : 0.6),
+            Colors.white.withValues(alpha: dark ? 0.04 : 0.1),
+            Colors.white.withValues(alpha: dark ? 0.14 : 0.26),
+          ],
+        ).createShader(bounds),
+    );
+    canvas.drawRRect(
+      pill.deflate(hairline / 2),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = hairline
+        ..color = dark
+            ? Colors.black.withValues(alpha: 0.4)
+            : Color.lerp(
+                colors.primary,
+                Colors.black,
+                0.35,
+              )!.withValues(alpha: 0.4),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ProminentGlassPainter oldDelegate) =>
       oldDelegate.colors != colors ||
       oldDelegate.hairline != hairline ||
       oldDelegate.radius != radius;

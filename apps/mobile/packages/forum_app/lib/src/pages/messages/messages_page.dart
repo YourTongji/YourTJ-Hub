@@ -11,7 +11,8 @@ import '../../messages/forward_messages_page.dart';
 import '../../messages/forwarded_message.dart';
 import '../../report_content.dart';
 import '../../user_blocks.dart';
-import '../../widgets/stickers/sticker_draft_preview.dart';
+import '../../widgets/stickers/sticker_suggestion_bar.dart';
+import '../../widgets/stickers/sticker_text_controller.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
 import '../../widgets/stickers/sticker_library_page.dart';
@@ -21,6 +22,7 @@ import '../../widgets/root_surface.dart';
 import '../../messages/chat_outbox.dart';
 import '../../messages/chat_drafts.dart';
 import '../../messages/chat_reply.dart';
+import '../../notifications/unread_display.dart';
 import '../../messages/chat_timeline.dart';
 import '../../messages/chat_viewport_scroll_physics.dart';
 import '../../messages/visible_chat_reads.dart';
@@ -669,7 +671,10 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
         }
         final window = context
             .dependOnInheritedWidgetOfExactType<ReadingWindowScope>();
-        final bottomInset = window != null && !window.hasRail
+        final bottomInset =
+            window != null &&
+                !window.hasRail &&
+                MediaQuery.viewInsetsOf(context).bottom == 0
             ? GfBottomNavigation.metricsOf(
                 context,
                 barHeight: GfBottomNavigation.heightFor(
@@ -779,7 +784,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   late final ChatDrafts _drafts;
   bool _restoringDraft = false;
   final List<ChatMessagePayload> _messages = [];
-  final TextEditingController _input = TextEditingController();
+  // Chat messages are plain text: tokens in backticks still render.
+  final StickerTextEditingController _input = StickerTextEditingController(
+    markdown: false,
+  );
   final FocusNode _composerFocus = FocusNode();
   bool _selecting = false;
   bool _attachingImage = false;
@@ -2100,6 +2108,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
 
   @override
   Widget build(BuildContext context) {
+    _input.library = ref.watch(stickerLibraryProvider);
     ref.listen<int>(
       cacheClearEpochProvider.select(
         (epochs) => epochs[CacheCategory.chat] ?? 0,
@@ -2728,10 +2737,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                     GfChatInput(
                       controller: _input,
                       focusNode: _composerFocus,
-                      previewBuilder: (text) =>
-                          StickerDraftPreview(content: text),
+                      previewBuilder: (_) =>
+                          StickerSuggestionBar.text(controller: _input),
                       accessoryBuilder: (insert) =>
                           StickerPicker(onInsert: insert),
+                      accessoryMinHeight: StickerPicker.comfortableHeight,
                       onAttach: _showAttachments,
                       attachLabel: l10n.messagesAttachments,
                       clearOnSend: false,
@@ -2759,7 +2769,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   }
 }
 
-class _ConversationList extends StatelessWidget {
+class _ConversationList extends ConsumerWidget {
   const _ConversationList({
     required this.controller,
     this.padding = EdgeInsets.zero,
@@ -2789,7 +2799,8 @@ class _ConversationList extends StatelessWidget {
   final ValueChanged<ChatItemPayload> onOpen;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final style = ref.watch(unreadDisplayProvider.select((s) => s.style));
     final String normalized = query.trim().toLowerCase();
     final List<ChatItemPayload> filtered = items.where((ChatItemPayload item) {
       return normalized.isEmpty ||
@@ -2858,6 +2869,7 @@ class _ConversationList extends StatelessWidget {
             time: formatChatTime(conversation.lastMsgTime, l10n: l10n),
             unreadCount: conversation.unreadCount,
             unreadLabel: l10n.notificationsUnread,
+            showUnreadCount: style == UnreadBadgeStyle.number,
             onTap: conversation.convId == 0 && !canOpenNewConversation
                 ? null
                 : () => onOpen(conversation),
@@ -3232,7 +3244,7 @@ class _ChatEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(28),
         child: Column(
           mainAxisSize: MainAxisSize.min,

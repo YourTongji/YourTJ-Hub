@@ -1,3 +1,4 @@
+import '../../widgets/image_viewer_labels.dart';
 import '../../widgets/user_decoration.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -589,10 +590,11 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   void _openReviewImage(String url) {
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
-        builder: (_) => Scaffold(
+        builder: (viewerContext) => Scaffold(
           backgroundColor: const Color(0xFF000000),
           body: SafeArea(
             child: GfImageViewer(
+              labels: AppLocalizations.of(viewerContext).imageViewerLabels,
               images: <String>[url],
               onSaveImage: (String imageUrl) =>
                   saveImageFromUrl(context, imageUrl),

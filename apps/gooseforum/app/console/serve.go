@@ -343,6 +343,8 @@ func startBusinessServices() {
 			})
 		})
 	})
+	// 贴纸市场导入 worker（issue #1429）：服务端下载、校验并按内容哈希落存储。
+	backgroundservice.RunWorker("sticker_market_import_worker", stickerservice.TaskTypeMarketImport, stickerservice.RunMarketImportTask)
 	backgroundservice.RunWorker("content_published_worker", publicationservice.EffectTaskType, publicationservice.RunEffectsTask)
 	backgroundservice.RunWorker("topic_search_worker", searchservice.TaskTypeTopicSearch, searchservice.RunTopicSearchTask)
 	backgroundservice.RunWorker("user_search_worker", searchservice.TaskTypeUserSearch, searchservice.RunUserSearchTask)

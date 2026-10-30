@@ -220,6 +220,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authUsernameOrEmail => '用户名或邮箱';
 
   @override
+  String get authRegistrationUsernameRules =>
+      '6–32 个字符，仅限英文字母、数字、下划线（_）和连字符（-）。';
+
+  @override
+  String get authRegistrationPasswordRules =>
+      '6–64 个字符，须包含英文字母（A–Z／a–z）和数字（0–9），可混合其他字符。';
+
+  @override
   String get authUsername => '用户名';
 
   @override
@@ -281,8 +289,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authOidcLogin => '使用 yourtj 统一登录';
 
   @override
-  String get authRegisterEmailVerify =>
-      '注册成功，验证邮件已发送，请前往邮箱完成验证。未收到邮件？登录后可在账号安全中重发验证邮件。';
+  String get authRegisterEmailVerify => '账号已创建，请查看邮箱完成验证。未收到邮件时可在账号安全页重发或更换邮箱。';
 
   @override
   String get authActivationRequired => '请先到邮箱激活账号';
@@ -291,7 +298,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authResendActivationEmail => '重发验证邮件';
 
   @override
-  String get authRegisterSuccess => '注册成功,请登录';
+  String get authRegisterSuccess => '账号已创建。';
 
   @override
   String get authResetEmailSent => '重置邮件已发送,请查收';
@@ -1088,6 +1095,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get scheduleTitle => '选课排课';
 
   @override
+  String get scheduleFilters => '筛选';
+
+  @override
+  String get scheduleCandidates => '候选';
+
+  @override
   String get scheduleTabTimetable => '方案预览';
 
   @override
@@ -1211,7 +1224,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get scheduleOptional => '选修';
 
   @override
-  String get scheduleSearchHint => '搜索课名/课号/教师';
+  String get scheduleSearchHint => '搜索课程名称';
 
   @override
   String get scheduleStaged => '备选';
@@ -4352,4 +4365,194 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get coursePlannerCalendarsFailed => '学期列表加载失败，请检查网络后重试。';
+
+  @override
+  String get authCheckEmailVerification => '检查邮箱验证';
+
+  @override
+  String get authWriteRecoveryHint => '输入会保留。验证完成后返回，手动继续。';
+
+  @override
+  String get activationStatusRefresh => '刷新状态';
+
+  @override
+  String scheduleSearchNoMatch(String query) {
+    return '没有找到名称匹配“$query”的课程';
+  }
+
+  @override
+  String get scheduleNoOptional => '当前学期未返回选修课程';
+
+  @override
+  String get scheduleMajorSearchHint => '搜索专业名称或代码';
+
+  @override
+  String get chatMessagePolicyLabel => '谁可以发起私信';
+
+  @override
+  String get activationStatusMailUnavailable => '邮件服务暂不可用，请稍后刷新';
+
+  @override
+  String get activationStatusMissingEmail => '请先在账号设置中添加邮箱';
+
+  @override
+  String get chatMessagePolicyTitle => '私信权限';
+
+  @override
+  String get campusTimetableNotConnected => '尚未连接同济身份';
+
+  @override
+  String scheduleSearchScope(String term) {
+    return '按课程名称搜索：$term';
+  }
+
+  @override
+  String get scheduleConfigureScope => '配置排课范围';
+
+  @override
+  String get chatMessagePolicySaved => '私信权限已保存到你的账号';
+
+  @override
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '更改专业将清空 $planCount 个方案中的 $courseCount 门课程和 $eventCount 个自定义安排。取消会保留原配置与方案。';
+  }
+
+  @override
+  String get activationStatusDailyLimit => '今日额度已用完，请明天再试';
+
+  @override
+  String get activationStatusDisabled => '本站暂未要求邮箱验证';
+
+  @override
+  String get authVerificationPendingHint =>
+      '请使用邮箱中的链接完成验证，之后刷新本页。未收到时可重发或更换邮箱；验证前，部分操作暂不可用。';
+
+  @override
+  String get scheduleChangeMajorUpdated => '方案内容已变化，请重新选择专业。';
+
+  @override
+  String activationStatusCooldown(int seconds) {
+    return '请在 $seconds 秒后重发';
+  }
+
+  @override
+  String get authVerificationPending => '等待验证邮箱';
+
+  @override
+  String get activationStatusFrozen => '账号受限，暂不能重发';
+
+  @override
+  String get authRegistrationUnavailable => '注册暂不可用，请稍后再试。';
+
+  @override
+  String get imageViewerThumbnails => '图片缩略图';
+
+  @override
+  String activationStatusTarget(String email) {
+    return '收件目标：$email';
+  }
+
+  @override
+  String activationStatusRemaining(int count, int limit) {
+    return '今天还可重发 $count / $limit 次';
+  }
+
+  @override
+  String get chatMessagePolicyNobody => '禁止新私信';
+
+  @override
+  String scheduleCourseScope(String scope) {
+    return '当前范围：$scope';
+  }
+
+  @override
+  String get activationStatusVerified => '邮箱已验证，无需重发';
+
+  @override
+  String get authCheckSignupAvailability => '重新检查注册状态';
+
+  @override
+  String scheduleSetupMissing(String fields) {
+    return '请选择：$fields，再查找课程或教学班。';
+  }
+
+  @override
+  String get imageViewerOriginalSize => '原始尺寸';
+
+  @override
+  String get imageViewerFitPreview => '适配预览';
+
+  @override
+  String get scheduleChangeMajorConfirm => '更改并清空';
+
+  @override
+  String get campusTimetableConnectBody =>
+      '连接同济身份后，这里会显示学校提供的个人课表。暂不连接也可以使用课程目录和模拟排课。';
+
+  @override
+  String get chatMessagePolicyHint => '已有消息的会话可以继续；空会话不算。屏蔽始终优先，机器人也遵守此设置。';
+
+  @override
+  String get scheduleSearchReady => '输入课程名称开始查找';
+
+  @override
+  String get scheduleNoCompulsory => '当前范围未返回必修课程';
+
+  @override
+  String get scheduleMajorNoMatch => '没有匹配的专业';
+
+  @override
+  String get scheduleChangeMajorTitle => '更改专业并清空方案？';
+
+  @override
+  String get scheduleEmptyCourseHint => '可以调整排课范围，或按课程名称搜索。';
+
+  @override
+  String get scheduleSetupTitle => '先设置排课范围';
+
+  @override
+  String get scheduleConfigChangeTitle => '切换排课配置？';
+
+  @override
+  String scheduleConfigChangeBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '将清空全部方案的课程和自定义安排，其中 $planCount 个方案有内容（$courseCount 门课程、$eventCount 个安排）。方案名称保留。';
+  }
+
+  @override
+  String scheduleConfigChangePlan(
+    String name,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '$name：$courseCount 门课程、$eventCount 个安排';
+  }
+
+  @override
+  String get scheduleConfigChangeSync => '如果这些方案已开启同步，清空内容也会同步到其他设备。';
+
+  @override
+  String get scheduleConfigChangeConfirm => '清空方案并切换';
+
+  @override
+  String get scheduleConfigChangeUpdated => '方案已发生变化，请重新选择并确认。';
+
+  @override
+  String get unreadStyleTitle => '未读提醒';
+
+  @override
+  String get unreadStyleNumbers => '显示未读数量';
+
+  @override
+  String get unreadStyleHint => '关闭后仅显示红点。此设置在该账号的 Web 和 App 间同步，不会标记已读或改变推送。';
+
+  @override
+  String get unreadStyleSaving => '正在保存提醒样式…';
 }
