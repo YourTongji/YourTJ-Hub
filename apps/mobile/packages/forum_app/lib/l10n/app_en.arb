@@ -698,7 +698,7 @@
   "schedulePickClass": "Pick class",
   "scheduleCompulsory": "Compulsory",
   "scheduleOptional": "Elective",
-  "scheduleSearchHint": "Search name/code/teacher",
+  "scheduleSearchHint": "Search course name",
   "scheduleStaged": "Staged",
   "scheduleSelected": "Selected",
   "scheduleRemoveCourse": "Remove",
@@ -2303,5 +2303,67 @@
   "activationStatusVerified": "Email verified. No resend needed.",
   "activationStatusFrozen": "This account cannot resend email",
   "activationStatusMailUnavailable": "Mail is unavailable. Refresh later.",
-  "activationStatusMissingEmail": "Add an email address in account settings first"
+  "activationStatusMissingEmail": "Add an email address in account settings first",
+  "scheduleSearchNoMatch": "No course names match “{query}”",
+  "scheduleCourseScope": "Current scope: {scope}",
+  "imageViewerFitPreview": "Fit preview",
+  "scheduleSearchScope": "Search course names in {term}",
+  "scheduleChangeMajorBody": "Changing the major clears {planCount} plans containing {courseCount} courses and {eventCount} custom events. Cancel to keep your current configuration and plans.",
+  "scheduleSetupMissing": "Select {fields} before finding courses or classes.",
+  "campusTimetableNotConnected": "Tongji identity not connected",
+  "scheduleEmptyCourseHint": "Adjust the course scope or search by course name.",
+  "scheduleNoCompulsory": "No compulsory courses returned for this scope",
+  "scheduleMajorNoMatch": "No matching majors",
+  "campusTimetableConnectBody": "Connect your Tongji identity to see your personal school timetable here. You can use the course catalog and schedule planner without connecting.",
+  "scheduleChangeMajorConfirm": "Change and clear",
+  "scheduleChangeMajorTitle": "Change major and clear plans?",
+  "scheduleMajorSearchHint": "Search major name or code",
+  "scheduleChangeMajorUpdated": "Plan content changed. Please select the major again.",
+  "imageViewerThumbnails": "Image thumbnails",
+  "scheduleConfigureScope": "Configure course scope",
+  "scheduleNoOptional": "No optional courses returned for this term",
+  "scheduleSetupTitle": "Set your course scope first",
+  "@scheduleSearchNoMatch": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleSearchReady": "Enter a course name to start",
+  "@scheduleChangeMajorBody": {
+    "placeholders": {
+      "planCount": {
+        "type": "int"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSetupMissing": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "@scheduleSearchScope": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "@scheduleCourseScope": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "imageViewerOriginalSize": "Original size"
 }

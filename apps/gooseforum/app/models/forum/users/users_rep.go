@@ -69,7 +69,7 @@ func Verify(usernameOrEmail string, password string) (*EntityComplete, error) {
 	var user EntityComplete
 	var err error
 	if strings.Contains(usernameOrEmail, "@") {
-		err = builder().Where("email = ?", usernameOrEmail).First(&user).Error
+		err = builder().Where("email = ?", strings.ToLower(strings.TrimSpace(usernameOrEmail))).First(&user).Error
 	} else {
 		err = builder().Where("username = ?", usernameOrEmail).First(&user).Error
 	}
@@ -100,7 +100,7 @@ func Verify(usernameOrEmail string, password string) (*EntityComplete, error) {
 
 // GetByEmail 通过邮箱获取用户
 func GetByEmail(email string) (entity EntityComplete, err error) {
-	err = builder().Where("email = ?", email).First(&entity).Error
+	err = builder().Where("email = ?", strings.ToLower(strings.TrimSpace(email))).First(&entity).Error
 	return
 }
 

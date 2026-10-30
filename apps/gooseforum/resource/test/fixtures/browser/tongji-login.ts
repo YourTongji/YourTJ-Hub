@@ -11,11 +11,14 @@ const githubReady = params.get('github') !== 'off'
 const googleReady = params.get('google') !== 'off'
 document.documentElement.dataset.theme = params.get('theme') === 'gf-dark' ? 'gf-dark' : 'gf-light'
 const props: LoginPageProps = {
+  tongjiRegistration: params.get('schoolRegistration') === 'true',
   initialMode: params.get('mode') === 'register' ? 'register' : 'login',
   redirectUrl: '/campus', githubUrl: githubReady ? '/api/auth/github' : '', githubReady,
   googleUrl: googleReady ? '/api/auth/google' : '', googleReady,
   tongjiReady: true, tongjiUrl: '/api/auth/tongji?redirect=%2Fcampus',
-  termsOfServiceEnabled: true, privacyPolicyEnabled: true, allowedDomains: ['tongji.edu.cn'], oauthNotice: false,
+  captchaRequired: params.get('captcha') !== 'off',
+  termsOfServiceEnabled: true, privacyPolicyEnabled: true,
+  allowedDomains: params.get('domains') === 'multiple' ? ['tongji.edu.cn', 's.tongji.edu.cn'] : ['tongji.edu.cn'], oauthNotice: false,
 }
 const layout = {
   site: { name: 'yourtj', brandType: 'text' },

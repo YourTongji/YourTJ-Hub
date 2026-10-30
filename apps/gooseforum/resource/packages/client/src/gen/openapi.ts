@@ -2745,6 +2745,11 @@ export interface paths {
          *     `auth.activation.resendCooldown` (params retryAfterSeconds),
          *     `auth.activation.resendDaily` (params limit, daily cap 3) and
          *     `auth.activation.resendFailed`. The request takes no body.
+         *     The daily quota and 60-second cooldown reserve an individual send attempt.
+         *     A token-preparation failure or a queue transaction rejected before COMMIT releases
+         *     only that reservation. Accepted tasks, lost HTTP replies and uncertain COMMIT
+         *     outcomes retain quota; a failure never refunds a later successful send. Day changes
+         *     do not move a refund onto the new day's quota. Storage failures remain conservative.
          */
         post: operations["resendActivationEmail"];
         delete?: never;
@@ -6399,8 +6404,10 @@ export interface paths {
          * @description Admin console operation gated by the `SiteManager` role permission
          *     (Admin role is a superset); callers without it fail with HTTP 403 and
          *     `permission.denied` (params permission=<localized permission name>,
-         *     `站点管理` in zh). Returns the stored rate-limit settings, or the
-         *     built-in default configuration when nothing has been saved yet.
+         *     `站点管理` in zh). Returns the effective rate-limit settings, merging
+         *     missing built-in actions into saved configurations while preserving saved
+         *     rules (including explicit zero limits) and global switches. When nothing
+         *     has been saved yet, returns the built-in default configuration.
          *     JSON binding is lenient: query string and body are ignored.
          */
         get: operations["adminGetRateLimitSettings"];
@@ -12275,7 +12282,7 @@ export interface components {
         AdminRateLimitSettingsConfig: {
             /** @description Master switch. */
             enabled: boolean;
-            /** @description Exempt admin-role users. */
+            /** @description Exempt admin-role users from ordinary action limits. The admin.stats aggregate-query budget still applies. */
             skipAdmin: boolean;
             actions: components["schemas"]["AdminRateLimitRule"][];
             /** @description Require a captcha after N posts inside the new-user window; 0 disables. */
@@ -16680,6 +16687,16 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Interaction rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     agentGetEvent: {
@@ -16709,6 +16726,16 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -16744,6 +16771,16 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Interaction rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     forumMentionTargets: {
@@ -16774,6 +16811,16 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -18210,6 +18257,16 @@ export interface operations {
                     "application/json": components["schemas"]["PasskeyLoginBeginResponse"];
                 };
             };
+            /** @description Login rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     finishPasskeyLogin: {
@@ -18489,7 +18546,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Password hashing or session creation failed. */
+            /** @description Password hashing before account creation returns auth.register.failed. After account creation, session failure returns auth.tongji.retryLogin with params.restartUrl pointing to the local /api/auth/tongji entry and the validated continuation. The account remains created and the proof is consumed; clients must discard the registration form and offer a fresh school sign-in. No session credential is issued and the old proof must not be retried. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -18780,6 +18837,16 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Passkey-management rate limit exceeded (shared password.change quota). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     beginPasskeyRegistration: {
@@ -18813,6 +18880,25 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description The account is frozen, pending activation, or cannot be resolved, or the cookie-authenticated request is rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Passkey-management rate limit exceeded (shared password.change quota). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     finishPasskeyRegistration: {
@@ -18844,6 +18930,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is frozen, pending activation, or cannot be resolved, or the cookie-authenticated request is rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Passkey-management rate limit exceeded (shared password.change quota). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -18899,6 +19004,34 @@ export interface operations {
                     "application/json": components["schemas"]["PasskeyEmptyResponse"];
                 };
             };
+            /** @description Missing, invalid, expired, or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is frozen, pending activation, or cannot be resolved, or the cookie-authenticated request is rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Passkey-management rate limit exceeded (shared password.change quota). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     revokePasskeyCredential: {
@@ -18921,6 +19054,34 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PasskeyEmptyResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is frozen, pending activation, or cannot be resolved, or the cookie-authenticated request is rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Passkey-management rate limit exceeded (shared password.change quota). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -20431,6 +20592,16 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Interaction rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     listModerationAppeals: {
@@ -20513,6 +20684,16 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -22432,13 +22613,23 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /** @description Authenticated account is frozen or its account information cannot be resolved; when email verification is enabled a pending-activation account is also rejected. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -22474,13 +22665,23 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /** @description Authenticated account is frozen or its account information cannot be resolved; when email verification is enabled a pending-activation account is also rejected. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -22516,13 +22717,23 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /** @description Authenticated account is frozen or its account information cannot be resolved; when email verification is enabled a pending-activation account is also rejected. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -22558,13 +22769,23 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /** @description Authenticated account is frozen or its account information cannot be resolved; when email verification is enabled a pending-activation account is also rejected. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -25945,6 +26166,17 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Shared admin.stats query budget exhausted, including admins exempted from other limits. Defaults to 60 requests per 60 seconds per account; configurable through rate-limit settings. */
+            429: {
+                headers: {
+                    /** @description Positive seconds until a retry is permitted. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     adminStatsCategoryTrend: {
@@ -25985,6 +26217,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared admin.stats query budget exhausted, including admins exempted from other limits. Defaults to 60 requests per 60 seconds per account; configurable through rate-limit settings. */
+            429: {
+                headers: {
+                    /** @description Positive seconds until a retry is permitted. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -26029,6 +26272,17 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Shared admin.stats query budget exhausted, including admins exempted from other limits. Defaults to 60 requests per 60 seconds per account; configurable through rate-limit settings. */
+            429: {
+                headers: {
+                    /** @description Positive seconds until a retry is permitted. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     adminStatsUserDetail: {
@@ -26069,6 +26323,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared admin.stats query budget exhausted, including admins exempted from other limits. Defaults to 60 requests per 60 seconds per account; configurable through rate-limit settings. */
+            429: {
+                headers: {
+                    /** @description Positive seconds until a retry is permitted. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -27496,7 +27761,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Rate-limit settings (stored configuration or the built-in default). */
+            /** @description Effective rate-limit settings with missing built-in actions included. */
             200: {
                 headers: {
                     [name: string]: unknown;

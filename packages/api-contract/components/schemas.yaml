@@ -8544,7 +8544,7 @@ AdminRateLimitSettingsConfig:
       description: Master switch.
     skipAdmin:
       type: boolean
-      description: Exempt admin-role users.
+      description: Exempt admin-role users from ordinary action limits. The admin.stats aggregate-query budget still applies.
     actions:
       type: array
       items:

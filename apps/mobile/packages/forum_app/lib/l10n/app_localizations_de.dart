@@ -1245,7 +1245,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get scheduleOptional => 'Wahlkurs';
 
   @override
-  String get scheduleSearchHint => 'Name, Kennung oder Lehrkraft suchen';
+  String get scheduleSearchHint => 'Kursnamen suchen';
 
   @override
   String get scheduleStaged => 'Ausstehend';
@@ -4671,4 +4671,87 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get activationStatusMissingEmail =>
       'Zuerst in den Kontoeinstellungen eine E-Mail hinzufügen';
+
+  @override
+  String scheduleSearchNoMatch(String query) {
+    return 'Keine Kursnamen passen zu „$query“';
+  }
+
+  @override
+  String scheduleCourseScope(String scope) {
+    return 'Aktueller Bereich: $scope';
+  }
+
+  @override
+  String get imageViewerFitPreview => 'Vorschau einpassen';
+
+  @override
+  String scheduleSearchScope(String term) {
+    return 'Kursnamen suchen in $term';
+  }
+
+  @override
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return 'Beim Ändern werden $planCount Pläne mit $courseCount Kursen und $eventCount eigenen Terminen geleert. Abbrechen behält die bisherige Konfiguration und alle Pläne.';
+  }
+
+  @override
+  String scheduleSetupMissing(String fields) {
+    return 'Wähle $fields, bevor du Kurse oder Lehrveranstaltungen suchst.';
+  }
+
+  @override
+  String get campusTimetableNotConnected =>
+      'Tongji-Identität noch nicht verbunden';
+
+  @override
+  String get scheduleEmptyCourseHint =>
+      'Ändere den Kursbereich oder suche nach Kursnamen.';
+
+  @override
+  String get scheduleNoCompulsory =>
+      'Keine Pflichtkurse für diesen Bereich zurückgegeben';
+
+  @override
+  String get scheduleMajorNoMatch => 'Keine passenden Studiengänge';
+
+  @override
+  String get campusTimetableConnectBody =>
+      'Verbinde deine Tongji-Identität, um hier deinen persönlichen Hochschulstundenplan zu sehen. Kurskatalog und Stundenplaner kannst du auch ohne Verbindung nutzen.';
+
+  @override
+  String get scheduleChangeMajorConfirm => 'Ändern und leeren';
+
+  @override
+  String get scheduleChangeMajorTitle => 'Studiengang ändern und Pläne leeren?';
+
+  @override
+  String get scheduleMajorSearchHint => 'Studiengang oder Code suchen';
+
+  @override
+  String get scheduleChangeMajorUpdated =>
+      'Die Pläne wurden geändert. Bitte wähle den Studiengang erneut.';
+
+  @override
+  String get imageViewerThumbnails => 'Bildminiaturen';
+
+  @override
+  String get scheduleConfigureScope => 'Kursbereich festlegen';
+
+  @override
+  String get scheduleNoOptional =>
+      'Keine Wahlkurse für dieses Semester zurückgegeben';
+
+  @override
+  String get scheduleSetupTitle => 'Zuerst den Kursbereich festlegen';
+
+  @override
+  String get scheduleSearchReady => 'Gib einen Kursnamen ein';
+
+  @override
+  String get imageViewerOriginalSize => 'Originalgröße';
 }

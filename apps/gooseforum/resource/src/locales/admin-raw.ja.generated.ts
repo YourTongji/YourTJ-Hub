@@ -310,7 +310,7 @@ export default {
   "k008c": "Site description",
   "k008d": "Keywords",
   "k008e": "External links / Meta tags",
-  "siteExternalLinksHint": "Enter only elements that belong inside <head> (meta, link, script, style, noscript), not a whole <head> block. charset, viewport, title, description, robots, color-scheme, theme-color, og:/twitter:/article: tags and links whose rel tokens include canonical/prev/next/manifest/icon/apple-touch-icon are emitted by the page shell for the current page; saving strips such copies, so pages without a value (login, register/password reset, error, admin) never get them, and the home description comes from the site description. Scripts and external stylesheets still obey the page CSP: only allowlisted sources run or load.",
+  "siteExternalLinksHint": "<head> 内に配置する要素（meta、link、script、style、noscript）のみを入力してください。<head> 全体を貼り付けないでください。charset、viewport、title、description、robots、color-scheme、theme-color、og:/twitter:/article: のタグ、および rel のトークンに canonical/prev/next/manifest/icon/apple-touch-icon を含むリンクは、現在のページに応じてページ側が出力します。これらの重複する要素は保存時に削除されるため、値のないページ（ログイン、登録／パスワード再設定、エラーページ、管理画面）に補完されることはありません。トップページの description にはサイトの説明を使用します。スクリプトと外部スタイルシートにはページの CSP が適用され、許可された配信元のものだけが実行・読み込みされます。",
   "k008f": "Footer content",
   "k008g": "Edit this to match the two-line footer style in the public sidebar.",
   "k008h": "Add text",

@@ -1231,7 +1231,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scheduleOptional => 'Elective';
 
   @override
-  String get scheduleSearchHint => 'Search name/code/teacher';
+  String get scheduleSearchHint => 'Search course name';
 
   @override
   String get scheduleStaged => 'Staged';
@@ -4623,4 +4623,85 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get activationStatusMissingEmail =>
       'Add an email address in account settings first';
+
+  @override
+  String scheduleSearchNoMatch(String query) {
+    return 'No course names match “$query”';
+  }
+
+  @override
+  String scheduleCourseScope(String scope) {
+    return 'Current scope: $scope';
+  }
+
+  @override
+  String get imageViewerFitPreview => 'Fit preview';
+
+  @override
+  String scheduleSearchScope(String term) {
+    return 'Search course names in $term';
+  }
+
+  @override
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return 'Changing the major clears $planCount plans containing $courseCount courses and $eventCount custom events. Cancel to keep your current configuration and plans.';
+  }
+
+  @override
+  String scheduleSetupMissing(String fields) {
+    return 'Select $fields before finding courses or classes.';
+  }
+
+  @override
+  String get campusTimetableNotConnected => 'Tongji identity not connected';
+
+  @override
+  String get scheduleEmptyCourseHint =>
+      'Adjust the course scope or search by course name.';
+
+  @override
+  String get scheduleNoCompulsory =>
+      'No compulsory courses returned for this scope';
+
+  @override
+  String get scheduleMajorNoMatch => 'No matching majors';
+
+  @override
+  String get campusTimetableConnectBody =>
+      'Connect your Tongji identity to see your personal school timetable here. You can use the course catalog and schedule planner without connecting.';
+
+  @override
+  String get scheduleChangeMajorConfirm => 'Change and clear';
+
+  @override
+  String get scheduleChangeMajorTitle => 'Change major and clear plans?';
+
+  @override
+  String get scheduleMajorSearchHint => 'Search major name or code';
+
+  @override
+  String get scheduleChangeMajorUpdated =>
+      'Plan content changed. Please select the major again.';
+
+  @override
+  String get imageViewerThumbnails => 'Image thumbnails';
+
+  @override
+  String get scheduleConfigureScope => 'Configure course scope';
+
+  @override
+  String get scheduleNoOptional => 'No optional courses returned for this term';
+
+  @override
+  String get scheduleSetupTitle => 'Set your course scope first';
+
+  @override
+  String get scheduleSearchReady => 'Enter a course name to start';
+
+  @override
+  String get imageViewerOriginalSize => 'Original size';
 }

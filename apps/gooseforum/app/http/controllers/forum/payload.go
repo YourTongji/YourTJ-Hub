@@ -192,12 +192,14 @@ type UnreadStatusPayload struct {
 }
 
 type SitePayload struct {
-	Name          string `json:"name"`
-	Description   string `json:"description"`
-	URL           string `json:"url,omitempty"`
-	Logo          string `json:"logo"`
-	Favicon       string `json:"favicon"`
-	ExternalLinks string `json:"externalLinks,omitempty"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	URL         string `json:"url,omitempty"`
+	Logo        string `json:"logo"`
+	Favicon     string `json:"favicon"`
+	// ExternalLinks is server-only: the HTML template consumes it, but clients
+	// never render custom head markup and must not receive a duplicate in JSON.
+	ExternalLinks string `json:"-"`
 	BrandType     string `json:"brandType"`
 	BrandText     string `json:"brandText"`
 	BrandImage    string `json:"brandImage"`
@@ -1798,14 +1800,25 @@ func buildTopicDetailPayload(c *gin.Context, topic *topics.Entity, firstPost *po
 		createdAt = firstPost.CreatedAt
 		updatedAt = firstPost.UpdatedAt
 	}
+	// Detail metadata must follow the first-post gallery policy used by post
+	// windows. A reply used as a fallback cannot authorize the stored gallery.
+	firstImageURL := ""
+	var images []string
+	if firstPost != nil && firstPost.Id == topic.FirstPostId && firstPost.TopicId == topic.Id &&
+		firstPost.PostNo == 1 && firstPost.ProcessStatus == posts.ProcessStatusNormal &&
+		!isAuthorDeletedVisibility(firstPost.VisibilityStatus) && !isModeratorRemovedVisibility(firstPost.VisibilityStatus) &&
+		!isAuthorDeletedVisibility(topic.VisibilityStatus) && !isModeratorRemovedVisibility(topic.VisibilityStatus) {
+		firstImageURL = topic.FirstImageURL
+		images = topic.PublicGallery()
+	}
 
 	return TopicDetailPayload{
 		AgentRepliesDisabled: topic.AgentRepliesDisabled,
 		ID:                   topic.Id,
 		Title:                topic.Title,
 		Description:          topic.Excerpt,
-		FirstImageURL:        topic.FirstImageURL,
-		Images:               topic.ImageUrls,
+		FirstImageURL:        firstImageURL,
+		Images:               images,
 		URL:                  urlconfig.PostDetail(topic.Id),
 		TopicStatus:          topic.Status,
 		ProcessStatus:        topic.ProcessStatus,
