@@ -6,6 +6,7 @@ import '../../twemoji/twemoji_text.dart';
 import '../gf_motion.dart';
 import '../gf_symbol.dart';
 import 'gf_composer_panel.dart';
+import 'gf_inline_content.dart';
 
 /// A selection-aware composer with mutually exclusive keyboard/emoji surfaces.
 /// Mobile return inserts a newline; hardware Ctrl/Cmd+Enter sends.
@@ -191,7 +192,7 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
   /// insertion, which must stay available while a sticker panel is open.
   double _collapsedFieldHeight(BuildContext context) =>
       MediaQuery.textScalerOf(context).scale(_fieldFontSize) *
-          _fieldLineHeight +
+          GfInlineContentController.lineScale(_controller, _fieldLineHeight) +
       _fieldVerticalPadding;
 
   void _insertEmoji(String emoji) {
@@ -332,6 +333,10 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
                                       textInputAction: TextInputAction.newline,
                                       minLines: 1,
                                       maxLines: 4,
+                                      strutStyle:
+                                          GfInlineContentController.strutFor(
+                                            _controller,
+                                          ),
                                       style: TextStyle(
                                         fontSize: _fieldFontSize,
                                         height: _fieldLineHeight,

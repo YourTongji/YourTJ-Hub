@@ -1687,7 +1687,9 @@ servers that omit interaction fields retain read-only content previews.
   dismisses the typing keyboard without covering the editor; the keyboard button resumes typing at
   the current selection. Inputs show each resolved sticker inline as the image it publishes as
   (2.5 × the font size, centred on the line), using the same Markdown/plain-text rules as the
-  destination; one delete removes a whole sticker or a half-typed `[:sticker:` fragment, and the
+  destination; a line holding a sticker grows to fit it, so stickers never overlap neighbouring
+  lines, and the one-line composer shown beside an open sticker panel keeps a whole sticker line
+  visible; one delete removes a whole sticker or a half-typed `[:sticker:` fragment, and the
   caret never rests inside one. Typing `[:sticker:` shows matching stickers in a strip above the
   input; tapping one completes it ([0117](../decisions/0117-wysiwyg-sticker-editing.md)).
   Repeated picks keep the panel open and advance the caret. Image uploads and reply-target/image

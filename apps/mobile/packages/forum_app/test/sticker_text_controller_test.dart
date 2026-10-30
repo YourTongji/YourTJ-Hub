@@ -227,6 +227,139 @@ void main() {
     });
   });
 
+  group('line layout', () {
+    const lines = 'aa$_token\nbb$_token cc\ndd';
+
+    List<Rect> stickerRects(WidgetTester tester) => [
+      for (final element in find.byType(StickerImage).evaluate())
+        tester.getRect(find.byWidget(element.widget)),
+    ];
+
+    Rect caretRect(WidgetTester tester, int offset) {
+      final editable = tester.renderObject<RenderEditable>(
+        find.descendant(
+          of: find.byType(EditableText),
+          matching: find.byWidgetPredicate(
+            (widget) => widget.runtimeType.toString() == '_Editable',
+          ),
+        ),
+      );
+      return editable
+          .getLocalRectForCaret(TextPosition(offset: offset))
+          .shift(editable.localToGlobal(Offset.zero));
+    }
+
+    for (final scale in [1.0, 1.3]) {
+      testWidgets('sticker lines grow instead of overlapping at $scale', (
+        tester,
+      ) async {
+        final controller = _controller(lines);
+        await tester.pumpWidget(
+          MediaQuery(
+            data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+            child: MaterialApp(
+              theme: gfThemeData(Brightness.light),
+              home: Scaffold(
+                body: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: GfPostComposer(
+                    controller: controller,
+                    onPublish: () {},
+                    publishLabel: 'Send',
+                    hintText: 'Reply',
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final rects = stickerRects(tester);
+        expect(rects, hasLength(2));
+        // Each image keeps its own line: no overlap with the next line's
+        // image or with the plain text line after it.
+        expect(rects[1].top, greaterThanOrEqualTo(rects[0].bottom - 0.5));
+        final lastLine = caretRect(tester, lines.length);
+        expect(lastLine.top, greaterThanOrEqualTo(rects[1].bottom - 0.5));
+        // Plain lines keep the text height.
+        expect(lastLine.height, closeTo(16 * scale * 1.4, 1));
+      });
+    }
+
+    testWidgets('the compact composer shows a whole sticker line', (
+      tester,
+    ) async {
+      final controller = _controller('aa$_token');
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.bottomCenter,
+              child: GfPostComposer(
+                controller: controller,
+                compactEditor: true,
+                onPublish: () {},
+                publishLabel: 'Send',
+                hintText: 'Reply',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final sticker = stickerRects(tester).single;
+      final field = tester.getRect(find.byType(EditableText));
+      expect(field.top, lessThanOrEqualTo(sticker.top + 0.5));
+      expect(field.bottom, greaterThanOrEqualTo(sticker.bottom - 0.5));
+    });
+
+    testWidgets('chat keeps a whole sticker line while its panel is open', (
+      tester,
+    ) async {
+      final controller = _controller('aa$_token');
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.bottomCenter,
+              child: GfChatInput(
+                controller: controller,
+                onSend: (_) {},
+                emojiLabel: 'Stickers',
+                accessoryBuilder: (_) => const SizedBox(height: 240),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byTooltip('Stickers'));
+      await tester.pumpAndSettle();
+      final sticker = stickerRects(tester).single;
+      final field = tester.getRect(find.byType(EditableText));
+      expect(field.top, lessThanOrEqualTo(sticker.top + 0.5));
+      expect(field.bottom, greaterThanOrEqualTo(sticker.bottom - 0.5));
+    });
+
+    test('plain text keeps the default line strut', () {
+      final controller = _controller('hello');
+      expect(controller.inlineExtentScale, isNull);
+      expect(GfInlineContentController.lineScale(controller, 1.4), 1.4);
+      controller.text = 'hi $_token';
+      expect(controller.inlineExtentScale, StickerImage.inlineScale);
+      expect(
+        GfInlineContentController.lineScale(controller, 1.4),
+        StickerImage.inlineScale,
+      );
+      expect(
+        GfInlineContentController.strutFor(TextEditingController()),
+        isNull,
+      );
+    });
+  });
+
   testWidgets('typing a fragment offers candidates that complete it', (
     tester,
   ) async {

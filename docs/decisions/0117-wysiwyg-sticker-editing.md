@@ -46,7 +46,11 @@ Choose option 1.
   width, so text offsets still map onto the layout. Deletions that touch a token or a half-typed
   `[:sticker:` fragment expand to the whole range. Carets snap out of tokens and selections widen to
   whole tokens. Chat uses plain-text rules and posts use Markdown rules, matching each destination.
-  The separate draft preview is removed.
+  The separate draft preview is removed. `EditableText` pins every line to the text strut by
+  default, which let a sticker spill over the lines above and below, so the controller implements
+  ui_kit's `GfInlineContentController`: fields showing it use a non-forced strut, a line holding a
+  sticker grows to the image height while plain lines keep the text height, and compact one-line
+  composers (beside an open sticker panel) size that line to show a whole sticker.
 - App rich editor (long-form publish, course review): stickers are Quill inline embeds; Markdown
   loading converts tokens outside code, links and math into embeds, saving writes the token back, and
   a watcher converts a token as soon as its closing `]` is typed. Unresolved names render as the token

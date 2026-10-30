@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import 'sticker_image.dart';
 
@@ -20,7 +21,10 @@ import 'sticker_image.dart';
 ///   (issue #1332), matching the web editors.
 /// - Unknown and disabled tokens, and Markdown tokens inside code or links,
 ///   stay ordinary text, exactly as they render once published.
-class StickerTextEditingController extends TextEditingController {
+/// - Lines holding an image grow to fit it instead of overlapping their
+///   neighbours; fields apply [GfInlineContentController.strut].
+class StickerTextEditingController extends TextEditingController
+    implements GfInlineContentController {
   StickerTextEditingController({super.text, this.markdown = true});
 
   /// Posts follow Markdown rules; chat messages are plain text.
@@ -263,6 +267,10 @@ class StickerTextEditingController extends TextEditingController {
     addText(cursor, text.length);
     return TextSpan(style: style, children: children);
   }
+
+  @override
+  double? get inlineExtentScale =>
+      imageRanges.isEmpty ? null : StickerImage.inlineScale;
 
   @override
   void dispose() {

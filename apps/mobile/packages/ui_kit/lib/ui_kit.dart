@@ -10,6 +10,7 @@ export 'src/components/surfaces/gf_navigation_surface.dart';
 export 'src/components/business/gf_chat_input.dart';
 export 'src/components/business/gf_conversation_row.dart';
 export 'src/components/business/gf_draft_row.dart';
+export 'src/components/business/gf_inline_content.dart';
 export 'src/components/business/gf_floating_controls.dart';
 export 'src/components/business/gf_message_bubble.dart';
 export 'src/components/business/gf_notification_row.dart';

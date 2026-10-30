@@ -2240,6 +2240,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
         focusNode: _simpleFocusNode,
         keyboardType: TextInputType.multiline,
         textInputAction: TextInputAction.newline,
+        strutStyle: GfInlineContentController.strut,
         style: readingBodyStyle(context),
         decoration: InputDecoration(
           hintText: PublishType.fromValue(_contentType).hint(l10n),
