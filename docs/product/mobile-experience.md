@@ -1354,6 +1354,10 @@ or production push delivery behavior. The shared business and privacy rules are 
   independent APIs; an acknowledged wear is retained after a display failure, and retry resumes display.
   A wear-only save leaves automatic profile display selection untouched. Display inclusion, ordering
   and the five-badge limit retain their existing rules.
+  Wear and profile-display choices start in separate collapsed sections on this same page. The wear
+  summary and each wear option show the shared medallion artwork; the display summary names the selected
+  count. Expanding, scrolling and collapsing preserve unsaved choices. One reorderable list owns page
+  scrolling; errors and acknowledged partial saves remain visible even when both sections are closed.
 
 
 - `Current`: Settings → Privacy → Profile visibility lists the five profile sections with
