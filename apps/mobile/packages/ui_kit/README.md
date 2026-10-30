@@ -79,6 +79,11 @@ iOS 继续使用 Cupertino 原生转场与返回手势。
 调用方不再叠加 `viewInsets`。`enableDrag: false` 可保护未保存的编辑。
 `showGfMenu` / `GfPopupMenuButton` / `showGfActionSheet`、`GfDropdownButton(FormField)`、`GfRadioListTile`
 在所有平台都使用 Material 呈现（见 MADR 0100）；`useRootNavigator` 选择根导航器或最近的导航器。
+`GfPopupMenuItem.leading` 是可选的独立图标槽：在菜单和短选择底部面板中使用
+12dp 间隔与可换行标签。使用该槽时 `child` 只提供标签，不再重复包含图标；
+不传 `leading` 的纯文字或自定义 `Row` 保持原有布局。图标的大小和显式颜色由调用方保留。
+`destructive` 仍只控制短选择面板中的标签色；选中勾选、禁用与取消行为不变。
+
 `showGfAlertDialog` / `showGfModal` 用原生 `Dialog` 约束键盘上方的可用区域，使用 28dp 圆角、原生焦点和单层滚动内容；
 `GfDialogAction` 显式标记破坏性动作。
 回归测试包含刘海、底部手势区、长列表和键盘；应用层补充小屏双倍字号表单测试。

@@ -5,7 +5,7 @@ import '../gf_symbol.dart';
 
 import 'gf_bottom_sheet.dart';
 
-/// A [PopupMenuItem] that can mark a destructive action.
+/// A [PopupMenuItem] with an optional leading widget and destructive marker.
 class GfPopupMenuItem<T> extends PopupMenuItem<T> {
   const GfPopupMenuItem({
     super.key,
@@ -13,9 +13,34 @@ class GfPopupMenuItem<T> extends PopupMenuItem<T> {
     super.enabled,
     required super.child,
     this.destructive = false,
+    this.leading,
   });
 
   final bool destructive;
+
+  /// Optional icon before [child]. Keep [child] as the label when using this
+  /// slot; existing custom rows without [leading] are rendered unchanged.
+  final Widget? leading;
+
+  Widget? _content() => leading == null
+      ? child
+      : Row(
+          children: [
+            leading!,
+            const SizedBox(width: GfSpace.md),
+            Expanded(child: child ?? const SizedBox()),
+          ],
+        );
+
+  @override
+  PopupMenuItemState<T, GfPopupMenuItem<T>> createState() =>
+      _GfPopupMenuItemState<T>();
+}
+
+class _GfPopupMenuItemState<T>
+    extends PopupMenuItemState<T, GfPopupMenuItem<T>> {
+  @override
+  Widget? buildChild() => widget._content();
 }
 
 Future<T?> showGfMenu<T>({
@@ -136,7 +161,11 @@ Future<T?> showGfActionSheet<T>(
                   style: item is GfPopupMenuItem<T> && item.destructive
                       ? TextStyle(color: colors.error)
                       : const TextStyle(),
-                  child: item.child ?? const SizedBox(),
+                  child:
+                      (item is GfPopupMenuItem<T>
+                          ? item._content()
+                          : item.child) ??
+                      const SizedBox(),
                 ),
                 enabled: item.enabled,
                 selected: initialValue != null && item.value == initialValue,
