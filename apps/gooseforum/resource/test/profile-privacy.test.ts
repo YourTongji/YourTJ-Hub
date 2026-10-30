@@ -209,6 +209,24 @@ describe('ProfilePrivacySettings', () => {
     expect(wrapper.get('a[href="/u/1024"]').text()).toBe('查看我的主页')
   })
 
+  test('chat offers exactly three policies, saves server-confirmed values and preserves them on failure', async () => {
+    vi.mocked(getPrivacySettings).mockResolvedValue(defaults)
+    vi.mocked(updatePrivacySettings).mockResolvedValueOnce({ ...defaults, chatMessagePolicy: 'nobody' }).mockRejectedValueOnce(new Error('offline'))
+    const w = await mountSettings()
+    const chat = () => w.get('[data-test="chat-permissions"]').findComponent(SiteSelect)
+    expect(chat().props('modelValue')).toBe('everyone')
+    expect(chat().props('options').map((o: { value: string }) => o.value)).toEqual(['everyone', 'mutual', 'nobody'])
+    chat().vm.$emit('update:modelValue', 'nobody')
+    await flushPromises()
+    expect(updatePrivacySettings).toHaveBeenLastCalledWith({ chatMessagePolicy: 'nobody' })
+    expect(chat().props('modelValue')).toBe('nobody')
+    chat().vm.$emit('update:modelValue', 'everyone')
+    await flushPromises()
+    expect(document.querySelector('[data-test="profile-privacy-widen"]')).toBeNull()
+    expect(chat().props('modelValue')).toBe('nobody')
+    expect(w.get('[data-test="chat-permissions"] [role="alert"]').text()).toContain('未能保存')
+  })
+
   test('bookmarks are listed as only-you with nothing to choose', async () => {
     vi.mocked(getPrivacySettings).mockResolvedValue(defaults)
     const w = await mountSettings()

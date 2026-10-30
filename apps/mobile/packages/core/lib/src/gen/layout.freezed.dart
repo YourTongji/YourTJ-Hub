@@ -622,7 +622,6 @@ mixin _$SitePayload {
   String get description => throw _privateConstructorUsedError;
   String get logo => throw _privateConstructorUsedError;
   String get favicon => throw _privateConstructorUsedError;
-  String? get externalLinks => throw _privateConstructorUsedError;
   String get brandType => throw _privateConstructorUsedError;
   String get brandText => throw _privateConstructorUsedError;
   String get brandImage => throw _privateConstructorUsedError;
@@ -649,7 +648,6 @@ abstract class $SitePayloadCopyWith<$Res> {
     String description,
     String logo,
     String favicon,
-    String? externalLinks,
     String brandType,
     String brandText,
     String brandImage,
@@ -675,7 +673,6 @@ class _$SitePayloadCopyWithImpl<$Res, $Val extends SitePayload>
     Object? description = null,
     Object? logo = null,
     Object? favicon = null,
-    Object? externalLinks = freezed,
     Object? brandType = null,
     Object? brandText = null,
     Object? brandImage = null,
@@ -698,10 +695,6 @@ class _$SitePayloadCopyWithImpl<$Res, $Val extends SitePayload>
                 ? _value.favicon
                 : favicon // ignore: cast_nullable_to_non_nullable
                       as String,
-            externalLinks: freezed == externalLinks
-                ? _value.externalLinks
-                : externalLinks // ignore: cast_nullable_to_non_nullable
-                      as String?,
             brandType: null == brandType
                 ? _value.brandType
                 : brandType // ignore: cast_nullable_to_non_nullable
@@ -734,7 +727,6 @@ abstract class _$$SitePayloadImplCopyWith<$Res>
     String description,
     String logo,
     String favicon,
-    String? externalLinks,
     String brandType,
     String brandText,
     String brandImage,
@@ -759,7 +751,6 @@ class __$$SitePayloadImplCopyWithImpl<$Res>
     Object? description = null,
     Object? logo = null,
     Object? favicon = null,
-    Object? externalLinks = freezed,
     Object? brandType = null,
     Object? brandText = null,
     Object? brandImage = null,
@@ -782,10 +773,6 @@ class __$$SitePayloadImplCopyWithImpl<$Res>
             ? _value.favicon
             : favicon // ignore: cast_nullable_to_non_nullable
                   as String,
-        externalLinks: freezed == externalLinks
-            ? _value.externalLinks
-            : externalLinks // ignore: cast_nullable_to_non_nullable
-                  as String?,
         brandType: null == brandType
             ? _value.brandType
             : brandType // ignore: cast_nullable_to_non_nullable
@@ -811,7 +798,6 @@ class _$SitePayloadImpl implements _SitePayload {
     required this.description,
     required this.logo,
     required this.favicon,
-    this.externalLinks,
     required this.brandType,
     required this.brandText,
     required this.brandImage,
@@ -829,8 +815,6 @@ class _$SitePayloadImpl implements _SitePayload {
   @override
   final String favicon;
   @override
-  final String? externalLinks;
-  @override
   final String brandType;
   @override
   final String brandText;
@@ -839,7 +823,7 @@ class _$SitePayloadImpl implements _SitePayload {
 
   @override
   String toString() {
-    return 'SitePayload(name: $name, description: $description, logo: $logo, favicon: $favicon, externalLinks: $externalLinks, brandType: $brandType, brandText: $brandText, brandImage: $brandImage)';
+    return 'SitePayload(name: $name, description: $description, logo: $logo, favicon: $favicon, brandType: $brandType, brandText: $brandText, brandImage: $brandImage)';
   }
 
   @override
@@ -852,8 +836,6 @@ class _$SitePayloadImpl implements _SitePayload {
                 other.description == description) &&
             (identical(other.logo, logo) || other.logo == logo) &&
             (identical(other.favicon, favicon) || other.favicon == favicon) &&
-            (identical(other.externalLinks, externalLinks) ||
-                other.externalLinks == externalLinks) &&
             (identical(other.brandType, brandType) ||
                 other.brandType == brandType) &&
             (identical(other.brandText, brandText) ||
@@ -870,7 +852,6 @@ class _$SitePayloadImpl implements _SitePayload {
     description,
     logo,
     favicon,
-    externalLinks,
     brandType,
     brandText,
     brandImage,
@@ -896,7 +877,6 @@ abstract class _SitePayload implements SitePayload {
     required final String description,
     required final String logo,
     required final String favicon,
-    final String? externalLinks,
     required final String brandType,
     required final String brandText,
     required final String brandImage,
@@ -913,8 +893,6 @@ abstract class _SitePayload implements SitePayload {
   String get logo;
   @override
   String get favicon;
-  @override
-  String? get externalLinks;
   @override
   String get brandType;
   @override

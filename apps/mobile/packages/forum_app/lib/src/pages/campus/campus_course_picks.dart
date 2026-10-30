@@ -6,6 +6,7 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../widgets/status_views.dart';
+import '../courses/course_common.dart';
 
 final campusCoursesProvider =
     FutureProvider.autoDispose<CourseListResultPayload>(
@@ -43,7 +44,10 @@ class CampusCoursePicks extends ConsumerWidget {
                         for (final course in result.list)
                           ListTile(
                             title: GfText(course.name),
-                            subtitle: GfText(course.department),
+                            key: ValueKey('campus-course-${course.id}'),
+                            subtitle: GfText(
+                              '${courseTeacherLabel(course, CourseCopy(l))} · ${course.department}',
+                            ),
                             trailing: GfText(
                               course.ratingAvg?.toStringAsFixed(1) ?? '—',
                             ),

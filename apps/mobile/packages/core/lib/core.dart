@@ -93,3 +93,5 @@ export 'src/api/repositories/anonymous_identity_repository.dart';
 export 'src/gen/feed.dart';
 
 export 'src/gen/decoration.dart';
+
+export 'src/gen/activation_status.dart';

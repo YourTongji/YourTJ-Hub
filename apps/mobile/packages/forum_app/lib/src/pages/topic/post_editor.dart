@@ -1,5 +1,6 @@
 import 'dart:async';
 import '../../local/writing_store.dart';
+import '../../widgets/email_verification_recovery.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -70,6 +71,7 @@ class _PostEditorState extends ConsumerState<PostEditor>
   bool _restoredCopy = false;
   bool get _sessionCurrent => _writingSession.isCurrent(_writingEpoch);
   String get _draftKey => postEditDraftKey(widget.postId);
+  ApiException? _writeFailure;
 
   bool get _stickerOpen => _accessory == GfInputAccessory.panel;
 
@@ -350,6 +352,7 @@ class _PostEditorState extends ConsumerState<PostEditor>
     setState(() {
       _busy = true;
       _error = null;
+      _writeFailure = null;
     });
     try {
       if (!await _saveLocal() || !mounted || !_sessionCurrent) return;
@@ -371,10 +374,10 @@ class _PostEditorState extends ConsumerState<PostEditor>
       _pop(true);
     } catch (error) {
       if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
-        setState(
-          () =>
-              _error = resolveErrorMessage(AppLocalizations.of(context), error),
-        );
+        setState(() {
+          _error = resolveErrorMessage(AppLocalizations.of(context), error);
+          _writeFailure = error is ApiException ? error : null;
+        });
         // AI 图文审查拦截(issue #975):弹出友好提示,编辑内容保持不变。
         await showModerationBlockedDialog(context, error);
       }
@@ -410,10 +413,10 @@ class _PostEditorState extends ConsumerState<PostEditor>
       setState(() => _imageUrl = url);
     } catch (error) {
       if (mounted) {
-        setState(
-          () =>
-              _error = resolveErrorMessage(AppLocalizations.of(context), error),
-        );
+        setState(() {
+          _error = resolveErrorMessage(AppLocalizations.of(context), error);
+          _writeFailure = error is ApiException ? error : null;
+        });
       }
     } finally {
       if (mounted) setState(() => _uploading = false);
@@ -524,26 +527,42 @@ class _PostEditorState extends ConsumerState<PostEditor>
                               hidePanelLabel: stickers.hidePanel,
                               onHideAccessory: _hideAccessory,
                               toolbar: _error != null || _restoredCopy
-                                  ? Semantics(
-                                      liveRegion: true,
-                                      child: Tooltip(
-                                        message: (_error ?? _localStatus)!,
-                                        child: GfText(
-                                          (_error ?? _localStatus)!,
-                                          maxLines: 3,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: GfTheme.typographyOf(context)
-                                              .meta
-                                              .copyWith(
-                                                color: _error != null
-                                                    ? colors.error
-                                                    : colors.baseContent
-                                                          .withValues(
-                                                            alpha: .6,
-                                                          ),
-                                              ),
+                                  ? Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        Semantics(
+                                          liveRegion: true,
+                                          child: Tooltip(
+                                            message: (_error ?? _localStatus)!,
+                                            child: GfText(
+                                              (_error ?? _localStatus)!,
+                                              maxLines: 3,
+                                              overflow: TextOverflow.ellipsis,
+                                              style:
+                                                  GfTheme.typographyOf(
+                                                    context,
+                                                  ).meta.copyWith(
+                                                    color: _error != null
+                                                        ? colors.error
+                                                        : colors.baseContent
+                                                              .withValues(
+                                                                alpha: .6,
+                                                              ),
+                                                  ),
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                        if (_error != null &&
+                                            _writeFailure?.messageCode ==
+                                                'permission.emailRequired')
+                                          EmailVerificationRecovery(
+                                            compact: true,
+                                            error: _writeFailure,
+                                            preserveDraft: _saveLocal,
+                                          ),
+                                      ],
                                     )
                                   : null,
                               status:

@@ -1,3 +1,4 @@
+import '../widgets/image_viewer_labels.dart';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -116,6 +117,9 @@ class ChatImage extends ConsumerWidget {
                       backgroundColor: Colors.black,
                       body: SafeArea(
                         child: GfImageViewer(
+                          labels: AppLocalizations.of(
+                            context,
+                          ).imageViewerLabels,
                           images: [resolved],
                           onSaveImage: (url) => saveImageFromUrl(context, url),
                           saveImageLabel: l10n.imageSave,

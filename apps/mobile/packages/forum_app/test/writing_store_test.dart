@@ -102,6 +102,23 @@ void main() {
   );
 
   test(
+    'legacy new-composer empty identity drafts remain recoverable',
+    () async {
+      final store = WritingStore();
+      await UserWorkDatabase.instance.writeBatch('site:1', 'draft', {
+        draft.key: jsonEncode({...draft.toJson(), 'identity': ''}),
+      });
+      expect((await store.drafts('site:1')).single.identity, 'member');
+      expect((await store.drafts('site:1')).single.content, draft.content);
+      expect(await store.drafts('site:2'), isEmpty);
+      expect(await store.drafts('site:0'), isEmpty);
+      expect(
+        () => LocalDraft.fromJson({...draft.toJson(), 'identity': 'unknown'}),
+        throwsFormatException,
+      );
+    },
+  );
+  test(
     'robot reply choice survives local recovery and old drafts default allowed',
     () async {
       final old = LocalDraft.fromJson(
