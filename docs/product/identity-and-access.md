@@ -238,6 +238,11 @@ social counts and badges, and moderator access rules beyond today's public profi
   (admin/site/user/… permissions) and activates them immediately through the user-cache
   refresh path, so the admin console cannot lock itself out; ordinary pending users are left
   untouched and must still complete the activation email.
+- `Current`: before dispatch, the email worker checks the signature-validated expiry of queued
+  activation and password-reset links. A link already expired at that point is retained as a terminal
+  failed delivery, without SMTP dispatch, retry or automatic token renewal. The existing lease fence
+  still owns the final status write. The owner can manually request a fresh link through the existing
+  activation recovery or password-recovery flow; queue acceptance does not guarantee delivery before expiry.
 - Username/nickname policy: `reservedUsernames` / `bannedUsernames` are enforced at
   password registration/rename and at Agent account creation with **normalized whole-string
   equality** (case folding, NFKC full-width, zero-width stripping, ASCII leetspeak folding):

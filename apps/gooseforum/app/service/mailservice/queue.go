@@ -3,6 +3,7 @@ package mailservice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -12,6 +13,8 @@ import (
 	paniclog "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/recovery"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/backgroundservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/tokenservice"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 const (
@@ -200,6 +203,7 @@ const (
 	emailOutcomeNoop                            // noop dummy 任务，静默删除
 	emailOutcomeSent                            // 邮件发送成功
 	emailOutcomeFailed                          // 发送失败，按重试策略处理
+	emailOutcomeExpired                         // 已签名链接过期，不发信、不续期、不重试
 )
 
 // executeClaimedEmail 执行一个已被当前 worker 原子领取的邮件任务：解析载荷、
@@ -218,10 +222,34 @@ func executeClaimedEmail(task *taskQueue.Entity) (emailTask EmailTask, outcome e
 		return emailTask, emailOutcomeNoop, nil
 	}
 
+	if expiredQueuedEmailLink(emailTask) {
+		return emailTask, emailOutcomeExpired, errExpiredEmailLink
+	}
 	if err := processEmailTask(emailTask); err != nil {
 		return emailTask, emailOutcomeFailed, err
 	}
 	return emailTask, emailOutcomeSent, nil
+}
+
+var errExpiredEmailLink = errors.New("email action link expired before delivery; request a new link")
+
+// Check the signed token at consumption, not the task creation timestamp. Retry
+// and lease recovery can outlive the original 24h/30m action window. An expired
+// action is terminal; it must not be recorded as sent or silently re-signed.
+func expiredQueuedEmailLink(task EmailTask) bool {
+	var err error
+	switch task.Type {
+	case "activation":
+		_, err = tokenservice.ParseActivationToken(task.Token)
+	case "reset_password":
+		_, err = tokenservice.ParsePasswordResetToken(task.Token)
+	default:
+		return false
+	}
+	// The JWT parser verifies the signature before validating exp. Invalid
+	// signatures/configuration retain the existing failure path, not this expiry
+	// classification. No unverified claim or payload is used to discard a task.
+	return errors.Is(err, jwt.ErrTokenExpired)
 }
 
 // writeEmailTaskOutcome 以最终 fencing token 为 CAS 前置条件写入任务终态
@@ -240,7 +268,7 @@ func writeEmailTaskOutcome(task, running *taskQueue.Entity, emailTask EmailTask,
 		}
 		return false
 
-	case emailOutcomeInvalid:
+	case emailOutcomeInvalid, emailOutcomeExpired:
 		if updateErr := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusFailed, token, sendErr); updateErr != nil {
 			slog.Error("更新任务状态失败", "id", task.Id, "error", updateErr)
 		}
