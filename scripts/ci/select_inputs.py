@@ -69,6 +69,8 @@ def select(paths):
                 add(*mapping.get(name, []), reason=path)
             if path in {"scripts/ci/check_android_entrypoint.py", "scripts/ci/test_android_entrypoint.py"}:
                 add("android", reason=path)
+            if path in {"scripts/ci/check_android_apk_size.py", "scripts/ci/test_android_apk_size.py", "scripts/ci/android_apk_size_baseline.json"}:
+                add("android", reason=path)
             if path in {".github/workflows/release-android.yml", "scripts/mobile-release/prepare_push.py"}:
                 add("android", reason=path)
             if path in {".github/workflows/release-ios.yml", "scripts/mobile-release/build_ios.py"}:

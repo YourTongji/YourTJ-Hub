@@ -40,6 +40,13 @@ class SelectTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             verify_results(plan, good)
 
+    def test_apk_budget_changes_select_android_without_ios_or_deploy(self):
+        for name in ('check_android_apk_size.py', 'test_android_apk_size.py', 'android_apk_size_baseline.json'):
+            with self.subTest(name=name):
+                plan = select(['scripts/ci/' + name])
+                self.assertTrue(plan['android']['run'] and plan['automation']['run'])
+                self.assertFalse(plan['ios']['run'] or plan['deploy']['run'])
+
     def test_service_changes_include_postgres_and_race(self):
         plan = select(["apps/gooseforum/app/service/test.go"])
         self.assertTrue(plan["backend"]["run"] and plan["postgres"]["run"] and plan["deploy"]["run"])
