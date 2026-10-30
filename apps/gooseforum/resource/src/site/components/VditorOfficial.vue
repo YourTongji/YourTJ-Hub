@@ -999,7 +999,14 @@ function refreshOutlineAndToggles(I: typeof window.VditorI18n) {
  *  不能复用 attachToolbarLabels（L393-407）——它内部 attachTooltipSmartPosition 会重绑
  *  mouseenter、guardFullscreenToolbarLabel 会重建 observer，多调几次叠监听器。 */
 function refreshToolbarLabelText() {
-  if (!root.value || window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return
+  if (!root.value) return
+  if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) {
+    // Keep the main row icon-only while refreshing every visible folded label.
+    // Reusing the nodes also preserves their native Vditor listeners.
+    root.value.querySelectorAll<HTMLElement>('.hub-fold-region .vditor-tooltipped')
+      .forEach(ensureToolbarButtonLabel)
+    return
+  }
   root.value
     .querySelectorAll<HTMLElement>('.vditor-toolbar__item .vditor-tooltipped')
     .forEach(ensureToolbarButtonLabel)
