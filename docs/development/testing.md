@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-07
+> Last verified: 2026-10-31
 
 ## Principles
 
@@ -96,6 +96,22 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 测试模式的 SQLite 内存库固定使用一个保留的连接，连接生命周期设为无限；
 关闭或轮换唯一连接会丢失全部表，长时间运行的整包测试也必须保留该连接。
 `sqlconnect` 的虚拟时间回归覆盖超过一分钟后仍能读取测试数据的行为。
+
+## Isolated native backend journeys
+
+`Current`: `apps/mobile/packages/forum_app/integration_test/local_journey_test.dart` accepts
+`YOURTJ_API_BASE_URL`, `YOURTJ_TEST_USERNAME` and `YOURTJ_TEST_PASSWORD` for a seeded local
+server. It explicitly selects the article route, seeds body text through Quill's public
+document API, checks the document before saving a real server draft, and exercises image
+crop/upload and management browser handoff. `local_registration_test.dart` additionally needs
+`YOURTJ_TEST_LOCAL_REGISTRATION=true`; it creates a synthetic account and verifies the issued
+session against authenticated settings. Both reject non-loopback origins and remain opt-in.
+The journey waits for the app to resume after any native permission prompt; dismiss it on
+the isolated device. Android captures prepare and paint the real Flutter surface before
+checking foreground state and taking screenshots. Each management module gets a viewport
+check and an optional capture. These journeys
+mutate only their isolated test database; external providers and physical-device delivery are
+separate checks.
 
 ## CI mapping
 
