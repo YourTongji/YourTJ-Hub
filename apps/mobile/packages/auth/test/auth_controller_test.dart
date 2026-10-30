@@ -66,6 +66,46 @@ void main() {
   );
 
   group('AuthController 登录状态机', () {
+    for (final issued in [true, false]) {
+      test(
+        'registration accepts only its newly issued session: $issued',
+        () async {
+          final storage = MemoryTokenStorage();
+          await storage.write('stale-challenge');
+          final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'));
+          dio.httpClientAdapter = MockAdapter((request) async {
+            expect(request.path, '/api/register');
+            return ResponseData(200, {
+              'code': 0,
+              'result': 'registered',
+              'messageCode': 'auth.register.emailVerify',
+            }, headers: issued ? {'New-Token': 'registered-session'} : {});
+          });
+          final client = GfApiClient(
+            dio: dio,
+            tokenStorage: storage,
+            onTokenRenewed: storage.write,
+          );
+          final controller = AuthController(
+            authRepository: AuthRepository(client),
+            apiClient: client,
+            tokenStorage: storage,
+          );
+          await controller.register(
+            username: 'new-user',
+            email: 'new@example.test',
+            password: 'password123',
+          );
+          expect(
+            controller.phase,
+            issued ? LoginPhase.authenticated : LoginPhase.failed,
+          );
+          expect(await storage.read(), issued ? 'registered-session' : null);
+          if (!issued) expect(controller.error, isNotEmpty);
+        },
+      );
+    }
+
     test('空存储等待 New-Token 持久化后才进入 authenticated', () async {
       final storage = GatedTokenStorage();
       final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'));
@@ -446,16 +486,21 @@ void main() {
           final storage = MemoryTokenStorage();
           final adapter = MockAdapter((request) async {
             expect(request.path, '/api/register');
-            return ResponseData(200, {
-              'code': 0,
-              'result': 'registered',
-              'messageCode': 'auth.register.emailVerify',
-            });
+            return ResponseData(
+              200,
+              {
+                'code': 0,
+                'result': 'registered',
+                'messageCode': 'auth.register.emailVerify',
+              },
+              headers: {'New-Token': 'registered-locale-session'},
+            );
           });
           final client = GfApiClient(
             dio: Dio()..httpClientAdapter = adapter,
             tokenStorage: storage,
             baseUrl: 'http://fake.local',
+            onTokenRenewed: storage.write,
           );
           final controller = AuthController(
             authRepository: AuthRepository(client),
@@ -478,7 +523,8 @@ void main() {
             expect(body['locale'], locale);
           }
           expect(messageCode, 'auth.register.emailVerify');
-          expect(controller.phase, LoginPhase.idle);
+          expect(controller.phase, LoginPhase.authenticated);
+          expect(await storage.read(), 'registered-locale-session');
           expect(controller.error, isEmpty);
         },
       );

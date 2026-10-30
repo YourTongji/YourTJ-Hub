@@ -208,6 +208,10 @@ void main() {
           tester.element(find.byType(SettingsPage)),
         );
         expect(find.byType(ActivationEmailAction), findsOneWidget);
+        final notice = find.byKey(const ValueKey('account-activation-pending'));
+        expect(notice, findsOneWidget);
+        await tester.ensureVisible(notice);
+        await tester.pumpAndSettle();
         await capture('email-security-${brightness.name}');
         for (final code in [
           'auth.activation.resendSuccess',
@@ -378,6 +382,15 @@ void main() {
       expect(find.byType(ActivationEmailAction), findsNothing);
       expect(find.text(l.campusUnbind), findsOneWidget);
       await capture('campus-confirm-recovered');
+      await show(
+        const SettingsPage(initialSection: 'security'),
+        'zh',
+        Brightness.light,
+      );
+      expect(
+        find.byKey(const ValueKey('account-activation-pending')),
+        findsNothing,
+      );
       expect(
         requests.where(
           (request) => request == 'POST /api/resend-activation-email',

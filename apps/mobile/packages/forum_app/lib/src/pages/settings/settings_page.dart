@@ -94,6 +94,7 @@ class SettingsPage extends ConsumerStatefulWidget {
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   _SettingsTab? _tab;
   bool? _signedIn;
+  bool _requiresEmailVerification = false;
   int _sessionRequest = 0;
   int _userRequest = 0;
   int _sessionsRequest = 0;
@@ -212,6 +213,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         throw FormatException(AppLocalizations.of(context).commonParseFailed);
       }
       setState(() {
+        _requiresEmailVerification =
+            payload.layout.viewer.requiresEmailVerification;
         _googleOAuthReady = props.googleOAuthReady;
         _appleOAuthReady = props.appleOAuthReady;
         _user = AsyncValue.data(props.user);
@@ -854,7 +857,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       unawaited(_loadSession());
     });
     ref.listen(accountReturnRefreshProvider, (previous, next) {
-      if (previous == next || _signedIn != true || _tab != _SettingsTab.account) {
+      if (previous == next ||
+          _signedIn != true ||
+          _tab != _SettingsTab.account) {
         return;
       }
       setState(() => _activationRevision++);
@@ -1375,6 +1380,29 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             onTap: _manageOAuth,
           ),
         ),
+        if (_requiresEmailVerification && _user.valueOrNull != null) ...[
+          _settingsSection(
+            context,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                key: const ValueKey('account-activation-pending'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.authVerificationPending,
+                    style: GfTheme.typographyOf(context).title3,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(_user.value!.email),
+                  const SizedBox(height: 8),
+                  Text(l10n.authVerificationPendingHint),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         ActivationEmailAction(key: ValueKey(_activationRevision)),
         const SizedBox(height: 12),
         _settingsSection(
