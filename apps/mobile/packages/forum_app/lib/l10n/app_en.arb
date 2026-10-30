@@ -145,10 +145,10 @@
   "authCaptchaRequired": "Please enter the captcha",
   "publishCaptchaExplanation": "The site may require a captcha for frequent posting by newer accounts. This check lifts as recent activity subsides or the account meets the site's age condition.",
   "authOidcLogin": "Sign in with yourtj",
-  "authRegisterEmailVerify": "Registration successful. A verification email was sent; check your inbox. No email? Sign in and resend it under Account security.",
+  "authRegisterEmailVerify": "Account created. Check your inbox to verify your email. If no email arrives, resend it or change the address under Account security.",
   "authActivationRequired": "Please activate your account from your inbox first.",
   "authResendActivationEmail": "Resend verification email",
-  "authRegisterSuccess": "Registered successfully, please sign in",
+  "authRegisterSuccess": "Account created.",
   "authResetEmailSent": "Reset email sent, please check your inbox",
   "authLoading": "Processing…",
   "authCacheClearFailed": "Failed to clear the previous account's offline data. Please retry.",
@@ -698,7 +698,7 @@
   "schedulePickClass": "Pick class",
   "scheduleCompulsory": "Compulsory",
   "scheduleOptional": "Elective",
-  "scheduleSearchHint": "Search name/code/teacher",
+  "scheduleSearchHint": "Search course name",
   "scheduleStaged": "Staged",
   "scheduleSelected": "Selected",
   "scheduleRemoveCourse": "Remove",
@@ -2274,5 +2274,105 @@
   "chatMessagePolicyLabel": "Who can start a conversation",
   "chatMessagePolicyHint": "Conversations with actual messages can continue; empty conversations do not count. Blocks take precedence, including for bots.",
   "chatMessagePolicyNobody": "No new conversations",
-  "chatMessagePolicySaved": "Message permissions saved to your account"
+  "chatMessagePolicySaved": "Message permissions saved to your account",
+  "@scheduleChangeMajorBody": {
+    "placeholders": {
+      "planCount": {
+        "type": "int"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "activationStatusRemaining": "Resends left today: {count} / {limit}",
+  "scheduleChangeMajorTitle": "Change major and clear plans?",
+  "@scheduleSearchScope": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleNoCompulsory": "No compulsory courses returned for this scope",
+  "activationStatusDailyLimit": "Daily limit reached. Try again tomorrow.",
+  "scheduleChangeMajorConfirm": "Change and clear",
+  "@scheduleCourseScope": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleSearchNoMatch": "No course names match “{query}”",
+  "scheduleCourseScope": "Current scope: {scope}",
+  "activationStatusMissingEmail": "Add an email address in account settings first",
+  "scheduleConfigureScope": "Configure course scope",
+  "@scheduleSearchNoMatch": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "authRegistrationUnavailable": "Registration is unavailable. Please try again later.",
+  "scheduleSetupMissing": "Select {fields} before finding courses or classes.",
+  "@activationStatusRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleMajorSearchHint": "Search major name or code",
+  "activationStatusVerified": "Email verified. No resend needed.",
+  "authVerificationPendingHint": "Use the link in your inbox, then refresh this page. If no email arrives, resend it or change the address. Some actions remain unavailable until verification.",
+  "activationStatusTarget": "Send to: {email}",
+  "imageViewerThumbnails": "Image thumbnails",
+  "scheduleNoOptional": "No optional courses returned for this term",
+  "activationStatusRefresh": "Refresh status",
+  "imageViewerOriginalSize": "Original size",
+  "authCheckSignupAvailability": "Check registration again",
+  "campusTimetableConnectBody": "Connect your Tongji identity to see your personal school timetable here. You can use the course catalog and schedule planner without connecting.",
+  "scheduleEmptyCourseHint": "Adjust the course scope or search by course name.",
+  "activationStatusFrozen": "This account cannot resend email",
+  "scheduleChangeMajorBody": "Changing the major clears {planCount} plans containing {courseCount} courses and {eventCount} custom events. Cancel to keep your current configuration and plans.",
+  "scheduleSearchReady": "Enter a course name to start",
+  "imageViewerFitPreview": "Fit preview",
+  "authVerificationPending": "Email verification pending",
+  "@activationStatusCooldown": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "activationStatusDisabled": "Email verification is currently disabled",
+  "activationStatusCooldown": "Resend in {seconds} seconds",
+  "scheduleSearchScope": "Search course names in {term}",
+  "@scheduleSetupMissing": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleSetupTitle": "Set your course scope first",
+  "campusTimetableNotConnected": "Tongji identity not connected",
+  "activationStatusMailUnavailable": "Mail is unavailable. Refresh later.",
+  "scheduleChangeMajorUpdated": "Plan content changed. Please select the major again.",
+  "@activationStatusTarget": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleMajorNoMatch": "No matching majors"
 }

@@ -8,7 +8,7 @@ import { createServer } from 'vite'
 // usable at the narrowest and a wide viewport, for owner, member and guest.
 let server, browser, origin
 before(async () => {
-  server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), server: { host: '127.0.0.1', port: 0, open: false } })
+  server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), optimizeDeps: { entries: ['test/fixtures/browser/profile-privacy.html'] }, server: { host: '127.0.0.1', port: 0, open: false } })
   await server.listen()
   origin = `http://127.0.0.1:${server.httpServer.address().port}`
   browser = await chromium.launch()

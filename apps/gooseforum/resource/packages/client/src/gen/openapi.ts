@@ -1067,12 +1067,13 @@ export interface paths {
          *     and are intentionally not covered by the anti-enumeration envelope.
          *
          *     Honeypot: when the hidden `website` field is populated the server treats the
-         *     request as bot traffic, silently returns a success envelope identical to a normal
-         *     successful registration, and creates no account.
+         *     request as bot traffic, silently returns a success envelope matching registration
+         *     with verification disabled, and creates no account or session.
          *
          *     On success the server creates the account, enqueues an activation email task when
-         *     the site enables email verification, and immediately issues a session (Set-Cookie
-         *     `access_token` + `New-Token` header). Consumers must still inspect the envelope:
+         *     the site enables email verification (no automatic activation task when disabled),
+         *     and immediately issues a session (Set-Cookie `access_token` + `New-Token` header).
+         *     Consumers must still inspect the envelope:
          *     the residual observable difference between "account created" and "creation
          *     failed" is intrinsic to the protocol and is not part of this contract's failure
          *     taxonomy.
@@ -2331,7 +2332,10 @@ export interface paths {
          * @description Same semantics as the admin review action. Versioned approval quietly publishes
          *     the candidate and its images; rejection retains any previous public version and
          *     notifies the author with a content-management link. The exact `revisionId` from
-         *     the queue is required for versioned submissions.
+         *     the queue is required for versioned submissions. Manual rejection requires a nonblank
+         *     plain-text `reason` of at most 512 Unicode characters. The reason is visible only through
+         *     the author's existing signed-in content-management view; notifications and push omit it.
+         *     Missing/blank or overlong reasons fail with common.request.invalidParams without deciding.
          *     Callers without moderation access fail with `permission.denied`; targets outside
          *     the caller's category scope fail with `admin.review.notFound` so the content's
          *     state is not revealed. First-post edits require scope over both the current and
@@ -2391,6 +2395,8 @@ export interface paths {
          *     same checks as the preview yield `state=ready`; otherwise the current state
          *     (`processed`, `changed`, `forbidden`, `expired`, `invalid`, `notFound`) is returned
          *     unchanged. Pending topics/posts reuse the workbench review action (`approve`/`reject`);
+         *     rejection requires a nonblank author-visible `reason` of at most 512 Unicode characters.
+         *     Missing/blank or overlong explanations return common.request.invalidParams without deciding;
          *     reports reuse the workbench ban/hide/report-status logic (`ban` for topic/post,
          *     `hide` for course reviews, `dismiss`) and close the report with a compare-and-set, so a
          *     repeated or concurrent click never overwrites the first handler. `handler_id` and the
@@ -2722,7 +2728,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Read the caller's activation target and resend availability
+         * @description Owner-only private read. Ignores user-id query parameters. Returns the current
+         *     address, fresh staged address, actual resend target, availability, daily quota
+         *     and server-relative wait in seconds (rounded up). No token generation, queue
+         *     insertion or quota reservation. Missing or expired staging is never a target.
+         *     Frozen, verified, disabled, mail-unavailable and missing-email states are
+         *     explicit; this read does not grant permission to send. POST revalidates all
+         *     existing write and quota gates. Clients refresh after each attempt, at wait
+         *     expiry and on return; they must never automatically resend.
+         */
+        get: operations["getActivationStatus"];
         put?: never;
         /**
          * Resend the account activation email
@@ -2737,6 +2754,11 @@ export interface paths {
          *     `auth.activation.resendCooldown` (params retryAfterSeconds),
          *     `auth.activation.resendDaily` (params limit, daily cap 3) and
          *     `auth.activation.resendFailed`. The request takes no body.
+         *     The daily quota and 60-second cooldown reserve an individual send attempt.
+         *     A token-preparation failure or a queue transaction rejected before COMMIT releases
+         *     only that reservation. Accepted tasks, lost HTTP replies and uncertain COMMIT
+         *     outcomes retain quota; a failure never refunds a later successful send. Day changes
+         *     do not move a refund onto the new day's quota. Storage failures remain conservative.
          */
         post: operations["resendActivationEmail"];
         delete?: never;
@@ -6396,8 +6418,10 @@ export interface paths {
          * @description Admin console operation gated by the `SiteManager` role permission
          *     (Admin role is a superset); callers without it fail with HTTP 403 and
          *     `permission.denied` (params permission=<localized permission name>,
-         *     `站点管理` in zh). Returns the stored rate-limit settings, or the
-         *     built-in default configuration when nothing has been saved yet.
+         *     `站点管理` in zh). Returns the effective rate-limit settings, merging
+         *     missing built-in actions into saved configurations while preserving saved
+         *     rules (including explicit zero limits) and global switches. When nothing
+         *     has been saved yet, returns the built-in default configuration.
          *     JSON binding is lenient: query string and body are ignored.
          */
         get: operations["adminGetRateLimitSettings"];
@@ -7576,8 +7600,11 @@ export interface paths {
          *     by the queue; an omitted or stale revision returns `admin.review.processed`.
          *     Approval publishes the candidate quietly. Rejection sets its `processStatus=1`,
          *     keeps any previous public version and sends an author notification linked to content
-         *     management. `reason` optionally explains a manual rejection. Legacy unversioned
-         *     items retain their compatible review path. Approving a topic also updates its first post,
+         *     management. Manual topic/post rejection requires a nonblank `reason` of at most 512 Unicode
+         *     characters; missing, blank or overlong values fail with `common.request.invalidParams`.
+         *     The reason is plain text visible to the author in content management, never a notification or
+         *     push payload. Legacy unversioned rejection atomically records an immutable decision snapshot
+         *     in the existing revision model while retaining its compatible request path. Approving a topic also updates its first post,
          *     clears the topic-list cache, rebuilds the search document (a rejected new
          *     topic remains excluded; a rejected edit retains the public version), publishes the deferred
          *     publish/update events (statistics, points, notifications) and writes
@@ -12272,7 +12299,7 @@ export interface components {
         AdminRateLimitSettingsConfig: {
             /** @description Master switch. */
             enabled: boolean;
-            /** @description Exempt admin-role users. */
+            /** @description Exempt admin-role users from ordinary action limits. The admin.stats aggregate-query budget still applies. */
             skipAdmin: boolean;
             actions: components["schemas"]["AdminRateLimitRule"][];
             /** @description Require a captcha after N posts inside the new-user window; 0 disables. */
@@ -12744,7 +12771,7 @@ export interface components {
              * @description Required for versioned submissions. Missing or stale IDs return admin.review.processed without applying a decision.
              */
             revisionId?: number;
-            /** @description Optional author-visible rejection reason. */
+            /** @description Required nonblank author-visible explanation for manual topic/post rejection (approve false or omitted); optional for approval, ignored for personal stickers. Plain text, at most 512 Unicode characters; the server trims surrounding whitespace. */
             reason?: string;
             /** @enum {string} */
             kind: "topic" | "post" | "sticker";
@@ -12752,6 +12779,14 @@ export interface components {
             id: number;
             /** @description True approves (processStatus→0), false rejects (processStatus→1). Wiki-station topics and wiki first posts are rejected with `admin.review.targetInvalid` — they belong to the wiki revision review flow. */
             approve?: boolean;
+        } | {
+            /** @enum {unknown} */
+            approve: true;
+        } | {
+            /** @enum {unknown} */
+            kind?: "sticker";
+        } | {
+            reason: unknown;
         };
         AdminFileResourceItem: {
             /** Format: uint64 */
@@ -15232,9 +15267,11 @@ export interface components {
             /** @description Signed quick-action token from the `token` query parameter of a notification button link (`/moderation/action?token=…`). */
             token: string;
             /**
-             * @description Appeal decisions only (`subject=appeal`): the reviewer's explanation shown to the author,
-             *     at most 512 characters. Required to reject an appeal; optional when approving; ignored for
-             *     other subjects and by the preview.
+             * @description For topic/post rejection (`subject=review.topic|review.post`, action reject) and appeal
+             *     decisions (`subject=appeal`): the reviewer's author-visible plain-text explanation, at most
+             *     512 Unicode characters after trimming. Required to reject content or an appeal; optional
+             *     when approving an appeal; ignored for other actions and by preview. Missing/blank or
+             *     overlong content-rejection explanations return common.request.invalidParams without a decision.
              */
             reason?: string;
         };
@@ -15358,6 +15395,25 @@ export interface components {
         PrivateNoteSuccess: components["schemas"]["ApiSuccess"] & {
             /** @constant */
             result?: true;
+        };
+        ActivationStatus: {
+            currentEmail: string;
+            /** @description Fresh staged address; empty when absent or expired. */
+            pendingEmail: string;
+            /** @description Address that POST will target; empty when no target exists. */
+            targetEmail: string;
+            /** @enum {string} */
+            targetKind: "none" | "current" | "pending";
+            /** @enum {string} */
+            state: "ready" | "cooldown" | "daily_limit" | "disabled" | "verified" | "frozen" | "mail_unavailable" | "missing_email";
+            remainingToday: number;
+            /** @constant */
+            dailyLimit: 3;
+            /** @description Relative wait until cooldown or daily quota expires, rounded up; zero otherwise. */
+            retryAfterSeconds: number;
+        };
+        ActivationStatusResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ActivationStatus"];
         };
         DisplayBadgesRequest: {
             badgeCodes: string[];
@@ -15772,7 +15828,7 @@ export interface components {
         /**
          * @description Notification channel adapter (issue #1049). `generic` posts the structured JSON envelope
          *     with `X-Goose-*` headers and the optional HMAC signature; `feishu` posts a schema 2.0
-         *     interactive card to a Feishu group custom-bot webhook (approval events only), signs it with
+         *     interactive card to a Feishu group custom-bot webhook (approval events and read-only user.signup alerts), signs it with
          *     the bot's signature secret, and counts HTTP 200 responses whose body `code` is non-zero as
          *     failures. `astrbot` posts `{content, umo, message_type: "text"}` to the `/send` endpoint of
          *     the AstrBot push_lite plugin (`/send` is appended when the URL has no path) with
@@ -16666,6 +16722,16 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Interaction rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     agentGetEvent: {
@@ -16695,6 +16761,16 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -16730,6 +16806,16 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Interaction rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     forumMentionTargets: {
@@ -16760,6 +16846,16 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -18196,6 +18292,16 @@ export interface operations {
                     "application/json": components["schemas"]["PasskeyLoginBeginResponse"];
                 };
             };
+            /** @description Login rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     finishPasskeyLogin: {
@@ -18475,7 +18581,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Password hashing or session creation failed. */
+            /** @description Password hashing before account creation returns auth.register.failed. After account creation, session failure returns auth.tongji.retryLogin with params.restartUrl pointing to the local /api/auth/tongji entry and the validated continuation. The account remains created and the proof is consumed; clients must discard the registration form and offer a fresh school sign-in. No session credential is issued and the old proof must not be retried. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -18766,6 +18872,16 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Passkey-management rate limit exceeded (shared password.change quota). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     beginPasskeyRegistration: {
@@ -18799,6 +18915,25 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description The account is frozen, pending activation, or cannot be resolved, or the cookie-authenticated request is rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Passkey-management rate limit exceeded (shared password.change quota). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     finishPasskeyRegistration: {
@@ -18830,6 +18965,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is frozen, pending activation, or cannot be resolved, or the cookie-authenticated request is rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Passkey-management rate limit exceeded (shared password.change quota). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -18885,6 +19039,34 @@ export interface operations {
                     "application/json": components["schemas"]["PasskeyEmptyResponse"];
                 };
             };
+            /** @description Missing, invalid, expired, or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is frozen, pending activation, or cannot be resolved, or the cookie-authenticated request is rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Passkey-management rate limit exceeded (shared password.change quota). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     revokePasskeyCredential: {
@@ -18907,6 +19089,34 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PasskeyEmptyResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is frozen, pending activation, or cannot be resolved, or the cookie-authenticated request is rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Passkey-management rate limit exceeded (shared password.change quota). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -20417,6 +20627,16 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Interaction rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     listModerationAppeals: {
@@ -20499,6 +20719,16 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -21242,6 +21472,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    getActivationStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner status; Cache-Control private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivationStatusResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Quota state unavailable or corrupt; clients must not assume ready. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };
@@ -22380,13 +22648,23 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /** @description Authenticated account is frozen or its account information cannot be resolved; when email verification is enabled a pending-activation account is also rejected. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -22422,13 +22700,23 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /** @description Authenticated account is frozen or its account information cannot be resolved; when email verification is enabled a pending-activation account is also rejected. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -22464,13 +22752,23 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /** @description Authenticated account is frozen or its account information cannot be resolved; when email verification is enabled a pending-activation account is also rejected. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -22506,13 +22804,23 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /** @description Authenticated account is frozen or its account information cannot be resolved; when email verification is enabled a pending-activation account is also rejected. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -25893,6 +26201,17 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Shared admin.stats query budget exhausted, including admins exempted from other limits. Defaults to 60 requests per 60 seconds per account; configurable through rate-limit settings. */
+            429: {
+                headers: {
+                    /** @description Positive seconds until a retry is permitted. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     adminStatsCategoryTrend: {
@@ -25933,6 +26252,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared admin.stats query budget exhausted, including admins exempted from other limits. Defaults to 60 requests per 60 seconds per account; configurable through rate-limit settings. */
+            429: {
+                headers: {
+                    /** @description Positive seconds until a retry is permitted. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -25977,6 +26307,17 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Shared admin.stats query budget exhausted, including admins exempted from other limits. Defaults to 60 requests per 60 seconds per account; configurable through rate-limit settings. */
+            429: {
+                headers: {
+                    /** @description Positive seconds until a retry is permitted. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     adminStatsUserDetail: {
@@ -26017,6 +26358,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared admin.stats query budget exhausted, including admins exempted from other limits. Defaults to 60 requests per 60 seconds per account; configurable through rate-limit settings. */
+            429: {
+                headers: {
+                    /** @description Positive seconds until a retry is permitted. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -27444,7 +27796,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Rate-limit settings (stored configuration or the built-in default). */
+            /** @description Effective rate-limit settings with missing built-in actions included. */
             200: {
                 headers: {
                     [name: string]: unknown;

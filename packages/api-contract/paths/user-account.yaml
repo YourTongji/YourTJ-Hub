@@ -288,6 +288,44 @@ setUserEmail:
                 externalValue: ../fixtures/set-user-email-rate-limited.json
 
 resendActivationEmail:
+  get:
+    tags: [User]
+    summary: Read the caller's activation target and resend availability
+    operationId: getActivationStatus
+    description: |
+      Owner-only private read. Ignores user-id query parameters. Returns the current
+      address, fresh staged address, actual resend target, availability, daily quota
+      and server-relative wait in seconds (rounded up). No token generation, queue
+      insertion or quota reservation. Missing or expired staging is never a target.
+      Frozen, verified, disabled, mail-unavailable and missing-email states are
+      explicit; this read does not grant permission to send. POST revalidates all
+      existing write and quota gates. Clients refresh after each attempt, at wait
+      expiry and on return; they must never automatically resend.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Owner status; Cache-Control private, no-store.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ActivationStatusResponse
+            examples:
+              ready:
+                externalValue: ../fixtures/activation-status-ready.json
+      '401':
+        description: Missing, invalid, expired or revoked session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '503':
+        description: Quota state unavailable or corrupt; clients must not assume ready.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
   post:
     tags: [User]
     summary: Resend the account activation email
@@ -304,6 +342,11 @@ resendActivationEmail:
       `auth.activation.resendCooldown` (params retryAfterSeconds),
       `auth.activation.resendDaily` (params limit, daily cap 3) and
       `auth.activation.resendFailed`. The request takes no body.
+      The daily quota and 60-second cooldown reserve an individual send attempt.
+      A token-preparation failure or a queue transaction rejected before COMMIT releases
+      only that reservation. Accepted tasks, lost HTTP replies and uncertain COMMIT
+      outcomes retain quota; a failure never refunds a later successful send. Day changes
+      do not move a refund onto the new day's quota. Storage failures remain conservative.
     security:
       - bearerAuth: []
       - accessTokenCookie: []

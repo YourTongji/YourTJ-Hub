@@ -1,4 +1,5 @@
 import '../../navigation/reading_window.dart';
+import '../../navigation/account_return.dart';
 import 'decoration_page.dart';
 import '../../user_blocks.dart';
 import 'dart:async';
@@ -93,9 +94,11 @@ class SettingsPage extends ConsumerStatefulWidget {
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   _SettingsTab? _tab;
   bool? _signedIn;
+  bool _requiresEmailVerification = false;
   int _sessionRequest = 0;
   int _userRequest = 0;
   int _sessionsRequest = 0;
+  int _activationRevision = 0;
   AsyncValue<List<UserSessionPayload>> _sessions = const AsyncValue.loading();
   AsyncValue<SettingsUserPayload> _user = const AsyncValue.loading();
   bool _accountClosing = false;
@@ -210,6 +213,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         throw FormatException(AppLocalizations.of(context).commonParseFailed);
       }
       setState(() {
+        _requiresEmailVerification =
+            payload.layout.viewer.requiresEmailVerification;
         _googleOAuthReady = props.googleOAuthReady;
         _appleOAuthReady = props.appleOAuthReady;
         _user = AsyncValue.data(props.user);
@@ -593,6 +598,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
     if (saved != true || !mounted || !isCurrent()) return;
     showGfToast(context, l10n.settingsEmailChangeStaged);
+    // Recreate the owner status reader immediately: loading /settings alone does
+    // not invalidate its verified/pending snapshot or cancel an old status read.
+    setState(() => _activationRevision++);
     // The API also supports an immediate switch when verification is off.
     await _loadUser(silent: true);
   }
@@ -847,6 +855,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _autoEditSession = _ProfileEditSession();
       });
       unawaited(_loadSession());
+    });
+    ref.listen(accountReturnRefreshProvider, (previous, next) {
+      if (previous == next ||
+          _signedIn != true ||
+          _tab != _SettingsTab.account) {
+        return;
+      }
+      setState(() => _activationRevision++);
+      unawaited(_refresh());
     });
     final l10n = AppLocalizations.of(context);
     if (_autoEditBadges && _signedIn != false) {
@@ -1363,7 +1380,30 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             onTap: _manageOAuth,
           ),
         ),
-        const ActivationEmailAction(),
+        if (_requiresEmailVerification && _user.valueOrNull != null) ...[
+          _settingsSection(
+            context,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                key: const ValueKey('account-activation-pending'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.authVerificationPending,
+                    style: GfTheme.typographyOf(context).title3,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(_user.value!.email),
+                  const SizedBox(height: 8),
+                  Text(l10n.authVerificationPendingHint),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        ActivationEmailAction(key: ValueKey(_activationRevision)),
         const SizedBox(height: 12),
         _settingsSection(
           context,

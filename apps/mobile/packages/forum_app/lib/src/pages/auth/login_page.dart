@@ -682,7 +682,11 @@ class _LoginPageState extends ConsumerState<LoginPage>
 
   Future<void> _register() async {
     final options = _registration;
-    if (options == null || _registrationLoading) return;
+    if (options == null ||
+        _registrationLoading ||
+        options.passwordSignupState != 'open') {
+      return;
+    }
     final l10n = AppLocalizations.of(context);
     if (_password.text != _confirmPassword.text) {
       setState(() => _registrationError = l10n.authPasswordMismatch);
@@ -703,11 +707,12 @@ class _LoginPageState extends ConsumerState<LoginPage>
       password: _password.text,
       captchaId: (captchaId == null || captchaId.isEmpty) ? null : captchaId,
       captchaCode: captchaCode.isEmpty ? null : captchaCode,
+      locale: Localizations.localeOf(context).languageCode,
     );
     if (mounted && _authController.phase == LoginPhase.needsCaptcha) {
       await _authController.loadCaptcha();
     }
-    if (mounted && _authController.error.isEmpty) {
+    if (mounted && _authController.phase == LoginPhase.authenticated) {
       final l10n = AppLocalizations.of(context);
       showGfToast(
         context,
@@ -715,7 +720,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
             ? l10n.authRegisterEmailVerify
             : l10n.authRegisterSuccess,
       );
-      setState(() => _mode = _AuthMode.login);
+      await _finishAuthentication(saveAutofill: true);
     }
   }
 
@@ -994,15 +999,32 @@ class _LoginPageState extends ConsumerState<LoginPage>
     }
   }
 
-  void _switchMode(_AuthMode mode) {
-    if (_authController.busy || _finishingAuthentication) return;
+  Future<void> _switchMode(_AuthMode mode) async {
+    if (mode == _mode ||
+        _authController.busy ||
+        _oidcBusy ||
+        _finishingAuthentication) {
+      return;
+    }
     _authIme.cancel();
     _captchaHandoff.cancel();
     FocusScope.of(context).unfocus();
+    try {
+      await _authController.cancelChallenge();
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _oidcError = AppLocalizations.of(context).authSessionSaveFailed,
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
     if (mode == _AuthMode.register && _registration == null) {
       _loadRegistration();
     }
     _captcha.clear();
+    _totp.clear();
     setState(() {
       _mode = mode;
       _loginCaptchaRevealed = false;
@@ -1112,6 +1134,22 @@ class _LoginPageState extends ConsumerState<LoginPage>
   /// Form areas shorter than this drop the brand lockup and subtitle.
   static const double _compactHeaderHeight = 700;
 
+  String _signupUnavailableMessage(AppLocalizations l10n) {
+    if (_registrationError != null) return _registrationError!;
+    final code = switch (_registration?.passwordSignupState) {
+      'disabled' => 'auth.signupDisabled',
+      'daily_limit' => 'auth.register.dailyQuota',
+      'mail_unavailable' => 'auth.mail.notConfigured',
+      _ => null,
+    };
+    return code == null
+        ? l10n.authRegistrationUnavailable
+        : resolveErrorMessage(
+            l10n,
+            ApiException(fallbackMessage: '', messageCode: code),
+          );
+  }
+
   Widget _buildCardContent(
     BuildContext context,
     AppLocalizations l10n,
@@ -1186,326 +1224,353 @@ class _LoginPageState extends ConsumerState<LoginPage>
             ),
             const SizedBox(height: 12),
           ],
-          if (_mode != _AuthMode.forgotPassword) ...<Widget>[
-            _withAuthFocusIntent(
-              _usernameFocusNode,
-              GfInput(
-                controller: _username,
-                focusNode: _usernameFocusNode,
-                autofillHints: [
-                  _mode == _AuthMode.login
-                      ? AutofillHints.username
-                      : AutofillHints.newUsername,
-                ],
-                autocorrect: false,
-                textInputAction: TextInputAction.next,
-                onEditingComplete: () {
-                  if (_mode == _AuthMode.login) {
-                    _captchaHandoff.cancel();
-                    _authIme.focusRequested(_passwordFocusNode);
-                    _passwordFocusNode.requestFocus();
-                  } else {
-                    FocusScope.of(context).nextFocus();
-                  }
-                },
-                labelText: _mode == _AuthMode.login
-                    ? l10n.authUsernameOrEmail
-                    : l10n.authUsername,
-                prefixIcon: const GfSymbol('user-round', size: 20),
+          if (_mode == _AuthMode.register &&
+              (_registrationLoading ||
+                  _registration == null ||
+                  _registration!.passwordSignupState != 'open')) ...[
+            if (_registrationLoading)
+              const LinearProgressIndicator()
+            else
+              GfStatusMessage(
+                key: const Key('signup-availability'),
+                message: _signupUnavailableMessage(l10n),
               ),
+            const SizedBox(height: 12),
+            GfButton(
+              label: l10n.authCheckSignupAvailability,
+              variant: GfButtonVariant.outline,
+              onPressed: _registrationLoading ? null : _loadRegistration,
             ),
-            const SizedBox(height: 8),
-          ],
-          if (_mode != _AuthMode.login) ...<Widget>[
-            _withAuthInputRegion(
-              GfInput(
-                controller: _email,
-                keyboardType: TextInputType.emailAddress,
-                autofillHints:
-                    _mode == _AuthMode.register &&
-                        _registration?.allowedDomains.isNotEmpty == true
-                    ? const []
-                    : const [AutofillHints.email],
-                autocorrect: false,
-                textInputAction: _mode == _AuthMode.forgotPassword
-                    ? TextInputAction.done
-                    : TextInputAction.next,
-                onEditingComplete: _mode == _AuthMode.register
-                    ? () => FocusScope.of(context).nextFocus()
-                    : null,
-                onSubmitted: _mode == _AuthMode.forgotPassword
-                    ? (_) => _submit()
-                    : null,
-                labelText:
-                    _mode == _AuthMode.register &&
-                        _registration?.allowedDomains.isNotEmpty == true
-                    ? l10n.authEmailPrefix
-                    : l10n.authEmail,
-                prefixIcon: const GfSymbol('mail', size: 20),
-              ),
-            ),
-            if (_mode == _AuthMode.register &&
-                _registration?.allowedDomains.isNotEmpty == true) ...[
-              const SizedBox(height: 8),
-              GfDropdownButtonFormField<String>(
-                key: const Key('register-email-domain'),
-                initialValue: _emailDomain,
-                isExpanded: true,
-                itemHeight: null,
-                borderRadius: BorderRadius.circular(GfRadius.lg),
-                icon: const GfSymbol('chevron-down', size: 20),
-                decoration: InputDecoration(labelText: l10n.authEmailDomain),
-                items: _registration!.allowedDomains
-                    .map(
-                      (domain) => DropdownMenuItem(
-                        value: domain,
-                        child: GfText('@$domain'),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() => _emailDomain = value),
+            if (_oidcError.isNotEmpty || _cacheError.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              GfStatusMessage(
+                message: _cacheError.isNotEmpty ? _cacheError : _oidcError,
               ),
             ],
-            const SizedBox(height: 12),
-          ],
-          if (_mode != _AuthMode.forgotPassword) ...<Widget>[
-            TapRegion(
-              key: const Key('login-password-region'),
-              onTapOutside: (_) => _onPasswordTapOutside(),
-              child: _withAuthFocusIntent(
-                _passwordFocusNode,
-                // 规则:只有会接收密码的输入框才保留 enableSuggestions: false。
-                // Flutter Android 引擎对该设置一律附加密码类 inputType
-                // (obscureText 字段走 PASSWORD variation,其余走 VISIBLE_PASSWORD),
-                // ColorOS 据此把字段当凭据输入,强制安全键盘并禁用粘贴
-                // (issue #1111)。其余字段必须保持默认 true。
+            _buildSignInMethods(l10n),
+          ] else ...<Widget>[
+            if (_mode != _AuthMode.forgotPassword) ...<Widget>[
+              _withAuthFocusIntent(
+                _usernameFocusNode,
                 GfInput(
-                  controller: _password,
-                  focusNode: _passwordFocusNode,
-                  obscureText: !_passwordVisible,
+                  controller: _username,
+                  focusNode: _usernameFocusNode,
                   autofillHints: [
                     _mode == _AuthMode.login
-                        ? AutofillHints.password
-                        : AutofillHints.newPassword,
+                        ? AutofillHints.username
+                        : AutofillHints.newUsername,
                   ],
                   autocorrect: false,
-                  enableSuggestions: false,
                   textInputAction: TextInputAction.next,
-                  onEditingComplete: _mode == _AuthMode.login
-                      ? () => _completePasswordStage(focusCaptcha: true)
-                      // 显示开关也是可聚焦后缀控件,nextFocus 会先停在它上面;
-                      // 注册流程显式前进到确认密码。
-                      : _confirmPasswordFocusNode.requestFocus,
-                  labelText: l10n.authPassword,
-                  prefixIcon: const GfSymbol('key-round', size: 20),
+                  onEditingComplete: () {
+                    if (_mode == _AuthMode.login) {
+                      _captchaHandoff.cancel();
+                      _authIme.focusRequested(_passwordFocusNode);
+                      _passwordFocusNode.requestFocus();
+                    } else {
+                      FocusScope.of(context).nextFocus();
+                    }
+                  },
+                  labelText: _mode == _AuthMode.login
+                      ? l10n.authUsernameOrEmail
+                      : l10n.authUsername,
+                  prefixIcon: const GfSymbol('user-round', size: 20),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            if (_mode != _AuthMode.login) ...<Widget>[
+              _withAuthInputRegion(
+                GfInput(
+                  controller: _email,
+                  keyboardType: TextInputType.emailAddress,
+                  autofillHints:
+                      _mode == _AuthMode.register &&
+                          _registration?.allowedDomains.isNotEmpty == true
+                      ? const []
+                      : const [AutofillHints.email],
+                  autocorrect: false,
+                  textInputAction: _mode == _AuthMode.forgotPassword
+                      ? TextInputAction.done
+                      : TextInputAction.next,
+                  onEditingComplete: _mode == _AuthMode.register
+                      ? () => FocusScope.of(context).nextFocus()
+                      : null,
+                  onSubmitted: _mode == _AuthMode.forgotPassword
+                      ? (_) => _submit()
+                      : null,
+                  labelText:
+                      _mode == _AuthMode.register &&
+                          _registration?.allowedDomains.isNotEmpty == true
+                      ? l10n.authEmailPrefix
+                      : l10n.authEmail,
+                  prefixIcon: const GfSymbol('mail', size: 20),
+                ),
+              ),
+              if (_mode == _AuthMode.register &&
+                  _registration?.allowedDomains.isNotEmpty == true) ...[
+                const SizedBox(height: 8),
+                GfDropdownButtonFormField<String>(
+                  key: const Key('register-email-domain'),
+                  initialValue: _emailDomain,
+                  isExpanded: true,
+                  itemHeight: null,
+                  borderRadius: BorderRadius.circular(GfRadius.lg),
+                  icon: const GfSymbol('chevron-down', size: 20),
+                  decoration: InputDecoration(labelText: l10n.authEmailDomain),
+                  items: _registration!.allowedDomains
+                      .map(
+                        (domain) => DropdownMenuItem(
+                          value: domain,
+                          child: GfText('@$domain'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() => _emailDomain = value),
+                ),
+              ],
+              const SizedBox(height: 12),
+            ],
+            if (_mode != _AuthMode.forgotPassword) ...<Widget>[
+              TapRegion(
+                key: const Key('login-password-region'),
+                onTapOutside: (_) => _onPasswordTapOutside(),
+                child: _withAuthFocusIntent(
+                  _passwordFocusNode,
+                  // 规则:只有会接收密码的输入框才保留 enableSuggestions: false。
+                  // Flutter Android 引擎对该设置一律附加密码类 inputType
+                  // (obscureText 字段走 PASSWORD variation,其余走 VISIBLE_PASSWORD),
+                  // ColorOS 据此把字段当凭据输入,强制安全键盘并禁用粘贴
+                  // (issue #1111)。其余字段必须保持默认 true。
+                  GfInput(
+                    controller: _password,
+                    focusNode: _passwordFocusNode,
+                    obscureText: !_passwordVisible,
+                    autofillHints: [
+                      _mode == _AuthMode.login
+                          ? AutofillHints.password
+                          : AutofillHints.newPassword,
+                    ],
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    textInputAction: TextInputAction.next,
+                    onEditingComplete: _mode == _AuthMode.login
+                        ? () => _completePasswordStage(focusCaptcha: true)
+                        // 显示开关也是可聚焦后缀控件,nextFocus 会先停在它上面;
+                        // 注册流程显式前进到确认密码。
+                        : _confirmPasswordFocusNode.requestFocus,
+                    labelText: l10n.authPassword,
+                    prefixIcon: const GfSymbol('key-round', size: 20),
+                    suffixIcon: _PasswordVisibilityToggle(
+                      key: const Key('login-password-visibility'),
+                      visible: _passwordVisible,
+                      showLabel: l10n.authShowPassword,
+                      hideLabel: l10n.authHidePassword,
+                      onPressed: () =>
+                          setState(() => _passwordVisible = !_passwordVisible),
+                    ),
+                    onChanged: _onPasswordChanged,
+                  ),
+                ),
+              ),
+              if (_mode == _AuthMode.login) ...<Widget>[
+                const SizedBox(height: 4),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: GfButton(
+                    label: l10n.authForgotPassword,
+                    variant: GfButtonVariant.link,
+                    size: GfButtonSize.small,
+                    onPressed: () => _switchMode(_AuthMode.forgotPassword),
+                  ),
+                ),
+              ] else
+                const SizedBox(height: 12),
+            ],
+            if (_mode == _AuthMode.register) ...[
+              _withAuthInputRegion(
+                GfInput(
+                  controller: _confirmPassword,
+                  focusNode: _confirmPasswordFocusNode,
+                  labelText: l10n.authConfirmPassword,
+                  obscureText: !_confirmPasswordVisible,
+                  autofillHints: const [AutofillHints.newPassword],
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _submit(),
                   suffixIcon: _PasswordVisibilityToggle(
-                    key: const Key('login-password-visibility'),
-                    visible: _passwordVisible,
+                    key: const Key('register-confirm-password-visibility'),
+                    visible: _confirmPasswordVisible,
                     showLabel: l10n.authShowPassword,
                     hideLabel: l10n.authHidePassword,
-                    onPressed: () =>
-                        setState(() => _passwordVisible = !_passwordVisible),
+                    onPressed: () => setState(
+                      () => _confirmPasswordVisible = !_confirmPasswordVisible,
+                    ),
                   ),
-                  onChanged: _onPasswordChanged,
                 ),
               ),
-            ),
-            if (_mode == _AuthMode.login) ...<Widget>[
+              if (_registrationLoading) const LinearProgressIndicator(),
+              if (_registrationError != null) ...[
+                GfStatusMessage(message: _registrationError!),
+                if (_registration == null)
+                  TextButton(
+                    onPressed: _loadRegistration,
+                    child: GfText(l10n.commonRetry),
+                  ),
+              ],
+              if (_registration?.termsOfServiceEnabled == true ||
+                  _registration?.privacyPolicyEnabled == true) ...[
+                Material(
+                  color: Colors.transparent,
+                  child: CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: _agreed,
+                    onChanged: (value) =>
+                        setState(() => _agreed = value == true),
+                    title: GfText(l10n.authAgreePolicies),
+                  ),
+                ),
+                Wrap(
+                  children: [
+                    if (_registration!.termsOfServiceEnabled)
+                      TextButton(
+                        onPressed: () => context.push('/terms'),
+                        child: GfText(l10n.siteInfoTerms),
+                      ),
+                    if (_registration!.privacyPolicyEnabled)
+                      TextButton(
+                        onPressed: () => context.push('/privacy'),
+                        child: GfText(l10n.siteInfoPrivacy),
+                      ),
+                  ],
+                ),
+              ],
+            ],
+            if (showCaptcha) ...<Widget>[
               const SizedBox(height: 4),
-              Align(
-                alignment: Alignment.centerRight,
-                child: GfButton(
-                  label: l10n.authForgotPassword,
-                  variant: GfButtonVariant.link,
-                  size: GfButtonSize.small,
-                  onPressed: () => _switchMode(_AuthMode.forgotPassword),
-                ),
-              ),
-            ] else
-              const SizedBox(height: 12),
-          ],
-          if (_mode == _AuthMode.register) ...[
-            _withAuthInputRegion(
-              GfInput(
-                controller: _confirmPassword,
-                focusNode: _confirmPasswordFocusNode,
-                labelText: l10n.authConfirmPassword,
-                obscureText: !_confirmPasswordVisible,
-                autofillHints: const [AutofillHints.newPassword],
-                autocorrect: false,
-                enableSuggestions: false,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _submit(),
-                suffixIcon: _PasswordVisibilityToggle(
-                  key: const Key('register-confirm-password-visibility'),
-                  visible: _confirmPasswordVisible,
-                  showLabel: l10n.authShowPassword,
-                  hideLabel: l10n.authHidePassword,
-                  onPressed: () => setState(
-                    () => _confirmPasswordVisible = !_confirmPasswordVisible,
-                  ),
-                ),
-              ),
-            ),
-            if (_registrationLoading) const LinearProgressIndicator(),
-            if (_registrationError != null) ...[
-              GfStatusMessage(message: _registrationError!),
-              if (_registration == null)
-                TextButton(
-                  onPressed: _loadRegistration,
-                  child: GfText(l10n.commonRetry),
-                ),
-            ],
-            if (_registration?.termsOfServiceEnabled == true ||
-                _registration?.privacyPolicyEnabled == true) ...[
-              Material(
-                color: Colors.transparent,
-                child: CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  value: _agreed,
-                  onChanged: (value) => setState(() => _agreed = value == true),
-                  title: GfText(l10n.authAgreePolicies),
-                ),
-              ),
-              Wrap(
-                children: [
-                  if (_registration!.termsOfServiceEnabled)
-                    TextButton(
-                      onPressed: () => context.push('/terms'),
-                      child: GfText(l10n.siteInfoTerms),
-                    ),
-                  if (_registration!.privacyPolicyEnabled)
-                    TextButton(
-                      onPressed: () => context.push('/privacy'),
-                      child: GfText(l10n.siteInfoPrivacy),
-                    ),
-                ],
-              ),
-            ],
-          ],
-          if (showCaptcha) ...<Widget>[
-            const SizedBox(height: 4),
-            KeyedSubtree(
-              key: const Key('login-captcha'),
-              child: captcha != null
-                  ? LayoutBuilder(
-                      builder: (context, constraints) {
-                        final image = _buildCaptchaChallenge(captcha, l10n);
-                        // Leave room for a complete code at the user's text size.
-                        final inputWidth = MediaQuery.textScalerOf(
-                          context,
-                        ).scale(140);
-                        if (constraints.maxWidth < 140 + inputWidth) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+              KeyedSubtree(
+                key: const Key('login-captcha'),
+                child: captcha != null
+                    ? LayoutBuilder(
+                        builder: (context, constraints) {
+                          final image = _buildCaptchaChallenge(captcha, l10n);
+                          // Leave room for a complete code at the user's text size.
+                          final inputWidth = MediaQuery.textScalerOf(
+                            context,
+                          ).scale(140);
+                          if (constraints.maxWidth < 140 + inputWidth) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                image,
+                                const SizedBox(height: 12),
+                                _buildCaptchaInput(l10n),
+                              ],
+                            );
+                          }
+                          return Row(
                             children: [
                               image,
-                              const SizedBox(height: 12),
-                              _buildCaptchaInput(l10n),
+                              const SizedBox(width: 12),
+                              Expanded(child: _buildCaptchaInput(l10n)),
                             ],
                           );
-                        }
-                        return Row(
-                          children: [
-                            image,
-                            const SizedBox(width: 12),
-                            Expanded(child: _buildCaptchaInput(l10n)),
-                          ],
-                        );
-                      },
-                    )
-                  : GfButton(
-                      label: l10n.authGetCode,
-                      variant: GfButtonVariant.ghost,
-                      onPressed: _loadVisibleCaptcha,
-                    ),
-            ),
-          ],
-          if (_authController.phase == LoginPhase.needsTotp) ...<Widget>[
-            const SizedBox(height: 12),
-            _withAuthInputRegion(
-              GfInput(
-                controller: _totp,
-                keyboardType: TextInputType.number,
-                autofillHints: const [AutofillHints.oneTimeCode],
-                autocorrect: false,
-                textInputAction: TextInputAction.done,
-                labelText: l10n.authTwoFactorCode,
-                prefixIcon: const GfSymbol('shield-check', size: 20),
-                onSubmitted: (_) => _submit(),
+                        },
+                      )
+                    : GfButton(
+                        label: l10n.authGetCode,
+                        variant: GfButtonVariant.ghost,
+                        onPressed: _loadVisibleCaptcha,
+                      ),
               ),
-            ),
-          ],
-          if (_captchaCodeMissing ||
-              _authController.error.isNotEmpty ||
-              _oidcError.isNotEmpty ||
-              _cacheError.isNotEmpty) ...<Widget>[
+            ],
+            if (_authController.phase == LoginPhase.needsTotp) ...<Widget>[
+              const SizedBox(height: 12),
+              _withAuthInputRegion(
+                GfInput(
+                  controller: _totp,
+                  keyboardType: TextInputType.number,
+                  autofillHints: const [AutofillHints.oneTimeCode],
+                  autocorrect: false,
+                  textInputAction: TextInputAction.done,
+                  labelText: l10n.authTwoFactorCode,
+                  prefixIcon: const GfSymbol('shield-check', size: 20),
+                  onSubmitted: (_) => _submit(),
+                ),
+              ),
+            ],
+            if (_captchaCodeMissing ||
+                _authController.error.isNotEmpty ||
+                _oidcError.isNotEmpty ||
+                _cacheError.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 12),
+              GfStatusMessage(
+                message: _captchaCodeMissing
+                    ? l10n.authCaptchaRequired
+                    : _cacheError.isNotEmpty
+                    ? _cacheError
+                    : _oidcError.isNotEmpty
+                    ? _oidcError
+                    : _authController.error,
+              ),
+            ],
             const SizedBox(height: 12),
-            GfStatusMessage(
-              message: _captchaCodeMissing
-                  ? l10n.authCaptchaRequired
-                  : _cacheError.isNotEmpty
-                  ? _cacheError
-                  : _oidcError.isNotEmpty
-                  ? _oidcError
-                  : _authController.error,
-            ),
-          ],
-          const SizedBox(height: 12),
-          GfButton(
-            label: _submitLabel(l10n),
-            variant: GfButtonVariant.primary,
-            size: GfButtonSize.extraLarge,
-            expanded: true,
-            loading: _authController.busy || _finishingAuthentication,
-            onPressed:
-                _authController.busy ||
-                    _oidcBusy ||
-                    _finishingAuthentication ||
-                    _captchaRefreshing ||
-                    (_mode == _AuthMode.register &&
-                        (_registration == null ||
-                            _registrationLoading ||
-                            ((_registration!.termsOfServiceEnabled ||
-                                    _registration!.privacyPolicyEnabled) &&
-                                !_agreed)))
-                ? null
-                : _submit,
-          ),
-          if (_mode == _AuthMode.login && _passkeyEnabled) ...<Widget>[
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              key: const Key('login-passkey'),
-              icon: _passkeyBusy
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const GfSymbol('key-round', size: 20),
-              label: GfText(l10n.authPasskey),
-              onPressed:
-                  _passkeyBusy ||
-                      _authController.busy ||
-                      _finishingAuthentication
-                  ? null
-                  : _loginWithPasskey,
-            ),
-          ],
-          if (_mode != _AuthMode.forgotPassword) _buildSignInMethods(l10n),
-          if (_mode == _AuthMode.login && _registrationError != null)
-            TextButton(
-              onPressed: _loadRegistration,
-              child: GfText(l10n.commonRetry),
-            ),
-          if (_mode == _AuthMode.forgotPassword) ...<Widget>[
-            const SizedBox(height: 8),
             GfButton(
-              label: l10n.authBackToLogin,
-              variant: GfButtonVariant.link,
+              label: _submitLabel(l10n),
+              variant: GfButtonVariant.primary,
+              size: GfButtonSize.extraLarge,
               expanded: true,
-              onPressed: () => _switchMode(_AuthMode.login),
+              loading: _authController.busy || _finishingAuthentication,
+              onPressed:
+                  _authController.busy ||
+                      _oidcBusy ||
+                      _finishingAuthentication ||
+                      _captchaRefreshing ||
+                      (_mode == _AuthMode.register &&
+                          (_registration == null ||
+                              _registrationLoading ||
+                              ((_registration!.termsOfServiceEnabled ||
+                                      _registration!.privacyPolicyEnabled) &&
+                                  !_agreed)))
+                  ? null
+                  : _submit,
             ),
+            if (_mode == _AuthMode.login && _passkeyEnabled) ...<Widget>[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                key: const Key('login-passkey'),
+                icon: _passkeyBusy
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const GfSymbol('key-round', size: 20),
+                label: GfText(l10n.authPasskey),
+                onPressed:
+                    _passkeyBusy ||
+                        _authController.busy ||
+                        _finishingAuthentication
+                    ? null
+                    : _loginWithPasskey,
+              ),
+            ],
+            if (_mode != _AuthMode.forgotPassword) _buildSignInMethods(l10n),
+            if (_mode == _AuthMode.login && _registrationError != null)
+              TextButton(
+                onPressed: _loadRegistration,
+                child: GfText(l10n.commonRetry),
+              ),
+            if (_mode == _AuthMode.forgotPassword) ...<Widget>[
+              const SizedBox(height: 8),
+              GfButton(
+                label: l10n.authBackToLogin,
+                variant: GfButtonVariant.link,
+                expanded: true,
+                onPressed: () => _switchMode(_AuthMode.login),
+              ),
+            ],
           ],
         ],
       ),
@@ -1606,7 +1671,8 @@ class _LoginPageState extends ConsumerState<LoginPage>
       return;
     }
     if (_captchaCodeMissing) setState(() => _captchaCodeMissing = false);
-    if (_authController.phase == LoginPhase.needsTotp) {
+    if (_mode == _AuthMode.login &&
+        _authController.phase == LoginPhase.needsTotp) {
       await _authController.submitTotp(_totp.text.trim());
       if (mounted && _authController.phase == LoginPhase.authenticated) {
         await _finishAuthentication(saveAutofill: true);
