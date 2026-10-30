@@ -14,6 +14,8 @@ const agree = ref(false)
 const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
+const restartUrl = ref('/login')
+const createdAccount = ref(false)
 onMounted(async () => {
   try { status.value = await getTongjiRegistration() }
   catch { error.value = t('tongjiRegistration.expired') }
@@ -31,7 +33,16 @@ async function submit() {
     const target = safeUrl(result.redirect)
     window.location.assign(target.startsWith('/') && !target.startsWith('//') ? target : '/')
   } catch (err) {
-    if (err instanceof ApiResponseError && err.messageCode === 'auth.required') {
+    if (err instanceof ApiResponseError && err.messageCode === 'auth.tongji.retryLogin') {
+      status.value = null
+      createdAccount.value = true
+      const target = err.params?.restartUrl
+      // Only the local school-login entry can restart an already consumed proof.
+      if (typeof target === 'string' && target.startsWith('/api/auth/tongji?') && !target.includes('\\')) {
+        restartUrl.value = target
+      } else { restartUrl.value = '/api/auth/tongji' }
+      error.value = err.message
+    } else if (err instanceof ApiResponseError && err.messageCode === 'auth.required') {
       status.value = null
       error.value = t('tongjiRegistration.expired')
     } else { error.value = err instanceof Error ? err.message : t('auth.validation.registerFailed') }
@@ -42,8 +53,8 @@ async function submit() {
 <template>
   <main class="min-h-screen bg-base-200 px-4 py-10 text-base-content">
     <section class="gf-card mx-auto max-w-md space-y-5 p-5 sm:p-8">
-      <h1 class="text-2xl font-bold">{{ t('tongjiRegistration.title') }}</h1>
-      <p class="text-sm text-base-content/70">{{ t('tongjiRegistration.intro') }}</p>
+      <h1 class="text-2xl font-bold">{{ t(createdAccount ? 'tongjiRegistration.createdTitle' : 'tongjiRegistration.title') }}</h1>
+      <p v-if="!createdAccount" class="text-sm text-base-content/70">{{ t('tongjiRegistration.intro') }}</p>
       <p v-if="error" role="alert" class="text-sm text-error">{{ error }}</p>
       <p v-if="loading" role="status">{{ t('common.loading') }}</p>
       <form v-else-if="status" class="space-y-4" @submit.prevent="submit">
@@ -63,7 +74,7 @@ async function submit() {
         </label>
         <button type="submit" class="gf-button gf-button-primary w-full" :disabled="saving">{{ t('auth.createAccount') }}</button>
       </form>
-      <a v-else href="/login" class="gf-button gf-button-primary">{{ t('tongjiRegistration.restart') }}</a>
+      <a v-else :href="restartUrl" class="gf-button gf-button-lg gf-button-primary h-auto min-h-11 w-full whitespace-normal py-3 text-center">{{ t(createdAccount ? 'tongjiRegistration.restartSchool' : 'tongjiRegistration.restart') }}</a>
     </section>
   </main>
 </template>

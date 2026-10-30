@@ -38,7 +38,7 @@
     {{if .Payload.Layout.Site.ExternalLinks}}{{SafeHTML .Payload.Layout.Site.ExternalLinks}}{{end}}
     {{if .Payload.Layout.UmamiEnabled}}<script defer src="https://umi.yourtj.de/script.js" data-website-id="36750dcd-8c48-46ab-9dfb-2f09cdcef501" data-performance="true"></script>
     <script defer src="https://umi.yourtj.de/recorder.js" data-website-id="36750dcd-8c48-46ab-9dfb-2f09cdcef501"></script>{{end}}
-    {{ResourceEntry `src/site/main.ts`}}
+    {{ResourceEntry `src/site/main.ts` .Payload.Component}}
     {{if .Payload.Layout.Theme.Href}}<link id="goose-site-theme-link" rel="stylesheet" href="{{.Payload.Layout.Theme.Href}}">{{end}}
 </head>
 <body class="bg-base-200 text-base-content antialiased">

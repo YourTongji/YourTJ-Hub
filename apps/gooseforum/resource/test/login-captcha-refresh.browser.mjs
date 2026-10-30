@@ -15,6 +15,11 @@ for(const lang of ['zh','en','ja','de']) for(const width of [320,1280]) for(cons
  page.on('pageerror',error=>errors.push(error.message))
  const respond=(route,id)=>route.fulfill({json:{code:0,result:{captchaId:`challenge-${id}`,captchaImg:image(id)}}})
  try{
+ await page.route('**/static/pic/brand-default*.webp', route => {
+  const name = new URL(route.request().url()).pathname.split('/').pop()
+  assert.ok(['brand-default.webp','brand-default-dark.webp'].includes(name))
+  return route.fulfill({ path:fileURLToPath(new URL(`../static/pic/${name}`, import.meta.url)), contentType:'image/webp' })
+ })
  await page.route('**/api/auth/passkey/status',route=>route.fulfill({json:{code:0,result:{enabled:false}}}))
  await page.route('**/api/get-captcha*',async route=>{
   const id=++calls
@@ -44,6 +49,8 @@ for(const lang of ['zh','en','ja','de']) for(const width of [320,1280]) for(cons
  assert.equal(await input.getAttribute('aria-describedby'),'auth-captcha-error')
  assert.ok(await refresh.getAttribute('aria-label'))
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true)
+ await page.evaluate(() => document.fonts.ready)
+ await page.waitForFunction(() => [...document.images].every(image => image.complete && image.naturalWidth > 0))
  if(process.env.YOURTJ_TEST_ARTIFACTS){await mkdir(process.env.YOURTJ_TEST_ARTIFACTS,{recursive:true});await page.screenshot({path:`${process.env.YOURTJ_TEST_ARTIFACTS}/captcha-${lang}-${width}-${theme}.png`,fullPage:true})}
  await refresh.click();await page.locator('#auth-captcha-error').waitFor({state:'detached'})
  assert.equal(await input.inputValue(),'')

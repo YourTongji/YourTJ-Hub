@@ -354,7 +354,7 @@ const httpNotifyEvents = computed(() => {
   ]
 })
 
-// 审批事件（issue #1049）：飞书通道只投递这些事件与「举报创建」聚合事件，卡片带快捷审批链接。
+// 审批事件带快捷审批链接；新用户注册在同一飞书端点使用独立的只读摘要。
 const approvalNotifyEvents = [
   'moderation.review.topic.requested',
   'moderation.review.post.requested',
@@ -374,8 +374,8 @@ const approvalNotifyEventLabels: Record<(typeof approvalNotifyEvents)[number], s
   'moderation.report.course_review.created': 'k00x5',
 }
 
-function isApprovalNotifyEvent(eventName: string) {
-  return eventName === 'moderation.report.created' || (approvalNotifyEvents as readonly string[]).includes(eventName)
+function isFeishuNotifyEvent(eventName: string) {
+  return eventName === 'user.signup' || eventName === 'moderation.report.created' || (approvalNotifyEvents as readonly string[]).includes(eventName)
 }
 
 const httpChannelLabels: Record<HttpNotifyEndpoint['channelType'], string> = {
@@ -390,7 +390,7 @@ function toHttpChannel(value: unknown): HttpNotifyEndpoint['channelType'] {
 
 function endpointEventOptions(endpoint: HttpNotifyEndpoint) {
   return endpoint.channelType === 'feishu'
-    ? httpNotifyEvents.value.filter(item => isApprovalNotifyEvent(item.value))
+    ? httpNotifyEvents.value.filter(item => isFeishuNotifyEvent(item.value))
     : httpNotifyEvents.value
 }
 
@@ -672,7 +672,7 @@ function normalizeEndpoint(endpoint: Partial<HttpNotifyEndpoint> = {}) {
     secret: endpoint.secret ?? '',
     secretConfigured: toBool(endpoint.secretConfigured, false),
     urlConfigured: toBool(endpoint.urlConfigured, false),
-    events: channelType === 'feishu' ? events.filter(isApprovalNotifyEvent) : events,
+    events: channelType === 'feishu' ? events.filter(isFeishuNotifyEvent) : events,
     timeoutSeconds: Math.min(Math.max(Number(endpoint.timeoutSeconds ?? 2), 1), 15),
     failureCount: enabled ? 0 : Number(endpoint.failureCount ?? 0),
     lastError: enabled ? '' : endpoint.lastError ?? '',
@@ -1274,7 +1274,7 @@ function onEndpointChannelChange(endpoint: HttpNotifyEndpoint, channelType: Http
   if (endpoint.channelType === channelType) return
   endpoint.channelType = channelType
   if (channelType === 'feishu') {
-    endpoint.events = endpoint.events.filter(isApprovalNotifyEvent)
+    endpoint.events = endpoint.events.filter(isFeishuNotifyEvent)
     if (endpoint.events.length === 0) endpoint.events = ['moderation.report.post.created']
   }
   endpoint.urlConfigured = false
@@ -1700,7 +1700,7 @@ onUnmounted(stopSyncPolling)
           <Switch v-model="rateLimitForm.enabled" />
         </div>
         <div class="flex items-center justify-between rounded-lg border bg-muted/10 p-4">
-          <div><div class="text-base font-medium">{{ adminText('k00il') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00ij') }}</p></div>
+          <div><div class="text-base font-medium">{{ adminText('k00il') }}</div><p class="text-sm text-muted-foreground">{{ t('statsAdmin.rateLimitExemptionHint') }}</p></div>
           <Switch v-model="rateLimitForm.skipAdmin" :disabled="!rateLimitForm.enabled" />
         </div>
         <section class="space-y-3">

@@ -1,8 +1,10 @@
 package emailactivationservice
 
 import (
+	"fmt"
 	"log/slog"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/tokenservice"
@@ -12,7 +14,7 @@ func SendActivationEmail(userEntity *users.EntityComplete) error {
 	token, err := tokenservice.GenerateActivationTokenByUser(*userEntity)
 	if err != nil {
 		slog.Debug("生成激活邮件 Token 失败", "userId", userEntity.Id, "email", userEntity.Email, "err", err)
-		return err
+		return fmt.Errorf("%w: %w", taskQueue.ErrNotEnqueued, err)
 	}
 
 	err = mailservice.AddToQueue(mailservice.EmailTask{
@@ -37,7 +39,7 @@ func SendPendingEmailActivation(userEntity *users.EntityComplete, pendingEmail s
 	token, err := tokenservice.GenerateActivationToken(userEntity.Id, pendingEmail)
 	if err != nil {
 		slog.Debug("生成换绑确认邮件 Token 失败", "userId", userEntity.Id, "pendingEmail", pendingEmail, "err", err)
-		return err
+		return fmt.Errorf("%w: %w", taskQueue.ErrNotEnqueued, err)
 	}
 
 	err = mailservice.AddToQueue(mailservice.EmailTask{

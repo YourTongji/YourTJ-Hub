@@ -2,7 +2,7 @@
 import { computed, ref, watchPostEffect } from 'vue'
 import type { DecorationStyle } from '@gooseforum/client'
 import { decorationThemeRevision } from '@/site/utils/decoration-theme'
-import { hasNicknameContrast, decorationVariables } from '@/site/utils/decoration-style'
+import { hasNicknameContrast, decorationVariables } from '@/runtime/decoration-style'
 const props = defineProps<{ styleDefinition?: DecorationStyle | null }>()
 const element = ref<HTMLElement>()
 const readable = ref(false)

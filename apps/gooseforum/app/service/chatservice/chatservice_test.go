@@ -25,7 +25,7 @@ func setupMarkReadTestDB(t *testing.T) {
 	t.Helper()
 	conn := db.Connect()
 	if err := conn.AutoMigrate(
-		&users.EntityComplete{}, &users.BlockEntity{},
+		&users.EntityComplete{}, &users.BlockEntity{}, &users.PrivacySettingsEntity{},
 		&imConversations.Entity{},
 		&imUserChatConfigs.Entity{},
 		&messages.Entity{},

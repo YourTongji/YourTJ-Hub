@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/chatservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 )
@@ -38,6 +39,9 @@ func SendMessage(req component.BetterRequest[SendMessageReq]) component.Response
 	}
 	convId, err := chatservice.SendMessageWithReply(req.UserId, req.Params.PeerId, req.Params.Content, msgType, req.Params.ReplyToMessageID, req.Params.ClientMessageID)
 	if err != nil {
+		if errors.Is(err, chatservice.ErrMessagePermissionDenied) || errors.Is(err, users.ErrInteractionBlocked) {
+			return component.FailResponseCode(component.MessageChatPermissionDenied, nil)
+		}
 		// Database errors can contain private values. Record diagnostic categories,
 		// never message bodies or raw driver details in the response or this log.
 		var driverError interface{ SQLState() string }
@@ -110,6 +114,9 @@ func GetChatMessageReadStates(req component.BetterRequest[ChatMessageIDsReq]) co
 func ForwardMessages(req component.BetterRequest[chatservice.ForwardRequest]) component.Response {
 	result, err := chatservice.ForwardMessages(req.UserId, req.Params)
 	if err != nil {
+		if errors.Is(err, chatservice.ErrMessagePermissionDenied) || errors.Is(err, users.ErrInteractionBlocked) {
+			return component.FailResponseCode(component.MessageChatPermissionDenied, nil)
+		}
 		return component.FailResponseCode(component.MessageChatSendFailed, nil)
 	}
 	return component.SuccessResponse(result)

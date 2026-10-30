@@ -167,6 +167,7 @@ export default {
     searchClose: "Schließen",
   },
   statsAdmin: {
+    rateLimitExemptionHint: "Die Administrator-Ausnahme gilt nicht für Beitragsstatistiken. Die vier Abfragen teilen sich das Kontingent admin.stats.",
     filterTitle: 'Statistikfilter',
     rangeLabel: 'Zeitraum',
     range7: 'Letzte 7 Tage',
@@ -588,6 +589,8 @@ export default {
     save: "Profilabzeichen speichern"
   },
   tongjiRegistration: {
+    createdTitle: "Konto erstellt",
+    restartSchool: "Erneut über Tongji anmelden",
     title: "Tongji-Registrierung abschließen",
     intro: "Deine Tongji-Identität ist bestätigt. Wähle einen Benutzernamen und ein Passwort. Eine weitere E-Mail-Bestätigung ist nicht erforderlich.",
     expired: "Die Bestätigung ist abgelaufen. Bitte erneut mit Tongji anmelden.",
@@ -1417,6 +1420,11 @@ export default {
     contentGone: 'Der Inhalt wurde endgültig gelöscht',
   },
   auth: {
+    writeRecovery: {
+      email: "E-Mail-Bestätigung prüfen",
+      login: "Mit demselben Konto erneut anmelden",
+      hint: "Deine Eingaben bleiben auf dieser Seite. Schließe die Bestätigung oder Anmeldung im neuen Tab ab, kehre zurück und fahre manuell fort.",
+    },
     passkeyLogin: 'Mit Passkey anmelden',
     passkeyWorking: 'Passkey wird geprüft…',
     passkeyCancelled: 'Kein Passkey ausgewählt oder verfügbar. Versuche es erneut oder melde dich mit deinem Passwort an.',
@@ -1450,6 +1458,8 @@ export default {
     hidePassword: 'Passwort ausblenden',
     captcha: 'Captcha',
     refreshCaptcha: 'Bestätigungscode aktualisieren',
+    registrationUnavailable: "Registrierung ist derzeit nicht verfügbar. Bitte später erneut versuchen.",
+    checkSignupAvailability: "Registrierung erneut prüfen",
     captchaAlt: 'Captcha',
     publishCaptchaExplanation: 'Das Forum kann bei vielen Beiträgen und Antworten von neuen Konten ein Captcha verlangen. Bei nachlassender Aktivität oder sobald das Konto das festgelegte Alter erreicht, entfällt diese Anforderung.',
     forgotPassword: 'Passwort vergessen?',
@@ -2290,6 +2300,30 @@ export default {
       not_recommend: 'Die meisten Studierenden empfehlen diesen Kurs nicht.',
     },
   },
+  reviewRejection: {
+    title: "Inhalt ablehnen",
+    description: "Wähle einen Grund, den die verfassende Person verstehen und beheben kann.",
+    reasonLabel: "Ablehnungsgrund",
+    choose: "Grund auswählen",
+    noteLabel: "Zusätzliche Erklärung (optional)",
+    noteRequired: "Zusätzliche Erklärung (erforderlich)",
+    hint: "Der Grund ist nach der Anmeldung unter Meine Inhalte sichtbar. Nenne keine privaten Daten anderer Personen oder internen Moderationsinformationen.",
+    required: "Wähle einen Grund. Für Sonstiges ist eine Erklärung erforderlich.",
+    tooLong: "Grund und Erklärung dürfen zusammen höchstens 512 Zeichen umfassen.",
+    options: {
+      rules: "Community-Regeln",
+      spam: "Spam oder Werbung",
+      privacy: "Private oder sensible Informationen",
+      offtopic: "Unpassende Kategorie",
+      other: "Sonstiges",
+    },
+    reasons: {
+      rules: "Der Inhalt entspricht nicht den Community-Regeln. Bitte überarbeiten und erneut einreichen.",
+      spam: "Der Inhalt enthält Spam oder Werbung. Bitte entfernen und erneut einreichen.",
+      privacy: "Der Inhalt enthält private oder sensible Informationen. Bitte bearbeiten und erneut einreichen.",
+      offtopic: "Der Inhalt passt nicht zur Kategorie. Bitte Inhalt oder Kategorie ändern und erneut einreichen.",
+    },
+  },
   moderationAction: {
     title: 'Moderationshinweis bearbeiten',
     description: 'Prüfen Sie den Inhalt, bevor Sie handeln. Die Aktion läuft mit Ihren aktuellen Moderationsrechten.',
@@ -3013,6 +3047,18 @@ export default {
     },
   },
   settings: {
+    activationStatus: {
+      target: "Empfänger: {email}",
+      remaining: "Heute verbleibend: {count} / {limit}",
+      refresh: "Status aktualisieren",
+      cooldown: "In {seconds} Sekunden erneut senden",
+      daily_limit: "Tageslimit erreicht. Morgen erneut versuchen.",
+      disabled: "E-Mail-Bestätigung ist derzeit deaktiviert",
+      verified: "E-Mail bestätigt. Erneutes Senden ist nicht nötig.",
+      frozen: "Dieses Konto kann keine E-Mail erneut senden",
+      mail_unavailable: "E-Mail-Dienst nicht verfügbar. Später aktualisieren.",
+      missing_email: "Zuerst in den Kontoeinstellungen eine E-Mail hinzufügen",
+    },
     editing: 'Wird bearbeitet',
     backToProfile: 'Zurück zu meinem Profil',
     savingShort: 'Speichern',
@@ -3226,6 +3272,11 @@ export default {
       closeConfirmButton: 'Schließen bestätigen',
     },
     privacy: {
+      chatTitle: "Private Nachrichten",
+      chatLabel: "Wer darf ein Gespräch beginnen",
+      chatHint: "Gespräche mit vorhandenen Nachrichten können fortgesetzt werden; leere Gespräche zählen nicht. Sperren haben Vorrang, auch für Bots.",
+      chatNobody: "Keine neuen Gespräche",
+      chatSaved: "Nachrichtenberechtigungen gespeichert",
       title: 'Datenschutz',
       profileTitle: 'Profilsichtbarkeit',
       profileDescription: 'Lege fest, wer welche Teile deines Profils sehen kann.',
@@ -3641,7 +3692,8 @@ export default {
       register: {
         dailyQuota: 'Das tägliche Registrierungslimit ist erreicht. Bitte versuchen Sie es morgen erneut.',
         failed: 'Registrierung fehlgeschlagen',
-        retryLogin: 'Bei der Registrierung ist ein Problem aufgetreten; versuche dich anzumelden',
+        emailRetry: "Dein Konto wurde erstellt. Die Bestätigungs-E-Mail ist derzeit nicht verfügbar. Sende sie in den E-Mail-Einstellungen erneut oder ändere die Adresse.",
+        retryLogin: "Dein Konto wurde erstellt, die automatische Anmeldung aber nicht abgeschlossen. Melde dich an, um fortzufahren; registriere dich nicht erneut.",
         emailVerify: 'Registrierung erfolgreich. Bestätige deine E-Mail',
       },
       login: {
@@ -3782,6 +3834,7 @@ export default {
       },
     },
     chat: {
+      permission: { denied: "Diese Person schränkt private Nachrichten ein. Diese Nachricht kann nicht gesendet werden." },
       send: {
         failed: 'Diese Nachricht konnte nicht gesendet werden. Bitte versuche es später erneut',
       },
@@ -4114,6 +4167,7 @@ export default {
     'post.alreadyDeleted': 'Diese Antwort wurde bereits gelöscht. Kein erneutes Löschen nötig.',
     'post.firstPostUndeletable': 'Der erste Beitrag eines Themas kann nicht gelöscht werden. Lösche stattdessen das Thema.',
     'auth.tongji.accountExists': 'Diese Tongji-Identität oder ihre Studierenden-E-Mail gehört bereits zu einem Konto. Melden Sie sich beim bestehenden Konto an oder stellen Sie es wieder her und verknüpfen Sie die Identität auf der Campus-Seite.',
+    'auth.tongji.retryLogin': "Dein Konto wurde erstellt, aber die automatische Anmeldung wurde nicht abgeschlossen. Melde dich erneut über Tongji an; registriere dich nicht erneut.",
     'admin.moderator.userRequired': 'Gib einen Moderator-Benutzer ein.',
     'admin.moderator.userNotFound': 'Moderator-Benutzer nicht gefunden.',
     'admin.moderator.notFound': 'Moderator-Datensatz nicht gefunden.',

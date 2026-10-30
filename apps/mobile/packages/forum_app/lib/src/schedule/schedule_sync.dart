@@ -51,6 +51,7 @@ class ScheduleSyncController {
     Timer Function(Duration, void Function())? debounceTimer,
   }) : _timerFactory = debounceTimer ?? ((delay, fire) => Timer(delay, fire)) {
     scheduleLocalPlansChanged = _onLocalChange;
+    store.configurationSaving.addListener(_configurationChanged);
   }
   static const debounceDelay = Duration(seconds: 3);
   final PkPlansTransport transport;
@@ -102,6 +103,7 @@ class ScheduleSyncController {
       .toList();
   bool get isDirty => _persistenceFailed || _dirtyIDs.isNotEmpty;
   void dispose() {
+    store.configurationSaving.removeListener(_configurationChanged);
     _disposed = true;
     _generation++;
     cancelPendingUpload();
@@ -127,6 +129,7 @@ class ScheduleSyncController {
   Future<bool> _current(int run) async {
     final identity = await _identity();
     return !_disposed &&
+        !store.isChangingConfiguration &&
         run == _generation &&
         _owner != null &&
         identity == _owner &&
@@ -528,8 +531,29 @@ class ScheduleSyncController {
     return true;
   }
 
-  void _onLocalChange() {
+  void _configurationChanged() {
     if (_disposed) return;
+    if (store.isChangingConfiguration) {
+      _generation++;
+      cancelPendingUpload();
+    } else if (_owner != null) {
+      unawaited(_resumeAfterConfiguration());
+    }
+  }
+
+  Future<void> _resumeAfterConfiguration() async {
+    try {
+      await _operation;
+    } catch (_) {
+      // Existing transport handling owns the failure; resume the current scope.
+    }
+    if (!_disposed && !store.isChangingConfiguration && _owner != null) {
+      _schedule();
+    }
+  }
+
+  void _onLocalChange() {
+    if (_disposed || store.isChangingConfiguration) return;
     store.markSyncDirty();
     unawaited(_persist());
     _schedule();
