@@ -98,6 +98,16 @@ openScheduleConfig(
     ),
   );
   await tester.pumpAndSettle();
+  final filters = find
+      .text(
+        AppLocalizations.of(
+          tester.element(find.byType(SchedulePage)),
+        ).scheduleFilters,
+      )
+      .first;
+  await tester.ensureVisible(filters);
+  await tester.tap(filters);
+  await tester.pumpAndSettle();
   return (store: store, container: container);
 }
 

@@ -1087,6 +1087,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get scheduleTitle => '选课排课';
 
   @override
+  String get scheduleFilters => '筛选';
+
+  @override
+  String get scheduleCandidates => '候选';
+
+  @override
   String get scheduleTabTimetable => '方案预览';
 
   @override

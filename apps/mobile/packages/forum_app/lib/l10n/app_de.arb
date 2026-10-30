@@ -346,6 +346,8 @@
   "topicLaterReplies": "Neuere Antworten laden",
   "topicNewTopic": "Neues Thema",
   "scheduleTitle": "Kursplaner",
+  "scheduleFilters": "Filter",
+  "scheduleCandidates": "Kurse",
   "scheduleTabTimetable": "Planvorschau",
   "scheduleTabPick": "Kurse auswählen",
   "scheduleTerm": "Semester",

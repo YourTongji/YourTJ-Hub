@@ -2094,6 +2094,18 @@ abstract class AppLocalizations {
   /// **'Course planner'**
   String get scheduleTitle;
 
+  /// No description provided for @scheduleFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Filters'**
+  String get scheduleFilters;
+
+  /// No description provided for @scheduleCandidates.
+  ///
+  /// In en, this message translates to:
+  /// **'Candidates'**
+  String get scheduleCandidates;
+
   /// No description provided for @scheduleTabTimetable.
   ///
   /// In en, this message translates to:

@@ -66,6 +66,8 @@ void main() {
       addTearDown(container.dispose);
       await tester.pumpWidget(wrapApp(container));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('候选').first);
+      await tester.pumpAndSettle();
       expect(repo.loads, 0);
       await notifier.setMajorSelection(
         PkMajorSelection(
@@ -91,6 +93,8 @@ void main() {
       final container = makeContainer(notifier);
       addTearDown(container.dispose);
       await tester.pumpWidget(wrapApp(container));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('候选').first);
       await tester.pumpAndSettle();
       expect(find.text('先设置排课范围'), findsOneWidget);
       expect(find.byKey(const Key('schedule-configure-scope')), findsOneWidget);

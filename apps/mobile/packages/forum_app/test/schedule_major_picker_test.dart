@@ -28,6 +28,8 @@ void main() {
     addTearDown(container.dispose);
     await tester.pumpWidget(wrapApp(container));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('筛选').first);
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('专业'));
     await tester.tap(find.text('专业'));
     await tester.pumpAndSettle();
@@ -63,6 +65,8 @@ void main() {
     final container = makeContainer(notifier);
     addTearDown(container.dispose);
     await tester.pumpWidget(wrapApp(container));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('筛选').first);
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('专业'));
     await tester.tap(find.text('专业'));
@@ -123,6 +127,8 @@ void main() {
       final container = makeContainer(notifier);
       addTearDown(container.dispose);
       await tester.pumpWidget(wrapApp(container));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('筛选').first);
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('专业'));
       await tester.tap(find.text('专业'));

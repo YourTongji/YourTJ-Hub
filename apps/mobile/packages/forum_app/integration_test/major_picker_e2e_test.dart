@@ -90,15 +90,10 @@ void main() {
       final previous = majors.firstWhere((m) => m.code != target.code);
       final l = AppLocalizations.of(tester.element(find.byType(SchedulePage)));
       Future<void> open() async {
-        if (store.state.isConfigCollapsed) {
-          final summary = find
-              .textContaining(store.state.majorSelected.majorName!)
-              .first;
-          await tester.ensureVisible(summary);
-          await tester.pumpAndSettle();
-          await tester.tap(summary);
-          await tester.pumpAndSettle();
-        }
+        final filters = find.text(l.scheduleFilters).first;
+        await tester.ensureVisible(filters);
+        await tester.tap(filters);
+        await tester.pumpAndSettle();
         await tester.ensureVisible(find.text(l.scheduleMajor));
         await tester.pumpAndSettle();
         await tester.tap(find.text(l.scheduleMajor));

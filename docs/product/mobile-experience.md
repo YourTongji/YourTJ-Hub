@@ -1037,7 +1037,12 @@ retain separate identities and detail links. Identity text wraps with enlarged t
   navigator, covering the retained tab dock and rail. Loading, failure and retry remain inside
   this route; closing or completing authorization returns to the same campus branch and refreshes
   its status. Browser content retains its safe-area and keyboard insets.
-- `Current`: the scheduler opens in course selection. Plan preview remains a local planning
+- `Current`: the scheduler has page-local Filters, Candidates, Selected and Plan preview tasks.
+  An unconfigured planner opens Filters; an existing context opens Candidates. The same store owns
+  every task. Switching tasks keeps the candidate query/results and selected classes, while dismissing
+  the keyboard. Selected lists complete class codes, teachers, times, rooms, weeks and conflicts,
+  independent of the preview's week filter, and can remove a class directly. Candidate results remain
+  transient; choosing a teaching class updates the existing plan immediately. Plan preview remains a local planning
   grid, with week filters, conflicts, custom blocks and existing plan operations. Web and mobile
   warn about time conflicts before a teaching class is selected, while keeping the add action
   non-blocking. Completed term/grade/major selection collapses into an editable summary; course,

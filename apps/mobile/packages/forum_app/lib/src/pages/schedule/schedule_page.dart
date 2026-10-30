@@ -93,7 +93,7 @@ class SchedulePage extends ConsumerStatefulWidget {
 class _SchedulePageState extends ConsumerState<SchedulePage>
     with WidgetsBindingObserver {
   bool _ready = false;
-  bool _tabTimetable = false;
+  _ScheduleTask _task = _ScheduleTask.candidates;
   bool _syncing = false;
   bool _openingOffering = false;
 
@@ -124,7 +124,10 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
     WidgetsBinding.instance.addObserver(this);
     ref.read(scheduleStoreProvider.notifier).ready.then((_) {
       if (!mounted) return;
-      setState(() => _ready = true);
+      setState(() {
+        _ready = true;
+        if (!_notifier.isMajorSelected) _task = _ScheduleTask.filters;
+      });
       _loadSessionMeta();
       _syncPlansOnEnter();
     });
@@ -241,6 +244,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
   Future<void> _configureScope() async {
     FocusManager.instance.primaryFocus?.unfocus();
     _notifier.setConfigCollapsed(false);
+    setState(() => _task = _ScheduleTask.filters);
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted || !_pageScrollController.hasClients) return;
     // The configuration may be outside ListView's lazy cache on a small screen.
@@ -451,35 +455,47 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
                     ),
                   _PlanBar(notifier: _notifier, state: state),
                   const SizedBox(height: 8),
-                  KeyedSubtree(
-                    key: _configurationKey,
-                    child: state.isConfigCollapsed
-                        ? _CollapsedConfigRow(
-                            calendarName: _calendarName(
-                              state.majorSelected.calendarId,
-                            ),
-                            state: state,
-                            onTap: () => _notifier.setConfigCollapsed(false),
-                          )
-                        : _ConfigRow(
-                            calendars: _calendars,
-                            state: state,
-                            notifier: _notifier,
-                          ),
+                  _ScheduleTabs(
+                    task: _task,
+                    onSelected: (_ScheduleTask task) {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      setState(() => _task = task);
+                    },
                   ),
+                  const SizedBox(height: 8),
+                  if (_task == _ScheduleTask.filters) ...[
+                    KeyedSubtree(
+                      key: _configurationKey,
+                      child: _ConfigRow(
+                        calendars: _calendars,
+                        state: state,
+                        notifier: _notifier,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    GfButton(
+                      label: l10n.scheduleCandidates,
+                      onPressed: _notifier.isMajorSelected
+                          ? () =>
+                                setState(() => _task = _ScheduleTask.candidates)
+                          : null,
+                    ),
+                  ] else
+                    _CollapsedConfigRow(
+                      calendarName: _calendarName(
+                        state.majorSelected.calendarId,
+                      ),
+                      state: state,
+                      onTap: () =>
+                          setState(() => _task = _ScheduleTask.filters),
+                    ),
                   const SizedBox(height: 8),
                   if (outdated)
                     _DataOutdatedBanner(loading: _syncing, onTap: _syncLatest),
                   if (outdated) const SizedBox(height: 8),
                   _StatsFooter(state: state),
                   const SizedBox(height: 8),
-                  _ScheduleTabs(
-                    selectedTimetable: _tabTimetable,
-                    onSelected: (bool timetable) =>
-                        setState(() => _tabTimetable = timetable),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_tabTimetable) ...[
+                  if (_task == _ScheduleTask.timetable) ...[
                     GfText(
                       l10n.schedulerPlanDisclaimer,
                       style: GfTheme.typographyOf(context).caption,
@@ -489,13 +505,21 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
                       boundaryKey: _gridBoundaryKey,
                       sectionOverrides: _sectionOverrides,
                     ),
-                  ] else
-                    _PickTab(
+                  ],
+                  if (_task == _ScheduleTask.selected) const _SelectedTab(),
+                  // Keep the query and result state across task switches. This
+                  // subtree has a stable slot; it does not own plan persistence.
+                  Visibility(
+                    key: const ValueKey('schedule-candidates'),
+                    visible: _task == _ScheduleTask.candidates,
+                    maintainState: true,
+                    child: _PickTab(
                       calendarLabel: _calendarName(
                         state.majorSelected.calendarId,
                       ),
                       onConfigure: _configureScope,
                     ),
+                  ),
                 ],
               ),
       ),
@@ -1527,26 +1551,122 @@ class _DataOutdatedBanner extends StatelessWidget {
   }
 }
 
-/// 主 tab：课表 / 选课。
-class _ScheduleTabs extends StatelessWidget {
-  const _ScheduleTabs({
-    required this.selectedTimetable,
-    required this.onSelected,
-  });
+enum _ScheduleTask { filters, candidates, selected, timetable }
 
-  final bool selectedTimetable;
-  final ValueChanged<bool> onSelected;
+/// One page-local task track; every region uses the same schedule store.
+class _ScheduleTabs extends StatelessWidget {
+  const _ScheduleTabs({required this.task, required this.onSelected});
+  final _ScheduleTask task;
+  final ValueChanged<_ScheduleTask> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final l10n = AppLocalizations.of(context);
     return GfTabBar(
-      tabs: <GfTab>[
-        GfTab(label: l10n.scheduleTabTimetable, value: true),
-        GfTab(label: l10n.scheduleTabPick, value: false),
+      tabs: [
+        GfTab(label: l10n.scheduleFilters, value: _ScheduleTask.filters),
+        GfTab(label: l10n.scheduleCandidates, value: _ScheduleTask.candidates),
+        GfTab(label: l10n.scheduleSelected, value: _ScheduleTask.selected),
+        GfTab(label: l10n.scheduleTabTimetable, value: _ScheduleTask.timetable),
       ],
-      selected: selectedTimetable,
-      onSelected: (Object value) => onSelected(value as bool),
+      selected: task,
+      onSelected: (value) => onSelected(value as _ScheduleTask),
+    );
+  }
+}
+
+/// Selected classes are independent of the currently displayed timetable week.
+/// Render every arrangement without line limits, including unscheduled classes.
+class _SelectedTab extends ConsumerWidget {
+  const _SelectedTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(scheduleStoreProvider);
+    final notifier = ref.read(scheduleStoreProvider.notifier);
+    final plan = notifier.activePlan;
+    final l10n = AppLocalizations.of(context);
+    final selected = [
+      for (final course in plan.stagedCourses)
+        for (final detail in course.courseDetail)
+          if (plan.selectedCourses.contains(detail.code)) (course, detail),
+    ];
+    if (selected.isEmpty) return GfEmpty(message: l10n.commonEmpty);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final (course, detail) in selected)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: GfCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  GfText(
+                    course.courseName,
+                    style: GfTheme.typographyOf(context).title3,
+                  ),
+                  GfText('${course.courseCode} · ${detail.code}'),
+                  GfText(l10n.scheduleSelected),
+                  if (detail.teachers.isNotEmpty)
+                    GfText(
+                      detail.teachers.map((t) => t.teacherName).join(' · '),
+                    ),
+                  for (final arrangement in detail.arrangementInfo) ...[
+                    GfText(
+                      [
+                        if (arrangement.occupyDay >= 1 &&
+                            arrangement.occupyDay <= 7)
+                          [
+                            l10n.scheduleDayMon,
+                            l10n.scheduleDayTue,
+                            l10n.scheduleDayWed,
+                            l10n.scheduleDayThu,
+                            l10n.scheduleDayFri,
+                            l10n.scheduleDaySat,
+                            l10n.scheduleDaySun,
+                          ][arrangement.occupyDay - 1],
+                        l10n.schedulePeriodRange(
+                          arrangement.occupyTime.join(', '),
+                        ),
+                      ].join(' · '),
+                    ),
+                    GfText(
+                      [
+                        l10n.scheduleWeeksN(
+                          formatWeeksText(arrangement.occupyWeek),
+                        ),
+                        if (arrangement.occupyRoom.isNotEmpty)
+                          arrangement.occupyRoom,
+                        if (arrangement.teacherAndCode.isNotEmpty)
+                          arrangement.teacherAndCode,
+                      ].join(' · '),
+                    ),
+                  ],
+                  for (final conflict in findClassConflicts(
+                    detail,
+                    state.occupied,
+                  ))
+                    GfText(
+                      l10n.scheduleConflictWith(
+                        conflict.courseName.isNotEmpty
+                            ? conflict.courseName
+                            : conflict.code,
+                      ),
+                      style: TextStyle(color: GfTheme.colorsOf(context).error),
+                    ),
+                  const SizedBox(height: 8),
+                  GfButton(
+                    label: l10n.scheduleRemoveCourse,
+                    variant: GfButtonVariant.outline,
+                    expanded: true,
+                    onPressed: () => notifier.deselectClass(detail.code),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -1772,7 +1892,10 @@ class _PickTab extends ConsumerStatefulWidget {
   ConsumerState<_PickTab> createState() => _PickTabState();
 }
 
-class _PickTabState extends ConsumerState<_PickTab> {
+class _PickTabState extends ConsumerState<_PickTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
   int _segment = 0;
   final TextEditingController _searchController = TextEditingController();
   final GlobalKey _searchAnchor = GlobalKey();
@@ -1950,6 +2073,7 @@ class _PickTabState extends ConsumerState<_PickTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     ref.listen(
       scheduleStoreProvider.select(
         (state) => (

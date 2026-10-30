@@ -1226,8 +1226,8 @@ void main() {
       await tester.pumpWidget(wrapApp(container));
       await tester.pumpAndSettle();
 
-      // 点击切换到「选课」tab
-      await tester.tap(find.text('选课'));
+      // 点击切换到「候选」tab
+      await tester.tap(find.text('候选'));
       await tester.pumpAndSettle();
 
       // 在必修课列表看见「高等数学」，点击唤起教学班 sheet
