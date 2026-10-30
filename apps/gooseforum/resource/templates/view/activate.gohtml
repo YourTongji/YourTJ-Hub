@@ -136,6 +136,7 @@
             align-items: center;
             justify-content: center;
             min-height: 44px;
+            text-align: center;
             padding: 0 18px;
             border-radius: 12px;
             font-size: 14px;
@@ -233,9 +234,15 @@
             <p class="result {{if .Data.Success}}success{{else}}fail{{end}}">{{.Data.Message}}</p>
             <p class="message">{{.Data.Description}}</p>
 
+            {{if .Data.Success}}
+            <p class="message">{{call .T "activationVerifiedAccount"}} <strong>{{.Data.Account}}</strong></p>
+            <p class="message">{{call .T "activationAppFallback"}}</p>
+            {{end}}
             <div class="actions{{if not .Data.Success}} recovery{{end}}">
                 {{if .Data.Success}}
-                <a href="/login" class="button primary">{{call .T "login_now"}}</a>
+                <a href="{{.Data.ContinueURL}}" class="button primary">{{call .T "activationContinue"}}</a>
+                <a href="yourtj://account/email-verified" class="button secondary">{{call .T "activationOpenApp"}}</a>
+                <a href="{{.Data.LoginURL}}" class="button secondary">{{call .T "login_now"}}</a>
                 <a href="/" class="button secondary">{{call .T "back_home"}}</a>
                 {{else}}
                 <a href="{{.Data.RecoveryURL}}" class="button primary">{{call .T "activationRecoveryAction"}}</a>

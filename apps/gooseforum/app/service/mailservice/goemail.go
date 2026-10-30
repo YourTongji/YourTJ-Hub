@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
@@ -59,6 +58,27 @@ func setMessageFrom(message *mail.Msg, config pageConfig.MailSettingsConfig) err
 	return nil
 }
 
+// buildAccountEmailMessage is the SMTP serialization boundary; it performs no delivery.
+func buildAccountEmailMessage(config pageConfig.MailSettingsConfig, siteConfig pageConfig.SiteSettingsConfig, task EmailTask) (*mail.Msg, error) {
+	message := mail.NewMsg()
+	if err := message.To(task.To); err != nil {
+		return nil, fmt.Errorf("failed to set To address: %w", err)
+	}
+	if err := setMessageFrom(message, config); err != nil {
+		return nil, err
+	}
+	subject, body, plain, err := renderAccountEmail(siteConfig, task)
+	if err != nil {
+		return nil, fmt.Errorf("生成邮件内容失败: %w", err)
+	}
+	message.Subject(subject)
+	// RFC 2046 §5.1.4: least rich first, preferred HTML alternative last.
+	// https://www.rfc-editor.org/rfc/rfc2046#section-5.1.4
+	message.SetBodyString(mail.TypeTextPlain, plain)
+	message.AddAlternativeString(mail.TypeTextHTML, body)
+	return message, nil
+}
+
 // IsConfigured 报告站点邮件服务是否具备发信条件。注册入口用它把
 // 「启用了邮箱验证但发不出邮件」的组合挡在缓存/创建账号之前（issue #1284 B18）。
 // 发件地址不需要单独判断：normalizeSender 总会回退到默认地址。
@@ -74,19 +94,12 @@ func SendActivationEmail(to, username, token string, locale ...string) error {
 	if !config.EnableMail {
 		return errors.New("mail settings config is disabled")
 	}
-	message := mail.NewMsg()
-	if err := message.To(to); err != nil {
-		return fmt.Errorf("failed to set To address: %w", err)
-	}
-	message.Subject(i18n.T(emailBodyLang(locale...), "email.activation.subject"))
-	if err := setMessageFrom(message, config); err != nil {
+	message, err := buildAccountEmailMessage(config, hotdataserve.GetSiteSettingsConfigCache(), EmailTask{
+		Type: "activation", To: to, Username: username, Token: token, Locale: normalizeEmailLocale(locale...),
+	})
+	if err != nil {
 		return err
 	}
-	body, err := generateActivationEmailBody(username, token, locale...)
-	if err != nil {
-		return fmt.Errorf("生成邮件内容失败: %w", err)
-	}
-	message.SetBodyString(mail.TypeTextHTML, body)
 
 	client, err := buildClientByConfig(config)
 	if err != nil {
@@ -110,19 +123,12 @@ func SendPasswordResetEmail(to, username, token string, locale ...string) error 
 	if !config.EnableMail {
 		return errors.New("mail settings config is disabled")
 	}
-	message := mail.NewMsg()
-	if err := message.To(to); err != nil {
-		return fmt.Errorf("failed to set To address: %w", err)
-	}
-	message.Subject(i18n.T(emailBodyLang(locale...), "email.passwordReset.subject"))
-	if err := setMessageFrom(message, config); err != nil {
+	message, err := buildAccountEmailMessage(config, hotdataserve.GetSiteSettingsConfigCache(), EmailTask{
+		Type: "reset_password", To: to, Username: username, Token: token, Locale: normalizeEmailLocale(locale...),
+	})
+	if err != nil {
 		return err
 	}
-	body, err := generatePasswordResetEmailBody(username, token, locale...)
-	if err != nil {
-		return fmt.Errorf("生成邮件内容失败: %w", err)
-	}
-	message.SetBodyString(mail.TypeTextHTML, body)
 
 	client, err := buildClientByConfig(config)
 	if err != nil {
@@ -145,19 +151,12 @@ func SendEmailChangedEmail(to, username, newEmail string, locale ...string) erro
 	if !config.EnableMail {
 		return errors.New("mail settings config is disabled")
 	}
-	message := mail.NewMsg()
-	if err := message.To(to); err != nil {
-		return fmt.Errorf("failed to set To address: %w", err)
-	}
-	message.Subject(i18n.T(emailBodyLang(locale...), "email.changed.subject"))
-	if err := setMessageFrom(message, config); err != nil {
+	message, err := buildAccountEmailMessage(config, hotdataserve.GetSiteSettingsConfigCache(), EmailTask{
+		Type: "email_changed", To: to, Username: username, NewEmail: newEmail, Locale: normalizeEmailLocale(locale...),
+	})
+	if err != nil {
 		return err
 	}
-	body, err := generateEmailChangedEmailBody(username, newEmail, locale...)
-	if err != nil {
-		return fmt.Errorf("生成邮件内容失败: %w", err)
-	}
-	message.SetBodyString(mail.TypeTextHTML, body)
 
 	client, err := buildClientByConfig(config)
 	if err != nil {
@@ -182,19 +181,12 @@ func SendEmailChangePendingEmail(to, username, newEmail string, locale ...string
 	if !config.EnableMail {
 		return errors.New("mail settings config is disabled")
 	}
-	message := mail.NewMsg()
-	if err := message.To(to); err != nil {
-		return fmt.Errorf("failed to set To address: %w", err)
-	}
-	message.Subject(i18n.T(emailBodyLang(locale...), "email.changePending.subject"))
-	if err := setMessageFrom(message, config); err != nil {
+	message, err := buildAccountEmailMessage(config, hotdataserve.GetSiteSettingsConfigCache(), EmailTask{
+		Type: "email_change_pending", To: to, Username: username, NewEmail: newEmail, Locale: normalizeEmailLocale(locale...),
+	})
+	if err != nil {
 		return err
 	}
-	body, err := generateEmailChangePendingEmailBody(username, newEmail, locale...)
-	if err != nil {
-		return fmt.Errorf("生成邮件内容失败: %w", err)
-	}
-	message.SetBodyString(mail.TypeTextHTML, body)
 
 	client, err := buildClientByConfig(config)
 	if err != nil {

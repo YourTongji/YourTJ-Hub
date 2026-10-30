@@ -1,3 +1,4 @@
+// Pure decoration presentation helpers shared by the site and admin entrypoints.
 import type { DecorationStyle } from '@gooseforum/client'
 
 export function isSafeDecorationAssetUrl(value: string | undefined): value is string {

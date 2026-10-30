@@ -24,7 +24,7 @@ type manifestItem struct {
 
 var manifest = loadManifest()
 
-func resourceEntry(origin string) template.HTML {
+func resourceEntry(origin string, page ...PageComponent) template.HTML {
 	if devServer := viteDevServer(); devServer != "" {
 		devServer = strings.TrimRight(devServer, "/")
 		origin = strings.TrimPrefix(origin, "/")
@@ -50,6 +50,27 @@ func resourceEntry(origin string) template.HTML {
 	}
 	fmt.Fprintf(&sb, `<script type="module" src="%s" crossorigin></script>`, resourceAsset(item.File))
 	sb.WriteByte('\n')
+	roots := []string{origin}
+	var modules []string
+	if len(page) > 0 && page[0] == PageComponentHome {
+		// The initial page is already known from the server payload. Discover its
+		// chunk alongside the entry instead of after downloading/executing it.
+		const home = "src/site/pages/HomePage.vue"
+		if chunk, exists := manifest[home]; exists && isModuleFile(chunk.File) {
+			// Keep the known page ahead of its many shared dependencies in the
+			// browser's preload queue, including HTTP/1 connection-limited links.
+			modules = append(modules, chunk.File)
+		}
+		roots = append(roots, home)
+	}
+	visited := map[string]bool{origin: true}
+	for _, root := range roots {
+		modules = append(modules, collectModules(root, visited)...)
+	}
+	for _, file := range dedupeStrings(modules) {
+		fmt.Fprintf(&sb, `<link rel="modulepreload" href="%s" crossorigin>`, resourceAsset(file))
+		sb.WriteByte('\n')
+	}
 	return template.HTML(sb.String())
 }
 
@@ -112,6 +133,38 @@ func collectCSS(entry string, visited map[string]bool) []string {
 		files = append(files, collectCSS(importKey, visited)...)
 	}
 	return dedupeStrings(files)
+}
+
+// collectModules follows only static imports: unrelated dynamic pages and
+// editors remain lazy. Visited keys bound cycles; output paths are deduplicated
+// too because manifest entries can share an emitted chunk.
+func collectModules(entry string, visited map[string]bool) []string {
+	item, ok := manifest[entry]
+	if !ok {
+		return nil
+	}
+	var files []string
+	for _, key := range item.Imports {
+		if visited[key] {
+			continue
+		}
+		visited[key] = true
+		files = append(files, collectModules(key, visited)...)
+		if imported, ok := manifest[key]; ok && isModuleFile(imported.File) {
+			files = append(files, imported.File)
+		}
+	}
+	if !visited[entry] {
+		visited[entry] = true
+		if isModuleFile(item.File) {
+			files = append(files, item.File)
+		}
+	}
+	return files
+}
+
+func isModuleFile(file string) bool {
+	return strings.HasSuffix(file, ".js") || strings.HasSuffix(file, ".mjs")
 }
 
 func dedupeStrings(values []string) []string {

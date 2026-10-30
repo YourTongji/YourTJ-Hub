@@ -81,7 +81,7 @@ func ActivateAccount(c *gin.Context) {
 				slog.Error("换绑完成通知入队失败", "userId", switched.User.Id, "oldEmail", switched.OldEmail, "error", err)
 			}
 		}
-		renderActivationPage(c, true, "activationSuccess")
+		renderActivationSuccess(c, &switched.User)
 		return
 	}
 
@@ -108,7 +108,7 @@ func ActivateAccount(c *gin.Context) {
 	user.IsActivated = users.ActivationSuccess
 	userservice.InvalidateUserInfoCache(user.Id)
 
-	renderActivationPage(c, true, "activationSuccess")
+	renderActivationSuccess(c, &user)
 }
 
 // ActivateAccountData 激活页面数据
@@ -120,10 +120,20 @@ type ActivateAccountData struct {
 	Message     string
 	Success     bool
 	Description string
+	Account     string
+	ContinueURL string
+	LoginURL    string
 }
 
 // renderActivationPage 渲染账号激活结果页。messageKey 为 i18n 文案键。
+func renderActivationSuccess(c *gin.Context, user *users.EntityComplete) {
+	c.Set("activationAccount", user.Username)
+	renderActivationPage(c, true, "activationSuccess")
+}
+
 func renderActivationPage(c *gin.Context, success bool, messageKey string) {
+	c.Header("Cache-Control", "private, no-store")
+	c.Header("Referrer-Policy", "no-referrer")
 	lang := component.RequestLang(c)
 	tr := i18n.Func(lang)
 
@@ -169,6 +179,9 @@ func renderActivationPage(c *gin.Context, success bool, messageKey string) {
 			Message:     tr(messageKey),
 			Success:     success,
 			Description: description,
+			Account:     c.GetString("activationAccount"),
+			ContinueURL: activationContinuation(c.Query("redirect")),
+			LoginURL:    activationLoginURL(c.Query("redirect")),
 		},
 		T:    tr,
 		Lang: lang,
