@@ -345,6 +345,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     var matching = drafts.where(
       (draft) =>
           draft.kind != DraftKind.reply &&
+          draft.kind != DraftKind.postEdit &&
           (unknownTopicKind
               ? recoveryKeys.contains(draft.key)
               : draft.key == _draftKey),
@@ -1227,6 +1228,9 @@ class _PublishPageState extends ConsumerState<PublishPage>
       _message = '';
     });
     try {
+      // A 401 tears down the session before the HTTP Future throws. Persist
+      // the latest editor revision before allowing that boundary to happen.
+      if (!await _saveLocal() || !mounted || !_sessionCurrent) return;
       final WriteTopicResult written = await ref
           .read(topicRepositoryProvider)
           .writeTopicResult(

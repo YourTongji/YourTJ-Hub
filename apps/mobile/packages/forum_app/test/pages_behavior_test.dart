@@ -52,8 +52,16 @@ import 'fixtures/page_fixtures.dart';
 class _EmptyWikiSearch extends WikiRepository {
   _EmptyWikiSearch(super.client);
   @override
-  Future<WikiSearchResult> search(String query, {int? limit, CancelToken? cancelToken}) async =>
-    WikiSearchResult(query: query, items: const [], total: 0, searchUnavailable: false);
+  Future<WikiSearchResult> search(
+    String query, {
+    int? limit,
+    CancelToken? cancelToken,
+  }) async => WikiSearchResult(
+    query: query,
+    items: const [],
+    total: 0,
+    searchUnavailable: false,
+  );
 }
 
 class _RootScrollController extends GfScrollToTopController {
@@ -2735,8 +2743,14 @@ void main() {
       await tester.tap(find.text('在课程中搜索“$query”'));
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/');
-      expect(tester.widget<GfTabBar>(find.byType(GfTabBar)).selected, 'courses');
-      expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, query);
+      expect(
+        tester.widget<GfTabBar>(find.byType(GfTabBar)).selected,
+        'courses',
+      );
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        query,
+      );
       await tester.tap(find.byTooltip('清空搜索'));
       await tester.pumpAndSettle();
       expect(find.text('最近搜索'), findsOneWidget);
@@ -3692,6 +3706,8 @@ void main() {
         );
         final posts = ReplyCaptchaPostRepository(client);
         final container = await makeContainer(
+          currentUserId: 1,
+          extraOverrides: [apiClientProvider.overrideWithValue(client)],
           pageRepo: CountingPageRepository(client),
           postRepo: posts,
           authRepo: ReplyCaptchaAuthRepository(client),
@@ -5692,7 +5708,7 @@ void main() {
         overrides: [
           tokenStorageProvider.overrideWithValue(storage),
           pageRepositoryProvider.overrideWithValue(pageRepo),
-        wikiRepositoryProvider.overrideWithValue(_EmptyWikiSearch(client)),
+          wikiRepositoryProvider.overrideWithValue(_EmptyWikiSearch(client)),
           topicRepositoryProvider.overrideWithValue(
             PagingTopicRepository(client),
           ),
@@ -6004,6 +6020,8 @@ void main() {
       );
       final RecordingPostRepository postRepo = RecordingPostRepository(client);
       final ProviderContainer container = await makeContainer(
+        currentUserId: 1,
+        extraOverrides: [apiClientProvider.overrideWithValue(client)],
         pageRepo: RedesignPageRepository(client),
         postRepo: postRepo,
       );
@@ -6817,7 +6835,7 @@ void main() {
         overrides: [
           tokenStorageProvider.overrideWithValue(realStorage),
           pageRepositoryProvider.overrideWithValue(pageRepo),
-        wikiRepositoryProvider.overrideWithValue(_EmptyWikiSearch(client)),
+          wikiRepositoryProvider.overrideWithValue(_EmptyWikiSearch(client)),
           topicRepositoryProvider.overrideWithValue(
             PagingTopicRepository(client),
           ),

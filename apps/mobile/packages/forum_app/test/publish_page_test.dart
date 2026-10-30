@@ -100,6 +100,7 @@ class _RecordingTopicRepository extends TopicRepository {
     this.pendingReview = false,
     this.captchaAction = 'topic.write',
   });
+  Future<void> Function()? beforeWrite;
   final bool requireCaptcha;
   final bool pendingReview;
   final String captchaAction;
@@ -146,6 +147,7 @@ class _RecordingTopicRepository extends TopicRepository {
     String? identity,
   }) async {
     writeAttempts++;
+    await beforeWrite?.call();
     if (failureCode != null) {
       throw ApiException(
         fallbackMessage: 'Write denied',
@@ -459,6 +461,43 @@ void main() {
   }
 
   testWidgets(
+    'the last input is durable before a write can expire the session',
+    (tester) async {
+      usePhoneViewport(tester);
+      final store = WritingStore();
+      final result = await pumpPublishPage(
+        tester,
+        editing: true,
+        contentType: 2,
+        locale: const Locale('en'),
+        localStore: store,
+      );
+      final field = find.byKey(const Key('publish-editor'));
+      await tester.enterText(field, 'older text');
+      final controller = tester.widget<TextField>(field).controller!;
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      // Change immediately before submitting, without waiting for the debounce.
+      controller.text = 'the final unsent tail';
+      List<LocalDraft>? atRequest;
+      var calls = 0;
+      result.topicRepository.beforeWrite = () async {
+        calls++;
+        atRequest = await store.drafts(writingScope('http://fake.local', 1));
+        throw const UnauthorizedException();
+      };
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(calls, 1);
+      expect(atRequest, hasLength(1));
+      expect(atRequest!.single.content, 'the final unsent tail');
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
     'pending email recovery preserves input and never retries the write',
     (tester) async {
       usePhoneViewport(tester);
@@ -504,7 +543,7 @@ void main() {
   );
 
   testWidgets(
-    'email recovery stays put when the recovery copy cannot be saved',
+    'failed mandatory draft checkpoint prevents the write and keeps input',
     (tester) async {
       usePhoneViewport(tester);
       final store = _FailingWritingStore();
@@ -526,14 +565,11 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('publish-appbar-submit')));
       await tester.pumpAndSettle();
-      final recovery = find.text('Check email verification');
-      await tester.ensureVisible(recovery);
-      await tester.tap(recovery);
-      await tester.pumpAndSettle();
+      expect(find.text('Check email verification'), findsNothing);
       expect(find.text('current account email settings'), findsNothing);
       expect(find.byType(PublishPage), findsOneWidget);
       expect(find.text('unsent input'), findsOneWidget);
-      expect(result.topicRepository.writeAttempts, 1);
+      expect(result.topicRepository.writeAttempts, 0);
       expect(result.router.state.uri.path, '/publish');
       await tester.pumpWidget(const SizedBox());
     },
