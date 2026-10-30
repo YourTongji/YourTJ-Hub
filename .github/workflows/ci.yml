@@ -22,6 +22,8 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Check CI concurrency isolation
+        run: node --test scripts/test-ci-concurrency.mjs
       - name: Check login provider contract mirrors
         run: node --test scripts/test-login-provider-mirrors.mjs
       - name: Check locked mobile dependency bootstrap
