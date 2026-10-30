@@ -234,6 +234,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get authUsernameOrEmail => 'Benutzername oder E-Mail';
 
   @override
+  String get authRegistrationUsernameRules =>
+      '6–32 Zeichen: englische Buchstaben, Ziffern, Unterstriche (_) und Bindestriche (-).';
+
+  @override
+  String get authRegistrationPasswordRules =>
+      '6–64 Zeichen mit mindestens einem englischen Buchstaben (A–Z/a–z) und einer Ziffer (0–9). Weitere Zeichen sind erlaubt.';
+
+  @override
   String get authUsername => 'Benutzername';
 
   @override
@@ -1115,6 +1123,12 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get scheduleTitle => 'Kursplaner';
+
+  @override
+  String get scheduleFilters => 'Filter';
+
+  @override
+  String get scheduleCandidates => 'Kurse';
 
   @override
   String get scheduleTabTimetable => 'Planvorschau';
@@ -4791,4 +4805,49 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get scheduleSetupTitle => 'Zuerst den Kursbereich festlegen';
+
+  @override
+  String get scheduleConfigChangeTitle => 'Planung ändern?';
+
+  @override
+  String scheduleConfigChangeBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return 'Kurse und eigene Termine werden aus allen Plänen entfernt. $planCount Pläne enthalten $courseCount Kurse und $eventCount Termine. Die Plannamen bleiben erhalten.';
+  }
+
+  @override
+  String scheduleConfigChangePlan(
+    String name,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '$name: $courseCount Kurse, $eventCount Termine';
+  }
+
+  @override
+  String get scheduleConfigChangeSync =>
+      'Bei bereits synchronisierten Plänen wird das Leeren auch auf andere Geräte übertragen.';
+
+  @override
+  String get scheduleConfigChangeConfirm => 'Leeren und wechseln';
+
+  @override
+  String get scheduleConfigChangeUpdated =>
+      'Die Pläne wurden geändert. Bitte erneut auswählen und die Auswirkungen prüfen.';
+
+  @override
+  String get unreadStyleTitle => 'Ungelesen-Anzeige';
+
+  @override
+  String get unreadStyleNumbers => 'Anzahl anzeigen';
+
+  @override
+  String get unreadStyleHint =>
+      'Ausgeschaltet erscheinen nur Punkte. Die Einstellung gilt für dieses Konto im Web und in der App. Lesestatus und Push-Mitteilungen bleiben gleich.';
+
+  @override
+  String get unreadStyleSaving => 'Anzeige wird gespeichert…';
 }

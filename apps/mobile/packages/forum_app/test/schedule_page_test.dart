@@ -538,7 +538,7 @@ void main() {
       notifier.createPlan();
       notifier.selectClass(detail('Y.01'), '大学物理');
       expect(notifier.state.plans.length, 2);
-      notifier.setMajorSelection(
+      await notifier.setMajorSelection(
         PkMajorSelection(
           calendarId: 120,
           grade: 2025,
@@ -616,7 +616,7 @@ void main() {
       (tester) async {
         SharedPreferences.setMockInitialValues(<String, Object>{});
         final notifier = await seededNotifier();
-        notifier.setMajorSelection(
+        await notifier.setMajorSelection(
           PkMajorSelection(calendarId: 119, grade: 2025, major: 'm1'),
         );
         notifier.selectClass(detail('X.01'), '已有课程');
@@ -662,7 +662,7 @@ void main() {
     ) async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final notifier = await seededNotifier();
-      notifier.setMajorSelection(
+      await notifier.setMajorSelection(
         PkMajorSelection(calendarId: 119, grade: 2025, major: 'm1'),
       );
       final repo = FakePkRepository(
@@ -791,7 +791,7 @@ void main() {
     ) async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final notifier = await seededNotifier();
-      notifier.setMajorSelection(
+      await notifier.setMajorSelection(
         PkMajorSelection(calendarId: 119, grade: 2025, major: 'm1'),
       );
       notifier.selectClass(detail('X.01'), '已有课程');
@@ -833,7 +833,7 @@ void main() {
       (tester) async {
         SharedPreferences.setMockInitialValues(<String, Object>{});
         final notifier = await seededNotifier();
-        notifier.setMajorSelection(
+        await notifier.setMajorSelection(
           PkMajorSelection(calendarId: 119, grade: 2025, major: 'm1'),
         );
         final repo = FakePkRepository(
@@ -900,7 +900,7 @@ void main() {
     ) async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final notifier = await seededNotifier();
-      notifier.setMajorSelection(
+      await notifier.setMajorSelection(
         PkMajorSelection(calendarId: 119, grade: 2025, major: 'm1'),
       );
       final repo = FakePkRepository(
@@ -1114,7 +1114,7 @@ void main() {
       await notifier.ready;
 
       // 设置专业信息使得选课 tab 处于就绪状态
-      notifier.setMajorSelection(
+      await notifier.setMajorSelection(
         PkMajorSelection(
           calendarId: 119,
           grade: 2025,
@@ -1226,8 +1226,8 @@ void main() {
       await tester.pumpWidget(wrapApp(container));
       await tester.pumpAndSettle();
 
-      // 点击切换到「选课」tab
-      await tester.tap(find.text('选课'));
+      // 点击切换到「候选」tab
+      await tester.tap(find.text('候选'));
       await tester.pumpAndSettle();
 
       // 在必修课列表看见「高等数学」，点击唤起教学班 sheet

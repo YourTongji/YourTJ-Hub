@@ -21,6 +21,7 @@ const MARKET_PAGE_SIZE = 24
 const myPacks = ref<StickerMarketPack[]>([])
 const myPacksReady = ref(false)
 let myPacksRequest: Promise<void> | null = null
+let membershipRevision = 0
 
 const packStickers = new Map<number, StickerItem[]>()
 const packRequests = new Map<number, Promise<StickerItem[]>>()
@@ -39,16 +40,21 @@ export function useStickerMarket() {
   const actionError = ref('')
 
   /** Load subscriptions once; signed-out viewers simply see no packs. */
-  function ensureMyPacks() {
+  function ensureMyPacks(): Promise<void> {
     if (myPacksReady.value) return Promise.resolve()
-    myPacksRequest ??= getMyStickerPacks()
+    if (myPacksRequest) return myPacksRequest
+    const revision = membershipRevision
+    let invalidated = false
+    myPacksRequest = getMyStickerPacks()
       .then((packs) => {
+        if (revision !== membershipRevision) { invalidated = true; return }
         myPacks.value = packs
         myPacksReady.value = true
       })
       .catch(() => undefined)
       .finally(() => {
         myPacksRequest = null
+        if (invalidated) return ensureMyPacks()
       })
     return myPacksRequest
   }
@@ -103,13 +109,17 @@ export function useStickerMarket() {
 
   async function subscribe(pack: StickerMarketPack) {
     if (isSubscribed(pack.id)) return true
+    membershipRevision++
     const previous = myPacks.value
     myPacks.value = [...previous, pack]
     actionError.value = ''
     try {
       await saveMyStickerPack(pack.id)
+      membershipRevision++
+      if (!isSubscribed(pack.id)) myPacks.value = [...myPacks.value, pack]
       return true
     } catch (err) {
+      membershipRevision++
       myPacks.value = myPacks.value.filter((item) => item.id !== pack.id)
       actionError.value = err instanceof Error ? err.message : ''
       return false
@@ -117,13 +127,17 @@ export function useStickerMarket() {
   }
 
   async function unsubscribe(pack: StickerMarketPack) {
+    membershipRevision++
     const previous = myPacks.value
     myPacks.value = previous.filter((item) => item.id !== pack.id)
     actionError.value = ''
     try {
       await deleteMyStickerPack(pack.id)
+      membershipRevision++
+      myPacks.value = myPacks.value.filter((item) => item.id !== pack.id)
       return true
     } catch (err) {
+      membershipRevision++
       if (previous.some((item) => item.id === pack.id) && !isSubscribed(pack.id)) {
         const restored = [...myPacks.value]
         restored.splice(Math.min(previous.findIndex((item) => item.id === pack.id), restored.length), 0, pack)

@@ -61,3 +61,41 @@ test('retry requests the failed second page and keeps the first page', async () 
   expect(state.marketPacks.value.map(p => p.id)).toEqual([1, 2])
   expect(state.marketFailed.value).toBe(false)
 })
+
+for (const adding of [true, false]) {
+ test(`late initial membership read cannot undo a successful ${adding ? 'add' : 'remove'}`, async () => {
+  const { useStickerMarket } = await import('../src/site/composables/useStickerMarket')
+  const state=useStickerMarket()
+  let finish!: (items: StickerMarketPack[]) => void
+  api.getMyStickerPacks.mockReturnValueOnce(new Promise(resolve=>{finish=resolve}))
+   .mockResolvedValueOnce(adding ? [pack(2),pack(1)] : [pack(2)])
+  if(!adding)state.myPacks.value=[pack(1)]
+  const reading=state.ensureMyPacks()
+  await (adding ? state.subscribe(pack(1)) : state.unsubscribe(pack(1)))
+  finish(adding ? [pack(2)] : [pack(1),pack(2)])
+  await reading
+  expect(state.myPacks.value.map(p=>p.id)).toEqual(adding ? [2,1] : [2])
+  expect(state.myPacksReady.value).toBe(true)
+ })
+}
+
+for (const adding of [true, false]) {
+ test(`membership read finishing during pending ${adding ? 'add' : 'remove'} retains the confirmed result`, async () => {
+  const { useStickerMarket } = await import('../src/site/composables/useStickerMarket')
+  const state=useStickerMarket()
+  const operation=deferred()
+  let finish!: (items: StickerMarketPack[]) => void
+  const old=adding ? [pack(2)] : [pack(1),pack(2)]
+  api.getMyStickerPacks.mockReturnValueOnce(new Promise(resolve=>{finish=resolve})).mockResolvedValueOnce(old)
+  if(!adding)state.myPacks.value=[pack(1)]
+  const reading=state.ensureMyPacks()
+  const request=adding ? api.saveMyStickerPack : api.deleteMyStickerPack
+  request.mockReturnValueOnce(operation.promise)
+  const writing=adding ? state.subscribe(pack(1)) : state.unsubscribe(pack(1))
+  finish(old)
+  await reading
+  operation.resolve()
+  await writing
+  expect(state.myPacks.value.map(p=>p.id)).toEqual(adding ? [2,1] : [2])
+ })
+}

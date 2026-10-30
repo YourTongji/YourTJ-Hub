@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"image/color"
 	"testing"
 
@@ -111,5 +112,63 @@ func TestUploadedMarketAVIFFilenames(t *testing.T) {
 		if err != nil || result.Imported != 1 || len(result.Failed) != 0 {
 			t.Fatalf("archive=%v result=%+v err=%v", archive, result, err)
 		}
+	}
+}
+
+func seedUploadedPackCapacity(t *testing.T, count int) sticker.MarketPack {
+	t.Helper()
+	pack, err := CreateMarketPack(t.Context(), CreateMarketPackInput{Name: "Capacity"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := UploadMarketPackFile(t.Context(), pack.Id, "first.png", marketPNG(t, color.RGBA{R: 255, A: 255}))
+	if err != nil || result.Imported != 1 {
+		t.Fatalf("seed: %+v %v", result, err)
+	}
+	var first sticker.MarketItem
+	if err := db.Connect().Where("pack_id = ?", pack.Id).First(&first).Error; err != nil {
+		t.Fatal(err)
+	}
+	rows := make([]sticker.MarketItem, 0, count-1)
+	for i := 1; i < count; i++ {
+		rows = append(rows, sticker.MarketItem{PackID: pack.Id, UpstreamID: fmt.Sprintf("seed-%d", i), StickerID: first.StickerID, SortOrder: i})
+	}
+	if len(rows) > 0 {
+		if err := db.Connect().CreateInBatches(rows, 100).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := finishMarketImport(t.Context(), pack.Id, ""); err != nil {
+		t.Fatal(err)
+	}
+	return pack
+}
+
+func TestUploadedFullPackDuplicateRemainsIdempotent(t *testing.T) {
+	setupMarketTest(t)
+	pack := seedUploadedPackCapacity(t, MaxMarketPackItems)
+	result, err := UploadMarketPackFile(t.Context(), pack.Id, "retry.png", marketPNG(t, color.RGBA{R: 255, A: 255}))
+	if err != nil || result.Skipped != 1 || result.Imported != 0 || len(result.Failed) != 0 {
+		t.Fatalf("full-pack retry: %+v %v", result, err)
+	}
+}
+
+func TestUploadedItemCommitRechecksPackCapacity(t *testing.T) {
+	setupMarketTest(t)
+	pack := seedUploadedPackCapacity(t, MaxMarketPackItems-1)
+	// Two upload workers may already have observed this same count/order. The
+	// commit boundary must recheck it even when their preparation was concurrent.
+	for i := 0; i < 2; i++ {
+		_, err := addUploadedMarketItem(t.Context(), pack, fmt.Sprintf("new-%d.png", i), marketPNG(t, color.RGBA{B: uint8(100 + i), A: 255}))
+		if i == 0 && err != nil {
+			t.Fatal(err)
+		}
+		if i == 1 && !errors.Is(err, errMarketPackFull) {
+			t.Fatalf("stale capacity accepted a second item: %v", err)
+		}
+	}
+	_, count, err := sticker.NextMarketItemOrder(db.Connect(), pack.Id)
+	if err != nil || count != MaxMarketPackItems {
+		t.Fatalf("count=%d err=%v", count, err)
 	}
 }

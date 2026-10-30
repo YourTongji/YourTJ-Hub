@@ -222,6 +222,14 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authUsernameOrEmail => 'ユーザー名またはメール';
 
   @override
+  String get authRegistrationUsernameRules =>
+      '6–32 文字。半角英字・数字・アンダースコア（_）・ハイフン（-）が使えます。';
+
+  @override
+  String get authRegistrationPasswordRules =>
+      '6–64 文字。半角英字（A–Z／a–z）と数字（0–9）を含めてください。他の文字も使えます。';
+
+  @override
   String get authUsername => 'ユーザー名';
 
   @override
@@ -1088,6 +1096,12 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get scheduleTitle => '履修プランナー';
+
+  @override
+  String get scheduleFilters => '条件';
+
+  @override
+  String get scheduleCandidates => '候補';
 
   @override
   String get scheduleTabTimetable => 'プランのプレビュー';
@@ -4556,4 +4570,47 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get scheduleSetupTitle => '先に履修範囲を設定してください';
+
+  @override
+  String get scheduleConfigChangeTitle => '時間割の設定を切り替えますか？';
+
+  @override
+  String scheduleConfigChangeBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return 'すべてのプランの科目と予定を空にします。内容のある $planCount 件のプランに、科目 $courseCount 件と予定 $eventCount 件があります。プラン名は残ります。';
+  }
+
+  @override
+  String scheduleConfigChangePlan(
+    String name,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '$name：科目 $courseCount 件、予定 $eventCount 件';
+  }
+
+  @override
+  String get scheduleConfigChangeSync => '同期済みのプランでは、内容の消去も他の端末に同期されます。';
+
+  @override
+  String get scheduleConfigChangeConfirm => 'プランを空にして切り替える';
+
+  @override
+  String get scheduleConfigChangeUpdated => 'プランが変更されました。再度選択して影響を確認してください。';
+
+  @override
+  String get unreadStyleTitle => '未読の表示';
+
+  @override
+  String get unreadStyleNumbers => '未読件数を表示';
+
+  @override
+  String get unreadStyleHint =>
+      'オフにすると点のみを表示します。このアカウントの Web と App で同期し、既読状態やプッシュ通知は変更しません。';
+
+  @override
+  String get unreadStyleSaving => '表示方法を保存中…';
 }

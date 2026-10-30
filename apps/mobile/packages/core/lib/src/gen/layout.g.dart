@@ -232,6 +232,9 @@ _$UnreadStatusPayloadImpl _$$UnreadStatusPayloadImplFromJson(
 ) => _$UnreadStatusPayloadImpl(
   notifications: json['notifications'] as bool,
   messages: json['messages'] as bool,
+  badgeStyle: json['badgeStyle'] as String?,
+  notificationCount: (json['notificationCount'] as num?)?.toInt(),
+  messageCount: (json['messageCount'] as num?)?.toInt(),
   moderationReports: json['moderationReports'] as bool?,
   latestNotificationType: json['latestNotificationType'] as String?,
   latestUnreadId: (json['latestUnreadId'] as num?)?.toInt(),
@@ -242,6 +245,9 @@ Map<String, dynamic> _$$UnreadStatusPayloadImplToJson(
 ) => <String, dynamic>{
   'notifications': instance.notifications,
   'messages': instance.messages,
+  'badgeStyle': instance.badgeStyle,
+  'notificationCount': instance.notificationCount,
+  'messageCount': instance.messageCount,
   'moderationReports': instance.moderationReports,
   'latestNotificationType': instance.latestNotificationType,
   'latestUnreadId': instance.latestUnreadId,

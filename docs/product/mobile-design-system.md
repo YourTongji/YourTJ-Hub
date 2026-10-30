@@ -265,7 +265,7 @@ header keeps the one-physical-pixel `line` hairline instead of a logical-pixel r
 dock separates from content by elevation instead. The floating dock and wide rail share the same
 glass surface — a translucent raised surface over a blurred, saturated backdrop on iOS and Android —
 while high-contrast mode, reduced motion and accessible-navigation mode use the opaque theme
-surface. The compose action and its menu are the same glass ([0118](../decisions/0118-glass-compose-action.md)):
+surface. The compose action and its menu are the same glass ([0120](../decisions/0120-glass-compose-action.md)):
 the action is primary-tinted glass dense enough to keep its glyph at 3:1 on any content, menu items
 are dock-tinted capsules over a frosted, lightly dimmed page, and the close button sits exactly over
 the action while its plus turns into the close mark. A press swells the glass around steady content

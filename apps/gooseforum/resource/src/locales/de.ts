@@ -1469,6 +1469,8 @@ export default {
     contentGone: 'Der Inhalt wurde endgültig gelöscht',
   },
   auth: {
+    registrationUsernameRules: "6–32 Zeichen: englische Buchstaben, Ziffern, Unterstriche (_) und Bindestriche (-).",
+    registrationPasswordRules: "6–64 Zeichen mit mindestens einem englischen Buchstaben (A–Z/a–z) und einer Ziffer (0–9). Weitere Zeichen sind erlaubt.",
     writeRecovery: {
       email: "E-Mail-Bestätigung prüfen",
       login: "Mit demselben Konto erneut anmelden",
@@ -1506,6 +1508,7 @@ export default {
     showPassword: 'Passwort anzeigen',
     hidePassword: 'Passwort ausblenden',
     captcha: 'Captcha',
+    refreshCaptcha: 'Bestätigungscode aktualisieren',
     registrationUnavailable: "Registrierung ist derzeit nicht verfügbar. Bitte später erneut versuchen.",
     checkSignupAvailability: "Registrierung erneut prüfen",
     captchaAlt: 'Captcha',
@@ -1564,6 +1567,11 @@ export default {
     },
   },
   notifications: {
+    summaryWithoutCounts: "Antworten, Likes, neue Follower und Systemnachrichten.",
+    unreadIndicator: "Ungelesen",
+    unreadStyleNumbers: "Ungelesene Anzahl anzeigen",
+    unreadStyleHint: "Ausgeschaltet erscheinen nur Punkte. Die Einstellung gilt für dieses Konto im Web und in der App. Lesestatus und Push-Mitteilungen bleiben gleich.",
+    unreadStyleSaving: "Anzeige wird gespeichert…",
     systemPushDefaultDescription: "Standardmäßig werden nur Prüfergebnisse gemeldet. Erneutes Einschalten aktiviert auch gewöhnliche Systemhinweise und Abzeichen.",
     noDirectTarget: "Diese Benachrichtigung hat keine direkt zugänglichen Details.",
     presentation: {

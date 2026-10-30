@@ -3036,14 +3036,45 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read the caller's unread status flags
+         * Read the caller's unread flags, counts and display preference
          * @description Lightweight polling endpoint (mounts NoUpdateUserActivity, so polling does
          *     not extend the caller's online presence). Reports unread notifications,
          *     unread chat messages, and open moderation reports; latestNotificationType is
          *     present only when an unread notification exists.
+         *     The existing read also carries unread counts and account-wide badgeStyle; changing display
+         *     mode does not require another count endpoint. Older/unavailable counts may be absent, in
+         *     which case clients retain the boolean indicator without inventing a numeric count.
          */
         get: operations["getUnreadStatus"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/notification-preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the caller's account-wide unread indicator style
+         * @description Display preference only; independent of notification delivery and read state.
+         */
+        get: operations["getNotificationPreferences"];
+        /**
+         * Set the caller's account-wide unread indicator style
+         * @description Changes presentation only; counts, messages, read state and push consent remain unchanged.
+         *     Applies only to the caller, with last committed write winning across devices. Pending email
+         *     activation is allowed for this self-service preference; frozen accounts remain blocked.
+         *     A private existing unread-change hint asks other sessions to refresh. Invalid/missing enum
+         *     values return HTTP 200 `common.request.invalidParams` without changing the preference.
+         */
+        put: operations["updateNotificationPreferences"];
         post?: never;
         delete?: never;
         options?: never;
@@ -10684,6 +10715,21 @@ export interface components {
         };
         UnbindOAuthResponse: components["schemas"]["UnbindOAuthSuccess"] | components["schemas"]["ApiFailure"];
         UnreadStatusResult: {
+            /**
+             * @description Account-wide unread indicator preference, default number. Optional for older servers.
+             * @enum {string}
+             */
+            badgeStyle?: "number" | "dot";
+            /**
+             * Format: int64
+             * @description Current unread notifications. Omitted when the count is unavailable; clients must not invent a number.
+             */
+            notificationCount?: number;
+            /**
+             * Format: int64
+             * @description Sum of unread messages in non-deleted conversations, including muted conversations. Optional for older servers or unavailable counts.
+             */
+            messageCount?: number;
             /** @description True when the user has unread notifications. */
             notifications: boolean;
             /** @description True when the user has unread chat messages. */
@@ -16173,6 +16219,16 @@ export interface components {
         DisplayBadgesRequest: {
             badgeCodes: string[];
         };
+        value: {
+            /**
+             * @description Numeric unread count (capped by the UI), or a dot with no displayed count.
+             * @enum {string}
+             */
+            badgeStyle: "number" | "dot";
+        };
+        response: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["value"];
+        }) | components["schemas"]["ApiFailure"];
         FeedSeenPatch: {
             proof: string;
             seen: {
@@ -16367,7 +16423,7 @@ export interface components {
              */
             system: boolean;
         };
-        response: (components["schemas"]["ApiSuccess"] & {
+        "forum-push-preferences_response": (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["values"];
         }) | components["schemas"]["ApiFailure"];
         changes: {
@@ -22841,6 +22897,96 @@ export interface operations {
             };
         };
     };
+    getNotificationPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Account preference; existing and new accounts default to numeric indicators. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["response"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    updateNotificationPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["value"];
+            };
+        };
+        responses: {
+            /** @description Committed preference, or a legacy validation/storage failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["response"];
+                };
+            };
+            /** @description Malformed/non-object/null JSON, wrong types, unknown fields, trailing data or body exceeding 4 KiB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen/unavailable account, or a cookie request rejected by the CSRF gate. Pending activation is allowed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared interaction limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
     refreshForYou: {
         parameters: {
             query?: never;
@@ -23370,7 +23516,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["response"];
+                    "application/json": components["schemas"]["forum-push-preferences_response"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */
@@ -23403,7 +23549,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["response"];
+                    "application/json": components["schemas"]["forum-push-preferences_response"];
                 };
             };
             /** @description Malformed JSON, a wrong field value type, an unknown (additional) field, a non-object/null body, or a request body over the 4KiB limit. */

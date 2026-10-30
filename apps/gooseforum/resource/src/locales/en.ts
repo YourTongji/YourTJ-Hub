@@ -1470,6 +1470,8 @@ export default {
     contentGone: 'Content has been permanently deleted',
   },
   auth: {
+    registrationUsernameRules: "6–32 characters: English letters, digits, underscores (_) and hyphens (-).",
+    registrationPasswordRules: "6–64 characters, including an English letter (A–Z/a–z) and a digit (0–9). Other characters are allowed.",
     writeRecovery: {
       email: "Check email verification",
       login: "Sign in again with the same account",
@@ -1507,6 +1509,7 @@ export default {
     showPassword: 'Show password',
     hidePassword: 'Hide password',
     captcha: 'Captcha',
+    refreshCaptcha: 'Refresh captcha',
     registrationUnavailable: "Registration is unavailable. Please try again later.",
     checkSignupAvailability: "Check registration again",
     captchaAlt: 'Captcha',
@@ -1565,6 +1568,11 @@ export default {
     },
   },
   notifications: {
+    summaryWithoutCounts: "Replies, likes, follows, and system messages.",
+    unreadIndicator: "Unread",
+    unreadStyleNumbers: "Show unread counts",
+    unreadStyleHint: "Turn off to show dots. This setting syncs between Web and App for this account without marking anything read or changing push delivery.",
+    unreadStyleSaving: "Saving indicator style…",
     systemPushDefaultDescription: "By default, only moderation results alert you. Turning this back on also enables ordinary system notices and badges.",
     noDirectTarget: "This notification has no directly accessible details.",
     presentation: {

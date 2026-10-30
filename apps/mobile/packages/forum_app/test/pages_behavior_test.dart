@@ -3717,6 +3717,8 @@ void main() {
         );
         final posts = ReplyCaptchaPostRepository(client);
         final container = await makeContainer(
+          currentUserId: 1,
+          extraOverrides: [apiClientProvider.overrideWithValue(client)],
           pageRepo: CountingPageRepository(client),
           postRepo: posts,
           authRepo: ReplyCaptchaAuthRepository(client),
@@ -6029,6 +6031,8 @@ void main() {
       );
       final RecordingPostRepository postRepo = RecordingPostRepository(client);
       final ProviderContainer container = await makeContainer(
+        currentUserId: 1,
+        extraOverrides: [apiClientProvider.overrideWithValue(client)],
         pageRepo: RedesignPageRepository(client),
         postRepo: postRepo,
       );

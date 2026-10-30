@@ -1469,6 +1469,8 @@ export default {
     contentGone: 'コンテンツは完全に削除されました',
   },
   auth: {
+    registrationUsernameRules: "6–32 文字。半角英字・数字・アンダースコア（_）・ハイフン（-）が使えます。",
+    registrationPasswordRules: "6–64 文字。半角英字（A–Z／a–z）と数字（0–9）を含めてください。他の文字も使えます。",
     writeRecovery: {
       email: "メール確認の状態を確認",
       login: "同じアカウントで再度ログイン",
@@ -1506,6 +1508,7 @@ export default {
     showPassword: 'パスワードを表示',
     hidePassword: 'パスワードを隠す',
     captcha: '認証コード',
+    refreshCaptcha: '確認コードを更新',
     registrationUnavailable: "現在登録できません。しばらくしてからお試しください。",
     checkSignupAvailability: "登録状況を再確認",
     captchaAlt: '認証コード',
@@ -1564,6 +1567,11 @@ export default {
     },
   },
   notifications: {
+    summaryWithoutCounts: "返信、いいね、フォロー、システムのお知らせ。",
+    unreadIndicator: "未読",
+    unreadStyleNumbers: "未読件数を表示",
+    unreadStyleHint: "オフにすると点のみを表示します。このアカウントの Web と App で同期し、既読状態やプッシュ通知は変更しません。",
+    unreadStyleSaving: "表示方法を保存中…",
     systemPushDefaultDescription: "初期設定では審査結果のみ通知します。再度オンにすると通常のシステム通知とバッジも通知します。",
     noDirectTarget: "この通知には直接開ける詳細がありません。",
     presentation: {

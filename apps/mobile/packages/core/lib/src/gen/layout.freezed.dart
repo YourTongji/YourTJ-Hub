@@ -2899,6 +2899,9 @@ UnreadStatusPayload _$UnreadStatusPayloadFromJson(Map<String, dynamic> json) {
 mixin _$UnreadStatusPayload {
   bool get notifications => throw _privateConstructorUsedError;
   bool get messages => throw _privateConstructorUsedError;
+  String? get badgeStyle => throw _privateConstructorUsedError;
+  int? get notificationCount => throw _privateConstructorUsedError;
+  int? get messageCount => throw _privateConstructorUsedError;
   bool? get moderationReports => throw _privateConstructorUsedError;
   String? get latestNotificationType => throw _privateConstructorUsedError;
   int? get latestUnreadId => throw _privateConstructorUsedError;
@@ -2923,6 +2926,9 @@ abstract class $UnreadStatusPayloadCopyWith<$Res> {
   $Res call({
     bool notifications,
     bool messages,
+    String? badgeStyle,
+    int? notificationCount,
+    int? messageCount,
     bool? moderationReports,
     String? latestNotificationType,
     int? latestUnreadId,
@@ -2946,6 +2952,9 @@ class _$UnreadStatusPayloadCopyWithImpl<$Res, $Val extends UnreadStatusPayload>
   $Res call({
     Object? notifications = null,
     Object? messages = null,
+    Object? badgeStyle = freezed,
+    Object? notificationCount = freezed,
+    Object? messageCount = freezed,
     Object? moderationReports = freezed,
     Object? latestNotificationType = freezed,
     Object? latestUnreadId = freezed,
@@ -2960,6 +2969,18 @@ class _$UnreadStatusPayloadCopyWithImpl<$Res, $Val extends UnreadStatusPayload>
                 ? _value.messages
                 : messages // ignore: cast_nullable_to_non_nullable
                       as bool,
+            badgeStyle: freezed == badgeStyle
+                ? _value.badgeStyle
+                : badgeStyle // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            notificationCount: freezed == notificationCount
+                ? _value.notificationCount
+                : notificationCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            messageCount: freezed == messageCount
+                ? _value.messageCount
+                : messageCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
             moderationReports: freezed == moderationReports
                 ? _value.moderationReports
                 : moderationReports // ignore: cast_nullable_to_non_nullable
@@ -2990,6 +3011,9 @@ abstract class _$$UnreadStatusPayloadImplCopyWith<$Res>
   $Res call({
     bool notifications,
     bool messages,
+    String? badgeStyle,
+    int? notificationCount,
+    int? messageCount,
     bool? moderationReports,
     String? latestNotificationType,
     int? latestUnreadId,
@@ -3012,6 +3036,9 @@ class __$$UnreadStatusPayloadImplCopyWithImpl<$Res>
   $Res call({
     Object? notifications = null,
     Object? messages = null,
+    Object? badgeStyle = freezed,
+    Object? notificationCount = freezed,
+    Object? messageCount = freezed,
     Object? moderationReports = freezed,
     Object? latestNotificationType = freezed,
     Object? latestUnreadId = freezed,
@@ -3026,6 +3053,18 @@ class __$$UnreadStatusPayloadImplCopyWithImpl<$Res>
             ? _value.messages
             : messages // ignore: cast_nullable_to_non_nullable
                   as bool,
+        badgeStyle: freezed == badgeStyle
+            ? _value.badgeStyle
+            : badgeStyle // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        notificationCount: freezed == notificationCount
+            ? _value.notificationCount
+            : notificationCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        messageCount: freezed == messageCount
+            ? _value.messageCount
+            : messageCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
         moderationReports: freezed == moderationReports
             ? _value.moderationReports
             : moderationReports // ignore: cast_nullable_to_non_nullable
@@ -3049,6 +3088,9 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
   const _$UnreadStatusPayloadImpl({
     required this.notifications,
     required this.messages,
+    this.badgeStyle,
+    this.notificationCount,
+    this.messageCount,
     this.moderationReports,
     this.latestNotificationType,
     this.latestUnreadId,
@@ -3062,6 +3104,12 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
   @override
   final bool messages;
   @override
+  final String? badgeStyle;
+  @override
+  final int? notificationCount;
+  @override
+  final int? messageCount;
+  @override
   final bool? moderationReports;
   @override
   final String? latestNotificationType;
@@ -3070,7 +3118,7 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
 
   @override
   String toString() {
-    return 'UnreadStatusPayload(notifications: $notifications, messages: $messages, moderationReports: $moderationReports, latestNotificationType: $latestNotificationType, latestUnreadId: $latestUnreadId)';
+    return 'UnreadStatusPayload(notifications: $notifications, messages: $messages, badgeStyle: $badgeStyle, notificationCount: $notificationCount, messageCount: $messageCount, moderationReports: $moderationReports, latestNotificationType: $latestNotificationType, latestUnreadId: $latestUnreadId)';
   }
 
   @override
@@ -3082,6 +3130,12 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
                 other.notifications == notifications) &&
             (identical(other.messages, messages) ||
                 other.messages == messages) &&
+            (identical(other.badgeStyle, badgeStyle) ||
+                other.badgeStyle == badgeStyle) &&
+            (identical(other.notificationCount, notificationCount) ||
+                other.notificationCount == notificationCount) &&
+            (identical(other.messageCount, messageCount) ||
+                other.messageCount == messageCount) &&
             (identical(other.moderationReports, moderationReports) ||
                 other.moderationReports == moderationReports) &&
             (identical(other.latestNotificationType, latestNotificationType) ||
@@ -3096,6 +3150,9 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
     runtimeType,
     notifications,
     messages,
+    badgeStyle,
+    notificationCount,
+    messageCount,
     moderationReports,
     latestNotificationType,
     latestUnreadId,
@@ -3122,6 +3179,9 @@ abstract class _UnreadStatusPayload implements UnreadStatusPayload {
   const factory _UnreadStatusPayload({
     required final bool notifications,
     required final bool messages,
+    final String? badgeStyle,
+    final int? notificationCount,
+    final int? messageCount,
     final bool? moderationReports,
     final String? latestNotificationType,
     final int? latestUnreadId,
@@ -3134,6 +3194,12 @@ abstract class _UnreadStatusPayload implements UnreadStatusPayload {
   bool get notifications;
   @override
   bool get messages;
+  @override
+  String? get badgeStyle;
+  @override
+  int? get notificationCount;
+  @override
+  int? get messageCount;
   @override
   bool? get moderationReports;
   @override

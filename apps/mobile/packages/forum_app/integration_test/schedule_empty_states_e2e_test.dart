@@ -104,7 +104,7 @@ void main() {
         isTrue,
         reason: 'Refuse to replace unrelated local work',
       );
-      store.setMajorSelection(PkMajorSelection());
+      await store.setMajorSelection(PkMajorSelection());
       await tester.pumpAndSettle();
       final l = AppLocalizations.of(tester.element(find.byType(SchedulePage)));
       expect(find.text(l.scheduleSetupTitle), findsOneWidget);
@@ -123,7 +123,7 @@ void main() {
           ? 2026
           : grades.gradeList.first;
       final majors = await pk.majors(grade: grade, calendarId: term.calendarId);
-      store.setMajorSelection(
+      await store.setMajorSelection(
         PkMajorSelection(
           calendarId: term.calendarId,
           grade: grade,
@@ -181,7 +181,9 @@ void main() {
           findsOneWidget,
         );
         expect(tester.widget<TextField>(input).controller!.text, query);
-        await tester.ensureVisible(find.byKey(const Key('schedule-clear-query')));
+        await tester.ensureVisible(
+          find.byKey(const Key('schedule-clear-query')),
+        );
         await tester.pumpAndSettle();
         await capture('1441-zero-${brightness.name}');
         await tap(find.byKey(const Key('schedule-clear-query')));

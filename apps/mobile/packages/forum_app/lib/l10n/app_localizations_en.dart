@@ -232,6 +232,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authUsernameOrEmail => 'Username or email';
 
   @override
+  String get authRegistrationUsernameRules =>
+      '6–32 characters: English letters, digits, underscores (_) and hyphens (-).';
+
+  @override
+  String get authRegistrationPasswordRules =>
+      '6–64 characters, including an English letter (A–Z/a–z) and a digit (0–9). Other characters are allowed.';
+
+  @override
   String get authUsername => 'Username';
 
   @override
@@ -1105,6 +1113,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get scheduleTitle => 'Course planner';
+
+  @override
+  String get scheduleFilters => 'Filters';
+
+  @override
+  String get scheduleCandidates => 'Candidates';
 
   @override
   String get scheduleTabTimetable => 'Plan preview';
@@ -4742,4 +4756,49 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get scheduleSetupTitle => 'Set your course scope first';
+
+  @override
+  String get scheduleConfigChangeTitle => 'Change setup?';
+
+  @override
+  String scheduleConfigChangeBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return 'This clears courses and custom blocks from every plan. $planCount plans contain $courseCount courses and $eventCount blocks. Plan names are kept.';
+  }
+
+  @override
+  String scheduleConfigChangePlan(
+    String name,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '$name: $courseCount courses, $eventCount blocks';
+  }
+
+  @override
+  String get scheduleConfigChangeSync =>
+      'If these plans are already synced, the cleared contents also sync to other devices.';
+
+  @override
+  String get scheduleConfigChangeConfirm => 'Clear plans and switch';
+
+  @override
+  String get scheduleConfigChangeUpdated =>
+      'Plans changed. Choose again and review the current impact.';
+
+  @override
+  String get unreadStyleTitle => 'Unread indicators';
+
+  @override
+  String get unreadStyleNumbers => 'Show unread counts';
+
+  @override
+  String get unreadStyleHint =>
+      'Turn off to show dots. This setting syncs between Web and App for this account without marking anything read or changing push delivery.';
+
+  @override
+  String get unreadStyleSaving => 'Saving indicator style…';
 }

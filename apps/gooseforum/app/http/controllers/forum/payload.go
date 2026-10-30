@@ -191,6 +191,9 @@ type UnreadStatusPayload struct {
 	ModerationReports      bool   `json:"moderationReports"`
 	LatestNotificationType string `json:"latestNotificationType,omitempty"`
 	LatestUnreadId         uint64 `json:"latestUnreadId,omitempty"`
+	NotificationCount      *int64 `json:"notificationCount,omitempty"`
+	MessageCount           *int64 `json:"messageCount,omitempty"`
+	BadgeStyle             string `json:"badgeStyle"`
 }
 
 type SitePayload struct {
@@ -933,6 +936,9 @@ func buildUnreadStatus(userID uint64) UnreadStatusPayload {
 		ModerationReports:      moderationservice.HasOpenReports(userID),
 		LatestNotificationType: status.LatestNotificationType,
 		LatestUnreadId:         status.LatestUnreadId,
+		NotificationCount:      status.NotificationCount,
+		MessageCount:           status.MessageCount,
+		BadgeStyle:             status.BadgeStyle,
 	}
 }
 

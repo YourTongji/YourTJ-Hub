@@ -90,15 +90,10 @@ void main() {
       final previous = majors.firstWhere((m) => m.code != target.code);
       final l = AppLocalizations.of(tester.element(find.byType(SchedulePage)));
       Future<void> open() async {
-        if (store.state.isConfigCollapsed) {
-          final summary = find
-              .textContaining(store.state.majorSelected.majorName!)
-              .first;
-          await tester.ensureVisible(summary);
-          await tester.pumpAndSettle();
-          await tester.tap(summary);
-          await tester.pumpAndSettle();
-        }
+        final filters = find.text(l.scheduleFilters).first;
+        await tester.ensureVisible(filters);
+        await tester.tap(filters);
+        await tester.pumpAndSettle();
         await tester.ensureVisible(find.text(l.scheduleMajor));
         await tester.pumpAndSettle();
         await tester.tap(find.text(l.scheduleMajor));
@@ -135,7 +130,7 @@ void main() {
             .setMode(
               brightness == Brightness.dark ? ThemeMode.dark : ThemeMode.light,
             );
-        store.setMajorSelection(
+        await store.setMajorSelection(
           PkMajorSelection(
             calendarId: term.calendarId,
             grade: grade,
@@ -169,7 +164,7 @@ void main() {
         await tester.tap(await queryTarget());
         await until(
           () =>
-              find.text(l.scheduleChangeMajorTitle).evaluate().isNotEmpty &&
+              find.text(l.scheduleConfigChangeTitle).evaluate().isNotEmpty &&
               tester.view.viewInsets.bottom == 0,
         );
         await capture('1440-confirm-${brightness.name}');
@@ -181,10 +176,10 @@ void main() {
         await tester.tap(await queryTarget());
         await until(
           () =>
-              find.text(l.scheduleChangeMajorTitle).evaluate().isNotEmpty &&
+              find.text(l.scheduleConfigChangeTitle).evaluate().isNotEmpty &&
               tester.view.viewInsets.bottom == 0,
         );
-        await tester.tap(find.text(l.scheduleChangeMajorConfirm));
+        await tester.tap(find.text(l.scheduleConfigChangeConfirm));
         await tester.pumpAndSettle();
         await store.flush;
         expect(store.state.majorSelected.major, target.code);

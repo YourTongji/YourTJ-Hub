@@ -21,13 +21,16 @@ class _UnreadRepository extends NotificationRepository {
   _UnreadRepository(super.client);
 
   int calls = 0;
+  UnreadStatusPayload status = const UnreadStatusPayload(
+    notifications: false,
+    messages: false,
+  );
   Completer<UnreadStatusPayload>? gate;
 
   @override
   Future<UnreadStatusPayload> getUnreadStatus({Object? cancelToken}) async {
     calls++;
-    return gate?.future ??
-        const UnreadStatusPayload(notifications: false, messages: false);
+    return gate?.future ?? status;
   }
 }
 
@@ -42,7 +45,14 @@ void main() {
       tokenStorage: storage,
       baseUrl: 'http://fake.local',
     );
-    final unread = _UnreadRepository(client);
+    final unread = _UnreadRepository(client)
+      ..status = const UnreadStatusPayload(
+        notifications: true,
+        messages: true,
+        notificationCount: 7,
+        messageCount: 3,
+        badgeStyle: 'number',
+      );
     final eventsReady = Completer<void>();
     final streamDone = Completer<void>();
     var connects = 0;
@@ -123,6 +133,8 @@ void main() {
     expect(routeIsUncovered(tester.element(find.byType(GfShell))), isTrue);
     expect(connects, 1);
     expect(container.read(realtimeHealthyProvider), isTrue);
+    expect(find.text('7'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
     final before = unread.calls;
     final beforeRevision = container
         .read(realtimeInvalidationsProvider)
@@ -137,11 +149,22 @@ void main() {
     );
     expect(unread.calls, before + 1);
     unread.gate!.complete(
-      const UnreadStatusPayload(notifications: false, messages: false),
+      const UnreadStatusPayload(
+        notifications: true,
+        messages: true,
+        notificationCount: 9,
+        messageCount: 4,
+        badgeStyle: 'number',
+      ),
     );
     await tester.pump();
     await tester.pump();
     expect(unread.calls, before + 1);
+    // Both unread flags stay true: exact counts must still update after the hint.
+    expect(find.text('7'), findsNothing);
+    expect(find.text('3'), findsNothing);
+    expect(find.text('9'), findsOneWidget);
+    expect(find.text('4'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     streamDone.complete();
   });

@@ -15,7 +15,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final notifier = ScheduleStoreNotifier();
     await notifier.ready;
-    notifier.setMajorSelection(
+    await notifier.setMajorSelection(
       PkMajorSelection(
         calendarId: 119,
         grade: 2025,
@@ -27,6 +27,8 @@ void main() {
     final container = makeContainer(notifier);
     addTearDown(container.dispose);
     await tester.pumpWidget(wrapApp(container));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('筛选').first);
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('专业'));
     await tester.tap(find.text('专业'));
@@ -41,7 +43,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final notifier = ScheduleStoreNotifier();
     await notifier.ready;
-    notifier.setMajorSelection(
+    await notifier.setMajorSelection(
       PkMajorSelection(
         calendarId: 119,
         grade: 2025,
@@ -64,15 +66,17 @@ void main() {
     addTearDown(container.dispose);
     await tester.pumpWidget(wrapApp(container));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('筛选').first);
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('专业'));
     await tester.tap(find.text('专业'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('土木工程'));
     await tester.pumpAndSettle();
-    expect(find.text('更改专业并清空方案？'), findsOneWidget);
+    expect(find.text('切换排课配置？'), findsOneWidget);
     expect(notifier.state.majorSelected.major, 'm1');
     expect(notifier.activePlan.selectedCourses, ['X.01']);
-    expect(find.textContaining('2 个方案中的 1 门课程和 1 个自定义安排'), findsOneWidget);
+    expect(find.textContaining('2 个方案有内容（1 门课程、1 个安排）'), findsOneWidget);
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
     expect(notifier.state.majorSelected.major, 'm1');
@@ -82,12 +86,12 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('schedule-major-option-m1')));
     await tester.pumpAndSettle();
     expect(notifier.activePlan.selectedCourses, ['X.01']);
-    expect(find.text('更改专业并清空方案？'), findsNothing);
+    expect(find.text('切换排课配置？'), findsNothing);
     await tester.tap(find.text('专业'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('schedule-major-option-m2')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('更改并清空'));
+    await tester.tap(find.text('清空方案并切换'));
     await tester.pumpAndSettle();
     await notifier.flush;
     expect(notifier.state.majorSelected.major, 'm2');
@@ -110,7 +114,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final notifier = ScheduleStoreNotifier();
       await notifier.ready;
-      notifier.setMajorSelection(
+      await notifier.setMajorSelection(
         PkMajorSelection(
           calendarId: 119,
           grade: 2025,
@@ -124,18 +128,20 @@ void main() {
       addTearDown(container.dispose);
       await tester.pumpWidget(wrapApp(container));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('筛选').first);
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('专业'));
       await tester.tap(find.text('专业'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('土木工程'));
       await tester.pumpAndSettle();
       notifier.addCustomEvent(label: '期间新增', day: 1, sections: [3], weeks: [1]);
-      await tester.tap(find.text('更改并清空'));
+      await tester.tap(find.text('清空方案并切换'));
       await tester.pumpAndSettle();
       expect(notifier.state.majorSelected.major, 'm1');
       expect(notifier.activePlan.selectedCourses, ['X.01']);
       expect(notifier.activePlan.customEvents.single.label, '期间新增');
-      expect(find.text('方案内容已变化，请重新选择专业。'), findsOneWidget);
+      expect(find.text('方案已发生变化，请重新选择并确认。'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
     },

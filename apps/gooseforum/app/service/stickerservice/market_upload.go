@@ -109,22 +109,10 @@ func UploadMarketPackFile(ctx context.Context, packID uint64, fileName string, d
 	if err != nil {
 		return ImportResult{Failed: []ImportIssue{}}, err
 	}
-	conn := db.ConnectContext(ctx)
-	order, count, err := sticker.NextMarketItemOrder(conn, pack.Id)
-	if err != nil {
-		return ImportResult{Failed: []ImportIssue{}}, err
-	}
 	result, err := importUpload(ctx, fileName, data, func(ctx context.Context, base string, data []byte) (bool, string) {
-		if count >= MaxMarketPackItems {
-			return false, marketUploadReason(errMarketPackFull)
-		}
-		skipped, err := addUploadedMarketItem(ctx, pack, base, data, order)
+		skipped, err := addUploadedMarketItem(ctx, pack, base, data)
 		if err != nil {
 			return false, marketUploadReason(err)
-		}
-		if !skipped {
-			order++
-			count++
 		}
 		return skipped, ""
 	}, true)
@@ -152,22 +140,43 @@ func marketUploadReason(err error) string {
 
 // addUploadedMarketItem stores one image and links it to the pack. The item
 // id is the image's content hash, so uploading the same image again is a no-op.
-func addUploadedMarketItem(ctx context.Context, pack sticker.MarketPack, base string, data []byte, order int) (bool, error) {
+func addUploadedMarketItem(ctx context.Context, pack sticker.MarketPack, base string, data []byte) (bool, error) {
 	fileName, err := storeMarketImage(ctx, data)
 	if err != nil {
 		return false, err
 	}
+	return commitUploadedMarketItem(db.ConnectContext(ctx), pack.Id, base, fileName)
+}
+
+// commitUploadedMarketItem locks the owning pack before checking capacity and
+// append order. Concurrent queue uploads must not trust a pre-download count;
+// existing content is checked first so retries still succeed at full capacity.
+func commitUploadedMarketItem(conn *gorm.DB, packID uint64, base, fileName string) (bool, error) {
 	itemID := strings.TrimSuffix(path.Base(fileName), path.Ext(fileName))
 	if len(itemID) > 40 {
 		itemID = itemID[:40]
 	}
 	skipped := false
-	err = db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := conn.Transaction(func(tx *gorm.DB) error {
+		pack, err := sticker.MarketPackByIDTx(tx, packID)
+		if errors.Is(err, gorm.ErrRecordNotFound) || err == nil && pack.Source != MarketSourceUpload {
+			return ErrMarketPackNotFound
+		}
+		if err != nil {
+			return err
+		}
 		if existing, err := sticker.MarketItemTx(tx, pack.Id, itemID); err == nil && existing.StickerID != 0 {
 			skipped = true
 			return nil
 		} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
+		}
+		order, count, err := sticker.NextMarketItemOrder(tx, pack.Id)
+		if err != nil {
+			return err
+		}
+		if count >= MaxMarketPackItems {
+			return errMarketPackFull
 		}
 		label := cleanUpstreamText(StemName(base), sticker.MaxNameLen)
 		if label == "" {

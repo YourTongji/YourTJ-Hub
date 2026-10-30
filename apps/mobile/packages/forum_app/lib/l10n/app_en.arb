@@ -125,6 +125,8 @@
   "authRegisterSubtitle": "Create an account and join the campus conversation.",
   "authForgotSubtitle": "Enter your email and we will send a reset link.",
   "authUsernameOrEmail": "Username or email",
+  "authRegistrationUsernameRules": "6–32 characters: English letters, digits, underscores (_) and hyphens (-).",
+  "authRegistrationPasswordRules": "6–64 characters, including an English letter (A–Z/a–z) and a digit (0–9). Other characters are allowed.",
   "authUsername": "Username",
   "authEmail": "Email",
   "authPassword": "Password",
@@ -616,6 +618,8 @@
   "topicLaterReplies": "Load newer replies",
   "topicNewTopic": "New topic",
   "scheduleTitle": "Course planner",
+  "scheduleFilters": "Filters",
+  "scheduleCandidates": "Candidates",
   "scheduleTabTimetable": "Plan preview",
   "scheduleTabPick": "Pick courses",
   "scheduleTerm": "Term",
@@ -2376,5 +2380,41 @@
   "scheduleMajorNoMatch": "No matching majors",
   "scheduleChangeMajorTitle": "Change major and clear plans?",
   "scheduleEmptyCourseHint": "Adjust the course scope or search by course name.",
-  "scheduleSetupTitle": "Set your course scope first"
+  "scheduleSetupTitle": "Set your course scope first",
+  "scheduleConfigChangeTitle": "Change setup?",
+  "scheduleConfigChangeBody": "This clears courses and custom blocks from every plan. {planCount} plans contain {courseCount} courses and {eventCount} blocks. Plan names are kept.",
+  "scheduleConfigChangePlan": "{name}: {courseCount} courses, {eventCount} blocks",
+  "scheduleConfigChangeSync": "If these plans are already synced, the cleared contents also sync to other devices.",
+  "scheduleConfigChangeConfirm": "Clear plans and switch",
+  "scheduleConfigChangeUpdated": "Plans changed. Choose again and review the current impact.",
+  "@scheduleConfigChangeBody": {
+    "placeholders": {
+      "planCount": {
+        "type": "int"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleConfigChangePlan": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "unreadStyleTitle": "Unread indicators",
+  "unreadStyleNumbers": "Show unread counts",
+  "unreadStyleHint": "Turn off to show dots. This setting syncs between Web and App for this account without marking anything read or changing push delivery.",
+  "unreadStyleSaving": "Saving indicator style…"
 }

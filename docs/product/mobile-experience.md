@@ -904,22 +904,23 @@ change. The header keeps a small outer margin for its primary action.
   the app becomes inactive. Title, Markdown/simple text, type, category IDs and uploaded image URLs
   survive reopening, including when the page metadata request fails. Save progress, success and
   retryable storage failure are visible. Each new composition has an independent identity.
-  Cloud-draft edits, published-topic edits and replies use distinct identities. Earlier v1 recovery slots remain listed and can be explicitly reopened.
+  Cloud-draft edits, published-topic edits, new replies and reply edits use distinct identities. Earlier v1 recovery slots remain listed and can be explicitly reopened.
   Opening a cloud draft by its server ID while offline also finds its latest device recovery copy,
   before the server can confirm whether the topic is published or still a draft.
   Starting another composition never replaces a previous one. A restored editor still obtains current
   server metadata before publishing.
 - `Current`: the drafts page presents device and cloud sections in one scroll surface, with a new
   composition action, content previews, recovery kind, content type and last-edit time. Continue editing
-  reopens the same writing identity; replies reopen their topic. Returning from new or resumed writing
+  reopens the same writing identity; new replies reopen their topic, while reply edits reopen the
+  full-screen reply editor for the stored post ID. Returning from new or resumed writing
   refreshes the list. Title/text search and all/device/cloud/reply
   filters operate on device copies and the currently loaded cloud list; the cloud endpoint returns at most
   100 drafts and only its title/description are searchable here. A full 100-item window shows its limit
   and explains that deletion refreshes it to reveal subsequent drafts. Counts describe displayed copies, so a
   device recovery copy and its cloud draft count separately. Empty matches offer a filter reset. Local
   loading is distinct from an empty list; failed local or cloud refreshes retain displayed content with
-  an inline retry. Local snapshots use app-private device
-  preferences scoped by API origin and numeric account ID, with no token or background cloud upload.
+  an inline retry. Local snapshots use dedicated
+  encrypted user-work storage scoped by API origin and numeric account ID, with no token or background cloud upload.
   Logging out hides them; logging back into the same account restores access. Explicit discard or
   successful server acknowledgement removes the matching recovery snapshot; local deletion is
   confirmed with an explicit explanation that cloud content stays unchanged. Device and cloud rows both
@@ -938,6 +939,14 @@ change. The header keeps a small outer margin for its primary action.
   attempts to clear that account's local drafts and searches. Serialized writes order deletion and
   restoration after pending saves. Storage failure is reported when saving; OS termination
   before the debounce/flush completes can lose the newest unsaved input.
+- `Current`: publishing, new replies and reply edits flush their latest recovery copy before the
+  HTTP write, so a 401 cannot clear the session before the last input is durable. Storage failure or
+  unavailable ownership blocks that attempt and retains input for manual retry. A 401 keeps the
+  normal session teardown; after signing in to the same account, recovery copies remain available
+  through Drafts. Merely opening a copy never submits it. Reply edits autosave separately from
+  new replies and cannot be reopened as topic publishing. Successful saves or explicit discard
+  remove the matching recovery copy after earlier local writes; failed local cleanup preserves
+  the old copy without invalidating an acknowledged server save.
 - `Current`: changed editors offer continue, discard, or save to this device and leave. A server-required
   captcha can be refreshed without discarding content.
 - `Current`: one reply recovery copy per topic preserves text, its reply target and uploaded image URL.
@@ -1029,7 +1038,12 @@ retain separate identities and detail links. Identity text wraps with enlarged t
   navigator, covering the retained tab dock and rail. Loading, failure and retry remain inside
   this route; closing or completing authorization returns to the same campus branch and refreshes
   its status. Browser content retains its safe-area and keyboard insets.
-- `Current`: the scheduler opens in course selection. Plan preview remains a local planning
+- `Current`: the scheduler has page-local Filters, Candidates, Selected and Plan preview tasks.
+  An unconfigured planner opens Filters; an existing context opens Candidates. The same store owns
+  every task. Switching tasks keeps the candidate query/results and selected classes, while dismissing
+  the keyboard. Selected lists complete class codes, teachers, times, rooms, weeks and conflicts,
+  independent of the preview's week filter, and can remove a class directly. Candidate results remain
+  transient; choosing a teaching class updates the existing plan immediately. Plan preview remains a local planning
   grid, with week filters, conflicts, custom blocks and existing plan operations. Web and mobile
   warn about time conflicts before a teaching class is selected, while keeping the add action
   non-blocking. Completed term/grade/major selection collapses into an editable summary; course,
@@ -1038,6 +1052,14 @@ retain separate identities and detail links. Identity text wraps with enlarged t
   the native credential. Plans are not official enrollment results. Help, storage recovery and sync
   controls share one expandable status section; sync conflicts and blocked/adoption states remain
   visible in its summary. The custom-event action uses a plus symbol.
+- `Current`: choosing the already selected term, grade or major leaves every plan unchanged.
+  Changing one of these values asks for confirmation when any plan contains courses or custom
+  blocks, listing all plan names and affected counts. Cancel preserves the selection and content;
+  confirmation clears every plan's courses and blocks while retaining plan IDs and names.
+  The confirmation explains that existing plan synchronization also propagates these clears.
+  Configuration and cleared plans commit together before the screen changes. Saving blocks
+  further editing and leaving; failure retains the old configuration and content for explicit retry.
+  Responses from synchronization started under the previous configuration cannot apply afterward.
 - `Current`: course offering rows open the Course planner with course, class and term context.
   The user selects the matching term and major before opening the exact class for confirmation.
   Navigation never changes existing plans; mismatched terms and unavailable classes explain how to
@@ -1386,6 +1408,12 @@ and forwarding on Web, App and old clients; see [forum permissions](forum.md#pri
   privacy group. `/settings/account` and `/settings/notifications` remain valid. The wide directory uses
   these same groups. The icon-only shell labels its speech-bubble destination Direct messages in
   tooltips and screen readers. Content management is consistently called My content.
+- `Current`: Settings → Notifications includes an account-wide Show unread count switch shared with
+  Web. It defaults to numbers, caps visible counts at `99+`, and changes navigation/rail and conversation
+  indicators to dots when off, including count-free accessibility labels. An older server without
+  exact totals keeps dots. Saving disables the switch; failure restores the previous choice and permits
+  retry. This display preference leaves read state, push delivery and system notification permission
+  unchanged. Counts and preferences refresh through the existing foreground reconciliation.
 - `Current`: `/settings/badges` combines worn-badge choice and ordered profile display in one editor;
   the own profile's badge stream links to it. Choices remain local until Save. Wear and display use
   independent APIs; an acknowledged wear is retained after a display failure, and retry resumes display.

@@ -1470,6 +1470,8 @@ export default {
     contentGone: '内容已永久删除',
   },
   auth: {
+    registrationUsernameRules: "6–32 个字符，仅限英文字母、数字、下划线（_）和连字符（-）。",
+    registrationPasswordRules: "6–64 个字符，须包含英文字母（A–Z／a–z）和数字（0–9），可混合其他字符。",
     writeRecovery: {
       email: "检查邮箱验证",
       login: "使用同一账号重新登录",
@@ -1507,6 +1509,7 @@ export default {
     showPassword: '显示密码',
     hidePassword: '隐藏密码',
     captcha: '验证码',
+    refreshCaptcha: '刷新验证码',
     registrationUnavailable: "注册暂不可用，请稍后再试。",
     checkSignupAvailability: "重新检查注册状态",
     captchaAlt: '验证码',
@@ -1565,6 +1568,11 @@ export default {
     },
   },
   notifications: {
+    summaryWithoutCounts: "回复、赞、关注和系统消息。",
+    unreadIndicator: "未读",
+    unreadStyleNumbers: "显示未读数量",
+    unreadStyleHint: "关闭后仅显示红点。此设置在该账号的 Web 和 App 间同步，不会标记已读或改变推送。",
+    unreadStyleSaving: "正在保存提醒样式…",
     systemPushDefaultDescription: "默认仅提醒审核结果；重新开启此项后，也会提醒普通系统消息和徽章。",
     noDirectTarget: "该提醒暂无可直接打开的详情。",
     presentation: {

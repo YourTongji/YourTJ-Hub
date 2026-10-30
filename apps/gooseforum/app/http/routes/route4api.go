@@ -381,6 +381,8 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("my-sticker-pack-save", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.SaveMyStickerPack))
 	forumLoginApi.POST("my-sticker-pack-delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.DeleteMyStickerPack))
 	forumLoginApi.GET("unread-status", middleware.NoUpdateUserActivity, UpButterReq(api.GetUnreadStatus))
+	forumLoginApi.GET("notification-preferences", middleware.NoUpdateUserActivity, UpButterReq(api.GetNotificationPreferences))
+	forumLoginApi.PUT("notification-preferences", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedStrictJsonReq(4<<10, api.UpdateNotificationPreferences))
 	forumLoginApi.GET("notifications", middleware.NoUpdateUserActivity, UpQueryReq(api.NotificationList))
 	// 未读清理（notification/chat mark-read）用放行变体：pending 用户仅清理自己的
 	// 读状态、不产生内容写（issue #427），未读角标无需等待激活才能清除；冻结

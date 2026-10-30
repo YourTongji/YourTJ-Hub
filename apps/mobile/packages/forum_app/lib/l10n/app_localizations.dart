@@ -492,6 +492,18 @@ abstract class AppLocalizations {
   /// **'Username or email'**
   String get authUsernameOrEmail;
 
+  /// No description provided for @authRegistrationUsernameRules.
+  ///
+  /// In en, this message translates to:
+  /// **'6–32 characters: English letters, digits, underscores (_) and hyphens (-).'**
+  String get authRegistrationUsernameRules;
+
+  /// No description provided for @authRegistrationPasswordRules.
+  ///
+  /// In en, this message translates to:
+  /// **'6–64 characters, including an English letter (A–Z/a–z) and a digit (0–9). Other characters are allowed.'**
+  String get authRegistrationPasswordRules;
+
   /// No description provided for @authUsername.
   ///
   /// In en, this message translates to:
@@ -2093,6 +2105,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Course planner'**
   String get scheduleTitle;
+
+  /// No description provided for @scheduleFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Filters'**
+  String get scheduleFilters;
+
+  /// No description provided for @scheduleCandidates.
+  ///
+  /// In en, this message translates to:
+  /// **'Candidates'**
+  String get scheduleCandidates;
 
   /// No description provided for @scheduleTabTimetable.
   ///
@@ -8475,6 +8499,70 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Set your course scope first'**
   String get scheduleSetupTitle;
+
+  /// No description provided for @scheduleConfigChangeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Change setup?'**
+  String get scheduleConfigChangeTitle;
+
+  /// No description provided for @scheduleConfigChangeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This clears courses and custom blocks from every plan. {planCount} plans contain {courseCount} courses and {eventCount} blocks. Plan names are kept.'**
+  String scheduleConfigChangeBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  );
+
+  /// No description provided for @scheduleConfigChangePlan.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}: {courseCount} courses, {eventCount} blocks'**
+  String scheduleConfigChangePlan(String name, int courseCount, int eventCount);
+
+  /// No description provided for @scheduleConfigChangeSync.
+  ///
+  /// In en, this message translates to:
+  /// **'If these plans are already synced, the cleared contents also sync to other devices.'**
+  String get scheduleConfigChangeSync;
+
+  /// No description provided for @scheduleConfigChangeConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear plans and switch'**
+  String get scheduleConfigChangeConfirm;
+
+  /// No description provided for @scheduleConfigChangeUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Plans changed. Choose again and review the current impact.'**
+  String get scheduleConfigChangeUpdated;
+
+  /// No description provided for @unreadStyleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unread indicators'**
+  String get unreadStyleTitle;
+
+  /// No description provided for @unreadStyleNumbers.
+  ///
+  /// In en, this message translates to:
+  /// **'Show unread counts'**
+  String get unreadStyleNumbers;
+
+  /// No description provided for @unreadStyleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn off to show dots. This setting syncs between Web and App for this account without marking anything read or changing push delivery.'**
+  String get unreadStyleHint;
+
+  /// No description provided for @unreadStyleSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving indicator style…'**
+  String get unreadStyleSaving;
 }
 
 class _AppLocalizationsDelegate

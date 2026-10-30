@@ -220,6 +220,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authUsernameOrEmail => '用户名或邮箱';
 
   @override
+  String get authRegistrationUsernameRules =>
+      '6–32 个字符，仅限英文字母、数字、下划线（_）和连字符（-）。';
+
+  @override
+  String get authRegistrationPasswordRules =>
+      '6–64 个字符，须包含英文字母（A–Z／a–z）和数字（0–9），可混合其他字符。';
+
+  @override
   String get authUsername => '用户名';
 
   @override
@@ -1085,6 +1093,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get scheduleTitle => '选课排课';
+
+  @override
+  String get scheduleFilters => '筛选';
+
+  @override
+  String get scheduleCandidates => '候选';
 
   @override
   String get scheduleTabTimetable => '方案预览';
@@ -4499,4 +4513,46 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get scheduleSetupTitle => '先设置排课范围';
+
+  @override
+  String get scheduleConfigChangeTitle => '切换排课配置？';
+
+  @override
+  String scheduleConfigChangeBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '将清空全部方案的课程和自定义安排，其中 $planCount 个方案有内容（$courseCount 门课程、$eventCount 个安排）。方案名称保留。';
+  }
+
+  @override
+  String scheduleConfigChangePlan(
+    String name,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '$name：$courseCount 门课程、$eventCount 个安排';
+  }
+
+  @override
+  String get scheduleConfigChangeSync => '如果这些方案已开启同步，清空内容也会同步到其他设备。';
+
+  @override
+  String get scheduleConfigChangeConfirm => '清空方案并切换';
+
+  @override
+  String get scheduleConfigChangeUpdated => '方案已发生变化，请重新选择并确认。';
+
+  @override
+  String get unreadStyleTitle => '未读提醒';
+
+  @override
+  String get unreadStyleNumbers => '显示未读数量';
+
+  @override
+  String get unreadStyleHint => '关闭后仅显示红点。此设置在该账号的 Web 和 App 间同步，不会标记已读或改变推送。';
+
+  @override
+  String get unreadStyleSaving => '正在保存提醒样式…';
 }

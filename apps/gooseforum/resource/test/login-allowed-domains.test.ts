@@ -2,7 +2,7 @@
 // issue #643 回归：注册邮箱域名白名单为空（shipped default）时，后端存量
 // 配置行缺键会把 allowedDomains 序列化为 null；LoginPage setup 曾直接解引用
 // 导致整页白屏。修复后页面必须容错挂载，注册表单退化为自由邮箱输入。
-import { describe, expect, test, vi } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { register } from '../src/runtime/api'
 import { i18n } from '../src/runtime/i18n'
@@ -28,6 +28,7 @@ vi.mock('../src/runtime/site-theme', async () => {
 })
 
 import LoginPage from '../src/site/pages/LoginPage.vue'
+import { getCaptcha, forgotPassword } from '../src/runtime/api'
 
 const layout: LayoutPayload = {
   site: {
@@ -95,9 +96,86 @@ describe('LoginPage allowedDomains null 容错（issue #643）', () => {
     expect(wrapper.text()).toContain('@tongji.edu.cn')
     wrapper.unmount()
   })
+  test('registration rules are visible and associated before typing', () => {
+    const wrapper=mount(LoginPage,{props:{layout,props:buildProps([])},global:{plugins:[i18n]}})
+    expect(wrapper.get('input[autocomplete="username"]').attributes('aria-describedby')).toBe('register-username-rules')
+    expect(wrapper.get('#register-username-rules').text()).toContain('6–32')
+    expect(wrapper.get('input[autocomplete="new-password"]').attributes('aria-describedby')).toBe('register-password-rules')
+    expect(wrapper.get('#register-password-rules').text()).toContain('6–64')
+    expect(wrapper.findAll('input').every(input=>!input.element.value)).toBe(true)
+    wrapper.unmount()
+  })
+
 })
 
 
+describe('LoginPage captcha refresh ownership (#1220 F14)', () => {
+  const challenge = (id: string) => ({ captchaId: id, captchaImg: `data:image/png;base64,${id}` })
+  beforeEach(() => { vi.mocked(getCaptcha).mockReset(); vi.mocked(forgotPassword).mockClear() })
+  const render = (initialMode: 'register' | 'forgot' = 'register') => mount(LoginPage, { props: { layout, props: { ...buildProps([]), initialMode } }, global: { plugins: [i18n] } })
+  const code = (w: ReturnType<typeof render>) => w.find(`input[placeholder="${i18n.global.t('auth.captcha')}"]`)
+  const refresh = (w: ReturnType<typeof render>) => w.findAll('button').find(b => b.find('img.gf-captcha-image').exists())!
+
+  test('only a successful new challenge clears the old answer', async () => {
+    vi.mocked(getCaptcha).mockResolvedValueOnce(challenge('first')).mockResolvedValueOnce(challenge('second'))
+    const w = render(); await flushPromises()
+    await code(w).setValue('OLD-CODE')
+    await refresh(w).trigger('click'); await flushPromises()
+    expect(w.find('.gf-captcha-image').attributes('src')).toContain('second')
+    expect((code(w).element as HTMLInputElement).value).toBe('')
+    w.unmount()
+  })
+  test('failed refresh retains both the usable image and answer', async () => {
+    vi.mocked(getCaptcha).mockResolvedValueOnce(challenge('first')).mockRejectedValueOnce(new Error('offline'))
+    const w = render('forgot'); await flushPromises()
+    await w.find('input[type="email"]').setValue('owner@example.test')
+    await code(w).setValue('OLD-CODE')
+    await refresh(w).trigger('click'); await flushPromises()
+    expect(w.find('.gf-captcha-image').attributes('src')).toContain('first')
+    expect((code(w).element as HTMLInputElement).value).toBe('OLD-CODE')
+    await w.find('form').trigger('submit'); await flushPromises()
+    expect(forgotPassword).toHaveBeenCalledWith('owner@example.test', 'first', 'OLD-CODE', '')
+    w.unmount()
+  })
+  test('refresh is single flight and neither button nor submit sends mismatched input', async () => {
+    let finish!: (value: ReturnType<typeof challenge>) => void
+    vi.mocked(getCaptcha).mockResolvedValueOnce(challenge('first')).mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+    const w = render('forgot'); await flushPromises()
+    await w.find('input[type="email"]').setValue('owner@example.test')
+    await code(w).setValue('OLD-CODE')
+    const button = refresh(w)
+    await button.trigger('click')
+    await button.trigger('click')
+    await w.find('form').trigger('submit'); await flushPromises()
+    expect(getCaptcha).toHaveBeenCalledTimes(2)
+    expect(forgotPassword).not.toHaveBeenCalled()
+    finish(challenge('second')); await flushPromises(); w.unmount()
+  })
+  test('an initial failure offers a named retry without accepting a missing challenge', async () => {
+    vi.mocked(getCaptcha).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(challenge('retry'))
+    const w = render('forgot'); await flushPromises()
+    await w.find('input[type="email"]').setValue('owner@example.test')
+    await code(w).setValue('not-a-challenge')
+    await w.find('form').trigger('submit'); await flushPromises()
+    expect(forgotPassword).not.toHaveBeenCalled()
+    const retry = w.find('button[aria-busy]')
+    expect(retry.attributes('aria-label')).toBe(i18n.global.t('auth.refreshCaptcha'))
+    await retry.trigger('click'); await flushPromises()
+    expect(w.find('.gf-captcha-image').attributes('src')).toContain('retry')
+    expect((code(w).element as HTMLInputElement).value).toBe('')
+    w.unmount()
+  })
+  test('a late response from the previous mode cannot replace the new challenge', async () => {
+    let finish!: (value: ReturnType<typeof challenge>) => void
+    vi.mocked(getCaptcha).mockReturnValueOnce(new Promise(resolve => { finish = resolve })).mockResolvedValueOnce(challenge('new-mode'))
+    const w = render()
+    await w.findAll('.gf-segmented-item')[0]!.trigger('click'); await flushPromises()
+    expect(getCaptcha).toHaveBeenCalledTimes(2)
+    finish(challenge('old-mode')); await flushPromises()
+    expect(w.find('.gf-captcha-image').attributes('src')).toContain('new-mode')
+    w.unmount()
+  })
+})
 describe('password registration availability (#1220 F12)', () => {
   for (const state of ['disabled', 'daily_limit', 'mail_unavailable', 'unavailable'] as const) {
     test(`shows ${state} before collecting a registration`, async () => {
