@@ -12,6 +12,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../current_user.dart';
+import '../../layout_breakpoints.dart';
 import '../../providers.dart';
 import '../../navigation/tab_scroll_registry.dart';
 import '../../navigation/reading_window.dart';
@@ -836,7 +837,8 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
       1.0,
       double.infinity,
     );
-    final hasDirectory = MediaQuery.sizeOf(context).width >= 900 * layoutScale;
+    final hasDirectory =
+        MediaQuery.sizeOf(context).width >= widePageBreakpoint * layoutScale;
     bool isPending(String tab) {
       if (!privateVisible ||
           (state.status != null && state.status?.binding == null)) {
