@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -92,3 +92,25 @@ for (const target of ['manifest', 'Dart map', 'asset list', 'Unicode defaults'])
     }
   })
 }
+
+test('CLI invoked through a file alias generates the canonical package outputs', () => {
+  const fixture = mkdtempSync(path.join(tmpdir(), 'twemoji-alias-'))
+  try {
+    const tool = path.join(fixture, 'tool/generate_twemoji_manifest.mjs')
+    const alias = path.join(fixture, 'tool/alias.mjs')
+    const data = path.join(fixture, 'tool/data/unicode-emoji-17-default-text.txt')
+    const images = path.join(fixture, 'assets/twemoji-public/twemoji/72x72')
+    mkdirSync(path.dirname(data), { recursive: true })
+    mkdirSync(images, { recursive: true })
+    copyFileSync(path.join(toolDir, 'generate_twemoji_manifest.mjs'), tool)
+    writeFileSync(data, '00a9\n')
+    writeFileSync(path.join(images, '1f600.png'), '')
+    symlinkSync(tool, alias)
+    execFileSync(process.execPath, [alias], { stdio: 'pipe' })
+    const manifest = JSON.parse(readFileSync(path.join(fixture, 'assets/twemoji-manifest.json'), 'utf8'))
+    assert.ok(manifest.entries.some(({ sequence }) => sequence === '😀'))
+    assert.ok(existsSync(path.join(fixture, 'lib/src/twemoji/twemoji_asset_map.g.dart')))
+  } finally {
+    rmSync(fixture, { recursive: true, force: true })
+  }
+})

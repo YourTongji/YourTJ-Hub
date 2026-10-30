@@ -116,14 +116,17 @@ def main():
     event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text()) if os.environ.get("GITHUB_EVENT_PATH") else {}
     base = (args.base or event.get("pull_request", {}).get("base", {}).get("sha")
             or event.get('merge_group', {}).get('base_sha') or event.get("before"))
-    try:
-        if not base or set(base) == {"0"}:
-            raise ValueError("No comparison base")
-        if event.get("pull_request"):
-            base = subprocess.check_output(["git", "merge-base", base, args.head], text=True).strip()
-        plan = select(changed_paths(base, args.head))
-    except (ValueError, subprocess.CalledProcessError):
-        plan = {d: {"run": True, "reason": "Comparison unavailable; conservative full validation"} for d in DOMAINS}
+    if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
+        plan = {d: {"run": True, "reason": "Explicit manual full validation"} for d in DOMAINS}
+    else:
+        try:
+            if not base or set(base) == {"0"}:
+                raise ValueError("No comparison base")
+            if event.get("pull_request"):
+                base = subprocess.check_output(["git", "merge-base", base, args.head], text=True).strip()
+            plan = select(changed_paths(base, args.head))
+        except (ValueError, subprocess.CalledProcessError):
+            plan = {d: {"run": True, "reason": "Comparison unavailable; conservative full validation"} for d in DOMAINS}
     Path(args.output).write_text(json.dumps(plan, indent=2) + "\n")
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a") as out:
