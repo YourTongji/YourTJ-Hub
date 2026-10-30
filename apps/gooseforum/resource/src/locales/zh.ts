@@ -3689,7 +3689,8 @@ export default {
       register: {
         dailyQuota: '今日注册用户名额已满，请明天再来吧~',
         failed: '注册失败',
-        retryLogin: '注册异常，请尝试登录',
+        emailRetry: "账号已创建，验证邮件暂时不可用。请在邮箱设置重试或更换邮箱。",
+        retryLogin: "账号已创建，但自动登录未完成。请直接登录以继续，避免重复注册。",
         emailVerify: '注册成功，请前往邮箱验证您的账号',
       },
       login: {

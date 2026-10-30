@@ -1273,6 +1273,12 @@ retain separate identities and detail links. Identity text wraps with enlarged t
 
 ## Registration
 
+- `Current`: post-creation mail scheduling failures have a dedicated localized
+  warning directing the user to email settings for retry or an address change.
+  They do not become the ordinary “check your inbox” confirmation. A created
+  account whose automatic sign-in failed instead asks the user to sign in without
+  registering again; public occupied-account failures remain generic.
+
 - `Current`: successful password registration accepts its newly issued forum session through the
   same cache cleanup, secure-storage commit and provider invalidation used for sign-in. It restores
   only the safe native destination; a missing token cannot reuse an earlier challenge or session.

@@ -272,6 +272,16 @@ social counts and badges, and moderator access rules beyond today's public profi
   pending accounts. Successful account creation still emits the existing `user.signup` HTTP
   notification, independently of this switch; administrators can subscribe the same notification
   endpoint used for reports. No endpoint is enabled or subscribed automatically.
+- Registration outcomes (`Current`): account creation, activation-mail scheduling
+  and session creation are distinct. If mail preparation or queue acknowledgement
+  fails after creation, `auth.register.emailRetry` preserves the new pending account
+  and issued session and directs its owner to retry or change the address in email
+  settings. It does not claim rejection or SMTP delivery. Session-creation failure
+  instead returns `auth.register.retryLogin` without credentials, explaining that
+  the account exists and sign-in can recover it. Neither outcome rolls back or
+  repeats registration; occupied/failed-create cases keep the generic public
+  failure. Pending sessions retain the existing write gates, and asynchronous
+  delivery failure is not inferred from an accepted queue acknowledgement.
 - Activation-link recovery (`Current`): missing, invalid and genuinely expired
   links have separate localized explanations. Invalid signatures, unavailable
   accounts and stale targets do not disclose another account's state. Failures

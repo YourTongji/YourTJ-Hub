@@ -1078,6 +1078,15 @@ export interface paths {
          *     failed" is intrinsic to the protocol and is not part of this contract's failure
          *     taxonomy.
          *
+         *     When activation-mail preparation or queue acknowledgement fails after creation,
+         *     the account remains pending and its newly issued session is retained. Success
+         *     code `auth.register.emailRetry` directs the owner to email settings; no delivery
+         *     is claimed. Later asynchronous SMTP failure cannot be inferred from this response.
+         *     `auth.register.retryLogin` is a failure after the account was created but session
+         *     creation did not finish; no session credential is returned and clients should
+         *     offer sign-in rather than repeat registration. Occupied/failed-create cases
+         *     retain their existing generic failure and never use these recovery outcomes.
+         *
          *     The endpoint is IP rate limited (HTTP 429 + `Retry-After`); the default quota is
          *     20 requests per hour per IP.
          */
@@ -9372,12 +9381,14 @@ export interface components {
             /**
              * @description `auth.login.success` when the account is created and a session is issued
              *     immediately (email verification disabled); `auth.register.emailVerify` when
-             *     the site requires email verification before the session is usable. The
+             *     email verification is required before protected writes. `auth.register.emailRetry`
+             *     means the account and session exist but activation-mail preparation or queue
+             *     acceptance could not be confirmed; it does not claim delivery. The
              *     honeypot path returns the same `auth.login.success` envelope without
              *     creating an account.
              * @enum {string}
              */
-            messageCode: "auth.login.success" | "auth.register.emailVerify";
+            messageCode: "auth.login.success" | "auth.register.emailVerify" | "auth.register.emailRetry";
         };
         RegisterResponse: components["schemas"]["RegisterSuccess"] | components["schemas"]["ApiFailure"];
         /**

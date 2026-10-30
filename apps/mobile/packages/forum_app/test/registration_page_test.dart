@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/server_messages.dart';
 import 'package:image/image.dart' as img;
 import 'package:ui_kit/ui_kit.dart';
 import 'package:go_router/go_router.dart';
@@ -1008,6 +1009,43 @@ void main() {
     ]);
   });
 
+  testWidgets(
+    'created-account mail failure uses actionable copy in four locales',
+    (tester) async {
+      for (final language in ['zh', 'en', 'ja', 'de']) {
+        await pump(
+          tester,
+          locale: Locale(language),
+          registrationSuccessMessageCode: 'auth.register.emailRetry',
+        );
+        final l = AppLocalizations.of(tester.element(find.byType(LoginPage)));
+        await tester.enterText(input(l.authUsername), 'mobile');
+        await tester.enterText(input(l.authEmail), 'student@tongji.edu.cn');
+        await tester.enterText(input(l.authPassword), 'test-password');
+        await tester.enterText(input(l.authConfirmPassword), 'test-password');
+        await tester.ensureVisible(submit());
+        await tester.tap(submit());
+        await tester.pumpAndSettle();
+        expect(find.text(l.authRegisterSuccess), findsNothing);
+        expect(find.text(l.authRegisterEmailVerify), findsNothing);
+        expect(
+          find.text(
+            resolveErrorMessage(
+              l,
+              const ApiException(
+                fallbackMessage: '',
+                messageCode: 'auth.register.emailRetry',
+              ),
+            ),
+          ),
+          findsOneWidget,
+        );
+        await tester.pump(const Duration(seconds: 4));
+        await tester.pumpAndSettle();
+      }
+    },
+  );
+
   testWidgets('registration without verification keeps generic success toast', (
     tester,
   ) async {
@@ -1058,7 +1096,7 @@ void main() {
     'auth.register.dailyQuota':
         "Today's registration quota is full. Please try again tomorrow.",
     'auth.register.retryLogin':
-        'Registration had an issue; please try signing in',
+        "Your account was created, but automatic sign-in did not finish. Sign in to continue; do not register again.",
     'auth.register.failed': 'Registration failed',
     'common.request.invalidParams': 'Invalid request parameters',
     'unknown.registration.error': 'Failed to load',

@@ -44,6 +44,15 @@ register:
       failed" is intrinsic to the protocol and is not part of this contract's failure
       taxonomy.
 
+      When activation-mail preparation or queue acknowledgement fails after creation,
+      the account remains pending and its newly issued session is retained. Success
+      code `auth.register.emailRetry` directs the owner to email settings; no delivery
+      is claimed. Later asynchronous SMTP failure cannot be inferred from this response.
+      `auth.register.retryLogin` is a failure after the account was created but session
+      creation did not finish; no session credential is returned and clients should
+      offer sign-in rather than repeat registration. Occupied/failed-create cases
+      retain their existing generic failure and never use these recovery outcomes.
+
       The endpoint is IP rate limited (HTTP 429 + `Retry-After`); the default quota is
       20 requests per hour per IP.
     requestBody:
@@ -75,6 +84,12 @@ register:
               emailVerify:
                 summary: Account created and session issued; email verification is required for writes, with recovery operations still available.
                 externalValue: ../fixtures/register-email-verify.json
+              emailRetry:
+                summary: Account and session created; activation email could not be confirmed.
+                externalValue: ../fixtures/register-email-retry.json
+              retryLogin:
+                summary: Account created but session unavailable; sign in without registering again.
+                externalValue: ../fixtures/register-retry-login.json
               honeypot:
                 summary: Bot traffic silently accepted without creating an account; the envelope matches success with verification disabled and no session is issued.
                 externalValue: ../fixtures/login-success.json
