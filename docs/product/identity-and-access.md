@@ -266,6 +266,12 @@ social counts and badges, and moderator access rules beyond today's public profi
   (admin/site/user/… permissions) and activates them immediately through the user-cache
   refresh path, so the admin console cannot lock itself out; ordinary pending users are left
   untouched and must still complete the activation email.
+
+  `Current`: when verification is off, registration does not enqueue an activation email or
+  mark an ordinary account verified. Enabling verification later also gates existing ordinary
+  pending accounts. Successful account creation still emits the existing `user.signup` HTTP
+  notification, independently of this switch; administrators can subscribe the same notification
+  endpoint used for reports. No endpoint is enabled or subscribed automatically.
 - Activation continuation (`Current`): a successful email link names the verified
   account. It leaves browser/App login credentials and account freezes unchanged;
   verification is not sign-in and does not grant unrestricted writes. The result
