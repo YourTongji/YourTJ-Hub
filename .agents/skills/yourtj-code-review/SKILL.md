@@ -18,6 +18,9 @@ description: Review yourtj-hub changes against user needs, research, acceptance 
   不在范围内的扩张及尚未解决的产品决定；不能只验证“代码实现了作者想写的东西”。
 - 保留 PR 的摘要、行为变更、验证、文档与契约影响、已知缺口；产品材料补充这些工程信息。
   若已有 Issue 提供详情，概括与链接足够，不要求重复整篇需求。
+- UI 类变更在代码细读前按[视觉变更对账规则](../../../docs/development/pull-requests.md#visual-change-declaration)
+  独立列实际呈现变化，再与作者声明求差集；输出行映射、未声明/不符项与批量抽查结果。
+  不可对账的用户可感知变化标为 process blocker，补充/纠正声明或恢复旧特性后解除，不以设计偏好阻塞。
 - 对 UI 改动检查相关平台的入口、状态、反馈、可访问性和恢复路径，核对操作/视觉证据。
   无法实测时明确限制，不把代码阅读写成体验验收通过。
 
