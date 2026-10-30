@@ -312,6 +312,8 @@ Web 与 Flutter 的页面数据模型不承载这段 HTML，管理端站点设�
 配额、历史素材保留和隐私规则见[移动端表情规范](mobile-experience.md#sticker-library)与
 [个人表情库决策](../decisions/0038-personal-sticker-library.md)及[先审后用决策](../decisions/0080-personal-sticker-pre-review.md)。
 
+`Current`：后台友链与分组表单在键盘缩短视口时保持在可见范围内，表单内部可滚动到全部字段和保存操作。
+
 ## Governance and public exports
 
 `Current`：角色权限、审核工作台、敏感词拦截／待审、举报、审计、验证码与按动作限流覆盖论坛交互。
