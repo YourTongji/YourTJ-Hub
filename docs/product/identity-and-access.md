@@ -328,6 +328,13 @@ social counts and badges, and moderator access rules beyond today's public profi
   failed delivery, without SMTP dispatch, retry or automatic token renewal. The existing lease fence
   still owns the final status write. The owner can manually request a fresh link through the existing
   activation recovery or password-recovery flow; queue acceptance does not guarantee delivery before expiry.
+- Web authentication CAPTCHA refresh (`Current`): refreshes are single flight;
+  changing forms or leaving the page invalidates older reads. A successful new
+  challenge clears all form answers, while a failed refresh preserves the usable
+  image and answer. Password login, registration and recovery cannot submit while
+  the challenge is loading or missing. Refresh buttons and fields have explicit
+  accessible names, and load errors describe the fields without marking a still
+  usable answer invalid.
 - Username/nickname policy: `reservedUsernames` / `bannedUsernames` are enforced at
   password registration/rename and at Agent account creation with **normalized whole-string
   equality** (case folding, NFKC full-width, zero-width stripping, ASCII leetspeak folding):

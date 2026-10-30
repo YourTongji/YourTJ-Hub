@@ -1458,6 +1458,7 @@ export default {
     showPassword: '显示密码',
     hidePassword: '隐藏密码',
     captcha: '验证码',
+    refreshCaptcha: '刷新验证码',
     registrationUnavailable: "注册暂不可用，请稍后再试。",
     checkSignupAvailability: "重新检查注册状态",
     captchaAlt: '验证码',

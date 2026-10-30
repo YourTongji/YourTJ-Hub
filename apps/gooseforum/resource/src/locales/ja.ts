@@ -1457,6 +1457,7 @@ export default {
     showPassword: 'パスワードを表示',
     hidePassword: 'パスワードを隠す',
     captcha: '認証コード',
+    refreshCaptcha: '確認コードを更新',
     registrationUnavailable: "現在登録できません。しばらくしてからお試しください。",
     checkSignupAvailability: "登録状況を再確認",
     captchaAlt: '認証コード',

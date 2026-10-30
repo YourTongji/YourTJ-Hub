@@ -1458,6 +1458,7 @@ export default {
     showPassword: 'Show password',
     hidePassword: 'Hide password',
     captcha: 'Captcha',
+    refreshCaptcha: 'Refresh captcha',
     registrationUnavailable: "Registration is unavailable. Please try again later.",
     checkSignupAvailability: "Check registration again",
     captchaAlt: 'Captcha',

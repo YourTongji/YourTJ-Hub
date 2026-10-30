@@ -1457,6 +1457,7 @@ export default {
     showPassword: 'Passwort anzeigen',
     hidePassword: 'Passwort ausblenden',
     captcha: 'Captcha',
+    refreshCaptcha: 'Bestätigungscode aktualisieren',
     registrationUnavailable: "Registrierung ist derzeit nicht verfügbar. Bitte später erneut versuchen.",
     checkSignupAvailability: "Registrierung erneut prüfen",
     captchaAlt: 'Captcha',
