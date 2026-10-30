@@ -69,6 +69,10 @@ class _Stickers extends StickerRepository {
   @override
   Future<List<StickerItemPayload>> mine() async => [];
   @override
+  Future<List<StickerOfficialPackPayload>> officialPacks() async => [];
+  @override
+  Future<List<StickerMarketPackPayload>> myPacks() async => [];
+  @override
   Future<List<StickerItemPayload>> resolve(List<String> names) async => [];
 }
 
@@ -154,6 +158,7 @@ void main() {
         'chat',
         'chat-history',
       ]) {
+        debugPrint('Sticker journey: $surface');
         await show(switch (surface) {
           'reply' => const TopicPage(topicId: 100),
           'moment' => const PublishPage(initialContentType: 2),
@@ -199,7 +204,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         checkChatPosition?.call();
-        await tester.tap(find.text('演示表情').last);
+        await tester.tap(find.bySemanticsLabel('演示表情').last);
         await tester.pumpAndSettle();
         expect(
           find.byType(StickerPicker),
@@ -207,7 +212,7 @@ void main() {
           reason: '$surface keeps the picker open after the first insertion',
         );
         checkChatPosition?.call();
-        await tester.tap(find.text('演示表情').last);
+        await tester.tap(find.bySemanticsLabel('演示表情').last);
         await tester.pumpAndSettle();
         expect(
           find.byType(StickerPicker),
@@ -216,10 +221,14 @@ void main() {
         );
         // The editor shows both stickers inline; the picker's own cells
         // are not part of the draft.
-        final inline = find.byType(StickerImage).evaluate().where(
-          (element) =>
-              element.findAncestorWidgetOfExactType<StickerPicker>() == null,
-        );
+        final inline = find
+            .byType(StickerImage)
+            .evaluate()
+            .where(
+              (element) =>
+                  element.findAncestorWidgetOfExactType<StickerPicker>() ==
+                  null,
+            );
         expect(inline, hasLength(2));
         expect(find.byType(BottomSheet), findsNothing);
         expect(tester.takeException(), isNull);
@@ -227,8 +236,21 @@ void main() {
           await binding.takeScreenshot('sticker-$surface');
         }
         await tester.tap(find.byTooltip('键盘'));
+        // Native IME metrics arrive after Flutter's animations can settle. The
+        // accessory intentionally holds the outgoing panel until they arrive.
+        final keyboardDeadline = DateTime.now().add(
+          const Duration(seconds: 10),
+        );
+        while (find.byType(StickerPicker).evaluate().isNotEmpty &&
+            DateTime.now().isBefore(keyboardDeadline)) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
         await tester.pumpAndSettle();
-        expect(find.byType(StickerPicker), findsNothing);
+        expect(
+          find.byType(StickerPicker),
+          findsNothing,
+          reason: '$surface returns to the native keyboard',
+        );
         checkChatPosition?.call();
         if (surface.startsWith('chat')) {
           tester
