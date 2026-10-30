@@ -93,7 +93,7 @@ class ComparisonFallbackTests(unittest.TestCase):
             for event, merge_error, diff_error in (({}, False, False), ({'before': '0' * 40}, False, False),
                     ({'pull_request': {'base': {'sha': 'a' * 40}}}, True, False), ({'before': 'a' * 40}, False, True)):
                 event_file.write_text(json.dumps(event))
-                with self.subTest(event=event), patch.dict(os.environ, GITHUB_EVENT_PATH=str(event_file), GITHUB_OUTPUT=''), \
+                with self.subTest(event=event), patch.dict(os.environ, GITHUB_EVENT_NAME='push', GITHUB_EVENT_PATH=str(event_file), GITHUB_OUTPUT=''), \
                      patch('sys.argv', ['select_inputs.py', '--output', str(output)]), contextlib.redirect_stdout(io.StringIO()), \
                      patch('select_inputs.subprocess.check_output', side_effect=subprocess.CalledProcessError(1, 'git') if merge_error else None), \
                      patch('select_inputs.changed_paths', side_effect=ValueError('unavailable') if diff_error else AssertionError('unexpected diff')):
