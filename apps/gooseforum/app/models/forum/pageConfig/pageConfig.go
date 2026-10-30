@@ -550,7 +550,7 @@ type RateLimitRule struct {
 // RateLimitConfig 滥用防护配置，全部数值可在管理面板热修改。
 type RateLimitConfig struct {
 	Enabled                  bool            `json:"enabled"`                  // 总开关
-	SkipAdmin                bool            `json:"skipAdmin"`                // 管理员豁免
+	SkipAdmin                bool            `json:"skipAdmin"`                // 管理员豁免（不含 admin.stats 聚合查询）
 	Actions                  []RateLimitRule `json:"actions"`                  // 各动作配额
 	NewUserCaptchaAfterPosts int             `json:"newUserCaptchaAfterPosts"` // 新用户窗口内连发 N 帖后要求验证码，0 关闭
 	NewUserCaptchaDays       int             `json:"newUserCaptchaDays"`       // 新用户判定窗口（注册 N 天内），0 表示所有用户

@@ -27,7 +27,7 @@ import (
 func TestChatLongMessageOnPostgreSQL(t *testing.T) {
 	open := chatPostgreSQL(t)
 	conn := open("chat-long-message")
-	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &users.PrivacySettingsEntity{}, &imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	for _, content := range []string{
@@ -68,7 +68,7 @@ func TestChatLongMessageOnPostgreSQL(t *testing.T) {
 func TestChatRetryKeysUpgradeAndConcurrencyOnPostgreSQL(t *testing.T) {
 	open := chatPostgreSQL(t)
 	conn := open("chat-retry-key-upgrade")
-	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &users.PrivacySettingsEntity{}, &imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := conn.Create(&[]users.EntityComplete{{Id: 1, Username: "sender"}, {Id: 2, Username: "peer"}}).Error; err != nil {
@@ -167,7 +167,7 @@ func TestChatReadStatesConsistentOnPostgreSQL(t *testing.T) {
 			reader, monitor := open("chat-read-state"), open("chat-read-monitor")
 			writerName := fmt.Sprintf("chat-write-%d", time.Now().UnixNano())
 			writer := open(writerName)
-			if err := reader.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}); err != nil {
+			if err := reader.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &users.PrivacySettingsEntity{}, &imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}); err != nil {
 				t.Fatal(err)
 			}
 			if err := reader.Create(&imConversations.Entity{Id: 1, Type: 1, LastMsgTime: time.Now()}).Error; err != nil {
@@ -264,7 +264,7 @@ func TestChatReadStatesConsistentOnPostgreSQL(t *testing.T) {
 func TestChatCounterInterleavingOnPostgreSQL(t *testing.T) {
 	open := chatPostgreSQL(t)
 	conn := open("chat-counter-interleaving")
-	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &users.PrivacySettingsEntity{}, &imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	conv := imConversations.Entity{Type: 1, LastMsgTime: time.Now()}
@@ -348,7 +348,7 @@ func TestChatPushSavepointUnavailableOnPostgreSQL(t *testing.T) {
 
 func TestChatPushOutboxFailureIsolationOnPostgreSQL(t *testing.T) {
 	conn := chatPostgreSQL(t)("chat-push-failure-isolation")
-	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}, &taskQueue.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &users.PrivacySettingsEntity{}, &imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}, &taskQueue.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := conn.Create(&[]users.EntityComplete{{Id: 1, Username: "sender"}, {Id: 2, Username: "peer"}}).Error; err != nil {

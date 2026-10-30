@@ -51,6 +51,22 @@ Future<bool> showGfImageSaveSheet(
       false;
 }
 
+/// Host-provided viewer strings; the shared package does not choose a locale.
+class GfImageViewerLabels {
+  const GfImageViewerLabels({
+    this.thumbnails = 'Image thumbnails',
+    this.originalSize = 'Original size',
+    this.fitPreview = 'Fit preview',
+    this.imagePosition = _defaultImagePosition,
+  });
+  final String thumbnails;
+  final String originalSize;
+  final String fitPreview;
+  final String Function(int index, int count) imagePosition;
+  static String _defaultImagePosition(int index, int count) =>
+      'Image $index of $count';
+}
+
 /// Full-screen mobile image viewer with swipe, pinch, double-tap zoom,
 /// vertical drag-to-dismiss, and tap-to-toggle chrome.
 class GfImageViewer extends StatefulWidget {
@@ -58,6 +74,7 @@ class GfImageViewer extends StatefulWidget {
     super.key,
     required this.images,
     this.initialIndex = 0,
+    this.labels = const GfImageViewerLabels(),
     this.heroTag,
     this.enableActualSize = true,
     this.onSaveImage,
@@ -69,6 +86,7 @@ class GfImageViewer extends StatefulWidget {
   /// Image URLs to display.
   final List<String> images;
   final int initialIndex;
+  final GfImageViewerLabels labels;
 
   /// Optional gallery identity; per-image Hero tags are derived from it.
   final Object? heroTag;
@@ -266,7 +284,7 @@ class _GfImageViewerState extends State<GfImageViewer>
                           : _currentIndex * _thumbnailItemExtent;
                       return Semantics(
                         container: true,
-                        label: 'Image thumbnails',
+                        label: widget.labels.thumbnails,
                         explicitChildNodes: true,
                         child: ListView.builder(
                           key: const Key('gf-image-viewer-thumbnail-rail'),
@@ -306,8 +324,10 @@ class _GfImageViewerState extends State<GfImageViewer>
                               ),
                               button: true,
                               selected: selected,
-                              label:
-                                  'Image ${index + 1} of ${widget.images.length}',
+                              label: widget.labels.imagePosition(
+                                index + 1,
+                                widget.images.length,
+                              ),
                               child: GestureDetector(
                                 key: ValueKey(
                                   'gf-image-viewer-thumbnail-$index',
@@ -898,8 +918,8 @@ class _GfImageViewerState extends State<GfImageViewer>
                             GfGlassIconButton(
                               symbol: _actualSize ? 'minimize' : 'maximize',
                               tooltip: _actualSize
-                                  ? 'Fit preview'
-                                  : 'Original size',
+                                  ? widget.labels.fitPreview
+                                  : widget.labels.originalSize,
                               onPressed: () => setState(() {
                                 _actualSize = !_actualSize;
                               }),
