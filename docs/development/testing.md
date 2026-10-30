@@ -171,7 +171,16 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   pubspecs/lockfiles, build hooks/scripts, release tooling or the native workflow itself build both.
   Plain Dart/test/asset changes do not compile either native app. The reusable workflow accepts an explicit platform list
   from the shared selector. Android retains R8/all-push-adapter
-  compilation and the arm64 size artifact, with a Gradle user-home cache. iOS runs the simulator
+  compilation and the arm64 size artifact, with a Gradle user-home cache. After the release APK
+  build, `scripts/ci/check_android_entrypoint.py` uses the installed Android SDK's `apkanalyzer`
+  to require a definition of `tj.yourtj.forum_app.MainActivity` across all DEX files. A missing
+  class, missing inspector or inspector failure fails the job; a successful Flutter build alone
+  cannot conceal missing app Kotlin compilation. The inspector is resolved from `PATH`, then
+  `ANDROID_HOME`/`ANDROID_SDK_ROOT` under `cmdline-tools/latest/bin`. This checks the packaged
+  entrypoint, not device startup or every Kotlin class, and does not change the Flutter/AGP pins
+  or Kotlin/DSL compatibility flags. Checker changes select an Android native build; fixture
+  regressions run with `python3 -m unittest discover -s scripts/ci -p 'test_*.py'`.
+  iOS runs the simulator
   build, native `RunnerTests` storage-policy and widget schedule regressions, and effective distribution-signing checks.
   Clean checkouts use `flutter pub get` before native compilation. Signed releases separately verify the fixed application source
   and build only the selected native platforms.
