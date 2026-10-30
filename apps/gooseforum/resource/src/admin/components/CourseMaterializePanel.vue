@@ -50,7 +50,7 @@ async function materialize() {
           :disabled="busy || calendars.length === 0"
           :placeholder="adminText('materializeNoTerms')"
           :options="calendars.map((item) => ({ value: String(item.calendarId), label: `${item.calendarName} (${item.calendarId})` }))"
-          class="w-full"
+          class="min-w-0 w-full max-w-full [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
         />
       </div>
       <Button type="button" class="h-auto max-w-full whitespace-normal text-start" data-testid="materialize-submit" :disabled="disabled" @click="materialize">
