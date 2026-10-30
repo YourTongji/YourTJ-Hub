@@ -31,8 +31,10 @@ cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm check && pnpm
 # Here Node ≥26 needs vitest ≥5: Node ships localStorage/sessionStorage, vitest 4 read Node's
 # during happy-dom setup → false failures; ≥5 injects happy-dom's (Node versions: local-development.md).
 
-# Browser layout regressions (install Chromium once; Linux CI adds --with-deps)
-cd apps/gooseforum/resource && pnpm exec playwright install chromium && pnpm test:browser
+# Browser regressions: Go from apps/gooseforum/go.mod must be on PATH.
+# Build current production assets before each run; the initial-assets suite uses the real Go head.
+# Install Chromium once; Linux CI adds --with-deps.
+cd apps/gooseforum/resource && pnpm build && pnpm exec playwright install chromium && pnpm test:browser
 
 # PostgreSQL: use a disposable database; tests may DROP SCHEMA public CASCADE.
 cd apps/gooseforum
@@ -118,10 +120,13 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   JSON comparisons, index upgrades, uniqueness or concurrency behavior. Without a test DSN these
   integration cases skip locally, so ordinary `go test ./...` is not equivalent evidence.
 - ci-frontend.yml: changed frontend paths or the Go `page_component.go` registry run pnpm typecheck +
-  client/site unit tests + Chromium layout tests + build. `pnpm test` includes `packages/client/test`,
+  client/site unit tests + production build + Chromium layout tests. `pnpm test` includes `packages/client/test`,
   which checks the public component registry against Go, including order and exclusion of `admin.shell`.
-  Browser regressions live in `resource/test/*.browser.mjs`, render the production Vue components
-  and CSS through Vite, and stub API responses. These are separate from happy-dom component tests.
+  Browser regressions live in `resource/test/*.browser.mjs`. Most render production Vue components
+  and CSS through Vite and stub API responses. The initial-assets suite instead uses the current
+  production build plus an HTML head exported by Go; it requires the module's Go toolchain and a fresh
+  `pnpm build` before invocation so a missing or stale dist is never treated as current source evidence.
+  These suites are separate from happy-dom component tests.
   The campus-map suite uses a separate temporary Vite `cacheDir` and removes it after closing its
   server, because its dependency optimizer differs from the other suites. The Node runner caps concurrent suites at two because each suite starts its own Vite server
   and Chromium, and the map uses software WebGL rendering in CI. This bounds process/memory and
