@@ -19,7 +19,7 @@ concurrency:
 jobs:
   preview:
     if: github.ref == 'refs/heads/main'
-    runs-on: macos-26
+    runs-on: xcode-27
     environment: mobile-release
     timeout-minutes: 90
     env:
@@ -41,6 +41,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - uses: ./.github/actions/setup-ios-toolchain
       - name: Recheck preview authorization
         env:
           GH_TOKEN: ${{ github.token }}

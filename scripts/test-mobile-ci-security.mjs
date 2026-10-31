@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 for (const name of ['ci-mobile.yml', 'ci-mobile-native.yml']) {
@@ -8,7 +8,14 @@ for (const name of ['ci-mobile.yml', 'ci-mobile-native.yml']) {
   test(`${name}: external actions use immutable commits`, () => {
     const actions = [...workflow.matchAll(/\buses: (\S+)/g)].map(match => match[1]);
     assert.ok(actions.length > 0);
-    for (const action of actions) assert.match(action, /@[0-9a-f]{40}$/, action);
+    for (const action of actions) {
+      if (action.startsWith('./')) {
+        assert.match(action, /^\.\/\.github\/actions\/[a-z0-9-]+$/, action);
+        assert.ok(existsSync(new URL(`../${action}/action.yml`, import.meta.url)), action);
+      } else {
+        assert.match(action, /@[0-9a-f]{40}$/, action);
+      }
+    }
   });
   test(`${name}: PR build steps cannot inherit checkout credentials`, () => {
     const checkouts = steps.filter(step => step.startsWith('uses: actions/checkout@'));

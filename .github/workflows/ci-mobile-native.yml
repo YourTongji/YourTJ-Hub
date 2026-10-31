@@ -20,7 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         platform: ${{ fromJSON(inputs.platforms) }}
-    runs-on: ${{ matrix.platform == 'ios' && 'macos-26' || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.platform == 'ios' && 'xcode-27' || 'ubuntu-latest' }}
     timeout-minutes: 45
     permissions:
       contents: read
@@ -29,6 +29,8 @@ jobs:
         with:
           ref: ${{ inputs.source || github.sha }}
           persist-credentials: false
+      - uses: ./.github/actions/setup-ios-toolchain
+        if: matrix.platform == 'ios'
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         if: matrix.platform == 'android'
         with:
