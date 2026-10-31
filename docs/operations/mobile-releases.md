@@ -29,11 +29,17 @@ public availability does not establish the full physical-device acceptance matri
 or later. CocoaPods builds dependencies with at least that floor, preserving higher dependency
 minimums. iOS 13/14 devices cannot install new builds from this source.
 
-`Partial`: full-screen iPhone Duo support requires Xcode 27.1 and the iOS 27.1 SDK. Before a Duo
-candidate build, verify `xcodebuild -version` and `xcodebuild -showsdks` on the selected host;
-CI/release jobs currently inherit their macOS runner's selected Xcode rather than pinning 27.1.
-A candidate built with an older SDK is not Duo acceptance evidence. Simulator and physical-device
+`Current`: new iOS preview and formal builds use the `xcode-27` runner image with Xcode 27.1
+explicitly selected by `setup-ios-toolchain`. The action checks the device SDK before signing;
+the IPA validator independently checks that Runner and ScheduleWidgets were built with an
+iOS 27.1 or later device SDK and have an iOS 15 or later deployment floor. Existing-artifact
+recovery and existing-build promotion do not rebuild or replace their reviewed binaries.
+
+`Partial`: full-screen iPhone Duo acceptance requires actual candidate evidence. A candidate
+built with an older SDK is not Duo acceptance evidence. Simulator and physical-device
 coverage is recorded with the candidate; see the [Duo compatibility decision](../decisions/0109-ios-15-floor-for-duo.md).
+The runner's [documented Xcode inventory](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md)
+contains the pinned Xcode 27.1 path; an unavailable toolchain fails instead of silently falling back.
 
 ## Version and activation
 

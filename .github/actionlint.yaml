@@ -1,0 +1,6 @@
+# GitHub's hosted Xcode 27 public-preview label is newer than actionlint v1.7.12's
+# built-in runner list. Register only this documented label, retaining typo checks.
+# https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md
+self-hosted-runner:
+  labels:
+    - xcode-27

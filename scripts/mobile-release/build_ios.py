@@ -82,6 +82,7 @@ def validate_exported_ipa(path, team):
         apps = list((Path(temporary) / "Payload").glob("*.app"))
         if len(apps) != 1:
             raise ValueError("Expected exactly one exported iOS application")
+        validate_build_metadata(apps[0])
         raw = subprocess.check_output(["codesign", "-d", "--entitlements", ":-", str(apps[0])], stderr=subprocess.DEVNULL)
         validate_app_entitlements(plistlib.loads(raw), team)
         widgets = list(apps[0].glob("PlugIns/ScheduleWidgets.appex"))
@@ -93,6 +94,18 @@ def validate_exported_ipa(path, team):
         )
         validate_widget_entitlements(plistlib.loads(raw), team)
         validate_privacy_resources(apps[0])
+
+
+def validate_build_metadata(app):
+    """Validate the exported app and widget, rather than the runner's default SDK."""
+    for bundle in (app, app / "PlugIns/ScheduleWidgets.appex"):
+        info = plistlib.loads((bundle / "Info.plist").read_bytes())
+        sdk = re.fullmatch(r"iphoneos(\d+)\.(\d+)", info.get("DTSDKName", ""))
+        if sdk is None or tuple(map(int, sdk.groups())) < (27, 1):
+            raise ValueError(f"{bundle.name} requires an iOS 27.1 or later device SDK")
+        minimum = str(info.get("MinimumOSVersion", ""))
+        if not re.fullmatch(r"\d+(?:\.\d+){0,2}", minimum) or int(minimum.split(".")[0]) < 15:
+            raise ValueError(f"{bundle.name} requires an iOS 15 or later deployment floor")
 
 
 def validate_privacy_resources(app):

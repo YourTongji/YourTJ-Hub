@@ -1,0 +1,18 @@
+name: Select the reviewed iOS toolchain
+description: Pin Xcode 27.1 and verify the device SDK before signing a new iOS build.
+runs:
+  using: composite
+  steps:
+    - name: Select Xcode 27.1
+      shell: bash
+      env:
+        DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+      run: |
+        test -d "$DEVELOPER_DIR"
+        xcodebuild -version
+        sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
+        if [[ "$sdk_version" != '27.1' ]]; then
+          echo "Expected iOS 27.1 SDK, found $sdk_version" >&2
+          exit 1
+        fi
+        echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
