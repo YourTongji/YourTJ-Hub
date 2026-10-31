@@ -100,7 +100,7 @@ jobs:
         run: rm -rf .asc "$RUNNER_TEMP/release-asc" .ios-profile-refresh
   publish:
     if: github.ref == 'refs/heads/main' && inputs.operation == ''
-    runs-on: macos-26
+    runs-on: xcode-27
     environment: mobile-release
     permissions:
       contents: read
@@ -129,6 +129,8 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - uses: ./.github/actions/setup-ios-toolchain
+        if: ${{ !inputs.recover && !inputs.promotion }}
       - name: Recheck human approval and frozen notes
         id: identity
         env:
