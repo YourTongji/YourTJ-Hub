@@ -49,13 +49,18 @@ class _FeedState extends State<_Feed> with SingleTickerProviderStateMixin {
   );
 }
 
-Widget _app(Widget child, TargetPlatform platform) => MaterialApp(
-  theme: gfThemeData(Brightness.light).copyWith(platform: platform),
-  localizationsDelegates: AppLocalizations.localizationsDelegates,
-  supportedLocales: AppLocalizations.supportedLocales,
-  locale: const Locale('zh'),
-  home: Scaffold(body: child),
-);
+Widget _app(Widget child, TargetPlatform platform, {bool reduced = false}) =>
+    MaterialApp(
+      theme: gfThemeData(Brightness.light).copyWith(platform: platform),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: reduced),
+        child: child!,
+      ),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      locale: const Locale('zh'),
+      home: Scaffold(body: child),
+    );
 
 void main() {
   for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
@@ -140,6 +145,52 @@ void main() {
       expect(controller.stretch.value, moreOrLessEquals(0, epsilon: 0.5));
     });
   }
+
+  testWidgets('reduced motion holds without travel and announces loading', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final loading = RegExp(
+      RegExp.escape(lookupAppLocalizations(const Locale('zh')).commonLoading),
+    );
+    late LogoRefreshController controller;
+    final done = Completer<void>();
+    await tester.pumpWidget(
+      _app(
+        _Feed(
+          onController: (value) => controller = value,
+          onRefresh: () => done.future,
+        ),
+        TargetPlatform.android,
+        reduced: true,
+      ),
+    );
+
+    final gesture = await tester.startGesture(const Offset(200, 300));
+    for (final step in [20.0, 40.0, 60.0]) {
+      await gesture.moveBy(Offset(0, step));
+      await tester.pump();
+    }
+    expect(controller.phase.value, LogoRefreshPhase.armed);
+    expect(find.bySemanticsLabel(loading), findsNothing);
+    await gesture.up();
+    await tester.pump();
+    expect(controller.phase.value, LogoRefreshPhase.refreshing);
+    expect(controller.stretch.value, 30, reason: 'no spring travel');
+    // The mark's own name joins the announcement.
+    expect(
+      tester.getSemantics(find.bySemanticsLabel(loading)),
+      isSemantics(isLiveRegion: true),
+    );
+
+    done.complete();
+    await tester.pump();
+    await tester.pump();
+    expect(controller.phase.value, LogoRefreshPhase.idle);
+    expect(controller.stretch.value, 0);
+    expect(find.bySemanticsLabel(loading), findsNothing);
+    semantics.dispose();
+  });
 
   test('the header resists a long pull', () {
     expect(LogoRefreshController.stretchFor(0), 0);

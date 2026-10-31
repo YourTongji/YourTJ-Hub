@@ -281,9 +281,12 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   destination's. While a destination is on screen, the section it shows is marked with a check;
   opened from any other page, its menu marks nothing.
   The same press can slide onto a shortcut — one highlight follows the finger from
-  row to row with a selection haptic — and releasing over it opens that section; releasing
+  row to row with a selection haptic, never dropping out between rows; it fades where it is when
+  the finger leaves and returns under the finger — and releasing over it opens that section; releasing
   elsewhere leaves the menu open for a tap, and tapping outside, Escape or system back dismisses
-  it. A sideways move before the menu opens still scrubs the dock, and screen readers open the
+  it. When the shortcuts do not fit above the dock, as with large text or a short window, the menu
+  stops above the dock and scrolls: the opening press scrolls it by holding near its top or bottom
+  edge, and a drag that scrolls never picks a row. A sideways move before the menu opens still scrubs the dock, and screen readers open the
   menu through the destination's long-press action.
   Tab and Shift+Tab traverse the destinations and optional compose action, with a visible focus tint;
   Enter and Space activate the focused control without changing the touch or drag behavior.

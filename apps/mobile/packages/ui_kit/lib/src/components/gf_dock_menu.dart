@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart';
 
 import '../theme/gf_theme.dart';
@@ -103,6 +104,10 @@ const double _sourceGap = 12;
 const double _edge = 16;
 const double _minWidth = 196;
 const double _maxWidth = 280;
+// Holding the opening press this close to the edge of a panel whose rows
+// overflow scrolls them, at up to [_edgeScrollSpeed] logical pixels a second.
+const double _edgeScrollZone = 44;
+const double _edgeScrollSpeed = 720;
 
 class _DockMenu extends StatefulWidget {
   const _DockMenu({
@@ -125,8 +130,7 @@ class _DockMenu extends StatefulWidget {
   State<_DockMenu> createState() => _DockMenuState();
 }
 
-class _DockMenuState extends State<_DockMenu>
-    with SingleTickerProviderStateMixin {
+class _DockMenuState extends State<_DockMenu> with TickerProviderStateMixin {
   late final AnimationController _animation = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 320),
@@ -136,6 +140,13 @@ class _DockMenuState extends State<_DockMenu>
   final FocusScopeNode _focus = FocusScopeNode(debugLabel: 'gf-dock-menu');
   _DockMenuLayout? _layout;
   bool _closing = false;
+  // Rows that do not fit above the dock scroll; null while they all fit.
+  ScrollController? _scroll;
+  late final Ticker _edgeScroll = createTicker(_scrollTowardEdge);
+  Duration _edgeElapsed = Duration.zero;
+  double _edgeSpeed = 0;
+  Offset? _finger;
+  double _pressOffset = 0;
 
   List<GfDockMenuEntry> get entries => widget.entries;
 
@@ -143,6 +154,11 @@ class _DockMenuState extends State<_DockMenu>
   void initState() {
     super.initState();
     widget.handle._menu = this;
+    // Autofocus would defer to the page that already holds focus; the menu
+    // takes it so Escape and the arrow keys reach it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_closing) _focus.requestFocus();
+    });
   }
 
   @override
@@ -161,12 +177,32 @@ class _DockMenuState extends State<_DockMenu>
   void dispose() {
     if (identical(widget.handle._menu, this)) widget.handle._menu = null;
     _animation.dispose();
+    _edgeScroll.dispose();
+    _scroll?.dispose();
     hovered.dispose();
     _focus.dispose();
     super.dispose();
   }
 
-  int _rowAt(Offset globalPosition) => _layout?.rowAt(globalPosition) ?? -1;
+  double get _offset {
+    final ScrollController? scroll = _scroll;
+    return scroll != null && scroll.hasClients ? scroll.offset : 0;
+  }
+
+  /// The row under [local], a point in the panel's own coordinates.
+  int _rowAtPanel(Offset local) {
+    final _DockMenuLayout? layout = _layout;
+    if (layout == null || local.dy < 0 || local.dy > layout.panel.height) {
+      return -1;
+    }
+    return layout.rowAt(local.translate(0, _offset));
+  }
+
+  int _rowAt(Offset globalPosition) {
+    final _DockMenuLayout? layout = _layout;
+    if (layout == null) return -1;
+    return _rowAtPanel(globalPosition - layout.toGlobal - layout.panel.topLeft);
+  }
 
   void hover(int index, {required bool haptic}) {
     if (_closing || hovered.value == index) return;
@@ -174,18 +210,92 @@ class _DockMenuState extends State<_DockMenu>
     if (index >= 0 && haptic) HapticFeedback.selectionClick();
   }
 
-  void track(Offset globalPosition) =>
-      hover(_rowAt(globalPosition), haptic: true);
+  void track(Offset globalPosition) {
+    _finger = globalPosition;
+    _followEdge(globalPosition);
+    hover(_rowAt(globalPosition), haptic: true);
+  }
+
+  /// While the opening press holds near the top or bottom of rows that
+  /// overflow, scrolls them toward that edge, faster the closer it gets.
+  void _followEdge(Offset globalPosition) {
+    final _DockMenuLayout? layout = _layout;
+    double speed = 0;
+    if (layout != null && layout.scrolls && !_closing) {
+      final Offset local =
+          globalPosition - layout.toGlobal - layout.panel.topLeft;
+      final double bottom = layout.panel.height;
+      if (local.dx >= 0 && local.dx <= layout.panel.width) {
+        if (local.dy > -_edgeScrollZone && local.dy < _edgeScrollZone) {
+          speed = -((_edgeScrollZone - local.dy) / _edgeScrollZone).clamp(
+            0.0,
+            1.0,
+          );
+        } else if (local.dy > bottom - _edgeScrollZone && local.dy <= bottom) {
+          speed = (local.dy - bottom + _edgeScrollZone) / _edgeScrollZone;
+        }
+      }
+    }
+    _edgeSpeed = speed * _edgeScrollSpeed;
+    if (_edgeSpeed == 0) {
+      _edgeScroll.stop();
+    } else if (!_edgeScroll.isActive) {
+      _edgeElapsed = Duration.zero;
+      _edgeScroll.start();
+    }
+  }
+
+  void _scrollTowardEdge(Duration elapsed) {
+    final double seconds =
+        (elapsed - _edgeElapsed).inMicroseconds /
+        Duration.microsecondsPerSecond;
+    _edgeElapsed = elapsed;
+    if (seconds == 0) return;
+    final ScrollController? scroll = _scroll;
+    if (scroll == null || !scroll.hasClients) return _edgeScroll.stop();
+    final ScrollPosition position = scroll.position;
+    final double next = (position.pixels + _edgeSpeed * seconds).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if (next == position.pixels) return _edgeScroll.stop();
+    position.jumpTo(next);
+    final Offset? finger = _finger;
+    if (finger != null) hover(_rowAt(finger), haptic: true);
+  }
+
+  void _stopEdge() {
+    _edgeSpeed = 0;
+    _edgeScroll.stop();
+  }
 
   /// Releasing over a shortcut picks it; anywhere else leaves the menu open
   /// for a tap, as a press that only opened it should.
   void release(Offset globalPosition) {
+    _stopEdge();
     final int index = _rowAt(globalPosition);
     if (index < 0) {
       hover(-1, haptic: false);
       return;
     }
     select(index);
+  }
+
+  void pressRow(Offset local) {
+    _pressOffset = _offset;
+    hover(_rowAtPanel(local), haptic: false);
+  }
+
+  void moveRow(Offset local) => hover(_rowAtPanel(local), haptic: true);
+
+  /// A lift picks the row under it, unless the press scrolled the rows.
+  void liftRow(Offset local) {
+    final int index = _rowAtPanel(local);
+    if (index >= 0 && (_offset - _pressOffset).abs() < 1) {
+      select(index);
+    } else {
+      hover(-1, haptic: false);
+    }
   }
 
   void select(int index) {
@@ -198,6 +308,7 @@ class _DockMenuState extends State<_DockMenu>
   void close() {
     if (_closing) return;
     _closing = true;
+    _stopEdge();
     if (GfMotion.reducedOf(context)) {
       widget.onClosed();
       return;
@@ -213,7 +324,6 @@ class _DockMenuState extends State<_DockMenu>
       },
       child: FocusScope(
         node: _focus,
-        autofocus: true,
         child: _DockMenuView(state: this, animation: _animation),
       ),
     );
@@ -237,22 +347,41 @@ class _DockMenuState extends State<_DockMenu>
 class _DockMenuLayout {
   _DockMenuLayout({
     required this.panel,
+    required this.content,
     required this.rows,
     required this.origin,
     required this.toGlobal,
+    required this.initialOffset,
   });
 
+  /// The visible panel; shorter than [content] when the rows scroll.
   final Rect panel;
+  final double content;
+
+  /// Each row in content coordinates.
   final List<Rect> rows;
   final Offset origin;
   final Offset toGlobal;
 
-  int rowAt(Offset globalPosition) {
-    final Offset local = globalPosition - toGlobal - panel.topLeft;
-    for (int i = 0; i < rows.length; i++) {
-      if (rows[i].contains(local)) return i;
+  /// Scrolls the current section into view when the rows overflow.
+  final double initialOffset;
+
+  bool get scrolls => content > panel.height;
+
+  /// The row under [point] in content coordinates. The panel's rim and the
+  /// gaps between groups belong to the nearest row, so a finger sliding from
+  /// row to row never falls between them.
+  int rowAt(Offset point) {
+    if (point.dx < 0 ||
+        point.dx > panel.width ||
+        point.dy < 0 ||
+        point.dy > content) {
+      return -1;
     }
-    return -1;
+    for (int i = 0; i < rows.length - 1; i++) {
+      if (point.dy < (rows[i].bottom + rows[i + 1].top) / 2) return i;
+    }
+    return rows.length - 1;
   }
 }
 
@@ -302,9 +431,20 @@ class _DockMenuView extends StatelessWidget {
       );
       y += heights[i];
     }
-    final double height = y + _panelPadding;
+    final double content = y + _panelPadding;
     final Rect source = state.widget.source.shift(-toGlobal);
     final Rect dock = state.widget.dock.outerRect.shift(-toGlobal);
+    // Rows that do not fit above the dock scroll instead of running over it.
+    final double height = math.min(
+      content,
+      math.max(
+        dock.top - _sourceGap - padding.top - _edge,
+        _rowMinHeight + _panelPadding * 2,
+      ),
+    );
+    final int current = state.entries.indexWhere(
+      (GfDockMenuEntry entry) => entry.selected,
+    );
     final double minLeft = _edge + padding.left;
     final double left = (source.center.dx - width / 2).clamp(
       minLeft,
@@ -316,9 +456,13 @@ class _DockMenuView extends StatelessWidget {
     );
     return _DockMenuLayout(
       panel: Rect.fromLTWH(left, top, width, height),
+      content: content,
       rows: rows,
       origin: Offset(source.center.dx, dock.top),
       toGlobal: toGlobal,
+      initialOffset: current < 0
+          ? 0
+          : (rows[current].center.dy - height / 2).clamp(0, content - height),
     );
   }
 
@@ -339,6 +483,11 @@ class _DockMenuView extends StatelessWidget {
         constraints.biggest,
         toGlobal,
       );
+      if (layout.scrolls) {
+        state._scroll ??= ScrollController(
+          initialScrollOffset: layout.initialOffset,
+        );
+      }
       final Rect panel = layout.panel;
       final Alignment origin = Alignment(
         (layout.origin.dx - panel.left) / panel.width * 2 - 1,
@@ -478,19 +627,46 @@ class _Panel extends StatelessWidget {
   final _DockMenuState state;
   final _DockMenuLayout layout;
 
-  int _rowAt(Offset local) {
-    for (int i = 0; i < layout.rows.length; i++) {
-      if (layout.rows[i].contains(local)) return i;
-    }
-    return -1;
-  }
-
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final List<GfDockMenuEntry> entries = state.entries;
     final Color highlight = colors.baseContent.withValues(
       alpha: colors.isDark ? 0.12 : 0.07,
+    );
+    final Widget rows = SizedBox(
+      width: layout.panel.width,
+      height: layout.content,
+      child: Stack(
+        children: <Widget>[
+          ValueListenableBuilder<int>(
+            valueListenable: state.hovered,
+            builder: (BuildContext context, int hovered, _) =>
+                _Highlight(row: hovered, rows: layout.rows, color: highlight),
+          ),
+          for (int i = 0; i < entries.length; i++) ...<Widget>[
+            if (i > 0 && entries[i].group != entries[i - 1].group)
+              Positioned(
+                left: _panelPadding + _rowInset,
+                right: _panelPadding + _rowInset,
+                top: layout.rows[i].top - (_groupGap + 1) / 2,
+                height: 1,
+                child: ColoredBox(
+                  color: colors.separator.withValues(alpha: 0.6),
+                ),
+              ),
+            Positioned.fromRect(
+              rect: layout.rows[i],
+              child: _Row(
+                key: ValueKey<String>('gf-dock-menu-row-$i'),
+                entry: entries[i],
+                onFocus: () => state.hover(i, haptic: false),
+                onActivate: () => state.select(i),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
     return Semantics(
       scopesRoute: true,
@@ -502,17 +678,11 @@ class _Panel extends StatelessWidget {
         child: Listener(
           behavior: HitTestBehavior.opaque,
           onPointerDown: (PointerDownEvent event) =>
-              state.hover(_rowAt(event.localPosition), haptic: false),
+              state.pressRow(event.localPosition),
           onPointerMove: (PointerMoveEvent event) =>
-              state.hover(_rowAt(event.localPosition), haptic: true),
-          onPointerUp: (PointerUpEvent event) {
-            final int index = _rowAt(event.localPosition);
-            if (index >= 0) {
-              state.select(index);
-            } else {
-              state.hover(-1, haptic: false);
-            }
-          },
+              state.moveRow(event.localPosition),
+          onPointerUp: (PointerUpEvent event) =>
+              state.liftRow(event.localPosition),
           onPointerCancel: (_) => state.hover(-1, haptic: false),
           child: Stack(
             children: <Widget>[
@@ -521,54 +691,102 @@ class _Panel extends StatelessWidget {
                   borderRadius: BorderRadius.all(Radius.circular(_panelRadius)),
                 ),
               ),
-              ValueListenableBuilder<int>(
-                valueListenable: state.hovered,
-                builder: (BuildContext context, int hovered, _) =>
-                    AnimatedPositioned.fromRect(
-                      rect: layout.rows[math.max(0, hovered)],
-                      duration: GfMotion.duration(context, GfMotion.selection),
-                      curve: GfMotion.enterCurve,
-                      child: AnimatedOpacity(
-                        opacity: hovered < 0 ? 0 : 1,
-                        duration: GfMotion.duration(context, GfMotion.press),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: highlight,
-                            borderRadius: BorderRadius.circular(
-                              _highlightRadius,
-                            ),
-                          ),
+              Positioned.fill(
+                child: layout.scrolls
+                    ? ClipRRect(
+                        borderRadius: const BorderRadius.all(
+                          Radius.circular(_panelRadius),
                         ),
-                      ),
-                    ),
+                        child: SingleChildScrollView(
+                          controller: state._scroll,
+                          child: rows,
+                        ),
+                      )
+                    : rows,
               ),
-              for (int i = 0; i < entries.length; i++) ...<Widget>[
-                if (i > 0 && entries[i].group != entries[i - 1].group)
-                  Positioned(
-                    left: _panelPadding + _rowInset,
-                    right: _panelPadding + _rowInset,
-                    top: layout.rows[i].top - (_groupGap + 1) / 2,
-                    height: 1,
-                    child: ColoredBox(
-                      color: colors.separator.withValues(alpha: 0.6),
-                    ),
-                  ),
-                Positioned.fromRect(
-                  rect: layout.rows[i],
-                  child: _Row(
-                    key: ValueKey<String>('gf-dock-menu-row-$i'),
-                    entry: entries[i],
-                    onFocus: () => state.hover(i, haptic: false),
-                    onActivate: () => state.select(i),
-                  ),
-                ),
-              ],
             ],
           ),
         ),
       ),
     );
   }
+}
+
+/// The pressed row's tint. It slides from row to row while a finger stays on
+/// the rows, fades where it is when the finger leaves, and comes back under
+/// the finger instead of travelling from the row it last left.
+class _Highlight extends StatefulWidget {
+  const _Highlight({
+    required this.row,
+    required this.rows,
+    required this.color,
+  });
+
+  /// The pressed row, or -1.
+  final int row;
+  final List<Rect> rows;
+  final Color color;
+
+  @override
+  State<_Highlight> createState() => _HighlightState();
+}
+
+class _HighlightState extends State<_Highlight>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _slide = AnimationController(
+    vsync: this,
+    value: 1,
+  );
+  late int _shown = math.max(0, widget.row);
+  Rect? _from;
+
+  Rect get _rect {
+    final Rect to = widget.rows[_shown];
+    final Rect? from = _from;
+    if (from == null) return to;
+    return Rect.lerp(from, to, GfMotion.enterCurve.transform(_slide.value))!;
+  }
+
+  @override
+  void didUpdateWidget(_Highlight oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final int row = widget.row;
+    if (row < 0 || row == oldWidget.row) return;
+    final Duration duration = GfMotion.duration(context, GfMotion.press);
+    if (oldWidget.row < 0 || duration == Duration.zero) {
+      _from = null;
+      _slide.value = 1;
+    } else {
+      _from = _rect;
+      _slide.duration = duration;
+      _slide.forward(from: 0);
+    }
+    _shown = row;
+  }
+
+  @override
+  void dispose() {
+    _slide.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _slide,
+    builder: (BuildContext context, Widget? child) =>
+        Positioned.fromRect(rect: _rect, child: child!),
+    child: AnimatedOpacity(
+      key: const ValueKey<String>('gf-dock-menu-highlight'),
+      opacity: widget.row < 0 ? 0 : 1,
+      duration: GfMotion.duration(context, GfMotion.press),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: widget.color,
+          borderRadius: BorderRadius.circular(_highlightRadius),
+        ),
+      ),
+    ),
+  );
 }
 
 class _Row extends StatelessWidget {
