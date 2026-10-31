@@ -427,6 +427,11 @@ CocoaPods both include the SDK resource. The exported IPA validator checks those
 for the App Group UserDefaults reason; a source-only declaration does not satisfy this gate.
 Runner also declares the first-party account, user content, message, device and campus data
 categories. The local-only Widget/SDK do not collect data off device.
+Account-linked recommendation measurement and ranking use User ID for App Functionality,
+Analytics and Product Personalization; Product Interaction has those same purposes. These are
+distinct from anonymous Umami coarse-location Analytics. Keep their purposes synchronized with
+App Store Connect when verifying the deployed recommendation configuration; none of these
+first-party uses imply cross-company advertising tracking.
 
 `Current`: the [App privacy supplement](../../apps/gooseforum/app/models/defaultconfig/pageconfig/app_privacy.md)
 is embedded in the forum binary and appended to enabled `/privacy` pages, including persisted
