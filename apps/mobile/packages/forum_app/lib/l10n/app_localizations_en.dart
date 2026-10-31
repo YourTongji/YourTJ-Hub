@@ -1476,6 +1476,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navCampus => 'Campus';
 
   @override
+  String get navShortcutsHint => 'Long press for shortcuts';
+
+  @override
   String get campusTitle => 'My campus';
 
   @override

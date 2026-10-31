@@ -1455,6 +1455,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get navCampus => 'キャンパス';
 
   @override
+  String get navShortcutsHint => '長押しでショートカットを表示';
+
+  @override
   String get campusTitle => 'マイキャンパス';
 
   @override

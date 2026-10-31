@@ -1491,6 +1491,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get navCampus => 'Campus';
 
   @override
+  String get navShortcutsHint => 'Gedrückt halten für Schnellzugriffe';
+
+  @override
   String get campusTitle => 'Mein Campus';
 
   @override

@@ -21,10 +21,33 @@ import '../../format.dart';
 import '../../asset_url.dart';
 import '../../providers.dart';
 import '../../navigation/tab_scroll_registry.dart';
+import '../../navigation/shell_sections.dart';
 import '../../widgets/root_surface.dart';
 import '../../widgets/logo_motion_loader.dart';
 import '../../widgets/status_views.dart';
 import '../../realtime/realtime_updates.dart';
+
+/// Notification categories in display order with their glyphs, shared by the
+/// page's tab bar and the dock's long-press menu.
+const notificationCategories = <(String, String)>[
+  ('all', 'layers-filled'),
+  ('mentions', 'at-sign-filled'),
+  // The reply action's arrow: the speech bubble belongs to the Messages dock.
+  ('replies', 'corner-down-left-filled'),
+  ('likes', 'heart-filled'),
+  ('following', 'user-round-check-filled'),
+  ('system', 'bullhorn-filled'),
+];
+
+String notificationCategoryLabel(AppLocalizations l10n, String category) =>
+    switch (category) {
+      'mentions' => l10n.notificationsMentions,
+      'replies' => l10n.notificationsReplies,
+      'likes' => l10n.notificationsLikes,
+      'following' => l10n.notificationsFollowing,
+      'system' => l10n.notificationsSystem,
+      _ => l10n.notificationsAll,
+    };
 
 /// 通知页(web notifications.index 的移动端形态):
 /// 通知列表 + 未读标记 + 全部已读 + all/unread 筛选 + 点击跳转。
@@ -39,13 +62,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   AsyncValue<NotificationListResponse> _list = const AsyncValue.loading();
   String _filter = 'all';
   String _category = 'all';
-  static const _categories = [
-    'all',
-    'mentions',
-    'replies',
-    'likes',
-    'following',
-    'system',
+  static final _categories = [
+    for (final (category, _) in notificationCategories) category,
   ];
   String? _swipeLoadingFilter;
   int _cursor = 0;
@@ -80,6 +98,12 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   @override
   void initState() {
     super.initState();
+    final requested = ref
+        .read(shellSectionsProvider)
+        .take(GfShellDestination.notifications);
+    if (requested != null && _categories.contains(requested)) {
+      _category = requested;
+    }
     _registry = ref.read(tabScrollRegistryProvider)
       ..register(GfShellDestination.notifications, _scroll);
     _seenRealtimeRevision = ref
@@ -356,6 +380,15 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       _seenRealtimeRevision = next.notificationsRevision;
       _load(silent: true);
     });
+    ref.listen(shellSectionsProvider, (_, sections) {
+      final requested = sections.take(GfShellDestination.notifications);
+      if (requested != null && _categories.contains(requested)) {
+        _selectCategory(requested);
+      }
+    });
+    ref
+        .read(shellSectionsProvider)
+        .report(GfShellDestination.notifications, _category);
     final AppLocalizations l10n = AppLocalizations.of(context);
     ref.listen<int>(offlineCacheEpochProvider, (_, _) {
       _generation++;
@@ -417,36 +450,12 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             child: GfTabBar(
               selectedSymbolOnly: true,
               tabs: <GfTab>[
-                GfTab(
-                  label: l10n.notificationsAll,
-                  value: 'all',
-                  symbol: 'layers-filled',
-                ),
-                GfTab(
-                  label: l10n.notificationsMentions,
-                  value: 'mentions',
-                  symbol: 'at-sign-filled',
-                ),
-                GfTab(
-                  label: l10n.notificationsReplies,
-                  value: 'replies',
-                  symbol: 'message-circle-filled',
-                ),
-                GfTab(
-                  label: l10n.notificationsLikes,
-                  value: 'likes',
-                  symbol: 'heart-filled',
-                ),
-                GfTab(
-                  label: l10n.notificationsFollowing,
-                  value: 'following',
-                  symbol: 'user-round-check-filled',
-                ),
-                GfTab(
-                  label: l10n.notificationsSystem,
-                  value: 'system',
-                  symbol: 'bullhorn-filled',
-                ),
+                for (final (category, symbol) in notificationCategories)
+                  GfTab(
+                    label: notificationCategoryLabel(l10n, category),
+                    value: category,
+                    symbol: symbol,
+                  ),
               ],
               selected: _category,
               onSelected: (Object value) => _selectCategory(value as String),

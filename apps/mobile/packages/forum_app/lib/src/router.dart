@@ -15,12 +15,14 @@ import '../l10n/app_localizations.dart';
 import 'navigation/auth_navigation.dart';
 import 'navigation/session_overlays.dart';
 import 'navigation/tab_scroll_registry.dart';
+import 'navigation/shell_sections.dart';
 import 'navigation/route_visibility.dart';
 import 'navigation/reading_chrome.dart';
 import 'navigation/reading_window.dart';
 import 'notifications/unread_display.dart';
 import 'navigation/window_reserved_regions.dart';
 import 'widgets/account_drawer.dart';
+import 'widgets/campus_shortcuts.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/admin/admin_page.dart';
 import 'pages/campus/campus_page.dart';
@@ -330,6 +332,68 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
     }
   }
 
+  /// Opens [section] of [destination] from the dock's long-press menu.
+  void _openSection(GfShellDestination destination, String section) {
+    ref.read(shellSectionsProvider).request(destination, section);
+    ref.read(readingChromeProvider).show();
+    if (widget.navigationShell.currentIndex != destination.index) {
+      widget.navigationShell.goBranch(destination.index);
+    }
+  }
+
+  /// The section [destination] shows, checked in its menu only while that
+  /// destination is the one on screen.
+  String? _shownSection(GfShellDestination destination, String fallback) {
+    if (widget.navigationShell.currentIndex != destination.index) return null;
+    return ref.read(shellSectionsProvider).currentOf(destination) ?? fallback;
+  }
+
+  /// Campus tabs for a signed-in reader, then the campus tools that open
+  /// their own pages.
+  List<GfDockMenuEntry> _campusMenu(AppLocalizations l10n) {
+    final current = _shownSection(
+      GfShellDestination.campus,
+      campusTabSymbols.keys.first,
+    );
+    final labels = campusTabLabels(l10n);
+    return [
+      if (ref.read(currentUserProvider).valueOrNull != null)
+        for (final MapEntry(key: tab, value: symbol)
+            in campusTabSymbols.entries)
+          GfDockMenuEntry(
+            label: labels[tab]!,
+            symbol: symbol,
+            selected: tab == current,
+            onSelected: () => _openSection(GfShellDestination.campus, tab),
+          ),
+      for (final (symbol, label, route) in campusTools(l10n))
+        GfDockMenuEntry(
+          label: label,
+          symbol: symbol,
+          group: 1,
+          opensPage: true,
+          onSelected: () => context.push(route),
+        ),
+    ];
+  }
+
+  List<GfDockMenuEntry> _notificationsMenu(AppLocalizations l10n) {
+    final current = _shownSection(
+      GfShellDestination.notifications,
+      notificationCategories.first.$1,
+    );
+    return [
+      for (final (category, symbol) in notificationCategories)
+        GfDockMenuEntry(
+          label: notificationCategoryLabel(l10n, category),
+          symbol: symbol,
+          selected: category == current,
+          onSelected: () =>
+              _openSection(GfShellDestination.notifications, category),
+        ),
+    ];
+  }
+
   void _selectDestination(int index) {
     ref.read(readingChromeProvider).show();
     if (index == widget.navigationShell.currentIndex) {
@@ -366,6 +430,10 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
     });
 
     final unreadStyle = ref.watch(unreadDisplayProvider.select((s) => s.style));
+    // Every notification category asks a guest to sign in; skip that menu.
+    final signedIn = ref.watch(
+      currentUserProvider.select((user) => user.valueOrNull != null),
+    );
     final destinations = [
       for (final destination in GfShellDestination.values)
         GfBottomNavigationItem(
@@ -388,6 +456,17 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
                   (destination == GfShellDestination.messages &&
                       _unreadMessages)
               ? l10n.notificationsUnread
+              : null,
+          menu: switch (destination) {
+            GfShellDestination.campus => () => _campusMenu(l10n),
+            GfShellDestination.notifications when signedIn =>
+              () => _notificationsMenu(l10n),
+            _ => null,
+          },
+          menuHint:
+              destination == GfShellDestination.campus ||
+                  (destination == GfShellDestination.notifications && signedIn)
+              ? l10n.navShortcutsHint
               : null,
         ),
     ];

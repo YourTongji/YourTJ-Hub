@@ -160,6 +160,8 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(unread.calls, before + 1);
+    // The badge rolls its digits; let the outgoing count leave.
+    await tester.pump(const Duration(milliseconds: 300));
     // Both unread flags stay true: exact counts must still update after the hint.
     expect(find.text('7'), findsNothing);
     expect(find.text('3'), findsNothing);

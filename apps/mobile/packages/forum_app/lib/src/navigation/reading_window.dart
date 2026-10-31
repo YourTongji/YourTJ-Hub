@@ -138,22 +138,11 @@ class ReadingNavigationRail extends StatelessWidget {
                                             : Axis.vertical,
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Badge(
-                                            isLabelVisible: items[i].badge,
-                                            label:
-                                                items[i].badgeCount != null &&
-                                                    items[i].badgeCount! > 0
-                                                ? Text(
-                                                    items[i].badgeCount! > 99
-                                                        ? '99+'
-                                                        : '${items[i].badgeCount}',
-                                                    style: const TextStyle(
-                                                      fontSize: 11,
-                                                    ),
-                                                  )
-                                                : null,
-                                            backgroundColor: colors.primary,
-                                            child: GfSymbol(
+                                          GfBadgedGlyph(
+                                            size: extended ? 26 : 24,
+                                            visible: items[i].badge,
+                                            count: items[i].badgeCount,
+                                            glyph: GfSymbol(
                                               currentIndex == i
                                                   ? items[i].selectedSymbol
                                                   : items[i].symbol,

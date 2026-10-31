@@ -12,7 +12,7 @@ import 'package:forum_app/src/navigation/tab_scroll_registry.dart';
 import 'package:forum_app/src/pages/home/home_page.dart';
 import 'package:forum_app/src/pages/topic/topic_page.dart';
 import 'package:forum_app/src/providers.dart';
-import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
+import 'package:forum_app/src/widgets/logo_pull_refresh.dart';
 import 'package:forum_app/src/widgets/logo_motion_loader.dart';
 import 'package:forum_app/src/widgets/topic_list.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -818,7 +818,7 @@ void main() {
       // fence needed by the older pending read in the other sort.
       pages.likeCount = 6;
       await tester
-          .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+          .widget<LogoPullRefresh>(find.byType(LogoPullRefresh))
           .onRefresh();
       await tester.pumpAndSettle();
       pages.hotRequest!.complete(stale);
@@ -886,7 +886,7 @@ void main() {
     final stale = pages.payload();
     pages.pending = Completer<PagePayload>();
     final refresh = tester
-        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .widget<LogoPullRefresh>(find.byType(LogoPullRefresh))
         .onRefresh();
     await tester.tap(find.byTooltip('点赞').first);
     await tester.pumpAndSettle();
@@ -900,7 +900,7 @@ void main() {
     pages.pending = null;
     pages.liked = false;
     await tester
-        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .widget<LogoPullRefresh>(find.byType(LogoPullRefresh))
         .onRefresh();
     await tester.pumpAndSettle();
     expect(
@@ -951,7 +951,7 @@ void main() {
     await tester.tap(find.byTooltip('点赞').first);
     await tester.pump();
     await tester
-        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .widget<LogoPullRefresh>(find.byType(LogoPullRefresh))
         .onRefresh();
     await tester.pumpAndSettle();
     expect(
@@ -981,7 +981,7 @@ void main() {
       final stale = pages.payload();
       pages.pending = Completer<PagePayload>();
       final refresh = tester
-          .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+          .widget<LogoPullRefresh>(find.byType(LogoPullRefresh))
           .onRefresh();
       await tester.tap(find.byTooltip('点赞').first);
       await tester.pump();
@@ -1008,7 +1008,7 @@ void main() {
     pages.likeCount = 20;
     container.read(offlineCacheEpochProvider.notifier).invalidate();
     await tester
-        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .widget<LogoPullRefresh>(find.byType(LogoPullRefresh))
         .onRefresh();
     await tester.pumpAndSettle();
     topics.pending!.complete(false);
@@ -1098,7 +1098,7 @@ void main() {
 
     pages.page1LikeCount = 9;
     await tester
-        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .widget<LogoPullRefresh>(find.byType(LogoPullRefresh))
         .onRefresh();
     await tester.pumpAndSettle();
 
