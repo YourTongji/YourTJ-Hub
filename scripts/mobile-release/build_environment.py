@@ -2,6 +2,16 @@
 import os
 import re
 
+# Dev previews install beside the stable app; Gradle derives the same identity
+# from the YOURTJ_ENVIRONMENT define (android/app/build.gradle.kts).
+ANDROID_PACKAGES = {'dev': 'tj.yourtj.forum_app.dev', 'production': 'tj.yourtj.forum_app'}
+
+
+def android_package(environment):
+    if environment not in ANDROID_PACKAGES:
+        raise ValueError('Unknown mobile environment')
+    return ANDROID_PACKAGES[environment]
+
 
 def dart_defines(environment=None, source=None, preview=None):
     environment = environment or os.environ.get('MOBILE_ENVIRONMENT', 'production')

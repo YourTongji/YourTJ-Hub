@@ -48,7 +48,7 @@ jobs:
           ref: ${{ inputs.source }}
           path: .source
           persist-credentials: false
-      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad
         with:
           distribution: temurin
           java-version: "17"
@@ -58,6 +58,9 @@ jobs:
           channel: stable
           cache: true
       - name: Prepare Android OEM push configuration
+        # Dev previews use their own package (tj.yourtj.forum_app.dev) and never
+        # register for push (client and dev server both disable it), so they skip it.
+        if: inputs.purpose != 'dev'
         env:
           ANDROID_PUSH_JSON: ${{ secrets.ANDROID_PUSH_JSON }}
           HUAWEI_AGCONNECT_JSON: ${{ secrets.HUAWEI_AGCONNECT_JSON }}
