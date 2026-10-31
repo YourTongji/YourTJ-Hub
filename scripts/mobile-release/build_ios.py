@@ -101,8 +101,10 @@ def validate_build_metadata(app):
     for bundle in (app, app / "PlugIns/ScheduleWidgets.appex"):
         info = plistlib.loads((bundle / "Info.plist").read_bytes())
         sdk = re.fullmatch(r"iphoneos(\d+)\.(\d+)", info.get("DTSDKName", ""))
-        if sdk is None or tuple(map(int, sdk.groups())) < (27, 1):
-            raise ValueError(f"{bundle.name} requires an iOS 27.1 or later device SDK")
+        if sdk is None or tuple(map(int, sdk.groups())) < (27, 2):
+            raise ValueError(f"{bundle.name} requires an iOS 27.2 device SDK")
+        if info.get("DTXcodeBuild") != "27B52":
+            raise ValueError(f"{bundle.name} requires Xcode 27.2 release (27B52)")
         minimum = str(info.get("MinimumOSVersion", ""))
         if not re.fullmatch(r"\d+(?:\.\d+){0,2}", minimum) or int(minimum.split(".")[0]) < 15:
             raise ValueError(f"{bundle.name} requires an iOS 15 or later deployment floor")

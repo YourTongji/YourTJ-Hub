@@ -29,17 +29,20 @@ public availability does not establish the full physical-device acceptance matri
 or later. CocoaPods builds dependencies with at least that floor, preserving higher dependency
 minimums. iOS 13/14 devices cannot install new builds from this source.
 
-`Current`: new iOS preview and formal builds use the `xcode-27` runner image with Xcode 27.1
-explicitly selected by `setup-ios-toolchain`. The action checks the device SDK before signing;
+`Current`: new iOS preview and formal builds use the `xcode-27` runner image with Xcode 27.2
+release build `27B52` explicitly selected by `setup-ios-toolchain`. The action checks the device SDK before signing;
 the IPA validator independently checks that Runner and ScheduleWidgets were built with an
-iOS 27.1 or later device SDK and have an iOS 15 or later deployment floor. Existing-artifact
+iOS 27.2 device SDK, Xcode build `27B52`, and have an iOS 15 or later deployment floor. Existing-artifact
 recovery and existing-build promotion do not rebuild or replace their reviewed binaries.
 
 `Partial`: full-screen iPhone Duo acceptance requires actual candidate evidence. A candidate
 built with an older SDK is not Duo acceptance evidence. Simulator and physical-device
 coverage is recorded with the candidate; see the [Duo compatibility decision](../decisions/0109-ios-15-floor-for-duo.md).
 The runner's [documented Xcode inventory](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md)
-contains the pinned Xcode 27.1 path; an unavailable toolchain fails instead of silently falling back.
+lists available toolchains, which may lag Apple's [release availability](https://developer.apple.com/news/releases/).
+The `Xcode_27.2.app` alias can refer to an RC on an older image: both the action and exported-bundle
+validator reject `27B48` and other unapproved builds. An unavailable toolchain fails instead of
+silently falling back; runner availability is not proof that a signed build has run.
 
 ## Version and activation
 
