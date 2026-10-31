@@ -36,9 +36,17 @@ jobs:
       - name: Test
         working-directory: apps/gooseforum/resource
         run: pnpm test
+      # The initial-asset browser fixture renders Go-generated production HTML.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: apps/gooseforum/go.mod
+          cache-dependency-path: apps/gooseforum/go.sum
+      - name: Build
+        working-directory: apps/gooseforum/resource
+        run: pnpm build
       - name: Install browser for layout tests
         working-directory: apps/gooseforum/resource
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium webkit
       - name: Browser layout tests
         id: browser
         working-directory: apps/gooseforum/resource
@@ -56,6 +64,3 @@ jobs:
       - name: Check i18n keys
         working-directory: apps/gooseforum/resource
         run: pnpm check
-      - name: Build
-        working-directory: apps/gooseforum/resource
-        run: pnpm build
