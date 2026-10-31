@@ -29,7 +29,7 @@ public availability does not establish the full physical-device acceptance matri
 or later. CocoaPods builds dependencies with at least that floor, preserving higher dependency
 minimums. iOS 13/14 devices cannot install new builds from this source.
 
-`Current`: new iOS preview and formal builds use the `xcode-27` runner image with Xcode 27.2
+`Current`: native iOS CI, new iOS preview and formal builds use the `xcode-27` runner image with Xcode 27.2
 release build `27B52` explicitly selected by `setup-ios-toolchain`. The action checks the device SDK before signing;
 the IPA validator independently checks that Runner and ScheduleWidgets were built with an
 iOS 27.2 device SDK, Xcode build `27B52`, and have an iOS 15 or later deployment floor. Existing-artifact
