@@ -32,6 +32,11 @@
 - 仓库工具链下限（issue #447）：`apps/gooseforum/go.mod` 声明 `go 1.26.10`（无独立 toolchain 指令，`go` 指令即下限）。本地/部署构建在旧 patch 工具链下由 `GOTOOLCHAIN=auto`（默认）自动下载合规版本，或设置 `GOTOOLCHAIN=local` 时明确失败——不再可能静默用带 stdlib 漏洞的旧工具链编译单二进制。CI `ci-backend` job 另有 `go env GOVERSION` ≥ 1.26.10 的显式断言作为门禁。
 - 依赖版本升级由 Dependabot（`.github/dependabot.yml`，`go_modules` ecosystem，每周）提出 PR；升级 PR 会触发本扫描与 `ci-backend` 全量测试。
 
+`Current`：Wiki 相对 URL 渲染直接调用 `golang.org/x/net/html` 的 `Parse` 与 `Render`，
+因此 HTML 解析、渲染漏洞属于应用可达风险，不能归入未使用依赖。`x/net` 的最低修复版本为
+`v0.62.0`，覆盖 [GO-2026-6866](https://pkg.go.dev/vuln/GO-2026-6866) 的命名空间转换检查和
+[GO-2026-6860](https://pkg.go.dev/vuln/GO-2026-6860) 的文本节点合并复杂度修复。
+
 ## 代理失败诊断
 
 govulncheck 需要网络拉取两样东西：govulncheck 工具本身（走 `GOPROXY`）与漏洞 DB（走 `GOVULNDB`）。任何一步失败都会**非零退出，CI job 变红**——不允许"网络错误静默变绿"。
