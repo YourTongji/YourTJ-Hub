@@ -372,13 +372,15 @@ async function reconcileLoaded() {
   if (!isForYouFeed.value || !sessionActive || !topics.value.length || refreshing.value || feedSwitchInProgress.value) return
   const revision = feedRevision
   const owner = page.layout.viewer.id
-  const anchor = captureFeedAnchor(feedRoot.value ?? document)
   reconcileRunning = true
   try {
     const result = await reconcileForYou(topics.value.map((topic) => topic.id), sessionAbort.signal)
     if (revision !== feedRevision || !sessionActive || feedSwitchInProgress.value) return
     const updated = new Map(result.topics.map((topic) => [topic.id, topic]))
     const removed = new Set(result.removedIds)
+    // History restoration or user scrolling can finish while the request is in
+    // flight. Preserve the viewport immediately before changing the cards.
+    const anchor = captureFeedAnchor(feedRoot.value ?? document)
     topics.value = topics.value.filter((topic) => !removed.has(topic.id)).map((topic) => {
       const fresh = updated.get(topic.id)
       return fresh ? { ...topic, ...fresh, feedTrace: topic.feedTrace, feedPosition: topic.feedPosition, feedReason: topic.feedReason } : topic
