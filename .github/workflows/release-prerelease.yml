@@ -100,6 +100,7 @@ jobs:
     with:
       source: ${{ needs.begin.outputs.source }}
       platforms: ${{ needs.begin.outputs.mobile_artifacts }}
+      purpose: ${{ inputs.purpose }}
   validated:
     needs: [begin, backend, frontend, contract, govulncheck, mobile, native]
     if: always() && needs.begin.result == 'success'

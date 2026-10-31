@@ -9,6 +9,9 @@ on:
       platforms:
         type: string
         default: '["android","ios"]'
+      purpose:
+        type: string
+        default: production
 
 permissions:
   contents: read
@@ -20,7 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         platform: ${{ fromJSON(inputs.platforms) }}
-    runs-on: ${{ matrix.platform == 'ios' && 'macos-26' || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.platform == 'ios' && (inputs.source != '' && 'xcode-27' || 'macos-26') || 'ubuntu-latest' }}
     timeout-minutes: 45
     permissions:
       contents: read
@@ -29,6 +32,19 @@ jobs:
         with:
           ref: ${{ inputs.source || github.sha }}
           persist-credentials: false
+      - name: Read the trusted iOS selector for a release candidate
+        if: matrix.platform == 'ios' && inputs.source != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: .ios-controller
+          persist-credentials: false
+      - name: Select the candidate iOS SDK
+        if: matrix.platform == 'ios' && inputs.source != ''
+        env:
+          DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+          YOURTJ_IOS_BUILD_PURPOSE: ${{ inputs.purpose }}
+        run: bash .ios-controller/scripts/mobile-release/select_ios_toolchain.sh
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         if: matrix.platform == 'android'
         with:
