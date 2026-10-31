@@ -23,6 +23,20 @@ configuration and the remaining GPL compatibility verification.
 `Partial`: native push delivery and signed upgrade/device journeys need candidate-specific evidence;
 public availability does not establish the full physical-device acceptance matrix.
 
+## iOS controller toolchain
+
+`Current`: preview and formal iOS publishers execute the trusted workflow and release tools from
+`main`; their application checkout is the cycle's selected source. Both publishers select the
+`xcode-27` runner and require Xcode 27.2 release build `27B52` with the iOS 27.2 device SDK before
+building. The exported Runner and ScheduleWidgets bundles are checked independently for the SDK,
+Xcode build and an iOS 15 or later deployment floor. Existing-build promotion and artifact recovery
+reuse their original binary and do not rebuild it.
+
+`Partial`: a hosted image's `Xcode_27.2.app` alias may still point to RC build `27B48`. Such a host
+fails the toolchain check; it does not silently fall back to an older SDK or the RC. Candidate-source
+review, distribution authorization and device QA remain separate requirements. Updating workflows
+on `dev` alone cannot update this trusted-main publishing controller.
+
 ## Version and activation
 
 Dev-connected TestFlight/Android previews and production configuration rehearsals follow the
