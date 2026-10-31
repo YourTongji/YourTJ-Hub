@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart';
@@ -56,7 +58,51 @@ class GfDockMenuHandle {
   void close() => _menu?.close();
 }
 
-/// Opens [entries] above the dock, blooming out of [source] (a destination's
+/// The menu stays above a bottom dock, or beside a vertical navigation rail.
+enum GfDockMenuPlacement { above, beside }
+
+/// The same held gesture opens and selects shortcuts on a dock or a rail.
+/// Movement before recognition stays available to the parent's scrolling or scrub.
+class GfDockMenuPress extends StatelessWidget {
+  const GfDockMenuPress({
+    super.key,
+    required this.enabled,
+    required this.onOpen,
+    required this.onMove,
+    required this.onRelease,
+    required this.child,
+  });
+
+  final bool enabled;
+  final VoidCallback onOpen;
+  final ValueChanged<Offset> onMove;
+  final ValueChanged<Offset> onRelease;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) return child;
+    return RawGestureDetector(
+      gestures: <Type, GestureRecognizerFactory>{
+        LongPressGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+              () => LongPressGestureRecognizer(
+                duration: const Duration(milliseconds: 320),
+              ),
+              (LongPressGestureRecognizer recognizer) => recognizer
+                ..onLongPressStart = ((_) => onOpen())
+                ..onLongPressMoveUpdate = ((LongPressMoveUpdateDetails d) =>
+                    onMove(d.globalPosition))
+                ..onLongPressEnd = ((LongPressEndDetails d) =>
+                    onRelease(d.globalPosition)),
+            ),
+      },
+      child: child,
+    );
+  }
+}
+
+/// Opens [entries] from [source] (a destination's
 /// global box). [dock] stays clear of the scrim so the pressed destination
 /// keeps its place while everything else recedes.
 ///
@@ -69,6 +115,7 @@ GfDockMenuHandle showGfDockMenu(
   required Rect source,
   required RRect dock,
   required String label,
+  GfDockMenuPlacement placement = GfDockMenuPlacement.above,
 }) {
   final GfDockMenuHandle handle = GfDockMenuHandle._();
   late final OverlayEntry entry;
@@ -79,7 +126,9 @@ GfDockMenuHandle showGfDockMenu(
       source: source,
       dock: dock,
       label: label,
+      placement: placement,
       onClosed: () {
+        if (handle._closed.isCompleted) return;
         entry.remove();
         entry.dispose();
         if (!handle._closed.isCompleted) handle._closed.complete();
@@ -116,6 +165,7 @@ class _DockMenu extends StatefulWidget {
     required this.source,
     required this.dock,
     required this.label,
+    required this.placement,
     required this.onClosed,
   });
 
@@ -124,6 +174,7 @@ class _DockMenu extends StatefulWidget {
   final Rect source;
   final RRect dock;
   final String label;
+  final GfDockMenuPlacement placement;
   final VoidCallback onClosed;
 
   @override
@@ -140,6 +191,8 @@ class _DockMenuState extends State<_DockMenu> with TickerProviderStateMixin {
   final FocusScopeNode _focus = FocusScopeNode(debugLabel: 'gf-dock-menu');
   _DockMenuLayout? _layout;
   bool _closing = false;
+  bool _anchorInvalid = false;
+  MediaQueryData? _window;
   // Rows that do not fit above the dock scroll; null while they all fit.
   ScrollController? _scroll;
   late final Ticker _edgeScroll = createTicker(_scrollTowardEdge);
@@ -164,6 +217,21 @@ class _DockMenuState extends State<_DockMenu> with TickerProviderStateMixin {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final window = MediaQuery.of(context);
+    final previous = _window;
+    _window = window;
+    // A fold, rotation or keyboard changes the source's global coordinates.
+    // Cancel before another pointer-up can select against that old snapshot.
+    if (previous != null &&
+        (previous.size != window.size ||
+            previous.padding != window.padding ||
+            previous.viewPadding != window.viewPadding ||
+            previous.viewInsets != window.viewInsets ||
+            previous.textScaler != window.textScaler ||
+            !listEquals(previous.displayFeatures, window.displayFeatures))) {
+      cancelForLayoutChange();
+      return;
+    }
     if (_animation.status == AnimationStatus.dismissed && !_closing) {
       if (GfMotion.reducedOf(context)) {
         _animation.value = 1;
@@ -171,6 +239,18 @@ class _DockMenuState extends State<_DockMenu> with TickerProviderStateMixin {
         _animation.forward();
       }
     }
+  }
+
+  void cancelForLayoutChange() {
+    if (_anchorInvalid) return;
+    _closing = true;
+    _anchorInvalid = true;
+    _animation.stop();
+    _stopEdge();
+    // Overlay removal cannot mark an ancestor dirty during a rebuild.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onClosed();
+    });
   }
 
   @override
@@ -318,6 +398,7 @@ class _DockMenuState extends State<_DockMenu> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    if (_anchorInvalid) return const SizedBox.shrink();
     final Widget menu = CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
         const SingleActivator(LogicalKeyboardKey.escape): close,
@@ -394,7 +475,11 @@ class _DockMenuView extends StatelessWidget {
   final _DockMenuState state;
   final Animation<double> animation;
 
-  _DockMenuLayout _measure(BuildContext context, Size screen, Offset toGlobal) {
+  _DockMenuLayout? _measure(
+    BuildContext context,
+    Size screen,
+    Offset toGlobal,
+  ) {
     final TextScaler scaler = MediaQuery.textScalerOf(context);
     final EdgeInsets padding = MediaQuery.paddingOf(context);
     final TextStyle style = GfTheme.typographyOf(context).body;
@@ -411,6 +496,18 @@ class _DockMenuView extends StatelessWidget {
       heights.add(math.max(_rowMinHeight, painter.height + 20));
       painter.dispose();
     }
+    final Rect source = state.widget.source.shift(-toGlobal);
+    final Rect dock = state.widget.dock.outerRect.shift(-toGlobal);
+    final bool beside = state.widget.placement == GfDockMenuPlacement.beside;
+    final bool toRight = dock.center.dx < screen.width / 2;
+    final double minLeft = beside && toRight
+        ? math.max(padding.left + _edge, dock.right + _sourceGap)
+        : padding.left + _edge;
+    final double maxRight = beside && !toRight
+        ? math.min(screen.width - padding.right - _edge, dock.left - _sourceGap)
+        : screen.width - padding.right - _edge;
+    final double availableWidth = maxRight - minLeft;
+    if (availableWidth < _minWidth) return null;
     final double width =
         (_panelPadding * 2 +
                 _rowInset * 2 +
@@ -418,8 +515,10 @@ class _DockMenuView extends StatelessWidget {
                 _iconGap * 2 +
                 textWidth +
                 _trailing)
-            .clamp(_minWidth, math.min(_maxWidth, screen.width - _edge * 2))
-            .ceilToDouble();
+            .clamp(
+              math.min(_minWidth, availableWidth),
+              math.min(_maxWidth, availableWidth),
+            );
     final List<Rect> rows = <Rect>[];
     double y = _panelPadding;
     for (int i = 0; i < state.entries.length; i++) {
@@ -432,33 +531,42 @@ class _DockMenuView extends StatelessWidget {
       y += heights[i];
     }
     final double content = y + _panelPadding;
-    final Rect source = state.widget.source.shift(-toGlobal);
-    final Rect dock = state.widget.dock.outerRect.shift(-toGlobal);
-    // Rows that do not fit above the dock scroll instead of running over it.
+    final double maxBottom = beside
+        ? screen.height -
+              math.max(
+                padding.bottom,
+                MediaQuery.viewInsetsOf(context).bottom,
+              ) -
+              _edge
+        : dock.top - _sourceGap;
+    // Side menus use the content's full safe height; bottom menus stop at the dock.
     final double height = math.min(
       content,
       math.max(
-        dock.top - _sourceGap - padding.top - _edge,
+        maxBottom - padding.top - _edge,
         _rowMinHeight + _panelPadding * 2,
       ),
     );
     final int current = state.entries.indexWhere(
       (GfDockMenuEntry entry) => entry.selected,
     );
-    final double minLeft = _edge + padding.left;
-    final double left = (source.center.dx - width / 2).clamp(
-      minLeft,
-      math.max(minLeft, screen.width - _edge - padding.right - width),
-    );
-    final double top = math.max(
-      padding.top + _edge,
-      dock.top - _sourceGap - height,
-    );
+    final double left =
+        (beside
+                ? (toRight ? minLeft : maxRight - width)
+                : source.center.dx - width / 2)
+            .clamp(minLeft, math.max(minLeft, maxRight - width));
+    final double top =
+        (beside ? source.center.dy - height / 2 : maxBottom - height).clamp(
+          padding.top + _edge,
+          math.max(padding.top + _edge, maxBottom - height),
+        );
     return _DockMenuLayout(
       panel: Rect.fromLTWH(left, top, width, height),
       content: content,
       rows: rows,
-      origin: Offset(source.center.dx, dock.top),
+      origin: beside
+          ? Offset(toRight ? dock.right : dock.left, source.center.dy)
+          : Offset(source.center.dx, dock.top),
       toGlobal: toGlobal,
       initialOffset: current < 0
           ? 0
@@ -478,11 +586,15 @@ class _DockMenuView extends StatelessWidget {
       final Offset toGlobal = overlay is RenderBox && overlay.hasSize
           ? overlay.localToGlobal(Offset.zero)
           : Offset.zero;
-      final _DockMenuLayout layout = state._layout = _measure(
+      final _DockMenuLayout? layout = state._layout = _measure(
         context,
         constraints.biggest,
         toGlobal,
       );
+      if (layout == null) {
+        state.cancelForLayoutChange();
+        return const SizedBox.shrink();
+      }
       if (layout.scrolls) {
         state._scroll ??= ScrollController(
           initialScrollOffset: layout.initialOffset,
@@ -674,6 +786,7 @@ class _Panel extends StatelessWidget {
       explicitChildNodes: true,
       label: state.widget.label,
       child: Material(
+        key: const ValueKey<String>('gf-dock-menu-panel'),
         type: MaterialType.transparency,
         child: Listener(
           behavior: HitTestBehavior.opaque,

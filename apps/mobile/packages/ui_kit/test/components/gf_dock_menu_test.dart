@@ -118,6 +118,38 @@ Widget _dock({
 );
 
 void main() {
+  for (final change in ['fold', 'safe area', 'keyboard']) {
+    testWidgets('$change cancels a held shortcut without selecting it', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(400, 740);
+      addTearDown(tester.view.reset);
+      final picked = <String>[];
+      await tester.pumpWidget(_bottomApp(_dock(picked: picked)));
+      final gesture = await tester.startGesture(tester.getCenter(_target(1)));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      final row = find.byKey(const ValueKey<String>('gf-dock-menu-row-0'));
+      await gesture.moveTo(tester.getCenter(row));
+      await tester.pump();
+      switch (change) {
+        case 'fold':
+          tester.view.physicalSize = const Size(840, 600);
+        case 'safe area':
+          tester.view.padding = FakeViewPadding(right: 96);
+        case 'keyboard':
+          tester.view.viewInsets = FakeViewPadding(bottom: 240);
+      }
+      await tester.pumpAndSettle();
+      expect(row, findsNothing);
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(picked, isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('holding a destination opens its shortcuts; a slide picks one', (
     tester,
   ) async {

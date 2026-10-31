@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'window_reserved_regions.dart';
 
 /// Uses visible labels in ordinary rails and tooltips in a narrow side pocket;
 /// accessibility exposes the same named, selectable actions in both layouts.
-class ReadingNavigationRail extends StatelessWidget {
+class ReadingNavigationRail extends StatefulWidget {
   const ReadingNavigationRail({
     super.key,
     required this.items,
@@ -52,6 +53,52 @@ class ReadingNavigationRail extends StatelessWidget {
   }
 
   @override
+  State<ReadingNavigationRail> createState() => _ReadingNavigationRailState();
+}
+
+class _ReadingNavigationRailState extends State<ReadingNavigationRail> {
+  final _surfaceKey = GlobalKey();
+  final _targets = List.generate(4, (_) => GlobalKey());
+  GfDockMenuHandle? _menu;
+
+  void _openMenu(int index) {
+    if (_menu != null) return;
+    final entries = widget.items[index].menu?.call();
+    final source = _targets[index].currentContext?.findRenderObject();
+    final surface = _surfaceKey.currentContext?.findRenderObject();
+    if (entries == null ||
+        entries.isEmpty ||
+        source is! RenderBox ||
+        surface is! RenderBox) {
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    final menu = _menu = showGfDockMenu(
+      context,
+      entries: entries,
+      source: source.localToGlobal(Offset.zero) & source.size,
+      dock: RRect.fromRectAndRadius(
+        surface.localToGlobal(Offset.zero) & surface.size,
+        const Radius.circular(28),
+      ),
+      label: widget.items[index].label,
+      placement: GfDockMenuPlacement.beside,
+    );
+    menu.closed.whenComplete(() {
+      if (identical(_menu, menu)) _menu = null;
+    });
+  }
+
+  @override
+  void dispose() {
+    final menu = _menu;
+    if (menu != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => menu.close());
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
     return LayoutBuilder(
@@ -65,6 +112,7 @@ class ReadingNavigationRail extends StatelessWidget {
             child: SizedBox(
               width: edge ? 56 : null,
               child: Stack(
+                key: _surfaceKey,
                 children: [
                   const Positioned.fill(
                     child: GfNavigationSurface(
@@ -93,97 +141,122 @@ class ReadingNavigationRail extends StatelessWidget {
                               child: GfLogo(size: 36),
                             ),
                           ),
-                        for (var i = 0; i < items.length; i++)
+                        for (var i = 0; i < widget.items.length; i++)
                           Padding(
                             padding: EdgeInsets.only(bottom: edge ? 0 : 8),
                             child: MergeSemantics(
                               key: ValueKey('rail-destination-$i'),
                               child: Semantics(
-                                label: items[i].semanticsLabel,
+                                label: widget.items[i].semanticsLabel,
                                 button: true,
                                 enabled: true,
-                                selected: currentIndex == i,
-                                onTap: () => onSelected(i),
-                                child: Tooltip(
-                                  message: items[i].label,
-                                  excludeFromSemantics: true,
-                                  child: ExcludeSemantics(
-                                    child: TextButton(
-                                      onPressed: () => onSelected(i),
-                                      style: TextButton.styleFrom(
-                                        minimumSize: const Size(48, 48),
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: extended ? 16 : 4,
-                                          vertical: edge
-                                              ? 0
-                                              : (extended ? 16 : 12),
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            GfRadius.lg,
-                                          ),
-                                        ),
-                                        foregroundColor: currentIndex == i
-                                            ? colors.primary
-                                            : colors.iconMuted,
-                                        backgroundColor: currentIndex == i
-                                            ? colors.primary.withValues(
-                                                alpha: .08,
-                                              )
-                                            : Colors.transparent,
-                                      ),
-                                      child: Flex(
-                                        direction: extended
-                                            ? Axis.horizontal
-                                            : Axis.vertical,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          GfBadgedGlyph(
-                                            size: extended ? 26 : 24,
-                                            visible: items[i].badge,
-                                            count: items[i].badgeCount,
-                                            glyph: GfSymbol(
-                                              currentIndex == i
-                                                  ? items[i].selectedSymbol
-                                                  : items[i].symbol,
-                                              size: extended ? 26 : 24,
-                                              color: currentIndex == i
-                                                  ? colors.primary
-                                                  : colors.iconMuted,
+                                selected: widget.currentIndex == i,
+                                onTap: () => widget.onSelected(i),
+                                onLongPress: widget.items[i].menu == null
+                                    ? null
+                                    : () => _openMenu(i),
+                                hint: widget.items[i].menuHint,
+                                child: GfDockMenuPress(
+                                  enabled: widget.items[i].menu != null,
+                                  onOpen: () => _openMenu(i),
+                                  onMove: (position) => _menu?.track(position),
+                                  onRelease: (position) =>
+                                      _menu?.release(position),
+                                  child: TooltipVisibility(
+                                    visible: widget.items[i].menu == null,
+                                    child: Tooltip(
+                                      message: widget.items[i].label,
+                                      excludeFromSemantics: true,
+                                      child: ExcludeSemantics(
+                                        child: TextButton(
+                                          key: _targets[i],
+                                          onPressed: () => widget.onSelected(i),
+                                          style: TextButton.styleFrom(
+                                            minimumSize: const Size(48, 48),
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: extended ? 16 : 4,
+                                              vertical: edge
+                                                  ? 0
+                                                  : (extended ? 16 : 12),
                                             ),
-                                          ),
-                                          if (!edge)
-                                            SizedBox(
-                                              width: extended ? 16 : 0,
-                                              height: extended ? 0 : 6,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                    GfRadius.lg,
+                                                  ),
                                             ),
-                                          if (!edge)
-                                            Flexible(
-                                              fit: extended
-                                                  ? FlexFit.tight
-                                                  : FlexFit.loose,
-                                              child: Text(
-                                                items[i].label,
-                                                textAlign: extended
-                                                    ? TextAlign.start
-                                                    : TextAlign.center,
-                                                style:
-                                                    (extended
-                                                            ? GfTheme.typographyOf(
-                                                                context,
-                                                              ).title3
-                                                            : GfTheme.typographyOf(
-                                                                context,
-                                                              ).caption)
-                                                        .copyWith(
-                                                          fontWeight:
-                                                              currentIndex == i
-                                                              ? FontWeight.w700
-                                                              : FontWeight.w400,
-                                                        ),
+                                            foregroundColor:
+                                                widget.currentIndex == i
+                                                ? colors.primary
+                                                : colors.iconMuted,
+                                            backgroundColor:
+                                                widget.currentIndex == i
+                                                ? colors.primary.withValues(
+                                                    alpha: .08,
+                                                  )
+                                                : Colors.transparent,
+                                          ),
+                                          child: Flex(
+                                            direction: extended
+                                                ? Axis.horizontal
+                                                : Axis.vertical,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              GfBadgedGlyph(
+                                                size: extended ? 26 : 24,
+                                                visible: widget.items[i].badge,
+                                                count:
+                                                    widget.items[i].badgeCount,
+                                                glyph: GfSymbol(
+                                                  widget.currentIndex == i
+                                                      ? widget
+                                                            .items[i]
+                                                            .selectedSymbol
+                                                      : widget.items[i].symbol,
+                                                  size: extended ? 26 : 24,
+                                                  color:
+                                                      widget.currentIndex == i
+                                                      ? colors.primary
+                                                      : colors.iconMuted,
+                                                ),
                                               ),
-                                            ),
-                                        ],
+                                              if (!edge)
+                                                SizedBox(
+                                                  width: extended ? 16 : 0,
+                                                  height: extended ? 0 : 6,
+                                                ),
+                                              if (!edge)
+                                                Flexible(
+                                                  fit: extended
+                                                      ? FlexFit.tight
+                                                      : FlexFit.loose,
+                                                  child: Text(
+                                                    widget.items[i].label,
+                                                    textAlign: extended
+                                                        ? TextAlign.start
+                                                        : TextAlign.center,
+                                                    style:
+                                                        (extended
+                                                                ? GfTheme.typographyOf(
+                                                                    context,
+                                                                  ).title3
+                                                                : GfTheme.typographyOf(
+                                                                    context,
+                                                                  ).caption)
+                                                            .copyWith(
+                                                              fontWeight:
+                                                                  widget.currentIndex ==
+                                                                      i
+                                                                  ? FontWeight
+                                                                        .w700
+                                                                  : FontWeight
+                                                                        .w400,
+                                                            ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),

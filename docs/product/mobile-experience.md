@@ -272,8 +272,12 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   down as the count changes, and eases its width between digit counts. The wide rail uses the same
   mark. Reduced motion shows changes at once.
   Holding Campus or Notifications for about a third of a second opens a shortcut menu that blooms
-  out of the destination above the dock, with a medium haptic, while the page behind dims and
-  frosts and the dock itself stays clear. Campus lists its five tabs for a signed-in reader, then
+  out of the destination above the dock, or toward the content beside a vertical rail, with a
+  medium haptic, while the page behind dims and frosts and navigation itself stays clear.
+  Ordinary rails and icon-only side-pocket rails offer the same shortcuts, hints and held-slide
+  selection as the bottom dock. Side menus stay within the root window's content safe area and
+  above the keyboard, independently of the rail's removed safe-area padding.
+  Campus lists its five tabs for a signed-in reader, then
   the course reviews, scheduler and Wiki pages, set apart and marked with a chevron because they open
   a page; Notifications lists its six categories, also only when signed in. Every shortcut wears the
   glyph of the entry it opens — the campus tools match their landing cards and the wide campus
@@ -288,6 +292,9 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   stops above the dock and scrolls: the opening press scrolls it by holding near its top or bottom
   edge, and a drag that scrolls never picks a row. A sideways move before the menu opens still scrubs the dock, and screen readers open the
   menu through the destination's long-press action.
+  Folding, rotation, safe-area or keyboard changes cancel an open menu and its held selection;
+  reopening uses the destination's new position. Removing its navigation surface also dismisses
+  the menu. This follows window geometry, with no device-model or fixed-orientation checks.
   Tab and Shift+Tab traverse the destinations and optional compose action, with a visible focus tint;
   Enter and Space activate the focused control without changing the touch or drag behavior.
   The selection is a lens that springs between destinations and stretches while it travels; the

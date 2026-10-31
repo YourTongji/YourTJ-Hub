@@ -40,8 +40,9 @@ YourTJ 移动端设计系统(Flutter):设计 token、`ThemeData` 与 Gf* 组件�
 `Current`: `GfBadgedGlyph` 把未读圆点或计数胶囊嵌在导航图标的右上角（RTL 镜像），在图标上
 挖出细缝而不用描边，数字为等宽并随增减上下滚动；Dock 两层与宽屏侧栏共用。
 `GfBottomNavigationItem.menu` 按需构建 `GfDockMenuEntry` 列表：长按该目的地时
-`showGfDockMenu` 以根 Overlay（不推路由，以免取消仍按住的指针）从目的地向上展开快捷菜单，
-同一次按压可滑到条目松手选中；组件不持有业务状态，选中与跳转由回调完成。
+`showGfDockMenu` 以根 Overlay（不推路由，以免取消仍按住的指针）在底部 Dock 上方、
+竖向侧栏的内容侧展开快捷菜单。`GfDockMenuPress` 共用长按及滑动松手选择手势；
+窗口、安全区、字号或键盘变化会取消旧锚点的菜单。组件不持有业务状态，选中与跳转由回调完成。
 
 ## Token 与主题规则
 

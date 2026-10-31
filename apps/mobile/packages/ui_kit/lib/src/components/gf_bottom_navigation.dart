@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -83,7 +82,6 @@ const double _stretchPerSlot = 0.03;
 const double _overdrag = 0.3;
 const double _flingProjection = 0.09;
 // Shorter than the platform's long press: the menu is the point of holding.
-const Duration _menuPress = Duration(milliseconds: 320);
 
 /// Four accessible destinations on a floating glass dock, with optional
 /// visible labels and a compose action beside it.
@@ -461,6 +459,10 @@ class _DockState extends State<_Dock> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    final menu = _menu;
+    if (menu != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => menu.close());
+    }
     for (final _Spring spring in <_Spring>[_travel, _stretch, _lift, _press]) {
       spring.dispose();
     }
@@ -579,6 +581,7 @@ class _DockState extends State<_Dock> with TickerProviderStateMixin {
   GfDockMenuHandle? _menu;
 
   void _openMenu(int index) {
+    if (_menu != null) return;
     final List<GfDockMenuEntry>? entries = widget.items[index].menu?.call();
     final RenderObject? box = context.findRenderObject();
     if (entries == null || entries.isEmpty || box is! RenderBox) return;
@@ -765,7 +768,7 @@ class _DockState extends State<_Dock> with TickerProviderStateMixin {
                   : () => _openMenu(i),
               hint: widget.items[i].menuHint,
               child: ExcludeSemantics(
-                child: _MenuPress(
+                child: GfDockMenuPress(
                   enabled: widget.items[i].menu != null,
                   onOpen: () => _openMenu(i),
                   onMove: (Offset position) => _menu?.track(position),
@@ -867,45 +870,6 @@ class _DestinationContent extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Holding a destination that has a menu opens it; the same press can then
-/// slide onto a shortcut and pick it on release. A sideways move before the
-/// menu opens still belongs to the dock's scrub.
-class _MenuPress extends StatelessWidget {
-  const _MenuPress({
-    required this.enabled,
-    required this.onOpen,
-    required this.onMove,
-    required this.onRelease,
-    required this.child,
-  });
-
-  final bool enabled;
-  final VoidCallback onOpen;
-  final ValueChanged<Offset> onMove;
-  final ValueChanged<Offset> onRelease;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!enabled) return child;
-    return RawGestureDetector(
-      gestures: <Type, GestureRecognizerFactory>{
-        LongPressGestureRecognizer:
-            GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
-              () => LongPressGestureRecognizer(duration: _menuPress),
-              (LongPressGestureRecognizer recognizer) => recognizer
-                ..onLongPressStart = ((_) => onOpen())
-                ..onLongPressMoveUpdate = ((LongPressMoveUpdateDetails d) =>
-                    onMove(d.globalPosition))
-                ..onLongPressEnd = ((LongPressEndDetails d) =>
-                    onRelease(d.globalPosition)),
-            ),
-      },
-      child: child,
     );
   }
 }
