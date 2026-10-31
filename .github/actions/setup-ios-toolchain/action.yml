@@ -1,23 +1,16 @@
 name: Select the reviewed iOS toolchain
-description: Pin Xcode 27.2 (27B52) and verify the device SDK before signing a new iOS build.
+description: Select Xcode 27.2 and verify the device SDK; only dev previews may use the reviewed RC.
+inputs:
+  purpose:
+    description: dev permits RC 27B48; production and its rehearsals require release 27B52.
+    default: production
 runs:
   using: composite
   steps:
-    - name: Select Xcode 27.2 release
+    - name: Select reviewed Xcode 27.2 toolchain
       shell: bash
       env:
         DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+        YOURTJ_IOS_BUILD_PURPOSE: ${{ inputs.purpose }}
       run: |
-        test -d "$DEVELOPER_DIR"
-        xcode_version="$(xcodebuild -version)"
-        printf '%s\n' "$xcode_version"
-        if [[ "$xcode_version" != $'Xcode 27.2\nBuild version 27B52' ]]; then
-          echo 'Expected Xcode 27.2 release (27B52); RC and beta builds are not approved.' >&2
-          exit 1
-        fi
-        sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
-        if [[ "$sdk_version" != '27.2' ]]; then
-          echo "Expected iOS 27.2 SDK, found $sdk_version" >&2
-          exit 1
-        fi
-        echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
+        bash "${{ github.action_path }}/../../../scripts/mobile-release/select_ios_toolchain.sh"

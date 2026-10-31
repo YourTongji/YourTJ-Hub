@@ -214,8 +214,13 @@ Dart hot-code update. Debug-signed installations cannot update to the distributi
 
 `Current`: preview and formal iOS publishers execute the trusted workflow, toolchain selector and
 exported-artifact checks from `main`; the application checkout is the cycle's selected source.
-The [shared selector](../../.github/actions/setup-ios-toolchain/action.yml) defines the exact Xcode
-release and device SDK. Updating candidate-source workflows alone does not update these publishers.
+The [shared selector](../../.github/actions/setup-ios-toolchain/action.yml) requires the iOS 27.2 SDK.
+Dev previews accept Xcode 27.2 release 27B52 or the
+[hosted-image RC 27B48](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md); production rehearsals and formal new builds
+require 27B52. Other beta/RC builds are rejected. The exported Runner and Widget metadata must also
+match the permitted build, device SDK and iOS 15-or-later deployment floor. Release-candidate native
+checks load this selector from the trusted controller, independently of the application checkout.
+Updating candidate-source workflows alone does not update these publishers.
 An unavailable selected toolchain blocks a new build; existing-build promotion and artifact recovery
 reuse their original binary.
 
