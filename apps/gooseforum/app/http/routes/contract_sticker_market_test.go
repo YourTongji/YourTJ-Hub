@@ -254,7 +254,14 @@ func TestAdminStickerMarketHTTPContract(t *testing.T) {
 		conn, router := setupStickerMarketContractTest(t)
 		seedContractMarket(t, conn)
 		generated := "m_" + strings.Repeat("b", 40)
-		serveAdminStickersOK(t, conn, router, http.MethodPost, "/api/admin/sticker-market-item-save", `{"stickerId":9302,"name":"happy_cat","isEnabled":true}`, "my-sticker-action-success.json")
+		if err := conn.Model(&sticker.Entity{}).Where("id = ?", 9302).Update("is_enabled", true).Error; err != nil {
+			t.Fatal(err)
+		}
+		serveAdminStickersOK(t, conn, router, http.MethodPost, "/api/admin/sticker-market-item-save", `{"stickerId":9302,"name":"happy_cat"}`, "my-sticker-action-success.json")
+		var renamed sticker.Entity
+		if err := conn.First(&renamed, 9302).Error; err != nil || !renamed.IsEnabled {
+			t.Fatalf("rename-only request changed sticker availability: %+v err=%v", renamed, err)
+		}
 		urls, err := stickerservice.ResolveURLs([]string{generated, "happy_cat"})
 		if err != nil || urls[generated] == "" || urls["happy_cat"] != urls[generated] {
 			t.Fatalf("renamed sticker resolution: %#v, %v", urls, err)

@@ -8052,7 +8052,8 @@ export interface paths {
          *     `admin.sticker.nameInvalid`, another sticker's current name with
          *     `admin.sticker.nameExists` and another sticker's previous name with
          *     `admin.sticker.nameReserved`. Ids that are not market stickers fail with
-         *     `admin.sticker.notFound`. Changes are recorded in the operation log.
+         *     `admin.sticker.notFound`. Omitting `isEnabled` preserves its current state,
+         *     allowing a rename-only request. Changes are recorded in the operation log.
          */
         post: operations["adminStickerMarketItemSave"];
         delete?: never;
@@ -15481,7 +15482,7 @@ export interface components {
             stickerId?: number;
             /** @description New token name (letters, digits, `_` and `-`); empty or omitted keeps the current name. */
             name?: string;
-            /** @description False withdraws the sticker; it can no longer be inserted and sent tokens stop resolving. */
+            /** @description False withdraws the sticker; it can no longer be inserted and sent tokens stop resolving. Omitted leaves its current state unchanged. */
             isEnabled?: boolean;
         };
         PkPlanItem: {

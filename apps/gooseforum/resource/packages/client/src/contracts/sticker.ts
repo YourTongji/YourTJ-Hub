@@ -205,5 +205,5 @@ export interface AdminStickerMarketItemSaveRequest {
   stickerId: number
   /** Renames the sticker when set; the previous name keeps resolving. */
   name?: string
-  isEnabled: boolean
+  isEnabled?: boolean
 }

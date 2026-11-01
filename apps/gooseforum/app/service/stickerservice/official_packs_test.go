@@ -193,6 +193,31 @@ func TestOfficialPackCreateMoveBatchAndDelete(t *testing.T) {
 	}
 }
 
+func TestDeletePresetPackPreservesStickersAndUserMembership(t *testing.T) {
+	setupOfficialPackTest(t)
+	row := officialSticker(t, "opk_preset", "emojipackage", 1, true)
+	entry := sticker.LibraryEntry{UserID: 991510, StickerID: row.Id, DisplayName: "收藏表情", SortOrder: 1}
+	if err := db.Connect().Create(&entry).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		db.Connect().Where("user_id = ?", entry.UserID).Delete(&sticker.LibraryEntry{})
+	})
+
+	moved, err := DeleteOfficialPack(context.Background(), "emojipackage", "")
+	if err != nil || moved != 1 {
+		t.Fatalf("delete preset pack: moved=%d err=%v", moved, err)
+	}
+	var saved sticker.Entity
+	if err := db.Connect().First(&saved, row.Id).Error; err != nil || saved.Name != row.Name || saved.FileName != row.FileName || saved.Pack != sticker.PackOfficial {
+		t.Fatalf("sticker after pack deletion = %+v err=%v", saved, err)
+	}
+	var savedEntry sticker.LibraryEntry
+	if err := db.Connect().Where("user_id = ? AND sticker_id = ?", entry.UserID, row.Id).First(&savedEntry).Error; err != nil || savedEntry.DisplayName != entry.DisplayName {
+		t.Fatalf("user membership after pack deletion = %+v err=%v", savedEntry, err)
+	}
+}
+
 func TestImportOfficialIntoPackAcceptsImageOrZip(t *testing.T) {
 	setupOfficialPackTest(t)
 	key, err := SaveOfficialPack(context.Background(), SaveOfficialPackInput{Name: "导入"})

@@ -26,6 +26,8 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 )
 
+func marketBool(value bool) *bool { return &value }
+
 // fakeMarket serves fixed upstream responses keyed by absolute URL.
 type fakeMarket struct {
 	mu     sync.Mutex
@@ -388,7 +390,7 @@ func TestMarketImportDeduplicatesContentAndPublishes(t *testing.T) {
 	}
 
 	// Withdrawing one sticker stops it everywhere, like a disabled official one.
-	if _, _, err := SaveMarketSticker(ctx, SaveMarketStickerInput{StickerID: first.ID, IsEnabled: false}); err != nil {
+	if _, _, err := SaveMarketSticker(ctx, SaveMarketStickerInput{StickerID: first.ID, IsEnabled: marketBool(false)}); err != nil {
 		t.Fatal(err)
 	}
 	if resolved, _ := Resolve([]string{first.Name}); len(resolved) != 0 {
@@ -521,6 +523,29 @@ func TestMarketSubscriptionLimitAndClosure(t *testing.T) {
 	}
 }
 
+func TestHiddenMarketSubscriptionsDoNotConsumeLimit(t *testing.T) {
+	setupMarketTest(t)
+	ctx := context.Background()
+	packs := make([]sticker.MarketPack, MaxPackSubscriptions+1)
+	for index := range packs {
+		packs[index] = sticker.MarketPack{Source: MarketSourceID, UpstreamID: fmt.Sprintf("hidden-limit-%d", index), Name: "Limit", Status: sticker.MarketStatusReady, Published: true, ItemCount: 1}
+	}
+	if err := db.Connect().Create(&packs).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, pack := range packs[:MaxPackSubscriptions] {
+		if _, err := SubscribeMarketPack(ctx, 32, pack.Id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := SaveMarketPack(ctx, SaveMarketPackInput{ID: packs[0].Id, Published: false}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SubscribeMarketPack(ctx, 32, packs[MaxPackSubscriptions].Id); err != nil {
+		t.Fatalf("subscription after hiding a subscribed pack = %v", err)
+	}
+}
+
 func TestStoreMarketAssetConcurrentWritersShareOneObject(t *testing.T) {
 	setupMarketTest(t)
 	data := marketPNG(t, color.RGBA{G: 255, A: 255})
@@ -560,8 +585,8 @@ func TestMarketStickerRenameKeepsGeneratedTokenResolvable(t *testing.T) {
 	}
 	first, second := detail.Items[0], detail.Items[1]
 
-	before, saved, err := SaveMarketSticker(ctx, SaveMarketStickerInput{StickerID: first.StickerID, Name: " 开心猫 ", IsEnabled: true})
-	if err != nil || before.Name != first.Name || saved.Name != "开心猫" || saved.DisplayName != "" {
+	before, saved, err := SaveMarketSticker(ctx, SaveMarketStickerInput{StickerID: first.StickerID, Name: " 开心猫 "})
+	if err != nil || before.Name != first.Name || saved.Name != "开心猫" || saved.DisplayName != "" || !saved.IsEnabled {
 		t.Fatalf("rename = %#v -> %#v, %v", before, saved, err)
 	}
 	resolved, _ := Resolve([]string{first.Name, "开心猫"})
@@ -577,13 +602,13 @@ func TestMarketStickerRenameKeepsGeneratedTokenResolvable(t *testing.T) {
 	}
 
 	// Names stay unique across current and previous names of every sticker.
-	if _, _, err := SaveMarketSticker(ctx, SaveMarketStickerInput{StickerID: second.StickerID, Name: "开心猫", IsEnabled: true}); !errors.Is(err, ErrNameExists) {
+	if _, _, err := SaveMarketSticker(ctx, SaveMarketStickerInput{StickerID: second.StickerID, Name: "开心猫", IsEnabled: marketBool(true)}); !errors.Is(err, ErrNameExists) {
 		t.Fatalf("rename to a taken name = %v", err)
 	}
-	if _, _, err := SaveMarketSticker(ctx, SaveMarketStickerInput{StickerID: second.StickerID, Name: first.Name, IsEnabled: true}); !errors.Is(err, ErrNameReserved) {
+	if _, _, err := SaveMarketSticker(ctx, SaveMarketStickerInput{StickerID: second.StickerID, Name: first.Name, IsEnabled: marketBool(true)}); !errors.Is(err, ErrNameReserved) {
 		t.Fatalf("rename to another sticker's previous name = %v", err)
 	}
-	if _, _, err := SaveMarketSticker(ctx, SaveMarketStickerInput{StickerID: second.StickerID, Name: "bad name!", IsEnabled: true}); !errors.Is(err, ErrNameInvalid) {
+	if _, _, err := SaveMarketSticker(ctx, SaveMarketStickerInput{StickerID: second.StickerID, Name: "bad name!", IsEnabled: marketBool(true)}); !errors.Is(err, ErrNameInvalid) {
 		t.Fatalf("rename to an invalid name = %v", err)
 	}
 
@@ -673,5 +698,31 @@ func TestMarketCoverPreviewStoresOneThumbnail(t *testing.T) {
 	}
 	if pack := packByUpstream(t, "group-plain"); pack.IconFile == "" {
 		t.Fatal("an unchanged pack lost its thumbnail on sync")
+	}
+}
+
+func TestMarketCoverPreviewCachesDatabaseUpdateFailure(t *testing.T) {
+	fake := setupMarketTest(t)
+	ctx := context.Background()
+	fake.catalog(`{"id":"group-db-failure","name":"Database failure","topic":"anime","emojiCount":1,"icon":"https://cdn3.ldstatic.com/db-failure.png"}`)
+	if _, err := SyncMarketCatalog(ctx); err != nil {
+		t.Fatal(err)
+	}
+	fake.images["https://cdn3.ldstatic.com/db-failure.png"] = marketPNG(t, color.RGBA{B: 255, A: 255})
+	pack := packByUpstream(t, "group-db-failure")
+	marketCoverMisses.Delete(pack.Id)
+	if err := db.Connect().Exec(`CREATE TRIGGER fail_market_cover_update BEFORE UPDATE OF icon_file ON sticker_market_packs BEGIN SELECT RAISE(FAIL, 'blocked'); END`).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		marketCoverMisses.Delete(pack.Id)
+		db.Connect().Exec(`DROP TRIGGER IF EXISTS fail_market_cover_update`)
+	})
+	if _, err := MarketCoverPreview(ctx, pack.Id); err == nil {
+		t.Fatal("database update failure was ignored")
+	}
+	calls := fake.callCount("https://cdn3.ldstatic.com/db-failure.png")
+	if _, err := MarketCoverPreview(ctx, pack.Id); err == nil || fake.callCount("https://cdn3.ldstatic.com/db-failure.png") != calls {
+		t.Fatal("failed database update was not remembered")
 	}
 }

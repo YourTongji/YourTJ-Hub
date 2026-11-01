@@ -1,5 +1,5 @@
 import { readCaretTextWindow } from '@/runtime/caret-text'
-import { stickerInlineAt } from '@/runtime/sticker-inline-editor'
+import { STICKER_INLINE_CLASS, stickerInlineAt } from '@/runtime/sticker-inline-editor'
 import { stickerDeleteRangeAt, type StickerDeleteDirection } from '@/site/utils/sticker-token'
 
 /**
@@ -13,6 +13,13 @@ export function stickerDeleteDirection(event: KeyboardEvent): StickerDeleteDirec
   if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return null
   if (event.key === 'Backspace') return 'backward'
   if (event.key === 'Delete') return 'forward'
+  return null
+}
+
+export function stickerBeforeInputDirection(event: InputEvent): StickerDeleteDirection | null {
+  if (event.isComposing) return null
+  if (event.inputType === 'deleteContentBackward') return 'backward'
+  if (event.inputType === 'deleteContentForward') return 'forward'
   return null
 }
 
@@ -30,7 +37,27 @@ export function deleteStickerAtCaret(element: HTMLElement, direction: StickerDel
   const selection = window.getSelection()
   if (!selection || selection.rangeCount === 0) return false
   const caret = selection.getRangeAt(0)
-  if (!caret.collapsed || !element.contains(caret.startContainer)) return false
+  if (!element.contains(caret.startContainer) || !element.contains(caret.endContainer)) return false
+  if (!caret.collapsed) {
+    const touched = [...element.querySelectorAll<HTMLElement>(`.${STICKER_INLINE_CLASS}`)]
+      .filter((span) => caret.intersectsNode(span))
+    if (touched.length === 0) return false
+    const target = caret.cloneRange()
+    const firstRange = document.createRange()
+    firstRange.selectNode(touched[0])
+    if (caret.compareBoundaryPoints(Range.START_TO_START, firstRange) > 0) {
+      target.setStartBefore(touched[0])
+    }
+    const last = touched[touched.length - 1]
+    const lastRange = document.createRange()
+    lastRange.selectNode(last)
+    if (caret.compareBoundaryPoints(Range.END_TO_END, lastRange) < 0) {
+      target.setEndAfter(last)
+    }
+    selection.removeAllRanges()
+    selection.addRange(target)
+    return document.execCommand('delete')
+  }
 
   const textWindow = readCaretTextWindow(caret.startContainer, caret.startOffset, CARET_WINDOW_LIMIT, element)
   if (!textWindow) return false
