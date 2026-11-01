@@ -812,6 +812,7 @@
   "entrySchedule": "Schedule",
   "entryWiki": "Wiki",
   "navCampus": "Campus",
+  "navShortcutsHint": "Long press for shortcuts",
   "campusTitle": "My campus",
   "campusSubtitle": "Find courses, plan your week and share campus knowledge.",
   "campusCoursesHint": "Explore courses and student reviews",

@@ -6,6 +6,7 @@ library;
 
 export 'src/components/gf_button.dart';
 export 'src/components/gf_bottom_navigation.dart';
+export 'src/components/gf_dock_menu.dart';
 export 'src/components/surfaces/gf_navigation_surface.dart';
 export 'src/components/business/gf_chat_input.dart';
 export 'src/components/business/gf_conversation_row.dart';
@@ -50,6 +51,7 @@ export 'src/components/atoms/gf_avatar.dart';
 export 'src/components/atoms/gf_avatar_stack.dart';
 export 'src/components/atoms/gf_beam_avatar.dart';
 export 'src/components/atoms/gf_badge.dart';
+export 'src/components/atoms/gf_badged_glyph.dart';
 export 'src/components/atoms/gf_divider.dart';
 export 'src/components/atoms/gf_input.dart';
 export 'src/components/atoms/gf_loading_indicator.dart';

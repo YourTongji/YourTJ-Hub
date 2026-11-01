@@ -90,6 +90,11 @@ Navigation uses the same destinations, icons and unread meaning at every window 
 rail stays reachable independently of reading scroll; compact controls reclaim vertical reading
 space. Compose menus follow their source column and consume system insets once. Implemented
 breakpoints and bounds live in [mobile experience](mobile-experience.md#navigation-and-reading).
+`Current`: navigation shortcuts open above a bottom dock or toward the content beside a rail,
+including side-pocket navigation. Window, safe-area and keyboard changes cancel the transient
+menu before a held pointer can select at its old coordinates. Layout follows the current window,
+as required by [Apple's Duo resizing guidance](https://developer.apple.com/iphone-duo/prepare/),
+rather than a device name or orientation.
 `Current`: pushed reading pages use a centered bounded column or topic workspace, including their headers;
 the page receives the actual column width and retains its state across window changes. Timetable,
 management, login and image-viewer pages retain their full viewport; login keeps its form bounded on a continuous background.
@@ -258,7 +263,7 @@ at 16 pixels, actions at 20–24 pixels, and navigation at 24 pixels inside inde
 The bottom bar and wide rail switch each active destination from Outline to the matching Filled
 ReIcon glyph. The compact shell bottom bar is a floating dock — icon-only at a fixed compact
 height with 44-pixel targets; destination names stay in the accessibility label and a long-press
-tooltip. Its floating shape, glass material, lens selection, drag gestures and accessibility
+tooltip, except where a long press opens that destination's shortcut menu. Its floating shape, glass material, lens selection, drag gestures and accessibility
 fallbacks follow the
 [shell navigation entry](mobile-experience.md#navigation-and-reading). The root
 header keeps the one-physical-pixel `line` hairline instead of a logical-pixel rule; the floating

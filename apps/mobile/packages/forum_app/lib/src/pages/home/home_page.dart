@@ -12,7 +12,7 @@ import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../../asset_url.dart';
-import '../../widgets/app_refresh_indicator.dart';
+import '../../widgets/logo_pull_refresh.dart';
 import '../../widgets/cache_snapshot_hint.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
@@ -94,8 +94,12 @@ class _HomeFeedState {
   final scrollToTop = GfScrollToTopController();
 }
 
-class _HomePageState extends ConsumerState<HomePage> {
+class _HomePageState extends ConsumerState<HomePage>
+    with SingleTickerProviderStateMixin {
   static const String _feedModeKey = 'goose:home-feed-mode';
+  late final LogoRefreshController _pullRefresh = LogoRefreshController(
+    vsync: this,
+  );
 
   String _sort = '';
   CategoryNavPayload? _category;
@@ -185,6 +189,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   void dispose() {
+    _pullRefresh.dispose();
     for (final feed in _feeds.values) {
       feed.cancel();
     }
@@ -965,8 +970,10 @@ class _HomePageState extends ConsumerState<HomePage> {
         tooltip: l10n.commonBackToTop,
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints.tightFor(width: 48, height: 48),
-        icon: const GfLogo(size: 32),
+        icon: RefreshingLogo(controller: _pullRefresh),
       ),
+      headerStretch: _pullRefresh.stretch,
+      contentShift: _pullRefresh.contentShift,
       actions: [
         IconButton(
           tooltip: l10n.commonSearch,
@@ -1095,8 +1102,9 @@ class _HomePageState extends ConsumerState<HomePage> {
           onRetry: () => _load(target: feed),
         ),
       ),
-      data: (props) => AppRefreshIndicator(
-        edgeOffset: top,
+      data: (props) => LogoPullRefresh(
+        controller: _pullRefresh,
+        enabled: !swipePreview,
         onRefresh: () => _load(silent: true, target: feed),
         child: GfTopicList(
           loadMoreError: feed.loadMoreError,

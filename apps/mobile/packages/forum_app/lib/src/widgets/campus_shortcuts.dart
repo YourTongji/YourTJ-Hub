@@ -4,6 +4,17 @@ import 'package:ui_kit/ui_kit.dart';
 
 import '../../l10n/app_localizations.dart';
 
+/// Campus tools that open their own pages, shared by the landing shortcuts
+/// and the dock's long-press menu so each keeps one glyph everywhere.
+List<(String symbol, String label, String route)> campusTools(
+  AppLocalizations l10n,
+) => [
+  ('book-open', l10n.campusCourseReviews, '/courses'),
+  ('calendar-days', l10n.scheduleTitle, '/schedule'),
+  // Wiki pages are documents; the Wiki home marks them the same way.
+  ('file-text', l10n.wikiTitle, '/wiki'),
+];
+
 /// Real campus destinations at the top of the campus landing page.
 class CampusShortcuts extends StatelessWidget {
   const CampusShortcuts({super.key});
@@ -12,10 +23,10 @@ class CampusShortcuts extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final colors = GfTheme.colorsOf(context);
+    final tones = [colors.primary, colors.success, colors.warning];
     final entries = [
-      ('book-open', l10n.campusCourseReviews, '/courses', colors.primary),
-      ('calendar-days', l10n.scheduleTitle, '/schedule', colors.success),
-      ('book-open', l10n.wikiTitle, '/wiki', colors.warning),
+      for (final (index, (symbol, label, route)) in campusTools(l10n).indexed)
+        (symbol, label, route, tones[index]),
     ];
     return LayoutBuilder(
       builder: (context, constraints) {

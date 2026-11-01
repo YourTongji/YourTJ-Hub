@@ -10,7 +10,8 @@ import '../twemoji/twemoji_text.dart';
 import 'gf_motion.dart';
 import 'gf_symbol.dart';
 import 'surfaces/gf_navigation_surface.dart';
-import 'atoms/gf_badge.dart';
+import 'atoms/gf_badged_glyph.dart';
+import 'gf_dock_menu.dart';
 
 class GfBottomNavigationItem {
   const GfBottomNavigationItem({
@@ -20,6 +21,8 @@ class GfBottomNavigationItem {
     this.badge = false,
     this.badgeSemanticLabel,
     this.badgeCount,
+    this.menu,
+    this.menuHint,
   });
 
   final String label;
@@ -30,6 +33,13 @@ class GfBottomNavigationItem {
 
   /// Null keeps the dot, including when an older server has no exact count.
   final int? badgeCount;
+
+  /// Shortcuts a long press opens above the dock. Built on demand so they
+  /// reflect the destination's state at the moment of the press.
+  final List<GfDockMenuEntry> Function()? menu;
+
+  /// What a long press does, for screen readers.
+  final String? menuHint;
 
   String get semanticsLabel => badge && badgeSemanticLabel != null
       ? '$label, $badgeSemanticLabel${badgeCount != null && badgeCount! > 0 ? ': $badgeCount' : ''}'
@@ -448,6 +458,10 @@ class _DockState extends State<_Dock> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    final menu = _menu;
+    if (menu != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => menu.close());
+    }
     for (final _Spring spring in <_Spring>[_travel, _stretch, _lift, _press]) {
       spring.dispose();
     }
@@ -561,6 +575,34 @@ class _DockState extends State<_Dock> with TickerProviderStateMixin {
           .clamp(0, _last)
           .toInt(),
     );
+  }
+
+  GfDockMenuHandle? _menu;
+
+  void _openMenu(int index) {
+    if (_menu != null) return;
+    final List<GfDockMenuEntry>? entries = widget.items[index].menu?.call();
+    final RenderObject? box = context.findRenderObject();
+    if (entries == null || entries.isEmpty || box is! RenderBox) return;
+    _pressUp();
+    HapticFeedback.mediumImpact();
+    final Offset origin = box.localToGlobal(Offset.zero);
+    final Rect dock = origin & box.size;
+    final double center = origin.dx + _geometry.centerOf(index.toDouble());
+    final GfDockMenuHandle menu = _menu = showGfDockMenu(
+      context,
+      entries: entries,
+      label: widget.items[index].label,
+      source: Rect.fromCenter(
+        center: Offset(center, dock.center.dy),
+        width: _geometry.pitch,
+        height: dock.height,
+      ),
+      dock: RRect.fromRectAndRadius(dock, Radius.circular(dock.height / 2)),
+    );
+    menu.closed.whenComplete(() {
+      if (identical(_menu, menu)) _menu = null;
+    });
   }
 
   void _settle(int index) {
@@ -720,26 +762,32 @@ class _DockState extends State<_Dock> with TickerProviderStateMixin {
               selected: widget.currentIndex == i,
               label: widget.items[i].semanticsLabel,
               onTap: () => _select(i),
+              onLongPress: widget.items[i].menu == null
+                  ? null
+                  : () => _openMenu(i),
+              hint: widget.items[i].menuHint,
               child: ExcludeSemantics(
-                child: _LabelTooltip(
-                  label: widget.items[i].label,
-                  enabled: !widget.showLabels,
-                  child: Material(
-                    type: MaterialType.transparency,
-                    child: InkWell(
-                      key: ValueKey<String>('gf-bottom-navigation-target-$i'),
-                      onTap: () => _select(i),
-                      borderRadius: BorderRadius.circular(999),
-                      splashFactory: NoSplash.splashFactory,
-                      highlightColor: Colors.transparent,
-                      hoverColor: Colors.transparent,
-                      focusColor: colors.primary.withValues(alpha: 0.18),
-                      child: _UnreadDot(
-                        visible: widget.items[i].badge,
-                        count: widget.items[i].badgeCount,
-                        showLabel: widget.showLabels,
-                        ring: colors.surfaceRaised,
-                        color: colors.error,
+                child: GfDockMenuPress(
+                  enabled: widget.items[i].menu != null,
+                  onOpen: () => _openMenu(i),
+                  onMove: (Offset position) => _menu?.track(position),
+                  onRelease: (Offset position) => _menu?.release(position),
+                  onCancel: () => _menu?.cancel(),
+                  child: _LabelTooltip(
+                    label: widget.items[i].label,
+                    // A destination with a menu names itself in the menu.
+                    enabled: !widget.showLabels && widget.items[i].menu == null,
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: InkWell(
+                        key: ValueKey<String>('gf-bottom-navigation-target-$i'),
+                        onTap: () => _select(i),
+                        borderRadius: BorderRadius.circular(999),
+                        splashFactory: NoSplash.splashFactory,
+                        highlightColor: Colors.transparent,
+                        hoverColor: Colors.transparent,
+                        focusColor: colors.primary.withValues(alpha: 0.18),
+                        child: const SizedBox.expand(),
                       ),
                     ),
                   ),
@@ -790,10 +838,16 @@ class _DestinationContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final Color color = selected ? colors.primary : colors.textSecondary;
-    final Widget glyph = GfSymbol(
-      selected ? item.selectedSymbol : item.symbol,
+    // Both layers carry the mark, so it travels and magnifies with its glyph.
+    final Widget glyph = GfBadgedGlyph(
       size: GfIconSize.lg,
-      color: color,
+      visible: item.badge,
+      count: item.badgeCount,
+      glyph: GfSymbol(
+        selected ? item.selectedSymbol : item.symbol,
+        size: GfIconSize.lg,
+        color: color,
+      ),
     );
     if (!showLabel) return Center(child: glyph);
     return Padding(
@@ -818,60 +872,6 @@ class _DestinationContent extends StatelessWidget {
       ),
     );
   }
-}
-
-/// The unread mark rides above both layers so the lens never tints it, and
-/// pops in when a destination gains unread content.
-class _UnreadDot extends StatelessWidget {
-  const _UnreadDot({
-    required this.visible,
-    required this.showLabel,
-    required this.ring,
-    required this.color,
-    this.count,
-  });
-
-  final bool visible;
-  final bool showLabel;
-  final Color ring;
-  final Color color;
-  final int? count;
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (BuildContext context, BoxConstraints constraints) {
-      final double glyphCenter = showLabel
-          ? _dockInset + GfSpace.sm + GfIconSize.lg / 2
-          : constraints.maxHeight / 2;
-      return Stack(
-        children: <Widget>[
-          Positioned(
-            left: count != null && count! > 0
-                ? null
-                : constraints.maxWidth / 2 + 4,
-            right: count != null && count! > 0 ? 2 : null,
-            top: count != null && count! > 0 ? 0 : glyphCenter - 14,
-            child: AnimatedScale(
-              scale: visible ? 1 : 0,
-              duration: GfMotion.duration(context, GfMotion.layout),
-              curve: visible ? Curves.easeOutBack : GfMotion.exitCurve,
-              child: count != null && count! > 0
-                  ? GfCountBadge(count: count!, compact: true)
-                  : Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: ring, width: 2),
-                      ),
-                    ),
-            ),
-          ),
-        ],
-      );
-    },
-  );
 }
 
 /// The resting lens is a soft primary platter; lifted, it clears into glass

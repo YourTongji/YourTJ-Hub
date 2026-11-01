@@ -15,6 +15,7 @@ import '../../current_user.dart';
 import '../../layout_breakpoints.dart';
 import '../../providers.dart';
 import '../../navigation/tab_scroll_registry.dart';
+import '../../navigation/shell_sections.dart';
 import '../../navigation/reading_window.dart';
 import '../../widgets/app_refresh_indicator.dart';
 import '../../widgets/root_surface.dart';
@@ -33,6 +34,30 @@ import 'timetable/campus_timetable.dart' show campusTimetableHeaderHeight;
 import 'timetable/timetable_grid.dart';
 import 'timetable/timetable_layout.dart';
 import 'timetable/timetable_memo_store.dart' show TimetablePrefs;
+
+/// Campus tabs in display order with their glyphs, shared by the wide
+/// module directory and the dock's long-press menu. None repeats a campus
+/// tool's glyph or a shell destination's: the calendar glyph belongs to the
+/// course planner, and the bell to Notifications.
+const campusTabSymbols = <String, String>{
+  'today': 'sun',
+  // The weekly grid of class cells.
+  'timetable': 'layout-grid',
+  // Grades read as a trend; the section leads with one.
+  'academics': 'trend-up',
+  'messages': 'inbox',
+  // A calendar with one day ringed: the term's key dates, set apart from the
+  // planner's dotted calendar and the holiday rule's crossed-out one.
+  'calendars': 'calendar-mark',
+};
+
+Map<String, String> campusTabLabels(AppLocalizations l) => {
+  'today': l.campusToday,
+  'timetable': l.campusTimetable,
+  'academics': l.campusAcademics,
+  'messages': l.campusMessages,
+  'calendars': l.campusCalendars,
+};
 
 /// Only navigation choices survive the private response view. This object is
 /// never serialized and contains no school response, credential or notice body.
@@ -192,6 +217,12 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     _foreground = isCampusForeground(lifecycle);
     WidgetsBinding.instance.addObserver(this);
+    final requested = ref
+        .read(shellSectionsProvider)
+        .take(GfShellDestination.campus);
+    if (requested != null && campusTabSymbols.containsKey(requested)) {
+      _navigation.tab = requested;
+    }
     _searchFor(_tab);
     // A notice may have kept the controller alive while this page was hidden.
     // Verify its binding and refresh private data when the page returns.
@@ -794,6 +825,13 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
     ref.listen(scheduleWidgetEntryProvider, (_, _) {
       if (_visible == true) _enter();
     });
+    ref.listen(shellSectionsProvider, (_, sections) {
+      final requested = sections.take(GfShellDestination.campus);
+      if (requested != null && campusTabSymbols.containsKey(requested)) {
+        _select(requested);
+      }
+    });
+    ref.read(shellSectionsProvider).report(GfShellDestination.campus, _tab);
     final privateVisible = _visible ?? false;
     final state = privateVisible
         ? ref.watch(campusControllerProvider)
@@ -825,13 +863,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
       _navigation.bindingObserved = true;
       _navigation.identityRejected = identityRejected;
     }
-    final labels = {
-      'today': l.campusToday,
-      'timetable': l.campusTimetable,
-      'academics': l.campusAcademics,
-      'messages': l.campusMessages,
-      'calendars': l.campusCalendars,
-    };
+    final labels = campusTabLabels(l);
     final tabKeys = labels.keys.toList(growable: false);
     final layoutScale = (MediaQuery.textScalerOf(context).scale(16) / 16).clamp(
       1.0,
@@ -1185,14 +1217,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
                           clipBehavior: Clip.antiAlias,
                           child: GfSettingRow(
                             key: Key('campus-module-${entry.key}'),
-                            symbol: switch (entry.key) {
-                              'today' => 'sun',
-                              'timetable' => 'calendar-days',
-                              'academics' => 'book-open',
-                              'messages' => 'bell',
-                              'calendars' => 'calendar-days',
-                              _ => 'link',
-                            },
+                            symbol: campusTabSymbols[entry.key] ?? 'link',
                             title: entry.value,
                             trailing: const SizedBox.shrink(),
                             onTap: () => _select(entry.key),

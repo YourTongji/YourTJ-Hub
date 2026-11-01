@@ -1,5 +1,6 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -206,7 +207,12 @@ void main() {
           state.scroll.offset,
           closeTo(state.scroll.position.maxScrollExtent, .5),
         );
-        final glass = tester.getRect(find.byType(GfNavigationSurface));
+        final glass = tester.getRect(
+          find.descendant(
+            of: find.byType(ReadingNavigationRail),
+            matching: find.byType(GfNavigationSurface),
+          ),
+        );
         expect(
           tester.getRect(find.byKey(const ValueKey('demo-row-29'))).bottom,
           lessThan(glass.top),
@@ -222,6 +228,35 @@ void main() {
           '${nativeWindow ? 'duo-native' : 'adaptive-navigation'}-$i',
         );
       }
+      // Exercise the production shell's menu on both a bottom dock and the
+      // native side pocket. The guest gets only public campus tools.
+      final campus = find.byKey(
+        ValueKey(wide ? 'rail-destination-1' : 'gf-bottom-navigation-target-1'),
+      );
+      await tester.longPress(campus);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('gf-dock-menu-row-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('gf-dock-menu-row-3')), findsNothing);
+      final menu = tester.getRect(
+        find.byKey(const ValueKey('gf-dock-menu-panel')),
+      );
+      expect(menu.left, greaterThanOrEqualTo(window.padding.left + 16));
+      expect(
+        menu.right,
+        lessThanOrEqualTo(window.size.width - window.padding.right - 16),
+      );
+      if (wide) {
+        final source = tester.getRect(campus);
+        expect(menu.overlaps(source), isFalse);
+      }
+      if (const bool.fromEnvironment('YOURTJ_TEST_SCREENSHOTS')) {
+        await binding.takeScreenshot(
+          '${nativeWindow ? 'duo-native' : 'adaptive-navigation'}-$i-menu',
+        );
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('gf-dock-menu-panel')), findsNothing);
       if (wide) {
         await tester.tap(find.byTooltip('校园').first);
         await tester.pumpAndSettle();
