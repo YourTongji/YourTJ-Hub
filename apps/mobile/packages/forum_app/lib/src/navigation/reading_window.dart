@@ -363,8 +363,12 @@ class ReadingWindow extends StatelessWidget {
         final media = MediaQuery.of(context);
         final available = constraints.maxWidth - media.padding.horizontal;
         final wide = available >= 600;
+        final keyboardOpen = media.viewInsets.bottom > 0;
+        // The keyboard hides side-pocket navigation, just like the bottom
+        // dock. It must not turn that workspace into an ordinary left rail
+        // and take width away from the retained page or chat directory.
         final edgeFrame = reservedRegions?.navigationFrame(
-          media,
+          media.copyWith(viewInsets: EdgeInsets.zero),
           constraints.biggest,
           // The root router fills the window, or its bottom-aligned remainder
           // below PreviewStatusHost. Translate native frames past that notice.
@@ -379,7 +383,7 @@ class ReadingWindow extends StatelessWidget {
         return ReadingWindowScope(
           hasRail: hasRail,
           edgeNavigation: edgeFrame != null,
-          edgeContentBottomInset: edgeFrame == null
+          edgeContentBottomInset: edgeFrame == null || keyboardOpen
               ? 0
               : constraints.maxHeight -
                     edgeFrame.bottom +
@@ -445,7 +449,7 @@ class ReadingWindow extends StatelessWidget {
                   ),
                 ),
               ),
-              if (hasRail)
+              if (hasRail && !(edgeFrame != null && keyboardOpen))
                 Positioned.fromRect(
                   rect:
                       edgeFrame ??
