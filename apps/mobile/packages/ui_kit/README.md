@@ -32,6 +32,14 @@ YourTJ 移动端设计系统(Flutter):设计 token、`ThemeData` 与 Gf* 组件�
 `Current`: `GfNavigationSurface` 为底部 Dock 和宽屏侧栏提供共用的半透明材质、模糊、
 高光与仅在轮廓外绘制的阴影；调用方提供有界尺寸和圆角。高对比度、减少动态效果和
 无障碍导航模式统一回退到不透明表面；组件不持有导航状态或手势。
+`GfNavigationBarSurface` 是贴边整宽底栏的磨砂材质（较薄着色、顶部细线与内侧高光），
+`GfNavigationMorphSurface` 在两种导航样式切换时把两种材质与形状混合在同一层模糊上。
+
+`Current`: `GfNavigationStyle`（`dock`／`bar`）经 `GfNavigationStyleScope` 下发，
+`GfBottomNavigation`、`heightFor` 与 `metricsOf` 读取同一作用域，页面内容避让与导航始终一致；
+也可用 `style` 参数单独指定（如设置预览）。样式变化时 Dock 胶囊与整宽底栏互相形变，
+目的地淡出淡入，各自状态保留；减少动态效果时立即切换。底栏的长按菜单从底栏上沿
+在该目的地上方展开，整条底栏不被遮罩，按住的目的地保持中性底板高亮。
 
 `Current`: `GfBottomNavigationItem.badgeCount` 可选；提供正数时显示封顶 `99+` 的计数，
 缺省沿用圆点。`GfCountBadge.showCount` 与 `GfConversationRow.showUnreadCount` 控制数字／圆点，

@@ -1419,6 +1419,19 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsFollowSiteThemeDesc => 'Farben der Website verwenden';
 
   @override
+  String get settingsNavigationStyle => 'Navigation';
+
+  @override
+  String get settingsNavigationDock => 'Schwebendes Dock';
+
+  @override
+  String get settingsNavigationBar => 'Klassische Leiste';
+
+  @override
+  String get settingsNavigationStyleDesc =>
+      'Breite Fenster behalten die Seitenleiste.';
+
+  @override
   String get richContentCopyCode => 'Code kopieren';
 
   @override

@@ -1383,6 +1383,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsFollowSiteThemeDesc => '使用服务器下发的站点配色';
 
   @override
+  String get settingsNavigationStyle => '底部导航';
+
+  @override
+  String get settingsNavigationDock => '悬浮 Dock';
+
+  @override
+  String get settingsNavigationBar => '经典底栏';
+
+  @override
+  String get settingsNavigationStyleDesc => '宽屏窗口始终使用侧边导航。';
+
+  @override
   String get richContentCopyCode => '复制代码';
 
   @override
