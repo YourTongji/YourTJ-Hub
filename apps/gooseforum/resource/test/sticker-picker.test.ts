@@ -52,7 +52,8 @@ async function importStickerPicker() {
 function mountPicker(StickerPicker: typeof import('../src/site/components/StickerPicker.vue').default, props: Record<string, unknown> = {}) {
   return mount(StickerPicker, {
     props: { open: true, ...props },
-    global: { plugins: [i18n] },
+    // 预览气泡挂在 body 上；桩掉 Teleport 让它留在组件树里便于断言。
+    global: { plugins: [i18n], stubs: { teleport: true } },
   })
 }
 
@@ -206,6 +207,27 @@ describe('StickerPicker 表情包选择面板（MADR 0030）', () => {
     await flushPromises()
     expect(wrapper.find(`button[aria-label="${i18n.global.t('stickers.removePackLabel', { name: 'Pack One' })}"]`).exists()).toBe(true)
     expect(wrapper.find('button[aria-label="Pack One"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  // 与 App 市场详情一致：市场里浏览的表情包只能放大预览，添加后到它的页签插入。
+  test('市场浏览中的表情包点击只放大预览，不插入编辑器', async () => {
+    getForumStickers.mockResolvedValue(stickers)
+    getStickerMarket.mockResolvedValue({ topics: [], packs: [marketPack], total: 1, page: 1, pageSize: 24 })
+    getStickerMarketPack.mockResolvedValue({ pack: marketPack, stickers: marketStickers })
+    const StickerPicker = await importStickerPicker()
+    const wrapper = mountPicker(StickerPicker)
+    await flushPromises()
+
+    await wrapper.get(`button[aria-label="${i18n.global.t('stickers.openMarket')}"]`).trigger('click')
+    await flushPromises()
+    await wrapper.get('.gf-sticker-pack-open').trigger('click')
+    await flushPromises()
+    const cells = wrapper.findAll('.gf-sticker-cell')
+    expect(cells[0].attributes('aria-label')).toBe(i18n.global.t('stickers.viewLargerLabel', { name: 'Pack One 1' }))
+    await cells[0].trigger('click')
+    expect(wrapper.emitted('select')).toBeUndefined()
+    expect(wrapper.get('.gf-sticker-preview-label').text()).toBe('Pack One 1')
     wrapper.unmount()
   })
 

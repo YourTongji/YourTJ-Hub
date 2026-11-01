@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -35,6 +36,8 @@ class RootSurface extends ConsumerWidget {
     this.swipePageBuilder,
     this.swipePageKey,
     this.statusBarScrollToTopController,
+    this.headerStretch,
+    this.contentShift,
   });
   final String title;
   final Widget? titleWidget;
@@ -54,6 +57,13 @@ class RootSurface extends ConsumerWidget {
   swipePageBuilder;
   final Object Function(int index)? swipePageKey;
   final GfScrollToTopController? statusBarScrollToTopController;
+
+  /// Extra height the title row takes while a pull stretches it. The side
+  /// controls stay at the top and the title rides the middle of the row.
+  final ValueListenable<double>? headerStretch;
+
+  /// How far the content moves down to stay under a stretched header.
+  final ValueListenable<double>? contentShift;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -107,32 +117,35 @@ class RootSurface extends ConsumerWidget {
           child: Stack(
             children: [
               Positioned.fill(
-                child:
-                    swipeTabIndex != null &&
-                        swipeTabCount > 1 &&
-                        swipePageBuilder != null
-                    ? Consumer(
-                        builder: (context, ref, _) => TabPageTransition(
-                          index: swipeTabIndex!,
-                          length: swipeTabCount,
-                          chromeHidden: watchHidden(ref),
-                          pageKey: swipePageKey,
-                          pageBuilder: (index, chromeHidden) =>
-                              ChromeAlignedPage(
-                                topInset: top,
-                                chromeHidden: chromeHidden,
-                                current: index == swipeTabIndex,
-                                child: index == swipeTabIndex
-                                    ? body(top, contentBottom)
-                                    : swipePageBuilder!(
-                                        index,
-                                        top,
-                                        contentBottom,
-                                      ),
-                              ),
-                        ),
-                      )
-                    : body(top, contentBottom),
+                child: _Shifted(
+                  shift: contentShift,
+                  child:
+                      swipeTabIndex != null &&
+                          swipeTabCount > 1 &&
+                          swipePageBuilder != null
+                      ? Consumer(
+                          builder: (context, ref, _) => TabPageTransition(
+                            index: swipeTabIndex!,
+                            length: swipeTabCount,
+                            chromeHidden: watchHidden(ref),
+                            pageKey: swipePageKey,
+                            pageBuilder: (index, chromeHidden) =>
+                                ChromeAlignedPage(
+                                  topInset: top,
+                                  chromeHidden: chromeHidden,
+                                  current: index == swipeTabIndex,
+                                  child: index == swipeTabIndex
+                                      ? body(top, contentBottom)
+                                      : swipePageBuilder!(
+                                          index,
+                                          top,
+                                          contentBottom,
+                                        ),
+                                ),
+                          ),
+                        )
+                      : body(top, contentBottom),
+                ),
               ),
               Positioned(
                 top: 0,
@@ -159,19 +172,22 @@ class RootSurface extends ConsumerWidget {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            SizedBox(
-                              height: 56,
+                            _StretchingTitleRow(
+                              stretch: headerStretch,
                               child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const SizedBox(width: 8),
-                                  IconButton(
-                                    tooltip: AppLocalizations.of(
-                                      context,
-                                    ).navProfile,
-                                    onPressed: () => accountDrawerLayerKey
-                                        .currentState
-                                        ?.open(),
-                                    icon: const AccountAvatar(),
+                                  _TopSlot(
+                                    child: IconButton(
+                                      tooltip: AppLocalizations.of(
+                                        context,
+                                      ).navProfile,
+                                      onPressed: () => accountDrawerLayerKey
+                                          .currentState
+                                          ?.open(),
+                                      icon: const AccountAvatar(),
+                                    ),
                                   ),
                                   Expanded(
                                     child: Center(
@@ -193,7 +209,8 @@ class RootSurface extends ConsumerWidget {
                                   if (actions.isEmpty)
                                     const SizedBox(width: 48)
                                   else
-                                    ...actions,
+                                    for (final action in actions)
+                                      _TopSlot(child: action),
                                   const SizedBox(width: 8),
                                 ],
                               ),
@@ -270,5 +287,58 @@ class RootSurface extends ConsumerWidget {
             child: surface,
           )
         : surface;
+  }
+}
+
+/// The 56-pixel title row, taller by [stretch] while a pull stretches it.
+class _StretchingTitleRow extends StatelessWidget {
+  const _StretchingTitleRow({required this.stretch, required this.child});
+
+  final ValueListenable<double>? stretch;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final listenable = stretch;
+    if (listenable == null) return SizedBox(height: 56, child: child);
+    return ValueListenableBuilder<double>(
+      valueListenable: listenable,
+      child: child,
+      builder: (context, extra, child) =>
+          SizedBox(height: 56 + math.max(0, extra), child: child),
+    );
+  }
+}
+
+/// Keeps a side control in the top 56 pixels of a stretched title row.
+class _TopSlot extends StatelessWidget {
+  const _TopSlot({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) =>
+      SizedBox(height: 56, child: Center(child: child));
+}
+
+/// Moves page content down by [shift] without relayout.
+class _Shifted extends StatelessWidget {
+  const _Shifted({required this.shift, required this.child});
+
+  final ValueListenable<double>? shift;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final listenable = shift;
+    if (listenable == null) return child;
+    return ValueListenableBuilder<double>(
+      valueListenable: listenable,
+      child: child,
+      builder: (context, offset, child) => Transform.translate(
+        offset: Offset(0, math.max(0, offset)),
+        child: child,
+      ),
+    );
   }
 }

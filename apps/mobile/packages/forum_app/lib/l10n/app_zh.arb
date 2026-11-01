@@ -766,6 +766,7 @@
   "entrySchedule": "课表",
   "entryWiki": "Wiki",
   "navCampus": "校园",
+  "navShortcutsHint": "长按打开快捷入口",
   "campusTitle": "我的校园",
   "campusSubtitle": "选好课，排好每一天，分享你的校园经验。",
   "campusCoursesHint": "查课程、看评价，选课更有底气",

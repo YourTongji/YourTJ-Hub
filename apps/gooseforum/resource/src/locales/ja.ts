@@ -1322,6 +1322,7 @@ export default {
     removePack: "削除",
     addPackLabel: "スタンプパック {name} を追加",
     removePackLabel: "スタンプパック {name} を削除",
+    viewLargerLabel: "{name} を拡大表示",
     packActionFailed: "スタンプパックを更新できませんでした。再試行してください",
     tabMine: "マイ",
     officialPacks: "公式パック",

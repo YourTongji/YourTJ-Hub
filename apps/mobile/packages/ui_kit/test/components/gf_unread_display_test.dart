@@ -59,12 +59,29 @@ void main() {
             );
             await tester.pumpWidget(surface(149));
             await tester.pumpAndSettle();
-            expect(find.text('99+'), findsOneWidget);
+            // Both lens layers carry the mark so it travels with its glyph.
+            expect(find.text('99+'), findsNWidgets(2));
             expect(
               find.bySemanticsLabel('Notices, Unread: 149'),
               findsOneWidget,
             );
-            final badge = tester.getRect(find.text('99+'));
+            final badge = tester.getRect(find.text('99+').first);
+            final glyph = tester.getRect(
+              find
+                  .descendant(
+                    of: find.byKey(
+                      const ValueKey<String>(
+                        'gf-bottom-navigation-resting-layer',
+                      ),
+                    ),
+                    matching: find.byType(GfSymbol),
+                  )
+                  .at(2),
+            );
+            // Tucked into the glyph's top-trailing corner, not the slot's.
+            expect(badge.left, lessThan(glyph.right));
+            expect(badge.left, greaterThan(glyph.center.dx));
+            expect(badge.center.dy, lessThan(glyph.center.dy));
             final dock = tester.getRect(find.byType(GfBottomNavigation));
             expect(badge.left, greaterThanOrEqualTo(dock.left));
             expect(badge.right, lessThanOrEqualTo(dock.right));
@@ -82,6 +99,40 @@ void main() {
       );
     }
   }
+  testWidgets('crossing the cap widens the count as its digits roll', (
+    tester,
+  ) async {
+    Widget glyph(int count) => gfApp(
+      GfBadgedGlyph(
+        glyph: const GfSymbol('bell'),
+        size: 24,
+        visible: true,
+        count: count,
+      ),
+    );
+    final pill = find.byWidgetPredicate(
+      (widget) =>
+          widget is DecoratedBox && widget.decoration is ShapeDecoration,
+    );
+    await tester.pumpWidget(glyph(99));
+    await tester.pumpAndSettle();
+    expect(find.text('99'), findsOneWidget);
+    final double narrow = tester.getSize(pill).width;
+
+    await tester.pumpWidget(glyph(100));
+    await tester.pump(const Duration(milliseconds: 60));
+    // Both labels are on the pill while one rolls out and the other in.
+    expect(find.text('99'), findsOneWidget);
+    expect(find.text('99+'), findsOneWidget);
+    final double mid = tester.getSize(pill).width;
+    expect(mid, greaterThan(narrow));
+
+    await tester.pumpAndSettle();
+    expect(find.text('99'), findsNothing);
+    expect(find.text('99+'), findsOneWidget);
+    expect(tester.getSize(pill).width, greaterThan(mid));
+  });
+
   testWidgets(
     'conversation dot keeps unread semantics without a hidden number',
     (tester) async {

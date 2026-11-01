@@ -264,7 +264,37 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   margins and at most 330 pixels wide, so labels never add height or grow with text size. On iOS it
   floats over the home indicator; on Android it sits above the system navigation. Content scrolls
   under it and stays tappable beside it. Each destination keeps its localized name for screen
-  readers and shows it as a long-press tooltip; unread dots ride above the selection and pop in.
+  readers and shows it as a long-press tooltip. Unread marks are tucked into the top-trailing corner
+  of the destination icon, as system tab bars place them: a dot, or a count capsule with tabular
+  digits capped at `99+`. Instead of a coloured ring, each mark knocks a thin gap out of the icon
+  behind it so it reads on glass and on the lens alike; it travels and magnifies with its icon,
+  scales in when unread content arrives, nudges once when the count grows, rolls its digits up or
+  down as the count changes, and eases its width between digit counts. The wide rail uses the same
+  mark. Reduced motion shows changes at once.
+  Holding Campus or Notifications for about a third of a second opens a shortcut menu that blooms
+  out of the destination above the dock, or toward the content beside a vertical rail, with a
+  medium haptic, while the page behind dims and frosts and navigation itself stays clear.
+  Ordinary rails and icon-only side-pocket rails offer the same shortcuts, hints and held-slide
+  selection as the bottom dock. Side menus stay within the root window's content safe area and
+  above the keyboard, independently of the rail's removed safe-area padding.
+  Campus lists its five tabs for a signed-in reader, then
+  the course reviews, scheduler and Wiki pages, set apart and marked with a chevron because they open
+  a page; Notifications lists its six categories, also only when signed in. Every shortcut wears the
+  glyph of the entry it opens — the campus tabs match the wide campus directory, the campus tools
+  their landing cards, and Replies uses the reply arrow — and no glyph repeats another shortcut's or
+  a dock destination's. While a destination is on screen, the section it shows is marked with a check;
+  opened from any other page, its menu marks nothing.
+  The same press can slide onto a shortcut — one highlight follows the finger from
+  row to row with a selection haptic, never dropping out between rows; it fades where it is when
+  the finger leaves and returns under the finger — and releasing over it opens that section; releasing
+  elsewhere leaves the menu open for a tap, and tapping outside, Escape or system back dismisses
+  it. When the shortcuts do not fit above the dock, as with large text or a short window, the menu
+  stops above the dock and scrolls: the opening press scrolls it by holding near its top or bottom
+  edge, and a drag that scrolls never picks a row. A sideways move before the menu opens still scrubs the dock, and screen readers open the
+  menu through the destination's long-press action.
+  Folding, rotation, safe-area or keyboard changes cancel an open menu and its held selection;
+  reopening uses the destination's new position. Removing its navigation surface also dismisses
+  the menu. This follows window geometry, with no device-model or fixed-orientation checks.
   Tab and Shift+Tab traverse the destinations and optional compose action, with a visible focus tint;
   Enter and Space activate the focused control without changing the touch or drag behavior.
   The selection is a lens that springs between destinations and stretches while it travels; the
@@ -394,7 +424,14 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   reselecting the active root destination provide refresh and return-to-top without changing icons.
   Refreshable pages accept a short pull from the top on release, including empty lists; the gesture
   uses finger travel so tall screens and iOS rubber-band damping do not demand a longer pull.
-  Home, Campus and Notifications show the refresh indicator below their overlaid navigation.
+  Campus and Notifications show the refresh indicator below their overlaid navigation. Home
+  refreshes from its header instead: pulling stretches the title row (side controls stay put, the
+  logo rides its middle and grows slightly) with the feed following beneath it, and a sheen the
+  finger draws onto the logo reaches its centre as the pull arms, with a medium haptic. Released
+  there, the header holds a little taller while the sheen keeps sweeping, for at least one pass,
+  then folds back once the feed has refreshed; a shorter pull springs back the way it came. The
+  platform's top overscroll effect is replaced by the stretch, and reduced motion keeps the sheen
+  still.
   Small or retracted pulls do not refresh, and an ongoing refresh cannot be started twice.
 - `Current`: the floor slider loads the selected server window on release. Earliest/latest
   shortcuts, reply links, and earlier/later pagination navigate the actual reply stream. Returning

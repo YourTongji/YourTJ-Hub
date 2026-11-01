@@ -1451,6 +1451,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get navCampus => '校园';
 
   @override
+  String get navShortcutsHint => '长按打开快捷入口';
+
+  @override
   String get campusTitle => '我的校园';
 
   @override

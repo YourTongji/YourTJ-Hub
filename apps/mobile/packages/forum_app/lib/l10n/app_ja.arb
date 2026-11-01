@@ -476,6 +476,7 @@
   "entrySchedule": "時間割",
   "entryWiki": "Wiki",
   "navCampus": "キャンパス",
+  "navShortcutsHint": "長押しでショートカットを表示",
   "campusTitle": "マイキャンパス",
   "campusSubtitle": "授業を探し、時間割を組み、キャンパスの知識を共有しましょう。",
   "campusCoursesHint": "授業と学生の評価を見る",

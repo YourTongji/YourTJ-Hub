@@ -102,6 +102,45 @@ test('official pack chips scroll with the wheel too', async () => {
   } finally { await page.close() }
 })
 
+test('the panel keeps its full height whatever the tab holds', async () => {
+  const { page, errors } = await openPicker()
+  try {
+    const panelHeight = () => page.locator('.gf-sticker-picker').evaluate((element) => element.getBoundingClientRect().height)
+    // min(288px, 44vh) at a 640px-high viewport.
+    const expected = Math.min(288, 640 * 0.44)
+    assert.ok(Math.abs(await panelHeight() - expected) < 0.5)
+
+    // The empty market tab keeps the same frame and leaves the rest blank.
+    await page.locator('.gf-sticker-tabs .gf-sticker-tab').last().evaluate((element) => element.click())
+    await page.locator('.gf-sticker-body > p').first().waitFor()
+    assert.ok(Math.abs(await panelHeight() - expected) < 0.5)
+    const body = await page.locator('.gf-sticker-body').evaluate((element) => ({ content: element.querySelector(':scope > p').getBoundingClientRect().height, box: element.clientHeight }))
+    assert.ok(body.content < body.box / 2)
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
+test('the hover preview floats outside the panel instead of covering the grid', async () => {
+  const { page, errors } = await openPicker()
+  try {
+    const cell = page.locator('.gf-sticker-cell').first()
+    await cell.hover()
+    const preview = page.locator('body > .gf-sticker-preview')
+    await preview.waitFor()
+    await page.waitForTimeout(200)
+    const [panelBox, previewBox, cellBox] = await Promise.all([page.locator('.gf-sticker-picker').boundingBox(), preview.boundingBox(), cell.boundingBox()])
+    const overlaps = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
+    assert.equal(overlaps(previewBox, panelBox), false)
+    assert.ok(previewBox.x >= panelBox.x + panelBox.width, 'the trailing side has room at this width')
+    // Level with the pointed cell, inside the viewport.
+    assert.ok(Math.abs(previewBox.y + previewBox.height / 2 - (cellBox.y + cellBox.height / 2)) < 2)
+    assert.ok(previewBox.y >= 0 && previewBox.y + previewBox.height <= 640)
+    // No native tooltip stacks over it.
+    assert.equal(await cell.getAttribute('title'), null)
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
 test('a failed second market page retries from the picker without losing page one', async () => {
   const { page, errors } = await openPicker()
   const requested = []

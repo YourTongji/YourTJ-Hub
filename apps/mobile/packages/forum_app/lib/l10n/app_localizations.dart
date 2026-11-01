@@ -2772,6 +2772,12 @@ abstract class AppLocalizations {
   /// **'Campus'**
   String get navCampus;
 
+  /// No description provided for @navShortcutsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Long press for shortcuts'**
+  String get navShortcutsHint;
+
   /// No description provided for @campusTitle.
   ///
   /// In en, this message translates to:
