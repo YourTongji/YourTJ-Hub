@@ -295,6 +295,9 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   Folding, rotation, safe-area or keyboard changes cancel an open menu and its held selection;
   reopening uses the destination's new position. Removing its navigation surface also dismisses
   the menu. This follows window geometry, with no device-model or fixed-orientation checks.
+  In a native side-pocket layout the software keyboard hides the Dock without changing the
+  content width or chat's directory/detail breakpoint. It returns to the current clear pocket
+  when the keyboard closes, without resetting the draft, selected conversation or reading state.
   Tab and Shift+Tab traverse the destinations and optional compose action, with a visible focus tint;
   Enter and Space activate the focused control without changing the touch or drag behavior.
   The selection is a lens that springs between destinations and stretches while it travels; the

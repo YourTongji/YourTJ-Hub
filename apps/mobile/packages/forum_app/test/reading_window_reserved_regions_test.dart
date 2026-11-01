@@ -155,6 +155,100 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  for (final width in [466.0, 951.0]) {
+    for (final onLeft in [false, true]) {
+      testWidgets('keyboard keeps the side-pocket workspace at $width/$onLeft', (
+        tester,
+      ) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = Size(width, 678);
+        final safe = FakeViewPadding(
+          left: onLeft ? 84 : 0,
+          right: onLeft ? 0 : 84,
+          bottom: 34,
+        );
+        tester.view.padding = safe;
+        tester.view.viewPadding = safe;
+        addTearDown(tester.view.reset);
+        final reserved = WindowReservedRegions(
+          size: Size(width, 678),
+          safeArea: EdgeInsets.only(
+            left: onLeft ? 84 : 0,
+            right: onLeft ? 0 : 84,
+            bottom: 34,
+          ),
+          occlusions: [Rect.fromLTWH(onLeft ? 0 : width - 84, 0, 84, 190)],
+        );
+        final draft = TextEditingController(text: '未发送的草稿');
+        addTearDown(draft.dispose);
+        late bool edge;
+        late double clearance;
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            home: Column(
+              children: [
+                const SizedBox(height: 40), // Preview notice above the shell.
+                Expanded(
+                  child: ReadingWindow(
+                    reservedRegions: reserved,
+                    navigationRailWidth: 88,
+                    maxContentWidth: 1120,
+                    rail: const SizedBox.expand(key: Key('rail')),
+                    bottomNavigation: const SizedBox(
+                      height: 56,
+                      key: Key('bottom'),
+                    ),
+                    child: Builder(
+                      builder: (context) {
+                        edge = ReadingWindowScope.edgeNavigationOf(context);
+                        clearance = ReadingWindowScope.edgeContentBottomInsetOf(
+                          context,
+                        );
+                        return SizedBox.expand(
+                          key: const Key('workspace'),
+                          child: Material(child: TextField(controller: draft)),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final workspace = find.byKey(const Key('workspace'));
+        final element = tester.element(workspace);
+        final before = tester.getRect(workspace);
+        final rail = tester.getRect(find.byKey(const Key('rail')));
+        expect(edge, isTrue);
+        // Cover both a keyboard that leaves room and one that consumes the pocket.
+        for (final keyboard in [160.0, 400.0]) {
+          tester.view.viewInsets = FakeViewPadding(bottom: keyboard);
+          tester.view.padding = FakeViewPadding(
+            left: onLeft ? 84 : 0,
+            right: onLeft ? 0 : 84,
+          );
+          await tester.pumpAndSettle();
+          expect(find.byKey(const Key('rail')), findsNothing);
+          expect(find.byKey(const Key('bottom')), findsNothing);
+          expect(edge, isTrue);
+          expect(clearance, 0);
+          expect(tester.getRect(workspace), before);
+          expect(tester.element(workspace), same(element));
+          expect(draft.text, '未发送的草稿');
+        }
+        tester.view.viewInsets = const FakeViewPadding();
+        tester.view.padding = safe;
+        await tester.pumpAndSettle();
+        expect(tester.getRect(find.byKey(const Key('rail'))), rail);
+        expect(tester.getRect(workspace), before);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
   for (final brightness in Brightness.values) {
     testWidgets('side icons retain accessible actions ($brightness)', (
       tester,

@@ -107,6 +107,9 @@ headers and fixed actions remain inside their safe areas, and trailing scroll sp
 last content reachable above navigation. The right pocket is
 preferred; rotation can move it to the left. Unavailable or insufficient native geometry retains
 the ordinary safe-area navigation layout.
+When the software keyboard opens in a side-pocket workspace, the capsule hides while content
+keeps its width and navigation mode; it does not fall back to a left rail. Closing the keyboard
+restores navigation in the current clear pocket. The hidden capsule reserves no trailing space.
 `Current`: Home presents category navigation in a horizontal row above its topic feed, settings presents its directory
 beside the current section, and publishing presents editor and preview together when space permits.
 Home keeps a single centered reading column at wide widths; search and Hot remain in its header and
