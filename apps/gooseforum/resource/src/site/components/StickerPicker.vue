@@ -10,6 +10,7 @@ import { useStickerMarket } from '@/site/composables/useStickerMarket'
 import { rememberStickerUrls } from '@/site/composables/useResolvedStickers'
 import ScrollStrip from '@/site/components/ScrollStrip.vue'
 import { isPersonalStickerName } from '@/site/utils/sticker-token'
+import { placeStickerPreview } from '@/site/utils/sticker-preview-placement'
 
 /**
  * 表情包选择面板（MADR 0030；市场见 issue #1429）：官方贴纸、已添加的市场
@@ -19,11 +20,15 @@ import { isPersonalStickerName } from '@/site/utils/sticker-token'
  * 点击交给宿主 toggle 处理（否则关了又立刻被 click 重开）。
  *
  * 预览：鼠标悬停片刻、键盘聚焦或触屏长按时显示放大气泡。长按后滑动手指
- * 切换预览目标，松手或取消只关闭气泡，不插入贴纸；单击照常插入。
+ * 切换预览目标，松手或取消只关闭气泡，不插入贴纸；单击照常插入。市场里浏览的
+ * 表情包与 App 市场详情一致只能放大预览：添加后到它自己的页签里插入。气泡挂在
+ * body 上、落在面板外侧（见 sticker-preview-placement），不盖网格也不被容器裁切。
+ *
+ * 面板定高；placement 只是偏好方向，那一侧放不进视口而另一侧放得下时翻转。
  */
 const props = defineProps<{
   open: boolean
-  /** 面板相对锚点的展开方向：below=锚点下方（顶部工具栏），above=锚点上方（底部工具栏） */
+  /** 面板相对锚点的偏好展开方向：below=锚点下方（顶部工具栏），above=锚点上方（底部工具栏） */
   placement?: 'below' | 'above'
 }>()
 
@@ -42,6 +47,7 @@ type PickerView =
 const HOVER_DELAY_MS = 300
 const LONG_PRESS_MS = 350
 const MOVE_TOLERANCE_PX = 8
+const VIEWPORT_MARGIN_PX = 8
 
 const { t } = useI18n()
 const { stickers, officialPacks, ensureStickers, loading, failed } = useStickerLibrary()
@@ -58,6 +64,9 @@ const packLoading = ref(false)
 const packFailed = ref(false)
 const pendingPackId = ref<number | null>(null)
 const preview = ref<StickerItem | null>(null)
+const previewRef = ref<HTMLElement | null>(null)
+const resolvedPlacement = ref<'below' | 'above'>(props.placement ?? 'below')
+let previewCell: HTMLElement | null = null
 let outsidePointerDown: ((event: PointerEvent) => void) | null = null
 let hoverTimer: ReturnType<typeof setTimeout> | undefined
 let pressTimer: ReturnType<typeof setTimeout> | undefined
@@ -110,6 +119,10 @@ watch(() => props.open, (open) => {
   void market.ensureMyPacks()
   void nextTick(() => {
     if (!props.open || outsidePointerDown) return
+    fitPanel()
+    void nextTick(revealPanel)
+    window.addEventListener('resize', onViewportChange)
+    window.addEventListener('scroll', positionPreview, { capture: true, passive: true })
     outsidePointerDown = (event) => {
       const target = event.target
       if (!(target instanceof Node)) return
@@ -131,7 +144,44 @@ watch(myPacks, (packs) => {
 function detachOutsideClose() {
   if (outsidePointerDown) document.removeEventListener('pointerdown', outsidePointerDown, true)
   outsidePointerDown = null
+  window.removeEventListener('resize', onViewportChange)
+  window.removeEventListener('scroll', positionPreview, { capture: true })
 }
+
+// 定高面板在锚点上下两侧择一：偏好方向放得进视口就用它，否则换到放得下的一侧；
+// 两侧都放不下时取露出更多的一侧。
+function fitPanel() {
+  const panel = panelRef.value
+  const anchor = panel?.offsetParent
+  if (!panel || !(anchor instanceof HTMLElement)) return
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+  const box = anchor.getBoundingClientRect()
+  const height = panel.offsetHeight
+  const viewport = document.documentElement.clientHeight
+  // 与模板的 top-12 / bottom-14 对应
+  const tops = { below: box.top + 3 * rem, above: box.bottom - 3.5 * rem - height }
+  const shown = (top: number) => Math.min(top + height, viewport - VIEWPORT_MARGIN_PX) - Math.max(top, VIEWPORT_MARGIN_PX)
+  const preferred = props.placement ?? 'below'
+  const other = preferred === 'below' ? 'above' : 'below'
+  resolvedPlacement.value = shown(tops[preferred]) >= height || shown(tops[preferred]) >= shown(tops[other]) ? preferred : other
+}
+
+// 文档流里的宿主（发布页）锚点很高、翻转无益：打开时把面板就近滚进视口。
+function revealPanel() {
+  const panel = panelRef.value
+  if (!panel) return
+  const rect = panel.getBoundingClientRect()
+  if (rect.top >= 0 && rect.bottom <= document.documentElement.clientHeight) return
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  panel.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' })
+}
+
+function onViewportChange() {
+  fitPanel()
+  void nextTick(positionPreview)
+}
+
+watch(() => props.placement, () => { if (props.open) fitPanel() })
 
 onBeforeUnmount(() => {
   detachOutsideClose()
@@ -211,9 +261,13 @@ async function togglePack(pack: StickerMarketPack) {
   }
 }
 
-function selectSticker(sticker: StickerItem) {
+function selectSticker(sticker: StickerItem, event: MouseEvent) {
   if (suppressClick) {
     suppressClick = false
+    return
+  }
+  if (view.value.kind === 'marketPack') {
+    showPreview(sticker, event.currentTarget as HTMLElement)
     return
   }
   if (!isStickerUsable(sticker)) return
@@ -238,24 +292,55 @@ function hidePreview() {
   clearTimeout(pressTimer)
   pressOrigin = null
   pressPreviewing = false
+  previewCell = null
   preview.value = null
 }
 
-function stickerAtPoint(x: number, y: number) {
+function showPreview(sticker: StickerItem, cell: HTMLElement) {
+  previewCell = cell
+  if (preview.value === sticker) positionPreview()
+  preview.value = sticker
+}
+
+// 直接写样式而不经响应式：post 刷新里定位，首帧就落在最终位置。
+// offsetWidth/Height 不受进场 scale 影响，量到的是最终尺寸。
+function positionPreview() {
+  const el = previewRef.value
+  const panel = panelRef.value
+  if (!el || !panel || !previewCell?.isConnected) return
+  const root = document.documentElement
+  const place = placeStickerPreview(
+    previewCell.getBoundingClientRect(),
+    panel.getBoundingClientRect(),
+    { width: el.offsetWidth, height: el.offsetHeight },
+    { width: root.clientWidth, height: root.clientHeight },
+    getComputedStyle(panel).direction === 'rtl',
+  )
+  el.style.left = `${place.left}px`
+  el.style.top = `${place.top}px`
+  el.style.transformOrigin = place.origin
+  el.dataset.side = place.side
+}
+
+watch(preview, positionPreview, { flush: 'post' })
+
+function cellAtPoint(x: number, y: number) {
   const cell = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-sticker-index]')
   if (!cell || !gridRef.value?.contains(cell)) return null
-  return gridStickers.value[Number(cell.dataset.stickerIndex)] ?? null
+  const sticker = gridStickers.value[Number(cell.dataset.stickerIndex)]
+  return sticker ? { sticker, cell } : null
 }
 
 function onCellPointerEnter(sticker: StickerItem, event: PointerEvent) {
   if (event.pointerType !== 'mouse') return
   clearTimeout(hoverTimer)
+  const cell = event.currentTarget as HTMLElement
   if (preview.value) {
-    preview.value = sticker
+    showPreview(sticker, cell)
     return
   }
   hoverTimer = setTimeout(() => {
-    preview.value = sticker
+    showPreview(sticker, cell)
   }, HOVER_DELAY_MS)
 }
 
@@ -264,10 +349,11 @@ function onCellPointerDown(sticker: StickerItem, event: PointerEvent) {
   if (event.pointerType === 'mouse') return
   clearTimeout(pressTimer)
   pressOrigin = { x: event.clientX, y: event.clientY }
+  const cell = event.currentTarget as HTMLElement
   pressTimer = setTimeout(() => {
     pressPreviewing = true
     suppressClick = true
-    preview.value = sticker
+    showPreview(sticker, cell)
     navigator.vibrate?.(10)
   }, LONG_PRESS_MS)
 }
@@ -275,9 +361,9 @@ function onCellPointerDown(sticker: StickerItem, event: PointerEvent) {
 function onGridPointerMove(event: PointerEvent) {
   if (event.pointerType === 'mouse') return
   if (pressPreviewing) {
-    const sticker = stickerAtPoint(event.clientX, event.clientY)
-    if (sticker && sticker !== preview.value) {
-      preview.value = sticker
+    const hit = cellAtPoint(event.clientX, event.clientY)
+    if (hit && hit.sticker !== preview.value) {
+      showPreview(hit.sticker, hit.cell)
       navigator.vibrate?.(5)
     }
     return
@@ -303,7 +389,8 @@ function onGridTouchMove(event: TouchEvent) {
 }
 
 function onCellFocus(sticker: StickerItem, event: FocusEvent) {
-  if ((event.target as HTMLElement).matches(':focus-visible')) preview.value = sticker
+  const cell = event.target as HTMLElement
+  if (cell.matches(':focus-visible')) showPreview(sticker, cell)
 }
 
 function onPanelKeydown(event: KeyboardEvent) {
@@ -328,8 +415,8 @@ const gridEl = (el: unknown) => {
   <div
     v-if="open"
     ref="panelRef"
-    class="gf-menu-surface gf-sticker-picker absolute left-2 z-30"
-    :class="props.placement === 'above' ? 'bottom-14' : 'top-12'"
+    class="gf-menu-surface gf-sticker-picker absolute start-2 z-30"
+    :class="resolvedPlacement === 'above' ? 'bottom-14' : 'top-12'"
     role="dialog"
     :aria-label="t('stickers.pickerTitle')"
     @keydown="onPanelKeydown"
@@ -376,7 +463,7 @@ const gridEl = (el: unknown) => {
       </button>
     </ScrollStrip>
 
-    <div class="gf-sticker-body">
+    <div class="gf-sticker-body" @scroll.passive="positionPreview">
       <template v-if="view.kind === 'market'">
         <ScrollStrip v-if="topics.length > 0" class="gf-sticker-topics" role="toolbar" :aria-label="t('stickers.marketTopics')" :active="marketTopic">
           <button type="button" class="gf-sticker-chip" :aria-pressed="marketTopic === ''" @click="selectTopic('')">
@@ -490,10 +577,9 @@ const gridEl = (el: unknown) => {
             class="gf-sticker-cell"
             :class="!isStickerUsable(sticker) && 'gf-sticker-cell-unusable'"
             :data-sticker-index="index"
-            :title="stickerTitle(sticker)"
-            :aria-label="stickerTitle(sticker)"
+            :aria-label="view.kind === 'marketPack' ? t('stickers.viewLargerLabel', { name: stickerLabel(sticker) }) : stickerTitle(sticker)"
             :aria-disabled="!isStickerUsable(sticker) || undefined"
-            @click="selectSticker(sticker)"
+            @click="selectSticker(sticker, $event)"
             @pointerenter="onCellPointerEnter(sticker, $event)"
             @pointerdown="onCellPointerDown(sticker, $event)"
             @focus="onCellFocus(sticker, $event)"
@@ -533,23 +619,25 @@ const gridEl = (el: unknown) => {
       <p v-if="actionError" role="alert" class="mt-2 px-1 text-xs text-error">{{ actionError }}</p>
     </div>
 
-    <Transition name="gf-sticker-preview">
-      <div v-if="preview" class="gf-floating-surface gf-sticker-preview" aria-hidden="true">
-        <img :src="preview.url" alt="" class="gf-sticker-preview-img" />
-        <span class="gf-sticker-preview-label">{{ stickerLabel(preview) }}</span>
-      </div>
-    </Transition>
+    <Teleport to="body">
+      <Transition name="gf-sticker-preview">
+        <div v-if="preview" ref="previewRef" class="gf-floating-surface gf-sticker-preview" aria-hidden="true">
+          <img :src="preview.url" alt="" class="gf-sticker-preview-img" />
+          <span class="gf-sticker-preview-label">{{ stickerTitle(preview) }}</span>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <style>
-/* 面板定宽；页签固定在顶部，内容区纵向滚动，不撑爆宿主容器 */
+/* 面板定宽定高：切页签或贴纸少时不跳高；页签固定在顶部，内容区纵向滚动、余下留白，不撑爆宿主容器 */
 .gf-sticker-picker {
   display: flex;
   flex-direction: column;
   width: 17rem;
   max-width: calc(100vw - 2rem);
-  max-height: min(288px, 44vh);
+  height: min(288px, 44vh);
   padding: 0;
   overflow: hidden;
 }
@@ -796,18 +884,17 @@ const gridEl = (el: unknown) => {
   background: var(--gf-color-base-200);
 }
 
-/* 预览气泡浮在内容区上方居中；不拦截指针，手指或鼠标仍落在网格上 */
+/* 预览气泡挂在 body 上、由脚本落在面板外侧（left/top/transform-origin）；
+   不拦截指针，手指或鼠标仍落在网格上。层级同贴纸候选浮层：高于回复浮层/快捷发布弹窗 */
 .gf-sticker-preview {
-  position: absolute;
-  top: 2.75rem;
-  left: 50%;
+  position: fixed;
+  z-index: 300;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  max-width: calc(100% - 1rem);
+  max-width: min(12rem, calc(100vw - 1rem));
   padding: 10px;
-  translate: -50% 0;
   pointer-events: none;
 }
 
