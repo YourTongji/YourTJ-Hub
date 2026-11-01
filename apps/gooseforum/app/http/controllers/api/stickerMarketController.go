@@ -99,7 +99,7 @@ type AdminStickerMarketItemReq struct {
 	StickerID uint64 `json:"stickerId"`
 	// Name renames the sticker when set; its previous name keeps resolving.
 	Name      string `json:"name"`
-	IsEnabled bool   `json:"isEnabled"`
+	IsEnabled *bool  `json:"isEnabled"`
 }
 
 func adminStickerMarketError(err error) component.Response {

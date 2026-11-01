@@ -87,6 +87,57 @@ test('a half-typed [:sticker: fragment is deleted as one block', async () => {
   } finally { await page.close() }
 })
 
+test('beforeinput deletes a sticker fragment atomically', async () => {
+  const { page, errors } = await openEditor()
+  try {
+    await page.evaluate(() => window.testSetValue('图 [:sticker:na'))
+    await page.waitForFunction(() => document.querySelector('#model-value').textContent.includes('[:sticker:na'))
+    const handled = await page.evaluate(() => {
+      const editor = document.querySelector('.vditor [contenteditable="true"]')
+      const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT)
+      let last = walker.nextNode()
+      while (walker.nextNode()) last = walker.currentNode
+      const selection = window.getSelection()
+      const caret = document.createRange()
+      caret.setStart(last, last.textContent.length)
+      caret.collapse(true)
+      selection.removeAllRanges()
+      selection.addRange(caret)
+      const event = new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'deleteContentBackward' })
+      editor.dispatchEvent(event)
+      return event.defaultPrevented
+    })
+    assert.equal(handled, true)
+    await page.waitForFunction(() => !document.querySelector('#model-value').textContent.includes('[:sticker:'))
+    assert.equal((await modelValue(page)).trim(), '图')
+    assertNoPageErrors(errors)
+  } finally { await page.close() }
+})
+
+test('beforeinput expands a partial WYSIWYG selection to the whole sticker', async () => {
+  const { page, errors } = await openEditor()
+  try {
+    const result = await page.evaluate(() => {
+      const editor = document.querySelector('.vditor [contenteditable="true"]')
+      editor.innerHTML = '<p>图 <span class="gf-sticker-inline" contenteditable="false">[:sticker:huaji:]</span> 文</p>'
+      const sticker = editor.querySelector('.gf-sticker-inline')
+      const selection = window.getSelection()
+      const range = document.createRange()
+      range.setStart(sticker.firstChild, 1)
+      range.setEnd(sticker.firstChild, 2)
+      selection.removeAllRanges()
+      selection.addRange(range)
+      const event = new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'deleteContentBackward' })
+      editor.dispatchEvent(event)
+      return { handled: event.defaultPrevented, text: editor.textContent }
+    })
+    assert.equal(result.handled, true)
+    assert.equal(result.text.includes('[:sticker:'), false)
+    assert.match(result.text, /图.*文/)
+    assertNoPageErrors(errors)
+  } finally { await page.close() }
+})
+
 test('plain text still deletes one character per Backspace', async () => {
   const { page, errors } = await openEditor()
   try {

@@ -67,7 +67,10 @@ class _EditorStickerState extends ConsumerState<_EditorSticker> {
           child: StickerImage(
             name: widget.name,
             url: url,
-            size: (widget.textStyle.fontSize ?? 16) * StickerImage.inlineScale,
+            size: MediaQuery.textScalerOf(context).scale(
+                  widget.textStyle.fontSize ?? 16,
+                ) *
+                StickerImage.inlineScale,
             collectible: false,
             excludeSemantics: true,
           ),

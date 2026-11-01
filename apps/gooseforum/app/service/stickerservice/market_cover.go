@@ -97,9 +97,13 @@ func MarketCoverPreview(ctx context.Context, packID uint64) (string, error) {
 			marketCoverMisses.Store(packID, time.Now())
 			return "", err
 		}
+		if err := db.ConnectContext(fetchCtx).Model(&sticker.MarketPack{}).
+			Where("id = ?", packID).UpdateColumn("icon_file", name).Error; err != nil {
+			marketCoverMisses.Store(packID, time.Now())
+			return "", err
+		}
 		marketCoverMisses.Delete(packID)
-		return name, db.ConnectContext(fetchCtx).Model(&sticker.MarketPack{}).
-			Where("id = ?", packID).UpdateColumn("icon_file", name).Error
+		return name, nil
 	})
 	if err != nil {
 		return "", err

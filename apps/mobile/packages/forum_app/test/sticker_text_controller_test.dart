@@ -277,6 +277,11 @@ void main() {
 
         final rects = stickerRects(tester);
         expect(rects, hasLength(2));
+        final fontSize = tester.widget<EditableText>(find.byType(EditableText)).style.fontSize ?? 16;
+        expect(
+          rects[0].width,
+          closeTo(fontSize * scale * StickerImage.inlineScale, 1),
+        );
         // Each image keeps its own line: no overlap with the next line's
         // image or with the plain text line after it.
         expect(rects[1].top, greaterThanOrEqualTo(rects[0].bottom - 0.5));

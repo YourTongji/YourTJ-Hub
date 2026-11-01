@@ -72,6 +72,7 @@ const renamingId = ref<number | null>(null)
 const renameDraft = ref('')
 const renameError = ref('')
 let pollTimer: ReturnType<typeof setTimeout> | undefined
+let unmounted = false
 // Cover URLs that failed to load; the cell falls back to the next candidate.
 const brokenCovers = ref(new Set<string>())
 // Packs uploaded here: created with a name and category, then filled from images or ZIPs.
@@ -222,12 +223,14 @@ function formatTime(value: string | null | undefined) {
 function schedulePoll() {
   clearTimeout(pollTimer)
   pollTimer = undefined
+  if (unmounted) return
   if (packs.value.some(isRunning) || (detail.value && isRunning(detail.value.pack))) {
     pollTimer = setTimeout(() => void refresh(true), POLL_INTERVAL_MS)
   }
 }
 
 async function refresh(quiet = false) {
+  if (unmounted) return
   if (!quiet) {
     loading.value = true
     error.value = ''
@@ -245,7 +248,9 @@ async function refresh(quiet = false) {
       const current = market.value.packs.find((pack) => pack.id === detail.value?.pack.id)
       const shown = detail.value.pack
       // Items arrive one by one during an import; reload the dialog whenever its counts move.
-      if (current && (current.status !== shown.status || current.itemCount !== shown.itemCount || current.failedCount !== shown.failedCount)) {
+      if (!current) {
+        detail.value = null
+      } else if (current.status !== shown.status || current.itemCount !== shown.itemCount || current.failedCount !== shown.failedCount) {
         detail.value = await getStickerMarketPack(current.id)
       }
     }
@@ -253,7 +258,7 @@ async function refresh(quiet = false) {
     if (!quiet) error.value = err instanceof Error ? err.message : adminText('stickerMarketLoadFailed')
   } finally {
     loading.value = false
-    schedulePoll()
+    if (!unmounted) schedulePoll()
   }
 }
 
@@ -352,7 +357,9 @@ async function openDetail(pack: AdminStickerMarketPack) {
   detail.value = { pack, items: [] }
   detailLoading.value = true
   try {
-    detail.value = await getStickerMarketPack(pack.id)
+    const loaded = await getStickerMarketPack(pack.id)
+    if (unmounted) return
+    detail.value = market.value?.packs.some((item) => item.id === pack.id) ? loaded : null
   } catch (err) {
     detail.value = null
     marketToastError(err, 'stickerMarketLoadFailed')
@@ -541,6 +548,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  unmounted = true
   clearTimeout(pollTimer)
 })
 </script>

@@ -23,6 +23,18 @@ const myPacksReady = ref(false)
 let myPacksRequest: Promise<void> | null = null
 let membershipRevision = 0
 
+async function refreshMyPacks() {
+  const revision = ++membershipRevision
+  try {
+    const packs = await getMyStickerPacks()
+    if (revision !== membershipRevision) return
+    myPacks.value = packs
+    myPacksReady.value = true
+  } catch {
+    // A successful write remains optimistically visible if its confirmation read fails.
+  }
+}
+
 const packStickers = new Map<number, StickerItem[]>()
 const packRequests = new Map<number, Promise<StickerItem[]>>()
 
@@ -115,8 +127,7 @@ export function useStickerMarket() {
     actionError.value = ''
     try {
       await saveMyStickerPack(pack.id)
-      membershipRevision++
-      if (!isSubscribed(pack.id)) myPacks.value = [...myPacks.value, pack]
+      await refreshMyPacks()
       return true
     } catch (err) {
       membershipRevision++
@@ -133,8 +144,7 @@ export function useStickerMarket() {
     actionError.value = ''
     try {
       await deleteMyStickerPack(pack.id)
-      membershipRevision++
-      myPacks.value = myPacks.value.filter((item) => item.id !== pack.id)
+      await refreshMyPacks()
       return true
     } catch (err) {
       membershipRevision++

@@ -30,6 +30,7 @@ for (const adding of [true, false]) {
     const state = useStickerMarket()
     const a = deferred()
     if (!adding) state.myPacks.value = [pack(1), pack(2)]
+    api.getMyStickerPacks.mockResolvedValue(adding ? [pack(2)] : [pack(1)])
     const request = adding ? api.saveMyStickerPack : api.deleteMyStickerPack
     request.mockReturnValueOnce(a.promise).mockResolvedValueOnce(undefined)
     const action = adding ? state.subscribe : state.unsubscribe
@@ -86,7 +87,10 @@ for (const adding of [true, false]) {
   const operation=deferred()
   let finish!: (items: StickerMarketPack[]) => void
   const old=adding ? [pack(2)] : [pack(1),pack(2)]
-  api.getMyStickerPacks.mockReturnValueOnce(new Promise(resolve=>{finish=resolve})).mockResolvedValueOnce(old)
+  api.getMyStickerPacks
+   .mockReturnValueOnce(new Promise(resolve=>{finish=resolve}))
+   .mockResolvedValueOnce(old)
+   .mockResolvedValue(adding ? [pack(2), pack(1)] : [pack(2)])
   if(!adding)state.myPacks.value=[pack(1)]
   const reading=state.ensureMyPacks()
   const request=adding ? api.saveMyStickerPack : api.deleteMyStickerPack
@@ -99,3 +103,22 @@ for (const adding of [true, false]) {
   expect(state.myPacks.value.map(p=>p.id)).toEqual(adding ? [2,1] : [2])
  })
 }
+
+test('late successful subscribe cannot restore a pack after a successful unsubscribe', async () => {
+  const { useStickerMarket } = await import('../src/site/composables/useStickerMarket')
+  const state = useStickerMarket()
+  const adding = deferred()
+  const removing = deferred()
+  api.getMyStickerPacks.mockResolvedValue([])
+  api.saveMyStickerPack.mockReturnValueOnce(adding.promise)
+  api.deleteMyStickerPack.mockReturnValueOnce(removing.promise)
+
+  const subscribe = state.subscribe(pack(1))
+  const unsubscribe = state.unsubscribe(pack(1))
+  removing.resolve()
+  await unsubscribe
+  adding.resolve()
+  await subscribe
+
+  expect(state.myPacks.value).toEqual([])
+})

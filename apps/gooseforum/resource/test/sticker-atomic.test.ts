@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, test, vi } from 'vitest'
 import { readCaretTextWindow } from '../src/runtime/caret-text'
-import { deleteStickerAtCaret, stickerDeleteDirection } from '../src/runtime/sticker-atomic'
+import { deleteStickerAtCaret, stickerBeforeInputDirection, stickerDeleteDirection } from '../src/runtime/sticker-atomic'
 
 afterEach(() => {
   document.body.innerHTML = ''
@@ -88,6 +88,22 @@ test('a non-collapsed selection or a caret outside the editor is ignored', () =>
   expect(execCommand).not.toHaveBeenCalled()
 })
 
+test('a selection touching a rendered sticker expands to the whole sticker', () => {
+  document.body.innerHTML = '<div id="editor" contenteditable><p><span class="gf-sticker-inline" contenteditable="false">[:sticker:huaji:]</span>后文</p></div>'
+  const sticker = editorElement().querySelector('.gf-sticker-inline')!
+  const text = sticker.firstChild!
+  const range = document.createRange()
+  range.setStart(text, 2)
+  range.setEnd(text, 5)
+  window.getSelection()!.removeAllRanges()
+  window.getSelection()!.addRange(range)
+  const execCommand = mockDeleteCommand()
+
+  expect(deleteStickerAtCaret(editorElement(), 'backward')).toBe(true)
+  expect(window.getSelection()!.toString()).toBe('[:sticker:huaji:]')
+  expect(execCommand).toHaveBeenCalledWith('delete')
+})
+
 test('a token in another list item is out of scope', () => {
   document.body.innerHTML = '<div id="editor" contenteditable><ul><li>[:sticker:huaji:]</li><li>后文</li></ul></div>'
   placeCaret(editorElement().querySelectorAll('li')[1].firstChild!, 0)
@@ -152,4 +168,28 @@ test('IME composition and Ctrl/Meta/Alt combinations are not intercepted; Shift 
   expect(stickerDeleteDirection(key({ key: 'Delete', metaKey: true }))).toBeNull()
   expect(stickerDeleteDirection(key({ key: 'Delete', altKey: true }))).toBeNull()
   expect(stickerDeleteDirection(key({ key: 'a' }))).toBeNull()
+})
+
+test('beforeinput handles only plain backward and forward deletion outside composition', () => {
+  const input = (inputType: string, isComposing = false) => new InputEvent('beforeinput', { inputType, isComposing })
+  expect(stickerBeforeInputDirection(input('deleteContentBackward'))).toBe('backward')
+  expect(stickerBeforeInputDirection(input('deleteContentForward'))).toBe('forward')
+  expect(stickerBeforeInputDirection(input('deleteWordBackward'))).toBeNull()
+  expect(stickerBeforeInputDirection(input('deleteContentBackward', true))).toBeNull()
+})
+
+test('a selection touching part of a WYSIWYG sticker expands to the whole sticker', () => {
+  document.body.innerHTML = '<div id="editor" contenteditable><p>before <span class="gf-sticker-inline" contenteditable="false">[:sticker:huaji:]</span> after</p></div>'
+  const span = editorElement().querySelector('.gf-sticker-inline')!
+  const text = span.firstChild!
+  const range = document.createRange()
+  range.setStart(text, 1)
+  range.setEnd(text, 2)
+  window.getSelection()!.removeAllRanges()
+  window.getSelection()!.addRange(range)
+  const execCommand = mockDeleteCommand()
+
+  expect(deleteStickerAtCaret(editorElement(), 'backward')).toBe(true)
+  expect(window.getSelection()!.toString()).toBe('[:sticker:huaji:]')
+  expect(execCommand).toHaveBeenCalledWith('delete')
 })
