@@ -280,9 +280,9 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   Campus lists its five tabs for a signed-in reader, then
   the course reviews, scheduler and Wiki pages, set apart and marked with a chevron because they open
   a page; Notifications lists its six categories, also only when signed in. Every shortcut wears the
-  glyph of the entry it opens — the campus tools match their landing cards and the wide campus
-  directory, and Replies uses the reply arrow — and no glyph repeats another shortcut's or a dock
-  destination's. While a destination is on screen, the section it shows is marked with a check;
+  glyph of the entry it opens — the campus tabs match the wide campus directory, the campus tools
+  their landing cards, and Replies uses the reply arrow — and no glyph repeats another shortcut's or
+  a dock destination's. While a destination is on screen, the section it shows is marked with a check;
   opened from any other page, its menu marks nothing.
   The same press can slide onto a shortcut — one highlight follows the finger from
   row to row with a selection haptic, never dropping out between rows; it fades where it is when

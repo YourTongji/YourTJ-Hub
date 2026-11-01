@@ -81,7 +81,6 @@ const double _stretchPerSlot = 0.03;
 // The furthest, in destinations, a drag can pull the lens past either end.
 const double _overdrag = 0.3;
 const double _flingProjection = 0.09;
-// Shorter than the platform's long press: the menu is the point of holding.
 
 /// Four accessible destinations on a floating glass dock, with optional
 /// visible labels and a compose action beside it.
@@ -773,6 +772,7 @@ class _DockState extends State<_Dock> with TickerProviderStateMixin {
                   onOpen: () => _openMenu(i),
                   onMove: (Offset position) => _menu?.track(position),
                   onRelease: (Offset position) => _menu?.release(position),
+                  onCancel: () => _menu?.cancel(),
                   child: _LabelTooltip(
                     label: widget.items[i].label,
                     // A destination with a menu names itself in the menu.

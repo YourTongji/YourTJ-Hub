@@ -428,4 +428,85 @@ void main() {
     await tester.pumpAndSettle();
     expect(selected, <int>[2]);
   });
+
+  testWidgets('closing the menu returns keyboard focus to where it was', (
+    tester,
+  ) async {
+    final focus = FocusNode(debugLabel: 'before the menu');
+    addTearDown(focus.dispose);
+    await tester.pumpWidget(
+      gfApp(
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            TextButton(
+              focusNode: focus,
+              onPressed: () {},
+              child: const Text('elsewhere'),
+            ),
+            _dock(picked: <String>[]),
+          ],
+        ),
+      ),
+    );
+    focus.requestFocus();
+    await tester.pump();
+    expect(focus.hasPrimaryFocus, isTrue);
+
+    await tester.longPress(_target(1));
+    await tester.pumpAndSettle();
+    expect(focus.hasFocus, isFalse, reason: 'the open menu holds focus');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('今天'), findsNothing);
+    expect(focus.hasPrimaryFocus, isTrue);
+  });
+
+  testWidgets('a cancelled press leaves the menu open with nothing pressed', (
+    tester,
+  ) async {
+    final picked = <String>[];
+    await tester.pumpWidget(gfApp(_dock(picked: picked)));
+    final gesture = await tester.startGesture(tester.getCenter(_target(1)));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    await gesture.moveTo(tester.getCenter(find.text('课表')));
+    await tester.pumpAndSettle();
+    expect(tester.widget<AnimatedOpacity>(_highlight).opacity, 1);
+
+    await gesture.cancel();
+    await tester.pumpAndSettle();
+    expect(find.text('课表'), findsOneWidget);
+    expect(tester.widget<AnimatedOpacity>(_highlight).opacity, 0);
+    expect(picked, isEmpty);
+
+    await tester.tap(find.text('Wiki'));
+    await tester.pumpAndSettle();
+    expect(picked, <String>['wiki']);
+  });
+
+  testWidgets('the menu closes when its dock goes away', (tester) async {
+    final picked = <String>[];
+    final shown = ValueNotifier<bool>(true);
+    addTearDown(shown.dispose);
+    await tester.pumpWidget(
+      gfApp(
+        ValueListenableBuilder<bool>(
+          valueListenable: shown,
+          builder: (BuildContext context, bool shown, _) =>
+              shown ? _dock(picked: picked) : const SizedBox(),
+        ),
+      ),
+    );
+    await tester.longPress(_target(1));
+    await tester.pumpAndSettle();
+    expect(find.text('今天'), findsOneWidget);
+
+    shown.value = false;
+    await tester.pumpAndSettle();
+    expect(find.text('今天'), findsNothing);
+    expect(picked, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
 }

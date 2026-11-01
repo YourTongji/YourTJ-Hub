@@ -99,6 +99,40 @@ void main() {
       );
     }
   }
+  testWidgets('crossing the cap widens the count as its digits roll', (
+    tester,
+  ) async {
+    Widget glyph(int count) => gfApp(
+      GfBadgedGlyph(
+        glyph: const GfSymbol('bell'),
+        size: 24,
+        visible: true,
+        count: count,
+      ),
+    );
+    final pill = find.byWidgetPredicate(
+      (widget) =>
+          widget is DecoratedBox && widget.decoration is ShapeDecoration,
+    );
+    await tester.pumpWidget(glyph(99));
+    await tester.pumpAndSettle();
+    expect(find.text('99'), findsOneWidget);
+    final double narrow = tester.getSize(pill).width;
+
+    await tester.pumpWidget(glyph(100));
+    await tester.pump(const Duration(milliseconds: 60));
+    // Both labels are on the pill while one rolls out and the other in.
+    expect(find.text('99'), findsOneWidget);
+    expect(find.text('99+'), findsOneWidget);
+    final double mid = tester.getSize(pill).width;
+    expect(mid, greaterThan(narrow));
+
+    await tester.pumpAndSettle();
+    expect(find.text('99'), findsNothing);
+    expect(find.text('99+'), findsOneWidget);
+    expect(tester.getSize(pill).width, greaterThan(mid));
+  });
+
   testWidgets(
     'conversation dot keeps unread semantics without a hidden number',
     (tester) async {

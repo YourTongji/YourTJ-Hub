@@ -98,6 +98,14 @@ class LogoRefreshController extends ChangeNotifier {
     _phase.value = next;
   }
 
+  /// Drops a pull whose gesture was lost, without refreshing.
+  void cancel({required bool reduced}) {
+    if (_disposed || busy) return;
+    _overscroll.value = 0;
+    _phase.value = LogoRefreshPhase.idle;
+    _springTo(0, reduced: reduced);
+  }
+
   /// Ends a pull: refreshes when armed, otherwise springs back.
   void release(Future<void> Function() onRefresh, {required bool reduced}) {
     if (busy) return;
@@ -174,6 +182,28 @@ class LogoPullRefresh extends StatefulWidget {
 class _LogoPullRefreshState extends State<LogoPullRefresh> {
   bool _tracking = false;
   double _travel = 0;
+  bool _reduced = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduced = GfMotion.reducedOf(context);
+  }
+
+  @override
+  void dispose() {
+    // The feed can unmount mid-pull, as when the cache is cleared; the
+    // controller outlives it and must not stay stretched or armed. The header
+    // it drives cannot rebuild while this tree is being torn down.
+    if (_tracking) {
+      final LogoRefreshController controller = widget.controller;
+      final bool reduced = _reduced;
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => controller.cancel(reduced: reduced),
+      );
+    }
+    super.dispose();
+  }
 
   void _release() {
     if (!_tracking) return;

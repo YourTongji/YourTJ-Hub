@@ -58,13 +58,22 @@ class ReadingNavigationRail extends StatefulWidget {
 
 class _ReadingNavigationRailState extends State<ReadingNavigationRail> {
   final _surfaceKey = GlobalKey();
-  final _targets = List.generate(4, (_) => GlobalKey());
+  // One per destination, however many the shell provides.
+  final _targets = <GlobalKey>[];
+
+  GlobalKey _target(int index) {
+    while (_targets.length <= index) {
+      _targets.add(GlobalKey());
+    }
+    return _targets[index];
+  }
+
   GfDockMenuHandle? _menu;
 
   void _openMenu(int index) {
     if (_menu != null) return;
     final entries = widget.items[index].menu?.call();
-    final source = _targets[index].currentContext?.findRenderObject();
+    final source = _target(index).currentContext?.findRenderObject();
     final surface = _surfaceKey.currentContext?.findRenderObject();
     if (entries == null ||
         entries.isEmpty ||
@@ -162,6 +171,7 @@ class _ReadingNavigationRailState extends State<ReadingNavigationRail> {
                                   onMove: (position) => _menu?.track(position),
                                   onRelease: (position) =>
                                       _menu?.release(position),
+                                  onCancel: () => _menu?.cancel(),
                                   child: TooltipVisibility(
                                     visible: widget.items[i].menu == null,
                                     child: Tooltip(
@@ -169,7 +179,7 @@ class _ReadingNavigationRailState extends State<ReadingNavigationRail> {
                                       excludeFromSemantics: true,
                                       child: ExcludeSemantics(
                                         child: TextButton(
-                                          key: _targets[i],
+                                          key: _target(i),
                                           onPressed: () => widget.onSelected(i),
                                           style: TextButton.styleFrom(
                                             minimumSize: const Size(48, 48),

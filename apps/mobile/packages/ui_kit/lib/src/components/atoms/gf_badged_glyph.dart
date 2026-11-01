@@ -282,7 +282,7 @@ class _CountPill extends StatelessWidget {
       child: AnimatedSwitcher(
         duration: GfMotion.duration(context, GfMotion.layout),
         switchInCurve: GfMotion.enterCurve,
-        switchOutCurve: GfMotion.enterCurve,
+        switchOutCurve: GfMotion.exitCurve,
         transitionBuilder: (Widget child, Animation<double> animation) {
           final bool incoming = child.key == ValueKey<String>(label);
           final double from = (rollsUp ? 1 : -1) * (incoming ? 0.7 : -0.7);

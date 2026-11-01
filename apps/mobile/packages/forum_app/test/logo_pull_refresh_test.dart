@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
@@ -7,10 +8,13 @@ import 'package:forum_app/src/widgets/logo_pull_refresh.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 class _Feed extends StatefulWidget {
-  const _Feed({required this.onRefresh, this.onController});
+  const _Feed({required this.onRefresh, this.onController, this.shown});
 
   final Future<void> Function() onRefresh;
   final ValueChanged<LogoRefreshController>? onController;
+
+  /// Unmounts the feed while false, as a cache clear does.
+  final ValueListenable<bool>? shown;
 
   @override
   State<_Feed> createState() => _FeedState();
@@ -36,13 +40,18 @@ class _FeedState extends State<_Feed> with SingleTickerProviderStateMixin {
     children: [
       Center(child: RefreshingLogo(controller: controller)),
       Expanded(
-        child: LogoPullRefresh(
-          controller: controller,
-          onRefresh: widget.onRefresh,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            children: const [SizedBox(height: 1800)],
-          ),
+        child: ValueListenableBuilder<bool>(
+          valueListenable: widget.shown ?? const AlwaysStoppedAnimation(true),
+          builder: (context, shown, _) => shown
+              ? LogoPullRefresh(
+                  controller: controller,
+                  onRefresh: widget.onRefresh,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: const [SizedBox(height: 1800)],
+                  ),
+                )
+              : const SizedBox(),
         ),
       ),
     ],
@@ -191,6 +200,47 @@ void main() {
     expect(find.bySemanticsLabel(loading), findsNothing);
     semantics.dispose();
   });
+
+  testWidgets(
+    'a pull cut off by the feed unmounting settles without refreshing',
+    (tester) async {
+      late LogoRefreshController controller;
+      var calls = 0;
+      final shown = ValueNotifier(true);
+      addTearDown(shown.dispose);
+      await tester.pumpWidget(
+        _app(
+          _Feed(
+            onController: (value) => controller = value,
+            onRefresh: () async => calls++,
+            shown: shown,
+          ),
+          TargetPlatform.android,
+        ),
+      );
+
+      final gesture = await tester.startGesture(const Offset(200, 300));
+      for (final step in [20.0, 40.0, 60.0]) {
+        await gesture.moveBy(Offset(0, step));
+        await tester.pump();
+      }
+      expect(controller.phase.value, LogoRefreshPhase.armed);
+
+      shown.value = false;
+      await tester.pumpAndSettle();
+      expect(controller.phase.value, LogoRefreshPhase.idle);
+      expect(controller.stretch.value, moreOrLessEquals(0, epsilon: 0.5));
+      expect(controller.contentShift.value, moreOrLessEquals(0, epsilon: 0.5));
+      await gesture.up();
+
+      // A later touch that does not travel cannot fire the stale armed pull.
+      shown.value = true;
+      await tester.pumpAndSettle();
+      await tester.dragFrom(const Offset(200, 300), const Offset(0, 4));
+      await tester.pumpAndSettle();
+      expect(calls, 0);
+    },
+  );
 
   test('the header resists a long pull', () {
     expect(LogoRefreshController.stretchFor(0), 0);

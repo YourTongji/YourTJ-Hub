@@ -55,6 +55,10 @@ class GfDockMenuHandle {
 
   void release(Offset globalPosition) => _menu?.release(globalPosition);
 
+  /// The opening press was taken away, as when the app is backgrounded or
+  /// another gesture wins: the menu stays open for a tap, nothing pressed.
+  void cancel() => _menu?.cancelPress();
+
   void close() => _menu?.close();
 }
 
@@ -70,6 +74,7 @@ class GfDockMenuPress extends StatelessWidget {
     required this.onOpen,
     required this.onMove,
     required this.onRelease,
+    required this.onCancel,
     required this.child,
   });
 
@@ -77,6 +82,9 @@ class GfDockMenuPress extends StatelessWidget {
   final VoidCallback onOpen;
   final ValueChanged<Offset> onMove;
   final ValueChanged<Offset> onRelease;
+
+  /// The press was cancelled before or after it opened the menu.
+  final VoidCallback onCancel;
   final Widget child;
 
   @override
@@ -86,6 +94,8 @@ class GfDockMenuPress extends StatelessWidget {
       gestures: <Type, GestureRecognizerFactory>{
         LongPressGestureRecognizer:
             GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+              // Shorter than the platform's long press: the menu is the
+              // point of holding.
               () => LongPressGestureRecognizer(
                 duration: const Duration(milliseconds: 320),
               ),
@@ -94,7 +104,8 @@ class GfDockMenuPress extends StatelessWidget {
                 ..onLongPressMoveUpdate = ((LongPressMoveUpdateDetails d) =>
                     onMove(d.globalPosition))
                 ..onLongPressEnd = ((LongPressEndDetails d) =>
-                    onRelease(d.globalPosition)),
+                    onRelease(d.globalPosition))
+                ..onLongPressCancel = onCancel,
             ),
       },
       child: child,
@@ -200,6 +211,8 @@ class _DockMenuState extends State<_DockMenu> with TickerProviderStateMixin {
   double _edgeSpeed = 0;
   Offset? _finger;
   double _pressOffset = 0;
+  // Keyboard focus goes back here when the menu closes.
+  FocusNode? _returnFocus;
 
   List<GfDockMenuEntry> get entries => widget.entries;
 
@@ -208,7 +221,8 @@ class _DockMenuState extends State<_DockMenu> with TickerProviderStateMixin {
     super.initState();
     widget.handle._menu = this;
     // Autofocus would defer to the page that already holds focus; the menu
-    // takes it so Escape and the arrow keys reach it.
+    // takes it so Escape reaches it, and gives it back on closing.
+    _returnFocus = FocusManager.instance.primaryFocus;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !_closing) _focus.requestFocus();
     });
@@ -247,6 +261,7 @@ class _DockMenuState extends State<_DockMenu> with TickerProviderStateMixin {
     _anchorInvalid = true;
     _animation.stop();
     _stopEdge();
+    _restoreFocus();
     // Overlay removal cannot mark an ancestor dirty during a rebuild.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) widget.onClosed();
@@ -385,10 +400,25 @@ class _DockMenuState extends State<_DockMenu> with TickerProviderStateMixin {
     entries[index].onSelected();
   }
 
+  /// Returns keyboard focus to where it was, unless it has moved on since.
+  void _restoreFocus() {
+    final FocusNode? previous = _returnFocus;
+    _returnFocus = null;
+    if (previous == null || !_focus.hasFocus) return;
+    if (previous.context?.mounted ?? false) previous.requestFocus();
+  }
+
+  void cancelPress() {
+    _finger = null;
+    _stopEdge();
+    hover(-1, haptic: false);
+  }
+
   void close() {
     if (_closing) return;
     _closing = true;
     _stopEdge();
+    _restoreFocus();
     if (GfMotion.reducedOf(context)) {
       widget.onClosed();
       return;
