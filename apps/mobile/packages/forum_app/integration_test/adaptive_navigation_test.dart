@@ -265,6 +265,42 @@ void main() {
         await tester.pumpAndSettle();
         expect(router.state.uri.path, '/');
       }
+      if (nativeWindow && edgeFrame != null) {
+        state.scroll.jumpTo(0);
+        await tester.pumpAndSettle();
+        final contentWidth = tester.getRect(find.byType(RootSurface)).width;
+        await tester.tap(find.byType(TextField));
+        final opening = DateTime.now().add(const Duration(seconds: 15));
+        while (tester.view.viewInsets.bottom == 0 &&
+            DateTime.now().isBefore(opening)) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(tester.view.viewInsets.bottom, greaterThan(0));
+        await tester.pumpAndSettle();
+        expect(find.byType(ReadingNavigationRail), findsNothing);
+        expect(find.byType(GfBottomNavigation), findsNothing);
+        expect(tester.getRect(find.byType(RootSurface)).width, contentWidth);
+        expect(state.input.text, '未发布的演示草稿');
+        if (const bool.fromEnvironment('YOURTJ_TEST_SCREENSHOTS')) {
+          await binding.takeScreenshot('duo-keyboard-$i');
+        }
+        FocusManager.instance.primaryFocus?.unfocus();
+        final closing = DateTime.now().add(const Duration(seconds: 15));
+        while (tester.view.viewInsets.bottom != 0 &&
+            DateTime.now().isBefore(closing)) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(tester.view.viewInsets.bottom, 0);
+        await tester.pumpAndSettle();
+        expect(find.byType(ReadingNavigationRail), findsOneWidget);
+        expect(tester.getRect(find.byType(RootSurface)).width, contentWidth);
+        expect(tester.state(find.byType(_DemoReadingPage)), same(state));
+        state.scroll.jumpTo(160);
+        await tester.pumpAndSettle();
+        debugPrint(
+          'Duo keyboard $i: hidden and restored without a width change',
+        );
+      }
       expect(tester.takeException(), isNull);
     }
     await tester.pumpWidget(const SizedBox.shrink());
