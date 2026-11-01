@@ -319,7 +319,6 @@ function positionPreview() {
   el.style.left = `${place.left}px`
   el.style.top = `${place.top}px`
   el.style.transformOrigin = place.origin
-  el.dataset.side = place.side
 }
 
 watch(preview, positionPreview, { flush: 'post' })
@@ -463,7 +462,7 @@ const gridEl = (el: unknown) => {
       </button>
     </ScrollStrip>
 
-    <div class="gf-sticker-body" @scroll.passive="positionPreview">
+    <div class="gf-sticker-body">
       <template v-if="view.kind === 'market'">
         <ScrollStrip v-if="topics.length > 0" class="gf-sticker-topics" role="toolbar" :aria-label="t('stickers.marketTopics')" :active="marketTopic">
           <button type="button" class="gf-sticker-chip" :aria-pressed="marketTopic === ''" @click="selectTopic('')">
