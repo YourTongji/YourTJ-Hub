@@ -1323,6 +1323,7 @@ export default {
     removePack: "Remove",
     addPackLabel: "Add sticker pack {name}",
     removePackLabel: "Remove sticker pack {name}",
+    viewLargerLabel: "View {name} larger",
     packActionFailed: "Unable to update your sticker packs. Try again.",
     tabMine: "Mine",
     officialPacks: "Official packs",

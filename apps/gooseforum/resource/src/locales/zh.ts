@@ -1323,6 +1323,7 @@ export default {
     removePack: "移除",
     addPackLabel: "添加表情包 {name}",
     removePackLabel: "移除表情包 {name}",
+    viewLargerLabel: "放大预览 {name}",
     packActionFailed: "表情包未更新，请重试",
     tabMine: "我的",
     officialPacks: "官方表情包",

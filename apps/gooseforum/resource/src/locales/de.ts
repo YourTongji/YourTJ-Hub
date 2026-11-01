@@ -1322,6 +1322,7 @@ export default {
     removePack: "Entfernen",
     addPackLabel: "Sticker-Paket {name} hinzufügen",
     removePackLabel: "Sticker-Paket {name} entfernen",
+    viewLargerLabel: "{name} groß anzeigen",
     packActionFailed: "Sticker-Pakete konnten nicht aktualisiert werden. Bitte erneut versuchen.",
     tabMine: "Meine",
     officialPacks: "Offizielle Pakete",
