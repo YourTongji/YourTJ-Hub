@@ -62,6 +62,40 @@ class GfBottomNavigationMetrics {
   final double actionBottomInset;
 }
 
+/// How the compact shell presents its four destinations.
+enum GfNavigationStyle {
+  /// A glass dock floating above the content, with a lens that travels
+  /// between destinations.
+  dock,
+
+  /// A full-width frosted bar along the bottom edge, running under the home
+  /// indicator.
+  bar,
+}
+
+/// The [GfNavigationStyle] for every [GfBottomNavigation] below it, and for
+/// the metrics pages use to clear one.
+class GfNavigationStyleScope extends InheritedWidget {
+  const GfNavigationStyleScope({
+    super.key,
+    required this.style,
+    required super.child,
+  });
+
+  final GfNavigationStyle style;
+
+  /// The nearest style, or [GfNavigationStyle.dock] outside any scope.
+  static GfNavigationStyle of(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<GfNavigationStyleScope>()
+          ?.style ??
+      GfNavigationStyle.dock;
+
+  @override
+  bool updateShouldNotify(GfNavigationStyleScope oldWidget) =>
+      oldWidget.style != style;
+}
+
 // Dock geometry. The selection lens sits [_dockInset] inside the rim, so the
 // dock and the lens stay concentric pills.
 const double _dockHeight = 56;
@@ -81,15 +115,28 @@ const double _stretchPerSlot = 0.03;
 // The furthest, in destinations, a drag can pull the lens past either end.
 const double _overdrag = 0.3;
 const double _flingProjection = 0.09;
+// How long the navigation takes to change style.
+const Duration _morphDuration = Duration(milliseconds: 480);
 
-/// Four accessible destinations on a floating glass dock, with optional
-/// visible labels and a compose action beside it.
+// Bar geometry: a selection pill around each glyph, as on the bar the dock
+// replaced.
+const double _barHeight = 56;
+const double _barIndicatorWidth = 56;
+const double _barIndicatorHeight = 32;
+// Indicator, the air above it, the gap to a label and the air below.
+const double _barLabeledContentHeight =
+    GfSpace.sm + _barIndicatorHeight + GfSpace.xxs + GfSpace.sm;
+
+/// Four accessible destinations on a floating glass dock or a frosted bar
+/// (see [GfNavigationStyle]), with optional visible labels and a compose
+/// action.
 ///
-/// The selection is a lens that springs between destinations and stretches
+/// On the dock, the selection is a lens that springs between destinations and stretches
 /// while it travels; the destinations it covers take the selected colour and
 /// filled glyph part by part as it passes. Dragging along the dock lifts the
 /// lens and scrubs it under the finger, ticking at each destination, and
-/// selects where it is let go.
+/// selects where it is let go. On the bar, each destination keeps its own
+/// selection pill, and holding one opens its menu from the bar's top edge.
 class GfBottomNavigation extends StatelessWidget {
   const GfBottomNavigation({
     super.key,
@@ -100,6 +147,7 @@ class GfBottomNavigation extends StatelessWidget {
     this.actionLabel = '发布',
     this.actionSymbol = 'plus',
     this.showLabels = true,
+    this.style,
   });
 
   final int currentIndex;
@@ -109,6 +157,9 @@ class GfBottomNavigation extends StatelessWidget {
   final String actionLabel;
   final String actionSymbol;
   final bool showLabels;
+
+  /// Null follows the nearest [GfNavigationStyleScope].
+  final GfNavigationStyle? style;
 
   /// Gap between the dock's foot and the screen edge. On iOS the dock floats
   /// over the home indicator, as the system tab bar does; elsewhere it clears
@@ -128,7 +179,16 @@ class GfBottomNavigation extends StatelessWidget {
     required double safeAreaBottom,
     required double barHeight,
     bool homeIndicator = false,
+    GfNavigationStyle style = GfNavigationStyle.dock,
   }) {
+    if (style == GfNavigationStyle.bar) {
+      // The bar runs to the screen edge and pads itself for the safe area.
+      return GfBottomNavigationMetrics(
+        barHeight: barHeight,
+        contentBottomInset: barHeight + safeAreaBottom + GfSpace.sm,
+        actionBottomInset: barHeight + GfSpace.lg,
+      );
+    }
     final double margin = bottomMarginFor(
       safeAreaBottom,
       homeIndicator: homeIndicator,
@@ -141,14 +201,17 @@ class GfBottomNavigation extends StatelessWidget {
     );
   }
 
-  /// [metrics] for the device insets and platform of [context].
+  /// [metrics] for the device insets, platform and navigation style of
+  /// [context].
   static GfBottomNavigationMetrics metricsOf(
     BuildContext context, {
     required double barHeight,
+    GfNavigationStyle? style,
   }) => metrics(
     safeAreaBottom: MediaQuery.paddingOf(context).bottom,
     barHeight: barHeight,
     homeIndicator: _floatsOverHomeIndicator(context),
+    style: style ?? GfNavigationStyleScope.of(context),
   );
 
   static double _dockWidthFor(
@@ -174,30 +237,42 @@ class GfBottomNavigation extends StatelessWidget {
     required double availableWidth,
     bool showLabels = true,
     bool hasAction = false,
+    GfNavigationStyle? style,
   }) {
-    if (!showLabels) return _dockHeight;
-    final TextStyle style = _navigationLabelStyle(
+    final bool bar =
+        (style ?? GfNavigationStyleScope.of(context)) == GfNavigationStyle.bar;
+    if (!showLabels) return bar ? _barHeight : _dockHeight;
+    final TextStyle labelStyle = _navigationLabelStyle(
       context,
       color: GfTheme.colorsOf(context).baseContent,
     );
     final TextScaler scaler = MediaQuery.textScalerOf(context);
-    final double dockWidth = _dockWidthFor(
-      availableWidth,
-      hasAction: hasAction,
-      showLabels: showLabels,
+    final double labelWidth = math.max(
+      1,
+      bar
+          ? availableWidth / (hasAction ? 5 : 4) - GfSpace.sm
+          : _labelWidthFor(
+              _dockWidthFor(
+                availableWidth,
+                hasAction: hasAction,
+                showLabels: showLabels,
+              ),
+            ),
     );
-    final double labelWidth = math.max(1, _labelWidthFor(dockWidth));
     double maxLabelHeight = 0;
     for (final String label in labels) {
       final TextPainter painter = TextPainter(
-        text: TextSpan(text: label, style: style),
+        text: TextSpan(text: label, style: labelStyle),
         textDirection: Directionality.of(context),
         textScaler: scaler,
       )..layout(maxWidth: labelWidth);
       maxLabelHeight = math.max(maxLabelHeight, painter.height);
       painter.dispose();
     }
-    return math.max(64, _labeledContentHeight + maxLabelHeight);
+    return math.max(
+      64,
+      (bar ? _barLabeledContentHeight : _labeledContentHeight) + maxLabelHeight,
+    );
   }
 
   static double _labelWidthFor(double dockWidth) =>
@@ -222,6 +297,7 @@ class GfBottomNavigation extends StatelessWidget {
     );
     // Glass is skipped wherever the platform asks for plainer surfaces.
     final bool glass = GfNavigationSurface.usesGlass(context);
+    final bool rtl = Directionality.of(context) == TextDirection.rtl;
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final double available = math.max(
@@ -229,7 +305,7 @@ class GfBottomNavigation extends StatelessWidget {
           constraints.maxWidth - padding.horizontal,
         );
         final bool hasAction = onAction != null;
-        final double barHeight = heightFor(
+        double heightOf(GfNavigationStyle style) => heightFor(
           context,
           labels: [
             ...items.map((item) => item.label),
@@ -238,49 +314,232 @@ class GfBottomNavigation extends StatelessWidget {
           availableWidth: available,
           showLabels: showLabels,
           hasAction: hasAction,
+          style: style,
         );
+        final double dockHeight = heightOf(GfNavigationStyle.dock);
+        final double barHeight = heightOf(GfNavigationStyle.bar);
         final double dockWidth = _dockWidthFor(
           available,
           hasAction: hasAction,
           showLabels: showLabels,
         );
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            padding.left + _dockSideMargin,
-            0,
-            padding.right + _dockSideMargin,
-            margin,
-          ),
-          child: SizedBox(
-            height: barHeight,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                SizedBox(
-                  width: dockWidth,
-                  child: _Dock(
-                    items: items,
-                    currentIndex: currentIndex,
-                    onSelected: onSelected,
-                    showLabels: showLabels,
-                    glass: glass,
+        final double actionWidth = showLabels
+            ? _labeledActionWidth
+            : dockHeight;
+        return _StyleMorph(
+          style: style ?? GfNavigationStyleScope.of(context),
+          dock: (bool surface) => Padding(
+            padding: EdgeInsets.fromLTRB(
+              padding.left + _dockSideMargin,
+              0,
+              padding.right + _dockSideMargin,
+              margin,
+            ),
+            child: SizedBox(
+              height: dockHeight,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  SizedBox(
+                    width: dockWidth,
+                    child: _Dock(
+                      items: items,
+                      currentIndex: currentIndex,
+                      onSelected: onSelected,
+                      showLabels: showLabels,
+                      glass: glass,
+                      surface: surface,
+                    ),
                   ),
-                ),
-                if (hasAction) ...<Widget>[
-                  const SizedBox(width: GfSpace.sm),
-                  _DockAction(
+                  if (hasAction) ...<Widget>[
+                    const SizedBox(width: GfSpace.sm),
+                    _DockAction(
+                      symbol: actionSymbol,
+                      label: actionLabel,
+                      onTap: onAction!,
+                      showLabel: showLabels,
+                      width: actionWidth,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          bar: (bool surface) => _Bar(
+            items: items,
+            currentIndex: currentIndex,
+            onSelected: onSelected,
+            showLabels: showLabels,
+            height: barHeight,
+            surface: surface,
+            action: hasAction
+                ? _DockAction(
                     symbol: actionSymbol,
                     label: actionLabel,
                     onTap: onAction!,
                     showLabel: showLabels,
-                    width: showLabels ? _labeledActionWidth : barHeight,
-                  ),
-                ],
-              ],
-            ),
+                    width: double.infinity,
+                    onBar: true,
+                  )
+                : null,
+          ),
+          dockRect: (Size size) {
+            final double row =
+                dockWidth + (hasAction ? GfSpace.sm + actionWidth : 0);
+            final double left =
+                padding.left +
+                _dockSideMargin +
+                (size.width - padding.horizontal - _dockSideMargin * 2 - row) /
+                    2 +
+                (rtl && hasAction ? GfSpace.sm + actionWidth : 0);
+            return Rect.fromLTWH(
+              left,
+              size.height - margin - dockHeight,
+              dockWidth,
+              dockHeight,
+            );
+          },
+          barRect: (Size size) => Rect.fromLTRB(
+            0,
+            size.height - padding.bottom - barHeight,
+            size.width,
+            size.height,
           ),
         );
       },
+    );
+  }
+}
+
+/// Carries the navigation from one [GfNavigationStyle] to the other.
+///
+/// The dock's glass stretches out to the screen edges and settles into the
+/// bar, or gathers back into the pill, as one surface; the destinations fade
+/// through on top of it, out of the old layout and into the new one, so they
+/// never show twice. Each layout keeps its state across the change.
+class _StyleMorph extends StatefulWidget {
+  const _StyleMorph({
+    required this.style,
+    required this.dock,
+    required this.bar,
+    required this.dockRect,
+    required this.barRect,
+  });
+
+  final GfNavigationStyle style;
+
+  /// Builds a layout, painting its own surface when [surface] is set.
+  final Widget Function(bool surface) dock;
+  final Widget Function(bool surface) bar;
+
+  /// Where each layout's surface sits in a box of the given size.
+  final Rect Function(Size size) dockRect;
+  final Rect Function(Size size) barRect;
+
+  @override
+  State<_StyleMorph> createState() => _StyleMorphState();
+}
+
+class _StyleMorphState extends State<_StyleMorph>
+    with SingleTickerProviderStateMixin {
+  // 0 is the dock, 1 the bar.
+  late final AnimationController _morph = AnimationController(
+    vsync: this,
+    value: _valueOf(widget.style),
+  );
+
+  static double _valueOf(GfNavigationStyle style) =>
+      style == GfNavigationStyle.bar ? 1 : 0;
+
+  @override
+  void didUpdateWidget(_StyleMorph oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.style != widget.style) {
+      _morph.animateTo(
+        _valueOf(widget.style),
+        duration: GfMotion.duration(context, _morphDuration),
+        curve: Curves.easeInOutCubicEmphasized,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _morph.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _morph,
+    builder: (BuildContext context, Widget? _) {
+      final double t = _morph.value;
+      final bool morphing = t > 0 && t < 1;
+      // The old destinations are gone before the new ones arrive.
+      final double dockShown = 1 - const Interval(0, 0.45).transform(t);
+      final double barShown = const Interval(0.55, 1).transform(t);
+      return Stack(
+        alignment: Alignment.bottomCenter,
+        children: <Widget>[
+          if (morphing)
+            Positioned.fill(
+              child: LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  final Rect dock = widget.dockRect(constraints.biggest);
+                  final Rect bar = widget.barRect(constraints.biggest);
+                  return Stack(
+                    children: <Widget>[
+                      Positioned.fromRect(
+                        rect: Rect.lerp(dock, bar, t)!,
+                        child: GfNavigationMorphSurface(
+                          barness: t,
+                          radius: dock.height / 2 * (1 - t),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          if (t < 1)
+            _layer(
+              GfNavigationStyle.dock,
+              widget.dock(!morphing),
+              shown: dockShown,
+            ),
+          if (t > 0)
+            _layer(
+              GfNavigationStyle.bar,
+              widget.bar(!morphing),
+              shown: barShown,
+            ),
+        ],
+      );
+    },
+  );
+
+  Widget _layer(
+    GfNavigationStyle style,
+    Widget child, {
+    required double shown,
+  }) {
+    final bool leaving = style != widget.style;
+    return KeyedSubtree(
+      key: ValueKey<GfNavigationStyle>(style),
+      child: IgnorePointer(
+        ignoring: leaving,
+        child: ExcludeSemantics(
+          excluding: leaving,
+          child: Opacity(
+            opacity: shown,
+            child: Transform.scale(
+              // Arriving destinations settle into place as they appear.
+              scale: 0.96 + 0.04 * shown,
+              child: child,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -401,6 +660,7 @@ class _Dock extends StatefulWidget {
     required this.onSelected,
     required this.showLabels,
     required this.glass,
+    required this.surface,
   });
 
   final List<GfBottomNavigationItem> items;
@@ -408,6 +668,9 @@ class _Dock extends StatefulWidget {
   final ValueChanged<int> onSelected;
   final bool showLabels;
   final bool glass;
+
+  /// Off while a style change paints one surface for both layouts.
+  final bool surface;
 
   @override
   State<_Dock> createState() => _DockState();
@@ -657,7 +920,8 @@ class _DockState extends State<_Dock> with TickerProviderStateMixin {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: <Widget>[
-                  Positioned.fill(child: const GfNavigationSurface()),
+                  if (widget.surface)
+                    Positioned.fill(child: const GfNavigationSurface()),
                   AnimatedBuilder(
                     animation: _lensMotion,
                     builder: (BuildContext context, Widget? child) =>
@@ -948,6 +1212,318 @@ class _LensPainter extends CustomPainter {
       oldDelegate.lift != lift;
 }
 
+/// The full-width bar. Each destination keeps its own selection pill, which
+/// grows out from the glyph when it is chosen.
+///
+/// Pressing a destination lights a neutral platter behind its glyph. Holding
+/// one with shortcuts keeps the platter lit while its menu blooms from the
+/// bar's top edge right above it; the scrim leaves the whole bar clear, so the
+/// platter shows which destination the menu belongs to.
+class _Bar extends StatefulWidget {
+  const _Bar({
+    required this.items,
+    required this.currentIndex,
+    required this.onSelected,
+    required this.showLabels,
+    required this.height,
+    required this.surface,
+    required this.action,
+  });
+
+  final List<GfBottomNavigationItem> items;
+  final int currentIndex;
+  final ValueChanged<int> onSelected;
+  final bool showLabels;
+  final double height;
+
+  /// Off while a style change paints one surface for both layouts.
+  final bool surface;
+  final Widget? action;
+
+  @override
+  State<_Bar> createState() => _BarState();
+}
+
+class _BarState extends State<_Bar> {
+  final List<GlobalKey> _slots = List<GlobalKey>.generate(
+    4,
+    (_) => GlobalKey(),
+  );
+  GfDockMenuHandle? _menu;
+  // The destination under a finger, the one whose menu is open, and the one
+  // with keyboard focus.
+  int _pressed = -1;
+  int _held = -1;
+  int _focused = -1;
+
+  @override
+  void dispose() {
+    final menu = _menu;
+    if (menu != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => menu.close());
+    }
+    super.dispose();
+  }
+
+  void _press(int index) {
+    if (_pressed != index) setState(() => _pressed = index);
+  }
+
+  void _openMenu(int index) {
+    if (_menu != null) return;
+    final List<GfDockMenuEntry>? entries = widget.items[index].menu?.call();
+    final RenderObject? bar = context.findRenderObject();
+    final RenderObject? slot = _slots[index].currentContext?.findRenderObject();
+    if (entries == null ||
+        entries.isEmpty ||
+        bar is! RenderBox ||
+        slot is! RenderBox) {
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    // The glyph rises back from the press; its platter stays lit.
+    setState(() {
+      _pressed = -1;
+      _held = index;
+    });
+    final GfDockMenuHandle menu = _menu = showGfDockMenu(
+      context,
+      entries: entries,
+      label: widget.items[index].label,
+      source: slot.localToGlobal(Offset.zero) & slot.size,
+      dock: RRect.fromRectAndRadius(
+        bar.localToGlobal(Offset.zero) & bar.size,
+        Radius.zero,
+      ),
+    );
+    menu.closed.whenComplete(() {
+      if (!identical(_menu, menu)) return;
+      _menu = null;
+      if (mounted) setState(() => _held = -1);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final EdgeInsets padding = MediaQuery.paddingOf(context);
+    return Stack(
+      children: <Widget>[
+        if (widget.surface)
+          Positioned.fill(child: const GfNavigationBarSurface()),
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            padding.left,
+            0,
+            padding.right,
+            padding.bottom,
+          ),
+          child: SizedBox(
+            height: widget.height,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                _destination(0),
+                _destination(1),
+                if (widget.action != null) Expanded(child: widget.action!),
+                _destination(2),
+                _destination(3),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _destination(int i) {
+    final GfBottomNavigationItem item = widget.items[i];
+    return Expanded(
+      child: Semantics(
+        button: true,
+        selected: widget.currentIndex == i,
+        label: item.semanticsLabel,
+        onTap: () => widget.onSelected(i),
+        onLongPress: item.menu == null ? null : () => _openMenu(i),
+        hint: item.menuHint,
+        child: ExcludeSemantics(
+          child: GfDockMenuPress(
+            enabled: item.menu != null,
+            onOpen: () => _openMenu(i),
+            onMove: (Offset position) => _menu?.track(position),
+            onRelease: (Offset position) => _menu?.release(position),
+            onCancel: () => _menu?.cancel(),
+            child: _LabelTooltip(
+              label: item.label,
+              // A destination with a menu names itself in the menu.
+              enabled: !widget.showLabels && item.menu == null,
+              child: Listener(
+                onPointerDown: (_) => _press(i),
+                onPointerUp: (_) => _press(-1),
+                onPointerCancel: (_) => _press(-1),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: InkWell(
+                    key: ValueKey<String>('gf-bottom-navigation-target-$i'),
+                    onTap: () => widget.onSelected(i),
+                    onFocusChange: (bool focused) => setState(
+                      () => _focused = focused
+                          ? i
+                          : _focused == i
+                          ? -1
+                          : _focused,
+                    ),
+                    // The pill answers presses and focus instead.
+                    splashFactory: NoSplash.splashFactory,
+                    highlightColor: Colors.transparent,
+                    hoverColor: Colors.transparent,
+                    focusColor: Colors.transparent,
+                    child: SizedBox.expand(
+                      key: _slots[i],
+                      child: _BarDestinationContent(
+                        item: item,
+                        selected: widget.currentIndex == i,
+                        lit: _pressed == i || _held == i,
+                        sunk: _pressed == i,
+                        focused: _focused == i,
+                        showLabel: widget.showLabels,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BarDestinationContent extends StatelessWidget {
+  const _BarDestinationContent({
+    required this.item,
+    required this.selected,
+    required this.lit,
+    required this.sunk,
+    required this.focused,
+    required this.showLabel,
+  });
+
+  final GfBottomNavigationItem item;
+  final bool selected;
+
+  /// A press or an open menu lights the platter behind the glyph.
+  final bool lit;
+
+  /// The glyph gives a little under the finger.
+  final bool sunk;
+  final bool focused;
+  final bool showLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    final Duration press = GfMotion.duration(context, GfMotion.press);
+    final Widget platter = AnimatedOpacity(
+      key: const ValueKey<String>('gf-bottom-navigation-platter'),
+      opacity: lit ? 1 : 0,
+      duration: press,
+      curve: GfMotion.enterCurve,
+      child: _pill(
+        color: colors.baseContent.withValues(alpha: colors.isDark ? 0.1 : 0.06),
+      ),
+    );
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(end: selected ? 1 : 0),
+      duration: GfMotion.duration(context, GfMotion.layout),
+      curve: GfMotion.enterCurve,
+      builder: (BuildContext context, double t, Widget? _) {
+        final Color color = Color.lerp(
+          colors.textSecondary,
+          colors.primary,
+          t,
+        )!;
+        final Widget indicator = SizedBox(
+          width: _barIndicatorWidth,
+          height: _barIndicatorHeight,
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: <Widget>[
+              platter,
+              // The selection pill grows sideways out of the glyph.
+              if (t > 0)
+                Opacity(
+                  opacity: t.clamp(0.0, 1.0),
+                  child: SizedBox(
+                    key: const ValueKey<String>(
+                      'gf-bottom-navigation-indicator',
+                    ),
+                    width:
+                        _barIndicatorHeight +
+                        (_barIndicatorWidth - _barIndicatorHeight) * t,
+                    child: _pill(color: colors.primarySoft),
+                  ),
+                ),
+              if (focused)
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: colors.primary, width: 2),
+                    borderRadius: BorderRadius.circular(GfRadius.full),
+                  ),
+                  child: const SizedBox.expand(),
+                ),
+              AnimatedScale(
+                scale: sunk ? 0.9 : 1,
+                duration: press,
+                curve: GfMotion.enterCurve,
+                child: GfBadgedGlyph(
+                  size: GfIconSize.lg,
+                  visible: item.badge,
+                  count: item.badgeCount,
+                  glyph: GfSymbol(
+                    selected ? item.selectedSymbol : item.symbol,
+                    size: GfIconSize.lg,
+                    color: color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+        if (!showLabel) return Center(child: indicator);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            GfSpace.xs,
+            GfSpace.sm,
+            GfSpace.xs,
+            0,
+          ),
+          child: Column(
+            children: <Widget>[
+              indicator,
+              const SizedBox(height: GfSpace.xxs),
+              GfText(
+                item.label,
+                textAlign: TextAlign.center,
+                style: _navigationLabelStyle(context, color: color),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static Widget _pill({required Color color}) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(GfRadius.full),
+    ),
+    child: const SizedBox.expand(),
+  );
+}
+
 /// Icon-only destinations reveal their name on long press; the destination
 /// node already carries it for screen readers.
 class _LabelTooltip extends StatelessWidget {
@@ -975,6 +1551,7 @@ class _DockAction extends StatefulWidget {
     required this.onTap,
     required this.showLabel,
     required this.width,
+    this.onBar = false,
   });
 
   final String symbol;
@@ -982,6 +1559,9 @@ class _DockAction extends StatefulWidget {
   final VoidCallback onTap;
   final bool showLabel;
   final double width;
+
+  /// On the bar the action shares the bar's material instead of its own.
+  final bool onBar;
 
   @override
   State<_DockAction> createState() => _DockActionState();
@@ -999,6 +1579,8 @@ class _DockActionState extends State<_DockAction> {
     final GfColors colors = GfTheme.colorsOf(context);
     final double disc = widget.showLabel
         ? GfControl.compact
+        : widget.onBar
+        ? GfControl.regular
         : _dockHeight - _dockInset * 2;
     return SizedBox(
       width: widget.width,
@@ -1016,7 +1598,8 @@ class _DockActionState extends State<_DockAction> {
               curve: GfMotion.enterCurve,
               child: Stack(
                 children: <Widget>[
-                  Positioned.fill(child: const GfNavigationSurface()),
+                  if (!widget.onBar)
+                    Positioned.fill(child: const GfNavigationSurface()),
                   Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,

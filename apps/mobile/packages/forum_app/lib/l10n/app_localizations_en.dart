@@ -1405,6 +1405,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsFollowSiteThemeDesc => 'Use server-issued site colors';
 
   @override
+  String get settingsNavigationStyle => 'Navigation';
+
+  @override
+  String get settingsNavigationDock => 'Floating dock';
+
+  @override
+  String get settingsNavigationBar => 'Classic bar';
+
+  @override
+  String get settingsNavigationStyleDesc => 'Wide windows keep the side rail.';
+
+  @override
   String get richContentCopyCode => 'Copy code';
 
   @override

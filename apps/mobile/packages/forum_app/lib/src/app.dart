@@ -16,6 +16,7 @@ import 'app_locale.dart';
 import 'external_link_policy.dart';
 import 'site_theme.dart';
 import 'theme_mode.dart';
+import 'navigation_style.dart';
 import 'push/push_service.dart';
 import 'reading_preferences.dart';
 import 'startup_experience.dart';
@@ -89,21 +90,23 @@ class GfApp extends ConsumerWidget {
       themeAnimationCurve: GfMotion.layoutCurve,
       routerConfig: appRouter,
       builder: (context, child) => AppTextScaleScope(
-        child: AppSystemUiOverlay(
-          child: StartupExperience(
-            readiness: readiness,
-            child: StorageGate(
-              child: _AppBusinessHosts(
-                locale: locale,
-                child: AppConfig.preview
-                    ? Banner(
-                        message: AppConfig.previewLabel,
-                        location: BannerLocation.topEnd,
-                        child: PreviewStatusHost(
-                          child: child ?? const SizedBox.shrink(),
-                        ),
-                      )
-                    : child ?? const SizedBox.shrink(),
+        child: AppNavigationStyleScope(
+          child: AppSystemUiOverlay(
+            child: StartupExperience(
+              readiness: readiness,
+              child: StorageGate(
+                child: _AppBusinessHosts(
+                  locale: locale,
+                  child: AppConfig.preview
+                      ? Banner(
+                          message: AppConfig.previewLabel,
+                          location: BannerLocation.topEnd,
+                          child: PreviewStatusHost(
+                            child: child ?? const SizedBox.shrink(),
+                          ),
+                        )
+                      : child ?? const SizedBox.shrink(),
+                ),
               ),
             ),
           ),

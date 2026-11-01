@@ -14,6 +14,7 @@ import '../pages/campus/campus_memory_cache.dart';
 import '../providers.dart';
 import '../push/push_service.dart';
 import '../theme_mode.dart';
+import '../navigation_style.dart';
 import '../site_theme.dart';
 import 'cache_coordinator.dart';
 import 'device_storage.dart';
@@ -193,6 +194,7 @@ class _DeviceStorage implements DeviceStorage {
       await attempt(ref.read(themeModeProvider.notifier).resetToDefault);
       await attempt(ref.read(appLocaleProvider.notifier).resetToDefault);
       await attempt(ref.read(siteThemeProvider.notifier).resetToDefault);
+      await attempt(ref.read(navigationStyleProvider.notifier).resetToDefault);
       // Durable owner tombstones prevent legacy records from being reimported.
       await attempt(() async {
         final prefs = await SharedPreferences.getInstance();
@@ -211,6 +213,7 @@ class _DeviceStorage implements DeviceStorage {
       ref.invalidate(appLocaleProvider);
       ref.invalidate(themeModeProvider);
       ref.invalidate(siteThemeProvider);
+      ref.invalidate(navigationStyleProvider);
       await db.finishOperation('reset');
       await ref.read(resetJournalProvider).finish();
       ref.read(storageResetStateProvider.notifier).state = null;

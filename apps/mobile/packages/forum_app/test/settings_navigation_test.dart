@@ -15,6 +15,7 @@ import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/push/push_service.dart';
 import 'package:forum_app/src/site_theme.dart';
 import 'package:forum_app/src/theme_mode.dart';
+import 'package:forum_app/src/navigation_style.dart';
 import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
 import 'package:forum_app/src/widgets/skeletons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1040,6 +1041,68 @@ void main() {
     expect(harness.user.requests, 0);
     expect(find.text('跟随系统'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('appearance switches the navigation between dock and bar', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final handle = tester.ensureSemantics();
+    try {
+      final harness = await _mount(
+        tester,
+        section: 'appearance',
+        language: 'en',
+      );
+      Matcher chosen(bool selected) =>
+          isSemantics(isButton: true, isSelected: selected);
+      final dock = find.text('Floating dock');
+      final bar = find.text('Classic bar');
+      final preview = find.byKey(const ValueKey('settings-navigation-preview'));
+      await tester.ensureVisible(bar);
+      await tester.pumpAndSettle();
+      expect(tester.getSemantics(dock), chosen(true));
+      expect(tester.getSemantics(bar), chosen(false));
+      expect(
+        find.descendant(
+          of: preview,
+          matching: find.byType(GfNavigationSurface),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(bar);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      // The preview carries the real navigation through the change.
+      expect(
+        find.descendant(
+          of: preview,
+          matching: find.byType(GfNavigationMorphSurface),
+        ),
+        findsOneWidget,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        harness.container.read(navigationStyleProvider),
+        GfNavigationStyle.bar,
+      );
+      expect(
+        find.descendant(
+          of: preview,
+          matching: find.byType(GfNavigationBarSurface),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.getSemantics(bar), chosen(true));
+      expect(tester.getSemantics(dock), chosen(false));
+      expect(
+        (await SharedPreferences.getInstance()).getString('navigation_style'),
+        'bar',
+      );
+    } finally {
+      handle.dispose();
+    }
   });
 
   testWidgets('settings index opens the single text-size destination', (
