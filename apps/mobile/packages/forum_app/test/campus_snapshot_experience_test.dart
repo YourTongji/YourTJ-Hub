@@ -161,7 +161,10 @@ void main() {
   test(
     'persisted timetable tab reuse does not restart school requests after five minutes',
     () async {
-      final now = DateTime.now();
+      // Exercise reuse within one teaching day, independent of the wall clock.
+      // Shanghai-midnight refresh is covered by campus_daily_refresh_test.dart.
+      final now = DateTime.utc(2026, 11, 1, 4);
+      final store = CampusSnapshotStore(db, now: () => now);
       final fetched = now.subtract(const Duration(minutes: 6));
       await store.write(
         scope,

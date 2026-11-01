@@ -174,8 +174,26 @@ void main() {
               ),
             );
             await tester.pumpAndSettle();
-            expect(find.text('99+'), findsOneWidget);
-            expect(find.text('12'), findsNWidgets(2));
+            // The dock paints a resting layer and a magnified lens layer.
+            // Assert each user surface instead of counting both paint copies.
+            final dock = find.byKey(
+              const ValueKey<String>('gf-bottom-navigation-resting-layer'),
+            );
+            expect(
+              find.descendant(of: dock, matching: find.text('99+')),
+              findsOneWidget,
+            );
+            expect(
+              find.descendant(of: dock, matching: find.text('12')),
+              findsOneWidget,
+            );
+            expect(
+              find.descendant(
+                of: find.byType(GfConversationRow),
+                matching: find.text('12'),
+              ),
+              findsOneWidget,
+            );
             if (const bool.fromEnvironment('YOURTJ_TEST_SCREENSHOTS')) {
               await tester.pump(const Duration(milliseconds: 300));
               await binding.takeScreenshot(
