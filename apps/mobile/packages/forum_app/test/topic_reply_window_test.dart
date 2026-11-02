@@ -1290,7 +1290,7 @@ void main() {
     final Finder body = find.text('2楼内容', findRichText: true);
     expect(body, findsOneWidget);
 
-    await tester.tap(body);
+    await tester.tapAt(tester.getTopLeft(body) + const Offset(8, 8));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('topic-reply-composer')), findsOneWidget);
@@ -1310,17 +1310,29 @@ void main() {
     final Finder body = find.text('2楼内容', findRichText: true);
     expect(body, findsOneWidget);
 
-    await tester.longPress(body);
+    // RichText 在列表里会撑满可用宽度，按控件中心长按可能落在文字之外；
+    // 这里取正文左上角附近，确保手势真正落在字形上。
+    final Offset bodyPoint = tester.getTopLeft(body) + const Offset(8, 8);
+    await tester.longPressAt(bodyPoint);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('topic-reply-composer')), findsNothing);
-    final SelectableRegionState region = tester.state<SelectableRegionState>(
-      find.byType(SelectableRegion).first,
+    final Finder bodyRegion = find.ancestor(
+      of: body,
+      matching: find.byType(SelectableRegion),
     );
-    expect(region.contextMenuButtonItems, isNotEmpty);
+    final SelectableRegionState region = tester.state<SelectableRegionState>(
+      bodyRegion.first,
+    );
+    expect(
+      region.contextMenuButtonItems.map(
+        (ContextMenuButtonItem item) => item.type,
+      ),
+      contains(ContextMenuButtonType.copy),
+    );
 
     // 选择态下再次轻点正文只应清除选择，不应误触回复。
-    await tester.tap(body);
+    await tester.tapAt(bodyPoint);
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('topic-reply-composer')), findsNothing);
     await disposePage(tester);

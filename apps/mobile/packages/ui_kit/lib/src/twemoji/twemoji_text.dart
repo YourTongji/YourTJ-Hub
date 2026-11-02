@@ -223,6 +223,7 @@ class _GfSelectionAreaState extends State<GfSelectionArea> {
   String? _selectedText;
   Timer? _longPressTimer;
   var _longPressSeen = false;
+  var _hadSelectionAtPointerDown = false;
 
   @override
   void didUpdateWidget(covariant GfSelectionArea oldWidget) {
@@ -241,6 +242,9 @@ class _GfSelectionAreaState extends State<GfSelectionArea> {
   }
 
   void _handlePointerDown(PointerDownEvent event) {
+    // SelectionArea may clear the selection while handling the tap down, so
+    // remember whether a selection existed before it does.
+    _hadSelectionAtPointerDown = _selectedText != null;
     _longPressTimer?.cancel();
     _longPressSeen = false;
     _longPressTimer = Timer(kLongPressTimeout, () => _longPressSeen = true);
@@ -261,7 +265,9 @@ class _GfSelectionAreaState extends State<GfSelectionArea> {
     }
     final SelectableRegionState? region =
         _selectionAreaKey.currentState?.selectableRegion;
-    if (_selectedText != null) {
+    final hadSelection = _hadSelectionAtPointerDown || _selectedText != null;
+    _hadSelectionAtPointerDown = false;
+    if (hadSelection) {
       region?.clearSelection();
       _selectedText = null;
       return;
