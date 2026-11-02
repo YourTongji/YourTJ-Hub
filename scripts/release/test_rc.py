@@ -25,6 +25,33 @@ def identity():
 
 
 class RCTests(unittest.TestCase):
+    def test_rc_retry_with_deleted_original_never_rebuilds_a_recorded_identity(self):
+        original = identity()
+        remote = Mock()
+        remote.pages.return_value = [{'name': 'rc-result-android-1'}]
+        previous = {'identity': original, 'success': True, 'details': {'assets': {'a.apk': 'd' * 64}}}
+        with tempfile.TemporaryDirectory() as temp, \
+             patch.dict(os.environ, CHANNEL='android', GITHUB_OUTPUT=str(Path(temp) / 'output')), \
+             patch('rc.prepare_build', return_value=({}, original, {})), \
+             patch('rc.read_json_artifact', return_value=previous):
+            with self.assertRaisesRegex(ReleaseError, 'Original RC artifact'):
+                rc.handle('start', remote, original['candidateId'], Path(temp))
+
+    def test_deployment_accepts_bound_rc_digest_but_rejects_unversioned_images(self):
+        import subprocess
+        root = Path(__file__).resolve().parents[2]
+        text = (root / '.github/workflows/deploy-main.yml').read_text()
+        program = text.split("python3 - <<'PY'\n", 1)[1].split('\n          PY', 1)[0]
+        import textwrap
+        program = textwrap.dedent(program)
+        for tag in ['main-v0.0.54', 'main-rc-web-0.0.54-100-200']:
+            result = subprocess.run(['python3', '-c', program], env={**os.environ, 'IMAGE_REF': tag + '@sha256:' + 'a' * 64},
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        for image in ['main-v0.0.54', 'main-rc-web-0.0.54-100', 'dev@sha256:' + 'a' * 64, 'main-v0.0.54@sha256:no']:
+            result = subprocess.run(['python3', '-c', program], env={**os.environ, 'IMAGE_REF': image}, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+
     def test_prepare_reserves_resolved_main_sha_instead_of_symbolic_main(self):
         manifest = candidate() | {'schemaVersion': 3, 'rcRun': None}
         with tempfile.TemporaryDirectory() as temp, \

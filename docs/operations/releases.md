@@ -112,7 +112,9 @@ IDs, `preview=false`, final version and final build number. No dev-cycle QA or s
 Each candidate owns one RC run. Once RC starts, formal publication must select it; it cannot build
 another package under that identity. Platform jobs run independently; retry failed jobs to finish missing
 artifacts without rebuilding successful platforms. Signed artifacts already saved in that run are
-restored rather than rebuilt. The immutable RC record binds the candidate, full source, production
+restored rather than rebuilt. If a previous platform attempt has a record but no original archive
+remains, prepare a fresh candidate; even an unsuccessful attempt may have reached distribution.
+The immutable RC record binds the candidate, full source, production
 configuration, build number, controller SHA and platform references. Android uses a separate GitHub
 prerelease; iOS uploads normally to Apple and assigns only the configured internal QA group; Web
 publishes candidate archives and a digest-qualified image without deploying production.
